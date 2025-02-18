@@ -11,7 +11,7 @@
 
 ## Goals:
 
-- gassless for all client and resource server
+- gassless for client and resource servers
 - minimal integration for the resource server and client (1 line for server, 1 function for client)
 - ability to trade off speed of response for guarantee of payment
 
