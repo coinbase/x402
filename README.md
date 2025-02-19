@@ -58,6 +58,8 @@ Cons:
 
 # V1 Flow
 
+![](./static//flow.png)
+
 1. Make http request to resource server
 2. Receive 402 response with json body `PaymentNeededDetails`
 
