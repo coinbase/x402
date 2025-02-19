@@ -2,6 +2,14 @@
 
 > "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.05 minimum payment."
 
+```typescript
+app.use(
+  "/your-api",
+  paymentMiddleware("$0.10", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
+);
+// Thats it! See example/resource.ts for a complete example. Instruction below for running on base-sepolia.
+```
+
 ## Terms:
 
 - resource: some thing on the internet, could be a file, a service, api, etc.
