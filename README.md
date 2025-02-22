@@ -1,4 +1,4 @@
-# 402 payments protocol
+# x402 payments protocol
 
 > "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.05 minimum payment."
 
@@ -20,43 +20,12 @@ app.use(
 
 ## Goals:
 
+- permissionless and secure for clients and servers
 - gassless for client and resource servers
 - minimal integration for the resource server and client (1 line for server, 1 function for client)
 - ability to trade off speed of response for guarantee of payment
 
-## Tradeoffs
-
-There are 2 standards that `usdc` supports that we can leverage for a payments protocol, `EIP-3009` and `EIP-2612`.
-
-**EIP-3009: Transfer with Authorization**: Allows for a signature to be used to authorize a transfer of a **specific amount** from one address to another in a single transaction.
-
-Pros:
-
-- CB can faciliate payments of specific amounts (broadcast transactions), meaning both the client and resource server do not need gas to settle payments.
-- No new contracts needed, we can faciliate this transaction without needing to deploy a contract to route or custody funds onchain.
-
-Cons:
-
-- The signature authorizing transfer includes the `amount` to be transferred, meaning a resource server needs to know exactly how much something should cost at the time of request. This means things like usage based payments (ex: generate tokens from an LLM) are not possible.
-
-**EIP-2612: Permit**: Allows for a signature to be used to authorize usage of **up to an amount** funds from one address to another in a later transaction.
-
-Pros:
-
-- Because the permit signature gives permission for transfering up to an amount, it allows for usage based payments.
-
-Cons:
-
-- Submitting the permit signature and then performing the `transferFrom` call are 2 separate function calls, meaning you need to either use `multicall` or deploy a contract (routing contract) that wraps the 2 functions. The permit signature would need to authorized the routing contract to transfer funds.
-
-- Leverages `ERC-20` `transferFrom` / `approve` / `transfer` functions, which have a hard dependency on msg.sender. This breaks the flow of performing the facilitator batching a `permit()` call and a `transferFrom()` call in a single multicall (msg.sender becomes the multicall contract address rather than the facilitators address).
-
-### Recommendation
-
-- Use `EIP-3009` for the first version of the protocol and only support payments of specific amounts
-- In follow up leverage `EIP-2612` + `routing contract` to support usage based payments, and optionally bundle that with hard guarantees of payment by holding funds in escrow with the routing contract.
-
-# V1 Flow
+## V1 Protocol
 
 ![](./static//flow.png)
 
@@ -65,52 +34,43 @@ Cons:
 
 ```
 {
-  version: number;                      // Version of the payment protocol
-  maxAmountRequired: uint256 as string; // Maximum amount required to pay for the resource
-  resource: string;                     // URL of resource to pay for
-  description: string;                  // Description of the resource
-  mimeType: string;                     // MIME type of the resource response
-  outputSchema?: object | null;         // Output schema of the resource response
-  resourceAddress: string;              // Address of the routing account that facilitates payment
-  recommendedDeadlineSeconds: number;   // Time in seconds for the resource to be processed
+  x402Version: int,                       // Version of the x402 payment protocol
+  accepts: [paymentDetails]               // List of payment details that the resource server accepts. A resource server may accept on multiple chains.
+}
 
+// paymentDetails
+{
+  scheme: string;                         // Scheme of the payment protocol to use
+  maxAmountRequired: uint256 as string;   // Maximum amount required to pay for the resource as a usdc dollars x 10**6
+  resource: string;                       // URL of resource to pay for
+  description: string;                    // Description of the resource
+  mimeType: string;                       // MIME type of the resource response
+  outputSchema?: object | null;           // Output schema of the resource response
+  resourceAddress: string;                // Address of the routing account that facilitates payment
+  recommendedDeadlineSeconds: number;     // Time in seconds for the resource to be processed
+  networkId: string;                      // the network of the blockchain to send payment on ex: `evm:8453`, `svm:Mainnet Beta`
+  extra: object | null;                    // Extra information about the payment details specific to the scheme
 };
 ```
 
-3. Client creates payment payload to include as `X-PAYMENT` header
-
-3.a Sign EIP-3009 `authorizeTransfer` operation with `usdc` contract for `resourceAddress`
-
-3.b Create type `PaymentPayloadV1`
+3. Client selects one of the payment details returned by the `accepts` field of the server response creates payment payload to include as `X-PAYMENT` header based on the `scheme`
+   The `X-PAYMENT` header is a base64 encoded json object with the following fields
 
 ```
-// PaymentPayloadV1
 {
-  version: number;
-  payload: PayloadV1;
+  x402Version: number;
+  payload: <scheme dependent>;
   resource: string;
-};
-
-// PayloadV1
-{
-  signature: HexString;
-  params: PermitParameters;
-};
-
-
-// AuthorizationParameters json
-{
-  from: Address as string;
-  to: Address as string;
-  value: uint256 as string;
-  validAfter: uint256 as string;
-  validBefore: uint256 as string;
-  nonce: HexString;
-  chainId: number;
-  version: string;
-  usdcAddress: Address as string;
-};
+}
 ```
+
+Each payment scheme may have different operational functionality depending on what actions are necessary.
+For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article) while `upto` transfers up to an amount based on the resources consumed during a request (ex: generating tokens from an LLM).
+
+The client must know what data different schemes need in the `X-PAYMENT` header. This is because clients must to some degree trust the scheme and the resource server.
+High quality implementations of clients ensure security for clients by not allow malicious servers to dictate any logic on payload construction.
+
+Example using `evm-exact`
 
 3.c Convert `PaymentPayloadV1` to json and base64 encode
 

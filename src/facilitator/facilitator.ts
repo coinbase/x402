@@ -39,7 +39,7 @@ export async function verify(
     - ✅ verify usdc address is correct for the chain
     - ✅ verify permit signature
     - ✅ verify deadline
-    - ✅ verify nonce is current
+    - verify nonce is current
     - ✅ verify client has enough funds to cover paymentDetails.maxAmountRequired
     - ✅ verify value in payload is enough to cover paymentDetails.maxAmountRequired
     - check min amount is above some threshold we think is reasonable for covering gas
