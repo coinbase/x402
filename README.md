@@ -1,6 +1,6 @@
 # x402 payments protocol
 
-> "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.05 minimum payment."
+> "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.001 minimum payment."
 
 ```typescript
 app.use(
@@ -13,10 +13,10 @@ app.use(
 
 ## Terms:
 
-- resource: some thing on the internet, could be a file, a service, api, etc.
-- client: entity wanting to pay for a resource
-- facilitator service: service that facilitates verification and execution of payments onchain
-- resource server: an http server that provides an api or other resources for a client
+- `resource`: something on the internet. Could be a webpage, file server, rpc service, api, any server on the internet that accepts http requests.
+- `client`: an entity wanting to pay for a resource
+- `facilitator server`: a server that facilitates verification and execution of payments onchain
+- `resource server`: an http server that provides an api or other resource for a client
 
 ## Goals:
 
@@ -24,123 +24,194 @@ app.use(
 - gassless for client and resource servers
 - minimal integration for the resource server and client (1 line for server, 1 function for client)
 - ability to trade off speed of response for guarantee of payment
+- extensible to different payment flows and chains
 
 ## V1 Protocol
 
-![](./static//flow.png)
+The `x402` protocol is a chain agnostic standard for payments ontop of HTTP, leverage the existing `402 Payment Required` HTTP status code to indicate that a payment is required for access to the resource.
 
-1. Make http request to resource server
-2. Receive 402 response with json body `PaymentNeededDetails`
+It specifies:
+
+1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentDetails`)
+2. A standard header `X-PAYMENT` that is set by clients paying for resources
+3. A standard schema and encoding method for data in the `X-PAYMENT` header
+4. A recommended flow for how payments should be verified and settled by a resource server
+5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`)
+6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response
+
+### V1 Protocol Sequencing
+
+![](./static/x402-protocol-flow.png)
+
+The following outlines the flow of a payment using the `x402` protocol. Note that steps (1) and (2) are optional if the client already knows
+the payment details accepted for a resource.
+
+1. `Client` makes an HTTP request to a `resource server`
+
+2. `Resource server` responds with a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
+
+3. `Client` selects one of the `paymentDetails` returned by the `accepts` field of the server response and creates a `Payment Payload` based on the `scheme` of the `paymentDetails` they have selected.
+
+4. `Client` sends the HTTP request with the `X-PAYMENT` header containing the `Payment Payload` to the resource server
+
+5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Details` to the `/verify` endpoint of a `facilitator server`.
+
+6. F`acilitator server` performs verification of the object based on the `scheme` and `networkId` of the `Payment Payload` and returns a `Verification Response`
+
+7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request and returns a response to the client. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
+
+8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment Details` to the `/settle` endpoint of a `facilitator server`.
+
+9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `networkId` of the `Payment Payload`.
+
+10. `Facilitator server` waits for the payment to be confirmed on the blockchain
+
+11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
+
+12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Payment Execution Response` as base64 encoded json
+
+### Type Specifications
+
+#### Data types
 
 ```
+// Payment Required Response
 {
-  x402Version: int,                       // Version of the x402 payment protocol
-  accepts: [paymentDetails]               // List of payment details that the resource server accepts. A resource server may accept on multiple chains.
+  // Version of the x402 payment protocol
+  x402Version: int,
+
+  // List of payment details that the resource server accepts. A resource server may accept on multiple chains.
+  accepts: [paymentDetails]
+
+  // Message from the resource server to the client to communicate errors in processing payment
+  error: string
 }
 
 // paymentDetails
 {
-  scheme: string;                         // Scheme of the payment protocol to use
-  maxAmountRequired: uint256 as string;   // Maximum amount required to pay for the resource as a usdc dollars x 10**6
-  resource: string;                       // URL of resource to pay for
-  description: string;                    // Description of the resource
-  mimeType: string;                       // MIME type of the resource response
-  outputSchema?: object | null;           // Output schema of the resource response
-  resourceAddress: string;                // Address of the routing account that facilitates payment
-  recommendedDeadlineSeconds: number;     // Time in seconds for the resource to be processed
-  networkId: string;                      // the network of the blockchain to send payment on ex: `evm:8453`, `svm:Mainnet Beta`
-  extra: object | null;                    // Extra information about the payment details specific to the scheme
-};
-```
+  // Scheme of the payment protocol to use
+  scheme: string;
 
-3. Client selects one of the payment details returned by the `accepts` field of the server response creates payment payload to include as `X-PAYMENT` header based on the `scheme`
-   The `X-PAYMENT` header is a base64 encoded json object with the following fields
+  // Network of the blockchain to send payment on
+  networkId: string;
 
-```
+  // Maximum amount required to pay for the resource as usdc dollars x 10**6
+  maxAmountRequired: uint256 as string;
+
+  // URL of resource to pay for
+  resource: string;
+
+  // Description of the resource
+  description: string;
+
+  // MIME type of the resource response
+  mimeType: string;
+
+  // Output schema of the resource response
+  outputSchema?: object | null;
+
+  // Address to pay value to
+  payToAddress: string;
+
+  // Maximum time in seconds for the resource server to respond
+  maxTimeoutSeconds: number;
+
+  // Address of the USDC contract
+  usdcAddress: string;
+
+  // Extra information about the payment details specific to the scheme
+  extra: object | null;
+}
+
+// `Payment Payload` (included as the `X-PAYMENT` header as base64 encoded json)
 {
+  // Version of the x402 payment protocol
   x402Version: number;
+
+  // scheme is the scheme value of the accepted `paymentDetails` the client is using to pay
+  scheme: string;
+
+  // networkId is the network id of the accepted `paymentDetails` the client is using to pay
+  networkId: string;
+
+  // payload is scheme dependent
   payload: <scheme dependent>;
+
+  // resource the client is paying for
   resource: string;
 }
 ```
 
-Each payment scheme may have different operational functionality depending on what actions are necessary.
-For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article) while `upto` transfers up to an amount based on the resources consumed during a request (ex: generating tokens from an LLM).
+#### Facilitator Types & Interface
 
-The client must know what data different schemes need in the `X-PAYMENT` header. This is because clients must to some degree trust the scheme and the resource server.
-High quality implementations of clients ensure security for clients by not allow malicious servers to dictate any logic on payload construction.
+A `facilitator server` is a 3rd party service that can be used by a `resource server` to verify and settle payments, without the `resource server` needing to have access to a blockchain node or wallet.
 
-Example using `evm-exact`
-
-3.c Convert `PaymentPayloadV1` to json and base64 encode
-
-4. Send request to resource server with `X-PAYMENT` header
-
-5. Resource server verifies payload its self or forwards payment header to facilitator service calling `verify`
-
-### Verification (default path, synchronous)
-
-Facilitator service (CDP provided) has the follow interface provided over REST. This is stubbed out in typescript but can be implemented in any language. `PaymentHeader` is the base64 encoded `PaymentPayloadV1`
-
-```typescript
-export type PaymentExecutionResponse = {
-  success: boolean;
-  error?: string | undefined;
-  txHash?: Hex | undefined;
-  chainId?: number | undefined;
-};
-
-export type ValidPaymentResponse = {
-  isValid: boolean;
-  invalidReason?: string | undefined;
-};
-
-interface FacilitatorService {
-  verify(
-    paymentHeader: string,
-    paymentDetails: PaymentNeededDetails
-  ): ValidPaymentResponse;
-  settle(
-    paymentHeader: string,
-    paymentDetails: PaymentNeededDetails
-  ): PaymentExecutionResponse; // amount is the required payment represented as a string
+```
+// Verify a payment with a supported scheme and network
+POST /verify
+Request body JSON:
+{
+  paymentHeader: string;
+  paymentDetails: paymentDetails;
 }
+
+Response:
+{
+  isValid: boolean;
+  invalidReason: string | null;
+}
+
+// Settle a payment with a supported scheme and network
+POST /settle
+Request body JSON:
+{
+  paymentHeader: string;
+  paymentDetails: paymentDetails;
+}
+
+Response:
+{
+  // Whether the payment was successful
+  success: boolean;
+
+  // Error message from the facilitator server
+  error: string | null;
+
+  // Transaction hash of the settled payment
+  txHash: string | null;
+
+  // Network id of the blockchain the payment was settled on
+  networkId: string | null;
+}
+
+// Get supported payment schemes and networks
+GET /supported
+Response:
+{
+  kinds: [
+    {
+      "scheme": string,
+      "networkId": string,
+    }
+  ]
+}
+
 ```
 
-6. Verifier confirms funds are available and performs other checks to ensure the resource should accept the request
+### Schemes
 
-7. Resource server performs work to fulfill request
+A scheme is a logical way of moving money.
 
-8. Resource server calls `settle` on the facilitator service
+Blockchains allow for a large number of flexible ways to move money. To help facilitate an expanding number of payment use cases, the `x402` protocol is extensible to different ways of settling payments via its `scheme` field.
 
-8.a facilitator service broadcasts the transaction to the usdc contract using `transferWithAuthorization` to settle the payment and waits for the tx to be confirmed
+Each payment scheme may have different operational functionality depending on what actions are necessary to fulfill the payment.
+For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article) while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
 
-9. Facilitator service returns the `PaymentExecutionResponse` to the resource server
+### Schemes vs NetworkIds
 
-10. Resource server returns the response to the client
+Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different than the way you need to implement `exact` on Solana)
 
-### Verification (optimistic aka just trust me bro)
-
-todo: more detailed steps
-
-- similar to default path but the resource server doesn't wait for payment to execute before returning the response to the client
-
-### Verification (high value)
-
-todo: more detailed steps
-
-- on `verifyPayment` the resource server pulls funds into an escrow account before telling the client to proceed with the work.
-
-## Future
-
-- re-requesting resources that have been paid for
-
-# Dev
-
-#### Notes
-
-- there is a window of time while the resource server is performing the work that the client could revoke a nonce or move funds that would result in the payment failing
-- the resource server currently waits for payment to execute before returning the response to the client, meaning the minimum response time is 1 block
+Clients and facilitator must explicitly support different `(scheme, networkId)` pairs in order to be able to create proper payloads and verify / settle payments.
 
 ## Running example
 

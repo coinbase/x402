@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
-import { makeServer } from "../src/facilitator";
-import { facilitatorWallet } from "../src/shared/wallet";
+import { makeServer } from "x402/facilitator";
+import { facilitatorWallet } from "x402/shared/evm/wallet";
 
 const port = 4020;
 const app = makeServer(facilitatorWallet);

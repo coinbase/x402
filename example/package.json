@@ -1,0 +1,21 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "facilitator": "tsx --env-file=.env facilitator.ts",
+    "resource": "tsx resource.ts",
+    "client": "tsx --env-file=.env client.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "x402": "file:../packages/typescript"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3"
+  },
+  "type": "module"
+}
