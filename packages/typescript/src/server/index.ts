@@ -61,3 +61,11 @@ export async function settle(
     error: `Incompatible payload scheme. payload: ${paymentDetails.scheme}, supported: exact`,
   };
 }
+
+export type Supported = {
+  x402Version: number;
+  kind: {
+    scheme: string;
+    networkId: string;
+  }[];
+};
