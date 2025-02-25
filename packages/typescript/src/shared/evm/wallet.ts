@@ -22,7 +22,7 @@ import { Hex } from "viem";
 export type SignerWallet<
   chain extends Chain = Chain,
   transport extends Transport = Transport,
-  account extends Account | undefined = Account
+  account extends Account = Account
 > = Client<
   transport,
   chain,
@@ -43,7 +43,7 @@ export const testClient: ConnectedClient<Transport, typeof baseSepolia> =
     transport: http(),
   });
 
-export const botWallet: SignerWallet<typeof baseSepolia> = createWalletClient({
+const botWallet: SignerWallet<typeof baseSepolia> = createWalletClient({
   chain: baseSepolia,
   transport: http(),
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
@@ -57,3 +57,24 @@ export const facilitatorWallet: SignerWallet<typeof baseSepolia> =
       process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
     ),
   }).extend(publicActions);
+
+export function createClientSepolia(): ConnectedClient<
+  Transport,
+  typeof baseSepolia,
+  undefined
+> {
+  return createPublicClient({
+    chain: baseSepolia,
+    transport: http(),
+  });
+}
+
+export function createSignerSepolia(
+  privateKey: Hex
+): SignerWallet<typeof baseSepolia> {
+  return createWalletClient({
+    chain: baseSepolia,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}

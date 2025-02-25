@@ -2,6 +2,7 @@ import { decodePayment } from "../exact/evm";
 import { ConnectedClient, SignerWallet } from "../shared/evm/wallet";
 import { PaymentDetails, SettleResponse, VerifyResponse } from "../types";
 import { verify as verifyExact, settle as settleExact } from "../exact/evm";
+import { Chain, Transport, Account } from "viem";
 
 export * as hono from "./hono";
 
@@ -15,8 +16,12 @@ const supportedEVMNetworks = ["84532"];
  * @param paymentDetails - The payment requirements that the payload must satisfy
  * @returns A ValidPaymentRequest indicating if the payment is valid and any invalidation reason
  */
-export async function verify(
-  client: ConnectedClient,
+export async function verify<
+  transport extends Transport,
+  chain extends Chain,
+  account extends Account | undefined
+>(
+  client: ConnectedClient<transport, chain, account>,
   payload: string,
   paymentDetails: PaymentDetails
 ): Promise<VerifyResponse> {
@@ -42,8 +47,8 @@ export async function verify(
  * @param paymentDetails - The payment requirements that the payload must satisfy
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
-export async function settle(
-  client: SignerWallet,
+export async function settle<transport extends Transport, chain extends Chain>(
+  client: SignerWallet<chain, transport>,
   payload: string,
   paymentDetails: PaymentDetails
 ): Promise<SettleResponse> {

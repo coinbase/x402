@@ -23,21 +23,6 @@ export function getUsdcAddressForChain(chainId: number): Address {
   return config[chainId.toString()].usdcAddress as Address;
 }
 
-// Function to get the current nonce for an address
-export async function getPermitNonce(
-  client: PublicClient,
-  owner: Address
-): Promise<Hex> {
-  const nonce = await client.readContract({
-    address: getUsdcAddressForChain(client.chain!.id),
-    abi,
-    functionName: "nonces",
-    args: [owner],
-  });
-
-  return nonce as Hex;
-}
-
 // Cache for storing the version value
 let versionCache: string | null = null;
 

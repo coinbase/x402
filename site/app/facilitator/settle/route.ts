@@ -1,21 +1,16 @@
-import { paymentDetailsSchema, PaymentDetails, SignerWallet } from "x402/types";
-import { createWalletClient, Hex, http, publicActions } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { paymentDetailsSchema, PaymentDetails } from "x402/types";
 import { settle } from "x402/server";
+import { evm } from "x402/shared";
+import { Hex } from "viem";
 
 type SettleRequest = {
   payload: string;
   details: PaymentDetails;
 };
 
-const wallet: SignerWallet = createWalletClient({
-  chain: baseSepolia,
-  transport: http(),
-  account: privateKeyToAccount(
-    process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
-  ),
-}).extend(publicActions);
+const wallet = evm.wallet.createSignerSepolia(
+  process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
+);
 
 export async function POST(req: Request) {
   const body: SettleRequest = await req.json();
@@ -27,7 +22,7 @@ export async function POST(req: Request) {
   return Response.json(response);
 }
 
-export async function GET(req: Request) {
+export async function GET() {
   return Response.json({
     endpoint: "/settle",
     description: "POST to settle x402 payments",

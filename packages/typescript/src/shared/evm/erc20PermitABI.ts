@@ -750,4 +750,4 @@ export const usdcABI = [
     stateMutability: "pure",
     type: "function",
   },
-];
+] as const;

@@ -25,7 +25,7 @@ import { SCHEME } from "../../exact";
 export async function verify<
   transport extends Transport,
   chain extends Chain,
-  account extends Account | undefined = undefined
+  account extends Account | undefined
 >(
   client: ConnectedClient<transport, chain, account>,
   payload: PaymentPayload,
@@ -162,8 +162,8 @@ export async function verify<
  * @remarks This function executes the actual USDC transfer using the signed authorization from the user.
  * The facilitator wallet submits the transaction but does not need to hold or transfer any tokens itself.
  */
-export async function settle(
-  wallet: SignerWallet,
+export async function settle<transport extends Transport, chain extends Chain>(
+  wallet: SignerWallet<chain, transport>,
   payload: PaymentPayload,
   paymentDetails: PaymentDetails
 ): Promise<SettleResponse> {
@@ -189,7 +189,7 @@ export async function settle(
   const tx = await wallet.writeContract({
     address: paymentDetails.usdcAddress as Address,
     abi,
-    functionName: "transferWithAuthorization",
+    functionName: "transferWithAuthorization" as const,
     args: [
       payload.payload.authorization.from,
       payload.payload.authorization.to,
@@ -199,6 +199,7 @@ export async function settle(
       payload.payload.authorization.nonce,
       payload.payload.signature,
     ],
+    chain: wallet.chain as any,
   });
 
   const receipt = await wallet.waitForTransactionReceipt({ hash: tx });

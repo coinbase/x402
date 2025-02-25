@@ -13,7 +13,6 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^22.13.4",
-    "tsc": "^2.0.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
@@ -51,6 +50,10 @@
     "./exact/evm": {
       "types": "./dist/exact/evm/index.d.ts",
       "default": "./dist/exact/evm/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "default": "./dist/shared/index.js"
     }
   },
   "types": "dist/index.d.ts",
