@@ -215,13 +215,17 @@ Clients and facilitator must explicitly support different `(scheme, networkId)` 
 
 ## Running example
 
-1. create `.env` cp `.env.example .env` and follow instruction in the file to create wallets
+`cd example`
+
+1. create `.env` `cp ../packages/typescript/.env.example .env` and follow instruction in the file to create wallets
 
 2. `npm install` to install dependencies
 
-3. in 3 separate terminals, run `npm run example-facilitator`, `npm run example-resource`, then finally `npm run example-client`. You should see things happen across all 3 terminals, and get a joke at the end in the client terminal.
+3. in 3 separate terminals, run `npm run facilitator`, `npm run resource`, then finally `npm run client`. You should see things happen across all 3 terminals, and get a joke at the end in the client terminal.
 
 ## Running tests
+
+`cd packages/typescript`
 
 1. `npm install` to install dependencies
 2. Create `.env` with funded keys as above
