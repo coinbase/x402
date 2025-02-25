@@ -36,10 +36,14 @@ console.log(
 console.log(
   "============================================================================"
 );
-await delay(2000);
-console.log(res.data.paymentDetails);
 
 const wallet = botWallet;
+
+console.log(
+  typeof res.data.paymentDetails,
+  "res.data.paymentDetails",
+  res.data.paymentDetails
+);
 
 const paymentDetails = paymentDetailsSchema.parse(res.data.paymentDetails);
 

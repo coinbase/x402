@@ -8,16 +8,28 @@ import {
 } from "../../types";
 import { Address } from "viem";
 import { getUsdcAddressForChain } from "../../shared/evm/usdc";
-import { settle, verify } from "../../client";
+import { useFacilitator } from "../../client";
+
+interface PaymentMiddlewareOptions {
+  description?: string;
+  mimeType?: string;
+  maxDeadlineSeconds?: number;
+  outputSchema?: object | null;
+  facilitatorUrl?: string;
+  testnet?: boolean;
+}
 
 export function paymentMiddleware(
   amount: Money,
   address: Address,
-  description: string = "",
-  mimeType: string = "",
-  maxDeadlineSeconds: number = 60,
-  outputSchema: object | null = null,
-  testnet: boolean = true // TODO: default this to false when we're not testing
+  {
+    description = "",
+    mimeType = "",
+    maxDeadlineSeconds = 60,
+    outputSchema = null,
+    facilitatorUrl = "http://localhost:4020",
+    testnet = true,
+  }: PaymentMiddlewareOptions
 ): MiddlewareHandler {
   const parsedAmount = moneySchema.safeParse(amount);
   if (!parsedAmount.success) {
@@ -39,6 +51,9 @@ export function paymentMiddleware(
     outputSchema,
     extra: null,
   };
+
+  const { verify, settle } = useFacilitator(facilitatorUrl);
+
   return async (c, next) => {
     const payment = c.req.header("X-PAYMENT");
     if (!payment) {
