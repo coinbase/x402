@@ -4,7 +4,7 @@
 
 ```typescript
 app.use(
-  "/your-api",
+  "/your-endpoint",
   // How much you want to charge, and where you want the funds to land
   paymentMiddleware("$0.10", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
 );
@@ -68,7 +68,7 @@ the payment details accepted for a resource.
 
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
-12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Payment Execution Response` as base64 encoded json
+12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Settlement Response` as base64 encoded json
 
 ### Type Specifications
 
@@ -229,6 +229,4 @@ Clients and facilitator must explicitly support different `(scheme, networkId)` 
 
 ## TODO
 
-- more tests
-- fix wallet typing issues
 - have tests run on an anvil fork

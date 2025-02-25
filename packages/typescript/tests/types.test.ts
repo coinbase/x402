@@ -1,11 +1,6 @@
 import { describe, test, expect } from "vitest";
-
-import { PaymentDetails, PaymentPayload } from "@/shared/types";
-
-import {
-  paymentNeededDetailsToJsonSafe,
-  paymentNeededDetailsFromObj,
-} from "../src/shared/types/convert";
+import { PaymentDetails, paymentDetailsSchema } from "../src/types";
+import { toJsonSafe } from "../src/types";
 
 describe("types conversion", () => {
   test("PaymentNeededDetails serialization", () => {
@@ -23,10 +18,9 @@ describe("types conversion", () => {
       extra: null,
     };
 
-    // const jsonObj = paymentNeededDetailsToJsonSafe(details);
-    // const jsonString = JSON.stringify(jsonObj);
-    // const parsedJson = JSON.parse(jsonString);
-    // const restored = paymentNeededDetailsFromObj(parsedJson);
-    // expect(restored).toEqual(details);
+    const json = toJsonSafe(details);
+
+    const restored = paymentDetailsSchema.parse(json);
+    expect(restored).toEqual(details);
   });
 });
