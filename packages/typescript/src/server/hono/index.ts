@@ -5,10 +5,12 @@ import {
   PaymentDetails,
   toJsonSafe,
   settleResponseHeader,
-} from "../../types";
-import { Address } from "viem";
-import { getUsdcAddressForChain } from "../../shared/evm/usdc";
-import { useFacilitator } from "../../client";
+  Resource,
+} from '../../types';
+import { Address } from 'viem';
+import { getUsdcAddressForChain } from '../../shared/evm/usdc';
+import { useFacilitator } from '../../client';
+import { getPaywallHtml } from './paywall';
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -17,18 +19,22 @@ interface PaymentMiddlewareOptions {
   outputSchema?: object | null;
   facilitatorUrl?: string;
   testnet?: boolean;
+  customPaywallHtml?: string;
+  resource: Resource;
 }
 
 export function paymentMiddleware(
   amount: Money,
   address: Address,
   {
-    description = "",
-    mimeType = "",
+    description = '',
+    mimeType = '',
     maxDeadlineSeconds = 60,
     outputSchema = null,
-    facilitatorUrl = "http://localhost:4020",
+    facilitatorUrl = 'http://localhost:4020',
     testnet = true,
+    customPaywallHtml = '',
+    resource,
   }: PaymentMiddlewareOptions
 ): MiddlewareHandler {
   const parsedAmount = moneySchema.safeParse(amount);
@@ -39,10 +45,10 @@ export function paymentMiddleware(
   }
 
   const paymentDetails: PaymentDetails = {
-    scheme: "exact",
-    networkId: testnet ? "84532" : "8453",
+    scheme: 'exact',
+    networkId: testnet ? '84532' : '8453',
     maxAmountRequired: BigInt(parsedAmount.data * 10 ** 6),
-    resource: "http://localhost:4021/joke", // TODO: make this dynamic
+    resource,
     description,
     mimeType,
     payToAddress: address,
@@ -55,45 +61,68 @@ export function paymentMiddleware(
   const { verify, settle } = useFacilitator(facilitatorUrl);
 
   return async (c, next) => {
-    const payment = c.req.header("X-PAYMENT");
+    console.log('Payment middleware checking request:', c.req.url);
+
+    const payment = c.req.header('X-PAYMENT');
+    const userAgent = c.req.header('User-Agent') || '';
+    const acceptHeader = c.req.header('Accept') || '';
+    const isWebBrowser =
+      acceptHeader.includes('text/html') && userAgent.includes('Mozilla');
+
     if (!payment) {
-      c.res = Response.json(
+      console.log('No payment header found, returning 402');
+      // If it's a browser request, serve the paywall page
+      if (isWebBrowser) {
+        const html =
+          customPaywallHtml ||
+          getPaywallHtml({
+            amount: parsedAmount.data,
+            paymentDetails: toJsonSafe(paymentDetails),
+            currentUrl: c.req.url,
+            testnet,
+          });
+
+        return c.html(html, 402);
+      }
+
+      // For API requests, return JSON with payment details
+      return c.json(
         {
-          error: "X-PAYMENT header is required",
+          error: 'X-PAYMENT header is required',
           paymentDetails: toJsonSafe(paymentDetails),
         },
-        { status: 402 }
+        402
       );
-      return;
     }
 
     const response = await verify(payment, paymentDetails);
     if (!response.isValid) {
-      c.res = Response.json(
+      console.log('Invalid payment:', response.invalidReason);
+      return c.json(
         {
           error: response.invalidReason,
           paymentDetails: toJsonSafe(paymentDetails),
         },
-        { status: 402 }
+        402
       );
-      return;
     }
 
+    console.log('Payment verified, proceeding');
     await next();
 
     const settleResponse = await settle(payment, paymentDetails);
     if (!settleResponse.success) {
-      c.res = Response.json(
+      console.log('Settlement failed:', settleResponse.error);
+      return c.json(
         {
           error: settleResponse.error,
           paymentDetails: toJsonSafe(paymentDetails),
         },
-        { status: 402 }
+        402
       );
-      return;
     }
 
     const responseHeader = settleResponseHeader(settleResponse);
-    c.header("X-PAYMENT-RESPONSE", responseHeader);
+    c.header('X-PAYMENT-RESPONSE', responseHeader);
   };
 }

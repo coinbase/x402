@@ -7,14 +7,15 @@ const app = new Hono();
 const port = 4021;
 
 app.use(
-  "/joke",
+  '/joke',
   hono.paymentMiddleware(
-    "$0.01",
-    "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    '$0.01',
+    '0x209693Bc6afc0C5328bA36FaF03C514EF312287C',
     {
-      description: "joke",
-      mimeType: "text/plain",
-      facilitatorUrl: "http://localhost:3000/facilitator",
+      description: 'joke',
+      mimeType: 'text/plain',
+      facilitatorUrl: 'http://localhost:3000/facilitator',
+      resource: 'http://localhost:4021/joke',
     }
   )
 );

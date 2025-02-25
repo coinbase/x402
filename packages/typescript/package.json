@@ -5,7 +5,8 @@
   "scripts": {
     "start": "tsx --env-file=.env index.ts",
     "test": "vitest",
-    "build": "tsc"
+    "build": "tsc",
+    "watch": "tsc --watch"
   },
   "keywords": [],
   "author": "",
