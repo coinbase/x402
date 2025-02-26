@@ -15,11 +15,6 @@ export async function middleware(request: NextRequest) {
   const facilitatorUrl =
     process.env.NEXT_PUBLIC_FACILITATOR_URL || 'http://localhost:4020';
 
-  console.log('Environment variables:', {
-    facilitatorAddress,
-    facilitatorUrl,
-  });
-
   if (!facilitatorAddress) {
     console.error('Missing FACILITATOR_WALLET_ADDRESS environment variable');
     return new NextResponse('Server configuration error', { status: 500 });

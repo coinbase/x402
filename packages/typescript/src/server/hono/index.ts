@@ -110,19 +110,21 @@ export function paymentMiddleware(
     console.log('Payment verified, proceeding');
     await next();
 
-    const settleResponse = await settle(payment, paymentDetails);
-    if (!settleResponse.success) {
-      console.log('Settlement failed:', settleResponse.error);
+    try {
+      const settleResponse = await settle(payment, paymentDetails);
+      const responseHeader = settleResponseHeader(settleResponse);
+
+      c.header('X-PAYMENT-RESPONSE', responseHeader);
+    } catch (error) {
+      console.log('Settlement failed:', error);
+
       return c.json(
         {
-          error: settleResponse.error,
+          error,
           paymentDetails: toJsonSafe(paymentDetails),
         },
         402
       );
     }
-
-    const responseHeader = settleResponseHeader(settleResponse);
-    c.header('X-PAYMENT-RESPONSE', responseHeader);
   };
 }
