@@ -1,8 +1,8 @@
 import { expect, test, describe } from "vitest";
 import { PaymentDetails, Resource } from "../../../src/types";
 import { baseSepolia } from "viem/chains";
-import { botWallet, facilitatorWallet } from "../../../src/shared/evm/wallet";
-import { Address } from "viem";
+import { createSignerSepolia } from "../../../src/shared/evm/wallet";
+import { Address, Hex } from "viem";
 import { createPayment } from "../../../src/exact/evm/client";
 import {
   getUsdcAddressForChain,
@@ -11,7 +11,10 @@ import {
 import { settle, verify } from "../../../src/exact/evm/facilitator";
 
 describe("settlePayment", () => {
-  const wallet = botWallet;
+  const wallet = createSignerSepolia(process.env.PRIVATE_KEY as Hex);
+  const facilitatorWallet = createSignerSepolia(
+    process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
+  );
   const resourceAddress = process.env.RESOURCE_WALLET_ADDRESS as Address;
 
   test("happy path", async () => {

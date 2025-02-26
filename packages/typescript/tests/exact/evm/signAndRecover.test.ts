@@ -1,15 +1,18 @@
-import { Address } from "viem";
 import { expect, test, describe } from "vitest";
 import { createPayment } from "../../../src/exact/evm/client";
 import { verify } from "../../../src/exact/evm/facilitator";
 import { baseSepolia } from "viem/chains";
 import { Resource, PaymentDetails } from "../../../src/types";
 import { getUsdcAddressForChain } from "../../../src/shared/evm/usdc";
-import { botWallet, testClient } from "../../../src/shared/evm/wallet";
+import {
+  createSignerSepolia,
+  createClientSepolia,
+} from "../../../src/shared/evm/wallet";
+import { Address, Hex } from "viem";
 
 describe("sign and recover", () => {
-  const wallet = botWallet;
-  const client = testClient;
+  const wallet = createSignerSepolia(process.env.PRIVATE_KEY as Hex);
+  const client = createClientSepolia();
 
   test("happy path sign and recover", async () => {
     const paymentDetails: PaymentDetails = {

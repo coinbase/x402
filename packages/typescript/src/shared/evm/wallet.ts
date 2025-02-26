@@ -37,27 +37,6 @@ export type ConnectedClient<
   account extends Account | undefined = undefined
 > = PublicClient<transport, chain, account>;
 
-export const testClient: ConnectedClient<Transport, typeof baseSepolia> =
-  createPublicClient({
-    chain: baseSepolia,
-    transport: http(),
-  });
-
-export const botWallet: SignerWallet<typeof baseSepolia> = createWalletClient({
-  chain: baseSepolia,
-  transport: http(),
-  account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
-}).extend(publicActions);
-
-export const facilitatorWallet: SignerWallet<typeof baseSepolia> =
-  createWalletClient({
-    chain: baseSepolia,
-    transport: http(),
-    account: privateKeyToAccount(
-      process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
-    ),
-  }).extend(publicActions);
-
 export function createClientSepolia(): ConnectedClient<
   Transport,
   typeof baseSepolia,
@@ -66,7 +45,7 @@ export function createClientSepolia(): ConnectedClient<
   return createPublicClient({
     chain: baseSepolia,
     transport: http(),
-  });
+  }).extend(publicActions);
 }
 
 export function createSignerSepolia(
