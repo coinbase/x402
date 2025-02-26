@@ -25,6 +25,7 @@ export function getPaywallHtml({
     window.x402 = {
       paymentDetails: ${JSON.stringify(paymentDetails)},
       isTestnet: ${testnet},
+      currentUrl: "${currentUrl}",
       state: {
         publicClient: null,
         chain: null,
@@ -35,13 +36,17 @@ export function getPaywallHtml({
           "84532": {
             usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
             usdcName: "USDC",
+          },
+          "8453": {
+            usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            usdcName: "USDC",
           }
         }
       }
     };
     console.log('Payment details initialized:', window.x402.paymentDetails);
   } catch (error) {
-    console.error('Error initializing x402:', error);
+    console.error('Error initializing x402:', error.message);
   };
 </script>
 
@@ -60,6 +65,7 @@ export function getPaywallHtml({
     connect,
     disconnect,
     signMessage,
+    getBalance,
   } from 'https://esm.sh/@wagmi/core'
 
   import { injected, coinbaseWallet } from 'https://esm.sh/@wagmi/connectors'
@@ -67,6 +73,12 @@ export function getPaywallHtml({
   import { base, baseSepolia } from 'https://esm.sh/viem/chains'
 
   const authorizationTypes = {
+    EIP712Domain: [
+      { name: "name", type: "string" },
+      { name: "version", type: "string" },
+      { name: "chainId", type: "uint256" },
+      { name: "verifyingContract", type: "address" },
+    ],
     TransferWithAuthorization: [
       { name: "from", type: "address" },
       { name: "to", type: "address" },
@@ -150,7 +162,7 @@ export function getPaywallHtml({
         value,
         validAfter,
         validBefore,
-        nonce: nonce,
+        nonce,
       },
     };
 
@@ -234,7 +246,7 @@ export function getPaywallHtml({
     const statusDiv = document.getElementById('status');
 
     if (!connectWalletBtn || !paymentSection || !payButton || !statusDiv) {
-      console.error('Required DOM elements not found');
+      // console.error('Required DOM elements not found');
       return;
     }
 
@@ -251,16 +263,13 @@ export function getPaywallHtml({
       // If wallet is already connected, disconnect it
       if (walletClient) {
         try {
-          await disconnect(wagmiConfig, {
-            connector: injected(),
-          });
+          await disconnect(wagmiConfig);
           walletClient = null;
           connectWalletBtn.textContent = 'Connect Wallet';
           paymentSection.classList.add('hidden');
           statusDiv.textContent = 'Wallet disconnected';
           return;
         } catch (error) {
-          console.error('Disconnection error:', error);
           statusDiv.textContent = 'Failed to disconnect wallet';
           return;
         }
@@ -306,36 +315,58 @@ export function getPaywallHtml({
     }
 
     try {
-      statusDiv.textContent = 'Creating payment signature...';
+      const usdcAddress = window.x402.config.chainConfig[chain.id].usdcAddress;
+      try {
+        statusDiv.textContent = 'Checking USDC balance...';
+        const balance = await publicClient.readContract({
+          address: usdcAddress,
+          abi: [{
+            inputs: [{ internalType: "address", name: "account", type: "address" }],
+            name: "balanceOf",
+            outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+            stateMutability: "view",
+            type: "function"
+          }],
+          functionName: "balanceOf",
+          args: [walletClient.account.address]
+        });
 
-      console.log('Creating payment with details:', x402.paymentDetails);
-      const paymentHeader = await x402.utils.createPaymentHeader(walletClient, publicClient);
-
-      console.log('paymentHeader', paymentHeader)
-
-      statusDiv.textContent = 'Requesting content with payment...';
-
-      const response = await fetch(currentUrl, {
-        headers: {
-          'X-PAYMENT': paymentHeader,
-          'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE',
-        },
-      });
-
-      if (response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('text/html')) {
-          document.documentElement.innerHTML = await response.text();
-        } else {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          window.location.href = url;
+        if (balance === 0n) {
+          statusDiv.textContent = \`Your USDC balance is 0. Please make sure you have USDC tokens on ${
+            testnet ? 'Base Sepolia' : 'Base'
+          }.\`;
+          return;
         }
-      } else {
-        throw new Error('Payment failed: ' + response.statusText);
+
+        statusDiv.textContent = 'Creating payment signature...';
+
+        const paymentHeader = await x402.utils.createPaymentHeader(walletClient, publicClient);
+
+        statusDiv.textContent = 'Requesting content with payment...';
+
+        const response = await fetch(x402.currentUrl, {
+          headers: {
+            'X-PAYMENT': paymentHeader,
+            'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE',
+          },
+        });
+
+        if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('text/html')) {
+            document.documentElement.innerHTML = await response.text();
+          } else {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.location.href = url;
+          }
+        } else {
+          throw new Error('Payment failed: ' + response.statusText);
+        }
+      } catch (error) {
+        statusDiv.textContent = error instanceof Error ? error.message : 'Failed to check USDC balance';
       }
     } catch (error) {
-      console.error('Payment error:', error);
       statusDiv.textContent = error instanceof Error ? error.message : 'Payment failed';
     }
   });
