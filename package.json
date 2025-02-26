@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4"
+  },
+  "workspaces": [
+    "packages/typescript",
+    "site"
+  ],
+  "packageManager": "npm@10.9.2"
+}

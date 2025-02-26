@@ -13,7 +13,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "viem": "^2.23.1",
-    "x402": "file:../packages/typescript"
+    "x402": "*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

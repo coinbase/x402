@@ -43,7 +43,7 @@ export const testClient: ConnectedClient<Transport, typeof baseSepolia> =
     transport: http(),
   });
 
-const botWallet: SignerWallet<typeof baseSepolia> = createWalletClient({
+export const botWallet: SignerWallet<typeof baseSepolia> = createWalletClient({
   chain: baseSepolia,
   transport: http(),
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
