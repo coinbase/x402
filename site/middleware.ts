@@ -11,12 +11,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const facilitatorAddress = process.env.FACILITATOR_WALLET_ADDRESS;
+  const resourceWalletAddress = process.env.RESOURCE_WALLET_ADDRESS;
   const facilitatorUrl =
-    process.env.NEXT_PUBLIC_FACILITATOR_URL || 'http://localhost:4020';
+    process.env.NEXT_PUBLIC_FACILITATOR_URL || 'https://x402.org/facilitator';
 
-  if (!facilitatorAddress) {
-    console.error('Missing FACILITATOR_WALLET_ADDRESS environment variable');
+  if (!resourceWalletAddress) {
+    console.error('Missing RESOURCE_WALLET_ADDRESS environment variable');
     return new NextResponse('Server configuration error', { status: 500 });
   }
 
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
 
   app.use(
     '*',
-    hono.paymentMiddleware('$0.01', facilitatorAddress as Address, {
+    hono.paymentMiddleware('$0.01', resourceWalletAddress as Address, {
       description: 'Access to protected content',
       testnet: true,
       facilitatorUrl,
