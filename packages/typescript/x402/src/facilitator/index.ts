@@ -1,11 +1,14 @@
-import { decodePayment } from "../exact/evm";
 import { ConnectedClient, SignerWallet } from "../shared/evm/wallet";
-import { PaymentDetails, SettleResponse, VerifyResponse } from "../types";
-import { verify as verifyExact, settle as settleExact } from "../exact/evm";
+import { PaymentDetails, SettleResponse, VerifyResponse, toJsonSafe } from "../shared/types";
+import {
+  verify as verifyExact,
+  settle as settleExact,
+  decodePayment as decodePaymentExact,
+} from "../schemes/exact/evm";
+import axios from "axios";
 import { Chain, Transport, Account } from "viem";
 
-export * as hono from "./hono";
-
+/* Running your own Facilitator */
 const supportedEVMNetworks = ["84532"];
 
 /**
@@ -19,17 +22,14 @@ const supportedEVMNetworks = ["84532"];
 export async function verify<
   transport extends Transport,
   chain extends Chain,
-  account extends Account | undefined
+  account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
   payload: string,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<VerifyResponse> {
-  if (
-    paymentDetails.scheme == "exact" &&
-    supportedEVMNetworks.includes(paymentDetails.networkId)
-  ) {
-    const payment = decodePayment(payload);
+  if (paymentDetails.scheme == "exact" && supportedEVMNetworks.includes(paymentDetails.networkId)) {
+    const payment = decodePaymentExact(payload);
     const valid = await verifyExact(client, payment, paymentDetails);
     return valid;
   }
@@ -50,14 +50,11 @@ export async function verify<
 export async function settle<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport>,
   payload: string,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<SettleResponse> {
-  const payment = decodePayment(payload);
+  const payment = decodePaymentExact(payload);
 
-  if (
-    paymentDetails.scheme == "exact" &&
-    supportedEVMNetworks.includes(paymentDetails.networkId)
-  ) {
+  if (paymentDetails.scheme == "exact" && supportedEVMNetworks.includes(paymentDetails.networkId)) {
     return settleExact(client, payment, paymentDetails);
   }
 
@@ -74,3 +71,36 @@ export type Supported = {
     networkId: string;
   }[];
 };
+/* End running your own Facilitator */
+
+/* Verifying / Settling with a Facilitator */
+export function useFacilitator(url: string = "http://localhost:4020") {
+  async function verify(payload: string, paymentDetails: PaymentDetails): Promise<VerifyResponse> {
+    const res = await axios.post(`${url}/verify`, {
+      payload: payload,
+      details: toJsonSafe(paymentDetails),
+    });
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to verify payment: ${res.statusText}`);
+    }
+
+    return res.data as VerifyResponse;
+  }
+
+  async function settle(payload: string, paymentDetails: PaymentDetails): Promise<SettleResponse> {
+    const res = await axios.post(`${url}/settle`, {
+      payload: payload,
+      details: toJsonSafe(paymentDetails),
+    });
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to settle payment: ${res.statusText}`);
+    }
+
+    return res.data as SettleResponse;
+  }
+
+  return { verify, settle };
+}
+/* End Verifying / Settling with a Facilitator */

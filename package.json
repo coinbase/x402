@@ -8,7 +8,12 @@
     "turbo": "^2.4.4"
   },
   "workspaces": [
-    "packages/typescript",
+    "packages/typescript/x402",
+    "packages/typescript/x402-next",
+    "packages/typescript/x402-next",
+    "packages/typescript/x402-fetch",
+    "packages/typescript/x402-axios",
+    "packages/typescript/x402-hono",
     "site"
   ],
   "packageManager": "npm@10.9.2"

@@ -3,8 +3,8 @@
  * This code is also purposely longer than it needs to be to show the flow of the payment.
  */
 import axios from "axios";
-import { paymentDetailsSchema, settleResponseFromHeader } from "x402/types";
-import { createPaymentHeader } from "x402/exact/evm";
+import { paymentDetailsSchema, settleResponseFromHeader } from "x402/shared/types";
+import { createPaymentHeader } from "x402/schemes/exact/evm";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";

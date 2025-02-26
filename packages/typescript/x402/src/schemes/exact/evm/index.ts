@@ -1,7 +1,6 @@
 import { paymentPayloadSchema } from "./types";
-import { safeBase64Decode } from "../../shared";
+import { safeBase64Encode, safeBase64Decode } from "../../../shared";
 import { PaymentPayload } from "../../exact/evm/types";
-import { safeBase64Encode } from "../../shared";
 
 export { createPayment, createPaymentHeader } from "./client";
 export { verify, settle } from "./facilitator";
@@ -17,7 +16,7 @@ export function encodePayment(payment: PaymentPayload): string {
         Object.entries(payment.payload.authorization).map(([key, value]) => [
           key,
           typeof value === "bigint" ? value.toString() : value,
-        ])
+        ]),
       ),
     },
   };

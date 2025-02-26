@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { hono } from "x402/server";
+import { hono } from "x402/server"; // TODO: Split Hono Middleware out into a separate x402-hono package
 
 const app = new Hono();
 const port = 4021;

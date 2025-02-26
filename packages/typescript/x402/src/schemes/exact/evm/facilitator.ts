@@ -1,11 +1,11 @@
 import { Account, Address, Chain, Transport, verifyTypedData } from "viem";
-import { SettleResponse, PaymentDetails, VerifyResponse } from "../../types";
+import { SettleResponse, PaymentDetails, VerifyResponse } from "../../../shared/types";
 import { PaymentPayload } from "../../exact/evm/types";
-import { getUsdcAddressForChain, getUSDCBalance } from "../../shared/evm/usdc";
-import { usdcABI as abi } from "../../shared/evm/erc20PermitABI";
-import { ConnectedClient, SignerWallet } from "../../shared/evm/wallet";
-import { authorizationTypes } from "../../shared/evm/eip3009";
-import { config } from "../../shared/evm/config";
+import { getUsdcAddressForChain, getUSDCBalance } from "../../../shared/evm/usdc";
+import { usdcABI as abi } from "../../../shared/evm/erc20PermitABI";
+import { ConnectedClient, SignerWallet } from "../../../shared/evm/wallet";
+import { authorizationTypes } from "../../../shared/evm/eip3009";
+import { config } from "../../../shared/evm/config";
 import { SCHEME } from "../../exact";
 
 /**
@@ -25,11 +25,11 @@ import { SCHEME } from "../../exact";
 export async function verify<
   transport extends Transport,
   chain extends Chain,
-  account extends Account | undefined
+  account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
   payload: PaymentPayload,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<VerifyResponse> {
   /* TODO: work with security team on brainstorming more verification steps
   verification steps:
@@ -126,10 +126,7 @@ export async function verify<
   }
 
   // Verify client has enough funds to cover paymentDetails.maxAmountRequired
-  const balance = await getUSDCBalance(
-    client,
-    payload.payload.authorization.from
-  );
+  const balance = await getUSDCBalance(client, payload.payload.authorization.from);
 
   if (balance < paymentDetails.maxAmountRequired) {
     return {
@@ -142,8 +139,7 @@ export async function verify<
   if (payload.payload.authorization.value < paymentDetails.maxAmountRequired) {
     return {
       isValid: false,
-      invalidReason:
-        "Value in payload is not enough to cover paymentDetails.maxAmountRequired",
+      invalidReason: "Value in payload is not enough to cover paymentDetails.maxAmountRequired",
     };
   }
 
@@ -165,7 +161,7 @@ export async function verify<
 export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
   payload: PaymentPayload,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<SettleResponse> {
   // re-verify to ensure the payment is still valid
   const valid = await verify(wallet, payload, paymentDetails);

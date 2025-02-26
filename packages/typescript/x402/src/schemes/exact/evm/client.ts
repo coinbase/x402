@@ -1,27 +1,24 @@
-import { PaymentDetails } from "../../types";
+import { PaymentDetails } from "../../../shared/types";
 import { PaymentPayload } from "./types";
-import { getVersion } from "../../shared/evm/usdc";
+import { getVersion } from "../../../shared/evm/usdc";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from ".";
-import { SignerWallet } from "../../shared/evm/wallet";
+import { SignerWallet } from "../../../shared/evm/wallet";
 import { Address, Chain, Transport } from "viem";
 
-export async function createPayment<
-  transport extends Transport,
-  chain extends Chain
->(
+export async function createPayment<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport>,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<PaymentPayload> {
   const nonce = createNonce();
   const version = await getVersion(client);
   const from = client!.account!.address;
 
   const validAfter = BigInt(
-    Math.floor(Date.now() / 1000) - 5 // 1 block (2s) before to account for block timestamping
+    Math.floor(Date.now() / 1000) - 5, // 1 block (2s) before to account for block timestamping
   );
   const validBefore = BigInt(
-    Math.floor(Date.now() / 1000 + paymentDetails.requiredDeadlineSeconds)
+    Math.floor(Date.now() / 1000 + paymentDetails.requiredDeadlineSeconds),
   );
 
   const { signature } = await signAuthorization(
@@ -35,7 +32,7 @@ export async function createPayment<
       nonce,
       version,
     },
-    paymentDetails
+    paymentDetails,
   );
 
   return {
@@ -60,7 +57,7 @@ export async function createPayment<
 
 export async function createPaymentHeader(
   client: SignerWallet,
-  paymentDetails: PaymentDetails
+  paymentDetails: PaymentDetails,
 ): Promise<string> {
   const payment = await createPayment(client, paymentDetails);
   return encodePayment(payment);

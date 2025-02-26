@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { Address, Hex } from "viem";
 
-import { makePaymentPayloadSchema } from "../../types";
+import { makePaymentPayloadSchema } from "../../../shared/types";
 
 export type AuthorizationSignature = Hex;
 

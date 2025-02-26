@@ -1,7 +1,7 @@
-import { paymentDetailsSchema, PaymentDetails } from "x402/types";
+import { paymentDetailsSchema, PaymentDetails } from "x402/shared/types";
 // import { createClient, http, publicActions } from "viem";
 // import { baseSepolia } from "viem/chains";
-import { verify } from "x402/server";
+import { verify } from "x402/facilitator";
 import { evm } from "x402/shared";
 
 type VerifyRequest = {

@@ -1,9 +1,9 @@
 import { WalletClient, Hex, toHex, Transport, Chain, Address } from "viem";
 
-import { config } from "../../shared/evm/config";
-import { PaymentDetails } from "../../types";
+import { config } from "../../../shared/evm/config";
+import { PaymentDetails } from "../../../shared/types";
 import { AuthorizationParameters } from "./types";
-import { authorizationTypes } from "../../shared/evm/eip3009";
+import { authorizationTypes } from "../../../shared/evm/eip3009";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer
@@ -20,21 +20,10 @@ import { authorizationTypes } from "../../shared/evm/eip3009";
  * @param params.usdcAddress - The address of the USDC contract
  * @returns The signature for the authorization
  */
-export async function signAuthorization<
-  transport extends Transport,
-  chain extends Chain
->(
+export async function signAuthorization<transport extends Transport, chain extends Chain>(
   walletClient: WalletClient<transport, chain>,
-  {
-    from,
-    to,
-    value,
-    validAfter,
-    validBefore,
-    nonce,
-    version,
-  }: AuthorizationParameters,
-  { usdcAddress, networkId }: PaymentDetails
+  { from, to, value, validAfter, validBefore, nonce, version }: AuthorizationParameters,
+  { usdcAddress, networkId }: PaymentDetails,
 ): Promise<{ signature: Hex }> {
   const usdcName = config[networkId].usdcName;
 

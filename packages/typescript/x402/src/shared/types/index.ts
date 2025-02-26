@@ -1,11 +1,6 @@
 import { z } from "zod";
-import { safeBase64Encode, safeBase64Decode } from "../shared";
 
-export { SignerWallet } from "../shared/evm/wallet";
-
-const resourceSchema = z
-  .string()
-  .regex(/^[^:]+:\/\/.+$/) as z.ZodType<Resource>;
+const resourceSchema = z.string().regex(/^[^:]+:\/\/.+$/) as z.ZodType<Resource>;
 
 /** Payment Details */
 
@@ -15,7 +10,7 @@ export const paymentDetailsSchema = z.object({
   // Network of the blockchain to send payment on
   networkId: z.string(),
   // Maximum amount required to pay for the resource as usdc dollars x 10**6
-  maxAmountRequired: z.bigint({ coerce: true }),
+  maxAmountRequired: z.bigint(),
   // URL of resource to pay for
   resource: resourceSchema,
   // Description of the resource
@@ -96,15 +91,6 @@ export type SettleResponse = {
   networkId?: string | undefined;
 };
 
-export function settleResponseHeader(response: SettleResponse): string {
-  return safeBase64Encode(JSON.stringify(response));
-}
-
-export function settleResponseFromHeader(header: string): SettleResponse {
-  const decoded = safeBase64Decode(header);
-  return JSON.parse(decoded) as SettleResponse;
-}
-
 export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string | undefined;
@@ -115,7 +101,7 @@ export type VerifyResponse = {
 /** Utility Types */
 
 export const moneySchema = z
-  .union([z.string().transform((x) => x.replace(/[^0-9.-]+/g, "")), z.number()])
+  .union([z.string().transform(x => x.replace(/[^0-9.-]+/g, "")), z.number()])
   .pipe(z.coerce.number().min(0.0001).max(999999999));
 
 export type Money = z.input<typeof moneySchema>;
@@ -131,9 +117,7 @@ export function toJsonSafe<T extends object>(data: T): object {
 
   function convert(value: unknown): unknown {
     if (value !== null && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, val]) => [key, convert(val)])
-      );
+      return Object.fromEntries(Object.entries(value).map(([key, val]) => [key, convert(val)]));
     }
 
     if (Array.isArray(value)) {

@@ -5,7 +5,7 @@ import { createWalletClient, Hex, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
-import { verify, settle } from "x402/server";
+import { verify, settle } from "x402/facilitator";
 import { paymentDetailsSchema, PaymentDetails } from "x402/types";
 
 const port = 4020;

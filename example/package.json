@@ -16,7 +16,7 @@
     "axios": "^1.7.9",
     "hono": "^4.7.2",
     "viem": "^2.23.5",
-    "x402": "file:../packages/typescript"
+    "x402": "file:../packages/typescript/x402"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
