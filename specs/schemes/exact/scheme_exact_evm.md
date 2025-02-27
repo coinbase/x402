@@ -1,37 +1,72 @@
 # Scheme: `exact` on `EVM`
 
-3.a Sign EIP-3009 `authorizeTransfer` operation with `usdc` contract for `resourceAddress`
+## Summary
 
-3.b Create type `PaymentPayloadV1`
+The `exact` scheme on EVM chains uses `EIP-3009` to authorize a transfer of a specific amount of `usdc` from the payer to the resource server. The approach results in the facilitator having no ability to direct funds anywhere but the address specified by the resource server in paymentDetails.
+
+## `X-Payment` header payload
+
+The `payload` field of the `X-PAYMENT` header must contain the following fields:
+
+- `signature`: The signature of the `EIP-3009` `authorizeTransfer` operation.
+- `authorization`: parameters required to reconstruct the messaged signed for the `authorizeTransfer` operation.
+
+Example:
 
 ```
-// PaymentPayloadV1
 {
-  version: number;
-  payload: PayloadV1;
-  resource: string;
-};
+  "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
+  "authorization": {
+    "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+    "to": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "value": 10000n,
+    "validAfter": 1740672089n,
+    "validBefore": 1740672154n,
+    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
+    "version": "2"
+  }
+}
 
-// PayloadV1
-{
-  signature: HexString;
-  params: PermitParameters;
-};
-
-
-// AuthorizationParameters json
-{
-  from: Address as string;
-  to: Address as string;
-  value: uint256 as string;
-  validAfter: uint256 as string;
-  validBefore: uint256 as string;
-  nonce: HexString;
-  chainId: number;
-  version: string;
-  usdcAddress: Address as string;
-};
 ```
+
+Full `X-PAYMENT` header:
+
+```
+{
+  x402Version: 1,
+  scheme: 'exact',
+  networkId: '84532',
+  payload: {
+    signature: '0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c',
+    authorization: {
+      from: '0x857b06519E91e3A54538791bDbb0E22373e36b66',
+      to: '0x209693Bc6afc0C5328bA36FaF03C514EF312287C',
+      value: 10000n,
+      validAfter: 1740672089n,
+      validBefore: 1740672154n,
+      nonce: '0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480',
+      version: '2'
+    }
+  },
+  resource: 'http://localhost:4021/joke'
+}
+```
+
+## Verification
+
+Steps to verify a payment for the `exact` scheme:
+
+1. Verify the signature is valid
+2. Verify the `client` has enough `usdc` to cover `paymentDetails.maxAmountRequired`
+3. Verify the value in the `payload.authorization` is enough to cover `paymentDetails.maxAmountRequired`
+4. Verify the authorization parameters are within the valid time range
+5. Verify nonce is not used
+6. Verify the authorization parameters are for the correct `usdc` contract for the agreed upon chain
+7. Simulate the `transferWithAuthorization` to ensure the transaction would succeed
+
+## Settlement
+
+Settlement is performed via the facilitator calling the `transferWithAuthorization` function on the `usdc` contract with the `payload.signature` and `payload.authorization` parameters from the `X-PAYMENT` header.
 
 ## Appendix
 
