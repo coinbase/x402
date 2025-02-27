@@ -3,21 +3,21 @@
  * This code is also purposely longer than it needs to be to show the flow of the payment.
  */
 import axios from "axios";
-import { paymentDetailsSchema, settleResponseFromHeader } from "x402/types";
-import { createPaymentHeader } from "x402/exact/evm";
+import { paymentDetailsSchema } from "x402/types";
+import { createPaymentHeader } from "x402/client";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";
 import { Hex } from "viem";
 
 function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 const botWallet = createWalletClient({
   chain: baseSepolia,
   transport: http(),
-  account: privateKeyToAccount(process.env.CLIENT_PRIVATE_KEY as Hex),
+  account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
 const resourceUrl = "http://localhost:4021/joke";
@@ -27,23 +27,13 @@ const res = await axios.get(resourceUrl, { validateStatus: () => true });
 console.log(`Received status code: ${res.status}`);
 console.log(res.data);
 
-console.log(
-  "============================================================================"
-);
-console.log(
-  "This failed because of no payment, now make request with payment header"
-);
-console.log(
-  "============================================================================"
-);
+console.log("============================================================================");
+console.log("This failed because of no payment, now make request with payment header");
+console.log("============================================================================");
 
 const wallet = botWallet;
 
-console.log(
-  typeof res.data.paymentDetails,
-  "res.data.paymentDetails",
-  res.data.paymentDetails
-);
+console.log(typeof res.data.paymentDetails, "res.data.paymentDetails", res.data.paymentDetails);
 
 const paymentDetails = paymentDetailsSchema.parse(res.data.paymentDetails);
 
@@ -56,12 +46,6 @@ const res2 = await axios.get(resourceUrl, {
   },
   validateStatus: () => true,
 });
-
-const settleResponse = settleResponseFromHeader(
-  res2.headers["x-payment-response"]
-);
-
-console.log("Settlement response", settleResponse);
 
 console.log(`Received status code: ${res2.status}`);
 console.log(res2.data);

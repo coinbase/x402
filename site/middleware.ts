@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { hono } from 'x402/server';
+import { paymentMiddleware } from 'x402/hono';
 import { Hono } from 'hono';
 import { Address } from 'viem';
 import { Resource } from 'x402/types';
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
 
   app.use(
     '*',
-    hono.paymentMiddleware('$0.01', resourceWalletAddress as Address, {
+    paymentMiddleware('$0.01', resourceWalletAddress as Address, {
       description: 'Access to protected content',
       testnet: true,
       facilitatorUrl,

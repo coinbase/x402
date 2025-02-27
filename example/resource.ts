@@ -1,26 +1,22 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { hono } from "x402/server";
+import { paymentMiddleware } from "x402/hono";
 
 const app = new Hono();
 const port = 4021;
 
 app.use(
   "/joke",
-  hono.paymentMiddleware(
-    "$0.01",
-    "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-    {
-      description: "joke",
-      mimeType: "text/plain",
-    }
-  )
+  paymentMiddleware("$0.01", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", {
+    description: "joke",
+    mimeType: "text/plain",
+  }),
 );
 
 app.use("*", logger());
 
-app.get("/joke", (c) => {
+app.get("/joke", c => {
   const jokes = [
     "Why do programmers prefer dark mode? Because light attracts bugs!",
     "Why did the developer go broke? Because he used up all his cache!",

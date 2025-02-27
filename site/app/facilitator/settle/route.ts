@@ -1,5 +1,5 @@
 import { paymentDetailsSchema, PaymentDetails } from "x402/types";
-import { settle } from "x402/server";
+import { settle } from "x402/facilitator";
 import { evm } from "x402/shared";
 import { Hex } from "viem";
 

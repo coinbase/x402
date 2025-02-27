@@ -5,7 +5,7 @@ import { createWalletClient, Hex, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 
-import { verify, settle } from "x402/server";
+import { verify, settle } from "x402/facilitator";
 import { paymentDetailsSchema, PaymentDetails } from "x402/types";
 
 const port = 4020;
@@ -23,15 +23,13 @@ type SettleRequest = {
 const wallet = createWalletClient({
   chain: baseSepolia,
   transport: http(),
-  account: privateKeyToAccount(
-    process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex
-  ),
+  account: privateKeyToAccount(process.env.FACILITATOR_WALLET_PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
 const app = new Hono();
 app.use("*", logger());
 
-app.post("/verify", async (c) => {
+app.post("/verify", async c => {
   // TODO: add zod validation
   const req: VerifyRequest = await c.req.json();
 
@@ -48,7 +46,7 @@ app.post("/verify", async (c) => {
   return c.json(valid);
 });
 
-app.post("/settle", async (c) => {
+app.post("/settle", async c => {
   const req: SettleRequest = await c.req.json();
 
   const paymentDetails = paymentDetailsSchema.parse(req.details);

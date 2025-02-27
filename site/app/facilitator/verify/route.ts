@@ -1,7 +1,5 @@
 import { paymentDetailsSchema, PaymentDetails } from "x402/types";
-// import { createClient, http, publicActions } from "viem";
-// import { baseSepolia } from "viem/chains";
-import { verify } from "x402/server";
+import { verify } from "x402/facilitator";
 import { evm } from "x402/shared";
 
 type VerifyRequest = {
@@ -16,7 +14,6 @@ export async function POST(req: Request) {
 
   const paymentDetails = paymentDetailsSchema.parse(body.details);
 
-  // @ts-expect-error infinite instantiation
   const valid = await verify(client, body.payload, paymentDetails);
 
   return Response.json(valid);

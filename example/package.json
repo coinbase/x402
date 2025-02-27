@@ -5,7 +5,9 @@
   "scripts": {
     "facilitator": "tsx --env-file=.env facilitator.ts",
     "resource": "tsx resource.ts",
-    "client": "tsx --env-file=.env client.ts"
+    "client": "tsx --env-file=.env client.ts",
+    "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
+    "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
   "keywords": [],
   "license": "Apache-2.0",
@@ -17,10 +19,11 @@
     "axios": "^1.7.9",
     "hono": "^4.7.2",
     "viem": "^2.23.5",
-    "x402": "file:../packages/typescript"
+    "x402": "file:../packages/typescript/x402"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
+    "prettier": "3.5.2",
     "tsx": "^4.19.3"
   },
   "type": "module"
