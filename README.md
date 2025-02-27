@@ -234,3 +234,7 @@ Clients and facilitator must explicitly support different `(scheme, networkId)` 
 ## TODO
 
 - have tests run on an anvil fork
+
+## 📝 License
+
+The `x402` protocol is licensed under the [Apache-2.0](LICENSE.md) license.

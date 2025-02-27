@@ -8,9 +8,10 @@
     "client": "tsx --env-file=.env client.ts"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "license": "Apache-2.0",
+  "author": "Coinbase Inc.",
+  "repository": "https://github.com/coinbase/x402",
+  "description": "x402 Payment Protocol Examples",
   "dependencies": {
     "@hono/node-server": "^1.13.8",
     "axios": "^1.7.9",
