@@ -67,6 +67,10 @@
     "./hono": {
       "types": "./dist/hono/index.d.ts",
       "default": "./dist/hono/index.js"
+    },
+    "./axios": {
+      "types": "./dist/axios/index.d.ts",
+      "default": "./dist/axios/index.js"
     }
   },
   "types": "dist/index.d.ts",

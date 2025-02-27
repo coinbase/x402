@@ -3,16 +3,11 @@
  * This code is also purposely longer than it needs to be to show the flow of the payment.
  */
 import axios from "axios";
-import { paymentDetailsSchema } from "x402/types";
-import { createPaymentHeader } from "x402/client";
+import { withPaymentInterceptor } from "x402/axios";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";
 import { Hex } from "viem";
-
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 const botWallet = createWalletClient({
   chain: baseSepolia,
@@ -22,31 +17,14 @@ const botWallet = createWalletClient({
 
 const resourceUrl = "http://localhost:4021/joke";
 
-console.log("Making request with no payment header");
-const res = await axios.get(resourceUrl, { validateStatus: () => true });
-console.log(`Received status code: ${res.status}`);
-console.log(res.data);
-
-console.log("============================================================================");
-console.log("This failed because of no payment, now make request with payment header");
-console.log("============================================================================");
-
 const wallet = botWallet;
 
-console.log(typeof res.data.paymentDetails, "res.data.paymentDetails", res.data.paymentDetails);
+let axiosInstance = axios.create({});
 
-const paymentDetails = paymentDetailsSchema.parse(res.data.paymentDetails);
+axiosInstance = withPaymentInterceptor(axiosInstance, wallet);
 
-const payload = await createPaymentHeader(wallet, paymentDetails);
+console.log("Making request");
+const res = await axiosInstance.get(resourceUrl);
 
-const res2 = await axios.get(resourceUrl, {
-  headers: {
-    "X-PAYMENT": payload,
-    "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-  },
-  validateStatus: () => true,
-});
-
-console.log(`Received status code: ${res2.status}`);
-console.log(res2.data);
+console.log(res.data);
 console.log("wow this joke was so funny");
