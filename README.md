@@ -56,7 +56,7 @@ the payment details accepted for a resource.
 
 5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Details` to the `/verify` endpoint of a `facilitator server`.
 
-6. F`acilitator server` performs verification of the object based on the `scheme` and `networkId` of the `Payment Payload` and returns a `Verification Response`
+6. `Facilitator server` performs verification of the object based on the `scheme` and `networkId` of the `Payment Payload` and returns a `Verification Response`
 
 7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request and returns a response to the client. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
@@ -206,6 +206,8 @@ Blockchains allow for a large number of flexible ways to move money. To help fac
 
 Each payment scheme may have different operational functionality depending on what actions are necessary to fulfill the payment.
 For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article) while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
+
+See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains.
 
 ### Schemes vs NetworkIds
 

@@ -26,6 +26,7 @@ export const paymentDetailsSchema = z.object({
   payToAddress: z.string(),
   // time in seconds it may before payment can be settled (how long the resource server needs to process the payment)
   requiredDeadlineSeconds: z.number(),
+  // TODO: move usdc to be scheme specific so we can support many different tokens
   // address of the USDC contract
   usdcAddress: z.string(),
   // extra information about the payment details specific to the scheme
