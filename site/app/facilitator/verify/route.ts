@@ -14,6 +14,7 @@ export async function POST(req: Request) {
 
   const paymentDetails = paymentDetailsSchema.parse(body.details);
 
+  // @ts-expect-error infinite instantiation
   const valid = await verify(client, body.payload, paymentDetails);
 
   return Response.json(valid);
