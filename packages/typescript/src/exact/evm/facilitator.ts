@@ -176,15 +176,6 @@ export async function settle<transport extends Transport, chain extends Chain>(
       error: `Payment is no longer valid: ${valid.invalidReason}`,
     };
   }
-  const a = [
-    payload.payload.authorization.from,
-    payload.payload.authorization.to,
-    payload.payload.authorization.value,
-    payload.payload.authorization.validAfter,
-    payload.payload.authorization.validBefore,
-    payload.payload.authorization.nonce,
-    payload.payload.signature,
-  ];
 
   const tx = await wallet.writeContract({
     address: paymentDetails.usdcAddress as Address,
