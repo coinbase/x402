@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paymentMiddleware } from "../../src/server/hono";
-import { Hono } from "hono";
-import { createPaymentHeader } from "../../src/client";
-import { PaymentDetails, Resource } from "../../src/types";
-import { getUsdcAddressForChain } from "../../src/shared/evm/usdc";
-import { botWallet } from "../../src/shared/evm/wallet";
-import { baseSepolia } from "viem/chains";
+import { Resource } from "../../src/types";
 
 describe("paymentMiddleware", () => {
   const testAddress = "0x209693Bc6afc0C5328bA36FaF03C514EF312287C";

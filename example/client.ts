@@ -17,7 +17,7 @@ function delay(ms: number) {
 const botWallet = createWalletClient({
   chain: baseSepolia,
   transport: http(),
-  account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
+  account: privateKeyToAccount(process.env.CLIENT_PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
 const resourceUrl = "http://localhost:4021/joke";

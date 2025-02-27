@@ -6,11 +6,11 @@ import {
   toJsonSafe,
   settleResponseHeader,
   Resource,
-} from '../../types';
-import { Address } from 'viem';
-import { getUsdcAddressForChain } from '../../shared/evm/usdc';
-import { useFacilitator } from '../../client';
-import { getPaywallHtml } from './paywall';
+} from "../../types";
+import { Address } from "viem";
+import { getUsdcAddressForChain } from "../../shared/evm/usdc";
+import { useFacilitator } from "../../client";
+import { getPaywallHtml } from "./paywall";
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -27,14 +27,13 @@ export function paymentMiddleware(
   amount: Money,
   address: Address,
   {
-    description = '',
-    mimeType = '',
+    description = "",
+    mimeType = "",
     maxDeadlineSeconds = 60,
     outputSchema = null,
-    facilitatorUrl = 'http://localhost:4020',
+    facilitatorUrl = "http://localhost:4020",
     testnet = true,
-    customPaywallHtml = '',
-    resource,
+    customPaywallHtml = "",
   }: PaymentMiddlewareOptions
 ): MiddlewareHandler {
   const parsedAmount = moneySchema.safeParse(amount);
@@ -44,33 +43,34 @@ export function paymentMiddleware(
     );
   }
 
-  const paymentDetails: PaymentDetails = {
-    scheme: 'exact',
-    networkId: testnet ? '84532' : '8453',
-    maxAmountRequired: BigInt(parsedAmount.data * 10 ** 6),
-    resource,
-    description,
-    mimeType,
-    payToAddress: address,
-    requiredDeadlineSeconds: maxDeadlineSeconds,
-    usdcAddress: getUsdcAddressForChain(testnet ? 84532 : 8453),
-    outputSchema,
-    extra: null,
-  };
-
   const { verify, settle } = useFacilitator(facilitatorUrl);
 
   return async (c, next) => {
-    console.log('Payment middleware checking request:', c.req.url);
+    const resource = c.req.url as Resource;
+    const paymentDetails: PaymentDetails = {
+      scheme: "exact",
+      networkId: testnet ? "84532" : "8453",
+      maxAmountRequired: BigInt(parsedAmount.data * 10 ** 6),
+      resource,
+      description,
+      mimeType,
+      payToAddress: address,
+      requiredDeadlineSeconds: maxDeadlineSeconds,
+      usdcAddress: getUsdcAddressForChain(testnet ? 84532 : 8453),
+      outputSchema,
+      extra: null,
+    };
+    console.log("Payment middleware checking request:", c.req.url);
+    console.log("Payment details:", paymentDetails);
 
-    const payment = c.req.header('X-PAYMENT');
-    const userAgent = c.req.header('User-Agent') || '';
-    const acceptHeader = c.req.header('Accept') || '';
+    const payment = c.req.header("X-PAYMENT");
+    const userAgent = c.req.header("User-Agent") || "";
+    const acceptHeader = c.req.header("Accept") || "";
     const isWebBrowser =
-      acceptHeader.includes('text/html') && userAgent.includes('Mozilla');
+      acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
     if (!payment) {
-      console.log('No payment header found, returning 402');
+      console.log("No payment header found, returning 402");
       // If it's a browser request, serve the paywall page
       if (isWebBrowser) {
         const html =
@@ -88,7 +88,7 @@ export function paymentMiddleware(
       // For API requests, return JSON with payment details
       return c.json(
         {
-          error: 'X-PAYMENT header is required',
+          error: "X-PAYMENT header is required",
           paymentDetails: toJsonSafe(paymentDetails),
         },
         402
@@ -97,7 +97,7 @@ export function paymentMiddleware(
 
     const response = await verify(payment, paymentDetails);
     if (!response.isValid) {
-      console.log('Invalid payment:', response.invalidReason);
+      console.log("Invalid payment:", response.invalidReason);
       return c.json(
         {
           error: response.invalidReason,
@@ -107,16 +107,16 @@ export function paymentMiddleware(
       );
     }
 
-    console.log('Payment verified, proceeding');
+    console.log("Payment verified, proceeding");
     await next();
 
     try {
       const settleResponse = await settle(payment, paymentDetails);
       const responseHeader = settleResponseHeader(settleResponse);
 
-      c.header('X-PAYMENT-RESPONSE', responseHeader);
+      c.header("X-PAYMENT-RESPONSE", responseHeader);
     } catch (error) {
-      console.log('Settlement failed:', error);
+      console.log("Settlement failed:", error);
 
       return c.json(
         {
