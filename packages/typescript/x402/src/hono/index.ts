@@ -117,7 +117,7 @@ export function paymentMiddleware(
     } catch (error) {
       console.log("Settlement failed:", error);
 
-      return c.json(
+      c.res = c.json(
         {
           error,
           paymentDetails: toJsonSafe(paymentDetails),
