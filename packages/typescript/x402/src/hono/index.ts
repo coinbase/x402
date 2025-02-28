@@ -11,6 +11,7 @@ import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
 import { getPaywallHtml } from "./paywall";
+export { getPaywallHtml } from "./paywall";
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -31,7 +32,7 @@ export function paymentMiddleware(
     mimeType = "",
     maxDeadlineSeconds = 60,
     outputSchema = null,
-    facilitatorUrl = "http://localhost:4020",
+    facilitatorUrl = "https://x402.org/facilitator",
     testnet = true,
     customPaywallHtml = "",
   }: PaymentMiddlewareOptions,

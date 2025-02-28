@@ -20,7 +20,7 @@ export async function createPaymentHeader(
   throw new Error("Unsupported scheme");
 }
 
-export function useFacilitator(url: string = "http://localhost:4020") {
+export function useFacilitator(url: string = "https://x402.org/facilitator") {
   async function verify(payload: string, paymentDetails: PaymentDetails): Promise<VerifyResponse> {
     const res = await axios.post(`${url}/verify`, {
       payload: payload,

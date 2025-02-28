@@ -15,7 +15,7 @@ const botWallet = createWalletClient({
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
-const resourceUrl = "http://localhost:4021/joke";
+const resourceUrl = "https://x402.org/protected";
 
 const wallet = botWallet;
 
