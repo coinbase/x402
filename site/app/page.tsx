@@ -185,8 +185,6 @@ export default function Home() {
         <Section>
           {/* How it works */}
           <div className="relative">
-            <div className="absolute -left-4 top-0 w-1 h-full bg-gradient-to-b from-indigo-500 to-blue-500 rounded-full hidden lg:block"></div>
-
             <div className="flex items-center gap-4 mb-6">
               <h3 className="text-3xl font-bold text-indigo-400">
                 1 Line of Code to Accept Digital Dollars
