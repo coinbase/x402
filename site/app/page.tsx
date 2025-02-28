@@ -7,11 +7,17 @@ import {
 } from '@heroicons/react/24/outline';
 import { FeatureItem } from './components/FeatureItem';
 import GithubIcon from './assets/github.svg';
-import WordmarkCondensed from './assets/x402_wordmark_dark_condensed.svg';
+import WordmarkCondensed from './assets/x402_wordmark_dark.svg';
 import { Section } from './components/Section';
 import { BackgroundVideo } from './components/BackgroundVideo';
 
 const whatIsItFeatures = [
+  {
+    title: 'No fees',
+    description:
+      'x402 as a protocol has 0 fees for either the customer or the merchant.',
+    icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
+  },
   {
     title: 'Instant settlement',
     description:
@@ -19,9 +25,9 @@ const whatIsItFeatures = [
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
   {
-    title: 'Frictionless integration',
+    title: 'Frictionless',
     description:
-      'Just a single line of middleware or configuration in your existing web server stack can enable x402.',
+      'As little as 1 line of middleware code or configuration in your existing web server stack and you can start accepting payments. Customers and agents aren\'t required to create an account or provide any personal information.',
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
 
@@ -34,7 +40,13 @@ const whatIsItFeatures = [
   {
     title: 'Web native',
     description:
-      "Activates the dormant 402 HTTP status code and works with any HTTP stack. If it's on the web, it can be paid for with x402.",
+      "Activates the dormant 402 HTTP status code and works with any HTTP stack. It works simply via headers and status codes on your existing HTTP server.",
+    icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
+  },
+  {
+    title: 'Blockchain Agnostic',
+    description:
+      'x402 is not tied to any specific blockchain, its a neutral standard open to integration by all.',
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
 ];
@@ -72,18 +84,18 @@ export default function Home() {
         {/* Hero Section */}
         <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
           <div className="text-center">
-            <div className="w-64 mb-6 inline-block">
-              <WordmarkCondensed alt="x402 Payment Protocol" />
+            <div className="w-64 mb-6 mx-auto">
+              <WordmarkCondensed alt="x402 Payment Protocol" className="mx-auto" />
             </div>
             <p className="text-xl text-gray-400 mb-8 font-mono">
               An open protocol for internet-native payments
             </p>
             <div className="flex flex-wrap gap-4 mb-8 justify-center">
               <a
-                href="/whitepaper.pdf"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSeESQAfvSlmjzl8JTcAOdzYjcWZ2O2GZjhuSeb8vTPpNys7FQ/viewform"
                 className="px-6 py-3 border-2 border-gray-700 hover:border-blue-600 rounded-lg font-mono transition-colors"
               >
-                Read the whitepaper
+                Get in touch
               </a>
               <Link
                 href="https://github.com/coinbase/x402"
@@ -111,7 +123,7 @@ export default function Home() {
           <div className="relative">
             <div className="flex items-center gap-4 mb-6">
               <h3 className="text-3xl font-bold text-blue-400">
-                A Chain-Agnostic Protocol for Web Payments
+                The best way to accept digital payments.
               </h3>
             </div>
             <div className="bg-gray-800/30 rounded-2xl p-8 backdrop-blur-2xl border border-gray-700/50">
@@ -233,6 +245,27 @@ export default function Home() {
           </div>
         </Section>
       </div>
+      <footer className="relative z-10 py-8 text-center text-sm text-gray-400">
+        By using this site, you agree to be bound by the{' '}
+        <a
+          href="https://www.coinbase.com/legal/developer-platform/terms-of-service"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500"
+        >
+          CDP Terms of Service
+        </a>{' '}
+        and{' '}
+        <a
+          href="https://www.coinbase.com/legal/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-500"
+        >
+          Global Privacy Policy
+        </a>
+        .
+      </footer>
     </div>
   );
 }
