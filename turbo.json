@@ -4,11 +4,17 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
-      "env": ["PRIVATE_KEY"] 
+      "env": ["PRIVATE_KEY"]
     },
     "dev": {
       "persistent": true,
       "cache": false
+    },
+    "watch": {
+      "persistent": true,
+      "cache": false,
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
     }
   }
 }
