@@ -10,8 +10,8 @@ import {
 import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
-import { getPaywallHtml } from "./paywall";
-export { getPaywallHtml } from "./paywall";
+import { getPaywallHtml } from "../paywall/generated-paywall-template";
+export { getPaywallHtml } from "../paywall/generated-paywall-template";
 
 interface PaymentMiddlewareOptions {
   description?: string;

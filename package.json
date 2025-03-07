@@ -2,7 +2,8 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev"
+    "dev": "turbo dev",
+    "watch": "turbo run watch"
   },
   "devDependencies": {
     "turbo": "^2.4.4"

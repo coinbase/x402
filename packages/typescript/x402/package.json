@@ -5,8 +5,10 @@
   "scripts": {
     "start": "tsx --env-file=.env index.ts",
     "test": "vitest",
-    "build": "tsc",
-    "watch": "tsc --watch",
+    "build": "tsc && npm run build:paywall",
+    "build:paywall": "tsx src/paywall/build.ts",
+    "watch": "tsc --watch & npm run watch:paywall",
+    "watch:paywall": "tsx --watch src/paywall/build.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
@@ -21,7 +23,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.5",
+    "wagmi": "^2.14.12"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.8",
