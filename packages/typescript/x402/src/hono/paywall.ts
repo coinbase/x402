@@ -502,7 +502,7 @@ window.addEventListener('load', initializeApp);
   <div class="container">
     <div class="header">
       <h1 class="title">Payment Required</h1>
-      <p class="subtitle">To access this content, please pay $${amount} Base Sepolia USDC</p>
+      <p class="subtitle">${paymentDetails.description}. To access this content, please pay $${amount} Base Sepolia USDC.</p>
       <p class="instructions">Need Base Sepolia USDC? <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Get some here.</a></p>
     </div>
 
