@@ -9,7 +9,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";
 import { Hex } from "viem";
 
-const botWallet = createWalletClient({
+const wallet = createWalletClient({
   chain: baseSepolia,
   transport: http(),
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
@@ -17,10 +17,7 @@ const botWallet = createWalletClient({
 
 const resourceUrl = "https://x402.org/protected";
 
-const wallet = botWallet;
-
 let axiosInstance = axios.create({});
-
 axiosInstance = withPaymentInterceptor(axiosInstance, wallet);
 
 console.log("Making request");

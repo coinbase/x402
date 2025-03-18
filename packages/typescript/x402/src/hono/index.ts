@@ -21,7 +21,7 @@ interface PaymentMiddlewareOptions {
   facilitatorUrl?: string;
   testnet?: boolean;
   customPaywallHtml?: string;
-  resource: Resource;
+  resource?: Resource | null;
 }
 
 export function paymentMiddleware(
@@ -35,7 +35,8 @@ export function paymentMiddleware(
     facilitatorUrl = "https://x402.org/facilitator",
     testnet = true,
     customPaywallHtml = "",
-  }: PaymentMiddlewareOptions,
+    resource = null,
+  }: PaymentMiddlewareOptions = {},
 ): MiddlewareHandler {
   const parsedAmount = moneySchema.safeParse(amount);
   if (!parsedAmount.success) {
@@ -47,12 +48,12 @@ export function paymentMiddleware(
   const { verify, settle } = useFacilitator(facilitatorUrl);
 
   return async (c, next) => {
-    const resource = c.req.url as Resource;
+    let resourceUrl = resource || (c.req.url as Resource);
     const paymentDetails: PaymentDetails = {
       scheme: "exact",
       networkId: testnet ? "84532" : "8453",
       maxAmountRequired: BigInt(parsedAmount.data * 10 ** 6),
-      resource,
+      resource: resourceUrl,
       description,
       mimeType,
       payToAddress: address,

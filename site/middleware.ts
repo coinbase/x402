@@ -6,7 +6,10 @@ import { Address } from "viem";
 import { Resource } from "x402/types";
 
 export async function middleware(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith("/protected")) {
+  if (
+    !request.nextUrl.pathname.startsWith("/protected") &&
+    !request.nextUrl.pathname.startsWith("/examples/price")
+  ) {
     console.log("Not a protected route, skipping middleware");
     return NextResponse.next();
   }
