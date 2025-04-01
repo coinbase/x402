@@ -15,7 +15,7 @@ const wallet = createWalletClient({
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
-const resourceUrl = "https://x402.org/protected";
+const resourceUrl = "http://localhost:4021/joke";
 
 let axiosInstance = axios.create({});
 axiosInstance = withPaymentInterceptor(axiosInstance, wallet);
