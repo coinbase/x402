@@ -13,22 +13,22 @@ app.use(
 
 ## Terms:
 
-- `resource`: something on the internet. Could be a webpage, file server, rpc service, api, any server on the internet that accepts http requests.
-- `client`: an entity wanting to pay for a resource
-- `facilitator server`: a server that facilitates verification and execution of payments onchain
-- `resource server`: an http server that provides an api or other resource for a client
+- `resource`: Something on the internet. This could be a webpage, file server, RPC service, API, any resource on the internet that accepts HTTP / HTTPS requests.
+- `client`: An entity wanting to pay for a resource.
+- `facilitator server`: A server that facilitates verification and execution of on-chain payments.
+- `resource server`: An HTTP server that provides an API or other resource for a client.
 
 ## Goals:
 
-- permissionless and secure for clients and servers
-- gassless for client and resource servers
-- minimal integration for the resource server and client (1 line for server, 1 function for client)
-- ability to trade off speed of response for guarantee of payment
-- extensible to different payment flows and chains
+- Permissionless and secure for clients and servers
+- Gassless for client and resource servers
+- Minimal integration for the resource server and client (1 line for the server, 1 function for the client)
+- Ability to trade off speed of response for guarantee of payment
+- Extensible to different payment flows and chains
 
 ## V1 Protocol
 
-The `x402` protocol is a chain agnostic standard for payments ontop of HTTP, leverage the existing `402 Payment Required` HTTP status code to indicate that a payment is required for access to the resource.
+The `x402` protocol is a chain agnostic standard for payments on top of HTTP, leverage the existing `402 Payment Required` HTTP status code to indicate that a payment is required for access to the resource.
 
 It specifies:
 
@@ -58,17 +58,17 @@ the payment details accepted for a resource.
 
 6. `Facilitator server` performs verification of the object based on the `scheme` and `networkId` of the `Payment Payload` and returns a `Verification Response`
 
-7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request and returns a response to the client. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
+7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
 8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment Details` to the `/settle` endpoint of a `facilitator server`.
 
 9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `networkId` of the `Payment Payload`.
 
-10. `Facilitator server` waits for the payment to be confirmed on the blockchain
+10. `Facilitator server` waits for the payment to be confirmed on the blockchain.
 
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
-12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Settlement Response` as base64 encoded json
+12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64 encoded JSON if the payment was executed successfully.
 
 ### Type Specifications
 
@@ -219,7 +219,7 @@ Clients and facilitator must explicitly support different `(scheme, networkId)` 
 
 `cd example`
 
-1. create `.env` `cp ../packages/typescript/.env.example .env` and follow instruction in the file to create wallets
+1. create `.env` `cp ../packages/typescript/x402/.env.example .env` and follow instruction in the file to create wallets
 
 2. `npm install` to install dependencies
 
