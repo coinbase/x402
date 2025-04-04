@@ -1,6 +1,6 @@
 import { paymentPayloadSchema } from "../types";
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { PaymentPayload } from "../../exact/evm/types";
+import { PaymentPayload } from "../types";
 
 export function encodePayment(payment: PaymentPayload): string {
   const safe = {
