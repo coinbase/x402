@@ -23,6 +23,7 @@ type PaymentMiddlewareOptions struct {
 	Testnet            bool
 	CustomPaywallHTML  string
 	Resource           string
+	ResourceRootURL    string
 }
 
 // Options is the type for the options for the PaymentMiddleware.
@@ -84,7 +85,14 @@ func WithResource(resource string) Options {
 	}
 }
 
+func WithResourceRootURL(resourceRootURL string) Options {
+	return func(options *PaymentMiddlewareOptions) {
+		options.ResourceRootURL = resourceRootURL
+	}
+}
+
 // PaymentMiddleware is the Gin middleware for the resource server using the x402payment protocol.
+// Amount: the decimal denominated amount to charge (ex: 0.01 for 1 cent)
 func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.HandlerFunc {
 	options := &PaymentMiddlewareOptions{
 		FacilitatorURL:     facilitatorclient.DefaultFacilitatorURL,
@@ -115,12 +123,18 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		userAgent := c.GetHeader("User-Agent")
 		acceptHeader := c.GetHeader("Accept")
 		isWebBrowser := strings.Contains(acceptHeader, "text/html") && strings.Contains(userAgent, "Mozilla")
+		var resource string
+		if options.Resource == "" {
+			resource = options.ResourceRootURL + c.Request.URL.Path
+		} else {
+			resource = options.Resource
+		}
 
 		paymentDetails := x402.PaymentDetails{
 			Scheme:                  "exact",
 			NetworkID:               networkID,
 			MaxAmountRequired:       maxAmountRequired,
-			Resource:                options.Resource,
+			Resource:                resource,
 			Description:             options.Description,
 			MimeType:                options.MimeType,
 			PayToAddress:            address,
