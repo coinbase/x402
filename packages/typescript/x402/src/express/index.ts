@@ -11,7 +11,7 @@ import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
 import { getPaywallHtml } from "../shared/paywall";
-export { getPaywallHtml } from "./paywall";
+export { getPaywallHtml } from "../shared/paywall";
 
 interface PaymentMiddlewareOptions {
   description?: string;
