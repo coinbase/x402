@@ -2,7 +2,7 @@ import { PaymentDetails } from "../../../types";
 import { PaymentPayload } from "./types";
 import { getVersion } from "../../../shared/evm/usdc";
 import { createNonce, signAuthorization } from "./sign";
-import { encodePayment } from "./utils/paymentUtils"; // Updated import
+import { encodePayment } from "./utils/paymentUtils";
 import { SignerWallet } from "../../../shared/evm/wallet";
 import { Address, Chain, Transport } from "viem";
 
