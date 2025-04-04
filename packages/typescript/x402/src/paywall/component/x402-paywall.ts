@@ -1,0 +1,189 @@
+import { setupProperties } from "./properties";
+import { attachEventHandlers, createEvent } from "./events";
+import { connectWallet, disconnectWallet } from "./wallet-connection";
+import { handlePayment } from "./payment-handler";
+import { updateStatus, hasWeb3Provider } from "./utils";
+import { getComponentStyles } from "./styles";
+import { getTemplate } from "./templates";
+import { PaymentDetails, paymentDetailsSchema } from "../../types";
+
+export class X402Paywall extends HTMLElement {
+  walletAddress: `0x${string}` | null = null;
+  walletConnected: boolean = false;
+  paymentStatus: "idle" | "processing" | "success" | "error" = "idle";
+  testnet: boolean = true;
+  amount: string = "0.00";
+  description: string = "";
+  payToAddress: `0x${string}` | null = null;
+  usdcBalance: number = 0;
+
+  // Shadow DOM
+  private _shadow: ShadowRoot;
+
+  constructor() {
+    super();
+    this._shadow = this.attachShadow({ mode: "open" });
+    setupProperties(this);
+  }
+
+  static get observedAttributes() {
+    return [
+      "amount",
+      "pay-to-address",
+      "description",
+      "testnet",
+      "theme-mode",
+      "theme-preset",
+      "network-id",
+      "resource",
+      "mime-type",
+      "deadline-seconds",
+    ];
+  }
+
+  get paymentDetails(): PaymentDetails {
+    // Get payment details from window.x402 if available
+    if (typeof window !== "undefined" && window.x402?.paymentDetails) {
+      try {
+        return paymentDetailsSchema.parse(window.x402.paymentDetails);
+      } catch (error) {
+        console.warn("Error parsing window.x402.paymentDetails:", error);
+      }
+    }
+
+    // Convert amount to USDC base units (6 decimals)
+    const amountStr = this.amount.replace("$", "").trim();
+    const amount = parseFloat(amountStr);
+    const maxAmountRequired = BigInt(Math.round(amount * 10 ** 6));
+
+    // Get networkId from attribute or default based on testnet
+    const networkId = this.getAttribute("network-id") || (this.testnet ? "84532" : "8453");
+
+    // Get resource URL from attribute or current location
+    const resourceUrl = this.getAttribute("resource") || window.location.href;
+
+    // Get deadline seconds from attribute or default
+    const deadlineSeconds = parseInt(this.getAttribute("deadline-seconds") || "60");
+
+    // Get USDC address based on network
+    const usdcAddress =
+      networkId === "84532"
+        ? "0x036CbD53842c5426634e7929541eC2318f3dCF7e" // Testnet
+        : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Mainnet
+
+    return {
+      scheme: "exact",
+      networkId,
+      maxAmountRequired,
+      resource: resourceUrl as `${string}://${string}`,
+      description: this.description,
+      mimeType: this.getAttribute("mime-type") || "text/html",
+      payToAddress: this.payToAddress || "",
+      requiredDeadlineSeconds: deadlineSeconds,
+      usdcAddress,
+      outputSchema: null,
+      extra: null,
+    };
+  }
+
+  connectedCallback() {
+    this.render();
+    attachEventHandlers(this);
+  }
+
+  attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+    if (oldValue !== newValue) {
+      this.render();
+    }
+  }
+
+  // Public methods
+  async connectWallet() {
+    try {
+      if (!hasWeb3Provider()) {
+        throw new Error("No Web3 provider found");
+      }
+      const address = await connectWallet(this);
+      this.walletAddress = address;
+      this.walletConnected = true;
+      this.render();
+      this.dispatchEvent(createEvent("walletconnected", { address }));
+    } catch (error) {
+      updateStatus(
+        this,
+        `Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async disconnectWallet() {
+    try {
+      await disconnectWallet(this);
+      this.walletAddress = null;
+      this.walletConnected = false;
+      this.render();
+      this.dispatchEvent(createEvent("walletdisconnected"));
+    } catch (error) {
+      updateStatus(
+        this,
+        `Failed to disconnect wallet: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async pay() {
+    try {
+      this.paymentStatus = "processing";
+      updateStatus(this, "Processing payment...");
+      this.render();
+
+      const result = await handlePayment(this);
+
+      this.paymentStatus = "success";
+      updateStatus(this, "Payment successful!");
+      this.render();
+
+      this.dispatchEvent(createEvent("paymentsuccess", result));
+    } catch (error) {
+      this.paymentStatus = "error";
+      updateStatus(
+        this,
+        `Payment failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+      this.render();
+
+      this.dispatchEvent(createEvent("paymenterror", { error }));
+    }
+  }
+
+  private render() {
+    const styles = getComponentStyles(this);
+    const template = getTemplate(this);
+
+    this._shadow.innerHTML = `
+      <style>${styles}</style>
+      ${template}
+    `;
+
+    // After rendering, reattach button event handlers
+    this._attachUIHandlers();
+  }
+
+  private _attachUIHandlers() {
+    const connectBtn = this._shadow.querySelector("#connect-wallet");
+    const disconnectBtn = this._shadow.querySelector("#disconnect-wallet");
+    const payBtn = this._shadow.querySelector("#pay-button");
+
+    if (connectBtn) {
+      connectBtn.addEventListener("click", () => this.connectWallet());
+    }
+
+    if (disconnectBtn) {
+      disconnectBtn.addEventListener("click", () => this.disconnectWallet());
+    }
+
+    if (payBtn) {
+      payBtn.addEventListener("click", () => this.pay());
+    }
+  }
+}

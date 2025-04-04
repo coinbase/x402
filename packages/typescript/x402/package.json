@@ -9,6 +9,8 @@
     "build:paywall": "tsx src/paywall/build.ts",
     "watch": "tsc --watch & npm run watch:paywall",
     "watch:paywall": "tsx --watch src/paywall/build.ts",
+    "build:component": "node packages/typescript/x402/esbuild.config.js",
+    "dev:component": "node packages/typescript/x402/esbuild.config.js --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
