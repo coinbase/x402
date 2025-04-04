@@ -17,6 +17,7 @@
   "description": "x402 Payment Protocol",
   "devDependencies": {
     "@types/node": "^22.13.4",
+    "@types/express": "^4.17.21",
     "prettier": "3.5.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
