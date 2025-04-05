@@ -5,7 +5,6 @@ import { handlePayment } from "./payment-handler";
 import { updateStatus, hasWeb3Provider } from "./utils";
 import { getComponentStyles } from "./styles";
 import { getTemplate } from "./templates";
-import { PaymentDetails, paymentDetailsSchema } from "../../types";
 
 export class X402Paywall extends HTMLElement {
   walletAddress: `0x${string}` | null = null;

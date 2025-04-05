@@ -1,5 +1,5 @@
 import { hasWeb3Provider, updateStatus } from "./utils";
-import { type GetAccountReturnType, watchAccount } from "@wagmi/core";
+import { watchAccount } from "@wagmi/core";
 import { base, baseSepolia } from "viem/chains";
 import { X402Paywall } from "./x402-paywall";
 import { wagmiConfig } from "./config";
