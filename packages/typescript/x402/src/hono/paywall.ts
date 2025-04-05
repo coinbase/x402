@@ -1,6 +1,6 @@
 import { PaymentDetails } from "../types";
 
-export const customHtml = (paymentDetails: PaymentDetails, testnet: boolean) => `
+export const getPaywallHtml = (paymentDetails: PaymentDetails, testnet: boolean) => `
 <!DOCTYPE html>
 <html lang="en">
 <head>

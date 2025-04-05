@@ -10,9 +10,7 @@ import {
 import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
-import { getPaywallHtml } from "../paywall/generated-paywall-template";
-export { getPaywallHtml } from "../paywall/generated-paywall-template";
-
+import { getPaywallHtml } from "./paywall";
 interface PaymentMiddlewareOptions {
   description?: string;
   mimeType?: string;
@@ -74,14 +72,7 @@ export function paymentMiddleware(
       console.log("No payment header found, returning 402");
       // If it's a browser request, serve the paywall page
       if (isWebBrowser) {
-        const html =
-          customPaywallHtml ||
-          getPaywallHtml({
-            amount: parsedAmount.data,
-            paymentDetails: toJsonSafe(paymentDetails),
-            currentUrl: c.req.url,
-            testnet,
-          });
+        const html = customPaywallHtml || getPaywallHtml(paymentDetails, testnet);
 
         return c.html(html, 402);
       }

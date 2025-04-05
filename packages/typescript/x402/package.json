@@ -6,11 +6,9 @@
     "start": "tsx --env-file=.env index.ts",
     "test": "vitest",
     "build": "tsc && npm run build:paywall",
-    "build:paywall": "tsx src/paywall/build.ts",
     "watch": "tsc --watch & npm run watch:paywall",
-    "watch:paywall": "tsx --watch src/paywall/build.ts",
-    "build:component": "tsc -p src/paywall/component/tsconfig.json",
-    "dev:component": "tsc -p src/paywall/component/tsconfig.json --watch",
+    "build:paywall": "tsc -p src/paywall/tsconfig.json",
+    "watch:paywall": "tsc -p src/paywall/tsconfig.json --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
@@ -76,6 +74,10 @@
     "./axios": {
       "types": "./dist/axios/index.d.ts",
       "default": "./dist/axios/index.js"
+    },
+    "./paywall": {
+      "types": "./dist/paywall/index.d.ts",
+      "default": "./dist/paywall/index.js"
     }
   },
   "types": "dist/index.d.ts",
