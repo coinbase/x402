@@ -9,13 +9,13 @@
     "strictNullChecks": true,
     "skipLibCheck": true,
     "outDir": "../../../dist/paywall/component",
-    "rootDir": "../../../src/",
+    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "typeRoots": ["./"]
+    "composite": true
   },
-  "include": ["**/*.ts", "**/*.d.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["*.ts"],
+  "references": [{ "path": "../../../tsconfig.json" }]
 }

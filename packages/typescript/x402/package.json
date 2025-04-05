@@ -7,8 +7,8 @@
     "test": "vitest",
     "build": "tsc && npm run build:paywall",
     "watch": "tsc --watch & npm run watch:paywall",
-    "build:paywall": "tsc -p src/paywall/tsconfig.json",
-    "watch:paywall": "tsc -p src/paywall/tsconfig.json --watch",
+    "build:paywall": "tsc -p src/paywall/component/tsconfig.json",
+    "watch:paywall": "tsc -p src/paywall/component/tsconfig.json --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\""
   },
