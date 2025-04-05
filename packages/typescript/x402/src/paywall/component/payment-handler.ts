@@ -112,7 +112,7 @@ function createPaymentDetails(component: X402Paywall) {
     resource: resourceUrl as `${string}://${string}`,
     description: component.description,
     mimeType: component.getAttribute("mime-type") || "",
-    payToAddress: component.recipientAddress,
+    payToAddress: component.payToAddress,
     requiredDeadlineSeconds: parseInt(component.getAttribute("deadline-seconds") || "60"),
     usdcAddress: chainConfig[networkId].usdcAddress,
     outputSchema: null,

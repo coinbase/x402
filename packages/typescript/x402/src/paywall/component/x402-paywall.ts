@@ -14,7 +14,7 @@ export class X402Paywall extends HTMLElement {
   testnet: boolean = true;
   amount: string = "0.00";
   description: string = "";
-  payToAddress: `0x${string}` | null = null;
+  payToAddress: `0x${string}` = "0x0000000000000000000000000000000000000000";
   usdcBalance: number = 0;
 
   // Shadow DOM
@@ -27,63 +27,7 @@ export class X402Paywall extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return [
-      "amount",
-      "pay-to-address",
-      "description",
-      "testnet",
-      "theme-mode",
-      "theme-preset",
-      "network-id",
-      "resource",
-      "mime-type",
-      "deadline-seconds",
-    ];
-  }
-
-  get paymentDetails(): PaymentDetails {
-    // Get payment details from window.x402 if available
-    if (typeof window !== "undefined" && window.x402?.paymentDetails) {
-      try {
-        return paymentDetailsSchema.parse(window.x402.paymentDetails);
-      } catch (error) {
-        console.warn("Error parsing window.x402.paymentDetails:", error);
-      }
-    }
-
-    // Convert amount to USDC base units (6 decimals)
-    const amountStr = this.amount.replace("$", "").trim();
-    const amount = parseFloat(amountStr);
-    const maxAmountRequired = BigInt(Math.round(amount * 10 ** 6));
-
-    // Get networkId from attribute or default based on testnet
-    const networkId = this.getAttribute("network-id") || (this.testnet ? "84532" : "8453");
-
-    // Get resource URL from attribute or current location
-    const resourceUrl = this.getAttribute("resource") || window.location.href;
-
-    // Get deadline seconds from attribute or default
-    const deadlineSeconds = parseInt(this.getAttribute("deadline-seconds") || "60");
-
-    // Get USDC address based on network
-    const usdcAddress =
-      networkId === "84532"
-        ? "0x036CbD53842c5426634e7929541eC2318f3dCF7e" // Testnet
-        : "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Mainnet
-
-    return {
-      scheme: "exact",
-      networkId,
-      maxAmountRequired,
-      resource: resourceUrl as `${string}://${string}`,
-      description: this.description,
-      mimeType: this.getAttribute("mime-type") || "text/html",
-      payToAddress: this.payToAddress || "",
-      requiredDeadlineSeconds: deadlineSeconds,
-      usdcAddress,
-      outputSchema: null,
-      extra: null,
-    };
+    return ["amount", "payToAddress", "description", "testnet", "theme-mode", "theme-preset"];
   }
 
   connectedCallback() {

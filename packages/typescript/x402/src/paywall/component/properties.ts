@@ -9,12 +9,12 @@ export function setupProperties(component: any) {
       },
     },
 
-    address: {
-      get() {
-        return this.getAttribute("address") || "";
+    payToAddress: {
+      get(): `0x${string}` {
+        return this.getAttribute("payToAddress") as `0x${string}`;
       },
-      set(value) {
-        this.setAttribute("address", value);
+      set(value: `0x${string}`) {
+        this.setAttribute("payToAddress", value);
       },
     },
 
@@ -57,7 +57,5 @@ export function setupProperties(component: any) {
         this.setAttribute("theme-preset", value);
       },
     },
-
-    // Add more properties as needed
   });
 }
