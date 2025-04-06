@@ -72,12 +72,34 @@ func proxyHandler(targetURL string, headers map[string]string) gin.HandlerFunc {
 		panic(err)
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(target)
+
+			// Copy only essential headers
+			if userAgent := pr.In.Header.Get("User-Agent"); userAgent != "" {
+				pr.Out.Header.Set("User-Agent", userAgent)
+			}
+			if accept := pr.In.Header.Get("Accept"); accept != "" {
+				pr.Out.Header.Set("Accept", accept)
+			}
+
+			// Copy request body if present
+			if pr.In.Body != nil {
+				pr.Out.Body = pr.In.Body
+				pr.Out.ContentLength = pr.In.ContentLength
+			}
+		},
+	}
 
 	return func(c *gin.Context) {
+		// Add any configured headers
 		for k, v := range headers {
 			c.Request.Header.Set(k, v)
 		}
+
+		// Remove any payment headers
+		delete(c.Request.Header, "X-Payment")
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

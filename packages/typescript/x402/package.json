@@ -71,6 +71,10 @@
     "./axios": {
       "types": "./dist/axios/index.d.ts",
       "default": "./dist/axios/index.js"
+    },
+    "./fetch": {
+      "types": "./dist/fetch/index.d.ts",
+      "default": "./dist/fetch/index.js"
     }
   },
   "types": "dist/index.d.ts",

@@ -1,8 +1,8 @@
 {
   "targetURL": "https://httpbin.org",
   "amount": 0.01,
-  "payToAddress": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+  "payToAddress": "<your address>",
   "headers": {
-    "X-Example-Header": "example-value"
+    "x-example-header": "example value"
   }
 }
