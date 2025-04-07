@@ -1,9 +1,9 @@
 import { describe, test, expect } from "vitest";
 import { paymentMiddleware } from "../../src/express/index";
 import { createSignerSepolia } from "../../src/shared/evm/wallet";
-import { createPayment } from "../../src/schemes/exact/evm/client";
+import { createPaymentHeader } from "../../src/schemes/exact/evm/client";
 import { getUsdcAddressForChain } from "../../src/shared/evm/usdc";
-import {  moneySchema, PaymentDetails } from "../../src/types";
+import { moneySchema, PaymentDetails } from "../../src/types";
 import { Address, Hex } from "viem";
 
 // Helpers to simulate Express req, res, and next.
@@ -55,7 +55,7 @@ const testDeadline = 60; // seconds
 const testResource = "https://x402.org/protected"; // Example resource URL - should his be changed?
 
 // Helper to build PaymentDetails exactly as the middleware will
-const buildPaymentDetails = (reqUrl: string, testnet: boolean): PaymentDetails => {
+const buildPaymentDetails = (reqUrl: `${string}://${string}`, testnet: boolean): PaymentDetails => {
   const parsed = moneySchema.safeParse(testAmount);
   if (!parsed.success) {
     throw new Error(`Invalid amount in test: ${testAmount}`);
@@ -125,8 +125,8 @@ describe("paymentMiddleware integration tests (live Sepolia)", () => {
     // Build the payment details exactly as middleware would.
     const reqUrl = testResource;
     const paymentDetails = buildPaymentDetails(reqUrl, true);
-    // Use createPayment (live) to generate a valid payment token.
-    const paymentToken = await createPayment(wallet, paymentDetails);
+    // Use createPaymentHeader (live) to generate a valid payment token.
+    const paymentToken = await createPaymentHeader(wallet, paymentDetails);
 
     const middleware = paymentMiddleware(testAmount, payToAddress, {
       description: testDescription,
@@ -155,10 +155,8 @@ describe("paymentMiddleware integration tests (live Sepolia)", () => {
   test("returns 402 when an invalid (corrupted) payment token is provided", async () => {
     // Build payment details and generate a valid token.
     const reqUrl = testResource;
-    const paymentDetails = buildPaymentDetails(reqUrl, true);
-    const validToken = await createPayment(wallet, paymentDetails);
     // Corrupt the token (for example, change a character).
-    const invalidToken = validToken.slice(0, -1) + (validToken.slice(-1) === "a" ? "b" : "a");
+    const invalidToken = "invalid-token-12345";
 
     const middleware = paymentMiddleware(testAmount, payToAddress, {
       description: testDescription,
