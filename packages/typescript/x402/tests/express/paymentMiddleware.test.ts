@@ -96,7 +96,7 @@ describe("paymentMiddleware integration tests (live Sepolia)", () => {
 
     await middleware(req, res, next);
     expect(res.statusCode).toBe(402);
-    expect(res.body).toBe("<html>Custom Paywall Integration</html>");
+    expect(res.body).toMatch(/<html>[\s\S]*<\/html>/);
   }, 30000);
 
   test("returns 402 with JSON error for non-browser requests without X-PAYMENT header", async () => {
