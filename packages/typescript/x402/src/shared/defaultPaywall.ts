@@ -19,7 +19,7 @@ export function getDefaultPaywallHtml({
     window.x402 = {
       amount: ${amount},
       paymentDetails: ${JSON.stringify(paymentDetails)},
-      isTestnet: ${testnet},
+      testnet: ${testnet},
       currentUrl: "${currentUrl}",
       config: {
         chainConfig: {

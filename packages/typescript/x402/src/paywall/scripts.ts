@@ -8,7 +8,7 @@ import { createPaymentHeader } from "../schemes/exact/evm/client";
 import { createPayment } from "../schemes/exact/evm/client";
 import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
 import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
-import { getVersion } from "../shared/evm/usdc";
+import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
 
 declare global {
   interface Window {
@@ -171,59 +171,44 @@ async function initializeApp() {
     }
 
     try {
-      const usdcAddress = window.x402.config.chainConfig[chain.id].usdcAddress;
-      try {
-        statusDiv.textContent = "Checking USDC balance...";
-        const balance = await publicClient.readContract({
-          address: usdcAddress as `0x${string}`,
-          abi: [
-            {
-              inputs: [{ internalType: "address", name: "account", type: "address" }],
-              name: "balanceOf",
-              outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-              stateMutability: "view",
-              type: "function",
-            },
-          ],
-          functionName: "balanceOf",
-          args: [walletClient.account.address],
-        });
+      statusDiv.textContent = "Checking USDC balance...";
+      const balance = await getUSDCBalance(publicClient, walletClient.account.address);
+      if (balance === 0n) {
+        statusDiv.textContent = `Your USDC balance is 0. Please make sure you have USDC tokens on ${
+          x402.testnet ? "Base Sepolia" : "Base"
+        }.`;
+        return;
+      }
+    } catch (error) {
+      statusDiv.textContent =
+        error instanceof Error ? error.message : "Failed to check USDC balance";
+    }
 
-        if (balance === 0n) {
-          statusDiv.textContent = `Your USDC balance is 0. Please make sure you have USDC tokens on ${
-            x402.testnet ? "Base Sepolia" : "Base"
-          }.`;
-          return;
-        }
+    statusDiv.textContent = "Creating payment signature...";
 
-        statusDiv.textContent = "Creating payment signature...";
+    try {
+      const paymentHeader = await createPaymentHeader(walletClient, x402.paymentDetails);
 
-        const paymentHeader = await createPaymentHeader(walletClient, x402.paymentDetails);
+      statusDiv.textContent = "Requesting content with payment...";
 
-        statusDiv.textContent = "Requesting content with payment...";
+      const response = await fetch(x402.currentUrl, {
+        headers: {
+          "X-PAYMENT": paymentHeader,
+          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+        },
+      });
 
-        const response = await fetch(x402.currentUrl, {
-          headers: {
-            "X-PAYMENT": paymentHeader,
-            "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-          },
-        });
-
-        if (response.ok) {
-          const contentType = response.headers.get("content-type");
-          if (contentType && contentType.includes("text/html")) {
-            document.documentElement.innerHTML = await response.text();
-          } else {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.location.href = url;
-          }
+      if (response.ok) {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("text/html")) {
+          document.documentElement.innerHTML = await response.text();
         } else {
-          throw new Error("Payment failed: " + response.statusText);
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          window.location.href = url;
         }
-      } catch (error) {
-        statusDiv.textContent =
-          error instanceof Error ? error.message : "Failed to check USDC balance";
+      } else {
+        throw new Error("Payment failed: " + response.statusText);
       }
     } catch (error) {
       statusDiv.textContent = error instanceof Error ? error.message : "Payment failed";
