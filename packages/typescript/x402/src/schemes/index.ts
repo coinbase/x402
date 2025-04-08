@@ -1,1 +1,1 @@
-export * as exact from "./exact";
+export * as exact from "./exact/index.js";

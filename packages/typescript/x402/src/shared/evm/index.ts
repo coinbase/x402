@@ -1,4 +1,4 @@
-export * as usdc from "./usdc";
-export * as usdcABI from "./erc20PermitABI";
-export * as config from "./config";
-export * as wallet from "./wallet";
+export * as usdc from "./usdc.js";
+export * as usdcABI from "./erc20PermitABI.js";
+export * as config from "./config.js";
+export * as wallet from "./wallet.js";

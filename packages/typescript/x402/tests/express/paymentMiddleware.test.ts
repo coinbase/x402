@@ -1,10 +1,10 @@
 import { describe, test, expect } from "vitest";
-import { paymentMiddleware } from "../../src/express/index";
-import { createSignerSepolia } from "../../src/shared/evm/wallet";
-import { createPaymentHeader } from "../../src/schemes/exact/evm/client";
-import { getUsdcAddressForChain } from "../../src/shared/evm/usdc";
-import { moneySchema, PaymentDetails } from "../../src/types";
 import { Address, Hex } from "viem";
+import { paymentMiddleware } from "../../src/express/index.js";
+import { createSignerSepolia } from "../../src/shared/evm/wallet.js";
+import { createPaymentHeader } from "../../src/schemes/exact/evm/client.js";
+import { getUsdcAddressForChain } from "../../src/shared/evm/usdc.js";
+import { moneySchema, PaymentDetails } from "../../src/types/index.js";
 
 // Helpers to simulate Express req, res, and next.
 const createReq = (headers: Record<string, string>, originalUrl = "/integration-test") => {

@@ -1,11 +1,11 @@
 import { expect, test, describe } from "vitest";
-import { createPayment } from "../../../../src/schemes/exact/evm/client";
-import { verify } from "../../../../src/schemes/exact/evm/facilitator";
 import { baseSepolia } from "viem/chains";
-import { Resource, PaymentDetails } from "../../../../src/types";
-import { getUsdcAddressForChain } from "../../../../src/shared/evm/usdc";
-import { createSignerSepolia, createClientSepolia } from "../../../../src/shared/evm/wallet";
 import { Address, Hex } from "viem";
+import { createPayment } from "../../../../src/schemes/exact/evm/client.js";
+import { verify } from "../../../../src/schemes/exact/evm/facilitator.js";
+import { Resource, PaymentDetails } from "../../../../src/types/index.js";
+import { getUsdcAddressForChain } from "../../../../src/shared/evm/usdc.js";
+import { createSignerSepolia, createClientSepolia } from "../../../../src/shared/evm/wallet.js";
 
 describe("sign and recover", () => {
   const wallet = createSignerSepolia(process.env.PRIVATE_KEY as Hex);

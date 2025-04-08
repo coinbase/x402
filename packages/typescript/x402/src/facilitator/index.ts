@@ -1,7 +1,7 @@
-import { verify as verifyExact, settle as settleExact, decodePayment } from "../schemes/exact/evm";
-import { ConnectedClient, SignerWallet } from "../shared/evm/wallet";
-import { PaymentDetails, SettleResponse, VerifyResponse } from "../types";
 import { Chain, Transport, Account } from "viem";
+import { verify as verifyExact, settle as settleExact, decodePayment } from "../schemes/exact/evm/index.js";
+import { ConnectedClient, SignerWallet } from "../shared/evm/wallet.js";
+import { PaymentDetails, SettleResponse, VerifyResponse } from "../types/index.js";
 
 const supportedEVMNetworks = ["84532"];
 
