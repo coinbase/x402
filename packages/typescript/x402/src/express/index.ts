@@ -10,8 +10,8 @@ import {
 import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
-import { getPaywallHtml } from "../shared/paywall";
-export { getPaywallHtml } from "../shared/paywall";
+import { getDefaultPaywallHtml } from "../shared/defaultPaywall";
+export { getDefaultPaywallHtml } from "../shared/defaultPaywall";
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -36,12 +36,12 @@ export function paymentMiddleware(
     testnet = true,
     customPaywallHtml = "",
     resource = null,
-  }: PaymentMiddlewareOptions = {}
+  }: PaymentMiddlewareOptions = {},
 ) {
   const parsedAmount = moneySchema.safeParse(amount);
   if (!parsedAmount.success) {
     throw new Error(
-      `Invalid amount (amount: ${amount}). Must be in the form "$3.10", 0.10, "0.001", ${parsedAmount.error}`
+      `Invalid amount (amount: ${amount}). Must be in the form "$3.10", 0.10, "0.001", ${parsedAmount.error}`,
     );
   }
 
@@ -71,15 +71,14 @@ export function paymentMiddleware(
     const payment = req.header("X-PAYMENT");
     const userAgent = req.header("User-Agent") || "";
     const acceptHeader = req.header("Accept") || "";
-    const isWebBrowser =
-      acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
+    const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
     if (!payment) {
       console.log("No payment header found, returning 402");
       if (isWebBrowser) {
         const html =
           customPaywallHtml ||
-          getPaywallHtml({
+          getDefaultPaywallHtml({
             amount: parsedAmount.data,
             paymentDetails: toJsonSafe(paymentDetails),
             currentUrl: req.originalUrl,
