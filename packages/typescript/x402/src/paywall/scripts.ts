@@ -51,6 +51,7 @@ function updatePaymentUI() {
   console.log("X402:", x402);
   const amount = x402.amount || 0;
   const paymentDetails = x402.paymentDetails || {};
+  const testnet = x402.testnet ?? true;
 
   // Update payment description
   const descriptionEl = document.getElementById("payment-description");
@@ -69,12 +70,13 @@ function updatePaymentUI() {
   // Update network
   const networkEl = document.getElementById("payment-network");
   if (networkEl) {
-    networkEl.textContent = x402.testnet ? "Base Sepolia" : "Base";
+    networkEl.textContent = testnet ? "Base Sepolia" : "Base";
   }
 }
 
 async function initializeApp() {
   const x402 = window.x402;
+
   const wagmiConfig = createConfig({
     chains: [base, baseSepolia],
     connectors: [coinbaseWallet({ appName: "x402" }), injected()],
@@ -93,7 +95,7 @@ async function initializeApp() {
   const statusDiv = document.getElementById("status");
 
   if (!connectWalletBtn || !paymentSection || !payButton || !statusDiv) {
-    // console.error('Required DOM elements not found');
+    console.error("Required DOM elements not found");
     return;
   }
 
@@ -135,6 +137,12 @@ async function initializeApp() {
       if (!result.accounts?.[0]) {
         throw new Error("Please select an account in your wallet");
       }
+
+      // Verify connected to the correct network
+      if (result.chainId !== chain.id) {
+        throw new Error(`Please switch to ${chain.name} network in your wallet`);
+      }
+
       walletClient = createWalletClient({
         account: result.accounts[0],
         chain,
