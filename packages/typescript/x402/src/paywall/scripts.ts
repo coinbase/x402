@@ -5,19 +5,18 @@ import { base, baseSepolia } from "viem/chains";
 import { SignerWallet } from "../shared/evm/wallet";
 import { createPaymentHeader } from "../schemes/exact/evm/client";
 
+import { createPayment } from "../schemes/exact/evm/client";
+import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
+import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
+import { getVersion } from "../shared/evm/usdc";
+
 declare global {
   interface Window {
     x402: {
       amount?: number;
       testnet?: boolean;
       paymentDetails: any;
-      isTestnet: boolean;
       currentUrl: string;
-      state: {
-        publicClient: any;
-        chain: any;
-        walletClient: any;
-      };
       config: {
         chainConfig: Record<
           string,
@@ -32,13 +31,25 @@ declare global {
   }
 }
 
+function ensureFunctionsAreAvailable() {
+  // This is just to make sure these functions get bundled
+  return {
+    createPaymentHeader,
+    createPayment,
+    signAuthorization,
+    createNonce,
+    getVersion,
+    encodePayment,
+  };
+}
+
 // Function to update UI with payment details
 function updatePaymentUI() {
   const x402 = window.x402;
   if (!x402) return;
 
+  console.log("X402:", x402);
   const amount = x402.amount || 0;
-  const testnet = x402.testnet !== undefined ? x402.testnet : x402.isTestnet;
   const paymentDetails = x402.paymentDetails || {};
 
   // Update payment description
@@ -58,7 +69,7 @@ function updatePaymentUI() {
   // Update network
   const networkEl = document.getElementById("payment-network");
   if (networkEl) {
-    networkEl.textContent = testnet ? "Base Sepolia" : "Base";
+    networkEl.textContent = x402.testnet ? "Base Sepolia" : "Base";
   }
 }
 
@@ -72,6 +83,8 @@ async function initializeApp() {
       [baseSepolia.id]: http(),
     },
   });
+
+  ensureFunctionsAreAvailable();
 
   // DOM Elements
   const connectWalletBtn = document.getElementById("connect-wallet");
@@ -88,7 +101,7 @@ async function initializeApp() {
   updatePaymentUI();
 
   let walletClient: SignerWallet | null = null;
-  const chain = x402.isTestnet ? baseSepolia : base;
+  const chain = x402.testnet ? baseSepolia : base;
 
   const publicClient = createPublicClient({
     chain,
@@ -170,7 +183,7 @@ async function initializeApp() {
 
         if (balance === 0n) {
           statusDiv.textContent = `Your USDC balance is 0. Please make sure you have USDC tokens on ${
-            x402.isTestnet ? "Base Sepolia" : "Base"
+            x402.testnet ? "Base Sepolia" : "Base"
           }.`;
           return;
         }
@@ -211,8 +224,8 @@ async function initializeApp() {
 }
 
 window.addEventListener("load", () => {
-  // First update the UI with payment details
+  // Update the UI with payment details
   updatePaymentUI();
-  // Then initialize the app
+
   initializeApp();
 });

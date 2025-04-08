@@ -18,15 +18,9 @@ export function getDefaultPaywallHtml({
   <script>
     window.x402 = {
       amount: ${amount},
-      testnet: ${testnet},
       paymentDetails: ${JSON.stringify(paymentDetails)},
       isTestnet: ${testnet},
       currentUrl: "${currentUrl}",
-      state: {
-        publicClient: null,
-        chain: null,
-        walletClient: null
-      },
       config: {
         chainConfig: {
           "84532": {

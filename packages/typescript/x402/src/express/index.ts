@@ -10,8 +10,8 @@ import {
 import { Address } from "viem";
 import { getUsdcAddressForChain } from "../shared/evm/usdc";
 import { useFacilitator } from "../client";
-import { getPaywallHtml } from "../shared/defaultPaywall";
-export { getPaywallHtml } from "../shared/defaultPaywall";
+import { getDefaultPaywallHtml } from "../shared/defaultPaywall";
+export { getDefaultPaywallHtml } from "../shared/defaultPaywall";
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -78,7 +78,7 @@ export function paymentMiddleware(
       if (isWebBrowser) {
         const html =
           customPaywallHtml ||
-          getPaywallHtml({
+          getDefaultPaywallHtml({
             amount: parsedAmount.data,
             paymentDetails: toJsonSafe(paymentDetails),
             currentUrl: req.originalUrl,

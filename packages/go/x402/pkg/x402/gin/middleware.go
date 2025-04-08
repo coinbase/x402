@@ -149,7 +149,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			if isWebBrowser {
 				html := options.CustomPaywallHTML
 				if html == "" {
-					html = getPaywallHtml(options)
+					html = getDefaultPaywallHtml(options)
 				}
 				c.Abort()
 				c.Data(http.StatusPaymentRequired, "text/html", []byte(html))
@@ -208,7 +208,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 	}
 }
 
-// getPaywallHtml is the default paywall HTML for the PaymentMiddleware.
-func getPaywallHtml(_ *PaymentMiddlewareOptions) string {
+// getDefaultPaywallHtml is the default paywall HTML for the PaymentMiddleware.
+func getDefaultPaywallHtml(_ *PaymentMiddlewareOptions) string {
 	return "<html><body>Payment Required</body></html>"
 }

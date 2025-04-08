@@ -63,8 +63,10 @@ const options: esbuild.BuildOptions = {
   bundle: true,
   metafile: true, // needs to be set
   outdir: DIST_DIR, // needs to be set
-  treeShaking: true,
-  minify: true,
+  treeShaking: false,
+  minify: false,
+  format: "iife",
+  sourcemap: true,
   plugins: [
     htmlPlugin({
       files: [
