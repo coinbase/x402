@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "hono";
+import { Address } from "viem";
 import {
   Money,
   moneySchema,
@@ -6,12 +7,11 @@ import {
   toJsonSafe,
   settleResponseHeader,
   Resource,
-} from "../types";
-import { Address } from "viem";
-import { getUsdcAddressForChain } from "../shared/evm/usdc";
-import { useFacilitator } from "../client";
-import { getPaywallHtml } from "../shared/paywall";
-export { getPaywallHtml } from "../shared/paywall"
+} from "../types/index.js";
+import { getUsdcAddressForChain } from "../shared/evm/usdc.js";
+import { useFacilitator } from "../client.js";
+import { getPaywallHtml } from "../shared/paywall.js";
+export { getPaywallHtml } from "../shared/paywall.js"
 
 interface PaymentMiddlewareOptions {
   description?: string;

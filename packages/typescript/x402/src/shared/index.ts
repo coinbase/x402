@@ -1,4 +1,4 @@
-export * as evm from "./evm";
+export * as evm from "./evm/index.js";
 
 export function safeBase64Encode(data: string): string {
   if (typeof window !== "undefined") {

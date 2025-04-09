@@ -1,7 +1,7 @@
 import { AxiosInstance, AxiosError } from "axios";
-import { paymentDetailsSchema } from "../types";
-import { evm } from "../shared";
-import { createPaymentHeader } from "../client";
+import { paymentDetailsSchema } from "../types/index.js";
+import { evm } from "../shared/index.js";
+import { createPaymentHeader } from "../client.js";
 
 export function withPaymentInterceptor(
   axiosClient: AxiosInstance,

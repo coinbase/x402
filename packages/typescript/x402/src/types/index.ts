@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { safeBase64Encode, safeBase64Decode } from "../shared";
+import { safeBase64Encode, safeBase64Decode } from "../shared/index.js";
 
-export { SignerWallet } from "../shared/evm/wallet";
+export { SignerWallet } from "../shared/evm/wallet.js";
 
 const resourceSchema = z.string().regex(/^[^:]+:\/\/.+$/) as z.ZodType<Resource>;
 

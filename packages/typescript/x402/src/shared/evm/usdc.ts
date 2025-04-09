@@ -1,7 +1,7 @@
-import { Account, Address, Chain, Client, Hex, PublicClient, Transport } from "viem";
-import { usdcABI as abi } from "./erc20PermitABI";
-import { config } from "./config";
-import { ConnectedClient } from "./wallet";
+import { Account, Address, Chain, Client, Transport } from "viem";
+import { usdcABI as abi } from "./erc20PermitABI.js";
+import { config } from "./config.js";
+import { ConnectedClient } from "./wallet.js";
 
 export function getUsdcAddress<
   transport extends Transport,

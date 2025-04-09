@@ -1,12 +1,12 @@
 import { Account, Address, Chain, Transport, verifyTypedData } from "viem";
-import { SettleResponse, PaymentDetails, VerifyResponse } from "../../../types";
-import { PaymentPayload } from "../../exact/evm/types";
-import { getUsdcAddressForChain, getUSDCBalance } from "../../../shared/evm/usdc";
-import { usdcABI as abi } from "../../../shared/evm/erc20PermitABI";
-import { ConnectedClient, SignerWallet } from "../../../shared/evm/wallet";
-import { authorizationTypes } from "../../../shared/evm/eip3009";
-import { config } from "../../../shared/evm/config";
-import { SCHEME } from "../../exact";
+import { SettleResponse, PaymentDetails, VerifyResponse } from "../../../types/index.js";
+import { PaymentPayload } from "../../exact/evm/types.js";
+import { getUsdcAddressForChain, getUSDCBalance } from "../../../shared/evm/usdc.js";
+import { usdcABI as abi } from "../../../shared/evm/erc20PermitABI.js";
+import { ConnectedClient, SignerWallet } from "../../../shared/evm/wallet.js";
+import { authorizationTypes } from "../../../shared/evm/eip3009.js";
+import { config } from "../../../shared/evm/config.js";
+import { SCHEME } from "../../exact/index.js";
 
 /**
  * Verifies a payment payload against the required payment details

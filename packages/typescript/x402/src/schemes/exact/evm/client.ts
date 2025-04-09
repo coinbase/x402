@@ -1,11 +1,10 @@
-import { PaymentDetails } from "../../../types";
-import { PaymentPayload } from "./types";
-import { getVersion } from "../../../shared/evm/usdc";
-import { createNonce, signAuthorization } from "./sign";
-import { encodePayment } from "./utils/paymentUtils";
-import { SignerWallet } from "../../../shared/evm/wallet";
 import { Address, Chain, Transport } from "viem";
-
+import { PaymentDetails } from "../../../types/index.js";
+import { PaymentPayload } from "./types.js";
+import { getVersion } from "../../../shared/evm/usdc.js";
+import { createNonce, signAuthorization } from "./sign.js";
+import { encodePayment } from "./utils/paymentUtils.js";
+import { SignerWallet } from "../../../shared/evm/wallet.js";
 export async function createPayment<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport>,
   paymentDetails: PaymentDetails,

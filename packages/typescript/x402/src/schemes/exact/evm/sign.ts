@@ -1,9 +1,9 @@
 import { WalletClient, Hex, toHex, Transport, Chain, Address } from "viem";
 
-import { config } from "../../../shared/evm/config";
-import { PaymentDetails } from "../../../types";
-import { AuthorizationParameters } from "./types";
-import { authorizationTypes } from "../../../shared/evm/eip3009";
+import { config } from "../../../shared/evm/config.js";
+import { PaymentDetails } from "../../../types/index.js";
+import { AuthorizationParameters } from "./types.js";
+import { authorizationTypes } from "../../../shared/evm/eip3009.js";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer

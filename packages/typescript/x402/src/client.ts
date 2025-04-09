@@ -1,8 +1,8 @@
-import { SignerWallet } from "./shared/evm/wallet";
-import { createPaymentHeader as createPaymentHeaderExactEVM } from "./schemes/exact/evm/client";
 import axios from "axios";
-import { PaymentDetails, SettleResponse, VerifyResponse } from "./types";
-import { toJsonSafe } from "./types";
+import { SignerWallet } from "./shared/evm/wallet.js";
+import { createPaymentHeader as createPaymentHeaderExactEVM } from "./schemes/exact/evm/client.js";
+import { PaymentDetails, SettleResponse, VerifyResponse } from "./types/index.js";
+import { toJsonSafe } from "./types/index.js";
 
 const supportedEVMNetworks = ["84532"];
 
