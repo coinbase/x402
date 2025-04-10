@@ -23,7 +23,7 @@ npm run keygen
 ## Fund the wallets
 The client requires USDC and the facilitator requires ETH, both on the Base Sepolia network.
 
-If you don't already have some, you can get each of these with a free developer account from the [Coinbase Developer Platform Faucet](https://portal.cdp.coinbase.com/products/faucet). (requires a free account)
+If you don't already have some, you can get each of these with a free developer account from the [Coinbase Developer Platform Faucet](https://portal.cdp.coinbase.com/products/faucet).
 
 The Base Sepolia explorer can be found at https://sepolia.basescan.org - check to make sure your accounts have the necessary funds.
 
