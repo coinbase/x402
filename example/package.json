@@ -13,7 +13,10 @@
   "keywords": [],
   "license": "Apache-2.0",
   "author": "Coinbase Inc.",
-  "repository": "https://github.com/coinbase/x402",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coinbase/x402.git"
+  },
   "description": "x402 Payment Protocol Examples",
   "dependencies": {
     "@hono/node-server": "^1.13.8",
@@ -29,5 +32,9 @@
     "prettier": "3.5.2",
     "tsx": "^4.19.3"
   },
-  "type": "module"
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/coinbase/x402/issues"
+  },
+  "homepage": "https://github.com/coinbase/x402#readme"
 }
