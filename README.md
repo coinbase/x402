@@ -215,15 +215,9 @@ Because a scheme is a logical way of moving money, the way a scheme is implement
 
 Clients and facilitator must explicitly support different `(scheme, networkId)` pairs in order to be able to create proper payloads and verify / settle payments.
 
-## Running example
+## Running the example
 
-`cd example`
-
-1. create `.env` `cp ../packages/typescript/x402/.env.example .env` and follow instruction in the file to create wallets
-
-2. `npm install` to install dependencies
-
-3. in 3 separate terminals, run `npm run facilitator`, `npm run resource`, then finally `npm run client`. You should see things happen across all 3 terminals, and get a joke at the end in the client terminal.
+See [example/README.md](example/README.md)
 
 ## Running tests
 

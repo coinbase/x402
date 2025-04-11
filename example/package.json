@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "keygen": "tsx keygen.ts",
     "facilitator": "tsx --env-file=.env facilitator.ts",
     "resource": "tsx resource.ts",
     "client": "tsx --env-file=.env client.ts",
