@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "tsx --env-file=.env index.ts",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "tsc",
     "watch": "tsc --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
