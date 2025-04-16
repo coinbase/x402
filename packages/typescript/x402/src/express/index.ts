@@ -100,6 +100,7 @@ export function paymentMiddleware(
         return res.status(402).json({
           error: response.invalidReason,
           paymentDetails: toJsonSafe(paymentDetails),
+          payerAddress: response.payerAddress,
         });
       }
     } catch (error) {

@@ -30,6 +30,7 @@ type TestServerConfig struct {
 	// Server behavior
 	VerifyStatusCode int
 	SettleStatusCode int
+	PayerAddress     string
 }
 
 // NewTestConfig returns a default test configuration with successful responses.
@@ -43,6 +44,7 @@ func NewTestConfig() TestServerConfig {
 		NetworkID:        "84532",
 		VerifyStatusCode: http.StatusOK,
 		SettleStatusCode: http.StatusOK,
+		PayerAddress:     "0x349002E7213E7F7CF68a8368ca83Fd85CEC4DDB0",
 	}
 }
 
@@ -58,6 +60,7 @@ func setupTest(t *testing.T, amount *big.Float, address string, config TestServe
 			json.NewEncoder(w).Encode(x402.VerifyResponse{
 				IsValid:       config.VerifySuccess,
 				InvalidReason: config.InvalidReason,
+				PayerAddress:  config.PayerAddress,
 			})
 		case "/settle":
 			w.WriteHeader(config.SettleStatusCode)
@@ -148,6 +151,7 @@ func TestPaymentMiddleware_VerificationFails(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response, "error")
 	assert.Contains(t, response, "paymentDetails")
+	assert.Contains(t, response, "payerAddress")
 	assert.Equal(t, config.InvalidReason, response["error"])
 }
 

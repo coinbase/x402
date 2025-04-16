@@ -178,6 +178,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":          response.InvalidReason,
 				"paymentDetails": paymentDetails,
+				"payerAddress":   response.PayerAddress,
 			})
 			return
 		}
@@ -192,6 +193,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":          err.Error(),
 				"paymentDetails": paymentDetails,
+				"payerAddress":   response.PayerAddress,
 			})
 			return
 		}

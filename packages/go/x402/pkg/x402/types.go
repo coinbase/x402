@@ -26,6 +26,7 @@ type PaymentDetails struct {
 type VerifyResponse struct {
 	IsValid       bool   `json:"isValid"`
 	InvalidReason string `json:"invalidReason"`
+	PayerAddress  string `json:"payerAddress"`
 }
 
 // SettleResponse represents the response from the settle endpoint

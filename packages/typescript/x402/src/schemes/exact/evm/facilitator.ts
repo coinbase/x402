@@ -49,6 +49,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `Incompatible payload scheme. payload: ${payload.scheme}, paymentDetails: ${paymentDetails.scheme}, supported: ${SCHEME}`,
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -63,6 +64,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `Unsupported network id: ${payload.networkId}`,
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -97,6 +99,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Invalid permit signature",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -105,6 +108,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Invalid usdc address",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -114,6 +118,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Deadline on permit isn't far enough in the future",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -122,6 +127,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Deadline on permit is in the future",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -132,6 +138,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Client does not have enough funds",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
@@ -140,12 +147,14 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "Value in payload is not enough to cover paymentDetails.maxAmountRequired",
+      payerAddress: payload.payload.authorization.from,
     };
   }
 
   return {
     isValid: true,
     invalidReason: undefined,
+    payerAddress: payload.payload.authorization.from,
   };
 }
 

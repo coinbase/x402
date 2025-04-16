@@ -22,7 +22,8 @@ func TestVerify(t *testing.T) {
 		}
 
 		resp := x402.VerifyResponse{
-			IsValid: true,
+			IsValid:      true,
+			PayerAddress: "0x349002E7213E7F7CF68a8368ca83Fd85CEC4DDB0",
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -52,6 +53,9 @@ func TestVerify(t *testing.T) {
 	}
 	if !resp.IsValid {
 		t.Errorf("Expected valid response, got invalid")
+	}
+	if resp.PayerAddress != "0x349002E7213E7F7CF68a8368ca83Fd85CEC4DDB0" {
+		t.Errorf("Expected payerAddress '0x349002E7213E7F7CF68a8368ca83Fd85CEC4DDB0', got: %s", resp.PayerAddress)
 	}
 }
 

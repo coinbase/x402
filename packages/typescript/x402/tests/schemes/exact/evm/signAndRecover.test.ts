@@ -33,6 +33,7 @@ describe("sign and recover", () => {
     const valid = await verify(client, payment, paymentDetails);
     console.log("valid", valid);
     expect(valid.isValid).toBe(true);
+    expect(valid.payerAddress).toBe(wallet.account.address);
   });
 
   test("rejects incompatible payload version", async () => {
@@ -82,6 +83,7 @@ describe("sign and recover", () => {
     const valid = await verify(wallet, payment, paymentDetails);
     expect(valid.isValid).toBe(false);
     expect(valid.invalidReason).toBe("Invalid usdc address");
+    expect(valid.payerAddress).toBe(wallet.account.address);
   });
 
   test("rejects invalid permit signature", async () => {

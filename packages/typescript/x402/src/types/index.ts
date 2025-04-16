@@ -107,6 +107,7 @@ export function settleResponseFromHeader(header: string): SettleResponse {
 export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string | undefined;
+  payerAddress?: string;
 };
 
 /** end Facilitator Types */
