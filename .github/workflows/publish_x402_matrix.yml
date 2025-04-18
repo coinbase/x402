@@ -42,13 +42,13 @@ jobs:
           cache: "npm"
 
       - name: Install and build
-        working-directory: ./x402/packages/typescript/x402
+        working-directory: ./packages/typescript/x402
         run: |
           npm ci
           npm run build
 
       - name: Generate package.json for ${{ matrix.package }}
-        working-directory: ./x402/packages/typescript/x402
+        working-directory: ./packages/typescript/x402
         run: |
           SELECTED="${{ matrix.package }}"
 
@@ -89,7 +89,7 @@ jobs:
           EOF
 
       - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
-        working-directory: ./x402/packages/typescript/x402
+        working-directory: ./packages/typescript/x402
         run: |
           SELECTED="${{ matrix.package }}"
           cd ./dist/$SELECTED
