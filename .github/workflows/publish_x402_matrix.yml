@@ -55,9 +55,11 @@ jobs:
           # Extract base package information
           BASE_NAME=$(node -p "require('./package.json').name")
           BASE_VERSION=$(node -p "require('./package.json').version")
-          BASE_AUTHOR=$(node -p "require('./package.json').author")
-          BASE_LICENSE=$(node -p "require('./package.json').license")
-          BASE_REPOSITORY=$(node -p "JSON.stringify(require('./package.json').repository)")
+          
+          # Use JSON.stringify to ensure proper escaping
+          BASE_AUTHOR_JSON=$(node -p "JSON.stringify(require('./package.json').author || '')")
+          BASE_LICENSE_JSON=$(node -p "JSON.stringify(require('./package.json').license || '')")
+          BASE_REPOSITORY_JSON=$(node -p "JSON.stringify(require('./package.json').repository || {})")
 
           # Check for component-specific version file
           if [ -f "src/$SELECTED/version" ]; then
@@ -68,25 +70,42 @@ jobs:
             echo "Using base version: $COMPONENT_VERSION for $SELECTED"
           fi
 
-          # Create specific package.json for the component
-          cat > ./dist/$SELECTED/package.json << EOF
-          {
-            "name": "${BASE_NAME}-${SELECTED}",
-            "version": "${COMPONENT_VERSION}",
-            "description": "${SELECTED} integration for x402",
-            "main": "index.js",
-            "types": "index.d.ts",
-            "author": ${BASE_AUTHOR},
-            "license": "${BASE_LICENSE}",
-            "repository": ${BASE_REPOSITORY},
-            "dependencies": {
-              "${BASE_NAME}": "^${BASE_VERSION}"
-            },
-            "peerDependencies": {
-              "${SELECTED}": "*"
+          # Create package.json using node to ensure valid JSON
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            
+            const packageJson = {
+              name: '${BASE_NAME}-${SELECTED}',
+              version: '${COMPONENT_VERSION}',
+              description: '${SELECTED} integration for x402',
+              main: 'index.js',
+              types: 'index.d.ts',
+              author: ${BASE_AUTHOR_JSON},
+              license: ${BASE_LICENSE_JSON},
+              repository: JSON.parse(${BASE_REPOSITORY_JSON}),
+              dependencies: {
+                '${BASE_NAME}': '^${BASE_VERSION}'
+              },
+              peerDependencies: {
+                '${SELECTED}': '*'
+              }
+            };
+            
+            // Ensure directory exists
+            const dir = path.join('dist', '${SELECTED}');
+            if (!fs.existsSync(dir)){
+              fs.mkdirSync(dir, { recursive: true });
             }
-          }
-          EOF
+            
+            // Write the file
+            fs.writeFileSync(
+              path.join(dir, 'package.json'),
+              JSON.stringify(packageJson, null, 2)
+            );
+            
+            console.log('Generated package.json for ${SELECTED}');
+          "
 
       - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
         working-directory: ./packages/typescript/x402
