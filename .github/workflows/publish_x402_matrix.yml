@@ -23,7 +23,7 @@ on:
 
 jobs:
   publish-x402-package:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     # Only use the npm environment on main branch
     environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
     permissions:
