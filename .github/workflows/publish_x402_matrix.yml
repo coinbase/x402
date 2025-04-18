@@ -40,7 +40,6 @@ jobs:
           node-version: "18"
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
-          cache-dependency-path: ./x402/packages/typescript/package-lock.json
 
       - name: Install and build
         working-directory: ./x402/packages/typescript/x402
