@@ -40,37 +40,37 @@ jobs:
       matrix: ${{ fromJson(needs.determine-packages.outputs.package-matrix) }}
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
         with:
           version: 10
-          
+
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
           cache-dependency-path: ./x402/packages/typescript
-      
+
       - name: Install and build
         working-directory: ./x402/packages/typescript/x402
         run: |
           pnpm install --frozen-lockfile
           pnpm run build
-      
+
       - name: Generate package.json for ${{ matrix.package }}
         working-directory: ./x402/packages/typescript/x402
         run: |
           SELECTED="${{ matrix.package }}"
-          
+
           # Extract base package information
           BASE_NAME=$(node -p "require('./package.json').name")
           BASE_VERSION=$(node -p "require('./package.json').version")
           BASE_AUTHOR=$(node -p "require('./package.json').author")
           BASE_LICENSE=$(node -p "require('./package.json').license")
           BASE_REPOSITORY=$(node -p "JSON.stringify(require('./package.json').repository)")
-          
+
           # Check for component-specific version file
           if [ -f "src/$SELECTED/version" ]; then
             COMPONENT_VERSION=$(cat "src/$SELECTED/version")
@@ -79,7 +79,7 @@ jobs:
             COMPONENT_VERSION="$BASE_VERSION"
             echo "Using base version: $COMPONENT_VERSION for $SELECTED"
           fi
-          
+
           # Create specific package.json for the component
           cat > ./dist/$SELECTED/package.json << EOF
           {
@@ -99,18 +99,18 @@ jobs:
             }
           }
           EOF
-      
+
       - name: Publish ${{ matrix.package }} package
         working-directory: ./x402/packages/typescript/x402
         run: |
           SELECTED="${{ matrix.package }}"
           cd ./dist/$SELECTED
-          
+
           # Get the version from package.json
           PACKAGE_VERSION=$(node -p "require('./package.json').version")
           PACKAGE_NAME=$(node -p "require('./package.json').name")
-          
+
           echo "Publishing $PACKAGE_NAME@$PACKAGE_VERSION"
-          npm publish --provenance --access public
+          # npm publish --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} 
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
