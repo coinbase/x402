@@ -17,7 +17,7 @@ on:
 
 jobs:
   determine-packages:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       package-matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -31,7 +31,7 @@ jobs:
 
   publish-x402-package:
     needs: determine-packages
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     environment: npm
     permissions:
       contents: read
