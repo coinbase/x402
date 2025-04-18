@@ -1,0 +1,5 @@
+packages:
+  - "site"
+  - "packages/x402*"
+  - "examples/facilitator"
+  - "examples/**/*"
