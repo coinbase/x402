@@ -2,3 +2,4 @@
 node_modules/
 dist/
 .turbo/
+tmp_simple_config.json

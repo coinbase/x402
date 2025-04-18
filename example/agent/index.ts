@@ -14,8 +14,6 @@ const wallet = createWalletClient({
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
 }).extend(publicActions);
 
-console.log(wallet.account);
-
 const anthropic = new Anthropic({
   baseURL: "http://localhost:4021",
   apiKey: "not needed",
