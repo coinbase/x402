@@ -97,13 +97,18 @@ jobs:
               fs.mkdirSync(targetDir, { recursive: true });
             }
             
+            // Stringify package.json with pretty formatting
+            const packageJsonContent = JSON.stringify(componentPackage, null, 2);
+            
             // Write the package.json file
             fs.writeFileSync(
               path.join(targetDir, 'package.json'),
-              JSON.stringify(componentPackage, null, 2)
+              packageJsonContent
             );
             
             console.log('Generated package.json for ' + COMPONENT);
+            console.log('Package.json contents:');
+            console.log(packageJsonContent);
           "
 
       - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
