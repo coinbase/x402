@@ -78,7 +78,7 @@ jobs:
             const componentPackage = {
               name: basePackage.name + '-' + COMPONENT,
               version: version,
-              description: COMPONENT + ' integration for x402',
+              description: 'x402 ' + COMPONENT + ' integration',
               main: 'index.js',
               types: 'index.d.ts',
               author: basePackage.author || '',
