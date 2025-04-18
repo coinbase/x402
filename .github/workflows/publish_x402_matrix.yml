@@ -1,43 +1,36 @@
 name: Publish x402 Package (Matrix)
 
 on:
-  workflow_dispatch:
-    inputs:
-      packages:
-        description: "Select packages to publish"
-        required: true
-        type: choice
-        options:
-          - "all"
-          - "express"
-          - "hono"
-          - "fetch"
-          - "facilitator"
-        default: "all"
+  # Comment out manual trigger
+  # workflow_dispatch:
+  #   inputs:
+  #     packages:
+  #       description: "Select packages to publish"
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - "all"
+  #         - "express"
+  #         - "hono"
+  #         - "fetch"
+  #         - "facilitator"
+  #       default: "all"
+  
+  # Automatic trigger on any branch
+  push:
+    branches:
+      - '**'
 
 jobs:
-  determine-packages:
-    runs-on: self-hosted
-    outputs:
-      package-matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
-        run: |
-          if [ "${{ inputs.packages }}" == "all" ]; then
-            echo "matrix={\"package\":[\"express\",\"hono\",\"fetch\",\"facilitator\"]}" >> $GITHUB_OUTPUT
-          else
-            echo "matrix={\"package\":[\"${{ inputs.packages }}\"]}" >> $GITHUB_OUTPUT
-          fi
-
   publish-x402-package:
-    needs: determine-packages
     runs-on: self-hosted
     environment: npm
     permissions:
       contents: read
       id-token: write
     strategy:
-      matrix: ${{ fromJson(needs.determine-packages.outputs.package-matrix) }}
+      matrix:
+        package: ["express"]  # Hardcoded for testing, can be expanded later
     steps:
       - uses: actions/checkout@v4
 
