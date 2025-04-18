@@ -1,0 +1,135 @@
+name: Publish x402 Package (Matrix)
+
+on:
+  # Comment out manual trigger
+  # workflow_dispatch:
+  #   inputs:
+  #     packages:
+  #       description: "Select packages to publish"
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - "all"
+  #         - "express"
+  #         - "hono"
+  #         - "fetch"
+  #         - "facilitator"
+  #       default: "all"
+  
+  # Automatic trigger on any branch
+  push:
+    branches:
+      - '**'
+
+jobs:
+  publish-x402-package:
+    runs-on: ubuntu-latest
+    # Only use the npm environment on main branch
+    environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      matrix:
+        package: ["express"]  # Hardcoded for testing, can be expanded later
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+
+      - name: Install and build
+        working-directory: ./packages/typescript/x402
+        run: |
+          npm ci
+          npm run build
+
+      - name: Generate package.json for ${{ matrix.package }}
+        working-directory: ./packages/typescript/x402
+        run: |
+          SELECTED="${{ matrix.package }}"
+
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            
+            const COMPONENT = '${{ matrix.package }}';
+            const sourceDir = path.join('src', COMPONENT);
+            const targetDir = path.join('dist', COMPONENT);
+            
+            // Load base package.json
+            const basePackage = require('./package.json');
+            
+            // Determine version (component-specific or base)
+            let version = basePackage.version;
+            const versionFile = path.join(sourceDir, 'version');
+            
+            if (fs.existsSync(versionFile)) {
+              version = fs.readFileSync(versionFile, 'utf8').trim();
+              console.log('Using component-specific version: ' + version + ' for ' + COMPONENT);
+            } else {
+              console.log('Using base version: ' + version + ' for ' + COMPONENT);
+            }
+            
+            // Create component package.json
+            const componentPackage = {
+              name: basePackage.name + '-' + COMPONENT,
+              version: version,
+              description: 'x402 ' + COMPONENT + ' integration',
+              main: 'index.js',
+              types: 'index.d.ts',
+              author: basePackage.author || '',
+              license: basePackage.license || '',
+              repository: basePackage.repository || '',
+              dependencies: {
+                [basePackage.name]: '^' + basePackage.version
+              },
+              peerDependencies: {
+                [COMPONENT]: '*'
+              }
+            };
+            
+            // Ensure target directory exists
+            if (!fs.existsSync(targetDir)) {
+              fs.mkdirSync(targetDir, { recursive: true });
+            }
+            
+            // Stringify package.json with pretty formatting
+            const packageJsonContent = JSON.stringify(componentPackage, null, 2);
+            
+            // Write the package.json file
+            fs.writeFileSync(
+              path.join(targetDir, 'package.json'),
+              packageJsonContent
+            );
+            
+            console.log('Generated package.json for ' + COMPONENT);
+            console.log('Package.json contents:');
+            console.log(packageJsonContent);
+          "
+
+      - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
+        working-directory: ./packages/typescript/x402
+        run: |
+          SELECTED="${{ matrix.package }}"
+          cd ./dist/$SELECTED
+
+          # Get the version from package.json
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+
+          echo "Publishing $PACKAGE_NAME@$PACKAGE_VERSION"
+          
+          # Only publish on main branch, do dry-run otherwise
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Running on main branch - would publish for real"
+            # npm publish --provenance --access public
+          else
+            echo "Running on non-main branch (${{ github.ref }}) - dry run only"
+            # npm publish --dry-run --provenance --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
