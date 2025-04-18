@@ -69,23 +69,23 @@ jobs:
             
             if (fs.existsSync(versionFile)) {
               version = fs.readFileSync(versionFile, 'utf8').trim();
-              console.log(`Using component-specific version: ${version} for ${COMPONENT}`);
+              console.log('Using component-specific version: ' + version + ' for ' + COMPONENT);
             } else {
-              console.log(`Using base version: ${version} for ${COMPONENT}`);
+              console.log('Using base version: ' + version + ' for ' + COMPONENT);
             }
             
             // Create component package.json
             const componentPackage = {
-              name: `${basePackage.name}-${COMPONENT}`,
-              version,
-              description: `${COMPONENT} integration for x402`,
+              name: basePackage.name + '-' + COMPONENT,
+              version: version,
+              description: COMPONENT + ' integration for x402',
               main: 'index.js',
               types: 'index.d.ts',
               author: basePackage.author || '',
               license: basePackage.license || '',
               repository: basePackage.repository || '',
               dependencies: {
-                [basePackage.name]: `^${basePackage.version}`
+                [basePackage.name]: '^' + basePackage.version
               },
               peerDependencies: {
                 [COMPONENT]: '*'
@@ -103,7 +103,7 @@ jobs:
               JSON.stringify(componentPackage, null, 2)
             );
             
-            console.log(`Generated package.json for ${COMPONENT}`);
+            console.log('Generated package.json for ' + COMPONENT);
           "
 
       - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
