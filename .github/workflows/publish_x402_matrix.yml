@@ -24,7 +24,8 @@ on:
 jobs:
   publish-x402-package:
     runs-on: self-hosted
-    environment: npm
+    # Only use the npm environment on main branch
+    environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
     permissions:
       contents: read
       id-token: write
@@ -93,7 +94,7 @@ jobs:
           }
           EOF
 
-      - name: Publish ${{ matrix.package }} package
+      - name: Publish ${{ matrix.package }} package (dry-run for non-main branches)
         working-directory: ./x402/packages/typescript/x402
         run: |
           SELECTED="${{ matrix.package }}"
@@ -104,6 +105,14 @@ jobs:
           PACKAGE_NAME=$(node -p "require('./package.json').name")
 
           echo "Publishing $PACKAGE_NAME@$PACKAGE_VERSION"
-          # npm publish --provenance --access public
+          
+          # Only publish on main branch, do dry-run otherwise
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Running on main branch - would publish for real"
+            # npm publish --provenance --access public
+          else
+            echo "Running on non-main branch (${{ github.ref }}) - dry run only"
+            # npm publish --dry-run --provenance --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
