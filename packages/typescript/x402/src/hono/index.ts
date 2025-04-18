@@ -10,8 +10,8 @@ import {
 } from "../types/index.js";
 import { getUsdcAddressForChain } from "../shared/evm/usdc.js";
 import { useFacilitator } from "../client.js";
-import { getPaywallHtml } from "../shared/paywall.js";
-export { getPaywallHtml } from "../shared/paywall.js"
+import { getDefaultPaywallHtml } from "../shared/defaultPaywall.js";
+export { getDefaultPaywallHtml } from "../shared/defaultPaywall.js";
 
 interface PaymentMiddlewareOptions {
   description?: string;
@@ -76,7 +76,7 @@ export function paymentMiddleware(
       if (isWebBrowser) {
         const html =
           customPaywallHtml ||
-          getPaywallHtml({
+          getDefaultPaywallHtml({
             amount: parsedAmount.data,
             paymentDetails: toJsonSafe(paymentDetails),
             currentUrl: c.req.url,
