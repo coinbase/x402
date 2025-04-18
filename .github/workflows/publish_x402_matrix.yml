@@ -35,23 +35,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
           registry-url: "https://registry.npmjs.org"
-          cache: "pnpm"
-          cache-dependency-path: ./x402/packages/typescript
+          cache: "npm"
+          cache-dependency-path: ./x402/packages/typescript/package-lock.json
 
       - name: Install and build
         working-directory: ./x402/packages/typescript/x402
         run: |
-          pnpm install --frozen-lockfile
-          pnpm run build
+          npm ci
+          npm run build
 
       - name: Generate package.json for ${{ matrix.package }}
         working-directory: ./x402/packages/typescript/x402
