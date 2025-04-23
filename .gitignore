@@ -2,3 +2,7 @@
 node_modules/
 dist/
 .turbo/
+
+# IDE
+.idea
+.vscode
