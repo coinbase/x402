@@ -11,6 +11,7 @@ import (
 
 	"github.com/coinbase/x402/pkg/x402"
 	"github.com/coinbase/x402/pkg/x402/facilitatorclient"
+	"github.com/coinbase/x402/pkg/x402/shared"
 )
 
 // PaymentMiddlewareOptions is the options for the PaymentMiddleware.
@@ -149,7 +150,19 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			if isWebBrowser {
 				html := options.CustomPaywallHTML
 				if html == "" {
-					html = getPaywallHtml(options)
+					paywallHtml, err := shared.GetPaywallHTML(shared.PaywallOptions{
+						Amount:         maxAmountRequired,
+						PaymentDetails: paymentDetails,
+						CurrentURL:     paymentDetails.Resource,
+						Testnet:        true,
+					})
+					if err != nil {
+						fmt.Println("failed to get paywall html", err)
+						// Don't abort. Simply use default paywall
+						html = getPaywallHtml(options)
+					} else {
+						html = paywallHtml
+					}
 				}
 				c.Abort()
 				c.Data(http.StatusPaymentRequired, "text/html", []byte(html))
