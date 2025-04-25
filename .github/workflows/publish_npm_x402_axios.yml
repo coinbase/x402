@@ -29,7 +29,7 @@ jobs:
         working-directory: ./typescript
         run: |
           pnpm install --frozen-lockfile
-          pnpm -r --filter=x402-axios run build
+          pnpm -r --filter=x402 --filter=x402-axios run build
       
       - name: Publish x402-axios package
         working-directory: ./typescript/packages/x402-axios
