@@ -364,10 +364,8 @@ export function getPaywallHtml({
           validAfter,
           validBefore,
           nonce,
-          version,
         },
       },
-      resource: window.x402.paymentRequirements.resource,
     };
   }
 
@@ -479,9 +477,8 @@ export function getPaywallHtml({
         });
 
         if (balance === 0n) {
-          statusDiv.textContent = \`Your USDC balance is 0. Please make sure you have USDC tokens on ${
-            testnet ? "Base Sepolia" : "Base"
-          }.\`;
+          statusDiv.textContent = \`Your USDC balance is 0. Please make sure you have USDC tokens on ${testnet ? "Base Sepolia" : "Base"
+    }.\`;
           return;
         }
 

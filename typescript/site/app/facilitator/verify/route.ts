@@ -22,6 +22,7 @@ const client = evm.createClientSepolia();
  */
 export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
+  console.info("Validate body", body);
 
   const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
   const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
