@@ -34,6 +34,14 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+    console.info("Verify url", `${url}/verify`);
+    console.info("Verify payload", payload);
+    console.info("Verify paymentRequirements", paymentRequirements);
+    console.info("safePayload", JSON.stringify({
+      x402Version: payload.x402Version,
+      paymentPayload: toJsonSafe(payload),
+      paymentRequirements: toJsonSafe(paymentRequirements),
+    }))
 
     const res = await axios.post(
       `${url}/verify`,
