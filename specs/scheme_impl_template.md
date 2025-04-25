@@ -6,7 +6,7 @@ Summarize the purpose and behavior of your scheme here. Include example use case
 
 ## `X-Payment` header payload
 
-Document how to construct the `X-Payment` header payload for your scheme, based on `paymentDetails` returned in a `402` response.
+Document how to construct the `X-Payment` header payload for your scheme, based on `paymentRequirements` returned in a `402` response.
 
 ## Verification
 

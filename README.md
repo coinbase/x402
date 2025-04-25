@@ -4,11 +4,17 @@
 
 ```typescript
 app.use(
-  "/your-endpoint",
   // How much you want to charge, and where you want the funds to land
-  paymentMiddleware("$0.10", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
-);
-// Thats it! See example/resource.ts for a complete example. Instruction below for running on base-sepolia.
+  paymentMiddleware(
+    "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    {
+      "/your-endpoint": {
+        price: "$0.01"
+      }
+    }
+  )
+); 
+// Thats it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
 ```
 
 ## Terms:
@@ -32,7 +38,7 @@ The `x402` protocol is a chain agnostic standard for payments on top of HTTP, le
 
 It specifies:
 
-1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentDetails`)
+1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentRequirements`)
 2. A standard header `X-PAYMENT` that is set by clients paying for resources
 3. A standard schema and encoding method for data in the `X-PAYMENT` header
 4. A recommended flow for how payments should be verified and settled by a resource server
@@ -50,19 +56,19 @@ the payment details accepted for a resource.
 
 2. `Resource server` responds with a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
-3. `Client` selects one of the `paymentDetails` returned by the `accepts` field of the server response and creates a `Payment Payload` based on the `scheme` of the `paymentDetails` they have selected.
+3. `Client` selects one of the `paymentRequirements` returned by the server response and creates a `Payment Payload` based on the `scheme` of the `paymentRequirements` they have selected.
 
 4. `Client` sends the HTTP request with the `X-PAYMENT` header containing the `Payment Payload` to the resource server
 
-5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Details` to the `/verify` endpoint of a `facilitator server`.
+5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Requirements` to the `/verify` endpoint of a `facilitator server`.
 
-6. `Facilitator server` performs verification of the object based on the `scheme` and `networkId` of the `Payment Payload` and returns a `Verification Response`
+6. `Facilitator server` performs verification of the object based on the `scheme` and `network` of the `Payment Payload` and returns a `Verification Response`
 
 7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
-8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment Details` to the `/settle` endpoint of a `facilitator server`.
+8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment PaymentRequirements` to the `/settle` endpoint of a `facilitator server`.
 
-9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `networkId` of the `Payment Payload`.
+9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `network` of the `Payment Payload`.
 
 10. `Facilitator server` waits for the payment to be confirmed on the blockchain.
 
@@ -80,22 +86,22 @@ the payment details accepted for a resource.
   // Version of the x402 payment protocol
   x402Version: int,
 
-  // List of payment details that the resource server accepts. A resource server may accept on multiple chains.
-  accepts: [paymentDetails]
+  // List of payment requirements that the resource server accepts. A resource server may accept on multiple chains, or in multiple currencies.
+  accepts: [paymentRequirements]
 
   // Message from the resource server to the client to communicate errors in processing payment
   error: string
 }
 
-// paymentDetails
+// paymentRequirements
 {
   // Scheme of the payment protocol to use
   scheme: string;
 
   // Network of the blockchain to send payment on
-  networkId: string;
+  network: string;
 
-  // Maximum amount required to pay for the resource as usdc dollars x 10**6
+  // Maximum amount required to pay for the resource in atomic units of the asset
   maxAmountRequired: uint256 as string;
 
   // URL of resource to pay for
@@ -111,15 +117,16 @@ the payment details accepted for a resource.
   outputSchema?: object | null;
 
   // Address to pay value to
-  payToAddress: string;
+  payTo: string;
 
   // Maximum time in seconds for the resource server to respond
   maxTimeoutSeconds: number;
 
-  // Address of the USDC contract
-  usdcAddress: string;
+  // Address of the EIP-3009 compliant ERC20 contract
+  asset: string;
 
   // Extra information about the payment details specific to the scheme
+  // For `exact` scheme on a EVM network, expects extra to contain the records `name` and `version` pertaining to asset
   extra: object | null;
 }
 
@@ -128,17 +135,14 @@ the payment details accepted for a resource.
   // Version of the x402 payment protocol
   x402Version: number;
 
-  // scheme is the scheme value of the accepted `paymentDetails` the client is using to pay
+  // scheme is the scheme value of the accepted `paymentRequirements` the client is using to pay
   scheme: string;
 
-  // networkId is the network id of the accepted `paymentDetails` the client is using to pay
-  networkId: string;
+  // network is the network id of the accepted `paymentRequirements` the client is using to pay
+  network: string;
 
   // payload is scheme dependent
   payload: <scheme dependent>;
-
-  // resource the client is paying for
-  resource: string;
 }
 ```
 
@@ -151,8 +155,9 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
 POST /verify
 Request body JSON:
 {
+  x402Version: number;
   paymentHeader: string;
-  paymentDetails: paymentDetails;
+  paymentRequirements: paymentRequirements;
 }
 
 Response:
@@ -165,8 +170,9 @@ Response:
 POST /settle
 Request body JSON:
 {
+  x402Version: number;
   paymentHeader: string;
-  paymentDetails: paymentDetails;
+  paymentRequirements: paymentRequirements;
 }
 
 Response:
@@ -191,7 +197,7 @@ Response:
   kinds: [
     {
       "scheme": string,
-      "networkId": string,
+      "network": string,
     }
   ]
 }
@@ -209,34 +215,30 @@ For example `exact`, the first scheme shipping as part of the protocol, would ha
 
 See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains.
 
-### Schemes vs NetworkIds
+### Schemes vs Networks
 
 Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different than the way you need to implement `exact` on Solana)
 
-Clients and facilitator must explicitly support different `(scheme, networkId)` pairs in order to be able to create proper payloads and verify / settle payments.
+Clients and facilitator must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
 
 ## Running example
 
-`cd example`
+1. In three separate terminals, navigate to the following directories:
+   - `examples/typescript/facilitator`
+   - `examples/typescript/servers/express`
+   - `examples/typescript/clients/axios`
 
-1. create `.env` `cp ../packages/typescript/x402/.env.example .env` and follow instruction in the file to create wallets
+2. In each terminal:
+   - Copy the environment file: `cp .env-local .env`
+   - Fill in the required values in the `.env` file
+   - Run `pnpm dev`
 
-2. `npm install` to install dependencies
-
-3. in 3 separate terminals, run `npm run facilitator`, `npm run resource`, then finally `npm run client`. You should see things happen across all 3 terminals, and get a joke at the end in the client terminal.
+3. You should see activity across all three terminals, and the client terminal will display a weather report.
 
 ## Running tests
 
-`cd packages/typescript`
+1. Navigate to the typescript directory: `cd packages/typescript`
+2. Install dependencies: `pnpm install`
+3. Run the unit tests: `pnpm test`
 
-1. `npm install` to install dependencies
-2. Create `.env` with funded keys as above
-3. `npm run test` to run tests
-
-## TODO
-
-- have tests run on an anvil fork
-
-## 📝 License
-
-The `x402` protocol is licensed under the [Apache-2.0](LICENSE.md) license.
+This will run the unit tests for the x402 packages.

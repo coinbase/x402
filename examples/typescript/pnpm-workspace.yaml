@@ -1,0 +1,7 @@
+packages:
+  - "facilitator"
+  - "servers/*"
+  - "clients/*"
+  - "fullstack/*"
+  - "../../typescript/packages/*"
+
