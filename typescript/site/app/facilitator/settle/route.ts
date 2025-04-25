@@ -23,7 +23,6 @@ export async function POST(req: Request) {
   const wallet = evm.createSignerSepolia(process.env.PRIVATE_KEY as Hex);
 
   const body: SettleRequest = await req.json();
-  console.info("Settle body", body);
 
   const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
   const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);

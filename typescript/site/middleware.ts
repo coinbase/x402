@@ -3,11 +3,7 @@ import { paymentMiddleware, Resource, Network } from "x402-next";
 
 const address = process.env.RESOURCE_WALLET_ADDRESS as Address;
 const network = process.env.NETWORK as Network;
-const facilitatorUrl = (
-  process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}/facilitator`
-    : process.env.NEXT_PUBLIC_FACILITATOR_URL
-) as Resource;
+const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
 
 export const middleware = paymentMiddleware(
   address,
