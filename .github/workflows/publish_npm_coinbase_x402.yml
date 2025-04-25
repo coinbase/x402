@@ -1,10 +1,10 @@
-name: Publish x402-fetch package to NPM
+name: Publish coinbase-x402 package to NPM
 
 on:
   workflow_dispatch:
 
 jobs:
-  publish-npm-x402-fetch:
+  publish-npm-coinbase-x402:
     runs-on: ubuntu-latest
     environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
     permissions:
@@ -29,10 +29,10 @@ jobs:
         working-directory: ./typescript
         run: |
           pnpm install --frozen-lockfile
-          pnpm -r --filter=x402-fetch run build
+          pnpm -r --filter=coinbase-x402 run build
       
-      - name: Publish x402-fetch package
-        working-directory: ./typescript/packages/x402-fetch
+      - name: Publish coinbase-x402 package
+        working-directory: ./typescript/packages/coinbase-x402
         run: |
           # Get package information directly
           PACKAGE_NAME=$(node -p "require('./package.json').name")

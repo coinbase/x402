@@ -49,4 +49,4 @@ jobs:
             pnpm publish --dry-run --no-git-checks
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN_X402 }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
