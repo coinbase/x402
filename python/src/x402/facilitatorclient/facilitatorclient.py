@@ -3,8 +3,7 @@ import requests
 from ..types import PaymentRequirements, PaymentPayload
 
 # DefaultFacilitatorURL is the default URL for the x402 facilitator service
-# DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
-DEFAULT_FACILITATOR_URL = "http://localhost:3002"
+DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
 
 class FacilitatorClient:
     def __init__(self, url=None):

@@ -7,8 +7,7 @@ from .tools import decode_payment_payload_from_base64, encode_to_base64_string
 from ..types import PaymentRequirements
 
 # DefaultFacilitatorURL is the default URL for the x402 facilitator service
-# DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
-DEFAULT_FACILITATOR_URL = "http://localhost:3002"
+DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
 
 class X402PaymentMiddleware:
     def __init__(self, amount: str, address: str, **options):
