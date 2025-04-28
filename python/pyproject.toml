@@ -3,12 +3,8 @@ name = "x402"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "flask>=3.1.0",
-    "pydantic>=2.11.3",
-    "requests>=2.32.3",
-]
+requires-python = ">=3.10"
+dependencies = ["flask>=3.1.0", "pydantic>=2.11.3", "requests>=2.32.3"]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = { "" = "src" }
