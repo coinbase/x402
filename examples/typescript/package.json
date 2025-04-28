@@ -7,7 +7,9 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "format": "turbo run format"
+    "lint:check": "turbo run lint:check",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check"
   },
   "keywords": [],
   "author": "",
