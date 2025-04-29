@@ -4,6 +4,7 @@ import { Address } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
+  findMatchingPaymentRequirements,
   findMatchingRoute,
   getPaywallHtml,
   processPriceToAtomicAmount,
@@ -80,13 +81,13 @@ export function paymentMiddleware(
     const method = request.method.toUpperCase();
 
     // Find matching route configuration
-    const routeMatch = findMatchingRoute(routePatterns, pathname, method);
+    const matchingRoute = findMatchingRoute(routePatterns, pathname, method);
 
-    if (!routeMatch) {
+    if (!matchingRoute) {
       return NextResponse.next();
     }
 
-    const { price, network, config = {} } = routeMatch.config;
+    const { price, network, config = {} } = matchingRoute.config;
     const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
       config;
 
@@ -176,7 +177,22 @@ export function paymentMiddleware(
       );
     }
 
-    const verification = await verify(decodedPayment, paymentRequirements[0]);
+    const selectedPaymentRequirements = findMatchingPaymentRequirements(
+      paymentRequirements,
+      decodedPayment,
+    );
+    if (!selectedPaymentRequirements) {
+      return new NextResponse(
+        JSON.stringify({
+          x402Version,
+          error: "Unable to find matching payment requirements",
+          accepts: toJsonSafe(paymentRequirements),
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const verification = await verify(decodedPayment, selectedPaymentRequirements);
 
     if (!verification.isValid) {
       return new NextResponse(
@@ -195,7 +211,7 @@ export function paymentMiddleware(
 
     // Settle payment after response
     try {
-      const settlement = await settle(decodedPayment, paymentRequirements[0]);
+      const settlement = await settle(decodedPayment, selectedPaymentRequirements);
 
       if (settlement.success) {
         response.headers.set(

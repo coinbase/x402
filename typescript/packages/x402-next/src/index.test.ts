@@ -1,8 +1,14 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
-import { findMatchingRoute, getPaywallHtml } from "x402/shared";
-import { FacilitatorConfig, PaymentMiddlewareConfig, RouteConfig } from "x402/types";
+import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
+import {
+  FacilitatorConfig,
+  PaymentMiddlewareConfig,
+  PaymentPayload,
+  PaymentRequirements,
+  RouteConfig,
+} from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
 
@@ -61,6 +67,13 @@ vi.mock("x402/shared", async importOriginal => {
           });
         },
       ),
+    findMatchingPaymentRequirements: vi
+      .fn()
+      .mockImplementation((requirements: PaymentRequirements[], payment: PaymentPayload) => {
+        return requirements.find(
+          req => req.scheme == payment.scheme && req.network == payment.network,
+        );
+      }),
   };
 });
 
@@ -148,13 +161,21 @@ describe("paymentMiddleware()", () => {
       },
     );
 
+    (findMatchingPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
+      (requirements: PaymentRequirements[], payment: PaymentPayload) => {
+        return requirements.find(
+          req => req.scheme == payment.scheme && req.network == payment.network,
+        );
+      },
+    );
+
     // Create middleware with test routes
     middleware = paymentMiddleware(
       payToAddress,
       {
         "/protected/*": {
           price: 1.0,
-          network: "base",
+          network: "base-sepolia",
           config: middlewareConfig,
         },
       },
@@ -181,7 +202,7 @@ describe("paymentMiddleware()", () => {
       {
         "GET /protected/*": {
           price: 1.0,
-          network: "base",
+          network: "base-sepolia",
           config: middlewareConfig,
         },
       },
@@ -358,7 +379,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base",
+      network: "base-sepolia",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -367,7 +388,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base",
+      network: "base-sepolia",
     });
 
     const response = await middleware(request);
@@ -404,8 +425,8 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base",
-      // ... other payment fields
+      network: "base-sepolia",
+      x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
 
@@ -453,7 +474,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base",
+      network: "base-sepolia",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -462,7 +483,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base",
+      network: "base-sepolia",
     });
 
     const response = await middleware(request);
@@ -497,8 +518,8 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base",
-      // ... other payment fields
+      network: "base-sepolia",
+      x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
 
@@ -595,7 +616,7 @@ describe("paymentMiddleware()", () => {
               },
             },
           },
-          network: "base",
+          network: "base-sepolia",
           config: middlewareConfig,
         },
       },

@@ -3,6 +3,7 @@ import { Address } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
+  findMatchingPaymentRequirements,
   findMatchingRoute,
   getPaywallHtml,
   processPriceToAtomicAmount,
@@ -155,6 +156,7 @@ export function paymentMiddleware(
     let decodedPayment: PaymentPayload;
     try {
       decodedPayment = exact.evm.decodePayment(payment);
+      decodedPayment.x402Version = x402Version;
     } catch (error) {
       res.status(402).json({
         x402Version,
@@ -164,8 +166,9 @@ export function paymentMiddleware(
       return;
     }
 
-    const selectedPaymentRequirements = paymentRequirements.find(
-      value => value.scheme === decodedPayment.scheme && value.network === decodedPayment.network,
+    const selectedPaymentRequirements = findMatchingPaymentRequirements(
+      paymentRequirements,
+      decodedPayment,
     );
     if (!selectedPaymentRequirements) {
       res.status(402).json({

@@ -1,4 +1,13 @@
-import { moneySchema, Network, Price, RouteConfig, RoutePattern, ERC20TokenAmount } from "../types";
+import {
+  moneySchema,
+  Network,
+  Price,
+  RouteConfig,
+  RoutePattern,
+  ERC20TokenAmount,
+  PaymentRequirements,
+  PaymentPayload,
+} from "../types";
 import { RoutesConfig } from "../types";
 import { getUsdcAddressForChain } from "./evm";
 import { getNetworkId } from "./network";
@@ -123,4 +132,20 @@ export function processPriceToAtomicAmount(
     maxAmountRequired,
     asset,
   };
+}
+
+/**
+ * Finds the matching payment requirements for the given payment
+ *
+ * @param paymentRequirements - The payment requirements to search through
+ * @param payment - The payment to match against
+ * @returns The matching payment requirements or undefined if no match is found
+ */
+export function findMatchingPaymentRequirements(
+  paymentRequirements: PaymentRequirements[],
+  payment: PaymentPayload,
+) {
+  return paymentRequirements.find(
+    value => value.scheme === payment.scheme && value.network === payment.network,
+  );
 }

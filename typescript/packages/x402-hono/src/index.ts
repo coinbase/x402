@@ -3,6 +3,7 @@ import { Address } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
+  findMatchingPaymentRequirements,
   findMatchingRoute,
   getPaywallHtml,
   processPriceToAtomicAmount,
@@ -137,6 +138,7 @@ export function paymentMiddleware(
     let decodedPayment: PaymentPayload;
     try {
       decodedPayment = exact.evm.decodePayment(payment);
+      decodedPayment.x402Version = x402Version;
     } catch (error) {
       return c.json(
         {
@@ -148,7 +150,22 @@ export function paymentMiddleware(
       );
     }
 
-    const verification = await verify(decodedPayment, paymentRequirements[0]);
+    const selectedPaymentRequirements = findMatchingPaymentRequirements(
+      paymentRequirements,
+      decodedPayment,
+    );
+    if (!selectedPaymentRequirements) {
+      return c.json(
+        {
+          error: "Unable to find matching payment requirements",
+          accepts: toJsonSafe(paymentRequirements),
+          x402Version,
+        },
+        402,
+      );
+    }
+
+    const verification = await verify(decodedPayment, selectedPaymentRequirements);
 
     if (!verification.isValid) {
       return c.json(
