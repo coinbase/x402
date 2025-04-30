@@ -45,7 +45,7 @@ serve({
 
 The `paymentMiddleware` function accepts three parameters:
 
-1. `payToAddress`: Your receiving address (`0x${string}`)
+1. `payTo`: Your receiving address (`0x${string}`)
 2. `routes`: Route configurations for protected endpoints
 3. `facilitator`: (Optional) Configuration for the x402 facilitator service
 
@@ -88,19 +88,3 @@ type FacilitatorConfig = {
   createAuthHeaders?: CreateHeaders;  // Optional function to create authentication headers
 };
 ```
-
-## Features
-
-- Payment verification and settlement
-- Automatic paywall generation for web browsers
-- Payment receipt in response header
-- Customizable paywall HTML
-- Seamless integration with Hono's middleware system
-- Support for both API and web browser requests
-
-## Error Handling
-
-The middleware will return:
-- 402 status code when payment is required
-- 402 status code when payment verification fails
-- 402 status code when settlement fails

@@ -4,10 +4,9 @@ import { paymentMiddleware, Resource } from "x402-express";
 config();
 
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource;
-const payToAddress = process.env.ADDRESS as `0x${string}`;
-const port = parseInt(process.env.PORT as string);
+const payTo = process.env.ADDRESS as `0x${string}`;
 
-if (!facilitatorUrl || !payToAddress || !port) {
+if (!facilitatorUrl || !payTo) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -16,7 +15,7 @@ const app = express();
 
 app.use(
   paymentMiddleware(
-    payToAddress,
+    payTo,
     {
       "GET /weather": {
         // USDC amount in dollars
@@ -60,6 +59,6 @@ app.get("/premium/content", (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
+app.listen(4021, () => {
+  console.log(`Server listening at http://localhost:${4021}`);
 });

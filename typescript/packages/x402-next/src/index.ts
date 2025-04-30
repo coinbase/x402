@@ -23,7 +23,7 @@ import { useFacilitator } from "x402/verify";
 /**
  * Creates a Next.js middleware handler for x402 payments
  *
- * @param payToAddress - Address to receive payments
+ * @param payTo - Address to receive payments
  * @param routes - Route configuration for payment amounts
  * @param facilitator - Configuration for the payment facilitator service
  * @returns A Next.js middleware handler
@@ -66,7 +66,7 @@ import { useFacilitator } from "x402/verify";
  * ```
  */
 export function paymentMiddleware(
-  payToAddress: Address,
+  payTo: Address,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
 ) {
@@ -107,7 +107,7 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo: payToAddress,
+        payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: asset?.address ?? "",
         outputSchema,

@@ -12,8 +12,11 @@ import { createWalletClient, Hex, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
+import { config } from "dotenv";
 
-const { PRIVATE_KEY, RESOURCE_SERVER_URL, ENDPOINT_PATH } = process.env;
+config();
+
+const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
 
 if (!PRIVATE_KEY || !RESOURCE_SERVER_URL || !ENDPOINT_PATH) {
   throw new Error("Missing environment variables");
@@ -34,12 +37,17 @@ const server = new McpServer({
 });
 
 // Add an addition tool
-server.tool("get-data-from-resource-server", {}, async () => {
-  const res = await client.get(`${ENDPOINT_PATH}`);
-  return {
-    content: [{ type: "text", text: JSON.stringify(res.data) }],
-  };
-});
+server.tool(
+  "get-data-from-resource-server",
+  "Get data from the resource server (in this example, the weather)",
+  {},
+  async () => {
+    const res = await client.get(`${ENDPOINT_PATH}`);
+    return {
+      content: [{ type: "text", text: JSON.stringify(res.data) }],
+    };
+  },
+);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

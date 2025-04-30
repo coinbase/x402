@@ -4,6 +4,14 @@ This example demonstrates how to use x402 to pay for Anthropic API calls using a
 
 ## Prerequisites
 
+Before running any examples, you need to install dependencies and build the packages:
+
+```bash
+# From the examples/typescript directory
+pnpm install
+pnpm build
+```
+
 1. Install Go (if not already installed):
    ```bash
    brew install go  # For macOS
@@ -18,7 +26,7 @@ This example demonstrates how to use x402 to pay for Anthropic API calls using a
 
 1. Navigate to the proxy directory:
    ```bash
-   cd packages/go/x402/bin
+   cd go/bin
    ```
 
 2. Create an `anthropic_config.json` file with the following configuration:
@@ -26,7 +34,7 @@ This example demonstrates how to use x402 to pay for Anthropic API calls using a
    {
      "targetURL": "https://api.anthropic.com",
      "amount": 0.01,
-     "payToAddress": "address to pay to",
+     "payTo": "address to pay to",
      "headers": {
        "x-api-key": "<your-anthropic-api-key>",
        "anthropic-version": "2023-06-01",
@@ -50,19 +58,20 @@ This example demonstrates how to use x402 to pay for Anthropic API calls using a
 2. Install dependencies and build the package:
    ```bash
    npm install
-   npm run build
+   npm run build 
    ```
+   **issue** `npm run build` does not work, no scripts found for npm or pnpm
 
 ### 3. Configure and Run the Agent
 
 1. Navigate to the agent directory:
    ```bash
-   cd ../../../example/agent
+   cd ../../../examples/typescript/clients/agent
    ```
 
 2. Install dependencies:
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. Configure your environment:
@@ -92,7 +101,7 @@ This example demonstrates how to use x402 to pay for Anthropic API calls using a
 
 2. **Module Not Found**
    - Make sure you've built the x402 package before running the agent
-   - Run `npm install` and `npm run build` in the x402 package directory
+   - Run `pnpm install` and `pnpm build` in the x402 package directory
 
 3. **Invalid Private Key**
    - Ensure your private key is prefixed with `0x`

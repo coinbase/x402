@@ -35,14 +35,6 @@ const response = await fetchWithPay("https://api.example.com/paid-endpoint", {
 const data = await response.json();
 ```
 
-## Features
-
-- Automatic handling of 402 Payment Required responses
-- Payment verification and header generation
-- Configurable maximum payment amount
-- Seamless integration with existing fetch-based code
-- Support for all standard fetch options and configurations
-
 ## API
 
 ### `wrapFetchWithPayment(fetch, walletClient, maxValue?, paymentRequirementsSelector?)`
@@ -65,16 +57,7 @@ A wrapped fetch function that automatically handles 402 responses by:
 4. Creating a payment header using the provided wallet client
 5. Retrying the request with the payment header
 
-## Error Handling
-
-The wrapped fetch function may throw the following errors:
-
-- `Error: Payment amount exceeds maximum allowed` - When the required payment exceeds the configured maximum
-- `Error: Missing fetch request configuration` - When the request configuration is missing
-- `Error: Payment already attempted` - When a payment has already been attempted for the request
-- `Error: Error creating payment header` - When there's an error creating the payment header
-
-## Example with Environment Variables
+## Example
 
 ```typescript
 import { config } from "dotenv";

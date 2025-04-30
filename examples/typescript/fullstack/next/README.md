@@ -5,32 +5,27 @@ This is a Next.js application that demonstrates how to use the `x402-next` middl
 ## Prerequisites
 
 - Node.js (20 or higher)
-- A valid x402 facilitator URL (you can run the example facilitator at `examples/typescript/facilitator`)
 - A valid Ethereum address for receiving payments
 
 ## Setup
 
-1. First, start the local facilitator server:
-```bash
-cd ../facilitator
-# Ensure .env is setup
-pnpm install
-pnpm dev
-```
-The facilitator will run on http://localhost:3002
+1. Copy `.env.local` to `.env` and add your Ethereum address to receive payments:
 
-2. In a new terminal, install and start the Next.js example:
 ```bash
-pnpm install
-pnpm dev
+cp .env.local .env
 ```
-The Next.js app will run on http://localhost:3000
 
-3. Create a `.env.local` file in the Next.js project directory with the following variables:
-```env
-NEXT_PUBLIC_FACILITATOR_URL=http://localhost:3002
-RESOURCE_WALLET_ADDRESS=0xYourEthereumAddress
-NETWORK=base # or "base-sepolia" for testnet
+2. Install and build all packages from the typescript examples root:
+```bash
+cd ../../
+pnpm install
+pnpm build
+cd fullstack/next
+```
+
+2. Install and start the Next.js example:
+```bash
+pnpm dev
 ```
 
 ## Example Routes
@@ -42,27 +37,31 @@ The `/protected` route requires a payment of $0.01 to access. The route is prote
 
 ```typescript
 // middleware.ts
-import { createPaymentMiddleware, Network } from "x402-next";
+import { paymentMiddleware, Network, Resource } from "x402-next";
 
-export const middleware = createPaymentMiddleware({
-  facilitatorUrl: process.env.NEXT_PUBLIC_FACILITATOR_URL,
-  address: process.env.RESOURCE_WALLET_ADDRESS,
-  network: process.env.NETWORK as Network,
-  routes: {
+const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
+const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
+const network = process.env.NETWORK as Network;
+
+export const middleware = paymentMiddleware(
+  payTo,
+  {
     "/protected": {
-      amount: "$0.01",
+      price: "$0.01",
+      network,
       config: {
-        description: "Access to protected content"
-      }
+        description: "Access to protected content",
+      },
     },
-  }
-});
+  },
+  {
+    url: facilitatorUrl,
+  },
+);
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: [
-    "/protected/:path*",
-  ]
+  matcher: ["/protected/:path*"],
 };
 ```
 
@@ -101,30 +100,27 @@ export const config = {
 To add more protected routes, update the middleware configuration:
 
 ```typescript
-export const middleware = createPaymentMiddleware({
-  facilitatorUrl: process.env.NEXT_PUBLIC_FACILITATOR_URL,
-  address: process.env.RESOURCE_WALLET_ADDRESS,
-  network: process.env.NETWORK as Network,
-  routes: {
+export const middleware = paymentMiddleware(
+  payTo,
+  {
     "/protected": {
-      amount: "$0.01",
+      price: "$0.01",
+      network,
       config: {
-        description: "Access to protected content"
-      }
+        description: "Access to protected content",
+      },
     },
     "/api/premium": {
-      amount: "$0.10",
+      price: "$0.10",
+      network,
       config: {
-        description: "Premium API access"
-      }
-    }
+        description: "Premium API access",
+      },
+    },
   }
-});
+);
 
 export const config = {
-  matcher: [
-    "/protected/:path*",
-    "/api/premium/:path*"
-  ]
+  matcher: ["/protected/:path*", "/api/premium/:path*"],
 };
 ```

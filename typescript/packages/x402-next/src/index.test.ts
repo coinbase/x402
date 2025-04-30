@@ -112,7 +112,7 @@ describe("paymentMiddleware()", () => {
     }),
   };
 
-  const payToAddress = "0x1234567890123456789012345678901234567890";
+  const payTo = "0x1234567890123456789012345678901234567890";
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -171,7 +171,7 @@ describe("paymentMiddleware()", () => {
 
     // Create middleware with test routes
     middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "/protected/*": {
           price: 1.0,
@@ -198,7 +198,7 @@ describe("paymentMiddleware()", () => {
 
   it("should match routes with HTTP verbs", async () => {
     middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "GET /protected/*": {
           price: 1.0,
@@ -230,7 +230,7 @@ describe("paymentMiddleware()", () => {
 
   it("should match routes without verbs using any HTTP method", async () => {
     middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "/protected/*": {
           price: 1.0,
@@ -278,7 +278,7 @@ describe("paymentMiddleware()", () => {
 
   it("should throw error for invalid route patterns", async () => {
     const middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "GET ": {
           price: 1.0,
@@ -556,7 +556,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle invalid payment amount configuration", async () => {
     middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "/protected/*": {
           price: "invalid",
@@ -602,7 +602,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle custom token amounts", async () => {
     middleware = paymentMiddleware(
-      payToAddress,
+      payTo,
       {
         "/protected/*": {
           price: {

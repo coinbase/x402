@@ -99,7 +99,7 @@ describe("paymentMiddleware()", () => {
     url: "https://facilitator.example.com",
   };
 
-  const payToAddress = "0x1234567890123456789012345678901234567890";
+  const payTo = "0x1234567890123456789012345678901234567890";
 
   const routesConfig: RoutesConfig = {
     "/weather": {
@@ -178,7 +178,7 @@ describe("paymentMiddleware()", () => {
       },
     );
 
-    middleware = paymentMiddleware(payToAddress, routesConfig, facilitatorConfig);
+    middleware = paymentMiddleware(payTo, routesConfig, facilitatorConfig);
   });
 
   it("should return 402 with payment requirements when no payment header is present", async () => {

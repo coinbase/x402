@@ -1,6 +1,10 @@
 # x402 Facilitator Example
 
-This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol. This implementation is for testing and demonstration purposes only and should only be run on the Base Sepolia testnet.
+This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol. This implementation is for learning purposes and demonstrates how to build a facilitator service.
+
+For production use, we recommend using:
+- Testnet: https://x402.org/facilitator
+- Production: https://api.cdp.coinbase.com/platform/v2/x402
 
 ## Overview
 
@@ -21,15 +25,17 @@ This example demonstrates how to:
 
 ## Setup
 
-1. Install dependencies:
+1. Install and build all packages from the typescript examples root:
 ```bash
+cd ..
 pnpm install
+pnpm build
+cd facilitator
 ```
 
 2. Create a `.env` file with the following variables:
 ```env
 PRIVATE_KEY=0xYourPrivateKey
-PORT=3000
 ```
 
 3. Start the server:
@@ -69,7 +75,9 @@ Request body:
 }
 ```
 
-## Usage with Example Servers
+## Learning Resources
 
-This facilitator is designed to work with the example servers in the `examples/typescript/servers` directory. For example, you can use it with the express server and the fetch client to test end-to-end payment flows.
+This example is designed to help you understand how x402 facilitators work. For more information about the x402 protocol and its implementation, visit:
+- [x402 Protocol Documentation](https://x402.org)
+- [Coinbase Developer Platform](https://www.coinbase.com/developer-platform)
 

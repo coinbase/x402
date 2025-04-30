@@ -22,8 +22,7 @@ Example:
     "value": "10000",
     "validAfter": "1740672089",
     "validBefore": "1740672154",
-    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-    "version": "2"
+    "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480"
   }
 }
 
@@ -35,7 +34,7 @@ Full `X-PAYMENT` header:
 {
   x402Version: 1,
   scheme: "exact",
-  networkId: "84532",
+  network: "base-sepolia",
   payload: {
     signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     authorization: {
@@ -44,8 +43,7 @@ Full `X-PAYMENT` header:
       value: "10000",
       validAfter: "1740672089",
       validBefore: "1740672154",
-      nonce: "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-      version: "2"
+      nonce: "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480"
     }
   }
 }

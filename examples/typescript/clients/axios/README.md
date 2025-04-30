@@ -5,40 +5,26 @@ This is an example client that demonstrates how to use the `x402-axios` package 
 ## Prerequisites
 
 - Node.js (v20 or higher)
-- A valid x402 facilitator (you can use the example express server at `examples/typescript/facilitator`)
-- A valid x402 server (you can use the example express server at `examples/typescript/servers/express`)
+- A running x402 server (you can use the example express server at `examples/typescript/servers/express`)
 - A valid Ethereum private key for making payments
 
 ## Setup
 
-1. First, start the facilitator:
-
+1. Install and build all packages from the typescript examples root:
 ```bash
-cd ../facilitator
-# Ensure .env is setup
+cd ../../
 pnpm install
-pnpm dev
+pnpm build
+cd clients/axios
 ```
 
-2. First, start the example express server:
+2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provison using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
 ```bash
-cd ../../servers/express
-# Ensure .env is setup
-pnpm install
-pnpm dev
-```
-The server will run on http://localhost:3001
-
-3. Create a `.env` file in the root directory with the following variables:
-```env
-RESOURCE_SERVER_URL=http://localhost:3001
-PRIVATE_KEY=0xYourPrivateKey
-ENDPOINT_PATH=/weather
+cp .env-local .env
 ```
 
-4. In a new terminal, install and start the example client:
+3. Start the example client (remember you need to be running a server locally or point at an endpoint):
 ```bash
-pnpm install
 pnpm dev
 ```
 

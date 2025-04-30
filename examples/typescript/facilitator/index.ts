@@ -12,9 +12,9 @@ import {
 
 config();
 
-const { PRIVATE_KEY, PORT } = process.env;
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-if (!PRIVATE_KEY || !PORT) {
+if (!PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -22,7 +22,6 @@ if (!PRIVATE_KEY || !PORT) {
 const { createClientSepolia, createSignerSepolia } = evm;
 
 const app = express();
-const port = parseInt(PORT);
 
 // Configure express to parse JSON bodies
 app.use(express.json());
@@ -98,6 +97,6 @@ app.post("/settle", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
+app.listen(3000, () => {
+  console.log(`Server listening at http://localhost:3000`);
 });

@@ -5,39 +5,26 @@ This is an example client that demonstrates how to use the x402 payment protocol
 ## Prerequisites
 
 - Node.js (v20 or higher)
-- A running x402 facilitator (you can use the example express server at `examples/typescript/facilitator`)
 - A running x402 server (you can use the example express server at `examples/typescript/servers/express`)
 - A valid Ethereum private key for making payments
 - Claude Desktop with MCP support
 
 ## Setup
 
-1. First, start the facilitator:
-
+1. Install and build all packages from the typescript examples root:
 ```bash
-cd ../facilitator
-# Ensure .env is setup
+cd ../../
 pnpm install
-pnpm dev
+pnpm build
+cd clients/mcp
 ```
 
-2. First, start the example express server:
+2. Copy `.env-local` to `.env` and add your Ethereum private key:
 ```bash
-cd ../../servers/express
-# Ensure .env is setup
-pnpm install
-pnpm dev
-```
-The server will run on http://localhost:3001
-
-3. Create a `.env` file in the client's directory with the following variables:
-```env
-RESOURCE_SERVER_URL=http://localhost:3001
-PRIVATE_KEY=0xYourPrivateKey
-ENDPOINT_PATH=/weather
+cp .env-local .env
 ```
 
-4. Configure Claude Desktop MCP settings:
+3. Configure Claude Desktop MCP settings:
 ```json
 {
   "mcpServers": {
@@ -51,18 +38,16 @@ ENDPOINT_PATH=/weather
       ],
       "env": {
         "PRIVATE_KEY": "<private key of a wallet with USDC on Base Sepolia>",
-        "RESOURCE_SERVER_URL": "<resource server>",
-        "ENDPOINT_PATH": "</path/to/api>"
+        "RESOURCE_SERVER_URL": "http://localhost:4021",
+        "ENDPOINT_PATH": "/weather"
       }
     }
   }
 }
 ```
 
-5. In a new terminal, install and run the example client:
+4. Start the example client (remember to be running a server or pointing to one in the .env file):
 ```bash
-cd examples/clients/mcp
-pnpm install
 pnpm dev
 ```
 
@@ -102,7 +87,7 @@ const server = new McpServer({
 });
 
 // Add tool for making paid requests
-server.tool("get-data-from-resource-server", {}, async () => {
+server.tool("get-data-from-resource-server", "Get data from the resource server (in this example, the weather)",  {}, async () => {
   const res = await client.post(`${ENDPOINT_PATH}`);
   return {
     content: [{ type: "text", text: JSON.stringify(res.data) }],

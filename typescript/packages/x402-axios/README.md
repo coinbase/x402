@@ -64,11 +64,3 @@ The modified Axios instance with the payment interceptor that will:
 3. Create a payment header using the provided wallet client
 4. Retry the original request with the payment header
 5. Expose the X-PAYMENT-RESPONSE header in the final response
-
-## Error Handling
-
-The interceptor handles the following error cases:
-
-- `Error: Missing axios request configuration` - When the request configuration is missing
-- `Error: Payment already attempted` - When a payment has already been attempted for the request
-- Any errors that occur during payment header creation
