@@ -48,7 +48,7 @@ describe("fetchWithPayment()", () => {
     // Mock payment requirements selector
     const { selectPaymentRequirements } = await import("x402/client");
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
-      requirements => requirements[0],
+      (requirements, _) => requirements[0],
     );
 
     wrappedFetch = wrapFetchWithPayment(mockFetch, mockWalletClient);
@@ -71,7 +71,7 @@ describe("fetchWithPayment()", () => {
     const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
-      requirements => requirements[0],
+      (requirements, _) => requirements[0],
     );
     mockFetch
       .mockResolvedValueOnce(
@@ -85,7 +85,7 @@ describe("fetchWithPayment()", () => {
     } as RequestInitWithRetry);
 
     expect(result).toBe(successResponse);
-    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements);
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements, undefined);
     expect(createPaymentHeader).toHaveBeenCalledWith(
       mockWalletClient,
       1,

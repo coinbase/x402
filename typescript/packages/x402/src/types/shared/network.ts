@@ -8,3 +8,7 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["base-sepolia", 84532],
   ["base", 8453],
 ]);
+
+export const ChainIdToNetwork = Object.fromEntries(
+  SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
+) as Record<number, Network>;

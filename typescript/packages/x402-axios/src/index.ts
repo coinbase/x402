@@ -1,5 +1,5 @@
 import { AxiosInstance, AxiosError } from "axios";
-import { PaymentRequirements, PaymentRequirementsSchema } from "x402/types";
+import { ChainIdToNetwork, PaymentRequirements, PaymentRequirementsSchema } from "x402/types";
 import { evm } from "x402/types";
 import {
   createPaymentHeader,
@@ -60,7 +60,10 @@ export function withPaymentInterceptor(
         };
         const parsed = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-        const selectedPaymentRequirements = paymentRequirementsSelector(parsed);
+        const selectedPaymentRequirements = paymentRequirementsSelector(
+          parsed,
+          ChainIdToNetwork[walletClient.chain?.id],
+        );
         const paymentHeader = await createPaymentHeader(
           walletClient,
           x402Version,

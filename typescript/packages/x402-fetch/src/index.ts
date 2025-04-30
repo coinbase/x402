@@ -1,4 +1,4 @@
-import { PaymentRequirementsSchema } from "x402/types";
+import { ChainIdToNetwork, PaymentRequirementsSchema } from "x402/types";
 import { evm } from "x402/types";
 import {
   createPaymentHeader,
@@ -56,7 +56,10 @@ export function wrapFetchWithPayment(
     };
     const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-    const selectedPaymentRequirements = paymentRequirementsSelector(parsedPaymentRequirements);
+    const selectedPaymentRequirements = paymentRequirementsSelector(
+      parsedPaymentRequirements,
+      ChainIdToNetwork[walletClient.chain?.id],
+    );
 
     if (BigInt(selectedPaymentRequirements.maxAmountRequired) > maxValue) {
       throw new Error("Payment amount exceeds maximum allowed");

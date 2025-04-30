@@ -84,7 +84,7 @@ describe("withPaymentInterceptor()", () => {
     // Mock payment requirements selector
     const { selectPaymentRequirements } = await import("x402/client");
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
-      requirements => requirements[0],
+      (requirements, _) => requirements[0],
     );
 
     // Set up the interceptor
@@ -114,7 +114,7 @@ describe("withPaymentInterceptor()", () => {
     const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
-      requirements => requirements[0],
+      (requirements, _) => requirements[0],
     );
     (mockAxiosClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(successResponse);
 
@@ -126,7 +126,7 @@ describe("withPaymentInterceptor()", () => {
     const result = await interceptor(error);
 
     expect(result).toBe(successResponse);
-    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements);
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements, undefined);
     expect(createPaymentHeader).toHaveBeenCalledWith(
       mockWalletClient,
       1,
