@@ -20,7 +20,7 @@ export function preparePaymentHeader(
   const nonce = createNonce();
 
   const validAfter = BigInt(
-    Math.floor(Date.now() / 1000) - 5, // 1 block (2s) before to account for block timestamping
+    Math.floor(Date.now() / 1000) - 60, // 60 seconds before
   ).toString();
   const validBefore = BigInt(
     Math.floor(Date.now() / 1000 + paymentRequirements.maxTimeoutSeconds),
