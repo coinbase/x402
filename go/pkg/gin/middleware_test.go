@@ -21,13 +21,14 @@ type TestServerConfig struct {
 
 	// Verification response
 	VerifySuccess bool
-	InvalidReason string
+	InvalidReason *string
 
 	// Settlement response
 	SettleSuccess     bool
-	SettleErrorReason string
+	SettleErrorReason *string
 	Transaction       string
 	Network           string
+	Payer             *string
 
 	// Server behavior
 	VerifyStatusCode int
@@ -36,6 +37,10 @@ type TestServerConfig struct {
 
 // NewTestConfig returns a default test configuration with successful responses.
 func NewTestConfig() TestServerConfig {
+	invalidReason := "Invalid payment"
+	settleErrorReason := "Settlement failed"
+	payer := "0xvalidPayer"
+
 	return TestServerConfig{
 		PaymentPayload: &types.PaymentPayload{
 			X402Version: 1,
@@ -54,11 +59,12 @@ func NewTestConfig() TestServerConfig {
 			},
 		},
 		VerifySuccess:     true,
-		InvalidReason:     "Invalid payment",
+		InvalidReason:     &invalidReason,
 		SettleSuccess:     true,
-		SettleErrorReason: "Settlement failed",
+		SettleErrorReason: &settleErrorReason,
 		Transaction:       "0xtesthash",
 		Network:           "base-sepolia",
+		Payer:             &payer,
 		VerifyStatusCode:  http.StatusOK,
 		SettleStatusCode:  http.StatusOK,
 	}
@@ -76,13 +82,16 @@ func setupTest(t *testing.T, amount *big.Float, address string, config TestServe
 			json.NewEncoder(w).Encode(types.VerifyResponse{
 				IsValid:       config.VerifySuccess,
 				InvalidReason: config.InvalidReason,
+				Payer:         config.Payer,
 			})
 		case "/settle":
 			w.WriteHeader(config.SettleStatusCode)
 			json.NewEncoder(w).Encode(types.SettleResponse{
 				Success:     config.SettleSuccess,
+				ErrorReason: config.SettleErrorReason,
 				Transaction: config.Transaction,
 				Network:     config.Network,
+				Payer:       config.Payer,
 			})
 		}
 	}))
@@ -177,7 +186,7 @@ func TestPaymentMiddleware_VerificationFails(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, response, "error")
 	assert.Contains(t, response, "accepts")
-	assert.Equal(t, config.InvalidReason, response["error"])
+	assert.Equal(t, *config.InvalidReason, response["error"])
 }
 
 func TestPaymentMiddleware_VerificationServerError(t *testing.T) {

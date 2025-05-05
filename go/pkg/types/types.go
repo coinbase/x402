@@ -48,16 +48,18 @@ type ExactEvmPayloadAuthorization struct {
 
 // VerifyResponse represents the response from the verify endpoint
 type VerifyResponse struct {
-	IsValid       bool   `json:"isValid"`
-	InvalidReason string `json:"invalidReason"`
+	IsValid       bool    `json:"isValid"`
+	InvalidReason *string `json:"invalidReason,omitempty"`
+	Payer         *string `json:"payer,omitempty"`
 }
 
 // SettleResponse represents the response from the settle endpoint
 type SettleResponse struct {
-	Success     bool   `json:"success"`
-	ErrorReason string `json:"errorReason"`
-	Transaction string `json:"transaction"`
-	Network     string `json:"network"`
+	Success     bool    `json:"success"`
+	ErrorReason *string `json:"errorReason,omitempty"`
+	Transaction string  `json:"transaction"`
+	Network     string  `json:"network"`
+	Payer       *string `json:"payer,omitempty"`
 }
 
 func (s *SettleResponse) EncodeToBase64String() (string, error) {
@@ -80,6 +82,9 @@ func DecodePaymentPayloadFromBase64(encoded string) (*PaymentPayload, error) {
 	if err := json.Unmarshal(decodedBytes, &payload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payment payload: %w", err)
 	}
+
+	// Set the x402Version after decoding, matching the TypeScript behavior
+	payload.X402Version = 1
 
 	return &payload, nil
 }

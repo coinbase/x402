@@ -32,7 +32,6 @@ func NewFacilitatorClient(url string) *FacilitatorClient {
 // Verify sends a payment verification request to the facilitator
 func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.VerifyResponse, error) {
 	reqBody := map[string]any{
-		"x402Version":         1,
 		"paymentPayload":      payload,
 		"paymentRequirements": requirements,
 	}
@@ -69,7 +68,6 @@ func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *
 // Settle sends a payment settlement request to the facilitator
 func (c *FacilitatorClient) Settle(payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.SettleResponse, error) {
 	reqBody := map[string]any{
-		"x402Version":         1,
 		"paymentPayload":      payload,
 		"paymentRequirements": requirements,
 	}
