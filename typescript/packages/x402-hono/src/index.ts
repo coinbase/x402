@@ -11,6 +11,7 @@ import {
 } from "x402/shared";
 import {
   FacilitatorConfig,
+  moneySchema,
   PaymentPayload,
   PaymentRequirements,
   Resource,
@@ -108,10 +109,18 @@ export function paymentMiddleware(
 
     if (!payment) {
       if (isWebBrowser) {
-        const displayAmount =
-          typeof price === "string" || typeof price === "number"
-            ? Number(price)
-            : Number(price.amount) / 10 ** price.asset.decimals;
+        let displayAmount: number;
+        if (typeof price === "string" || typeof price === "number") {
+          const parsed = moneySchema.safeParse(price);
+          if (parsed.success) {
+            displayAmount = parsed.data;
+          } else {
+            displayAmount = Number.NaN;
+          }
+        } else {
+          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
+        }
+
         const html =
           customPaywallHtml ??
           getPaywallHtml({
