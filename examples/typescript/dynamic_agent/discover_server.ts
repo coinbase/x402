@@ -22,6 +22,13 @@ type IndexEntry = {
   };
 };
 
+app.use(
+  paymentMiddleware(process.env.PAY_TO_ADDRESS as `0x${string}`, {
+    "/weather": "$0.01",
+    "/stock": "$0.05",
+  })
+);
+
 app.get("/", (c) => {
   const resources: IndexEntry[] = [
     {
@@ -46,10 +53,7 @@ app.get("/", (c) => {
   return c.json(resources);
 });
 
-app.use(
-  "/weather",
-  paymentMiddleware("$0.01", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
-);
+
 app.get("/weather", async (c) => {
   const city = c.req.query("city");
   console.log("City", city);
@@ -61,10 +65,7 @@ app.get("/weather", async (c) => {
   return c.json(data);
 });
 
-app.use(
-  "/stock",
-  paymentMiddleware("$0.05", "0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
-);
+
 app.get("/stock", async (c) => {
   const symbol = c.req.query("symbol")?.toUpperCase();
   if (!symbol) {

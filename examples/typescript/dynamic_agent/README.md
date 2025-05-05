@@ -15,7 +15,7 @@ pnpm install
 2. Configure environment variables
 
 ```bash
-cp .env-example .env
+cp .env-local .env
 ```
 
 Follow instructions in `.env` to get required API keys to proxy (they're all free).
