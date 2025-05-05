@@ -4,7 +4,8 @@ This is an example Express.js server that demonstrates how to use the `x402-expr
 
 ## Prerequisites
 
-- Node.js (v20 or higher)
+- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
 
 ## Setup

@@ -4,7 +4,8 @@ This is a Next.js application that demonstrates how to use the `x402-next` middl
 
 ## Prerequisites
 
-- Node.js (20 or higher)
+- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
 
 ## Setup

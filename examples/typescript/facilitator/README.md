@@ -19,7 +19,8 @@ This example demonstrates how to:
 
 ## Prerequisites
 
-- Node.js (v20 or higher)
+- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum private key for Base Sepolia
 - Base Sepolia testnet ETH for transaction fees
 

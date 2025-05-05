@@ -9,8 +9,8 @@ This is an advanced example of an Express.js server that demonstrates how to imp
 
 ## Prerequisites
 
-- Node.js (v20 or higher)
-- pnpm v10 (package manager)
+- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
 
 ## Setup
