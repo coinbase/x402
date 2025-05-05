@@ -57,3 +57,29 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
     account: privateKeyToAccount(privateKey),
   }).extend(publicActions);
 }
+
+/**
+ * Checks if a wallet is a signer wallet
+ *
+ * @param wallet - The wallet to check
+ * @returns True if the wallet is a signer wallet, false otherwise
+ */
+export function isSignerWallet<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(
+  wallet: SignerWallet<TChain, TTransport, TAccount> | Account,
+): wallet is SignerWallet<TChain, TTransport, TAccount> {
+  return "chain" in wallet && "transport" in wallet;
+}
+
+/**
+ * Checks if a wallet is an account
+ *
+ * @param wallet - The wallet to check
+ * @returns True if the wallet is an account, false otherwise
+ */
+export function isAccount(wallet: SignerWallet | Account): wallet is Account {
+  return "address" in wallet && "type" in wallet;
+}

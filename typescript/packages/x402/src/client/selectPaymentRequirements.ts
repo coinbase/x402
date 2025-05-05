@@ -9,22 +9,48 @@ import { getNetworkId } from "../shared/network";
  * 
  * @param paymentRequirements - The payment requirements to select from.
  * @param network - The network to check against. If not provided, the network will not be checked.
+ * @param scheme - The scheme to check against. If not provided, the scheme will not be checked.
  * @returns The payment requirement that is the most appropriate for the user.
  */
-export function selectPaymentRequirements(paymentRequirements: PaymentRequirements[], network?: Network): PaymentRequirements {
-  const usdcPaymentRequirement = paymentRequirements.find(requirement => {
-    const isExpectedScheme = requirement.scheme === "exact";
-    const isExpectedAsset = requirement.asset === getUsdcAddressForChain(getNetworkId(requirement.network));
-    // If the chain is not resolveable, we skip the check. Otherwise, we check if our connected chain is the expected chain.
-    const isExpectedChain = !network || network == requirement.network;
-
-    return isExpectedScheme && isExpectedAsset && isExpectedChain;
+export function selectPaymentRequirements(paymentRequirements: PaymentRequirements[], network?: Network, scheme?: "exact"): PaymentRequirements {
+  // Sort `base` payment requirements to the front of the list. This is to ensure that base is preferred if available.
+  paymentRequirements.sort((a, b) => {
+    if (a.network === "base" && b.network !== "base") {
+      return -1;
+    }
+    if (a.network !== "base" && b.network === "base") {
+      return 1;
+    }
+    return 0;
   });
 
-  if (usdcPaymentRequirement) {
-    return usdcPaymentRequirement;
+  // Filter down to the scheme/network if provided
+  const broadlyAcceptedPaymentRequirements = paymentRequirements.filter(requirement => {
+    // If the scheme is not provided, we accept any scheme.
+    const isExpectedScheme = !scheme || requirement.scheme === scheme;
+    // If the chain is not provided, we accept any chain.
+    const isExpectedChain = !network || network == requirement.network;
+
+    return isExpectedScheme && isExpectedChain;
+  });
+
+  // Filter down to USDC requirements
+  const usdcRequirements = broadlyAcceptedPaymentRequirements.filter(requirement => {
+    // If the address is a USDC address, we return it.
+    return requirement.asset === getUsdcAddressForChain(getNetworkId(requirement.network));
+  });
+
+  // Prioritize USDC requirements if available
+  if (usdcRequirements.length > 0) {
+    return usdcRequirements[0];
   }
 
+  // If no USDC requirements are found, return the first broadly accepted requirement.
+  if (broadlyAcceptedPaymentRequirements.length > 0) {
+    return broadlyAcceptedPaymentRequirements[0];
+  }
+
+  // If no matching requirements are found, return the first requirement.
   return paymentRequirements[0];
 }
 
@@ -33,6 +59,7 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
  * 
  * @param paymentRequirements - The payment requirements to select from.
  * @param network - The network to check against. If not provided, the network will not be checked.
+ * @param scheme - The scheme to check against. If not provided, the scheme will not be checked.
  * @returns The payment requirement that is the most appropriate for the user.
  */
-export type PaymentRequirementsSelector = (paymentRequirements: PaymentRequirements[], network?: Network) => PaymentRequirements;
+export type PaymentRequirementsSelector = (paymentRequirements: PaymentRequirements[], network?: Network, scheme?: "exact") => PaymentRequirements;

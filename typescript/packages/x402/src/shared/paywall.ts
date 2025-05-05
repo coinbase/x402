@@ -27,6 +27,7 @@ export function getPaywallHtml({
   const selectedPaymentRequirements = selectPaymentRequirements(
     paymentRequirements,
     testnet ? "base-sepolia" : "base",
+    "exact",
   );
   return `<!DOCTYPE html>
 <html lang="en">

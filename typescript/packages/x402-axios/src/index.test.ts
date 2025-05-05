@@ -126,7 +126,11 @@ describe("withPaymentInterceptor()", () => {
     const result = await interceptor(error);
 
     expect(result).toBe(successResponse);
-    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements, undefined);
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(
+      validPaymentRequirements,
+      undefined,
+      "exact",
+    );
     expect(createPaymentHeader).toHaveBeenCalledWith(
       mockWalletClient,
       1,

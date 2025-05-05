@@ -8,27 +8,24 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import axios from "axios";
-import { createWalletClient, Hex, http, publicActions } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
-import { withPaymentInterceptor } from "x402-axios";
 import { config } from "dotenv";
+import { Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { withPaymentInterceptor } from "x402-axios";
 
 config();
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
+const privateKey = process.env.PRIVATE_KEY as Hex;
+const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
+const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 
-if (!PRIVATE_KEY || !RESOURCE_SERVER_URL || !ENDPOINT_PATH) {
+if (!privateKey || !baseURL || !endpointPath) {
   throw new Error("Missing environment variables");
 }
 
-const wallet = createWalletClient({
-  chain: baseSepolia,
-  transport: http(),
-  account: privateKeyToAccount(PRIVATE_KEY as Hex),
-}).extend(publicActions);
+const account = privateKeyToAccount(privateKey);
 
-const client = withPaymentInterceptor(axios.create({ baseURL: RESOURCE_SERVER_URL }), wallet);
+const client = withPaymentInterceptor(axios.create({ baseURL }), account);
 
 // Create an MCP server
 const server = new McpServer({
@@ -42,7 +39,7 @@ server.tool(
   "Get data from the resource server (in this example, the weather)",
   {},
   async () => {
-    const res = await client.get(`${ENDPOINT_PATH}`);
+    const res = await client.get(endpointPath);
     return {
       content: [{ type: "text", text: JSON.stringify(res.data) }],
     };

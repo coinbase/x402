@@ -85,7 +85,11 @@ describe("fetchWithPayment()", () => {
     } as RequestInitWithRetry);
 
     expect(result).toBe(successResponse);
-    expect(selectPaymentRequirements).toHaveBeenCalledWith(validPaymentRequirements, undefined);
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(
+      validPaymentRequirements,
+      undefined,
+      "exact",
+    );
     expect(createPaymentHeader).toHaveBeenCalledWith(
       mockWalletClient,
       1,

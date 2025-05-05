@@ -1,3 +1,4 @@
+import { Address, Hex } from "viem";
 import {
   moneySchema,
   Network,
@@ -9,6 +10,7 @@ import {
   PaymentPayload,
 } from "../types";
 import { RoutesConfig } from "../types";
+import { safeBase64Decode } from "./base64";
 import { getUsdcAddressForChain } from "./evm";
 import { getNetworkId } from "./network";
 
@@ -148,4 +150,20 @@ export function findMatchingPaymentRequirements(
   return paymentRequirements.find(
     value => value.scheme === payment.scheme && value.network === payment.network,
   );
+}
+
+/**
+ * Decodes the X-PAYMENT-RESPONSE header
+ *
+ * @param header - The X-PAYMENT-RESPONSE header to decode
+ * @returns The decoded payment response
+ */
+export function decodeXPaymentResponse(header: string) {
+  const decoded = safeBase64Decode(header);
+  return JSON.parse(decoded) as {
+    success: boolean;
+    transaction: Hex;
+    network: Network;
+    payer: Address;
+  };
 }

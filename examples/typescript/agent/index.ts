@@ -1,30 +1,25 @@
-import { http, publicActions, createWalletClient } from "viem";
-import { baseSepolia } from "viem/chains";
-import { privateKeyToAccount } from "viem/accounts";
-import { Hex } from "viem";
 import Anthropic from "@anthropic-ai/sdk";
-import { wrapFetchWithPayment } from "x402-fetch";
 import { config } from "dotenv";
+import { Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY } = process.env;
+const privateKey = process.env.PRIVATE_KEY as Hex;
+const baseURL = process.env.RESOURCE_SERVER_URL as string;
 
-if (!RESOURCE_SERVER_URL || !PRIVATE_KEY) {
+if (!baseURL || !privateKey) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
-const wallet = createWalletClient({
-  chain: baseSepolia,
-  transport: http(),
-  account: privateKeyToAccount(PRIVATE_KEY as Hex),
-}).extend(publicActions);
+const account = privateKeyToAccount(privateKey);
 
 const anthropic = new Anthropic({
-  baseURL: RESOURCE_SERVER_URL,
+  baseURL,
   apiKey: "not needed",
-  fetch: wrapFetchWithPayment(fetch, wallet),
+  fetch: wrapFetchWithPayment(fetch, account),
 });
 
 const msg = await anthropic.messages.create({

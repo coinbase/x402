@@ -1,5 +1,5 @@
-import { Address, Chain, Transport } from "viem";
-import { SignerWallet } from "../../../types/shared/evm";
+import { Account, Address, Chain, Transport } from "viem";
+import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
@@ -53,7 +53,7 @@ export function preparePaymentHeader(
  * @returns A promise that resolves to the signed payment payload
  */
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport>,
+  client: SignerWallet<chain, transport> | Account,
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<PaymentPayload> {
@@ -81,11 +81,11 @@ export async function signPaymentHeader<transport extends Transport, chain exten
  * @returns A promise that resolves to the complete signed payment payload
  */
 export async function createPayment<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport>,
+  client: SignerWallet<chain, transport> | Account,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayload> {
-  const from = client!.account!.address;
+  const from = isSignerWallet(client) ? client.account!.address : client.address;
   const unsignedPaymentHeader = preparePaymentHeader(from, x402Version, paymentRequirements);
   return signPaymentHeader(client, paymentRequirements, unsignedPaymentHeader);
 }
@@ -99,7 +99,7 @@ export async function createPayment<transport extends Transport, chain extends C
  * @returns A promise that resolves to the encoded payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet,
+  client: SignerWallet | Account,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {

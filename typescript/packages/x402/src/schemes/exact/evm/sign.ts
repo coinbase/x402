@@ -1,9 +1,13 @@
-import { Address, Chain, Hex, toHex, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
-import { getVersion } from "../../../shared/evm";
-import { authorizationTypes, config, SignerWallet } from "../../../types/shared/evm";
-import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
 import { getRandomValues } from "crypto";
+import { Account, Address, Chain, Hex, toHex, Transport } from "viem";
+import { getNetworkId } from "../../../shared";
+import {
+  authorizationTypes,
+  isAccount,
+  isSignerWallet,
+  SignerWallet,
+} from "../../../types/shared/evm";
+import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer
@@ -23,16 +27,17 @@ import { getRandomValues } from "crypto";
  * @returns The signature for the authorization
  */
 export async function signAuthorization<transport extends Transport, chain extends Chain>(
-  walletClient: SignerWallet<chain, transport>,
+  walletClient: SignerWallet<chain, transport> | Account,
   { from, to, value, validAfter, validBefore, nonce }: ExactEvmPayloadAuthorization,
   { asset, network, extra }: PaymentRequirements,
 ): Promise<{ signature: Hex }> {
   const chainId = getNetworkId(network);
-  const name = extra?.name ?? config[chainId].usdcName;
-  const version = extra?.version ?? (await getVersion(walletClient));
+  const name = extra?.name;
+  const version = extra?.version;
+  const account = isSignerWallet(walletClient) ? walletClient.account : walletClient;
 
   const data = {
-    account: walletClient.account!,
+    account,
     types: authorizationTypes,
     domain: {
       name,
@@ -51,11 +56,19 @@ export async function signAuthorization<transport extends Transport, chain exten
     },
   };
 
-  const signature = await walletClient.signTypedData(data);
-
-  return {
-    signature,
-  };
+  if (isSignerWallet(walletClient)) {
+    const signature = await walletClient.signTypedData(data);
+    return {
+      signature,
+    };
+  } else if (isAccount(walletClient) && walletClient.signTypedData) {
+    const signature = await walletClient.signTypedData(data);
+    return {
+      signature,
+    };
+  } else {
+    throw new Error("Invalid wallet client provided does not support signTypedData");
+  }
 }
 
 /**

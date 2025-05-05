@@ -5,6 +5,7 @@ import {
   PaymentRequirementsSelector,
   selectPaymentRequirements,
 } from "x402/client";
+import { Account } from "viem";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol.
@@ -39,7 +40,7 @@ import {
  */
 export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
-  walletClient: typeof evm.SignerWallet,
+  walletClient: typeof evm.SignerWallet | Account,
   maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
@@ -56,9 +57,15 @@ export function wrapFetchWithPayment(
     };
     const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
+    const chainId = evm.isSignerWallet(walletClient)
+      ? walletClient.chain?.id
+      : evm.isAccount(walletClient)
+        ? walletClient.client?.chain?.id
+        : undefined;
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,
-      ChainIdToNetwork[walletClient.chain?.id],
+      chainId ? ChainIdToNetwork[chainId] : undefined,
+      "exact",
     );
 
     if (BigInt(selectedPaymentRequirements.maxAmountRequired) > maxValue) {
@@ -93,3 +100,5 @@ export function wrapFetchWithPayment(
     return secondResponse;
   };
 }
+
+export { decodeXPaymentResponse } from "x402/shared";
