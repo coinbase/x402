@@ -3,4 +3,6 @@ node_modules/
 dist/
 .turbo/
 .next/
+proxy
+.env
 __pycache__/

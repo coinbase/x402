@@ -16,6 +16,7 @@ cp .env-local .env
 ```
 
 2. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -24,6 +25,7 @@ cd servers/hono
 ```
 
 3. Run the server
+
 ```bash
 pnpm install
 pnpm dev
@@ -34,22 +36,25 @@ pnpm dev
 You can test the server using one of the example clients:
 
 ### Using the Fetch Client
+
 ```bash
 cd ../clients/fetch
 # Ensure .env is setup
-npm install
-npm dev
+pnpm install
+pnpm dev
 ```
 
 ### Using the Axios Client
+
 ```bash
 cd ../clients/axios
 # Ensure .env is setup
-npm install
-npm dev
+pnpm install
+pnpm dev
 ```
 
 These clients will demonstrate how to:
+
 1. Make an initial request to get payment requirements
 2. Process the payment requirements
 3. Make a second request with the payment token
@@ -61,6 +66,7 @@ The server includes a single example endpoint at `/weather` that requires a paym
 ## Response Format
 
 ### Payment Required (402)
+
 ```json
 {
   "error": "X-PAYMENT header is required",
@@ -81,6 +87,7 @@ The server includes a single example endpoint at `/weather` that requires a paym
 ```
 
 ### Successful Response
+
 ```ts
 // Body
 {
@@ -102,30 +109,27 @@ To add more paid endpoints, follow this pattern:
 ```typescript
 // First, configure the payment middleware with your routes
 app.use(
-  paymentMiddleware(
-    payTo,
-    {
-      // Define your routes and their payment requirements
-      "/your-endpoint": {
-        price: "$0.10",
-        network,
-      },
-      "/premium/*": {
-        price: {
-          amount: "100000",
-          asset: {
-            address: "0xabc",
-            decimals: 18,
-            eip712: {
-              name: "WETH",
-              version: "1",
-            },
+  paymentMiddleware(payTo, {
+    // Define your routes and their payment requirements
+    "/your-endpoint": {
+      price: "$0.10",
+      network,
+    },
+    "/premium/*": {
+      price: {
+        amount: "100000",
+        asset: {
+          address: "0xabc",
+          decimals: 18,
+          eip712: {
+            name: "WETH",
+            version: "1",
           },
         },
-        network,
       },
+      network,
     },
-  ),
+  }),
 );
 
 // Then define your routes as normal
