@@ -40,11 +40,11 @@ pnpm dev
 This advanced implementation provides a structured approach to handling payments with:
 
 1. Helper functions for creating payment requirements and verifying payments
-2. Support for both synchronous and asynchronous payment settlement
-3. Proper error handling and response formatting
-4. Integration with the x402 facilitator service
-
-> **Note**: The synchronous and asynchronous examples are provided for comparison purposes only. If you only need synchronous payment processing, we highly recommend using the middleware approach instead, as it provides a simpler and more maintainable solution.
+2. Support for delayed payment settlement
+3. Dynamic pricing capabilities
+4. Multiple payment requirement options
+5. Proper error handling and response formatting
+6. Integration with the x402 facilitator service
 
 ## Testing the Server
 
@@ -70,15 +70,23 @@ pnpm dev
 
 The server includes example endpoints that demonstrate different payment scenarios:
 
-### Synchronous Payment (For Comparison Only)
-- `/weather` - Requires immediate payment of $0.001 to access
-- Returns a simple weather report
-- Payment is verified and settled before returning the response
-
-### Asynchronous Payment (Advanced Use Cases)
-- `/async-weather` - Supports delayed payment settlement
-- Returns the weather data immediately
+### Delayed Settlement
+- `/delayed-settlement` - Demonstrates asynchronous payment processing
+- Returns the weather data immediately without waiting for payment settlement
 - Processes payment asynchronously in the background
+- Useful for scenarios where immediate response is critical and payment settlement can be handled later
+
+### Dynamic Pricing
+- `/dynamic-price` - Shows how to implement variable pricing based on request parameters
+- Accepts a `multiplier` query parameter to adjust the base price
+- Demonstrates how to calculate and validate payments with dynamic amounts
+- Useful for implementing tiered pricing or demand-based pricing models
+
+### Multiple Payment Requirements
+- `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
+- Allows clients to pay using different assets (e.g., USDC or USDT)
+- Supports multiple networks (e.g., Base and Base Sepolia)
+- Useful for providing flexibility in payment methods and networks
 
 ## Response Format
 
@@ -125,17 +133,17 @@ The server includes example endpoints that demonstrate different payment scenari
 
 ## Extending the Example
 
-To add more paid endpoints with asynchronous payment processing, you can follow this pattern:
+To add more paid endpoints with delayed payment settlement, you can follow this pattern:
 
 ```typescript
 app.get("/your-endpoint", async (req, res) => {
   const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
-  const paymentRequirements = createPaymentRequirements(
+  const paymentRequirements = [createExactPaymentRequirements(
     "$0.001", // Your price
     "base-sepolia", // Your network
     resource,
     "Description of your resource"
-  );
+  )];
 
   const isValid = await verifyPayment(req, res, paymentRequirements);
   if (!isValid) return;
@@ -162,3 +170,5 @@ app.get("/your-endpoint", async (req, res) => {
   }
 });
 ```
+
+For dynamic pricing or multiple payment requirements, refer to the `/dynamic-price` and `/multiple-payment-requirements` endpoints in the example code for implementation details.

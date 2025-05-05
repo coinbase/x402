@@ -35,36 +35,34 @@ const x402Version = 1;
  * @param description - Optional description of the payment
  * @returns An array of payment requirements
  */
-function createPaymentRequirements(
+function createExactPaymentRequirements(
   price: Price,
   network: Network,
   resource: Resource,
   description = "",
-): PaymentRequirements[] {
+): PaymentRequirements {
   const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
   if ("error" in atomicAmountForAsset) {
     throw new Error(atomicAmountForAsset.error);
   }
   const { maxAmountRequired, asset } = atomicAmountForAsset;
 
-  return [
-    {
-      scheme: "exact",
-      network,
-      maxAmountRequired,
-      resource,
-      description,
-      mimeType: "",
-      payTo: payTo,
-      maxTimeoutSeconds: 60,
-      asset: asset.address,
-      outputSchema: undefined,
-      extra: {
-        name: asset.eip712.name,
-        version: asset.eip712.version,
-      },
+  return {
+    scheme: "exact",
+    network,
+    maxAmountRequired,
+    resource,
+    description,
+    mimeType: "",
+    payTo: payTo,
+    maxTimeoutSeconds: 60,
+    asset: asset.address,
+    outputSchema: undefined,
+    extra: {
+      name: asset.eip712.name,
+      version: asset.eip712.version,
     },
-  ];
+  };
 }
 
 /**
@@ -126,53 +124,17 @@ async function verifyPayment(
   return true;
 }
 
-// Synchronous weather endpoint
-app.get("/weather", async (req, res) => {
+// Delayed settlement example endpoint
+app.get("/delayed-settlement", async (req, res) => {
   const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
-  const paymentRequirements = createPaymentRequirements(
-    "$0.001",
-    "base-sepolia",
-    resource,
-    "Access to weather data",
-  );
-
-  const isValid = await verifyPayment(req, res, paymentRequirements);
-  if (!isValid) return;
-
-  try {
-    // Process payment synchronously
-    const settleResponse = await settle(
-      exact.evm.decodePayment(req.header("X-PAYMENT")!),
-      paymentRequirements[0],
-    );
-    const responseHeader = settleResponseHeader(settleResponse);
-    res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
-
-    // Return the weather data
-    res.json({
-      report: {
-        weather: "sunny",
-        temperature: 70,
-      },
-    });
-  } catch (error) {
-    res.status(402).json({
-      x402Version,
-      error,
-      accepts: paymentRequirements,
-    });
-  }
-});
-
-// Asynchronous weather endpoint
-app.get("/async-weather", async (req, res) => {
-  const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
-  const paymentRequirements = createPaymentRequirements(
-    "$0.001",
-    "base-sepolia",
-    resource,
-    "Access to weather data (async)",
-  );
+  const paymentRequirements = [
+    createExactPaymentRequirements(
+      "$0.001",
+      "base-sepolia",
+      resource,
+      "Access to weather data (async)",
+    ),
+  ];
 
   const isValid = await verifyPayment(req, res, paymentRequirements);
   if (!isValid) return;
@@ -199,6 +161,103 @@ app.get("/async-weather", async (req, res) => {
     console.error("Payment settlement failed:", error);
     // In a real application, you would handle the failed payment
     // by marking it for retry or notifying the user
+  }
+});
+
+// Dynamic price example endpoint
+app.get("/dynamic-price", async (req, res) => {
+  // Use query params, body, or external factors to determine if price is impacted
+  const multiplier = parseInt((req.query.multiplier as string) ?? "1");
+  // Adjust pricing based on impact from inputs
+  const price = 0.001 * multiplier;
+
+  const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
+  const paymentRequirements = [
+    createExactPaymentRequirements(
+      price, // Expect dynamic pricing
+      "base-sepolia",
+      resource,
+      "Access to weather data",
+    ),
+  ];
+
+  const isValid = await verifyPayment(req, res, paymentRequirements);
+  if (!isValid) return;
+
+  try {
+    // Process payment synchronously
+    const settleResponse = await settle(
+      exact.evm.decodePayment(req.header("X-PAYMENT")!),
+      paymentRequirements[0],
+    );
+    const responseHeader = settleResponseHeader(settleResponse);
+    res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
+
+    // Return the weather data
+    res.json({
+      report: {
+        success: "sunny",
+        temperature: 70,
+      },
+    });
+  } catch (error) {
+    res.status(402).json({
+      x402Version,
+      error,
+      accepts: paymentRequirements,
+    });
+  }
+});
+
+// Multiple payment requirements example endpoint
+app.get("/multiple-payment-requirements", async (req, res) => {
+  const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
+
+  // Payment requirements is an array. You can mix and match tokens, prices, and networks.
+  const paymentRequirements = [
+    createExactPaymentRequirements("$0.001", "base", resource),
+    createExactPaymentRequirements(
+      {
+        amount: "1000",
+        asset: {
+          address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          decimals: 6,
+          eip712: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      },
+      "base-sepolia",
+      resource,
+    ),
+  ];
+
+  const isValid = await verifyPayment(req, res, paymentRequirements);
+  if (!isValid) return;
+
+  try {
+    // Process payment synchronously
+    const settleResponse = await settle(
+      exact.evm.decodePayment(req.header("X-PAYMENT")!),
+      paymentRequirements[0],
+    );
+    const responseHeader = settleResponseHeader(settleResponse);
+    res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
+
+    // Return the weather data
+    res.json({
+      report: {
+        success: "sunny",
+        temperature: 70,
+      },
+    });
+  } catch (error) {
+    res.status(402).json({
+      x402Version,
+      error,
+      accepts: paymentRequirements,
+    });
   }
 });
 
