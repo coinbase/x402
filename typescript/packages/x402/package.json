@@ -40,42 +40,76 @@
     "viem": "^2.23.1",
     "zod": "^3.24.2"
   },
-  "type": "module",
   "exports": {
     "./shared": {
-      "types": "./dist/esm/shared/index.d.ts",
-      "import": "./dist/esm/shared/index.js",
-      "require": "./dist/cjs/shared/index.js"
+      "import": {
+        "types": "./dist/esm/shared/index.d.mts",
+        "default": "./dist/esm/shared/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/index.d.cts",
+        "default": "./dist/cjs/shared/index.cjs"
+      }
     },
     "./shared/evm": {
-      "types": "./dist/esm/shared/evm/index.d.ts",
-      "import": "./dist/esm/shared/evm/index.js",
-      "require": "./dist/cjs/shared/evm/index.js"
+      "import": {
+        "types": "./dist/esm/shared/evm/index.d.mts",
+        "default": "./dist/esm/shared/evm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/evm/index.d.cts",
+        "default": "./dist/cjs/shared/evm/index.cjs"
+      }
     },
     "./schemes": {
-      "types": "./dist/esm/schemes/index.d.ts",
-      "import": "./dist/esm/schemes/index.js",
-      "require": "./dist/cjs/schemes/index.js"
+      "import": {
+        "types": "./dist/esm/schemes/index.d.mts",
+        "default": "./dist/esm/schemes/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemes/index.d.cts",
+        "default": "./dist/cjs/schemes/index.cjs"
+      }
     },
     "./client": {
-      "types": "./dist/esm/client/index.d.ts",
-      "import": "./dist/esm/client/index.js",
-      "require": "./dist/cjs/client/index.js"
+      "import": {
+        "types": "./dist/esm/client/index.d.mts",
+        "default": "./dist/esm/client/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/client/index.d.cts",
+        "default": "./dist/cjs/client/index.cjs"
+      }
     },
     "./verify": {
-      "types": "./dist/esm/verify/index.d.ts",
-      "import": "./dist/esm/verify/index.js",
-      "require": "./dist/cjs/verify/index.js"
+      "import": {
+        "types": "./dist/esm/verify/index.d.mts",
+        "default": "./dist/esm/verify/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/verify/index.d.cts",
+        "default": "./dist/cjs/verify/index.cjs"
+      }
     },
     "./facilitator": {
-      "types": "./dist/esm/facilitator/index.d.ts",
-      "import": "./dist/esm/facilitator/index.js",
-      "require": "./dist/cjs/facilitator/index.js"
+      "import": {
+        "types": "./dist/esm/facilitator/index.d.mts",
+        "default": "./dist/esm/facilitator/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/facilitator/index.d.cts",
+        "default": "./dist/cjs/facilitator/index.cjs"
+      }
     },
     "./types": {
-      "types": "./dist/esm/types/index.d.ts",
-      "import": "./dist/esm/types/index.js",
-      "require": "./dist/cjs/types/index.js"
+      "import": {
+        "types": "./dist/esm/types/index.d.mts",
+        "default": "./dist/esm/types/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/types/index.d.cts",
+        "default": "./dist/cjs/types/index.cjs"
+      }
     }
   },
   "files": [
