@@ -29,7 +29,7 @@ jobs:
         working-directory: ./typescript
         run: |
           pnpm install --frozen-lockfile
-          pnpm -r --filter=x402 --filter=coinbase-x402 run build
+          pnpm -r --filter=x402 --filter=@coinbase/x402 run build
       
       - name: Publish coinbase-x402 package
         working-directory: ./typescript/packages/coinbase-x402
