@@ -238,21 +238,16 @@ export default function Home() {
               <div className="mb-8">
                 <div className="bg-black/50 rounded-lg p-4 font-mono text-sm text-gray-300 relative overflow-hidden">
                   <pre className="syntax-highlight">
-                    <span className="text-blue-400">app</span>
-                    <span className="text-gray-300">.</span>
-                    <span className="text-green-400">use</span>
-                    <span className="text-gray-300">(</span>
-                    <span className="text-amber-300">
-                      &quot;/your-route&quot;
-                    </span>
-                    <span className="text-gray-300">, </span>
                     <span className="text-green-400">paymentMiddleware</span>
                     <span className="text-gray-300">(</span>
-                    <span className="text-amber-300">&quot;$0.10&quot;</span>
-                    <span className="text-gray-300">, </span>
-                    <span className="text-blue-400">myAddress</span>
-                    <span className="text-gray-300">));</span>
-                    {'\n'}
+                    <span className="text-amber-300">&quot;0xYourAddress&quot;</span>
+                    <span className="text-gray-300">, {"{"}</span>
+                    <span className="text-amber-300">&quot;/your-endpoint&quot;</span>
+                    <span className="text-gray-300">: </span>
+                    <span className="text-amber-300">&quot;$0.01&quot;</span>
+                    <span className="text-gray-300">{"}"}</span>
+                    <span className="text-gray-300">);</span>
+                    {"\n"}
                     {/* eslint-disable-next-line react/jsx-no-comment-textnodes */}
                     <span className="text-gray-400">// and thats it!</span>
                   </pre>
