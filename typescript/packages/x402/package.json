@@ -1,6 +1,6 @@
 {
   "name": "x402",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -50,8 +50,8 @@
         "default": "./dist/esm/shared/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/shared/index.d.cts",
-        "default": "./dist/cjs/shared/index.cjs"
+        "types": "./dist/cjs/shared/index.d.ts",
+        "default": "./dist/cjs/shared/index.js"
       }
     },
     "./shared/evm": {
@@ -60,8 +60,8 @@
         "default": "./dist/esm/shared/evm/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/shared/evm/index.d.cts",
-        "default": "./dist/cjs/shared/evm/index.cjs"
+        "types": "./dist/cjs/shared/evm/index.d.ts",
+        "default": "./dist/cjs/shared/evm/index.js"
       }
     },
     "./schemes": {
@@ -70,8 +70,8 @@
         "default": "./dist/esm/schemes/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/schemes/index.d.cts",
-        "default": "./dist/cjs/schemes/index.cjs"
+        "types": "./dist/cjs/schemes/index.d.ts",
+        "default": "./dist/cjs/schemes/index.js"
       }
     },
     "./client": {
@@ -80,8 +80,8 @@
         "default": "./dist/esm/client/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/client/index.d.cts",
-        "default": "./dist/cjs/client/index.cjs"
+        "types": "./dist/cjs/client/index.d.ts",
+        "default": "./dist/cjs/client/index.js"
       }
     },
     "./verify": {
@@ -90,8 +90,8 @@
         "default": "./dist/esm/verify/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/verify/index.d.cts",
-        "default": "./dist/cjs/verify/index.cjs"
+        "types": "./dist/cjs/verify/index.d.ts",
+        "default": "./dist/cjs/verify/index.js"
       }
     },
     "./facilitator": {
@@ -100,8 +100,8 @@
         "default": "./dist/esm/facilitator/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/facilitator/index.d.cts",
-        "default": "./dist/cjs/facilitator/index.cjs"
+        "types": "./dist/cjs/facilitator/index.d.ts",
+        "default": "./dist/cjs/facilitator/index.js"
       }
     },
     "./types": {
@@ -110,8 +110,8 @@
         "default": "./dist/esm/types/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/types/index.d.cts",
-        "default": "./dist/cjs/types/index.cjs"
+        "types": "./dist/cjs/types/index.d.ts",
+        "default": "./dist/cjs/types/index.js"
       }
     }
   },

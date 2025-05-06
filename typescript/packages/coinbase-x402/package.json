@@ -1,6 +1,6 @@
 {
   "name": "@coinbase/x402",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -48,7 +48,7 @@
         "default": "./dist/esm/index.mjs"
       },
       "require": {
-        "types": "./dist/cjs/index.d.cts",
+        "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
       }
     }
