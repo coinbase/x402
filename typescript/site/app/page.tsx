@@ -7,9 +7,12 @@ import {
   DocumentTextIcon,
   ArrowDownTrayIcon,
   QuestionMarkCircleIcon,
-} from "@heroicons/react/24/outline";
+  CodeBracketIcon,
+  BookOpenIcon,
+} from '@heroicons/react/24/outline';
 import { FeatureItem } from './components/FeatureItem';
 import GithubIcon from './assets/github.svg';
+import DiscordIcon from './assets/discord.svg';
 import WordmarkCondensed from './assets/x402_wordmark_dark.svg';
 import { Section } from './components/Section';
 import { BackgroundVideo } from './components/BackgroundVideo';
@@ -84,7 +87,7 @@ export default function Home() {
       </div>
 
       <div className="relative z-10">
-        {/* Header */}
+        {/* Top nav */}
         <section className="max-w-6xl mx-auto px-4 pt-4 lg:px-12">
           <div className="flex gap-4 md:gap-8 justify-between sm:justify-end">
             <Link
@@ -93,7 +96,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
             >
-              <QuestionMarkCircleIcon className="w-5 h-5 mr-1" />
+              <QuestionMarkCircleIcon className="w-4 h-4 mr-1" />
               Learn more
             </Link>
             <Link
@@ -102,7 +105,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
             >
-              <ArrowDownTrayIcon className="w-5 h-5 mr-1" />
+              <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
               One-pager
             </Link>
             <Link
@@ -111,8 +114,17 @@ export default function Home() {
               rel="noopener noreferrer"
               className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
             >
-              <GithubIcon className="w-5 h-5 mr-1" fill="currentColor" />
+              <GithubIcon className="w-4 h-4 mr-1" fill="currentColor" />
               GitHub
+            </Link>
+            <Link
+              href="https://discord.gg/invite/cdp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
+            >
+              <DiscordIcon className="w-4 h-4 mr-1" fill="currentColor" />
+              Discord
             </Link>
           </div>
         </section>
@@ -125,31 +137,34 @@ export default function Home() {
             <p className="text-xl text-gray-400 mb-8 font-mono">
               An open protocol for internet-native payments
             </p>
-            <div className="flex flex-wrap gap-4 mb-8 justify-center">
+            <div className="flex flex-wrap gap-4 mb-6 justify-center">
               <Link
                 href="/x402-whitepaper.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2"
+                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2 text-lg"
               >
                 <DocumentTextIcon className="w-5 h-5 mr-1" />
                 Read the whitepaper
               </Link>
+            </div>
+            <div className="flex flex-wrap gap-4 mb-8 justify-center">
               <Link
                 href="https://x402.gitbook.io/x402"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2"
+                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
               >
-                <QuestionMarkCircleIcon className="w-5 h-5 mr-1" />
+                <BookOpenIcon className="w-5 h-5 mr-1" />
                 Read the docs
               </Link>
               <Link
                 href="/protected"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 border-2 border-gray-700 hover:border-blue-600 rounded-lg font-mono transition-colors"
+                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
               >
+                <CodeBracketIcon className="w-5 h-5 mr-1" />
                 Try it out
               </Link>
             </div>
