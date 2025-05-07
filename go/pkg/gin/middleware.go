@@ -11,9 +11,8 @@ import (
 
 	"github.com/coinbase/x402/go/pkg/facilitatorclient"
 	"github.com/coinbase/x402/go/pkg/types"
+	"github.com/coinbase/x402/go/pkg/x402"
 )
-
-const x402Version = 1
 
 // PaymentMiddlewareOptions is the options for the PaymentMiddleware.
 type PaymentMiddlewareOptions struct {
@@ -149,7 +148,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			fmt.Println("failed to set USDC info:", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":       err.Error(),
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 		}
 
@@ -169,11 +168,11 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":       "X-PAYMENT header is required",
 				"accepts":     []*types.PaymentRequirements{paymentRequirements},
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 			return
 		}
-		paymentPayload.X402Version = x402Version
+		paymentPayload.X402Version = x402.CurrentVersion
 
 		// Verify payment
 		response, err := facilitatorClient.Verify(paymentPayload, paymentRequirements)
@@ -181,7 +180,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			fmt.Println("failed to verify", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":       err.Error(),
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 			return
 		}
@@ -191,7 +190,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":       response.InvalidReason,
 				"accepts":     []*types.PaymentRequirements{paymentRequirements},
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 			return
 		}
@@ -206,7 +205,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":       err.Error(),
 				"accepts":     []*types.PaymentRequirements{paymentRequirements},
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 			return
 		}
@@ -216,7 +215,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			fmt.Println("Settle Header Encoding failed:", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":       err.Error(),
-				"x402Version": x402Version,
+				"x402Version": x402.CurrentVersion,
 			})
 		}
 
