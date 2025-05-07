@@ -79,11 +79,7 @@ export function paymentMiddleware(
     res: Response,
     next: NextFunction,
   ): Promise<void> {
-    const matchingRoute = findMatchingRoute(
-      routePatterns,
-      req.originalUrl,
-      req.method.toUpperCase(),
-    );
+    const matchingRoute = findMatchingRoute(routePatterns, req.path, req.method.toUpperCase());
 
     if (!matchingRoute) {
       return next();
@@ -100,7 +96,7 @@ export function paymentMiddleware(
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
     const resourceUrl: Resource =
-      resource || (`${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource);
+      resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -147,7 +143,7 @@ export function paymentMiddleware(
             paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
-            currentUrl: req.originalUrl,
+            currentUrl: req.path,
             testnet: network === "base-sepolia",
           });
         res.status(402).send(html);

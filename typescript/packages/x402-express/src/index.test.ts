@@ -138,7 +138,7 @@ describe("paymentMiddleware()", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockReq = {
-      originalUrl: "/test",
+      path: "/test",
       method: "GET",
       headers: {},
       header: function (name: string) {
