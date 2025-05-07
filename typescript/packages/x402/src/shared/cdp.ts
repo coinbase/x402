@@ -1,4 +1,7 @@
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
+import { version } from "../version";
+
+const SDK_VERSION = "1.1.1";
 
 /**
  * Creates an authorization header for a request to the Coinbase API.
@@ -23,4 +26,21 @@ export async function createAuthHeader(
     requestPath,
   });
   return `Bearer ${jwt}`;
+}
+
+/**
+ * Creates a correlation header for a request to the Coinbase API.
+ *
+ * @returns The correlation header string
+ */
+export function createCorrelationHeader(): string {
+  const data: Record<string, string> = {
+    sdk_version: SDK_VERSION,
+    sdk_language: "typescript",
+    source: "x402",
+    source_version: version,
+  };
+  return Object.keys(data)
+    .map(key => `${key}=${encodeURIComponent(data[key])}`)
+    .join(",");
 }

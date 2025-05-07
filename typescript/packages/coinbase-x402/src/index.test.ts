@@ -4,6 +4,7 @@ import { createCdpAuthHeaders, createFacilitatorConfig } from "./index";
 // Mock the generateJwt function from the correct path
 vi.mock("x402/shared", () => ({
   createAuthHeader: vi.fn().mockResolvedValue("Bearer mock-jwt-token"),
+  createCorrelationHeader: vi.fn().mockReturnValue("correlation-header"),
 }));
 
 describe("coinbase-x402", () => {
@@ -28,6 +29,8 @@ describe("coinbase-x402", () => {
 
       expect(headers.verify.Authorization).toBe("Bearer mock-jwt-token");
       expect(headers.settle.Authorization).toBe("Bearer mock-jwt-token");
+      expect(headers.verify["Correlation-Context"]).toBe("correlation-header");
+      expect(headers.settle["Correlation-Context"]).toBe("correlation-header");
     });
 
     it("should create auth headers using environment variables when no API keys provided", async () => {
@@ -36,6 +39,8 @@ describe("coinbase-x402", () => {
 
       expect(headers.verify.Authorization).toBe("Bearer mock-jwt-token");
       expect(headers.settle.Authorization).toBe("Bearer mock-jwt-token");
+      expect(headers.verify["Correlation-Context"]).toBe("correlation-header");
+      expect(headers.settle["Correlation-Context"]).toBe("correlation-header");
     });
 
     it("should throw error when API keys are missing", async () => {

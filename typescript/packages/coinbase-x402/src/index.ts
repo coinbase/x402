@@ -1,4 +1,4 @@
-import { createAuthHeader } from "x402/shared";
+import { createAuthHeader, createCorrelationHeader } from "x402/shared";
 import { FacilitatorConfig } from "x402/types";
 import { CreateHeaders } from "x402/verify";
 
@@ -33,6 +33,7 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/verify`,
         ),
+        "Correlation-Context": createCorrelationHeader(),
       },
       settle: {
         Authorization: await createAuthHeader(
@@ -41,6 +42,7 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
         ),
+        "Correlation-Context": createCorrelationHeader(),
       },
     };
   };
