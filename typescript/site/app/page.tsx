@@ -247,7 +247,7 @@ export default function Home() {
               <p className="text-gray-300 leading-relaxed text-xl mb-8">
                 Just add a{' '}
                 <span className="font-bold">single line of code</span> in your
-                app, and you can require a USDC payment for each incoming
+                app, and you can require a stablecoin payment for each incoming
                 request.
               </p>
               <div className="mb-8">
