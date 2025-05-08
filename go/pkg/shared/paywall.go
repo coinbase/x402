@@ -64,6 +64,9 @@ func GetPaywallHTML(opts PaywallOptions) (string, error) {
 }
 
 func formatBigIntAsFloatString(value *big.Int, divisor int64) string {
+	// Define a fixed precision for formatting
+	precision := 6
+
 	// Convert the big.Int to big.Float
 	valFloat := new(big.Float).SetInt(value)
 
@@ -74,7 +77,7 @@ func formatBigIntAsFloatString(value *big.Int, divisor int64) string {
 	result := new(big.Float).Quo(valFloat, div)
 
 	// Format with high precision, then trim
-	str := result.Text('f', 6)
+	str := result.Text('f', precision)
 	str = strings.TrimRight(str, "0") // Remove trailing zeroes
 	str = strings.TrimRight(str, ".") // Remove trailing decimal point if no digits follow
 
