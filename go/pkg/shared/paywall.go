@@ -230,23 +230,26 @@ try {
       chain: null,
       walletClient: null
     },
-    config: {
+	config: {
       chainConfig: {
         "84532": {
           usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-          usdcName: "USDC"
+          usdcName: "USDC",
         },
         "8453": {
           usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          usdcName: "USDC"
+          usdcName: "USDC",
         }
+      },
+      networkToChainId: {
+        "base-sepolia": 84532,
+        "base": 8453
       }
     }
   };
 } catch (e) {
   console.error("Failed to initialize payment requirements", e);
 }
-</script>
 </script>
 
 <!-- x402 -->
@@ -310,6 +313,13 @@ try {
     getUsdcAddressForChain: (chainId) => {
       return window.x402.config.chainConfig[chainId.toString()].usdcAddress;
     },
+    getNetworkId: (network) => {
+      const chainId = window.x402.config.networkToChainId[network];
+      if (!chainId) {
+        throw new Error('Unsupported network: ' + network);
+      }
+      return chainId;
+    },
     getVersion: async (publicClient, usdcAddress) => {
       const version = await publicClient.readContract({
         address: usdcAddress,
@@ -340,19 +350,19 @@ try {
   }
 
   window.x402.utils.signAuthorization = async (walletClient, authorizationParameters, paymentRequirements, publicClient) => {
-    const { networkId } = paymentRequirements;
-    const usdcName = window.x402.config.chainConfig[networkId].usdcName;
-    const usdcAddress = window.x402.config.chainConfig[networkId].usdcAddress;
-    const version = await window.x402.utils.getVersion(publicClient, usdcAddress);
+    const chainId = window.x402.utils.getNetworkId(paymentRequirements.network);
+    const name = paymentRequirements.extra?.name ?? window.x402.config.chainConfig[chainId].usdcName;
+    const erc20Address = paymentRequirements.asset;
+    const version = paymentRequirements.extra?.version ?? await window.x402.utils.getVersion(publicClient, erc20Address);
     const { from, to, value, validAfter, validBefore, nonce } = authorizationParameters;
     const data = {
       account: walletClient.account,
       types: authorizationTypes,
       domain: {
-        name: usdcName,
-        version: version,
-        chainId: parseInt(networkId),
-        verifyingContract: usdcAddress,
+        name,
+        version,
+        chainId,
+        verifyingContract: erc20Address,
       },
       primaryType: "TransferWithAuthorization",
       message: {
@@ -378,21 +388,21 @@ try {
     }
 
     const nonce = window.x402.utils.createNonce();
-    const version = await window.x402.utils.getVersion(publicClient, window.x402.utils.getUsdcAddressForChain(parseInt(window.x402.paymentRequirements.networkId)));
+    const version = await window.x402.utils.getVersion(publicClient, window.x402.utils.getUsdcAddressForChain(window.x402.utils.getNetworkId(window.x402.paymentRequirements.network)));
     const from = client.account.address;
 
     const validAfter = BigInt(
       Math.floor(Date.now() / 1000) - 5 // 1 block (2s) before to account for block timestamping
     );
     const validBefore = BigInt(
-      Math.floor(Date.now() / 1000 + window.x402.paymentRequirements.requiredDeadlineSeconds)
+      Math.floor(Date.now() / 1000 + window.x402.paymentRequirements.maxTimeoutSeconds)
     );
 
     const { signature } = await window.x402.utils.signAuthorization(
       client,
       {
         from,
-        to: window.x402.paymentRequirements.payToAddress,
+        to: window.x402.paymentRequirements.payTo,
         value: window.x402.paymentRequirements.maxAmountRequired,
         validAfter,
         validBefore,
@@ -406,20 +416,18 @@ try {
     return {
       x402Version: 1,
       scheme: window.x402.paymentRequirements.scheme,
-      networkId: window.x402.paymentRequirements.networkId,
+      network: window.x402.paymentRequirements.network,
       payload: {
         signature,
         authorization: {
           from,
-          to: window.x402.paymentRequirements.payToAddress,
+          to: window.x402.paymentRequirements.payTo,
           value: window.x402.paymentRequirements.maxAmountRequired,
           validAfter,
           validBefore,
           nonce,
-          version,
         },
       },
-      resource: window.x402.paymentRequirements.resource,
     };
   }
 
