@@ -2,6 +2,9 @@
 node_modules/
 dist/
 .turbo/
+.next/
+proxy
+__pycache__/
 
 # IDE
 .idea

@@ -1,0 +1,9 @@
+packages:
+  - "facilitator"
+  - "servers/*"
+  - "clients/*"
+  - "fullstack/*"
+  - "dynamic_agent"
+  - "agent"
+  - "mpc"
+  - "../../typescript/packages/*"

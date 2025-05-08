@@ -1,18 +1,4 @@
 {
   "private": true,
-  "scripts": {
-    "build": "turbo build",
-    "dev": "turbo dev"
-  },
-  "devDependencies": {
-    "turbo": "^2.4.4"
-  },
-  "workspaces": [
-    "packages/typescript/x402",
-    "site"
-  ],
-  "packageManager": "npm@10.9.2",
-  "license": "Apache-2.0",
-  "author": "Coinbase Inc.",
-  "repository": "https://github.com/coinbase/x402"
+  "packageManager": "pnpm@10.7.0"
 }
