@@ -161,10 +161,10 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 				html := options.CustomPaywallHTML
 				if html == "" {
 					paywallHtml, err := shared.GetPaywallHTML(shared.PaywallOptions{
-						Amount:         maxAmountRequired,
-						PaymentDetails: paymentRequirements,
-						CurrentURL:     paymentRequirements.Resource,
-						Testnet:        true,
+						Amount:              maxAmountRequired,
+						PaymentRequirements: paymentRequirements,
+						CurrentURL:          paymentRequirements.Resource,
+						Testnet:             true,
 					})
 					if err != nil {
 						fmt.Println("failed to get paywall html", err)

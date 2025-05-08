@@ -8,20 +8,20 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/coinbase/x402/pkg/x402"
+	"github.com/coinbase/x402/go/pkg/types"
 )
 
 type PaywallOptions struct {
-	Amount         *big.Int
-	PaymentDetails x402.PaymentDetails
-	CurrentURL     string
-	Testnet        bool
+	Amount              *big.Int
+	PaymentRequirements *types.PaymentRequirements
+	CurrentURL          string
+	Testnet             bool
 }
 
 func GetPaywallHTML(opts PaywallOptions) (string, error) {
-	paymentDetailsJSON, err := json.Marshal(opts.PaymentDetails)
+	paymentRequirementsJSON, err := json.Marshal(opts.PaymentRequirements)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal payment details: %w", err)
+		return "", fmt.Errorf("failed to marshal payment requirements: %w", err)
 	}
 
 	networkName := "Base Sepolia"
@@ -30,22 +30,22 @@ func GetPaywallHTML(opts PaywallOptions) (string, error) {
 	}
 
 	tmplData := struct {
-		Amount            string
-		PaymentDetailsRaw template.JS
-		CurrentURL        string
-		Testnet           bool
-		NetworkName       string
-		Description       string
+		Amount                 string
+		PaymentRequirementsRaw template.JS
+		CurrentURL             string
+		Testnet                bool
+		NetworkName            string
+		Description            string
 	}{
 		Amount: formatBigIntAsFloatString(
 			opts.Amount,
 			1e6, // assuming USDC
 		),
-		PaymentDetailsRaw: template.JS(paymentDetailsJSON),
-		CurrentURL:        opts.CurrentURL,
-		Testnet:           opts.Testnet,
-		NetworkName:       networkName,
-		Description:       opts.PaymentDetails.Description,
+		PaymentRequirementsRaw: template.JS(paymentRequirementsJSON),
+		CurrentURL:             opts.CurrentURL,
+		Testnet:                opts.Testnet,
+		NetworkName:            networkName,
+		Description:            opts.PaymentRequirements.Description,
 	}
 
 	tmpl, err := template.New("paywall").Parse(paywallHTMLTemplate)
@@ -175,7 +175,7 @@ const paywallHTMLTemplate = `<!DOCTYPE html>
     background-color: #047857;
   }
 
-  .payment-details {
+  .payment-requirements {
     padding: 1rem;
     background-color: #f9fafb;
     border-radius: 0.5rem;
@@ -213,16 +213,16 @@ const paywallHTMLTemplate = `<!DOCTYPE html>
 <!-- Inject server-side variables -->
 <!-- Safe JSON injection for Go templates -->
 <script id="x402-payment" type="application/json">
-{{.PaymentDetailsRaw}}
+{{.PaymentRequirementsRaw}}
 </script>
 
 <script>
 try {
   const raw = document.getElementById("x402-payment").textContent;
-  const paymentDetails = JSON.parse(raw);
+  const paymentRequirements = JSON.parse(raw);
 
   window.x402 = {
-    paymentDetails,
+    paymentRequirements,
     isTestnet: {{.Testnet}},
     currentUrl: "{{.CurrentURL}}",
     state: {
@@ -244,7 +244,7 @@ try {
     }
   };
 } catch (e) {
-  console.error("Failed to initialize payment details", e);
+  console.error("Failed to initialize payment requirements", e);
 }
 </script>
 </script>
@@ -339,8 +339,8 @@ try {
     },
   }
 
-  window.x402.utils.signAuthorization = async (walletClient, authorizationParameters, paymentDetails, publicClient) => {
-    const { networkId } = paymentDetails;
+  window.x402.utils.signAuthorization = async (walletClient, authorizationParameters, paymentRequirements, publicClient) => {
+    const { networkId } = paymentRequirements;
     const usdcName = window.x402.config.chainConfig[networkId].usdcName;
     const usdcAddress = window.x402.config.chainConfig[networkId].usdcAddress;
     const version = await window.x402.utils.getVersion(publicClient, usdcAddress);
@@ -373,53 +373,53 @@ try {
   }
 
   window.x402.utils.createPayment = async (client, publicClient) => {
-    if (!window.x402.paymentDetails) {
-      throw new Error('Payment details not initialized');
+    if (!window.x402.paymentRequirements) {
+      throw new Error('Payment requirements not initialized');
     }
 
     const nonce = window.x402.utils.createNonce();
-    const version = await window.x402.utils.getVersion(publicClient, window.x402.utils.getUsdcAddressForChain(parseInt(window.x402.paymentDetails.networkId)));
+    const version = await window.x402.utils.getVersion(publicClient, window.x402.utils.getUsdcAddressForChain(parseInt(window.x402.paymentRequirements.networkId)));
     const from = client.account.address;
 
     const validAfter = BigInt(
       Math.floor(Date.now() / 1000) - 5 // 1 block (2s) before to account for block timestamping
     );
     const validBefore = BigInt(
-      Math.floor(Date.now() / 1000 + window.x402.paymentDetails.requiredDeadlineSeconds)
+      Math.floor(Date.now() / 1000 + window.x402.paymentRequirements.requiredDeadlineSeconds)
     );
 
     const { signature } = await window.x402.utils.signAuthorization(
       client,
       {
         from,
-        to: window.x402.paymentDetails.payToAddress,
-        value: window.x402.paymentDetails.maxAmountRequired,
+        to: window.x402.paymentRequirements.payToAddress,
+        value: window.x402.paymentRequirements.maxAmountRequired,
         validAfter,
         validBefore,
         nonce,
         version,
       },
-      window.x402.paymentDetails,
+      window.x402.paymentRequirements,
       publicClient
     );
 
     return {
       x402Version: 1,
-      scheme: window.x402.paymentDetails.scheme,
-      networkId: window.x402.paymentDetails.networkId,
+      scheme: window.x402.paymentRequirements.scheme,
+      networkId: window.x402.paymentRequirements.networkId,
       payload: {
         signature,
         authorization: {
           from,
-          to: window.x402.paymentDetails.payToAddress,
-          value: window.x402.paymentDetails.maxAmountRequired,
+          to: window.x402.paymentRequirements.payToAddress,
+          value: window.x402.paymentRequirements.maxAmountRequired,
           validAfter,
           validBefore,
           nonce,
           version,
         },
       },
-      resource: window.x402.paymentDetails.resource,
+      resource: window.x402.paymentRequirements.resource,
     };
   }
 
@@ -589,7 +589,7 @@ window.addEventListener('load', initializeApp);
       </div>
 
       <div id="payment-section" class="hidden">
-        <div class="payment-details">
+        <div class="payment-requirements">
           <div class="payment-row">
             <span class="payment-label">Amount:</span>
             <span class="payment-value">$ {{.Amount}} USDC</span>
