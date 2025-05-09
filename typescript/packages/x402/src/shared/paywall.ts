@@ -1,4 +1,5 @@
-import { PAYWALL_TEMPLATE } from "../paywall/gen/template.js";
+import { PAYWALL_TEMPLATE } from "../paywall/gen/template";
+import { config } from "../types/shared/evm/config";
 import { PaymentRequirements } from "../types/verify";
 
 interface PaywallOptions {
@@ -33,16 +34,7 @@ export function getPaywallHtml({
       testnet: ${testnet},
       currentUrl: "${currentUrl}",
       config: {
-        chainConfig: {
-          "84532": {
-            usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            usdcName: "USDC",
-          },
-          "8453": {
-            usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-            usdcName: "USDC",
-          }
-        }
+        chainConfig: ${JSON.stringify(config)},
       }
     };
     console.log('Payment details initialized:', window.x402.paymentDetails);

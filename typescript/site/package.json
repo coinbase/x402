@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "crypto-browserify": "^3.12.1",
     "next": "^15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

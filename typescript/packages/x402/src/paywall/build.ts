@@ -7,21 +7,25 @@ import { getBaseTemplate } from "./baseTemplate";
 // This file only runs at build time and generates a template HTML file
 // Template variables are handled at runtime, not build time
 
-const GEN_DIR = "src/paywall/gen";
-const OUTPUT_HTML = path.join(GEN_DIR, "paywall.html");
-const OUTPUT_TS = path.join(GEN_DIR, "template.ts");
+const DIST_DIR = "src/paywall/dist";
+const OUTPUT_HTML = path.join(DIST_DIR, "paywall.html");
+const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
   entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
   bundle: true,
   metafile: true, // needs to be set
-  outdir: GEN_DIR, // needs to be set
+  outdir: DIST_DIR, // needs to be set
   treeShaking: true,
   minify: true,
   format: "iife",
   sourcemap: false,
-  platform: "node",
-  target: "node18",
+  platform: "browser",
+  target: "es2020",
+  external: [
+    "@coinbase/cdp-sdk",
+    "src/shared/cdp", // Exclude the CDP module entirely since it's not needed for the paywall
+  ],
   plugins: [
     htmlPlugin({
       files: [
@@ -45,8 +49,8 @@ const options: esbuild.BuildOptions = {
 async function build() {
   try {
     // First, make sure the dist directory exists
-    if (!fs.existsSync(GEN_DIR)) {
-      fs.mkdirSync(GEN_DIR, { recursive: true });
+    if (!fs.existsSync(DIST_DIR)) {
+      fs.mkdirSync(DIST_DIR, { recursive: true });
     }
 
     // Run esbuild to create the bundled HTML
