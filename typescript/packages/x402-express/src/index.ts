@@ -143,7 +143,7 @@ export function paymentMiddleware(
             paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
-            currentUrl: req.path,
+            currentUrl: req.originalUrl,
             testnet: network === "base-sepolia",
           });
         res.status(402).send(html);
