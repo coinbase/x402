@@ -121,7 +121,7 @@ export function paymentMiddleware(
           displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
         }
 
-        const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search
+        const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
         const html =
           customPaywallHtml ??
           getPaywallHtml({
