@@ -100,7 +100,10 @@ func setupTest(t *testing.T, amount *big.Float, address string, config TestServe
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
-	allOpts := append([]x402gin.Options{x402gin.WithFacilitatorURL(facilitatorServer.URL)}, opts...)
+	facilitatorConfig := &types.FacilitatorConfig{
+		URL: facilitatorServer.URL,
+	}
+	allOpts := append([]x402gin.Options{x402gin.WithFacilitatorConfig(facilitatorConfig)}, opts...)
 
 	router.GET("/protected", x402gin.PaymentMiddleware(amount, address, allOpts...), func(c *gin.Context) {
 		c.String(http.StatusOK, "success")
@@ -251,8 +254,8 @@ func TestPaymentMiddleware_SettlementServerError(t *testing.T) {
 	req.Header.Set("X-PAYMENT", paymentPayloadBase64)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "success")
+	assert.Equal(t, http.StatusPaymentRequired, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to settle payment: 500 Internal Server Error")
 
 	assert.Empty(t, w.Header().Get("X-PAYMENT-RESPONSE"))
 }

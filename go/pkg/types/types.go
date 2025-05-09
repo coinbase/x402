@@ -109,3 +109,9 @@ func (p *PaymentRequirements) SetUSDCInfo(isTestnet bool) error {
 	p.Extra = &rawMessage
 	return nil
 }
+
+// FacilitatorConfig represents configuration for the facilitator service
+type FacilitatorConfig struct {
+	URL               string
+	CreateAuthHeaders func() (map[string]map[string]string, error)
+}
