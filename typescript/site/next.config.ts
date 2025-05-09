@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     NETWORK: process.env.NETWORK,
   },
-  webpack(config, { isServer }) {
+  webpack(config) {
     config.module.rules.push({
       test: /\.svg$/,
       use: ["@svgr/webpack"],
@@ -16,7 +16,6 @@ const nextConfig: NextConfig = {
     // https://github.com/webpack/webpack/issues/14798
     config.externals.push({
       "node:crypto": "commonjs crypto",
-      crypto: "commonjs crypto",
     });
 
     return config;
