@@ -132,7 +132,7 @@ describe("paymentMiddleware()", () => {
 
     mockContext = {
       req: {
-        url: "/weather",
+        url: "http://localhost:3000/weather",
         path: "/weather",
         method: "GET",
         header: vi.fn(),
