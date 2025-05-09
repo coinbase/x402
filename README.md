@@ -246,3 +246,9 @@ You should see activity across both terminals, and the client terminal will disp
 3. Run the unit tests: `pnpm test`
 
 This will run the unit tests for the x402 packages.
+
+## Directories
+
+Directories where you can find APIs following the x402 protocol.
+
+- [x402 Index](https://www.x402index.com/)
