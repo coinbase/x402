@@ -3,7 +3,8 @@
   "compilerOptions": {
     "lib": ["ES2020", "DOM"],
     "allowJs": false,
-    "checkJs": false
+    "checkJs": false,
+    "lib": ["dom", "dom.iterable", "esnext"]
   },
   "include": ["src"]
 }
