@@ -5,12 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/coinbase/x402/go/pkg/types"
 )
 
 // DefaultFacilitatorURL is the default URL for the x402 facilitator service
 const DefaultFacilitatorURL = "https://x402.org/facilitator"
+
+// Options is the type for the options for the http client of FacilitatorClient.
+type Options func(*http.Client) *http.Client
+
+// WithTimeout returns an Options that sets the timeout for the HTTP client
+func WithTimeout(timeout time.Duration) Options {
+	return func(c *http.Client) *http.Client {
+		c.Timeout = timeout
+		return c
+	}
+}
 
 // FacilitatorClient represents a facilitator client for verifying and settling payments
 type FacilitatorClient struct {
@@ -19,13 +31,19 @@ type FacilitatorClient struct {
 }
 
 // NewFacilitatorClient creates a new facilitator client
-func NewFacilitatorClient(url string) *FacilitatorClient {
+func NewFacilitatorClient(url string, opts ...Options) *FacilitatorClient {
 	if url == "" {
 		url = DefaultFacilitatorURL
 	}
+
+	httpClient := &http.Client{}
+	for _, opt := range opts {
+		opt(httpClient)
+	}
+
 	return &FacilitatorClient{
 		URL:        url,
-		HTTPClient: http.DefaultClient,
+		HTTPClient: httpClient,
 	}
 }
 
