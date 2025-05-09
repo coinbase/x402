@@ -1,18 +1,32 @@
 import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware } from "x402-express";
+import { FacilitatorConfig } from "x402/types";
+
+// import { FacilitatorConfig } from "x402/types";
 // Import the facilitator from the x402 package to use the mainnet facilitator
-import { facilitator } from "@coinbase/x402";
 
 config();
 
 const payToAddress = process.env.ADDRESS as `0x${string}`;
 
 // The CDP API key ID and secret are required to use the mainnet facilitator
-if (!payToAddress || !process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET) {
+// if (!payToAddress || !process.env.CDP_API_KEY_ID || !process.env.CDP_API_KEY_SECRET) {
+//   console.error("Missing required environment variables");
+//   process.exit(1);
+// }
+
+if (!payToAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+const facilitator: FacilitatorConfig = {
+  url: `http://localhost:3000`,
+  // createAuthHeaders: createCdpAuthHeaders(apiKeyId, apiKeySecret),
+};
+
+console.log(facilitator);
 
 const app = express();
 

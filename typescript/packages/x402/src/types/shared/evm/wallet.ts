@@ -9,7 +9,7 @@ import type {
   WalletActions,
   PublicClient,
 } from "viem";
-import { baseSepolia } from "viem/chains";
+import { baseSepolia, base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -45,6 +45,18 @@ export function createClientSepolia(): ConnectedClient<Transport, typeof baseSep
 }
 
 /**
+ * Creates a public client configured for the Base mainnnet
+ *
+ * @returns A public client instance connected to Base mainnnet
+ */
+export function createClientBaseMainnet(): ConnectedClient<Transport, typeof base, undefined> {
+  return createPublicClient({
+    chain: base,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
  * Creates a wallet client configured for the Base Sepolia testnet with a private key
  *
  * @param privateKey - The private key to use for signing transactions
@@ -57,6 +69,21 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
     account: privateKeyToAccount(privateKey),
   }).extend(publicActions);
 }
+
+/**
+ * Creates a wallet client configured for the Base mainnnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Base mainnnet with the provided private key
+ */
+export function createSignerBaseMainnet(privateKey: Hex): SignerWallet<typeof base> {
+  return createWalletClient({
+    chain: base,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
 
 /**
  * Checks if a wallet is a signer wallet
