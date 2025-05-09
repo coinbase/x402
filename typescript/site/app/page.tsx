@@ -31,6 +31,12 @@ const whatIsItFeatures = [
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
   {
+    title: 'Blockchain Agnostic',
+    description:
+      'x402 is not tied to any specific blockchain or token, its a neutral standard open to integration by all.',
+    icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
+  },
+  {
     title: 'Frictionless',
     description:
       'As little as 1 line of middleware code or configuration in your existing web server stack and you can start accepting payments. Customers and agents aren\'t required to create an account or provide any personal information.',
@@ -47,12 +53,6 @@ const whatIsItFeatures = [
     title: 'Web native',
     description:
       "Activates the dormant 402 HTTP status code and works with any HTTP stack. It works simply via headers and status codes on your existing HTTP server.",
-    icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
-  },
-  {
-    title: 'Blockchain Agnostic',
-    description:
-      'x402 is not tied to any specific blockchain, its a neutral standard open to integration by all.',
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
 ];
