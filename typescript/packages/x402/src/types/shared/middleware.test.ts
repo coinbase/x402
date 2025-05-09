@@ -20,7 +20,7 @@ describe("computeRoutePatterns", () => {
     expect(patterns).toHaveLength(2);
     expect(patterns[0]).toEqual({
       verb: "*",
-      pattern: /^\/api\/test$/,
+      pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -28,7 +28,7 @@ describe("computeRoutePatterns", () => {
     });
     expect(patterns[1]).toEqual({
       verb: "*",
-      pattern: /^\/api\/other$/,
+      pattern: /^\/api\/other$/i,
       config: {
         price: "$0.02",
         network: "base-sepolia",
@@ -47,7 +47,7 @@ describe("computeRoutePatterns", () => {
     expect(patterns).toHaveLength(2);
     expect(patterns[0]).toEqual({
       verb: "GET",
-      pattern: /^\/api\/test$/,
+      pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -55,7 +55,7 @@ describe("computeRoutePatterns", () => {
     });
     expect(patterns[1]).toEqual({
       verb: "POST",
-      pattern: /^\/api\/other$/,
+      pattern: /^\/api\/other$/i,
       config: {
         price: "$0.02",
         network: "base-sepolia",
@@ -74,7 +74,7 @@ describe("computeRoutePatterns", () => {
     expect(patterns).toHaveLength(2);
     expect(patterns[0]).toEqual({
       verb: "*",
-      pattern: /^\/api\/.*?$/,
+      pattern: /^\/api\/.*?$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -82,7 +82,7 @@ describe("computeRoutePatterns", () => {
     });
     expect(patterns[1]).toEqual({
       verb: "GET",
-      pattern: /^\/api\/users\/.*?$/,
+      pattern: /^\/api\/users\/.*?$/i,
       config: {
         price: "$0.02",
         network: "base-sepolia",
@@ -101,7 +101,7 @@ describe("computeRoutePatterns", () => {
     expect(patterns).toHaveLength(2);
     expect(patterns[0]).toEqual({
       verb: "*",
-      pattern: /^\/api\/users\/[^\/]+$/,
+      pattern: /^\/api\/users\/[^\/]+$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -109,7 +109,7 @@ describe("computeRoutePatterns", () => {
     });
     expect(patterns[1]).toEqual({
       verb: "GET",
-      pattern: /^\/api\/posts\/[^\/]+$/,
+      pattern: /^\/api\/posts\/[^\/]+$/i,
       config: {
         price: "$0.02",
         network: "base-sepolia",
@@ -134,7 +134,7 @@ describe("computeRoutePatterns", () => {
     expect(patterns).toHaveLength(1);
     expect(patterns[0]).toEqual({
       verb: "*",
-      pattern: /^\/api\/test$/,
+      pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -159,7 +159,7 @@ describe("findMatchingRoute", () => {
   const routePatterns: RoutePattern[] = [
     {
       verb: "GET",
-      pattern: /^\/api\/test$/,
+      pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
         network: "base-sepolia",
@@ -167,7 +167,7 @@ describe("findMatchingRoute", () => {
     },
     {
       verb: "POST",
-      pattern: /^\/api\/test$/,
+      pattern: /^\/api\/test$/i,
       config: {
         price: "$0.02",
         network: "base-sepolia",
@@ -175,7 +175,7 @@ describe("findMatchingRoute", () => {
     },
     {
       verb: "*",
-      pattern: /^\/api\/wildcard$/,
+      pattern: /^\/api\/wildcard$/i,
       config: {
         price: "$0.03",
         network: "base-sepolia",
@@ -208,8 +208,23 @@ describe("findMatchingRoute", () => {
     expect(result).toEqual(routePatterns[1]);
   });
 
+  it("should handle case-insensitive path matching", () => {
+    const result = findMatchingRoute(routePatterns, "/API/test", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
   it("should handle empty route patterns array", () => {
     const result = findMatchingRoute([], "/api/test", "GET");
+    expect(result).toBeUndefined();
+  });
+
+  it("should fail to match when path has extra slashes", () => {
+    const result = findMatchingRoute(routePatterns, "//api/test", "GET");
+    expect(result).toBeUndefined();
+  });
+
+  it("should fail to match when path has trailing slash", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test/", "GET");
     expect(result).toBeUndefined();
   });
 });
