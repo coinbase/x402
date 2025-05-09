@@ -5,7 +5,6 @@ import {
   custom,
   publicActions,
   Transport,
-  Account,
 } from "viem";
 import {
   createConfig,
@@ -17,13 +16,13 @@ import {
 import { injected } from "@wagmi/connectors";
 import { base, baseSepolia } from "viem/chains";
 
-import { ConnectedClient, SignerWallet } from "../types/shared/evm";
-import { createPaymentHeader } from "../schemes/exact/evm/client.js";
-import { createPayment } from "../schemes/exact/evm/client.js";
-import { createNonce, signAuthorization } from "../schemes/exact/evm/sign.js";
-import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils.js";
-import { getUSDCBalance, getVersion } from "../shared/evm/usdc.js";
-import { PaymentRequirements } from "../types/verify";
+import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client.browser";
+import { createNonce, signAuthorization } from "../schemes/exact/evm/sign.browser";
+import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
+import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
+
+import type { ConnectedClient, SignerWallet } from "../types/shared/evm";
+import type { PaymentRequirements } from "../types/verify";
 
 declare global {
   interface Window {
