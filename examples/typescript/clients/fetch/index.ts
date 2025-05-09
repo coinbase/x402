@@ -5,7 +5,7 @@ import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex;
+const privateKey = `0x${process.env.PRIVATE_KEY}` as Hex;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
