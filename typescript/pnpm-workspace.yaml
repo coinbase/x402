@@ -1,5 +1,7 @@
 packages:
-  - "packages/*"
-  - "examples/facilitator"
-  - "examples/**/*"
-  - "site"
+  - packages/*
+  - examples/facilitator
+  - examples/**/*
+  - site
+ignoredBuiltDependencies:
+  - esbuild

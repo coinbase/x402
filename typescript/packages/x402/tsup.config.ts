@@ -15,7 +15,7 @@ const baseConfig = {
     resolve: true,
   },
   sourcemap: true,
-  target: "node16",
+  target: "es2020",
 };
 
 export default defineConfig([

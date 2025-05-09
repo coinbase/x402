@@ -26,7 +26,6 @@ export async function POST(req: Request) {
   const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
   const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
 
-  // @ts-expect-error - Type instantiation is excessively deep
   const valid = await verify(client, paymentPayload, paymentRequirements);
 
   return Response.json(valid);
