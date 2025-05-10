@@ -15,7 +15,7 @@ app.use(
 Payments on the internet are fundamentally flawed. Credit Cards are high friction, hard to accept, have minimum payments that are far too high, and don't fit into the programmatic nature of the internet.
 It's time for an open, internet-native form of payments. A payment rail that doesn't have high minimums + % based fee. Payments that are amazing for humans and AI agents.
 
-## Principals
+## Principles
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
 - **HTTP Native:** x402 is meant to seemlessly compliment the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
