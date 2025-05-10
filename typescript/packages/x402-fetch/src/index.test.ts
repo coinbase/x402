@@ -85,6 +85,7 @@ describe("fetchWithPayment()", () => {
     } as RequestInitWithRetry);
 
     expect(result).toBe(successResponse);
+
     expect(selectPaymentRequirements).toHaveBeenCalledWith(
       validPaymentRequirements,
       undefined,

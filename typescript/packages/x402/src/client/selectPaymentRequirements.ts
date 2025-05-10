@@ -9,6 +9,7 @@ import { getNetworkId } from "../shared/network";
  * 
  * @param paymentRequirements - The payment requirements to select from.
  * @param network - The network to check against. If not provided, the network will not be checked.
+
  * @param scheme - The scheme to check against. If not provided, the scheme will not be checked.
  * @returns The payment requirement that is the most appropriate for the user.
  */
