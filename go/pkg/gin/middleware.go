@@ -167,7 +167,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 						Amount:              maxAmountRequired,
 						PaymentRequirements: paymentRequirements,
 						CurrentURL:          paymentRequirements.Resource,
-						Testnet:             true,
+						Testnet:             options.Testnet,
 					})
 					if err != nil {
 						fmt.Println("failed to get paywall html", err)
