@@ -43,6 +43,7 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
           .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
           .replace(/\[([^\]]+)\]/g, "[^/]+")
           .replace(/\//g, "\\/")}$`,
+        "i",
       ),
       config: routeConfig,
     };

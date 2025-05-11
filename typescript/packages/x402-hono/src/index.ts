@@ -121,6 +121,7 @@ export function paymentMiddleware(
           displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
         }
 
+        const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
         const html =
           customPaywallHtml ??
           getPaywallHtml({
@@ -128,7 +129,7 @@ export function paymentMiddleware(
             paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
-            currentUrl: c.req.path,
+            currentUrl,
             testnet: network === "base-sepolia",
           });
         return c.html(html, 402);

@@ -241,7 +241,7 @@ You should see activity across both terminals, and the client terminal will disp
 
 ## Running tests
 
-1. Navigate to the typescript directory: `cd packages/typescript`
+1. Navigate to the typescript directory: `cd typescript`
 2. Install dependencies: `pnpm install`
 3. Run the unit tests: `pnpm test`
 

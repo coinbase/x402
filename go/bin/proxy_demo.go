@@ -9,6 +9,7 @@ import (
 	"os"
 
 	x402gin "github.com/coinbase/x402/go/pkg/gin"
+	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,11 +32,16 @@ func main() {
 
 	r := gin.Default()
 
+	facilitatorConfig := &types.FacilitatorConfig{
+		URL:               config.FacilitatorURL,
+		CreateAuthHeaders: config.CreateAuthHeaders,
+	}
+
 	r.Any("/*path",
 		x402gin.PaymentMiddleware(
 			big.NewFloat(config.Amount),
 			config.PayTo,
-			x402gin.WithFacilitatorURL(config.FacilitatorURL),
+			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithResource(config.TargetURL),
 			x402gin.WithTestnet(config.Testnet),
 			x402gin.WithDescription(config.Description),
@@ -52,15 +58,16 @@ func main() {
 }
 
 type ProxyConfig struct {
-	TargetURL         string            `json:"targetURL"`
-	Amount            float64           `json:"amount"`
-	PayTo             string            `json:"payTo"`
-	Description       string            `json:"description"`
-	FacilitatorURL    string            `json:"facilitatorURL"`
-	MimeType          string            `json:"mimeType"`
-	MaxTimeoutSeconds int               `json:"maxTimeoutSeconds"`
-	Testnet           bool              `json:"testnet"`
-	Headers           map[string]string `json:"headers"`
+	TargetURL         string                                       `json:"targetURL"`
+	Amount            float64                                      `json:"amount"`
+	PayTo             string                                       `json:"payTo"`
+	Description       string                                       `json:"description"`
+	FacilitatorURL    string                                       `json:"facilitatorURL"`
+	MimeType          string                                       `json:"mimeType"`
+	MaxTimeoutSeconds int                                          `json:"maxTimeoutSeconds"`
+	Testnet           bool                                         `json:"testnet"`
+	Headers           map[string]string                            `json:"headers"`
+	CreateAuthHeaders func() (map[string]map[string]string, error) `json:"-"`
 }
 
 func proxyHandler(targetURL string, headers map[string]string) gin.HandlerFunc {
