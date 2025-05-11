@@ -93,7 +93,7 @@ func DecodePaymentPayloadFromBase64(encoded string) (*PaymentPayload, error) {
 func (p *PaymentRequirements) SetUSDCInfo(isTestnet bool) error {
 	usdcInfo := map[string]any{
 		"name":    "USDC",
-		"version": 2,
+		"version": "2",
 	}
 
 	if !isTestnet {
