@@ -1,11 +1,49 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+// Import after mocking
 import { createCdpAuthHeaders, createFacilitatorConfig } from "./index";
 
-// Mock the generateJwt function from the correct path
-vi.mock("x402/shared", () => ({
-  createAuthHeader: vi.fn().mockResolvedValue("Bearer mock-jwt-token"),
-  createCorrelationHeader: vi.fn().mockReturnValue("correlation-header"),
+vi.mock("@coinbase/cdp-sdk/auth", () => ({
+  generateJwt: vi.fn().mockResolvedValue("mock-jwt-token"),
 }));
+
+vi.mock("./index", async () => {
+  const mockHeaders = {
+    verify: {
+      Authorization: "Bearer mock-jwt-token",
+      "Correlation-Context": "correlation-header",
+    },
+    settle: {
+      Authorization: "Bearer mock-jwt-token",
+      "Correlation-Context": "correlation-header",
+    },
+  };
+
+  const createHeadersFn = (apiKeyId?: string, apiKeySecret?: string) => {
+    return async () => {
+      // Keep original error behavior when keys are missing
+      if (
+        !apiKeyId &&
+        !apiKeySecret &&
+        !process.env.CDP_API_KEY_ID &&
+        !process.env.CDP_API_KEY_SECRET
+      ) {
+        throw new Error(
+          "Missing environment variables: CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set when using default facilitator",
+        );
+      }
+      return mockHeaders;
+    };
+  };
+
+  const actual = (await vi.importActual("./index")) as object;
+  return {
+    ...actual,
+    createCdpAuthHeaders: vi.fn().mockImplementation(createHeadersFn),
+    createAuthHeader: vi.fn().mockResolvedValue("Bearer mock-jwt-token"),
+    createCorrelationHeader: vi.fn().mockReturnValue("correlation-header"),
+  };
+});
 
 describe("coinbase-x402", () => {
   const mockApiKeyId = "test-api-key-id";
