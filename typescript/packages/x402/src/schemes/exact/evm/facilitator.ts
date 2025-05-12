@@ -1,4 +1,4 @@
-import { Account, Address, Chain, Hex, Transport, verifyTypedData } from "viem";
+import { Account, Address, Chain, getAddress, Hex, Transport, verifyTypedData } from "viem";
 import { getNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
@@ -107,6 +107,15 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "invalid_scheme", //"Invalid permit signature",
+      payer: payload.payload.authorization.from,
+    };
+  }
+
+  // Verify that payment was made to the correct address
+  if (getAddress(payload.payload.authorization.to) !== getAddress(paymentRequirements.payTo)) {
+    return {
+      isValid: false,
+      invalidReason: "invalid_scheme",
       payer: payload.payload.authorization.from,
     };
   }
