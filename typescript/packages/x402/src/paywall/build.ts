@@ -17,15 +17,11 @@ const options: esbuild.BuildOptions = {
   metafile: true, // needs to be set
   outdir: DIST_DIR, // needs to be set
   treeShaking: true,
-  minify: true,
+  minify: false,
   format: "iife",
   sourcemap: false,
   platform: "browser",
   target: "es2020",
-  external: [
-    "@coinbase/cdp-sdk",
-    "src/shared/cdp", // Exclude the CDP module entirely since it's not needed for the paywall
-  ],
   plugins: [
     htmlPlugin({
       files: [

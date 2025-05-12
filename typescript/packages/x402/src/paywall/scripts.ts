@@ -16,8 +16,8 @@ import {
 import { injected } from "@wagmi/connectors";
 import { base, baseSepolia } from "viem/chains";
 
-import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client.browser";
-import { createNonce, signAuthorization } from "../schemes/exact/evm/sign.browser";
+import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
+import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
 import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
 import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
 
