@@ -49,7 +49,11 @@ export function createClientSepolia(): ConnectedClient<Transport, typeof baseSep
  *
  * @returns A public client instance connected to Avalanche Fuji
  */
-export function createClientAvalancheFuji(): ConnectedClient<Transport, typeof avalancheFuji, undefined> {
+export function createClientAvalancheFuji(): ConnectedClient<
+  Transport,
+  typeof avalancheFuji,
+  undefined
+> {
   return createPublicClient({
     chain: avalancheFuji,
     transport: http(),
