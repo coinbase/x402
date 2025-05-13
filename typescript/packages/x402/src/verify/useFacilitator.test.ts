@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import axios from "axios";
 import { useFacilitator } from "./useFacilitator";
 import { PaymentPayload, PaymentRequirements } from "../types/verify";
-
-vi.mock("axios");
 
 describe("useFacilitator", () => {
   const mockPaymentPayload: PaymentPayload = {
@@ -37,22 +34,29 @@ describe("useFacilitator", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(axios.post).mockResolvedValue({ status: 200, data: {} });
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      json: async () => ({}),
+    });
   });
 
   describe("verify", () => {
-    it("should call axios with the correct data and default URL", async () => {
+    it("should call fetch with the correct data and default URL", async () => {
       const { verify } = useFacilitator();
       await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(fetch).toHaveBeenCalledWith(
         "https://x402.org/facilitator/verify",
         {
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        },
-        { headers: undefined },
+          method: "POST", 
+          headers: undefined,
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        }
       );
     });
 
@@ -61,14 +65,17 @@ describe("useFacilitator", () => {
       const { verify } = useFacilitator({ url: customUrl });
       await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(fetch).toHaveBeenCalledWith(
         `${customUrl}/verify`,
         {
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        },
-        { headers: undefined },
+          method: "POST",
+          headers: undefined,
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        }
       );
     });
 
@@ -83,34 +90,44 @@ describe("useFacilitator", () => {
       });
       await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(expect.any(String), expect.any(Object), {
-        headers: mockHeaders.verify,
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        "https://x402.org/facilitator/verify",
+        expect.objectContaining({
+          headers: mockHeaders.verify,
+        })
+      );
     });
 
     it("should throw error on non-200 response", async () => {
-      vi.mocked(axios.post).mockResolvedValue({ status: 400, statusText: "Bad Request" });
+      global.fetch = vi.fn().mockResolvedValue({ 
+        status: 400, 
+        statusText: "Bad Request",
+        json: async () => ({})
+      });
       const { verify } = useFacilitator();
 
       await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to verify payment: Bad Request",
+        "Failed to verify payment: Bad Request"
       );
     });
   });
 
   describe("settle", () => {
-    it("should call axios with the correct data and default URL", async () => {
+    it("should call fetch with the correct data and default URL", async () => {
       const { settle } = useFacilitator();
       await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(fetch).toHaveBeenCalledWith(
         "https://x402.org/facilitator/settle",
         {
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        },
-        { headers: undefined },
+          method: "POST",
+          headers: undefined,
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        }
       );
     });
 
@@ -119,14 +136,17 @@ describe("useFacilitator", () => {
       const { settle } = useFacilitator({ url: customUrl });
       await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(fetch).toHaveBeenCalledWith(
         `${customUrl}/settle`,
         {
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        },
-        { headers: undefined },
+          method: "POST",
+          headers: undefined,
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        }
       );
     });
 
@@ -141,17 +161,24 @@ describe("useFacilitator", () => {
       });
       await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(axios.post).toHaveBeenCalledWith(expect.any(String), expect.any(Object), {
-        headers: mockHeaders.settle,
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        "https://x402.org/facilitator/settle",
+        expect.objectContaining({
+          headers: mockHeaders.settle,
+        })
+      );
     });
 
     it("should throw error on non-200 response", async () => {
-      vi.mocked(axios.post).mockResolvedValue({ status: 400, statusText: "Bad Request" });
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 400,
+        statusText: "Bad Request",
+        json: async () => ({})
+      });
       const { settle } = useFacilitator();
 
       await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to settle payment: Bad Request",
+        "Failed to settle payment: Bad Request"
       );
     });
   });
