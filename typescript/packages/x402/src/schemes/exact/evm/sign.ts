@@ -80,6 +80,8 @@ export function createNonce(): Hex {
     typeof globalThis.crypto !== "undefined" &&
     typeof globalThis.crypto.getRandomValues === "function"
       ? globalThis.crypto
-      : require("crypto").webcrypto;
+      : // Dynamic require is needed to support node.js
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("crypto").webcrypto;
   return toHex(cryptoObj.getRandomValues(new Uint8Array(32)));
 }
