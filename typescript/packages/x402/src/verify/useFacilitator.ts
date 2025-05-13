@@ -34,20 +34,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<VerifyResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-    const res = await fetch(
-      `${url}/verify`,
-      {
-        method: "POST",
-        headers: facilitator?.createAuthHeaders
-          ? (await facilitator.createAuthHeaders()).verify
-          : undefined,
-        body: JSON.stringify({
-          x402Version: payload.x402Version,
-          paymentPayload: toJsonSafe(payload),
-          paymentRequirements: toJsonSafe(paymentRequirements),
-        }),
-      },
-    );
+    const res = await fetch(`${url}/verify`, {
+      method: "POST",
+      headers: facilitator?.createAuthHeaders
+        ? (await facilitator.createAuthHeaders()).verify
+        : undefined,
+      body: JSON.stringify({
+        x402Version: payload.x402Version,
+        paymentPayload: toJsonSafe(payload),
+        paymentRequirements: toJsonSafe(paymentRequirements),
+      }),
+    });
 
     if (res.status !== 200) {
       throw new Error(`Failed to verify payment: ${res.statusText}`);
@@ -69,20 +66,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-    const res = await fetch(
-      `${url}/settle`,
-      {
-        method: "POST",
-        headers: facilitator?.createAuthHeaders
-          ? (await facilitator.createAuthHeaders()).settle
-          : undefined,
-        body: JSON.stringify({
-          x402Version: payload.x402Version,
-          paymentPayload: toJsonSafe(payload),
-          paymentRequirements: toJsonSafe(paymentRequirements),
-        }),
-      },
-    );
+    const res = await fetch(`${url}/settle`, {
+      method: "POST",
+      headers: facilitator?.createAuthHeaders
+        ? (await facilitator.createAuthHeaders()).settle
+        : undefined,
+      body: JSON.stringify({
+        x402Version: payload.x402Version,
+        paymentPayload: toJsonSafe(payload),
+        paymentRequirements: toJsonSafe(paymentRequirements),
+      }),
+    });
 
     if (res.status !== 200) {
       throw new Error(`Failed to settle payment: ${res.statusText}`);

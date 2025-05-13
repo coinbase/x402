@@ -46,18 +46,15 @@ describe("useFacilitator", () => {
       const { verify } = useFacilitator();
       await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith(
-        "https://x402.org/facilitator/verify",
-        {
-          method: "POST", 
-          headers: undefined,
-          body: JSON.stringify({
-            x402Version: mockPaymentPayload.x402Version,
-            paymentPayload: mockPaymentPayload,
-            paymentRequirements: mockPaymentRequirements,
-          }),
-        }
-      );
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
+        method: "POST",
+        headers: undefined,
+        body: JSON.stringify({
+          x402Version: mockPaymentPayload.x402Version,
+          paymentPayload: mockPaymentPayload,
+          paymentRequirements: mockPaymentRequirements,
+        }),
+      });
     });
 
     it("should use custom URL when provided", async () => {
@@ -65,18 +62,15 @@ describe("useFacilitator", () => {
       const { verify } = useFacilitator({ url: customUrl });
       await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith(
-        `${customUrl}/verify`,
-        {
-          method: "POST",
-          headers: undefined,
-          body: JSON.stringify({
-            x402Version: mockPaymentPayload.x402Version,
-            paymentPayload: mockPaymentPayload,
-            paymentRequirements: mockPaymentRequirements,
-          }),
-        }
-      );
+      expect(fetch).toHaveBeenCalledWith(`${customUrl}/verify`, {
+        method: "POST",
+        headers: undefined,
+        body: JSON.stringify({
+          x402Version: mockPaymentPayload.x402Version,
+          paymentPayload: mockPaymentPayload,
+          paymentRequirements: mockPaymentRequirements,
+        }),
+      });
     });
 
     it("should include auth headers when createAuthHeaders is provided", async () => {
@@ -94,20 +88,20 @@ describe("useFacilitator", () => {
         "https://x402.org/facilitator/verify",
         expect.objectContaining({
           headers: mockHeaders.verify,
-        })
+        }),
       );
     });
 
     it("should throw error on non-200 response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({ 
-        status: 400, 
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 400,
         statusText: "Bad Request",
-        json: async () => ({})
+        json: async () => ({}),
       });
       const { verify } = useFacilitator();
 
       await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to verify payment: Bad Request"
+        "Failed to verify payment: Bad Request",
       );
     });
   });
@@ -117,18 +111,15 @@ describe("useFacilitator", () => {
       const { settle } = useFacilitator();
       await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith(
-        "https://x402.org/facilitator/settle",
-        {
-          method: "POST",
-          headers: undefined,
-          body: JSON.stringify({
-            x402Version: mockPaymentPayload.x402Version,
-            paymentPayload: mockPaymentPayload,
-            paymentRequirements: mockPaymentRequirements,
-          }),
-        }
-      );
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
+        method: "POST",
+        headers: undefined,
+        body: JSON.stringify({
+          x402Version: mockPaymentPayload.x402Version,
+          paymentPayload: mockPaymentPayload,
+          paymentRequirements: mockPaymentRequirements,
+        }),
+      });
     });
 
     it("should use custom URL when provided", async () => {
@@ -136,18 +127,15 @@ describe("useFacilitator", () => {
       const { settle } = useFacilitator({ url: customUrl });
       await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith(
-        `${customUrl}/settle`,
-        {
-          method: "POST",
-          headers: undefined,
-          body: JSON.stringify({
-            x402Version: mockPaymentPayload.x402Version,
-            paymentPayload: mockPaymentPayload,
-            paymentRequirements: mockPaymentRequirements,
-          }),
-        }
-      );
+      expect(fetch).toHaveBeenCalledWith(`${customUrl}/settle`, {
+        method: "POST",
+        headers: undefined,
+        body: JSON.stringify({
+          x402Version: mockPaymentPayload.x402Version,
+          paymentPayload: mockPaymentPayload,
+          paymentRequirements: mockPaymentRequirements,
+        }),
+      });
     });
 
     it("should include auth headers when createAuthHeaders is provided", async () => {
@@ -165,7 +153,7 @@ describe("useFacilitator", () => {
         "https://x402.org/facilitator/settle",
         expect.objectContaining({
           headers: mockHeaders.settle,
-        })
+        }),
       );
     });
 
@@ -173,12 +161,12 @@ describe("useFacilitator", () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
-        json: async () => ({})
+        json: async () => ({}),
       });
       const { settle } = useFacilitator();
 
       await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to settle payment: Bad Request"
+        "Failed to settle payment: Bad Request",
       );
     });
   });

@@ -77,7 +77,8 @@ export async function signAuthorization<transport extends Transport, chain exten
  */
 export function createNonce(): Hex {
   const cryptoObj =
-    typeof globalThis.crypto !== "undefined" && typeof globalThis.crypto.getRandomValues === "function"
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.getRandomValues === "function"
       ? globalThis.crypto
       : require("crypto").webcrypto;
   return toHex(cryptoObj.getRandomValues(new Uint8Array(32)));
