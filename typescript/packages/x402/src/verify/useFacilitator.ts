@@ -1,4 +1,3 @@
-import axios from "axios";
 import { toJsonSafe } from "../shared";
 import { FacilitatorConfig } from "../types";
 import {
@@ -35,17 +34,18 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<VerifyResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-    const res = await axios.post(
+    const res = await fetch(
       `${url}/verify`,
       {
-        x402Version: payload.x402Version,
-        paymentPayload: toJsonSafe(payload),
-        paymentRequirements: toJsonSafe(paymentRequirements),
-      },
-      {
+        method: "POST",
         headers: facilitator?.createAuthHeaders
           ? (await facilitator.createAuthHeaders()).verify
           : undefined,
+        body: JSON.stringify({
+          x402Version: payload.x402Version,
+          paymentPayload: toJsonSafe(payload),
+          paymentRequirements: toJsonSafe(paymentRequirements),
+        }),
       },
     );
 
@@ -53,7 +53,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       throw new Error(`Failed to verify payment: ${res.statusText}`);
     }
 
-    return res.data as VerifyResponse;
+    return (await res.json()) as VerifyResponse;
   }
 
   /**
@@ -69,17 +69,18 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-    const res = await axios.post(
+    const res = await fetch(
       `${url}/settle`,
       {
-        x402Version: payload.x402Version,
-        paymentPayload: toJsonSafe(payload),
-        paymentRequirements: toJsonSafe(paymentRequirements),
-      },
-      {
+        method: "POST",
         headers: facilitator?.createAuthHeaders
           ? (await facilitator.createAuthHeaders()).settle
           : undefined,
+        body: JSON.stringify({
+          x402Version: payload.x402Version,
+          paymentPayload: toJsonSafe(payload),
+          paymentRequirements: toJsonSafe(paymentRequirements),
+        }),
       },
     );
 
@@ -87,7 +88,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       throw new Error(`Failed to settle payment: ${res.statusText}`);
     }
 
-    return res.data as SettleResponse;
+    return (await res.json()) as SettleResponse;
   }
 
   return { verify, settle };
