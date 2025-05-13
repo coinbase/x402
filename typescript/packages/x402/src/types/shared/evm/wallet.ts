@@ -9,7 +9,7 @@ import type {
   WalletActions,
   PublicClient,
 } from "viem";
-import { baseSepolia } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -31,6 +31,32 @@ export type ConnectedClient<
   chain extends Chain | undefined = Chain,
   account extends Account | undefined = undefined,
 > = PublicClient<transport, chain, account>;
+
+/**
+ * Creates a public client configured for the Base mainnet
+ *
+ * @returns A public client instance connected to Base
+ */
+export function createClientBase(): ConnectedClient<Transport, typeof base, undefined> {
+  return createPublicClient({
+    chain: base,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the Base mainnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Base with the provided private key
+ */
+export function createSignerBase(privateKey: Hex): SignerWallet<typeof base> {
+  return createWalletClient({
+    chain: base,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
 
 /**
  * Creates a public client configured for the Base Sepolia testnet
