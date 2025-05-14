@@ -5,7 +5,7 @@
 ```typescript
 app.use(
   // How much you want to charge, and where you want the funds to land
-  paymentMiddleware("0xYourAddress", {"/your-endpoint": "$0.01"})
+  paymentMiddleware("0xYourAddress", { "/your-endpoint": "$0.01" })
 );
 // Thats it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
 ```
@@ -86,71 +86,87 @@ the payment details accepted for a resource.
 
 ### Type Specifications
 
-#### Data types
+### Data types
 
-```
+#### Payment Required Response
+
+When a client tries to access a paid resource, the server responds with the following JSON structure:
+
+```json
 // Payment Required Response
 {
   // Version of the x402 payment protocol
-  x402Version: int,
+  "x402Version": <int>,
 
   // List of payment requirements that the resource server accepts. A resource server may accept on multiple chains, or in multiple currencies.
-  accepts: [paymentRequirements]
+  "accepts": [<paymentRequirements>],
 
   // Message from the resource server to the client to communicate errors in processing payment
-  error: string
+  "error": "<string>"
 }
+```
 
-// paymentRequirements
+#### Payment Requirements
+
+Each object in the accepts array describes a specific way the resource server will accept payment:
+
+```json
+// Payment Requirements
 {
   // Scheme of the payment protocol to use
-  scheme: string;
+  "scheme": "<string>",
 
   // Network of the blockchain to send payment on
-  network: string;
+  "network": "<string>",
 
-  // Maximum amount required to pay for the resource in atomic units of the asset
-  maxAmountRequired: uint256 as string;
+  // Maximum amount required to pay for the resource in atomic units of the asset (uint256 as string)
+  "maxAmountRequired": "<string>",
 
   // URL of resource to pay for
-  resource: string;
+  "resource": "<string>",
 
   // Description of the resource
-  description: string;
+  "description": "<string>",
 
   // MIME type of the resource response
-  mimeType: string;
+  "mimeType": "<string>",
 
   // Output schema of the resource response
-  outputSchema?: object | null;
+  "outputSchema": <object | null>,
 
   // Address to pay value to
-  payTo: string;
+  "payTo": "<string>",
 
   // Maximum time in seconds for the resource server to respond
-  maxTimeoutSeconds: number;
+  "maxTimeoutSeconds": <number>,
 
   // Address of the EIP-3009 compliant ERC20 contract
-  asset: string;
+  "asset": "<string>",
 
   // Extra information about the payment details specific to the scheme
-  // For `exact` scheme on a EVM network, expects extra to contain the records `name` and `version` pertaining to asset
-  extra: object | null;
+// For `exact` scheme on a EVM network, expects extra to contain the records `name` and `version` pertaining to asset
+  "extra": <object | null>
 }
+```
 
-// `Payment Payload` (included as the `X-PAYMENT` header as base64 encoded json)
+#### Payment Payload
+
+The client must include the following JSON object in the `X-PAYMENT` header, base64 encoded
+
+```json
+// Payment Payload
 {
   // Version of the x402 payment protocol
-  x402Version: number;
+  "x402Version": <number>,
 
   // scheme is the scheme value of the accepted `paymentRequirements` the client is using to pay
-  scheme: string;
+  "scheme": "<string>",
 
   // network is the network id of the accepted `paymentRequirements` the client is using to pay
-  network: string;
+  "network": "<string>",
 
   // payload is scheme dependent
-  payload: <scheme dependent>;
+  "payload": <scheme-dependent>
 }
 ```
 
@@ -158,7 +174,7 @@ the payment details accepted for a resource.
 
 A `facilitator server` is a 3rd party service that can be used by a `resource server` to verify and settle payments, without the `resource server` needing to have access to a blockchain node or wallet.
 
-```
+```js
 // Verify a payment with a supported scheme and network
 POST /verify
 Request body JSON:
@@ -246,3 +262,12 @@ You should see activity across both terminals, and the client terminal will disp
 3. Run the unit tests: `pnpm test`
 
 This will run the unit tests for the x402 packages.
+
+## Supported list
+
+## 🔗 Products Overview
+
+| Product    | Website                                | Documentation                      | Wallet Address                               |
+| ---------- | -------------------------------------- | ---------------------------------- | -------------------------------------------- |
+| X402 Index | [x402index.com](https://x402index.com) | [Docs](https://x402index.com/docs) | `0xe3e8b0f31951a6160dF7B940FBa372727748578d` |
+| Neynar     | [neynar.com](https://neynar.com)       | [Docs](https://docs.neynar.com)    | `0xA6a8736f18f383f1cc2d938576933E5eA7Df01A1` |
