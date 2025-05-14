@@ -21,29 +21,34 @@ import {
 import { useFacilitator } from "x402/verify";
 
 /**
- * Enables APIs to be paid for using the x402 payment protocol.
+ * Creates a payment middleware factory for Hono
  *
- * This middleware:
- * 1. Validates payment headers and requirements
- * 2. Serves a paywall page for browser requests
- * 3. Returns JSON payment requirements for API requests
- * 4. Verifies and settles payments
- * 5. Sets appropriate response headers
- *
- * @param payTo - Address to receive payments
- * @param routes - Route configuration for payment amounts
- * @param facilitator - Configuration for the payment facilitator service
- *
- * @returns A function that creates a Hono middleware handler for a specific payment amount
+ * @param payTo - The address to receive payments
+ * @param routes - Configuration for protected routes and their payment requirements
+ * @param facilitator - Optional configuration for the payment facilitator service
+ * @returns A Hono middleware handler
  *
  * @example
  * ```typescript
- * const middleware = paymentMiddleware(
- *   '0x123...',
+ * // Simple configuration - All endpoints are protected by $0.01 of USDC on base-sepolia
+ * app.use(paymentMiddleware(
+ *   '0x123...', // payTo address
  *   {
- *     '/premium/*': {
- *       price: '$0.01',
- *       network: 'base'
+ *     price: '$0.01', // USDC amount in dollars
+ *     network: 'base-sepolia'
+ *   },
+ *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
+ * ));
+ *
+ * // Advanced configuration - Endpoint-specific payment requirements & custom facilitator
+ * app.use(paymentMiddleware('0x123...', // payTo: The address to receive payments
+ *   {
+ *     '/weather/*': {
+ *       price: '$0.001', // USDC amount in dollars
+ *       network: 'base',
+ *       config: {
+ *         description: 'Access to weather data'
+ *       }
  *     }
  *   },
  *   {
@@ -53,9 +58,7 @@ import { useFacilitator } from "x402/verify";
  *       settle: { "Authorization": "Bearer token" }
  *     })
  *   }
- * );
- *
- * app.use('/premium', middleware);
+ * ));
  * ```
  */
 export function paymentMiddleware(
