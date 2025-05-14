@@ -307,13 +307,19 @@ describe("paymentMiddleware()", () => {
       throw new Error("Response already sent");
     });
 
+    // Spy on the Headers.set method
+    const headersSpy = vi.spyOn(mockContext.res.headers, "set");
+
     await middleware(mockContext, mockNext);
 
     expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
     expect(mockSettle).toHaveBeenCalledWith(validPayment, expect.any(Object));
-    expect(mockContext.header).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
+    expect(headersSpy).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
+
     // Restore original json method
     mockContext.json = originalJson;
+    // Restore the spy
+    headersSpy.mockRestore();
   });
 
   it("should handle settlement failure before response is sent", async () => {
