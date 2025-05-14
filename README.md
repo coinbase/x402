@@ -5,9 +5,9 @@
 ```typescript
 app.use(
   // How much you want to charge, and where you want the funds to land
-  paymentMiddleware("0xYourAddress", {"/your-endpoint": "$0.01"})
+  paymentMiddleware("0xYourAddress", { "/your-endpoint": "$0.01" })
 );
-// Thats it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
+// That's it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
 ```
 
 ## Philosophy
@@ -21,7 +21,7 @@ It's time for an open, internet-native form of payments. A payment rail that doe
 - **HTTP Native:** x402 is meant to seemlessly compliment the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
 - **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria layed out in [CONTRIBUTING.md](https://github.com/coinbase/x402/blob/main/CONTRIBUTING.md)
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
-- **Easy to use:** x402 needs to be 10x better than existing pays to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
+- **Easy to use:** x402 needs to be 10x better than existing ways to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
 
 **Roadmap:** see [ROADMAP.md](https://github.com/coinbase/x402/blob/main/ROADMAP.md)
 
@@ -57,20 +57,19 @@ It specifies:
 
 ![](./static/x402-protocol-flow.png)
 
-The following outlines the flow of a payment using the `x402` protocol. Note that steps (1) and (2) are optional if the client already knows
-the payment details accepted for a resource.
+The following outlines the flow of a payment using the `x402` protocol. Note that steps (1) and (2) are optional if the client already knows the payment details accepted for a resource.
 
-1. `Client` makes an HTTP request to a `resource server`
+1. `Client` makes an HTTP request to a `resource server`.
 
 2. `Resource server` responds with a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
 3. `Client` selects one of the `paymentRequirements` returned by the server response and creates a `Payment Payload` based on the `scheme` of the `paymentRequirements` they have selected.
 
-4. `Client` sends the HTTP request with the `X-PAYMENT` header containing the `Payment Payload` to the resource server
+4. `Client` sends the HTTP request with the `X-PAYMENT` header containing the `Payment Payload` to the resource server.
 
 5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Requirements` to the `/verify` endpoint of a `facilitator server`.
 
-6. `Facilitator server` performs verification of the object based on the `scheme` and `network` of the `Payment Payload` and returns a `Verification Response`
+6. `Facilitator server` performs verification of the object based on the `scheme` and `network` of the `Payment Payload` and returns a `Verification Response`.
 
 7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
@@ -88,8 +87,9 @@ the payment details accepted for a resource.
 
 #### Data types
 
-```
-// Payment Required Response
+**Payment Required Response**
+
+```json
 {
   // Version of the x402 payment protocol
   x402Version: int,
@@ -100,8 +100,11 @@ the payment details accepted for a resource.
   // Message from the resource server to the client to communicate errors in processing payment
   error: string
 }
+```
 
-// paymentRequirements
+**paymentRequirements**
+
+```json
 {
   // Scheme of the payment protocol to use
   scheme: string;
@@ -137,8 +140,11 @@ the payment details accepted for a resource.
   // For `exact` scheme on a EVM network, expects extra to contain the records `name` and `version` pertaining to asset
   extra: object | null;
 }
+```
 
-// `Payment Payload` (included as the `X-PAYMENT` header as base64 encoded json)
+**`Payment Payload`** (included as the `X-PAYMENT` header in base64 encoded json)
+
+```json
 {
   // Version of the x402 payment protocol
   x402Version: number;
@@ -158,59 +164,67 @@ the payment details accepted for a resource.
 
 A `facilitator server` is a 3rd party service that can be used by a `resource server` to verify and settle payments, without the `resource server` needing to have access to a blockchain node or wallet.
 
-```
-// Verify a payment with a supported scheme and network
-POST /verify
-Request body JSON:
-{
-  x402Version: number;
-  paymentHeader: string;
-  paymentRequirements: paymentRequirements;
-}
+**POST /verify**. Verify a payment with a supported scheme and network:
 
-Response:
-{
-  isValid: boolean;
-  invalidReason: string | null;
-}
+- Request body JSON:
+  ```json
+  {
+    x402Version: number;
+    paymentHeader: string;
+    paymentRequirements: paymentRequirements;
+  }
+  ```
+- Response:
+  ```json
+  {
+    isValid: boolean;
+    invalidReason: string | null;
+  }
+  ```
 
-// Settle a payment with a supported scheme and network
-POST /settle
-Request body JSON:
-{
-  x402Version: number;
-  paymentHeader: string;
-  paymentRequirements: paymentRequirements;
-}
+**POST /settle**. Settle a payment with a supported scheme and network:
 
-Response:
-{
-  // Whether the payment was successful
-  success: boolean;
+- Request body JSON:
 
-  // Error message from the facilitator server
-  error: string | null;
+  ```json
+  {
+    x402Version: number;
+    paymentHeader: string;
+    paymentRequirements: paymentRequirements;
+  }
+  ```
 
-  // Transaction hash of the settled payment
-  txHash: string | null;
+- Response:
 
-  // Network id of the blockchain the payment was settled on
-  networkId: string | null;
-}
+  ```json
+  {
+    // Whether the payment was successful
+    success: boolean;
 
-// Get supported payment schemes and networks
-GET /supported
-Response:
-{
-  kinds: [
-    {
-      "scheme": string,
-      "network": string,
-    }
-  ]
-}
+    // Error message from the facilitator server
+    error: string | null;
 
-```
+    // Transaction hash of the settled payment
+    txHash: string | null;
+
+    // Network id of the blockchain the payment was settled on
+    networkId: string | null;
+  }
+  ```
+
+**GET /supported**. Get supported payment schemes and networks:
+
+- Response:
+  ```json
+  {
+    kinds: [
+      {
+        "scheme": string,
+        "network": string,
+      }
+    ]
+  }
+  ```
 
 ### Schemes
 
@@ -219,23 +233,23 @@ A scheme is a logical way of moving money.
 Blockchains allow for a large number of flexible ways to move money. To help facilitate an expanding number of payment use cases, the `x402` protocol is extensible to different ways of settling payments via its `scheme` field.
 
 Each payment scheme may have different operational functionality depending on what actions are necessary to fulfill the payment.
-For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article) while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
+For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article), while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
 
 See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains.
 
 ### Schemes vs Networks
 
-Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different than the way you need to implement `exact` on Solana)
+Because a scheme is a logical way of moving money, the way a scheme is implemented can be different for different blockchains. (ex: the way you need to implement `exact` on Ethereum is very different from the way you need to implement `exact` on Solana).
 
-Clients and facilitator must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
+Clients and facilitators must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
 
 ## Running example
 
 1. From `examples/typescript` run `pnpm install` and `pnpm build` to ensure all dependent packages and examples are setup.
 
-2. Select a server, i.e. express, and cd to that example. Add your servers ethereum address to get paid to into the .env file, and then run pnpm dev in that directory.
+2. Select a server, i.e. express, and `cd` into that example. Add your server's ethereum address to get paid to into the `.env` file, and then run `pnpm dev` in that directory.
 
-3. Select a client, i.e. axios, and cd into that example. Add your private key for the account making payments into the .env file, and then run pnpm dev in that directory.
+3. Select a client, i.e. axios, and `cd` into that example. Add your private key for the account making payments into the `.env` file, and then run `pnpm dev` in that directory.
 
 You should see activity across both terminals, and the client terminal will display a weather report.
 

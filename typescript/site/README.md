@@ -27,18 +27,19 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 ### Installation
 
 1. Install dependencies:
-```bash
-pnpm install
-```
 
-2. Configure your environment variables:
-```bash
-# In .env
-NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
-RESOURCE_WALLET_ADDRESS=your_wallet_address
-NETWORK=sepolia
-PRIVATE_KEY=your_private_key
-```
+  ```bash
+  pnpm install
+  ```
+
+2. Configure your environment variables in `.env`:
+
+  ```bash
+  NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
+  RESOURCE_WALLET_ADDRESS=your_wallet_address
+  NETWORK=sepolia
+  PRIVATE_KEY=your_private_key
+  ```
 
 ### Running the Development Server
 
