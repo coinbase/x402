@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+    "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<suppressions>
+  <!-- Suppress visibility checks on model classes -->
+  <suppress checks="VisibilityModifier" files=".*[/\\]model[/\\].*\.java"/>
+  <suppress checks="VisibilityModifier" files=".*[/\\]client[/\\].*\.java"/>
+  
+  <!-- Suppress indentation checks on all files -->
+  <suppress checks="Indentation" files=".*\.java"/>
+</suppressions>
