@@ -5,15 +5,8 @@ import {
   custom,
   publicActions,
   Transport,
+  Chain,
 } from "viem";
-import {
-  createConfig,
-  connect,
-  switchChain,
-  watchAccount,
-  GetAccountReturnType,
-} from "@wagmi/core";
-import { injected } from "@wagmi/connectors";
 import { base, baseSepolia } from "viem/chains";
 
 import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
@@ -23,13 +16,14 @@ import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
 
 import type { ConnectedClient, SignerWallet } from "../types/shared/evm";
 import type { PaymentRequirements } from "../types/verify";
+import type { Network } from "../types/shared";
 
 declare global {
   interface Window {
     x402: {
       amount?: number;
       testnet?: boolean;
-      paymentRequirements: PaymentRequirements;
+      paymentRequirements: PaymentRequirements | PaymentRequirements[];
       currentUrl: string;
       config: {
         chainConfig: Record<
@@ -45,8 +39,60 @@ declare global {
   }
 }
 
+/**
+ * Helper function to Base64 encode a string (for payment headers)
+ */
+function safeBase64Encode(data: string): string {
+  return window.btoa(data);
+}
+
+/**
+ * Selects the most appropriate payment requirement from a list
+ */
+function selectPaymentRequirements(
+  paymentRequirements: PaymentRequirements | PaymentRequirements[],
+  network?: Network,
+  scheme: string = "exact"
+): PaymentRequirements {
+  const requirementsArray = Array.isArray(paymentRequirements)
+    ? paymentRequirements
+    : [paymentRequirements];
+
+  const matching = requirementsArray.filter(req => {
+    const schemeMatch = !scheme || req.scheme === scheme;
+    const networkMatch = !network || req.network === network;
+    return schemeMatch && networkMatch;
+  });
+
+  return matching.length > 0 ? matching[0] : requirementsArray[0];
+}
+
+/**
+ * Ensures a valid amount is set in payment requirements
+ */
+function ensureValidAmount(paymentRequirements: PaymentRequirements): PaymentRequirements {
+  const updatedRequirements = JSON.parse(JSON.stringify(paymentRequirements));
+
+  if (window.x402?.amount) {
+    try {
+      const amountInBaseUnits = Math.round(window.x402.amount * 1_000_000);
+      updatedRequirements.maxAmountRequired = amountInBaseUnits.toString();
+    } catch (error) {
+      console.error("Failed to parse amount:", error);
+    }
+  }
+
+  if (!updatedRequirements.maxAmountRequired || !/^\d+$/.test(updatedRequirements.maxAmountRequired)) {
+    updatedRequirements.maxAmountRequired = "10000";
+  }
+
+  return updatedRequirements;
+}
+
+/**
+ * Makes sure required functions are bundled
+ */
 function ensureFunctionsAreAvailable() {
-  // This is just to make sure these functions get bundled
   return {
     createPaymentHeader,
     createPayment,
@@ -57,16 +103,23 @@ function ensureFunctionsAreAvailable() {
   };
 }
 
-// Update UI with payment details -- called when the page loads
+/**
+ * Updates UI with payment details
+ */
 function updatePaymentUI(x402: Window["x402"]) {
   if (!x402) return;
 
   const amount = x402.amount || 0;
-  const paymentRequirements = x402.paymentRequirements || {};
   const testnet = x402.testnet ?? true;
   const chainName = testnet ? "Base Sepolia" : "Base";
+  const network = testnet ? "base-sepolia" : "base";
 
-  // Update payment description
+  const paymentRequirements = selectPaymentRequirements(
+    x402.paymentRequirements,
+    network as Network,
+    "exact"
+  );
+
   const descriptionEl = document.getElementById("payment-description");
   if (descriptionEl) {
     descriptionEl.textContent = paymentRequirements.description
@@ -74,57 +127,97 @@ function updatePaymentUI(x402: Window["x402"]) {
       : `To access this content, please pay $${amount} ${chainName} USDC.`;
   }
 
-  // Hide Base Sepolia instructions if not on testnet
   const instructionsEl = document.getElementById("instructions");
   if (!testnet && instructionsEl) {
     instructionsEl.classList.add("hidden");
   }
 
-  // Update amount
   const amountEl = document.getElementById("payment-amount");
   if (amountEl) {
     amountEl.textContent = `$${amount} USDC`;
   }
 
-  // Update network
   const networkEl = document.getElementById("payment-network");
   if (networkEl) {
     networkEl.textContent = chainName;
   }
+
+  const loadingElement = document.getElementById("loading-message");
+  if (loadingElement) {
+    loadingElement.style.display = "none";
+  }
+
+  const walletConnectionElement = document.getElementById("wallet-connection");
+  if (walletConnectionElement) {
+    walletConnectionElement.style.display = "block";
+  }
 }
 
+/**
+ * Connects to the wallet and switches to the required chain
+ */
+async function connectWallet(chain: Chain): Promise<`0x${string}`> {
+  if (!window.ethereum) {
+    throw new Error("No injected Ethereum provider found. Please install MetaMask or similar.");
+  }
+
+  const addresses = await window.ethereum.request({
+    method: 'eth_requestAccounts'
+  }) as `0x${string}`[];
+
+  if (!addresses || addresses.length === 0) {
+    throw new Error("No accounts found");
+  }
+
+  try {
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: `0x${chain.id.toString(16)}` }],
+    });
+  } catch (switchError: any) {
+    if (switchError.code === 4902) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [
+          {
+            chainId: `0x${chain.id.toString(16)}`,
+            chainName: chain.name,
+            nativeCurrency: chain.nativeCurrency,
+            rpcUrls: [chain.rpcUrls.default.http[0]],
+            blockExplorerUrls: [chain.blockExplorers?.default.url],
+          },
+        ],
+      });
+    } else {
+      throw switchError;
+    }
+  }
+
+  return addresses[0];
+}
+
+/**
+ * Initializes the payment application
+ */
 async function initializeApp() {
   const x402 = window.x402;
-
-  const wagmiConfig = createConfig({
-    chains: [base, baseSepolia],
-    connectors: [injected()],
-    transports: {
-      [base.id]: http(),
-      [baseSepolia.id]: http(),
-    },
-  });
+  if (!x402) {
+    console.error("x402 configuration not found");
+    return;
+  }
 
   ensureFunctionsAreAvailable();
 
   const chain = x402.testnet ? baseSepolia : base;
-  let walletClient: SignerWallet | null;
-  const publicClient: ConnectedClient<Transport, typeof chain, undefined> = createPublicClient({
-    chain,
-    transport: custom(window.ethereum),
-  }).extend(publicActions);
-  
+  const network = x402.testnet ? "base-sepolia" : "base";
+  let walletClient: SignerWallet | null = null;
   let address: `0x${string}` | undefined;
-  let connectedChainId: number | undefined;
 
-  const unwatch = watchAccount(wagmiConfig, {
-    onChange(data: GetAccountReturnType<typeof wagmiConfig>) {
-      address = data.address;
-      connectedChainId = data.chainId;
-    },
-  });
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(),
+  }).extend(publicActions);
 
-  // DOM Elements
   const connectWalletBtn = document.getElementById("connect-wallet") as HTMLButtonElement | null;
   const paymentSection = document.getElementById("payment-section") as HTMLDivElement | null;
   const payButton = document.getElementById("pay-button") as HTMLButtonElement | null;
@@ -139,25 +232,18 @@ async function initializeApp() {
     try {
       statusDiv.textContent = "Connecting wallet...";
 
-      const result = await connect(wagmiConfig, {
-        connector: injected(),
-        chainId: chain.id,
-      });
+      address = await connectWallet(chain);
 
-      if (!result.accounts?.[0] || !address) {
+      if (!address) {
         throw new Error("No account selected in your wallet");
       }
 
       walletClient = createWalletClient({
         chain,
         transport: custom(window.ethereum),
-        account: {
-          address: address as `0x${string}`,
-          type: "json-rpc",
-        },
+        account: address,
       }).extend(publicActions) as SignerWallet;
 
-      // Update account
       const accountEl = document.getElementById("payment-account");
       if (accountEl) {
         accountEl.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -169,11 +255,9 @@ async function initializeApp() {
       paymentSection.classList.remove("hidden");
       statusDiv.textContent = "Wallet connected! You can now proceed with payment.";
 
-      // Remove the event listener after successful connection
       connectWalletBtn.removeEventListener("click", handleWalletConnect);
     } catch (error) {
       statusDiv.textContent = error instanceof Error ? error.message : "Failed to connect wallet";
-      // Reset UI state
       connectWalletBtn.textContent = "Connect wallet";
       connectWalletBtn.classList.remove("connected");
       connectWalletBtn.disabled = false;
@@ -182,27 +266,18 @@ async function initializeApp() {
   };
 
   const handlePayment = async () => {
-    if (connectedChainId !== chain.id) {
-      try {
-        await switchChain(wagmiConfig, { chainId: chain.id });
-      } catch (error) {
-        statusDiv.textContent =
-          error instanceof Error
-            ? error.message
-            : `Please switch to ${chain.name} network in your wallet`;
-        return;
-      }
+    if (!walletClient || !address) {
+      statusDiv.textContent = "No wallet connected. Please connect your wallet first.";
+      return;
     }
 
     try {
       statusDiv.textContent = "Checking USDC balance...";
-      if (!walletClient) {
-        throw new Error("No wallet connected");
-      }
-      const balance = await getUSDCBalance(publicClient, walletClient.account.address);
+      const balance = await getUSDCBalance(publicClient, address);
+
       if (balance === 0n) {
         throw new Error(
-          `Your USDC balance is 0. Please make sure you have USDC tokens on ${chain.name}`,
+          `Your USDC balance is 0. Please make sure you have USDC tokens on ${chain.name}`
         );
       }
     } catch (error) {
@@ -214,29 +289,85 @@ async function initializeApp() {
     statusDiv.textContent = "Creating payment signature...";
 
     try {
-      const version = x402.paymentRequirements.extra?.version ?? await getVersion(publicClient);
-      const paymentHeader = await createPaymentHeader(walletClient, version,x402.paymentRequirements);
+      const paymentRequirements = selectPaymentRequirements(
+        x402.paymentRequirements,
+        network as Network,
+        "exact"
+      );
+
+      const validPaymentRequirements = ensureValidAmount(paymentRequirements);
+
+      // Create payment with x402Version=1
+      const initialPayment = await createPayment(walletClient, 1, validPaymentRequirements);
+      initialPayment.x402Version = 1;
+
+      const paymentHeader = safeBase64Encode(JSON.stringify(initialPayment));
 
       statusDiv.textContent = "Requesting content with payment...";
 
-      const response = await fetch(x402.currentUrl, {
-        headers: {
-          "X-PAYMENT": paymentHeader,
-          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-        },
-      });
+      try {
+        const response = await fetch(x402.currentUrl, {
+          headers: {
+            "X-PAYMENT": paymentHeader,
+            "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE"
+          },
+        });
 
-      if (response.ok) {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("text/html")) {
-          document.documentElement.innerHTML = await response.text();
+        if (response.ok) {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("text/html")) {
+            document.documentElement.innerHTML = await response.text();
+          } else {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.location.href = url;
+          }
+        } else if (response.status === 402) {
+          try {
+            const errorData = await response.json();
+
+            if (errorData && typeof errorData.x402Version === 'number') {
+              // Retry with server's x402Version
+              const retryPayment = await createPayment(
+                walletClient,
+                errorData.x402Version,
+                validPaymentRequirements
+              );
+
+              retryPayment.x402Version = errorData.x402Version;
+              const retryHeader = safeBase64Encode(JSON.stringify(retryPayment));
+
+              const retryResponse = await fetch(x402.currentUrl, {
+                headers: {
+                  "X-PAYMENT": retryHeader,
+                  "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE"
+                }
+              });
+
+              if (retryResponse.ok) {
+                const contentType = retryResponse.headers.get("content-type");
+                if (contentType && contentType.includes("text/html")) {
+                  document.documentElement.innerHTML = await retryResponse.text();
+                } else {
+                  const blob = await retryResponse.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  window.location.href = url;
+                }
+                return;
+              } else {
+                throw new Error(`Payment failed: ${retryResponse.statusText}`);
+              }
+            } else {
+              throw new Error(`Payment failed: ${response.statusText}`);
+            }
+          } catch (jsonError) {
+            throw new Error(`Payment failed: ${response.statusText}`);
+          }
         } else {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          window.location.href = url;
+          throw new Error(`Request failed: ${response.status} ${response.statusText}`);
         }
-      } else {
-        throw new Error("Payment failed: " + response.statusText);
+      } catch (fetchError) {
+        throw fetchError;
       }
     } catch (error) {
       statusDiv.textContent = error instanceof Error ? error.message : "Payment failed";
@@ -245,14 +376,16 @@ async function initializeApp() {
 
   connectWalletBtn.addEventListener("click", handleWalletConnect);
   payButton.addEventListener("click", handlePayment);
-  window.addEventListener("beforeunload", () => {
-    if (unwatch) unwatch();
-  });
 }
 
 window.addEventListener("load", () => {
-  // Update the UI with payment details
   updatePaymentUI(window.x402);
 
-  initializeApp();
+  initializeApp().catch(error => {
+    console.error("Failed to initialize app:", error);
+    const statusDiv = document.getElementById("status");
+    if (statusDiv) {
+      statusDiv.textContent = error instanceof Error ? error.message : "Failed to initialize app";
+    }
+  });
 });

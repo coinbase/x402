@@ -14,14 +14,20 @@ const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 const options: esbuild.BuildOptions = {
   entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
   bundle: true,
-  metafile: true, // needs to be set
-  outdir: DIST_DIR, // needs to be set
+  metafile: true,
+  outdir: DIST_DIR,
   treeShaking: true,
   minify: false,
   format: "iife",
   sourcemap: false,
   platform: "browser",
   target: "es2020",
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    'global': 'window',
+  },
+  mainFields: ['browser', 'module', 'main'],
+  conditions: ['browser'],
   plugins: [
     htmlPlugin({
       files: [
@@ -39,6 +45,12 @@ const options: esbuild.BuildOptions = {
       ],
     }),
   ],
+  // Mark problematic dependencies as external
+  external: [
+    'crypto',
+    'viem/actions',
+    '@wagmi/*',
+  ],
 };
 
 // Run the build and then create the template.ts file
@@ -49,8 +61,14 @@ async function build() {
       fs.mkdirSync(DIST_DIR, { recursive: true });
     }
 
+    // Make sure gen directory exists too
+    const genDir = path.dirname(OUTPUT_TS);
+    if (!fs.existsSync(genDir)) {
+      fs.mkdirSync(genDir, { recursive: true });
+    }
+
     // Run esbuild to create the bundled HTML
-    await esbuild.build(options);
+    const result = await esbuild.build(options);
     console.log("Build completed successfully!");
 
     // Read the generated HTML file
