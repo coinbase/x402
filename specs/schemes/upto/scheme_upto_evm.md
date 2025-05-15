@@ -76,6 +76,7 @@ Pros:
 Cons: 
 - Doubled settlement time
 - Only supports tokens that support `EIP-2612`
+- Ordered nonces: sending transactions in parallel might cause nonce collisions.
 
 **`EIP-2612` with a routing contract**: The `permit` and `transferFrom` functions can be called in a single transaction through a routing contract.
 
@@ -85,6 +86,7 @@ Pros:
 Cons:
 - Requires a routing contract to be deployed. This is an additional point of risk.
 - Only supports tokens that support `EIP-2612`
+- Ordered nonces: sending transactions in parallel might cause nonce collisions.
 
 **Permit2**: `Permit2` is a meta-transaction contract that allows for allowance management and transfer of `ERC20` tokens in a single transaction.
 
@@ -92,6 +94,7 @@ Pros:
 - Single transaction settlement
 - Supports all ERC20 tokens
 - Well audited and widely used
+- Unordered nonces: Supports multiple transactions in parallel
 
 Cons:
 - Requires the client to first approve the `Permit2` contract to spend their tokens
