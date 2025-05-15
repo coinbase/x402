@@ -16,6 +16,7 @@ cp .env-local .env
 ```
 
 2. Run the server:
+
 ```bash
 go run mainnet.go
 ```
