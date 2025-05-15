@@ -1,12 +1,4 @@
-import {
-  createWalletClient,
-  createPublicClient,
-  http,
-  custom,
-  publicActions,
-  Transport,
-  Chain,
-} from "viem";
+import { createWalletClient, createPublicClient, http, custom, publicActions, Chain } from "viem";
 import { base, baseSepolia } from "viem/chains";
 
 import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
@@ -14,9 +6,14 @@ import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
 import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
 import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
 
-import type { ConnectedClient, SignerWallet } from "../types/shared/evm";
+import type { SignerWallet } from "../types/shared/evm";
 import type { PaymentRequirements } from "../types/verify";
 import type { Network } from "../types/shared";
+
+// Define the type for ethereum provider
+interface EthereumProvider {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+}
 
 declare global {
   interface Window {
@@ -35,12 +32,15 @@ declare global {
         >;
       };
     };
-    ethereum?: any;
+    ethereum?: EthereumProvider;
   }
 }
 
 /**
  * Helper function to Base64 encode a string (for payment headers)
+ *
+ * @param data - The string data to encode to Base64
+ * @returns The Base64 encoded string
  */
 function safeBase64Encode(data: string): string {
   return window.btoa(data);
@@ -48,11 +48,16 @@ function safeBase64Encode(data: string): string {
 
 /**
  * Selects the most appropriate payment requirement from a list
+ *
+ * @param paymentRequirements - The payment requirements to select from
+ * @param network - The network to match against
+ * @param scheme - The payment scheme to match against
+ * @returns The selected payment requirement
  */
 function selectPaymentRequirements(
   paymentRequirements: PaymentRequirements | PaymentRequirements[],
   network?: Network,
-  scheme: string = "exact"
+  scheme: string = "exact",
 ): PaymentRequirements {
   const requirementsArray = Array.isArray(paymentRequirements)
     ? paymentRequirements
@@ -69,6 +74,9 @@ function selectPaymentRequirements(
 
 /**
  * Ensures a valid amount is set in payment requirements
+ *
+ * @param paymentRequirements - The payment requirements to validate and update
+ * @returns Updated payment requirements with valid amount
  */
 function ensureValidAmount(paymentRequirements: PaymentRequirements): PaymentRequirements {
   const updatedRequirements = JSON.parse(JSON.stringify(paymentRequirements));
@@ -82,7 +90,10 @@ function ensureValidAmount(paymentRequirements: PaymentRequirements): PaymentReq
     }
   }
 
-  if (!updatedRequirements.maxAmountRequired || !/^\d+$/.test(updatedRequirements.maxAmountRequired)) {
+  if (
+    !updatedRequirements.maxAmountRequired ||
+    !/^\d+$/.test(updatedRequirements.maxAmountRequired)
+  ) {
     updatedRequirements.maxAmountRequired = "10000";
   }
 
@@ -91,6 +102,8 @@ function ensureValidAmount(paymentRequirements: PaymentRequirements): PaymentReq
 
 /**
  * Makes sure required functions are bundled
+ *
+ * @returns An object containing all required functions
  */
 function ensureFunctionsAreAvailable() {
   return {
@@ -105,6 +118,8 @@ function ensureFunctionsAreAvailable() {
 
 /**
  * Updates UI with payment details
+ *
+ * @param x402 - The x402 configuration object containing payment details
  */
 function updatePaymentUI(x402: Window["x402"]) {
   if (!x402) return;
@@ -117,7 +132,7 @@ function updatePaymentUI(x402: Window["x402"]) {
   const paymentRequirements = selectPaymentRequirements(
     x402.paymentRequirements,
     network as Network,
-    "exact"
+    "exact",
   );
 
   const descriptionEl = document.getElementById("payment-description");
@@ -155,15 +170,18 @@ function updatePaymentUI(x402: Window["x402"]) {
 
 /**
  * Connects to the wallet and switches to the required chain
+ *
+ * @param chain - The blockchain chain to connect to
+ * @returns The connected wallet address
  */
 async function connectWallet(chain: Chain): Promise<`0x${string}`> {
   if (!window.ethereum) {
     throw new Error("No injected Ethereum provider found. Please install MetaMask or similar.");
   }
 
-  const addresses = await window.ethereum.request({
-    method: 'eth_requestAccounts'
-  }) as `0x${string}`[];
+  const addresses = (await window.ethereum.request({
+    method: "eth_requestAccounts",
+  })) as `0x${string}`[];
 
   if (!addresses || addresses.length === 0) {
     throw new Error("No accounts found");
@@ -171,13 +189,14 @@ async function connectWallet(chain: Chain): Promise<`0x${string}`> {
 
   try {
     await window.ethereum.request({
-      method: 'wallet_switchEthereumChain',
+      method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${chain.id.toString(16)}` }],
     });
-  } catch (switchError: any) {
-    if (switchError.code === 4902) {
+  } catch (switchError: unknown) {
+    const error = switchError as { code: number };
+    if (error.code === 4902) {
       await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
+        method: "wallet_addEthereumChain",
         params: [
           {
             chainId: `0x${chain.id.toString(16)}`,
@@ -198,6 +217,8 @@ async function connectWallet(chain: Chain): Promise<`0x${string}`> {
 
 /**
  * Initializes the payment application
+ *
+ * @returns A promise that resolves when initialization is complete
  */
 async function initializeApp() {
   const x402 = window.x402;
@@ -234,7 +255,7 @@ async function initializeApp() {
 
       address = await connectWallet(chain);
 
-      if (!address) {
+      if (!address || !window.ethereum) {
         throw new Error("No account selected in your wallet");
       }
 
@@ -277,7 +298,7 @@ async function initializeApp() {
 
       if (balance === 0n) {
         throw new Error(
-          `Your USDC balance is 0. Please make sure you have USDC tokens on ${chain.name}`
+          `Your USDC balance is 0. Please make sure you have USDC tokens on ${chain.name}`,
         );
       }
     } catch (error) {
@@ -292,7 +313,7 @@ async function initializeApp() {
       const paymentRequirements = selectPaymentRequirements(
         x402.paymentRequirements,
         network as Network,
-        "exact"
+        "exact",
       );
 
       const validPaymentRequirements = ensureValidAmount(paymentRequirements);
@@ -309,7 +330,7 @@ async function initializeApp() {
         const response = await fetch(x402.currentUrl, {
           headers: {
             "X-PAYMENT": paymentHeader,
-            "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE"
+            "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
           },
         });
 
@@ -326,12 +347,12 @@ async function initializeApp() {
           try {
             const errorData = await response.json();
 
-            if (errorData && typeof errorData.x402Version === 'number') {
+            if (errorData && typeof errorData.x402Version === "number") {
               // Retry with server's x402Version
               const retryPayment = await createPayment(
                 walletClient,
                 errorData.x402Version,
-                validPaymentRequirements
+                validPaymentRequirements,
               );
 
               retryPayment.x402Version = errorData.x402Version;
@@ -340,8 +361,8 @@ async function initializeApp() {
               const retryResponse = await fetch(x402.currentUrl, {
                 headers: {
                   "X-PAYMENT": retryHeader,
-                  "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE"
-                }
+                  "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+                },
               });
 
               if (retryResponse.ok) {
@@ -360,7 +381,7 @@ async function initializeApp() {
             } else {
               throw new Error(`Payment failed: ${response.statusText}`);
             }
-          } catch (jsonError) {
+          } catch {
             throw new Error(`Payment failed: ${response.statusText}`);
           }
         } else {

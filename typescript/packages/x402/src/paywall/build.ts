@@ -23,11 +23,11 @@ const options: esbuild.BuildOptions = {
   platform: "browser",
   target: "es2020",
   define: {
-    'process.env.NODE_ENV': '"production"',
-    'global': 'window',
+    "process.env.NODE_ENV": '"production"',
+    global: "window",
   },
-  mainFields: ['browser', 'module', 'main'],
-  conditions: ['browser'],
+  mainFields: ["browser", "module", "main"],
+  conditions: ["browser"],
   plugins: [
     htmlPlugin({
       files: [
@@ -46,14 +46,14 @@ const options: esbuild.BuildOptions = {
     }),
   ],
   // Mark problematic dependencies as external
-  external: [
-    'crypto',
-    'viem/actions',
-    '@wagmi/*',
-  ],
+  external: ["crypto", "viem/actions", "@wagmi/*"],
 };
 
 // Run the build and then create the template.ts file
+/**
+ * Builds the paywall HTML template with bundled JS and CSS.
+ * Creates a TypeScript file containing the template as a constant for runtime use.
+ */
 async function build() {
   try {
     // First, make sure the dist directory exists
@@ -68,7 +68,7 @@ async function build() {
     }
 
     // Run esbuild to create the bundled HTML
-    const result = await esbuild.build(options);
+    await esbuild.build(options);
     console.log("Build completed successfully!");
 
     // Read the generated HTML file
