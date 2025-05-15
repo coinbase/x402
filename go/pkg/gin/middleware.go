@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/coinbase/x402/go/pkg/facilitatorclient"
+	"github.com/coinbase/x402/go/pkg/shared"
 	"github.com/coinbase/x402/go/pkg/types"
 )
 
@@ -162,7 +163,19 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			if isWebBrowser {
 				html := options.CustomPaywallHTML
 				if html == "" {
-					html = getPaywallHtml(options)
+					paywallHtml, err := shared.GetPaywallHTML(shared.PaywallOptions{
+						Amount:              maxAmountRequired,
+						PaymentRequirements: paymentRequirements,
+						CurrentURL:          paymentRequirements.Resource,
+						Testnet:             options.Testnet,
+					})
+					if err != nil {
+						fmt.Println("failed to get paywall html", err)
+						// Don't abort. Simply use default paywall
+						html = getPaywallHtml(options)
+					} else {
+						html = paywallHtml
+					}
 				}
 				c.Abort()
 				c.Data(http.StatusPaymentRequired, "text/html", []byte(html))

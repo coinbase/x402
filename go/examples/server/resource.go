@@ -22,6 +22,7 @@ func main() {
 			"0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
 			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithResource("http://localhost:4021/joke"),
+			x402gin.WithDescription("Wanna see what’s behind the curtain?"),
 		),
 		func(c *gin.Context) {
 			c.JSON(200, gin.H{

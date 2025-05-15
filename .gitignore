@@ -4,5 +4,8 @@ dist/
 .turbo/
 .next/
 proxy
-.env
 __pycache__/
+
+# IDE
+.idea
+.vscode
