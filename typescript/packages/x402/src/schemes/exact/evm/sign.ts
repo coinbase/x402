@@ -1,4 +1,4 @@
-import { getRandomValues } from "crypto";
+import { getRandomValues } from "uncrypto";
 import { Account, Address, Chain, Hex, toHex, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import {
