@@ -7,8 +7,8 @@ The `upto` scheme on EVM chains uses `EIP-2612` and the `Permit2` contract to au
 ## `X-Payment` header payload
 
 The `payload` field of the `X-PAYMENT` header must contain the following fields:
-- `signature`: The signature of the `EIP-2612` `permit` operation.
-- `authorization`: parameters required to reconstruct the message signed for the `permit` operation.
+- `signature`: The signature of the `Permit2` `permitTransferFrom` operation.
+- `authorization`: parameters required to reconstruct the message signed for the `permitTransferFrom` operation.
 
 Example:
 
