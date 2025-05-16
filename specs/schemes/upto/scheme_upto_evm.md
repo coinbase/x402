@@ -54,12 +54,12 @@ Steps to verify a payment for the `upto` scheme:
 1. Verify the signature is valid
 2. Verify the `client` has enough of the `asset` (ERC20 token) to cover `paymentRequirements.maxAmountRequired`
 3. Verify the client has approved the `Permit2` contract to spend at least `paymentRequirements.maxAmountRequired` of the `asset` 
-3. Verify the amount in the `payload.authorization` is enough to cover `paymentRequirements.maxAmountRequired`
-4. Verify the spender in the `payload.authorization` is the resource server
-5. Verify the permit deadline is not expired
-6. Verify nonce is not used
-7. Verify the permit parameters are for the agreed upon ERC20 contract and chain
-8. Simulate the `permitTransferFrom` to ensure the transaction would succeed
+4. Verify the amount in the `payload.authorization` is enough to cover `paymentRequirements.maxAmountRequired`
+5. Verify the spender in the `payload.authorization` is the resource server
+6. Verify the permit deadline is not expired
+7. Verify nonce is not used
+8. Verify the permit parameters are for the agreed upon ERC20 contract and chain
+9. Simulate the `permitTransferFrom` to ensure the transaction would succeed
 
 ## Settlement
 
