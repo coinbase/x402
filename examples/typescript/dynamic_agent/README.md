@@ -19,7 +19,7 @@ cp .env-local .env
 ```
 
 Follow instructions in `.env` to get required API keys to proxy (they're all free).
-Add your Ethereum development private key to `.env` (remember it should have USDC on Base Sepolia, which you can provison using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+Add your Ethereum development private key to `.env` (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
 
 3. Start index server
 

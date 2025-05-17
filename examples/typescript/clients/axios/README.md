@@ -19,7 +19,7 @@ pnpm build
 cd clients/axios
 ```
 
-2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provison using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
 ```bash
 cp .env-local .env
 ```
