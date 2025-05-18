@@ -244,7 +244,7 @@ export default function Home() {
             <div className="bg-gray-800/30 rounded-2xl p-8 backdrop-blur-xl border border-gray-700/50">
               <p className="text-gray-300 leading-relaxed text-xl mb-8">
                 Just add a <span className="font-bold">single line of code</span> in your app, and
-                you can require a USDC payment for each incoming request.
+                you can require a stablecoin payment for each incoming request.
               </p>
               <div className="mb-8">
                 <div className="bg-black/50 rounded-lg p-4 font-mono text-sm text-gray-300 relative overflow-hidden">
