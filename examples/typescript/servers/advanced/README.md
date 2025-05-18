@@ -11,6 +11,7 @@ This is an advanced example of an Express.js server that demonstrates how to imp
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
+
 - A valid Ethereum address for receiving payments
 
 ## Setup
@@ -132,18 +133,20 @@ The server includes example endpoints that demonstrate different payment scenari
 ```
 
 ## Extending the Example
-
 To add more paid endpoints with delayed payment settlement, you can follow this pattern:
+
 
 ```typescript
 app.get("/your-endpoint", async (req, res) => {
   const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
+
   const paymentRequirements = [createExactPaymentRequirements(
     "$0.001", // Your price
     "base-sepolia", // Your network
     resource,
     "Description of your resource"
   )];
+
 
   const isValid = await verifyPayment(req, res, paymentRequirements);
   if (!isValid) return;
@@ -172,3 +175,4 @@ app.get("/your-endpoint", async (req, res) => {
 ```
 
 For dynamic pricing or multiple payment requirements, refer to the `/dynamic-price` and `/multiple-payment-requirements` endpoints in the example code for implementation details.
+

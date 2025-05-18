@@ -35,6 +35,7 @@ const x402Version = 1;
  * @param description - Optional description of the payment
  * @returns An array of payment requirements
  */
+
 function createExactPaymentRequirements(
   price: Price,
   network: Network,
@@ -46,7 +47,7 @@ function createExactPaymentRequirements(
     throw new Error(atomicAmountForAsset.error);
   }
   const { maxAmountRequired, asset } = atomicAmountForAsset;
-
+    
   return {
     scheme: "exact",
     network,
@@ -63,6 +64,7 @@ function createExactPaymentRequirements(
       version: asset.eip712.version,
     },
   };
+
 }
 
 /**
@@ -243,8 +245,8 @@ app.get("/multiple-payment-requirements", async (req, res) => {
       paymentRequirements[0],
     );
     const responseHeader = settleResponseHeader(settleResponse);
+    
     res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
-
     // Return the weather data
     res.json({
       report: {

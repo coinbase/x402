@@ -60,7 +60,7 @@ export function withPaymentInterceptor(
           accepts: PaymentRequirements[];
         };
         const parsed = accepts.map(x => PaymentRequirementsSchema.parse(x));
-
+        
         const chainId = evm.isSignerWallet(walletClient)
           ? walletClient.chain?.id
           : evm.isAccount(walletClient)
