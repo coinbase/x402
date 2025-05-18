@@ -21,20 +21,31 @@ import {
 import { useFacilitator } from "x402/verify";
 
 /**
- * Creates a Next.js middleware handler for x402 payments
+ * Creates a payment middleware factory for Next.js
  *
- * @param payTo - Address to receive payments
- * @param routes - Route configuration for payment amounts
- * @param facilitator - Configuration for the payment facilitator service
+ * @param payTo - The address to receive payments
+ * @param routes - Configuration for protected routes and their payment requirements
+ * @param facilitator - Optional configuration for the payment facilitator service
  * @returns A Next.js middleware handler
  *
  * @example
  * ```typescript
+ * // Simple configuration - All endpoints are protected by $0.01 of USDC on base-sepolia
  * export const middleware = paymentMiddleware(
- *   process.env.RESOURCE_WALLET_ADDRESS,
+ *   '0x123...', // payTo address
+ *   {
+ *     price: '$0.01', // USDC amount in dollars
+ *     network: 'base-sepolia'
+ *   },
+ *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
+ * );
+ *
+ * // Advanced configuration - Endpoint-specific payment requirements & custom facilitator
+ * export const middleware = paymentMiddleware(
+ *   '0x123...', // payTo: The address to receive payments
  *   {
  *     '/protected/*': {
- *       price: '$0.01',
+ *       price: '$0.001', // USDC amount in dollars
  *       network: 'base',
  *       config: {
  *         description: 'Access to protected content'
@@ -56,7 +67,7 @@ import { useFacilitator } from "x402/verify";
  *     }
  *   },
  *   {
- *     url: process.env.NEXT_PUBLIC_FACILITATOR_URL,
+ *     url: 'https://facilitator.example.com',
  *     createAuthHeaders: async () => ({
  *       verify: { "Authorization": "Bearer token" },
  *       settle: { "Authorization": "Bearer token" }

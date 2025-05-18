@@ -23,44 +23,42 @@ import { useFacilitator } from "x402/verify";
 /**
  * Creates a payment middleware factory for Express
  *
- * @param payTo - The Ethereum address to receive payments
+ * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
  * @returns An Express middleware handler
  *
  * @example
  * ```typescript
- * // Full configuration with specific routes
- * const middleware = paymentMiddleware({
- *   facilitator: {
+ * // Simple configuration - All endpoints are protected by $0.01 of USDC on base-sepolia
+ * app.use(paymentMiddleware(
+ *   '0x123...', // payTo address
+ *   {
+ *     price: '$0.01', // USDC amount in dollars
+ *     network: 'base-sepolia'
+ *   },
+ *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
+ * ));
+ *
+ * // Advanced configuration - Endpoint-specific payment requirements & custom facilitator
+ * app.use(paymentMiddleware('0x123...', // payTo: The address to receive payments*    {
+ *   {
+ *     '/weather/*': {
+ *       price: '$0.001', // USDC amount in dollars
+ *       network: 'base',
+ *       config: {
+ *         description: 'Access to weather data'
+ *       }
+ *     }
+ *   },
+ *   {
  *     url: 'https://facilitator.example.com',
  *     createAuthHeaders: async () => ({
  *       verify: { "Authorization": "Bearer token" },
  *       settle: { "Authorization": "Bearer token" }
  *     })
- *   },
- *   payTo: '0x123...',
- *   routes: {
- *     '/weather/*': {
- *       price: '$0.001', // USDC amount in dollars
- *       config: {
- *         description: 'Access to weather data'
- *       }
- *     }
  *   }
- * });
- *
- * // Simple configuration with a single price for all routes
- * const middleware = paymentMiddleware({
- *   facilitator: {
- *     url: 'https://facilitator.example.com'
- *   },
- *   payTo: '0x123...',
- *   routes: {
- *     price: '$0.01',
- *     network: 'base'
- *   }
- * });
+ * ));
  * ```
  */
 export function paymentMiddleware(
@@ -79,11 +77,7 @@ export function paymentMiddleware(
     res: Response,
     next: NextFunction,
   ): Promise<void> {
-    const matchingRoute = findMatchingRoute(
-      routePatterns,
-      req.originalUrl,
-      req.method.toUpperCase(),
-    );
+    const matchingRoute = findMatchingRoute(routePatterns, req.path, req.method.toUpperCase());
 
     if (!matchingRoute) {
       return next();
@@ -100,7 +94,7 @@ export function paymentMiddleware(
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
     const resourceUrl: Resource =
-      resource || (`${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource);
+      resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
     const paymentRequirements: PaymentRequirements[] = [
       {

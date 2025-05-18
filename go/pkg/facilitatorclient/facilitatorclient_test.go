@@ -28,7 +28,10 @@ func TestVerify(t *testing.T) {
 	defer server.Close()
 
 	// Create client with test server URL
-	client := facilitatorclient.NewFacilitatorClient(server.URL)
+	config := &types.FacilitatorConfig{
+		URL: server.URL,
+	}
+	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test data
 	paymentPayload := &types.PaymentPayload{
@@ -89,7 +92,10 @@ func TestSettle(t *testing.T) {
 	defer server.Close()
 
 	// Create client with test server URL
-	client := facilitatorclient.NewFacilitatorClient(server.URL)
+	config := &types.FacilitatorConfig{
+		URL: server.URL,
+	}
+	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test data
 	paymentPayload := &types.PaymentPayload{
@@ -133,5 +139,145 @@ func TestSettle(t *testing.T) {
 	}
 	if resp.Network != "base-sepolia" {
 		t.Errorf("Expected network 'base-sepolia', got: %s", resp.Network)
+	}
+}
+
+func TestVerifyWithAuthHeaders(t *testing.T) {
+	var capturedAuthHeader string
+
+	// Create test server that captures the auth header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+		resp := types.VerifyResponse{
+			IsValid: true,
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	// Create mock auth headers function
+	createAuthHeaders := func() (map[string]map[string]string, error) {
+		return map[string]map[string]string{
+			"verify": {"Authorization": "Bearer test-token"},
+			"settle": {"Authorization": "Bearer settle-token"},
+		}, nil
+	}
+
+	// Create client with test server URL and auth headers
+	config := &types.FacilitatorConfig{
+		URL:               server.URL,
+		CreateAuthHeaders: createAuthHeaders,
+	}
+	client := facilitatorclient.NewFacilitatorClient(config)
+
+	// Test verify with auth headers
+	paymentPayload := &types.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+		Payload: &types.ExactEvmPayload{
+			Signature: "0xvalidSignature",
+			Authorization: &types.ExactEvmPayloadAuthorization{
+				From:        "0xvalidFrom",
+				To:          "0xvalidTo",
+				Value:       "1000000",
+				ValidAfter:  "1745323800",
+				ValidBefore: "1745323985",
+				Nonce:       "0xvalidNonce",
+			},
+		},
+	}
+	paymentRequirements := &types.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "1000000",
+		Resource:          "https://example.com/resource",
+		Description:       "Test resource",
+		MimeType:          "application/json",
+		PayTo:             "0x123",
+		MaxTimeoutSeconds: 30,
+		Asset:             "0xusdcAddress",
+	}
+
+	_, err := client.Verify(paymentPayload, paymentRequirements)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify that the auth header was set correctly
+	expectedAuthHeader := "Bearer test-token"
+	if capturedAuthHeader != expectedAuthHeader {
+		t.Errorf("Expected auth header '%s', got: '%s'", expectedAuthHeader, capturedAuthHeader)
+	}
+}
+
+func TestSettleWithAuthHeaders(t *testing.T) {
+	var capturedAuthHeader string
+
+	// Create test server that captures the auth header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+		resp := types.SettleResponse{
+			Success:     true,
+			Transaction: "0xvalidTransaction",
+			Network:     "base-sepolia",
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	// Create mock auth headers function
+	createAuthHeaders := func() (map[string]map[string]string, error) {
+		return map[string]map[string]string{
+			"verify": {"Authorization": "Bearer test-token"},
+			"settle": {"Authorization": "Bearer settle-token"},
+		}, nil
+	}
+
+	// Create client with test server URL and auth headers
+	config := &types.FacilitatorConfig{
+		URL:               server.URL,
+		CreateAuthHeaders: createAuthHeaders,
+	}
+	client := facilitatorclient.NewFacilitatorClient(config)
+
+	// Test settle with auth headers
+	paymentPayload := &types.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+		Payload: &types.ExactEvmPayload{
+			Signature: "0xvalidSignature",
+			Authorization: &types.ExactEvmPayloadAuthorization{
+				From:        "0xvalidFrom",
+				To:          "0xvalidTo",
+				Value:       "1000000",
+				ValidAfter:  "1745323800",
+				ValidBefore: "1745323985",
+				Nonce:       "0xvalidNonce",
+			},
+		},
+	}
+	paymentRequirements := &types.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "base-sepolia",
+		MaxAmountRequired: "1000000",
+		Resource:          "https://example.com/resource",
+		Description:       "Test resource",
+		MimeType:          "application/json",
+		PayTo:             "0x123",
+		MaxTimeoutSeconds: 30,
+		Asset:             "0xusdcAddress",
+	}
+
+	_, err := client.Settle(paymentPayload, paymentRequirements)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	// Verify that the auth header was set correctly
+	expectedAuthHeader := "Bearer settle-token"
+	if capturedAuthHeader != expectedAuthHeader {
+		t.Errorf("Expected auth header '%s', got: '%s'", expectedAuthHeader, capturedAuthHeader)
 	}
 }

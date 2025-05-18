@@ -1,6 +1,6 @@
 {
   "name": "x402-next",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "viem": "^2.23.1",
-    "x402": "workspace:*",
+    "x402": "workspace:^",
     "next": "^15.2.4",
     "zod": "^3.24.2"
   },

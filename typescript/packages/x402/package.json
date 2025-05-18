@@ -1,12 +1,13 @@
 {
   "name": "x402",
-  "version": "0.3.1",
+  "version": "0.3.5",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "start": "tsx --env-file=.env index.ts",
     "build": "tsup",
+    "build:paywall": "tsx src/paywall/build.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "watch": "tsc --watch",
@@ -21,10 +22,14 @@
   "repository": "https://github.com/coinbase/x402",
   "description": "x402 Payment Protocol",
   "devDependencies": {
+    "@craftamap/esbuild-plugin-html": "^0.9.0",
     "@eslint/js": "^9.24.0",
     "@types/node": "^22.13.4",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "@wagmi/connectors": "^5.8.1",
+    "@wagmi/core": "^2.17.1",
+    "esbuild": "^0.25.4",
     "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsdoc": "^50.6.9",
@@ -33,13 +38,12 @@
     "tsup": "^8.4.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
+    "viem": "^2.29.1",
     "vite": "^6.2.6",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.1.1",
-    "axios": "^1.7.9",
     "viem": "^2.23.1",
     "zod": "^3.24.2"
   },

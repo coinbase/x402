@@ -1,6 +1,6 @@
 # Roadmap
 
-This file contains desired large features the x402 team would like to see developed. We will as we have bandwidth prioritize items listed under `Open for contribution`, but we would love community involvement and help to add these features
+This file contains desired large features the x402 team would like to see developed. As per the bandwidth we have, we will prioritize items listed under `Open for contribution`, but we would love community involvement and help to add these features.
 
 ## CDP Lead
 

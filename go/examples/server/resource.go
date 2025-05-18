@@ -4,18 +4,23 @@ import (
 	"math/big"
 
 	x402gin "github.com/coinbase/x402/go/pkg/gin"
+	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	r := gin.Default()
 
+	facilitatorConfig := &types.FacilitatorConfig{
+		URL: "http://localhost:3000",
+	}
+
 	r.GET(
 		"/joke",
 		x402gin.PaymentMiddleware(
 			big.NewFloat(0.0001),
 			"0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-			x402gin.WithFacilitatorURL("http://localhost:3000"),
+			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithResource("http://localhost:4021/joke"),
 		),
 		func(c *gin.Context) {

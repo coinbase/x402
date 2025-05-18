@@ -1,4 +1,3 @@
-import { getRandomValues } from "crypto";
 import { Account, Address, Chain, Hex, toHex, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import {
@@ -77,5 +76,12 @@ export async function signAuthorization<transport extends Transport, chain exten
  * @returns A random 32-byte nonce as a hex string
  */
 export function createNonce(): Hex {
-  return toHex(getRandomValues(new Uint8Array(32)));
+  const cryptoObj =
+    typeof globalThis.crypto !== "undefined" &&
+    typeof globalThis.crypto.getRandomValues === "function"
+      ? globalThis.crypto
+      : // Dynamic require is needed to support node.js
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("crypto").webcrypto;
+  return toHex(cryptoObj.getRandomValues(new Uint8Array(32)));
 }
