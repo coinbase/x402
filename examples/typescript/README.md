@@ -23,7 +23,7 @@ Examples of different client implementations for interacting with X402 services:
 - `agent/` - Example using an Anthropic agent implementation using `x402-fetch`
 - `axios/` - Example using the Axios interceptor from `x402-axios`
 - `fetch/` - Example using the fetch wrapper from `x402-fetch`
-- `mcp/` - Example using MCP (Multi-Chain Protocol) as a client using `x402-axios`
+- `mcp/` - Example using MCP (Model Context Protocol) as a client using `x402-axios`
 
 ### Facilitator
 
