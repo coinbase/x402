@@ -89,7 +89,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 **Payment Required Response**
 
-```json
+```json5
 {
   // Version of the x402 payment protocol
   x402Version: int,
@@ -104,7 +104,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 **paymentRequirements**
 
-```json
+```json5
 {
   // Scheme of the payment protocol to use
   scheme: string;
@@ -144,7 +144,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 **`Payment Payload`** (included as the `X-PAYMENT` header in base64 encoded json)
 
-```json
+```json5
 {
   // Version of the x402 payment protocol
   x402Version: number;
@@ -167,7 +167,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
 **POST /verify**. Verify a payment with a supported scheme and network:
 
 - Request body JSON:
-  ```json
+  ```json5
   {
     x402Version: number;
     paymentHeader: string;
@@ -175,7 +175,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
   }
   ```
 - Response:
-  ```json
+  ```json5
   {
     isValid: boolean;
     invalidReason: string | null;
@@ -186,7 +186,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
 
 - Request body JSON:
 
-  ```json
+  ```json5
   {
     x402Version: number;
     paymentHeader: string;
@@ -196,7 +196,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
 
 - Response:
 
-  ```json
+  ```json5
   {
     // Whether the payment was successful
     success: boolean;
@@ -215,7 +215,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
 **GET /supported**. Get supported payment schemes and networks:
 
 - Response:
-  ```json
+  ```json5
   {
     kinds: [
       {
