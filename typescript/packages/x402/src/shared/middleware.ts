@@ -93,7 +93,7 @@ export function getDefaultAsset(network: Network) {
     address: getUsdcAddressForChain(getNetworkId(network)),
     decimals: 6,
     eip712: {
-      name: network === "base" ? "USD Coin" : "USDC",
+      name: network === "base" ? "USD Coin" : network === "iotex" ? "Bridged USDC" : "USDC",
       version: "2",
     },
   };

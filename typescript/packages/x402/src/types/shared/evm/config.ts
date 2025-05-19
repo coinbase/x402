@@ -17,6 +17,10 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     usdcName: "USDC",
   },
+  "4689": {
+    usdcAddress: "0xcdf79194c6c285077a58da47641d4dbe51f63542",
+    usdcName: "Bridged USDC",
+  },
 };
 
 export type ChainConfig = {
