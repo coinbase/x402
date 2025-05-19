@@ -1,0 +1,20 @@
+{
+  "name": "permit-transfer",
+  "version": "1.0.0",
+  "license": "MIT",
+  "author": "WallfacerLabs",
+  "repository": "https://github.com/coinbase/x402",
+  "description": "PermitTransfer contract for the x402 Payment Protocol",
+  "scripts": {
+    "install": "forge install || git submodule update --init --recursive",
+    "build": "forge build",
+    "test": "forge test",
+    "lint:sol": "solhint '{contracts,test}/**/*.sol'",
+    "lint:fmt": "forge fmt --check",
+    "lint:fix": "forge fmt",
+    "lint": "pnpm lint:sol && pnpm lint:fmt"
+  },
+  "devDependencies": {
+    "solhint": "^3.6.2"
+  }
+}

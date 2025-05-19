@@ -1,0 +1,28 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "avoid-suicide": "error",
+    "avoid-tx-origin": "off",
+    "compiler-version": ["error", ">=0.8.18"],
+    "const-name-snakecase": "off",
+    "custom-errors": "off",
+    "func-name-mixedcase": "off",
+    "func-visibility": [
+      "warn",
+      {
+        "ignoreConstructors": true,
+        "reentrancy": true
+      }
+    ],
+    "max-states-count": "off",
+    "no-empty-blocks": "off",
+    "no-inline-assembly": "off",
+    "no-unused-import": "error",
+    "not-rely-on-time": "off",
+    "one-contract-per-file": "off",
+    "private-vars-leading-underscore": "off",
+    "reason-string": "off",
+    "state-visibility": "off",
+    "var-name-mixedcase": "off"
+  }
+}
