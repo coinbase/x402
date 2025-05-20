@@ -78,4 +78,3 @@ export async function signAuthorization<transport extends Transport, chain exten
 export function createNonce(): Hex {
   return toHex(Date.now(), { size: 32 });
 }
-// 0x196eaefe3500000000000000000000
