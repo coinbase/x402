@@ -220,6 +220,11 @@ export function paymentMiddleware(
     // Proceed with request
     const response = await NextResponse.next();
 
+    // if the response from the protected route is >= 400, do not settle the payment
+    if (response.status >= 400) {
+      return response;
+    }
+
     // Settle payment after response
     try {
       const settlement = await settle(decodedPayment, selectedPaymentRequirements);
