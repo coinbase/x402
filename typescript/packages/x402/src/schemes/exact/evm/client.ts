@@ -19,11 +19,8 @@ export function preparePaymentHeader(
   nonce?: Hex,
 ): UnsignedPaymentPayload {
   if (!nonce) {
-    console.log("creating nonce");
     nonce = createNonce();
   }
-
-  console.log("nonce preparePaymentHeader", nonce);
 
   const validAfter = BigInt(
     Math.floor(Date.now() / 1000) - 600, // 10 minutes before
