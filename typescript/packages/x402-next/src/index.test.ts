@@ -677,16 +677,16 @@ describe("paymentMiddleware()", () => {
       network: "base-sepolia",
     });
 
-    // Mock NextResponse.next to return a 404 response
+    // Mock NextResponse.next to return a 500 response
     const originalNext = (await import("next/server")).NextResponse.next;
     const mockNext = vi.spyOn(require("next/server").NextResponse, "next").mockImplementation(() => {
-      return new Response("Not found", { status: 404 });
+      return new Response("Internal server error", { status: 500 });
     });
 
     const response = await middleware(request);
     console.log(response);
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(500);
     expect(mockSettle).not.toHaveBeenCalled();
 
     // Restore original NextResponse.next
