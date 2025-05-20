@@ -361,17 +361,17 @@ describe("paymentMiddleware()", () => {
       network: "base-sepolia",
     });
 
-    // Simulate downstream handler setting status 404
+    // Simulate downstream handler setting status 500
     (mockRes.status as ReturnType<typeof vi.fn>).mockImplementation(function (this: any, code: number) {
       this.statusCode = code;
       return this;
     });
-    mockRes.statusCode = 404;
+    mockRes.statusCode = 500;
 
-    // next() does nothing, but we want to simulate a 404 response
+    // next() does nothing, but we want to simulate a 500 response
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockSettle).not.toHaveBeenCalled();
-    expect(mockRes.statusCode).toBe(404);
+    expect(mockRes.statusCode).toBe(500);
   });
 });

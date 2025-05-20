@@ -372,7 +372,7 @@ describe("paymentMiddleware()", () => {
       network: "base-sepolia",
     });
 
-    // Simulate downstream handler setting status 404
+    // Simulate downstream handler setting status 500
     Object.defineProperty(mockContext.res, 'status', { value: 500, writable: true });
 
     await middleware(mockContext, mockNext);
