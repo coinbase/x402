@@ -1,4 +1,4 @@
-import { Account, Address, Chain, Transport } from "viem";
+import { Account, Address, Chain, Hex, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
@@ -16,8 +16,14 @@ export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
+  nonce?: Hex,
 ): UnsignedPaymentPayload {
-  const nonce = createNonce();
+  if (!nonce) {
+    console.log("creating nonce");
+    nonce = createNonce();
+  }
+
+  console.log("nonce preparePaymentHeader", nonce);
 
   const validAfter = BigInt(
     Math.floor(Date.now() / 1000) - 600, // 10 minutes before
