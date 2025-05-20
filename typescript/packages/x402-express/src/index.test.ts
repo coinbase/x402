@@ -368,9 +368,10 @@ describe("paymentMiddleware()", () => {
     });
     mockRes.statusCode = 500;
 
-    // next() does nothing, but we want to simulate a 500 response
+    // call the middleware
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
+    // make assertions
     expect(mockSettle).not.toHaveBeenCalled();
     expect(mockRes.statusCode).toBe(500);
   });
