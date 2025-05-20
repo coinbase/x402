@@ -653,4 +653,43 @@ describe("paymentMiddleware()", () => {
       },
     });
   });
+
+  it("should not settle payment if protected route returns status >= 400", async () => {
+    const validPayment = "valid-payment-header";
+    const request = {
+      ...mockRequest,
+      headers: new Headers({
+        "X-PAYMENT": validPayment,
+      }),
+    } as NextRequest;
+
+    const decodedPayment = {
+      scheme: "exact",
+      network: "base-sepolia",
+      x402Version: 1,
+    };
+    mockDecodePayment.mockReturnValue(decodedPayment);
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Mock NextResponse.next to return a 404 response
+    const originalNext = (await import("next/server")).NextResponse.next;
+    const mockNext = vi.spyOn(require("next/server").NextResponse, "next").mockImplementation(() => {
+      return new Response("Not found", { status: 404 });
+    });
+
+    const response = await middleware(request);
+    console.log(response);
+
+    expect(response.status).toBe(404);
+    expect(mockSettle).not.toHaveBeenCalled();
+
+    // Restore original NextResponse.next
+    mockNext.mockRestore();
+  });
 });
