@@ -10,14 +10,6 @@ import { exact } from "x402/schemes";
 import { useAccount, useSignTypedData } from "wagmi";
 import { Hex, toHex } from "viem";
 
-/*
-TODO next
-- createNonce is broken in browser context
-- go from signature to Payment Payload
-- send payment payload to action for settlement and cookie creation
-- middleware to check cookie
-*/
-
 function PaymentForm({
   paymentRequirements,
 }: {
@@ -71,7 +63,7 @@ function PaymentForm({
     const payment: string = exact.evm.encodePayment(paymentPayload);
 
     const verifyPaymentWithPayment = verifyPayment.bind(null, payment);
-    await verifyPaymentWithPayment();
+    const result = await verifyPaymentWithPayment();
     setIsProcessing(false);
   }
 
@@ -91,7 +83,7 @@ function PaymentForm({
         Pay
       </button>
       {isProcessing && <p>Processing...</p>}
-      {isSuccess && <p>Payment successful</p>}
+      {isSuccess && <p>Signed...</p>}
       {isError && <p>Payment failed</p>}
     </div>
   );
@@ -105,7 +97,7 @@ export default function Paywall() {
     resource: "https://example.com",
     description: "Payment for a service",
     mimeType: "text/html",
-    payTo: "0x0000000000000000000000000000000000000000",
+    payTo: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     maxTimeoutSeconds: 60,
     asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     outputSchema: undefined,
