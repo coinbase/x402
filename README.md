@@ -15,7 +15,7 @@ app.use(
 Payments on the internet are fundamentally flawed. Credit Cards are high friction, hard to accept, have minimum payments that are far too high, and don't fit into the programmatic nature of the internet.
 It's time for an open, internet-native form of payments. A payment rail that doesn't have high minimums + % based fee. Payments that are amazing for humans and AI agents.
 
-## Principals
+## Principles
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
 - **HTTP Native:** x402 is meant to seamlessly compliment the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
@@ -35,7 +35,7 @@ It's time for an open, internet-native form of payments. A payment rail that doe
 ## Technical Goals:
 
 - Permissionless and secure for clients and servers
-- Gassless for client and resource servers
+- Gasless for client and resource servers
 - Minimal integration for the resource server and client (1 line for the server, 1 function for the client)
 - Ability to trade off speed of response for guarantee of payment
 - Extensible to different payment flows and chains
@@ -46,12 +46,12 @@ The `x402` protocol is a chain agnostic standard for payments on top of HTTP, le
 
 It specifies:
 
-1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentRequirements`)
-2. A standard header `X-PAYMENT` that is set by clients paying for resources
-3. A standard schema and encoding method for data in the `X-PAYMENT` header
-4. A recommended flow for how payments should be verified and settled by a resource server
-5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`)
-6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response
+1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentRequirements`).
+2. A standard header `X-PAYMENT` that is set by clients paying for resources.
+3. A standard schema and encoding method for data in the `X-PAYMENT` header.
+4. A recommended flow for how payments should be verified and settled by a resource server.
+5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`).
+6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response.
 
 ### V1 Protocol Sequencing
 

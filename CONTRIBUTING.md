@@ -10,7 +10,7 @@ Language libraries should implement best practices of the language they target, 
 
 ## New Schemes
 
-Schemes dictate how funds are moved from client to server address. As such they will be thoroughly audited by CDP legal and security teams to ensure they are safe and do not put any parties in a compromising position.
+Schemes dictate how funds are moved from client to server address. As such, they will be thoroughly audited by CDP legal and security teams to ensure they are safe and do not put any parties in a compromising position.
 
 We recommend first proposing a scheme by opening a PR with a proposed spec into `specs/`, discussing the architecture and purpose in that PR, then once the PR is merged, moving on to implementation.
 
