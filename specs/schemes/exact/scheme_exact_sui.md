@@ -4,6 +4,24 @@
 
 The `exact` scheme on Sui relies on uses the `0x2::coin::Coin<T>` standard to transfer a specific amount of a particular coin type `T` from the payer to the resource server. The current approach requires the payer to form a complete signed transaction which results in the facilitator having no ability to adjust the transaction and direct funds anywhere but the address specified by the resource server in paymentRequirements.
 
+## Protocol Sequencing
+
+![](../../../static/sui-exact-flow.png)
+
+The following outlines the flow of the `exact` scheme on `Sui`:
+
+1. Client makes a request to a `resource server` and gets back a `402 Payment Required` response.
+2. If the client doesn't already have local information about the Coin object's it owns it can make a request to an RPC service to get a list of objects which can be used in transaction construction.
+3. If the server/facilitator supports sponsorship, and the client wants to make use of sponsorship, it can make a request to the provided sponsorship service following the sponsorship protocol that exists in Sui.
+4. Craft and sign a transaction to be used as payment.
+5. Resend the request to the `resource server` including the payment in the `X-PAYMENT` header.
+6. `resource server` passes the payment payload to the `facilitator` for verification.
+7. `resource server` does the work to fulfill the request.
+8. `resource server` requests settlement from the `facilitator`
+9. If sponsorship was used, the `facilitator` can provide its signature on the payload.
+10. `facilitator` submits the transaction to the `Sui` network for execution and reports back to the `resource server` the result of the transaction.
+11. `resource server` returns the response to the client.
+
 ## `X-Payment` header payload
 
 The `payload` field of the `X-PAYMENT` header must contain the following fields:
