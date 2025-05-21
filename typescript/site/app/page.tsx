@@ -10,6 +10,7 @@ import {
   CodeBracketIcon,
   BookOpenIcon,
   BriefcaseIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 import { FeatureItem } from './components/FeatureItem';
 import GithubIcon from './assets/github.svg';
@@ -17,6 +18,7 @@ import DiscordIcon from './assets/discord.svg';
 import WordmarkCondensed from './assets/x402_wordmark_dark.svg';
 import { Section } from './components/Section';
 import { BackgroundVideo } from './components/BackgroundVideo';
+import NavBar from './components/NavBar';
 
 const whatIsItFeatures = [
   {
@@ -86,55 +88,7 @@ export default function Home() {
 
       <div className="relative z-10">
         {/* Top nav */}
-        <section className="max-w-6xl mx-auto px-4 pt-4 lg:px-12">
-          <div className="flex gap-4 md:gap-8 justify-between sm:justify-end">
-            <Link
-              href="https://docs.google.com/forms/d/e/1FAIpQLSeESQAfvSlmjzl8JTcAOdzYjcWZ2O2GZjhuSeb8vTPpNys7FQ/viewform"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-            >
-              <QuestionMarkCircleIcon className="w-4 h-4 mr-1" />
-              Learn more
-            </Link>
-            <Link
-              href="/x402.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-            >
-              <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
-              One-pager
-            </Link>
-            <Link
-              href="/x402_brand_kit.zip"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-            >
-              <BriefcaseIcon className="w-4 h-4 mr-1" />
-              Brand kit
-            </Link>
-            <Link
-              href="https://github.com/coinbase/x402"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
-            >
-              <GithubIcon className="w-4 h-4 mr-1" fill="currentColor" />
-              GitHub
-            </Link>
-            <Link
-              href="https://discord.gg/invite/cdp"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
-            >
-              <DiscordIcon className="w-4 h-4 mr-1" fill="currentColor" />
-              Discord
-            </Link>
-          </div>
-        </section>
+        <NavBar />
         {/* Hero Section */}
         <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
           <div className="text-center">
@@ -173,6 +127,13 @@ export default function Home() {
               >
                 <CodeBracketIcon className="w-5 h-5 mr-1" />
                 Try it out
+              </Link>
+              <Link
+                href="/ecosystem"
+                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
+              >
+                <Squares2X2Icon className="w-5 h-5 mr-1" />
+                View Ecosystem
               </Link>
             </div>
           </div>
