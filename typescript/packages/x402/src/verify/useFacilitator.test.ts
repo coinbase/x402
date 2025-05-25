@@ -48,7 +48,7 @@ describe("useFacilitator", () => {
 
       expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
         method: "POST",
-        headers: undefined,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           x402Version: mockPaymentPayload.x402Version,
           paymentPayload: mockPaymentPayload,
@@ -64,7 +64,7 @@ describe("useFacilitator", () => {
 
       expect(fetch).toHaveBeenCalledWith(`${customUrl}/verify`, {
         method: "POST",
-        headers: undefined,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           x402Version: mockPaymentPayload.x402Version,
           paymentPayload: mockPaymentPayload,
@@ -87,7 +87,7 @@ describe("useFacilitator", () => {
       expect(fetch).toHaveBeenCalledWith(
         "https://x402.org/facilitator/verify",
         expect.objectContaining({
-          headers: mockHeaders.verify,
+          headers: { "Content-Type": "application/json", ...mockHeaders.verify },
         }),
       );
     });
@@ -113,7 +113,7 @@ describe("useFacilitator", () => {
 
       expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
         method: "POST",
-        headers: undefined,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           x402Version: mockPaymentPayload.x402Version,
           paymentPayload: mockPaymentPayload,
@@ -129,7 +129,7 @@ describe("useFacilitator", () => {
 
       expect(fetch).toHaveBeenCalledWith(`${customUrl}/settle`, {
         method: "POST",
-        headers: undefined,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           x402Version: mockPaymentPayload.x402Version,
           paymentPayload: mockPaymentPayload,
@@ -152,7 +152,7 @@ describe("useFacilitator", () => {
       expect(fetch).toHaveBeenCalledWith(
         "https://x402.org/facilitator/settle",
         expect.objectContaining({
-          headers: mockHeaders.settle,
+          headers: { "Content-Type": "application/json", ...mockHeaders.settle },
         }),
       );
     });
