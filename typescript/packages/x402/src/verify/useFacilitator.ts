@@ -38,9 +38,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(facilitator?.createAuthHeaders
-          ? (await facilitator.createAuthHeaders()).verify
-          : {}),
+        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).verify : {}),
       },
       body: JSON.stringify({
         x402Version: payload.x402Version,
@@ -73,9 +71,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(facilitator?.createAuthHeaders
-          ? (await facilitator.createAuthHeaders()).settle
-          : {}),
+        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).settle : {}),
       },
       body: JSON.stringify({
         x402Version: payload.x402Version,
