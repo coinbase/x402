@@ -36,9 +36,10 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
 
     const res = await fetch(`${url}/verify`, {
       method: "POST",
-      headers: facilitator?.createAuthHeaders
-        ? (await facilitator.createAuthHeaders()).verify
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).verify : {}),
+      },
       body: JSON.stringify({
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
@@ -68,9 +69,10 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
 
     const res = await fetch(`${url}/settle`, {
       method: "POST",
-      headers: facilitator?.createAuthHeaders
-        ? (await facilitator.createAuthHeaders()).settle
-        : undefined,
+      headers: {
+        "Content-Type": "application/json",
+        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).settle : {}),
+      },
       body: JSON.stringify({
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
