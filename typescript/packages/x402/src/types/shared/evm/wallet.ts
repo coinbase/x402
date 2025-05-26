@@ -9,7 +9,7 @@ import type {
   WalletActions,
   PublicClient,
 } from "viem";
-import { baseSepolia, avalancheFuji } from "viem/chains";
+import { baseSepolia, avalancheFuji, arbitrum, arbitrumSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -83,6 +83,66 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
 export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
   return createWalletClient({
     chain: avalancheFuji,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a public client configured for the Arbitrum One mainnet
+ *
+ * @returns A public client instance connected to Arbitrum One
+ */
+export function createClientArbitrumOne(): ConnectedClient<
+  Transport,
+  typeof arbitrum,
+  undefined
+> {
+  return createPublicClient({
+    chain: arbitrum,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a public client configured for the Arbitrum Sepolia testnet
+ *
+ * @returns A public client instance connected to Arbitrum Sepolia
+ */
+export function createClientArbitrumSepolia(): ConnectedClient<
+  Transport,
+  typeof arbitrumSepolia,
+  undefined
+> {
+  return createPublicClient({
+    chain: arbitrumSepolia,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the Arbitrum One mainnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Arbitrum One with the provided private key
+ */
+export function createSignerArbitrumOne(privateKey: Hex): SignerWallet<typeof arbitrum> {
+  return createWalletClient({
+    chain: arbitrum,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the Arbitrum Sepolia testnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Arbitrum Sepolia with the provided private key
+ */
+export function createSignerArbitrumSepolia(privateKey: Hex): SignerWallet<typeof arbitrumSepolia> {
+  return createWalletClient({
+    chain: arbitrumSepolia,
     transport: http(),
     account: privateKeyToAccount(privateKey),
   }).extend(publicActions);
