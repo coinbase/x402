@@ -110,8 +110,30 @@ public class PaymentFilter implements Filter {
             }
 
             vr = facilitator.verify(header, buildRequirements(path));
-        } catch (Exception ex) {
+        } catch (IllegalArgumentException ex) {
+            // Malformed payment header - client error
             respond402(response, path, "malformed X-PAYMENT header");
+            return;
+        } catch (IOException ex) {
+            // Network/communication error with facilitator - server error
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.setContentType("application/json");
+            try {
+                response.getWriter().write("{\"error\":\"Payment verification failed: " + ex.getMessage() + "\"}");
+            } catch (IOException writeEx) {
+                // If we can't write the response, at least set the status
+                System.err.println("Failed to write error response: " + writeEx.getMessage());
+            }
+            return;
+        } catch (Exception ex) {
+            // Other unexpected errors - server error
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            response.setContentType("application/json");
+            try {
+                response.getWriter().write("{\"error\":\"Internal server error during payment verification\"}");
+            } catch (IOException writeEx) {
+                System.err.println("Failed to write error response: " + writeEx.getMessage());
+            }
             return;
         }
 

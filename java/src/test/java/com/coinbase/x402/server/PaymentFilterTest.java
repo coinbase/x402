@@ -212,7 +212,9 @@ class PaymentFilterTest {
         
         filter.doFilter(req, resp, chain);
         
-        verify(resp).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
+        // IOException should return 500 status, not 402
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
         verify(chain, never()).doFilter(any(), any());
     }
 
@@ -455,5 +457,61 @@ class PaymentFilterTest {
         // Verify the JSON contains null payer when authorization is malformed
         org.junit.jupiter.api.Assertions.assertTrue(jsonString.contains("\"payer\":null"),
             "Settlement response should contain null payer when authorization malformed: " + jsonString);
+    }
+
+    /* ------------ facilitator IOException returns 500 --------------------- */
+    @Test
+    void facilitatorIOExceptionReturns500() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+        
+        // Create a valid header
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme = "exact";
+        p.network = "base-sepolia";
+        p.payload = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+        
+        // Make facilitator throw IOException during verify
+        when(fac.verify(any(), any())).thenThrow(new IOException("Network timeout"));
+        
+        filter.doFilter(req, resp, chain);
+        
+        // Should return 500 status for network errors
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+        verify(chain, never()).doFilter(any(), any());
+        
+        // Verify error message is written to response
+        verify(resp).getWriter();
+    }
+
+    /* ------------ facilitator unexpected exception returns 500 ------------ */
+    @Test
+    void facilitatorUnexpectedExceptionReturns500() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+        
+        // Create a valid header
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme = "exact";
+        p.network = "base-sepolia";
+        p.payload = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+        
+        // Make facilitator throw unexpected exception during verify
+        when(fac.verify(any(), any())).thenThrow(new RuntimeException("Unexpected error"));
+        
+        filter.doFilter(req, resp, chain);
+        
+        // Should return 500 status for unexpected errors
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(resp).setContentType("application/json");
+        verify(chain, never()).doFilter(any(), any());
+        
+        // Verify error message is written to response
+        verify(resp).getWriter();
     }
 }
