@@ -143,8 +143,13 @@ function updatePaymentUI(x402: Window["x402"]) {
   }
 
   const instructionsEl = document.getElementById("instructions");
-  if (!testnet && instructionsEl) {
-    instructionsEl.classList.add("hidden");
+  if (instructionsEl) {
+    // Only show the faucet link instructions when in testnet mode
+    if (testnet) {
+      instructionsEl.style.display = "block";
+    } else {
+      instructionsEl.style.display = "none";
+    }
   }
 
   const amountEl = document.getElementById("payment-amount");

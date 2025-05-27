@@ -19,7 +19,7 @@ export function getBaseTemplate(): string {
           <div class="header">
             <h1 class="title">Payment Required</h1>
             <p class="subtitle" id="payment-description">Loading payment details...</p>
-            <p class="instructions" id="instructions">Need Base Sepolia USDC? <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Get some here.</a></p>
+            <p class="instructions" id="instructions" style="display: none;">Need Base Sepolia USDC? <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Get some here.</a></p>
           </div>
 
           <div class="content">
