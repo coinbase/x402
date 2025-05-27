@@ -29,12 +29,22 @@ public class X402HttpClient {
 
     private final CryptoSigner signer;
 
+    /**
+     * Creates a new X402 HTTP client with the specified crypto signer.
+     *
+     * @param signer the crypto signer for signing payment headers
+     */
     public X402HttpClient(CryptoSigner signer) {
         this.signer = signer;
     }
 
     /**
-     * Protected method that can be overridden in tests to mock HTTP responses
+     * Protected method that can be overridden in tests to mock HTTP responses.
+     *
+     * @param request the HTTP request to send
+     * @return the HTTP response
+     * @throws IOException if an I/O error occurs
+     * @throws InterruptedException if the request is interrupted
      */
     protected HttpResponse<String> sendRequest(HttpRequest request) throws IOException, InterruptedException {
         return http.send(request, HttpResponse.BodyHandlers.ofString());

@@ -24,6 +24,11 @@ public class HttpFacilitatorClient implements FacilitatorClient {
 
     private final String baseUrl;   // without trailing “/”
 
+    /**
+     * Creates a new HTTP facilitator client.
+     *
+     * @param baseUrl the base URL of the facilitator service (trailing slash will be removed)
+     */
     public HttpFacilitatorClient(String baseUrl) {
         this.baseUrl = baseUrl.endsWith("/")
                 ? baseUrl.substring(0, baseUrl.length() - 1)
