@@ -9,7 +9,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
         with:
-        run_install: false
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
