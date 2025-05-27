@@ -59,7 +59,7 @@ The examples are designed to work with the main X402 packages, so they must be b
 
 The examples in this folder commonly use private keys to sign messages. **Never put a private key with mainnet funds in a `.env` file**. This can result in keys getting checked into codebases and being drained.
 
-There are many ways to generate a keypair to use exclusively for development, on way is via foundry:
+There are many ways to generate a keypair to use exclusively for development, one way is via foundry:
 
 ```
 # install foundry
