@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const NetworkSchema = z.enum(["base-sepolia", "base", "avalanche-fuji", "avalanche", "arbitrum-sepolia", "arbitrum-one"]);
+export const NetworkSchema = z.enum([
+  "base-sepolia",
+  "base",
+  "avalanche-fuji",
+  "avalanche",
+  "arbitrum-sepolia",
+  "arbitrum-one",
+]);
 export type Network = z.infer<typeof NetworkSchema>;
 
 export const SupportedEVMNetworks: Network[] = [

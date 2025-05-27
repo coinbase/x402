@@ -93,11 +93,7 @@ export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof 
  *
  * @returns A public client instance connected to Arbitrum One
  */
-export function createClientArbitrumOne(): ConnectedClient<
-  Transport,
-  typeof arbitrum,
-  undefined
-> {
+export function createClientArbitrumOne(): ConnectedClient<Transport, typeof arbitrum, undefined> {
   return createPublicClient({
     chain: arbitrum,
     transport: http(),
