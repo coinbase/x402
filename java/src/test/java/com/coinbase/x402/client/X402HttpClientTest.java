@@ -1,6 +1,7 @@
 package com.coinbase.x402.client;
 
 import com.coinbase.x402.crypto.CryptoSigner;
+import com.coinbase.x402.crypto.CryptoSignException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -43,7 +44,7 @@ class X402HttpClientTest {
     }
 
     @Test
-    void testGet() throws IOException, InterruptedException {
+    void testGet() throws IOException, InterruptedException, CryptoSignException {
         // Setup
         URI uri = URI.create("https://example.com/private");
         BigInteger amount = BigInteger.valueOf(1000);
@@ -62,14 +63,18 @@ class X402HttpClientTest {
         assertEquals("{\"ok\":true}", response.body());
         
         // Verify signer was called with proper payload
-        verify(mockSigner).sign(argThat(payload -> {
-            assertEquals(amount.toString(), payload.get("amount"));
-            assertEquals(assetContract, payload.get("asset"));
-            assertEquals(payTo, payload.get("payTo"));
-            assertEquals("/private", payload.get("resource"));
-            assertNotNull(payload.get("nonce"));
-            return true;
-        }));
+        try {
+            verify(mockSigner).sign(argThat(payload -> {
+                assertEquals(amount.toString(), payload.get("amount"));
+                assertEquals(assetContract, payload.get("asset"));
+                assertEquals(payTo, payload.get("payTo"));
+                assertEquals("/private", payload.get("resource"));
+                assertNotNull(payload.get("nonce"));
+                return true;
+            }));
+        } catch (CryptoSignException e) {
+            fail("Unexpected CryptoSignException: " + e.getMessage());
+        }
     }
     
     @Test

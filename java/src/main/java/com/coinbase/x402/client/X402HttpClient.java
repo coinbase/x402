@@ -1,6 +1,7 @@
 package com.coinbase.x402.client;
 
 import com.coinbase.x402.crypto.CryptoSigner;
+import com.coinbase.x402.crypto.CryptoSignException;
 import com.coinbase.x402.model.PaymentPayload;
 
 import java.io.IOException;
@@ -73,7 +74,11 @@ public class X402HttpClient {
         pl.put("payTo",    payTo);
         pl.put("resource", uri.getPath());
         pl.put("nonce",    UUID.randomUUID().toString());
-        pl.put("signature", signer.sign(pl));      // <-- signer injected
+        try {
+            pl.put("signature", signer.sign(pl));      // <-- signer injected
+        } catch (CryptoSignException e) {
+            throw new RuntimeException("Failed to sign payment payload", e);
+        }
         /* ---------------------------------------------------------------- */
 
         PaymentPayload p = new PaymentPayload();
