@@ -57,7 +57,7 @@ describe("preparePaymentHeader", () => {
           from: mockFromAddress,
           to: mockPaymentRequirements.payTo,
           value: mockPaymentRequirements.maxAmountRequired,
-          validAfter: (currentTime - 60).toString(),
+          validAfter: (currentTime - 600).toString(),
           validBefore: (currentTime + mockPaymentRequirements.maxTimeoutSeconds).toString(),
           nonce: expect.any(String),
         },
@@ -79,7 +79,7 @@ describe("preparePaymentHeader", () => {
     const currentTime = Math.floor(Date.now() / 1000);
     const validAfter = parseInt(result.payload.authorization.validAfter);
 
-    expect(validAfter).toBe(currentTime - 60);
+    expect(validAfter).toBe(currentTime - 600);
   });
 
   it("should calculate validBefore as current time plus maxTimeoutSeconds", () => {
