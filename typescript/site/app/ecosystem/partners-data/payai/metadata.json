@@ -1,0 +1,7 @@
+{
+  "name": "PayAI Echo Merchant",
+  "description": "PayAI Echo Merchant lets developers test their x402 clients and payments against a live server, for free. All payments are refunded!",
+  "logoUrl": "/logos/payai.svg",
+  "websiteUrl": "https://x402.payai.network",
+  "category": "Ecosystem Infrastructure & Tooling"
+}
