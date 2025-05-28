@@ -564,6 +564,37 @@ importers:
         specifier: ^5.3.0
         version: 5.8.3
 
+  clients/chainlink-vrf-nft:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.8
+        version: 1.14.1(hono@4.7.7)
+      axios:
+        specifier: ^1.7.9
+        version: 1.8.4
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.5.0
+      hono:
+        specifier: ^4.7.2
+        version: 4.7.7
+      viem:
+        specifier: ^2.23.5
+        version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      x402:
+        specifier: file:../../../../typescript/packages/x402
+        version: file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      x402-axios:
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-axios
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.5
+        version: 22.15.3
+      tsx:
+        specifier: ^4.19.3
+        version: 4.19.3
+
   clients/fetch:
     dependencies:
       axios:
@@ -6861,6 +6892,9 @@ packages:
 
   x402@0.3.3:
     resolution: {integrity: sha512-77Bc6xi8bo0V4Sw3FU+oW8kNcPRROd6B+MKaSKrGacoA8BtYGI6oTdPOxG0eZiGGXe2Vh9VsTCVtpjbTigMMGg==}
+
+  x402@file:../../typescript/packages/x402:
+    resolution: {directory: ../../typescript/packages/x402, type: directory}
 
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
@@ -14157,6 +14191,15 @@ snapshots:
       - bufferutil
       - debug
       - encoding
+      - typescript
+      - utf-8-validate
+
+  x402@file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10):
+    dependencies:
+      viem: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      zod: 3.24.3
+    transitivePeerDependencies:
+      - bufferutil
       - typescript
       - utf-8-validate
 

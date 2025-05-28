@@ -24,6 +24,7 @@ Examples of different client implementations for interacting with X402 services:
 - `axios/` - Example using the Axios interceptor from `x402-axios`
 - `fetch/` - Example using the fetch wrapper from `x402-fetch`
 - `mcp/` - Example using MCP (Model Context Protocol) as a client using `x402-axios`
+- `vrfnft/` - Example using [Chainlink](docs.chain.link) to mint a randomized NFT (See them on [Opensea](https://testnets.opensea.io/collection/vrfnft-1)) which uses `x402-axios`.
 
 ### Facilitator
 
