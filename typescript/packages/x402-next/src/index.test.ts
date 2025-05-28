@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
 import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
@@ -678,9 +678,8 @@ describe("paymentMiddleware()", () => {
     });
 
     // Mock NextResponse.next to return a 500 response
-    const originalNext = (await import("next/server")).NextResponse.next;
-    const mockNext = vi.spyOn(require("next/server").NextResponse, "next").mockImplementation(() => {
-      return new Response("Internal server error", { status: 500 });
+    const mockNext = vi.spyOn(NextResponse, "next").mockImplementation(() => {
+      return new NextResponse("Internal server error", { status: 500 });
     });
 
     const response = await middleware(request);

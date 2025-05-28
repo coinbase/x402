@@ -373,7 +373,7 @@ describe("paymentMiddleware()", () => {
     });
 
     // Simulate downstream handler setting status 500
-    Object.defineProperty(mockContext.res, 'status', { value: 500, writable: true });
+    Object.defineProperty(mockContext.res, "status", { value: 500, writable: true });
 
     await middleware(mockContext, mockNext);
 

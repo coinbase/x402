@@ -362,7 +362,10 @@ describe("paymentMiddleware()", () => {
     });
 
     // Simulate downstream handler setting status 500
-    (mockRes.status as ReturnType<typeof vi.fn>).mockImplementation(function (this: any, code: number) {
+    (mockRes.status as ReturnType<typeof vi.fn>).mockImplementation(function (
+      this: Response,
+      code: number,
+    ) {
       this.statusCode = code;
       return this;
     });
