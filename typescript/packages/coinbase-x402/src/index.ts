@@ -5,7 +5,7 @@ import { CreateHeaders } from "x402/verify";
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
-const X402_VERSION = "0.3.6";
+const X402_VERSION = "0.3.7";
 const SDK_VERSION = "1.1.1";
 
 /**
