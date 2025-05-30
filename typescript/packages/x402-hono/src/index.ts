@@ -197,6 +197,12 @@ export function paymentMiddleware(
     await next();
 
     let res = c.res;
+
+    // If the response from the protected route is >= 400, do not settle payment
+    if (res.status >= 400) {
+      return;
+    }
+
     c.res = undefined;
 
     // Settle payment before processing the request, as Hono middleware does not allow us to set headers after the response has been sent
