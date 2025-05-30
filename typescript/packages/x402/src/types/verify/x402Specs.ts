@@ -9,7 +9,24 @@ const EvmSignatureRegex = /^0x[0-9a-fA-F]{130}$/;
 // Enums
 export const schemes = ["exact"] as const;
 export const x402Versions = [1] as const;
-export const ErrorReasons = ["insufficient_funds", "invalid_scheme", "invalid_network"] as const;
+export const ErrorReasons = [
+  "insufficient_funds",
+  "invalid_exact_evm_payload_authorization_valid_after",
+  "invalid_exact_evm_payload_authorization_valid_before",
+  "invalid_exact_evm_payload_authorization_value",
+  "invalid_exact_evm_payload_signature",
+  "invalid_exact_evm_payload_recipient_mismatch",
+  "invalid_network",
+  "invalid_payload",
+  "invalid_payment_requirements",
+  "invalid_scheme",
+  "unsupported_scheme",
+  "invalid_x402_version",
+  "invalid_transaction_state",
+  "unexpected_verify_error",
+  "unexpected_settle_error",
+] as const;
+
 // Refiners
 const isInteger = (value: string) => Number.isInteger(Number(value)) && Number(value) >= 0;
 const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
