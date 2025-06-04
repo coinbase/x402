@@ -27,9 +27,14 @@ func NewFacilitatorClient(config *types.FacilitatorConfig) *FacilitatorClient {
 		}
 	}
 
+	httpCli := &http.Client{}
+	if config.Timeout != nil {
+		httpCli.Timeout = config.Timeout()
+	}
+
 	return &FacilitatorClient{
 		URL:               config.URL,
-		HTTPClient:        http.DefaultClient,
+		HTTPClient:        httpCli,
 		CreateAuthHeaders: config.CreateAuthHeaders,
 	}
 }
