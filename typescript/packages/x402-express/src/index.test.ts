@@ -349,4 +349,33 @@ describe("paymentMiddleware()", () => {
     // Should not try to send another response since headers are already sent
     expect(mockRes.status).not.toHaveBeenCalledWith(402);
   });
+
+  it("should not settle payment if protected route returns status >= 400", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Simulate downstream handler setting status 500
+    (mockRes.status as ReturnType<typeof vi.fn>).mockImplementation(function (
+      this: Response,
+      code: number,
+    ) {
+      this.statusCode = code;
+      return this;
+    });
+    mockRes.statusCode = 500;
+
+    // call the middleware
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    // make assertions
+    expect(mockSettle).not.toHaveBeenCalled();
+    expect(mockRes.statusCode).toBe(500);
+  });
 });

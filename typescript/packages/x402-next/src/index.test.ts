@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
 import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
@@ -652,5 +652,43 @@ describe("paymentMiddleware()", () => {
         version: "2",
       },
     });
+  });
+
+  it("should not settle payment if protected route returns status >= 400", async () => {
+    const validPayment = "valid-payment-header";
+    const request = {
+      ...mockRequest,
+      headers: new Headers({
+        "X-PAYMENT": validPayment,
+      }),
+    } as NextRequest;
+
+    const decodedPayment = {
+      scheme: "exact",
+      network: "base-sepolia",
+      x402Version: 1,
+    };
+    mockDecodePayment.mockReturnValue(decodedPayment);
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Mock NextResponse.next to return a 500 response
+    const mockNext = vi.spyOn(NextResponse, "next").mockImplementation(() => {
+      return new NextResponse("Internal server error", { status: 500 });
+    });
+
+    const response = await middleware(request);
+    console.log(response);
+
+    expect(response.status).toBe(500);
+    expect(mockSettle).not.toHaveBeenCalled();
+
+    // Restore original NextResponse.next
+    mockNext.mockRestore();
   });
 });

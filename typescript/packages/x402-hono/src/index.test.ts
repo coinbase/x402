@@ -359,4 +359,25 @@ describe("paymentMiddleware()", () => {
       402,
     );
   });
+
+  it("should not settle payment if protected route returns status >= 400", async () => {
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Simulate downstream handler setting status 500
+    Object.defineProperty(mockContext.res, "status", { value: 500, writable: true });
+
+    await middleware(mockContext, mockNext);
+
+    expect(mockSettle).not.toHaveBeenCalled();
+    expect(mockContext.res.status).toBe(500);
+  });
 });

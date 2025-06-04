@@ -3,6 +3,7 @@ import {
   PaymentPayloadSchema,
   PaymentRequirements,
   PaymentRequirementsSchema,
+  VerifyResponse,
   evm,
 } from "x402/types";
 import { verify } from "x402/facilitator";
@@ -23,12 +24,50 @@ const client = evm.createClientSepolia();
 export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
 
-  const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-  const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
+  let paymentPayload: PaymentPayload;
+  try {
+    paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+  } catch (error) {
+    console.error("Invalid payment payload:", error);
+    return Response.json(
+      {
+        isValid: false,
+        invalidReason: "invalid_payload",
+        payer: body.paymentPayload?.payload?.authorization?.from ?? "",
+      } as VerifyResponse,
+      { status: 400 },
+    );
+  }
 
-  const valid = await verify(client, paymentPayload, paymentRequirements);
+  let paymentRequirements: PaymentRequirements;
+  try {
+    paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
+  } catch (error) {
+    console.error("Invalid payment requirements:", error);
+    return Response.json(
+      {
+        isValid: false,
+        invalidReason: "invalid_payment_requirements",
+        payer: paymentPayload.payload.authorization.from,
+      } as VerifyResponse,
+      { status: 400 },
+    );
+  }
 
-  return Response.json(valid);
+  try {
+    const valid = await verify(client, paymentPayload, paymentRequirements);
+    return Response.json(valid);
+  } catch (error) {
+    console.error("Error verifying payment:", error);
+    return Response.json(
+      {
+        isValid: false,
+        invalidReason: "unexpected_verify_error",
+        payer: paymentPayload.payload.authorization.from,
+      } as VerifyResponse,
+      { status: 500 },
+    );
+  }
 }
 
 /**
