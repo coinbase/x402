@@ -166,7 +166,7 @@ describe("useFacilitator", () => {
       const { settle } = useFacilitator();
 
       await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to settle payment: Bad Request",
+        "Failed to settle payment: 400 Bad Request",
       );
     });
   });
