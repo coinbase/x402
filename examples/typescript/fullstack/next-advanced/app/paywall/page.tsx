@@ -21,7 +21,6 @@ function PaymentForm({
     address,
     1,
     paymentRequirements
-    // nonce
   );
 
   const eip712Data = {

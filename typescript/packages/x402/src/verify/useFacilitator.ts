@@ -88,9 +88,8 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
-      throw new Error(
-        `Failed to settle payment: ${res.status} ${res.statusText} ${await res.text()}`,
-      );
+      const text = res.statusText;
+      throw new Error(`Failed to settle payment: ${res.status} ${text}`);
     }
 
     const data = await res.json();

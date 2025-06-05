@@ -10,18 +10,14 @@ import { encodePayment } from "./utils/paymentUtils";
  * @param from - The sender's address from which the payment will be made
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @param nonce - The nonce to use for the payment (optional, defaults to random bytes)
  * @returns An unsigned payment payload containing authorization details
  */
 export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-  nonce?: Hex,
 ): UnsignedPaymentPayload {
-  if (!nonce) {
-    nonce = createNonce();
-  }
+  const nonce = createNonce();
 
   const validAfter = BigInt(
     Math.floor(Date.now() / 1000) - 600, // 10 minutes before

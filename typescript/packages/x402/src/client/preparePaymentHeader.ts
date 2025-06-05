@@ -9,20 +9,18 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
  * @param from - The sender's address from which the payment will be made
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @param nonce - The nonce to use for the payment (optional, defaults to random bytes)
  * @returns An unsigned payment payload that can be used to create a payment header
  */
 export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-  nonce?: Hex,
 ): UnsignedPaymentPayload {
   if (
     paymentRequirements.scheme === "exact" &&
     SupportedEVMNetworks.includes(paymentRequirements.network)
   ) {
-    return preparePaymentHeaderExactEVM(from, x402Version, paymentRequirements, nonce);
+    return preparePaymentHeaderExactEVM(from, x402Version, paymentRequirements);
   }
 
   throw new Error("Unsupported scheme");
