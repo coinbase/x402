@@ -1,4 +1,4 @@
-import { Account, Address, Chain, Hex, Transport } from "viem";
+import { Account, Address, Chain, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";

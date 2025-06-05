@@ -1,4 +1,4 @@
-import { Address, Hex } from "viem";
+import { Address } from "viem";
 import { preparePaymentHeader as preparePaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { SupportedEVMNetworks } from "../types/shared";
 import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
