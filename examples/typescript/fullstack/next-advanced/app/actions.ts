@@ -25,7 +25,7 @@ export async function verifyPayment(payload: string): Promise<string> {
     },
   };
 
-  const { verify, settle } = useFacilitator();
+  const { verify, settle } = useFacilitator(); // eslint-disable-line
 
   try {
     const payment = exact.evm.decodePayment(payload);

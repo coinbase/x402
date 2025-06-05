@@ -9,6 +9,7 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
  * @param from - The sender's address from which the payment will be made
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
+ * @param nonce - The nonce to use for the payment (optional, defaults to random bytes)
  * @returns An unsigned payment payload that can be used to create a payment header
  */
 export function preparePaymentHeader(

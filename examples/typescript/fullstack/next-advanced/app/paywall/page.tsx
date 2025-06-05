@@ -1,14 +1,13 @@
 "use client";
 
 import { Wallet } from "@coinbase/onchainkit/wallet";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { verifyPayment } from "../actions";
 import { PaymentRequirements, PaymentPayload } from "x402/types";
 import { preparePaymentHeader } from "x402/client";
 import { getNetworkId } from "x402/shared";
 import { exact } from "x402/schemes";
 import { useAccount, useSignTypedData } from "wagmi";
-import { Hex, toHex } from "viem";
 
 function PaymentForm({
   paymentRequirements,
@@ -64,6 +63,7 @@ function PaymentForm({
 
     const verifyPaymentWithPayment = verifyPayment.bind(null, payment);
     const result = await verifyPaymentWithPayment();
+    console.log("result", result);
     setIsProcessing(false);
   }
 

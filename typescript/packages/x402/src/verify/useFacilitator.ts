@@ -74,19 +74,12 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
-      headers = { ...headers, ...authHeaders.verify };
+      headers = { ...headers, ...authHeaders.settle };
     }
 
     const res = await fetch(`${url}/settle`, {
       method: "POST",
-<<<<<<< HEAD
-      headers: {
-        "Content-Type": "application/json",
-        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).settle : {}),
-      },
-=======
       headers,
->>>>>>> 9909330 (Fix bug in zero address being used in example)
       body: JSON.stringify({
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
