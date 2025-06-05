@@ -1,11 +1,4 @@
-import { ChainIdToNetwork, PaymentRequirementsSchema } from "x402/types";
-import { evm } from "x402/types";
-import {
-  createPaymentHeader,
-  type PaymentRequirementsSelector,
-  selectPaymentRequirements,
-} from "x402/client";
-import type { Account } from "viem";
+// typescript/packages/x402-browser-fetch/src/index.ts
 import { safeBase64Encode } from "x402/shared";
 import type { PaymentRequirements, PaymentPayload } from "x402/types";
 import { createNonce } from "../../x402/src/schemes/exact/evm/sign";
@@ -13,100 +6,6 @@ import { authorizationTypes } from "../../x402/src/types/shared/evm";
 import { getNetworkId } from "../../x402/src/shared/network";
 import { config } from "../../x402/src/types/shared/evm/config";
 import type { TypedData, TypedDataDomain } from "viem";
-
-/**
- * Enables the payment of APIs using the x402 payment protocol.
- *
- * This function wraps the native fetch API to automatically handle 402 Payment Required responses
- * by creating and sending a payment header. It will:
- * 1. Make the initial request
- * 2. If a 402 response is received, parse the payment requirements
- * 3. Verify the payment amount is within the allowed maximum
- * 4. Create a payment header using the provided wallet client
- * 5. Retry the request with the payment header
- *
- * @param fetch - The fetch function to wrap (typically globalThis.fetch)
- * @param walletClient - The wallet client used to sign payment messages
- * @param maxValue - The maximum allowed payment amount in base units (defaults to 0.1 USDC)
- * @param paymentRequirementsSelector - A function that selects the payment requirements from the response
- * @returns A wrapped fetch function that handles 402 responses automatically
- *
- * @example
- * ```typescript
- * const wallet = new SignerWallet(...);
- * const fetchWithPay = wrapFetchWithPayment(fetch, wallet);
- *
- * // Make a request that may require payment
- * const response = await fetchWithPay('https://api.example.com/paid-endpoint');
- * ```
- *
- * @throws {Error} If the payment amount exceeds the maximum allowed value
- * @throws {Error} If the request configuration is missing
- * @throws {Error} If a payment has already been attempted for this request
- * @throws {Error} If there's an error creating the payment header
- */
-export function wrapFetchWithPayment(
-  fetch: typeof globalThis.fetch,
-  walletClient: typeof evm.SignerWallet | Account,
-  maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
-  paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
-) {
-  return async (input: RequestInfo, init?: RequestInit) => {
-    const response = await fetch(input, init);
-
-    if (response.status !== 402) {
-      return response;
-    }
-
-    const { x402Version, accepts } = (await response.json()) as {
-      x402Version: number;
-      accepts: unknown[];
-    };
-    const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
-
-    const chainId = evm.isSignerWallet(walletClient)
-      ? walletClient.chain?.id
-      : evm.isAccount(walletClient)
-        ? walletClient.client?.chain?.id
-        : undefined;
-    const selectedPaymentRequirements = paymentRequirementsSelector(
-      parsedPaymentRequirements,
-      chainId ? ChainIdToNetwork[chainId] : undefined,
-      "exact",
-    );
-
-    if (BigInt(selectedPaymentRequirements.maxAmountRequired) > maxValue) {
-      throw new Error("Payment amount exceeds maximum allowed");
-    }
-
-    const paymentHeader = await createPaymentHeader(
-      walletClient,
-      x402Version,
-      selectedPaymentRequirements,
-    );
-
-    if (!init) {
-      throw new Error("Missing fetch request configuration");
-    }
-
-    if ((init as { __is402Retry?: boolean }).__is402Retry) {
-      throw new Error("Payment already attempted");
-    }
-
-    const newInit = {
-      ...init,
-      headers: {
-        ...(init.headers || {}),
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-      },
-      __is402Retry: true,
-    };
-
-    const secondResponse = await fetch(input, newInit);
-    return secondResponse;
-  };
-}
 
 /**
  * EIP-712 typed data structure for signing.
@@ -287,6 +186,6 @@ export function wrapBrowserFetchWithPayment(
   };
 }
 
+// Export commonly needed utilities for browser environments
 export { safeBase64Encode } from "x402/shared";
 export type { PaymentRequirements, PaymentPayload } from "x402/types";
-export { decodeXPaymentResponse } from "x402/shared";
