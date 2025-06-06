@@ -1,10 +1,13 @@
 package facilitatorclient_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/coinbase/x402/go/pkg/facilitatorclient"
 	"github.com/coinbase/x402/go/pkg/types"
@@ -139,6 +142,41 @@ func TestSettle(t *testing.T) {
 	}
 	if resp.Network != "base-sepolia" {
 		t.Errorf("Expected network 'base-sepolia', got: %s", resp.Network)
+	}
+}
+
+func TestTimeout(t *testing.T) {
+	timeoutDuration := time.Millisecond * 100
+
+	// Create test server that takes a while to respond
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * timeoutDuration)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	config := &types.FacilitatorConfig{
+		URL: server.URL,
+		Timeout: func() time.Duration {
+			return timeoutDuration
+		},
+	}
+
+	// Create client with test server URL and a timeout option
+	client := facilitatorclient.NewFacilitatorClient(config)
+
+	// Test data
+	paymentPayload := &types.PaymentPayload{}
+	paymentRequirements := &types.PaymentRequirements{}
+
+	// Test verify with timeout
+	_, err := client.Verify(paymentPayload, paymentRequirements)
+	t.Log(err)
+	if err == nil {
+		t.Error("Expected timeout error, got err == nil")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Expected context deadline exceeded error, got: %v", err)
 	}
 }
 
