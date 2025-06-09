@@ -33,10 +33,8 @@ export async function signAuthorization<transport extends Transport, chain exten
   const chainId = getNetworkId(network);
   const name = extra?.name;
   const version = extra?.version;
-  const account = isSignerWallet(walletClient) ? walletClient.account : walletClient;
 
   const data = {
-    account,
     types: authorizationTypes,
     domain: {
       name,
