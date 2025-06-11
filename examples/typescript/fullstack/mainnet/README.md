@@ -34,35 +34,33 @@ pnpm dev
 The app includes protected routes that require payment to access:
 
 ### Protected Page Route
-The `/protected` route requires a payment of $0.01 to access. The route is protected using the x402-next middleware:
+The `/protected` route requires a payment of $0.001 to access. The route is protected using the x402-next middleware:
 
 ```typescript
 // middleware.ts
 import { paymentMiddleware, Network, Resource } from "x402-next";
+import { facilitator } from "@coinbase/x402";
 
-const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
 const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
-const network = process.env.NETWORK as Network;
 
 export const middleware = paymentMiddleware(
   payTo,
   {
     "/protected": {
-      price: "$0.01",
-      network,
+      price: "$0.001",
+      network: "base",
       config: {
         description: "Access to protected content",
       },
     },
   },
-  {
-    url: facilitatorUrl,
-  },
+  facilitator
 );
 
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/protected/:path*"],
+  runtime: "nodejs",
 };
 ```
 
@@ -105,15 +103,15 @@ export const middleware = paymentMiddleware(
   payTo,
   {
     "/protected": {
-      price: "$0.01",
-      network,
+      price: "$0.001",
+      network: "base",
       config: {
         description: "Access to protected content",
       },
     },
     "/api/premium": {
-      price: "$0.10",
-      network,
+      price: "$0.01",
+      network: "base",
       config: {
         description: "Premium API access",
       },
@@ -123,5 +121,47 @@ export const middleware = paymentMiddleware(
 
 export const config = {
   matcher: ["/protected/:path*", "/api/premium/:path*"],
+  runtime: "nodejs",
 };
 ```
+
+## Accessing Mainnet
+
+To access the mainnet facilitator in NextJs, a temporary workaround is currently needed. The `@coinbase/x402` package currently only supports Node.js runtimes and is incompatible with the Edge runtime. Coinbase is actively working on Edge runtime compatibility.
+
+As a **temporary solution** until official support is available, you can enable the Node.js runtime for middleware:
+
+1. Enable Node middleware as an experimental feature:
+
+```ts
+// next.config.ts
+const nextConfig: NextConfig = {
+  // rest of your next config setup
+  experimental: {
+    nodeMiddleware: true,
+  }
+};
+```
+
+2. Specify the Node.js runtime in your middleware:
+
+```ts
+// middleware.ts
+export const config = {
+  // rest of your config setup
+  runtime: 'nodejs',
+};
+```
+
+3. Use the `canary` version of Next.js to access experimental features:
+
+```json
+// package.json
+{
+  "dependencies": {
+    "next": "canary",
+  }
+}
+```
+
+**Note:** This approach is only needed temporarily while awaiting official Edge runtime support in the x402 package.
