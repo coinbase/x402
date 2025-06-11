@@ -92,11 +92,11 @@ app.post("/settle", async (req, res) => {
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
     const response = await settle(signer, paymentPayload, paymentRequirements);
     res.json(response);
-  } catch {
-    res.status(400).json({ error: "Invalid request" });
+  } catch (error) {
+    res.status(400).json({ error: `Invalid request: ${error}` });
   }
 });
 
-app.listen(3000, () => {
-  console.log(`Server listening at http://localhost:3000`);
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
 });

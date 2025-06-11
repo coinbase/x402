@@ -5,7 +5,7 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
 
 /**
  * Prepares a payment header with the given sender address and payment requirements.
- * 
+ *
  * @param from - The sender's address from which the payment will be made
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
