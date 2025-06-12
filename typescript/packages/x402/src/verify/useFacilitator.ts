@@ -34,12 +34,15 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<VerifyResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
+    let headers = { "Content-Type": "application/json" };
+    if (facilitator?.createAuthHeaders) {
+      const authHeaders = await facilitator.createAuthHeaders();
+      headers = { ...headers, ...authHeaders.verify };
+    }
+
     const res = await fetch(`${url}/verify`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).verify : {}),
-      },
+      headers,
       body: JSON.stringify({
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
@@ -51,7 +54,8 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       throw new Error(`Failed to verify payment: ${res.statusText}`);
     }
 
-    return (await res.json()) as VerifyResponse;
+    const data = await res.json();
+    return data as VerifyResponse;
   }
 
   /**
@@ -67,12 +71,15 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
+    let headers = { "Content-Type": "application/json" };
+    if (facilitator?.createAuthHeaders) {
+      const authHeaders = await facilitator.createAuthHeaders();
+      headers = { ...headers, ...authHeaders.settle };
+    }
+
     const res = await fetch(`${url}/settle`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(facilitator?.createAuthHeaders ? (await facilitator.createAuthHeaders()).settle : {}),
-      },
+      headers,
       body: JSON.stringify({
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
@@ -81,10 +88,12 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
-      throw new Error(`Failed to settle payment: ${res.statusText}`);
+      const text = res.statusText;
+      throw new Error(`Failed to settle payment: ${res.status} ${text}`);
     }
 
-    return (await res.json()) as SettleResponse;
+    const data = await res.json();
+    return data as SettleResponse;
   }
 
   return { verify, settle };
