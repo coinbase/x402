@@ -2,6 +2,8 @@ import { CreateHeaders } from "../../verify";
 import { Money } from "./money";
 import { Network } from "./network";
 import { Resource } from "./resource";
+import { LocalAccount } from "viem";
+import { SignerWallet } from "./evm";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -44,3 +46,5 @@ export interface RoutePattern {
   pattern: RegExp;
   config: RouteConfig;
 }
+
+export type Wallet = SignerWallet | LocalAccount;

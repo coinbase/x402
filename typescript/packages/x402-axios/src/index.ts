@@ -1,12 +1,16 @@
 import { AxiosInstance, AxiosError } from "axios";
-import { ChainIdToNetwork, PaymentRequirements, PaymentRequirementsSchema } from "x402/types";
+import {
+  ChainIdToNetwork,
+  PaymentRequirements,
+  PaymentRequirementsSchema,
+  Wallet,
+} from "x402/types";
 import { evm } from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
 } from "x402/client";
-import { Account } from "viem";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol.
@@ -35,7 +39,7 @@ import { Account } from "viem";
  */
 export function withPaymentInterceptor(
   axiosClient: AxiosInstance,
-  walletClient: typeof evm.SignerWallet | Account,
+  walletClient: Wallet,
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
   axiosClient.interceptors.response.use(
@@ -61,11 +65,7 @@ export function withPaymentInterceptor(
         };
         const parsed = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-        const chainId = evm.isSignerWallet(walletClient)
-          ? walletClient.chain?.id
-          : evm.isAccount(walletClient)
-            ? walletClient.client?.chain?.id
-            : undefined;
+        const chainId = evm.isSignerWallet(walletClient) ? walletClient.chain?.id : undefined;
 
         const selectedPaymentRequirements = paymentRequirementsSelector(
           parsed,

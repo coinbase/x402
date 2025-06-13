@@ -1,3 +1,4 @@
+import { LocalAccount } from "viem";
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { SupportedEVMNetworks } from "../types/shared";
 import { SignerWallet } from "../types/shared/evm";
@@ -12,7 +13,7 @@ import { PaymentRequirements } from "../types/verify";
  * @returns A promise that resolves to the created payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet,
+  client: SignerWallet | LocalAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {
