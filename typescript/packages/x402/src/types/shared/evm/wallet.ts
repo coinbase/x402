@@ -9,7 +9,7 @@ import type {
   WalletActions,
   PublicClient,
 } from "viem";
-import { baseSepolia, avalancheFuji } from "viem/chains";
+import { baseSepolia, avalancheFuji, sei, seiTestnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -61,6 +61,30 @@ export function createClientAvalancheFuji(): ConnectedClient<
 }
 
 /**
+ * Creates a public client configured for the Sei testnet
+ *
+ * @returns A public client instance connected to Sei testnet
+ */
+export function createClientSeiTestnet(): ConnectedClient<Transport, typeof seiTestnet, undefined> {
+  return createPublicClient({
+    chain: seiTestnet,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a public client configured for the Sei mainnet
+ *
+ * @returns A public client instance connected to Sei mainnet
+ */
+export function createClientSei(): ConnectedClient<Transport, typeof sei, undefined> {
+  return createPublicClient({
+    chain: sei,
+    transport: http(),
+  }).extend(publicActions);
+}
+
+/**
  * Creates a wallet client configured for the Base Sepolia testnet with a private key
  *
  * @param privateKey - The private key to use for signing transactions
@@ -83,6 +107,34 @@ export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSe
 export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
   return createWalletClient({
     chain: avalancheFuji,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the Sei testnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Sei testnet with the provided private key
+ */
+export function createSignerSeiTestnet(privateKey: Hex): SignerWallet<typeof seiTestnet> {
+  return createWalletClient({
+    chain: seiTestnet,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the Sei mainnet with a private key
+ *
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Sei mainnet with the provided private key
+ */
+export function createSignerSei(privateKey: Hex): SignerWallet<typeof sei> {
+  return createWalletClient({
+    chain: sei,
     transport: http(),
     account: privateKeyToAccount(privateKey),
   }).extend(publicActions);

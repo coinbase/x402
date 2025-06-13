@@ -1,5 +1,5 @@
 import { createWalletClient, createPublicClient, http, custom, publicActions, Chain } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { base, baseSepolia, sei, seiTestnet } from "viem/chains";
 
 import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
 import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
@@ -117,6 +117,48 @@ function ensureFunctionsAreAvailable() {
 }
 
 /**
+ * Gets the appropriate chain and network based on x402 configuration
+ *
+ * @param x402 - The x402 configuration object
+ * @returns Object containing chain, network, and chainName
+ */
+function getChainConfig(x402: Window["x402"]) {
+  const paymentRequirements = Array.isArray(x402.paymentRequirements)
+    ? x402.paymentRequirements[0]
+    : x402.paymentRequirements;
+
+  const network = paymentRequirements.network || (x402.testnet ? "base-sepolia" : "base");
+
+  let chain: Chain;
+  let chainName: string;
+
+  switch (network) {
+    case "base":
+      chain = base;
+      chainName = "Base";
+      break;
+    case "base-sepolia":
+      chain = baseSepolia;
+      chainName = "Base Sepolia";
+      break;
+    case "sei":
+      chain = sei;
+      chainName = "Sei";
+      break;
+    case "sei-testnet":
+      chain = seiTestnet;
+      chainName = "Sei Testnet";
+      break;
+    default:
+      chain = baseSepolia;
+      chainName = "Base Sepolia";
+      break;
+  }
+
+  return { chain, network, chainName };
+}
+
+/**
  * Updates UI with payment details
  *
  * @param x402 - The x402 configuration object containing payment details
@@ -125,9 +167,7 @@ function updatePaymentUI(x402: Window["x402"]) {
   if (!x402) return;
 
   const amount = x402.amount || 0;
-  const testnet = x402.testnet ?? true;
-  const chainName = testnet ? "Base Sepolia" : "Base";
-  const network = testnet ? "base-sepolia" : "base";
+  const { network, chainName } = getChainConfig(x402);
 
   const paymentRequirements = selectPaymentRequirements(
     x402.paymentRequirements,
@@ -145,7 +185,8 @@ function updatePaymentUI(x402: Window["x402"]) {
   const instructionsEl = document.getElementById("instructions");
   if (instructionsEl) {
     // Only show the faucet link instructions when in testnet mode
-    if (testnet) {
+    const isTestnet = network === "base-sepolia" || network === "sei-testnet";
+    if (isTestnet) {
       instructionsEl.style.display = "block";
     } else {
       instructionsEl.style.display = "none";
@@ -234,8 +275,7 @@ async function initializeApp() {
 
   ensureFunctionsAreAvailable();
 
-  const chain = x402.testnet ? baseSepolia : base;
-  const network = x402.testnet ? "base-sepolia" : "base";
+  const { chain, network } = getChainConfig(x402);
   let walletClient: SignerWallet | null = null;
   let address: `0x${string}` | undefined;
 

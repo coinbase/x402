@@ -6,6 +6,8 @@ export const NetworkSchema = z.enum([
   "avalanche-fuji",
   "avalanche",
   "iotex",
+  "sei-testnet",
+  "sei",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -15,6 +17,8 @@ export const SupportedEVMNetworks: Network[] = [
   "avalanche-fuji",
   "avalanche",
   "iotex",
+  "sei-testnet",
+  "sei",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
   ["base-sepolia", 84532],
@@ -22,8 +26,10 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["avalanche-fuji", 43113],
   ["avalanche", 43114],
   ["iotex", 4689],
+  ["sei-testnet", 1328],
+  ["sei", 1329],
 ]);
 
 export const ChainIdToNetwork = Object.fromEntries(
-  SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
+    SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
 ) as Record<number, Network>;
