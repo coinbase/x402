@@ -116,6 +116,15 @@ function ensureFunctionsAreAvailable() {
   };
 }
 
+type NetworkKey = "base" | "base-sepolia" | "sei" | "sei-testnet";
+
+const chainMap: Record<NetworkKey, { chain: Chain; name: string }> = {
+  base: { chain: base, name: "Base" },
+  "base-sepolia": { chain: baseSepolia, name: "Base Sepolia" },
+  sei: { chain: sei, name: "Sei" },
+  "sei-testnet": { chain: seiTestnet, name: "Sei Testnet" },
+};
+
 /**
  * Gets the appropriate chain and network based on x402 configuration
  *
@@ -124,37 +133,21 @@ function ensureFunctionsAreAvailable() {
  */
 function getChainConfig(x402: Window["x402"]) {
   const paymentRequirements = Array.isArray(x402.paymentRequirements)
-    ? x402.paymentRequirements[0]
-    : x402.paymentRequirements;
+      ? x402.paymentRequirements[0]
+      : x402.paymentRequirements;
 
-  const network = paymentRequirements.network || (x402.testnet ? "base-sepolia" : "base");
+  const networkCandidate = paymentRequirements?.network;
+  const fallbackNetwork: NetworkKey = x402.testnet ? "base-sepolia" : "base";
 
-  let chain: Chain;
-  let chainName: string;
+  const network: NetworkKey = (networkCandidate in chainMap
+      ? networkCandidate
+      : fallbackNetwork) as NetworkKey;
 
-  switch (network) {
-    case "base":
-      chain = base;
-      chainName = "Base";
-      break;
-    case "base-sepolia":
-      chain = baseSepolia;
-      chainName = "Base Sepolia";
-      break;
-    case "sei":
-      chain = sei;
-      chainName = "Sei";
-      break;
-    case "sei-testnet":
-      chain = seiTestnet;
-      chainName = "Sei Testnet";
-      break;
-    default:
-      chain = baseSepolia;
-      chainName = "Base Sepolia";
-      break;
+  if (networkCandidate && !(networkCandidate in chainMap)) {
+    console.warn(`Unknown network "${networkCandidate}", defaulting to "${fallbackNetwork}"`);
   }
 
+  const { chain, name: chainName } = chainMap[network];
   return { chain, network, chainName };
 }
 
