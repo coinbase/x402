@@ -8,6 +8,7 @@ import type {
   PublicActions,
   WalletActions,
   PublicClient,
+  LocalAccount,
 } from "viem";
 import { baseSepolia, avalancheFuji } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -99,9 +100,11 @@ export function isSignerWallet<
   TTransport extends Transport = Transport,
   TAccount extends Account = Account,
 >(
-  wallet: SignerWallet<TChain, TTransport, TAccount> | Account,
+  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount,
 ): wallet is SignerWallet<TChain, TTransport, TAccount> {
-  return "chain" in wallet && "transport" in wallet;
+  return (
+    typeof wallet === "object" && wallet !== null && "chain" in wallet && "transport" in wallet
+  );
 }
 
 /**
@@ -110,6 +113,22 @@ export function isSignerWallet<
  * @param wallet - The wallet to check
  * @returns True if the wallet is an account, false otherwise
  */
-export function isAccount(wallet: SignerWallet | Account): wallet is Account {
-  return "address" in wallet && "type" in wallet;
+export function isAccount<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount): wallet is LocalAccount {
+  const w = wallet as LocalAccount;
+  return (
+    typeof wallet === "object" &&
+    wallet !== null &&
+    typeof w.address === "string" &&
+    typeof w.type === "string" &&
+    // Check for essential signing capabilities
+    typeof w.sign === "function" &&
+    typeof w.signMessage === "function" &&
+    typeof w.signTypedData === "function" &&
+    // Check for transaction signing (required by LocalAccount)
+    typeof w.signTransaction === "function"
+  );
 }

@@ -1,4 +1,4 @@
-import { Account, Address, Chain, Hex, toHex, Transport } from "viem";
+import { Address, Chain, Hex, LocalAccount, toHex, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import {
   authorizationTypes,
@@ -26,7 +26,7 @@ import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../type
  * @returns The signature for the authorization
  */
 export async function signAuthorization<transport extends Transport, chain extends Chain>(
-  walletClient: SignerWallet<chain, transport> | Account,
+  walletClient: SignerWallet<chain, transport> | LocalAccount,
   { from, to, value, validAfter, validBefore, nonce }: ExactEvmPayloadAuthorization,
   { asset, network, extra }: PaymentRequirements,
 ): Promise<{ signature: Hex }> {
