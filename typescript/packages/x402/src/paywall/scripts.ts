@@ -131,7 +131,7 @@ const chainMap: Record<NetworkKey, { chain: Chain; name: string }> = {
  * @param x402 - The x402 configuration object
  * @returns Object containing chain, network, and chainName
  */
-function getChainConfig(x402: Window["x402"]) {
+export function getChainConfig(x402: Window["x402"]) {
   const paymentRequirements = Array.isArray(x402.paymentRequirements)
       ? x402.paymentRequirements[0]
       : x402.paymentRequirements;
@@ -437,14 +437,17 @@ async function initializeApp() {
   payButton.addEventListener("click", handlePayment);
 }
 
-window.addEventListener("load", () => {
-  updatePaymentUI(window.x402);
+// Check if window exists (for browser environments only)
+if (typeof window !== 'undefined') {
+  window.addEventListener("load", () => {
+    updatePaymentUI(window.x402);
 
-  initializeApp().catch(error => {
-    console.error("Failed to initialize app:", error);
-    const statusDiv = document.getElementById("status");
-    if (statusDiv) {
-      statusDiv.textContent = error instanceof Error ? error.message : "Failed to initialize app";
-    }
+    initializeApp().catch(error => {
+      console.error("Failed to initialize app:", error);
+      const statusDiv = document.getElementById("status");
+      if (statusDiv) {
+        statusDiv.textContent = error instanceof Error ? error.message : "Failed to initialize app";
+      }
+    });
   });
-});
+}
