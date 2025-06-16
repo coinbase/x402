@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -104,14 +104,11 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "",
-        payTo,
+        payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
+        asset: getAddress(asset.address),
         outputSchema: outputSchema ?? undefined,
-        extra: {
-          name: asset.eip712.name,
-          version: asset.eip712.version,
-        },
+        extra: asset.eip712,
       },
     ];
 

@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -98,11 +98,11 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo,
+        payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: asset?.address ?? "",
+        asset: getAddress(asset.address),
         outputSchema,
-        extra: asset?.eip712,
+        extra: asset.eip712,
       },
     ];
 
