@@ -13,6 +13,7 @@ import {
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
+  ExactEvmPayload,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
 
@@ -59,7 +60,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `unsupported_scheme`,
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
 
@@ -76,7 +77,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `invalid_network`,
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
   // Verify permit signature is recoverable for the owner address
@@ -90,16 +91,16 @@ export async function verify<
       verifyingContract: erc20Address,
     },
     message: {
-      from: payload.payload.authorization.from,
-      to: payload.payload.authorization.to,
-      value: payload.payload.authorization.value,
-      validAfter: payload.payload.authorization.validAfter,
-      validBefore: payload.payload.authorization.validBefore,
-      nonce: payload.payload.authorization.nonce,
+      from: (payload.payload as ExactEvmPayload).authorization.from,
+      to: (payload.payload as ExactEvmPayload).authorization.to,
+      value: (payload.payload as ExactEvmPayload).authorization.value,
+      validAfter: (payload.payload as ExactEvmPayload).authorization.validAfter,
+      validBefore: (payload.payload as ExactEvmPayload).authorization.validBefore,
+      nonce: (payload.payload as ExactEvmPayload).authorization.nonce,
     },
   };
   const recoveredAddress = await verifyTypedData({
-    address: payload.payload.authorization.from as Address,
+    address: (payload.payload as ExactEvmPayload).authorization.from as Address,
     ...permitTypedData,
     signature: payload.payload.signature as Hex,
   });
@@ -107,63 +108,73 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_signature", //"Invalid permit signature",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
 
   // Verify that payment was made to the correct address
-  if (getAddress(payload.payload.authorization.to) !== getAddress(paymentRequirements.payTo)) {
+  if (
+    getAddress((payload.payload as ExactEvmPayload).authorization.to) !==
+    getAddress(paymentRequirements.payTo)
+  ) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
 
   // Verify deadline is not yet expired
   // Pad 3 block to account for round tripping
   if (
-    BigInt(payload.payload.authorization.validBefore) < BigInt(Math.floor(Date.now() / 1000) + 6)
+    BigInt((payload.payload as ExactEvmPayload).authorization.validBefore) <
+    BigInt(Math.floor(Date.now() / 1000) + 6)
   ) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_authorization_valid_before", //"Deadline on permit isn't far enough in the future",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
   // Verify deadline is not yet valid
-  if (BigInt(payload.payload.authorization.validAfter) > BigInt(Math.floor(Date.now() / 1000))) {
+  if (
+    BigInt((payload.payload as ExactEvmPayload).authorization.validAfter) >
+    BigInt(Math.floor(Date.now() / 1000))
+  ) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_authorization_valid_after", //"Deadline on permit is in the future",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
   // Verify client has enough funds to cover paymentRequirements.maxAmountRequired
   const balance = await getERC20Balance(
     client,
     erc20Address,
-    payload.payload.authorization.from as Address,
+    (payload.payload as ExactEvmPayload).authorization.from as Address,
   );
   if (balance < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
       invalidReason: "insufficient_funds", //"Client does not have enough funds",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
   // Verify value in payload is enough to cover paymentRequirements.maxAmountRequired
-  if (BigInt(payload.payload.authorization.value) < BigInt(paymentRequirements.maxAmountRequired)) {
+  if (
+    BigInt((payload.payload as ExactEvmPayload).authorization.value) <
+    BigInt(paymentRequirements.maxAmountRequired)
+  ) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_authorization_value", //"Value in payload is not enough to cover paymentRequirements.maxAmountRequired",
-      payer: payload.payload.authorization.from,
+      payer: (payload.payload as ExactEvmPayload).authorization.from,
     };
   }
   return {
     isValid: true,
     invalidReason: undefined,
-    payer: payload.payload.authorization.from,
+    payer: (payload.payload as ExactEvmPayload).authorization.from,
   };
 }
 
@@ -192,7 +203,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       network: paymentPayload.network,
       transaction: "",
       errorReason: valid.invalidReason ?? "invalid_scheme", //`Payment is no longer valid: ${valid.invalidReason}`,
-      payer: paymentPayload.payload.authorization.from,
+      payer: (paymentPayload.payload as ExactEvmPayload).authorization.from,
     };
   }
 
@@ -201,12 +212,12 @@ export async function settle<transport extends Transport, chain extends Chain>(
     abi,
     functionName: "transferWithAuthorization" as const,
     args: [
-      paymentPayload.payload.authorization.from as Address,
-      paymentPayload.payload.authorization.to as Address,
-      BigInt(paymentPayload.payload.authorization.value),
-      BigInt(paymentPayload.payload.authorization.validAfter),
-      BigInt(paymentPayload.payload.authorization.validBefore),
-      paymentPayload.payload.authorization.nonce as Hex,
+      (paymentPayload.payload as ExactEvmPayload).authorization.from as Address,
+      (paymentPayload.payload as ExactEvmPayload).authorization.to as Address,
+      BigInt((paymentPayload.payload as ExactEvmPayload).authorization.value),
+      BigInt((paymentPayload.payload as ExactEvmPayload).authorization.validAfter),
+      BigInt((paymentPayload.payload as ExactEvmPayload).authorization.validBefore),
+      (paymentPayload.payload as ExactEvmPayload).authorization.nonce as Hex,
       paymentPayload.payload.signature as Hex,
     ],
     chain: wallet.chain as Chain,
@@ -220,7 +231,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       errorReason: "invalid_transaction_state", //`Transaction failed`,
       transaction: tx,
       network: paymentPayload.network,
-      payer: paymentPayload.payload.authorization.from,
+      payer: (paymentPayload.payload as ExactEvmPayload).authorization.from,
     };
   }
 
@@ -228,6 +239,6 @@ export async function settle<transport extends Transport, chain extends Chain>(
     success: true,
     transaction: tx,
     network: paymentPayload.network,
-    payer: paymentPayload.payload.authorization.from,
+    payer: (paymentPayload.payload as ExactEvmPayload).authorization.from,
   };
 }

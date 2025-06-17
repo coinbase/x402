@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Address } from "viem";
+import { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -62,7 +63,7 @@ import { useFacilitator } from "x402/verify";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address,
+  payTo: Address | SolanaAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
 ) {
@@ -96,7 +97,7 @@ export function paymentMiddleware(
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
-    const paymentRequirements: PaymentRequirements[] = [
+    let paymentRequirements: PaymentRequirements[] = [
       {
         scheme: "exact",
         network,
@@ -108,10 +109,16 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: asset.address,
         outputSchema: outputSchema ?? undefined,
-        extra: {
-          name: asset.eip712.name,
-          version: asset.eip712.version,
-        },
+        extra:
+          "eip712" in asset
+            ? {
+                name: asset.eip712.name,
+                version: asset.eip712.version,
+              }
+            : {
+                transaction: "base64 encoded transaction",
+                feePayer: "base58 encoded public key of the facilitator",
+              },
       },
     ];
 

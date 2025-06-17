@@ -1,12 +1,13 @@
-import { verify as verifyExact, settle as settleExact } from "../schemes/exact/evm";
+import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { NetworkEnum, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { ConnectedClient, SignerWallet } from "../types/shared/evm";
 import {
   PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
+  ExactEvmPayload,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 
@@ -28,25 +29,27 @@ export async function verify<
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
-
   // exact scheme
   if (paymentRequirements.scheme === "exact") {
-
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return verifyExact(client, payload, paymentRequirements);
+      return verifyExactEvm(client, payload, paymentRequirements);
     }
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await verifyExactSvm();
+      return await verifyExactSvm(payload, paymentRequirements);
     }
   }
 
+  // unsupported scheme
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
-    payer: payload.payload.authorization.from,
+    payer:
+      "authorization" in payload.payload
+        ? (payload.payload as ExactEvmPayload).authorization.from
+        : "",
   };
 }
 
@@ -64,18 +67,16 @@ export async function settle<transport extends Transport, chain extends Chain>(
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
-
   // exact scheme
   if (paymentRequirements.scheme === "exact") {
-
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return settleExact(client, payload, paymentRequirements);
+      return settleExactEvm(client, payload, paymentRequirements);
     }
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactSvm();
+      return await settleExactSvm(payload, paymentRequirements);
     }
   }
 
@@ -84,7 +85,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
     errorReason: "invalid_scheme",
     transaction: "",
     network: paymentRequirements.network,
-    payer: payload.payload.authorization.from,
+    payer:
+      paymentRequirements.network === NetworkEnum.SOLANA_MAINNET ||
+      paymentRequirements.network === NetworkEnum.SOLANA_DEVNET
+        ? ""
+        : (payload.payload as ExactEvmPayload).authorization.from,
   };
 }
 

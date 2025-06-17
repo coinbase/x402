@@ -33,7 +33,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "invalid_payload",
-        payer: body.paymentPayload?.payload?.authorization?.from ?? "",
+        payer:
+          body.paymentPayload?.payload && "authorization" in body.paymentPayload.payload
+            ? body.paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 400 },
     );
@@ -48,7 +51,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "invalid_payment_requirements",
-        payer: paymentPayload.payload.authorization.from,
+        payer:
+          "authorization" in paymentPayload.payload
+            ? paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 400 },
     );
@@ -63,7 +69,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "unexpected_verify_error",
-        payer: paymentPayload.payload.authorization.from,
+        payer:
+          "authorization" in paymentPayload.payload
+            ? paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 500 },
     );

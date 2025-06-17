@@ -1,4 +1,4 @@
-import { SupportedPaymentKindsResponse } from "x402/types";
+import { SupportedPaymentKindsResponse, NetworkEnum } from "x402/types";
 
 /**
  * Returns the supported payment kinds for the x402 protocol
@@ -11,7 +11,7 @@ export async function GET() {
       {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: NetworkEnum.BASE_SEPOLIA,
       },
     ],
   };

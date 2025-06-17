@@ -8,6 +8,7 @@ import {
   ERC20TokenAmount,
   PaymentRequirements,
   PaymentPayload,
+  SPLTokenAmount,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -89,6 +90,22 @@ export function findMatchingRoute(
  * @returns The default asset
  */
 export function getDefaultAsset(network: Network) {
+  // solana mainnet
+  if (network === "solana-mainnet") {
+    return {
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      decimals: 6,
+    };
+  }
+  // solana devnet
+  if (network === "solana-devnet") {
+    return {
+      address: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+      decimals: 6,
+    };
+  }
+
+  // evm-based
   return {
     address: getUsdcAddressForChain(getNetworkId(network)),
     decimals: 6,
@@ -109,10 +126,12 @@ export function getDefaultAsset(network: Network) {
 export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
-): { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] } | { error: string } {
+):
+  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] }
+  | { error: string } {
   // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
-  let asset: ERC20TokenAmount["asset"];
+  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
     // USDC amount in dollars

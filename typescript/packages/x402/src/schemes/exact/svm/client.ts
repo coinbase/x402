@@ -3,11 +3,13 @@
 // - partially sign the transaction that is proposed by the facilitator
 // - send the partially signed transaction to the facilitator
 
-export function preparePaymentHeader() {
+/**
+ * Prepare the payment header for the transaction.
+ * TODO: Implement this and update docstring
+ */
+export function preparePaymentHeader() {}
 
-}
-
-
-export function signTransaction() {
-
-}
+/**
+ * TODO: Implement this and update docstring
+ */
+export function signTransaction() {}

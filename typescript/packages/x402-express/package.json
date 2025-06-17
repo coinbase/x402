@@ -39,6 +39,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@solana/kit": "^2.1.1",
     "express": "^4.18.2",
     "viem": "^2.23.1",
     "x402": "workspace:^",

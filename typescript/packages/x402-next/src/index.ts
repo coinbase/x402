@@ -122,7 +122,13 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: asset?.address ?? "",
         outputSchema,
-        extra: asset?.eip712,
+        extra:
+          asset && "eip712" in asset
+            ? asset.eip712
+            : {
+                transaction: "base64 encoded transaction",
+                feePayer: "base58 encoded public key of the facilitator",
+              },
       },
     ];
 
