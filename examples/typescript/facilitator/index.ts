@@ -19,7 +19,7 @@ if (!PRIVATE_KEY) {
   process.exit(1);
 }
 
-const { createClientSepolia, createSignerSepolia } = evm;
+const { createClientSeiTestnet, createSignerSeiTestnet } = evm;
 
 const app = express();
 
@@ -36,7 +36,7 @@ type SettleRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const client = createClientSepolia();
+const client = createClientSeiTestnet();
 
 app.get("/verify", (req, res) => {
   res.json({
@@ -78,7 +78,7 @@ app.get("/supported", (req, res) => {
       {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "sei-testnet",
       },
     ],
   });
@@ -86,7 +86,7 @@ app.get("/supported", (req, res) => {
 
 app.post("/settle", async (req, res) => {
   try {
-    const signer = createSignerSepolia(PRIVATE_KEY as `0x${string}`);
+    const signer = createSignerSeiTestnet(PRIVATE_KEY as `0x${string}`);
     const body: SettleRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);

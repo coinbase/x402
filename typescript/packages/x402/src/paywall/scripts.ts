@@ -1,5 +1,5 @@
 import { createWalletClient, createPublicClient, http, custom, publicActions, Chain } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { base, baseSepolia, sei, seiTestnet } from "viem/chains";
 
 import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
 import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
@@ -116,6 +116,41 @@ function ensureFunctionsAreAvailable() {
   };
 }
 
+type NetworkKey = "base" | "base-sepolia" | "sei" | "sei-testnet";
+
+const chainMap: Record<NetworkKey, { chain: Chain; name: string }> = {
+  base: { chain: base, name: "Base" },
+  "base-sepolia": { chain: baseSepolia, name: "Base Sepolia" },
+  sei: { chain: sei, name: "Sei" },
+  "sei-testnet": { chain: seiTestnet, name: "Sei Testnet" },
+};
+
+/**
+ * Gets the appropriate chain and network based on x402 configuration
+ *
+ * @param x402 - The x402 configuration object
+ * @returns Object containing chain, network, and chainName
+ */
+export function getChainConfig(x402: Window["x402"]) {
+  const paymentRequirements = Array.isArray(x402.paymentRequirements)
+      ? x402.paymentRequirements[0]
+      : x402.paymentRequirements;
+
+  const networkCandidate = paymentRequirements?.network;
+  const fallbackNetwork: NetworkKey = x402.testnet ? "base-sepolia" : "base";
+
+  const network: NetworkKey = (networkCandidate in chainMap
+      ? networkCandidate
+      : fallbackNetwork) as NetworkKey;
+
+  if (networkCandidate && !(networkCandidate in chainMap)) {
+    console.warn(`Unknown network "${networkCandidate}", defaulting to "${fallbackNetwork}"`);
+  }
+
+  const { chain, name: chainName } = chainMap[network];
+  return { chain, network, chainName };
+}
+
 /**
  * Updates UI with payment details
  *
@@ -125,9 +160,7 @@ function updatePaymentUI(x402: Window["x402"]) {
   if (!x402) return;
 
   const amount = x402.amount || 0;
-  const testnet = x402.testnet ?? true;
-  const chainName = testnet ? "Base Sepolia" : "Base";
-  const network = testnet ? "base-sepolia" : "base";
+  const { network, chainName } = getChainConfig(x402);
 
   const paymentRequirements = selectPaymentRequirements(
     x402.paymentRequirements,
@@ -145,7 +178,8 @@ function updatePaymentUI(x402: Window["x402"]) {
   const instructionsEl = document.getElementById("instructions");
   if (instructionsEl) {
     // Only show the faucet link instructions when in testnet mode
-    if (testnet) {
+    const isTestnet = network === "base-sepolia" || network === "sei-testnet";
+    if (isTestnet) {
       instructionsEl.style.display = "block";
     } else {
       instructionsEl.style.display = "none";
@@ -234,8 +268,7 @@ async function initializeApp() {
 
   ensureFunctionsAreAvailable();
 
-  const chain = x402.testnet ? baseSepolia : base;
-  const network = x402.testnet ? "base-sepolia" : "base";
+  const { chain, network } = getChainConfig(x402);
   let walletClient: SignerWallet | null = null;
   let address: `0x${string}` | undefined;
 
@@ -404,14 +437,17 @@ async function initializeApp() {
   payButton.addEventListener("click", handlePayment);
 }
 
-window.addEventListener("load", () => {
-  updatePaymentUI(window.x402);
+// Check if window exists (for browser environments only)
+if (typeof window !== 'undefined') {
+  window.addEventListener("load", () => {
+    updatePaymentUI(window.x402);
 
-  initializeApp().catch(error => {
-    console.error("Failed to initialize app:", error);
-    const statusDiv = document.getElementById("status");
-    if (statusDiv) {
-      statusDiv.textContent = error instanceof Error ? error.message : "Failed to initialize app";
-    }
+    initializeApp().catch(error => {
+      console.error("Failed to initialize app:", error);
+      const statusDiv = document.getElementById("status");
+      if (statusDiv) {
+        statusDiv.textContent = error instanceof Error ? error.message : "Failed to initialize app";
+      }
+    });
   });
-});
+}
