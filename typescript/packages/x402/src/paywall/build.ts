@@ -12,7 +12,7 @@ const OUTPUT_HTML = path.join(DIST_DIR, "paywall.html");
 const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
-  entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
+  entryPoints: ["src/paywall/scripts.tsx", "src/paywall/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
@@ -22,6 +22,7 @@ const options: esbuild.BuildOptions = {
   sourcemap: false,
   platform: "browser",
   target: "es2020",
+  jsx: "transform",
   define: {
     "process.env.NODE_ENV": '"production"',
     global: "window",
@@ -32,7 +33,7 @@ const options: esbuild.BuildOptions = {
     htmlPlugin({
       files: [
         {
-          entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
+          entryPoints: ["src/paywall/scripts.tsx", "src/paywall/styles.css"],
           filename: "paywall.html",
           title: "Payment Required",
           scriptLoading: "module",
