@@ -147,12 +147,3 @@ This example demonstrates a secure way to handle private keys in a serverless en
 2. The Lambda function has IAM permissions to read the secret
 3. The secret is retrieved at runtime only when needed
 4. The private key is never logged or exposed in the Lambda configuration
-
-## Learning Resources
-
-This example is designed to help you understand how x402 facilitators work. For more information about the x402 protocol and its implementation, visit:
-- [x402 Protocol Documentation](https://x402.org)
-- [Coinbase Developer Platform](https://www.coinbase.com/developer-platform)
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/latest/guide/home.html)
-- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html)
-- [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html)
