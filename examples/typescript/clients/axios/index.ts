@@ -33,5 +33,5 @@ api
     console.log(paymentResponse);
   })
   .catch(error => {
-    console.error(error.response?.data);
+    console.error(error);
   });

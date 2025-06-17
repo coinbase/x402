@@ -2,7 +2,7 @@ import base64
 import fnmatch
 import json
 import re
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Dict
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -69,7 +69,7 @@ def require_payment(
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
-    facilitator_config: Optional[FacilitatorConfig] = None,
+    facilitator_config: Optional[Dict[str, Any]] = None,
     network_id: str = "84532",
     resource: Optional[str] = None,
 ):
@@ -85,10 +85,9 @@ def require_payment(
         mime_type (str, optional): MIME type of the resource. Defaults to "".
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
         output_schema (Any, optional): JSON schema for the response. Defaults to None.
-        facilitator_config (Optional[FacilitatorConfig], optional): Configuration for the payment facilitator.
+        facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
         network_id (str, optional): Ethereum network ID. Defaults to "84532" (Base Sepolia testnet).
-        custom_paywall_html (str, optional): Custom HTML to show when payment is required. Defaults to "".
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests

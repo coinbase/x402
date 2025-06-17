@@ -1,6 +1,5 @@
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional, Dict, TypedDict
 import httpx
-from pydantic import BaseModel, ConfigDict
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
@@ -9,30 +8,31 @@ from x402.types import (
 )
 
 
-class FacilitatorConfig(BaseModel):
+class FacilitatorConfig(TypedDict, total=False):
+    """Configuration for the X402 facilitator service.
+
+    Attributes:
+        url: The base URL for the facilitator service
+        create_headers: Optional function to create authentication headers
+    """
+
     url: str
-    create_headers: Optional[Callable[[], Dict[str, Dict[str, str]]]] = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __init__(
-        self,
-        url: str,
-        create_headers: Optional[Callable[[], Dict[str, Dict[str, str]]]] = None,
-    ):
-        if url.startswith("http://") or url.startswith("https://"):
-            if url.endswith("/"):
-                url = url[:-1]
-        else:
-            raise ValueError(f"Invalid URL {url}, must start with http:// or https://")
-        super().__init__(url=url, create_headers=create_headers)
+    create_headers: Callable[[], dict[str, dict[str, str]]]
 
 
 class FacilitatorClient:
     def __init__(self, config: Optional[FacilitatorConfig] = None):
         if config is None:
-            config = FacilitatorConfig(url="https://x402.org/facilitator")
-        self.config = config
+            config = {"url": "https://x402.org/facilitator"}
+
+        # Validate URL format
+        url = config.get("url", "")
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(f"Invalid URL {url}, must start with http:// or https://")
+        if url.endswith("/"):
+            url = url[:-1]
+
+        self.config = {"url": url, "create_headers": config.get("create_headers")}
 
     async def verify(
         self, payment: PaymentPayload, payment_requirements: PaymentRequirements
@@ -40,13 +40,13 @@ class FacilitatorClient:
         """Verify a payment header is valid and a request should be processed"""
         headers = {"Content-Type": "application/json"}
 
-        if self.config.create_headers:
-            custom_headers = await self.config.create_headers()
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
             headers.update(custom_headers.get("verify", {}))
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.config.url}/verify",
+                f"{self.config['url']}/verify",
                 json={
                     "paymentPayload": payment.model_dump(),
                     "paymentRequirements": payment_requirements.model_dump(),
@@ -63,13 +63,13 @@ class FacilitatorClient:
     ) -> SettleResponse:
         headers = {"Content-Type": "application/json"}
 
-        if self.config.create_headers:
-            custom_headers = await self.config.create_headers()
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
             headers.update(custom_headers.get("settle", {}))
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.config.url}/settle",
+                f"{self.config['url']}/settle",
                 json={
                     "paymentPayload": payment.model_dump(),
                     "paymentRequirements": payment_requirements.model_dump(),
