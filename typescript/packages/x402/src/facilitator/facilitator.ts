@@ -1,5 +1,6 @@
 import { verify as verifyExact, settle as settleExact } from "../schemes/exact/evm";
-import { SupportedEVMNetworks } from "../types/shared";
+import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
+import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { ConnectedClient, SignerWallet } from "../types/shared/evm";
 import {
   PaymentPayload,
@@ -27,13 +28,21 @@ export async function verify<
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
-  if (
-    paymentRequirements.scheme == "exact" &&
-    SupportedEVMNetworks.includes(paymentRequirements.network)
-  ) {
-    const valid = await verifyExact(client, payload, paymentRequirements);
-    return valid;
+
+  // exact scheme
+  if (paymentRequirements.scheme === "exact") {
+
+    // evm
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      return verifyExact(client, payload, paymentRequirements);
+    }
+
+    // svm
+    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      return await verifyExactSvm();
+    }
   }
+
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
@@ -55,11 +64,19 @@ export async function settle<transport extends Transport, chain extends Chain>(
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
-  if (
-    paymentRequirements.scheme == "exact" &&
-    SupportedEVMNetworks.includes(paymentRequirements.network)
-  ) {
-    return settleExact(client, payload, paymentRequirements);
+
+  // exact scheme
+  if (paymentRequirements.scheme === "exact") {
+
+    // evm
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      return settleExact(client, payload, paymentRequirements);
+    }
+
+    // svm
+    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      return await settleExactSvm();
+    }
   }
 
   return {
