@@ -12,28 +12,33 @@ const OUTPUT_HTML = path.join(DIST_DIR, "paywall.html");
 const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
-  entryPoints: ["src/paywall/scripts.tsx", "src/paywall/styles.css"],
+  entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
   treeShaking: true,
-  minify: false,
+  minify: false, // Keep readable for development mode
   format: "iife",
   sourcemap: false,
   platform: "browser",
   target: "es2020",
   jsx: "transform",
   define: {
-    "process.env.NODE_ENV": '"production"',
+    "process.env.NODE_ENV": '"development"',
     global: "window",
   },
   mainFields: ["browser", "module", "main"],
   conditions: ["browser"],
+  // Add alias for consistent React resolution
+  // alias: {
+  //   react: require.resolve("react"),
+  //   "react-dom": require.resolve("react-dom"),
+  // },
   plugins: [
     htmlPlugin({
       files: [
         {
-          entryPoints: ["src/paywall/scripts.tsx", "src/paywall/styles.css"],
+          entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
           filename: "paywall.html",
           title: "Payment Required",
           scriptLoading: "module",
@@ -47,7 +52,12 @@ const options: esbuild.BuildOptions = {
     }),
   ],
   // Mark problematic dependencies as external
-  external: ["crypto", "viem/actions", "@wagmi/*"],
+  external: ["crypto"],
+  // Configure JSX properly
+  // jsxFactory: "React.createElement",
+  // jsxFragment: "React.Fragment",
+  // Ensure React globals are available
+  // inject: [],
 };
 
 // Run the build and then create the template.ts file

@@ -10,11 +10,6 @@ import type { SignerWallet } from "../types/shared/evm";
 import type { PaymentRequirements } from "../types/verify";
 import type { Network } from "../types/shared";
 
-// Define the type for ethereum provider
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-}
-
 declare global {
   interface Window {
     x402: {
@@ -32,7 +27,8 @@ declare global {
         >;
       };
     };
-    ethereum?: EthereumProvider;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ethereum?: any;
   }
 }
 
