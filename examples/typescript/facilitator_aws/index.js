@@ -5,8 +5,6 @@ const serverless = require("serverless-http");
 const { verify, settle } = require("x402/facilitator");
 const {
   PaymentRequirementsSchema,
-  PaymentRequirements,
-  PaymentPayload,
   PaymentPayloadSchema,
   evm,
 } = require("x402/types");
@@ -29,23 +27,23 @@ async function getPrivateKey() {
     }
     return process.env.PRIVATE_KEY;
   }
-  
+
   // For Lambda, get the key from Secrets Manager
   try {
     const secretArn = process.env.PRIVATE_KEY_SECRET_ARN;
     if (!secretArn) {
       throw new Error("Missing PRIVATE_KEY_SECRET_ARN environment variable");
     }
-    
+
     const command = new GetSecretValueCommand({
       SecretId: secretArn,
     });
-    
+
     const response = await secretsClient.send(command);
     if (!response.SecretString) {
       throw new Error("Secret value is empty");
     }
-    
+
     return response.SecretString;
   } catch (error) {
     console.error("Error retrieving private key from Secrets Manager:", error);
@@ -57,18 +55,6 @@ const app = express();
 
 // Configure express to parse JSON bodies
 app.use(express.json());
-
-/**
- * @typedef {Object} VerifyRequest
- * @property {import("x402/types").PaymentPayload} paymentPayload
- * @property {import("x402/types").PaymentRequirements} paymentRequirements
- */
-
-/**
- * @typedef {Object} SettleRequest
- * @property {import("x402/types").PaymentPayload} paymentPayload
- * @property {import("x402/types").PaymentRequirements} paymentRequirements
- */
 
 const client = createClientSeiTestnet();
 
@@ -85,7 +71,7 @@ app.get("/verify", (req, res) => {
 
 app.post("/verify", async (req, res) => {
   try {
-    const body: VerifyRequest = req.body;
+    const body = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
     const valid = await verify(client, paymentPayload, paymentRequirements);
@@ -122,8 +108,8 @@ app.get("/supported", (req, res) => {
 app.post("/settle", async (req, res) => {
   try {
     const privateKey = await getPrivateKey();
-    const signer = createSignerSeiTestnet(privateKey as `0x${string}`);
-    const body: SettleRequest = req.body;
+    const signer = createSignerSeiTestnet(privateKey);
+    const body = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
     const response = await settle(signer, paymentPayload, paymentRequirements);
@@ -140,6 +126,9 @@ if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
     console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
   });
 }
+
+// Export the app for potential use in other files
+module.exports = app;
 
 // Export the serverless handler for AWS Lambda
 module.exports.handler = serverless(app);

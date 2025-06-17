@@ -1,9 +1,10 @@
 {
   "name": "facilitator-aws-example",
   "private": true,
+  "type": "commonjs",
   "scripts": {
-    "dev": "tsx index.ts",
-    "build": "esbuild index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --external:aws-sdk --external:@aws-sdk/* --format=esm --sourcemap",
+    "dev": "node index.js",
+    "build": "esbuild index.js --bundle --platform=node --target=node20 --outfile=dist/index.js --external:aws-sdk --external:@aws-sdk/* --format=cjs --sourcemap",
     "cdk:bootstrap": "cdk bootstrap",
     "cdk:deploy": "cdk deploy",
     "cdk:destroy": "cdk destroy",
