@@ -147,7 +147,7 @@ def require_payment(
                     x402_version=x402_VERSION,
                     accepts=payment_requirements,
                     error=error,
-                ).model_dump(),
+                ).model_dump(by_alias=True),
                 status_code=402,
             )
 
@@ -177,6 +177,9 @@ def require_payment(
 
         if not selected_payment_requirements:
             return x402_response("No matching payment requirements found")
+
+        print(payment)
+        print(payment_requirements)
 
         # Verify payment
         verify_response = await facilitator.verify(
