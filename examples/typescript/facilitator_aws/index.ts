@@ -1,24 +1,26 @@
 /* eslint-env node */
-import { config } from "dotenv";
-import express from "express";
-import serverless from "serverless-http";
-import { verify, settle } from "x402/facilitator";
-import {
+const dotenv = require("dotenv");
+const express = require("express");
+const serverless = require("serverless-http");
+const { verify, settle } = require("x402/facilitator");
+const {
   PaymentRequirementsSchema,
   PaymentRequirements,
-  evm,
   PaymentPayload,
   PaymentPayloadSchema,
-} from "x402/types";
-import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+  evm,
+} = require("x402/types");
+const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
 
-config();
+dotenv.config();
+
+const { createClientSeiTestnet, createSignerSeiTestnet } = evm;
 
 // Initialize AWS Secrets Manager client
 const secretsClient = new SecretsManagerClient({});
 
 // Function to get the private key from environment or Secrets Manager
-async function getPrivateKey(): Promise<string> {
+async function getPrivateKey() {
   // For local development, use the .env file
   if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
     if (!process.env.PRIVATE_KEY) {
@@ -51,22 +53,22 @@ async function getPrivateKey(): Promise<string> {
   }
 }
 
-const { createClientSeiTestnet, createSignerSeiTestnet } = evm;
-
 const app = express();
 
 // Configure express to parse JSON bodies
 app.use(express.json());
 
-type VerifyRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
+/**
+ * @typedef {Object} VerifyRequest
+ * @property {import("x402/types").PaymentPayload} paymentPayload
+ * @property {import("x402/types").PaymentRequirements} paymentRequirements
+ */
 
-type SettleRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
+/**
+ * @typedef {Object} SettleRequest
+ * @property {import("x402/types").PaymentPayload} paymentPayload
+ * @property {import("x402/types").PaymentRequirements} paymentRequirements
+ */
 
 const client = createClientSeiTestnet();
 
@@ -140,4 +142,4 @@ if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
 }
 
 // Export the serverless handler for AWS Lambda
-export const handler = serverless(app);
+module.exports.handler = serverless(app);
