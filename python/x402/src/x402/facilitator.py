@@ -48,6 +48,7 @@ class FacilitatorClient:
             response = await client.post(
                 f"{self.config['url']}/verify",
                 json={
+                    "x402Version": payment.x402_version,
                     "paymentPayload": payment.model_dump(by_alias=True),
                     "paymentRequirements": payment_requirements.model_dump(
                         by_alias=True
@@ -56,12 +57,6 @@ class FacilitatorClient:
                 headers=headers,
                 follow_redirects=True,
             )
-
-            print("\n=== Facilitator Response ===")
-            print(f"Status code: {response.status_code}")
-            print(f"Raw content: {response.content}")
-            print(f"Headers: {dict(response.headers)}")
-            print("===========================\n")
 
             data = response.json()
             return VerifyResponse(**data)
@@ -79,6 +74,7 @@ class FacilitatorClient:
             response = await client.post(
                 f"{self.config['url']}/settle",
                 json={
+                    "x402Version": payment.x402_version,
                     "paymentPayload": payment.model_dump(by_alias=True),
                     "paymentRequirements": payment_requirements.model_dump(
                         by_alias=True

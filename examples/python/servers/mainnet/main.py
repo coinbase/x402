@@ -2,8 +2,7 @@ import os
 from typing import Dict, Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
 from x402.fastapi.middleware import require_payment
 from cdp.x402 import create_facilitator_config
 

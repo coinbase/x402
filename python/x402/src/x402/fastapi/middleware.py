@@ -178,9 +178,6 @@ def require_payment(
         if not selected_payment_requirements:
             return x402_response("No matching payment requirements found")
 
-        print(payment)
-        print(payment_requirements)
-
         # Verify payment
         verify_response = await facilitator.verify(
             payment, selected_payment_requirements

@@ -240,7 +240,7 @@ wheels = [
 
 [[package]]
 name = "cdp-sdk"
-version = "1.13.0"
+version = "1.14.0"
 source = { editable = "../../../../../cdp-sdk/python" }
 dependencies = [
     { name = "aiohttp" },
