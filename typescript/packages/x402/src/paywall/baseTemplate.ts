@@ -16,45 +16,6 @@ export function getBaseTemplate(): string {
     </head>
     <body>
         <div id="root"></div>
-        <!--
-          <div class="container">
-            <div class="header">
-              <h1 class="title">Payment Required</h1>
-              <p class="subtitle" id="payment-description">Loading payment details...</p>
-              <p class="instructions" id="instructions" style="display: none;">Need Base Sepolia USDC? <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">Get some here.</a></p>
-            </div>
-
-            <div class="content">
-              <div id="connect-section">
-                <button id="connect-wallet" class="button button-primary">
-                    Connect wallet
-                </button>
-              </div>
-
-              <div id="payment-section" class="hidden">
-                <div class="payment-details">
-                  <div class="payment-row">
-                    <span class="payment-label">Wallet:</span>
-                    <span class="payment-value" id="payment-account">Loading...</span>
-                  </div>
-                  <div class="payment-row">
-                    <span class="payment-label">Amount:</span>
-                    <span class="payment-value" id="payment-amount">Loading...</span>
-                  </div>
-                  <div class="payment-row">
-                    <span class="payment-label">Network:</span>
-                    <span class="payment-value" id="payment-network">Loading...</span>
-                  </div>
-                </div>
-
-                <button id="pay-button" class="button button-secondary">
-                    Pay Now
-                </button>
-              </div>
-              <div id="status" class="status"></div>
-            </div>
-          </div>
-        -->
     </body>
     </html>
   `;

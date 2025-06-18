@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 
 const apiKey = "DH5sdIHJLvw9pH5u05gIG68jMjdZLGDq";
 
+/**
+ *
+ * @param props
+ * @param props.children
+ */
 export function Providers(props: { children: ReactNode }) {
   return (
     <OnchainKitProvider

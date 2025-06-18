@@ -4,7 +4,6 @@ import { createWalletClient, createPublicClient, http, custom, publicActions } f
 import { base, baseSepolia } from "viem/chains";
 
 import { preparePaymentHeader } from "../../schemes/exact/evm/client";
-import { createNonce, signAuthorization } from "../../schemes/exact/evm/sign";
 import { encodePayment } from "../../schemes/exact/evm/utils/paymentUtils";
 import { getUSDCBalance, getVersion } from "../../shared/evm/usdc";
 
@@ -41,8 +40,6 @@ declare global {
         >;
       };
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ethereum?: any;
   }
 }
 
@@ -53,15 +50,10 @@ declare global {
  */
 function ensureFunctionsAreAvailable() {
   return {
-    signAuthorization,
-    createNonce,
     getVersion,
     encodePayment,
   };
 }
-
-const CLIENT_SUPPORTED_VERSIONS = [1, 2];
-const preferredx402Version = CLIENT_SUPPORTED_VERSIONS[0];
 
 /**
  * Main Paywall App Component
@@ -113,13 +105,12 @@ export function PaywallApp() {
   }, []);
 
   const preparePayment = useCallback(
-    async (x402Version = preferredx402Version) => {
+    async (x402Version = 1) => {
       if (!paymentRequirements || !address) {
         throw new Error("Payment requirements are not set");
       }
 
       const validPaymentRequirements = ensureValidAmount(paymentRequirements);
-
       const unSignedPaymentHeader = preparePaymentHeader(
         address,
         x402Version,
@@ -208,14 +199,15 @@ export function PaywallApp() {
         const errorData = await response.json().catch(() => ({}));
         if (errorData && typeof errorData.x402Version === "number") {
           // Retry with server's x402Version
-          const { unSignedPaymentHeader: retryUnSignedPaymentHeader, eip712Data: retryEip712Data } =
+          const { unSignedPaymentHeader: retryUnSignedPaymentHeader, eip712Data } =
             await preparePayment(errorData.x402Version);
-          const signature = await signTypedDataAsync(retryEip712Data);
+          const retrySignature = await signTypedDataAsync(eip712Data);
+
           const retryPaymentPayload: PaymentPayload = {
             ...retryUnSignedPaymentHeader,
             payload: {
               ...retryUnSignedPaymentHeader.payload,
-              signature,
+              signature: retrySignature,
             },
           };
           const retryHeader: string = exact.evm.encodePayment(retryPaymentPayload);
