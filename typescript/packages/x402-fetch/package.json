@@ -56,5 +56,9 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "publishConfig": {
+    "name": "@sei-js/sei-x402-fetch",
+    "access": "public"
+  }
 }
