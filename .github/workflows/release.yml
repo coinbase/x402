@@ -17,6 +17,9 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+    defaults:
+      run:
+        working-directory: ./typescript
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -39,19 +42,19 @@ jobs:
           cache-dependency-path: ./typescript
 
       - name: Install Dependencies
-        working-directory: ./typescript
         run: pnpm install --frozen-lockfile
 
       - name: Build Packages
-        working-directory: ./typescript
         run: pnpm build
+
+      - name: Run Tests
+        run: pnpm test
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm release
-          cwd: ./typescript
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
