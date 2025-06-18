@@ -12,17 +12,15 @@ import type { SignerWallet } from "../../types/shared/evm";
 import type { PaymentPayload, PaymentRequirements } from "../../types/verify";
 import type { Network } from "../../types/shared";
 
-import { safeBase64Encode, selectPaymentRequirements, ensureValidAmount } from "./utils";
+import { selectPaymentRequirements, ensureValidAmount } from "./utils";
 import {
   ConnectWallet,
   Wallet,
   WalletDropdown,
   WalletDropdownDisconnect,
-  isWalletACoinbaseSmartWallet,
 } from "@coinbase/onchainkit/wallet";
 import { Address, Avatar, Name, Identity } from "@coinbase/onchainkit/identity";
 import { useAccount, useSignTypedData } from "wagmi";
-import { useIsWalletACoinbaseSmartWallet } from "./useIsWalletACoinbaseSmartWallet";
 import { getNetworkId } from "../../shared/network";
 import { exact } from "../../schemes";
 
@@ -43,6 +41,7 @@ declare global {
         >;
       };
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ethereum?: any;
   }
 }
@@ -66,14 +65,12 @@ const preferredx402Version = CLIENT_SUPPORTED_VERSIONS[0];
 
 /**
  * Main Paywall App Component
+ *
+ * @returns The PaywallApp component
  */
 export function PaywallApp() {
-  const { address, isConnected, isConnecting } = useAccount();
-  const { isError, isSuccess, signTypedDataAsync, error } = useSignTypedData();
-  const isSmartWallet = useIsWalletACoinbaseSmartWallet();
-
-  console.log("isSmartWallet", isSmartWallet);
-  console.log("error", error);
+  const { address, isConnected } = useAccount();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const [status, setStatus] = useState<string>("");
   const [isPaying, setIsPaying] = useState(false);
@@ -95,8 +92,6 @@ export function PaywallApp() {
     transport: custom(window.ethereum),
     account: address,
   }).extend(publicActions) as SignerWallet;
-
-  console.log("walletClient", walletClient);
 
   const paymentRequirements = x402
     ? selectPaymentRequirements(x402.paymentRequirements, network as Network, "exact")
@@ -152,9 +147,6 @@ export function PaywallApp() {
         message: unSignedPaymentHeader.payload.authorization,
       };
 
-      console.log("eip712Data", eip712Data);
-      console.log("unSignedPaymentHeader", unSignedPaymentHeader);
-
       return {
         unSignedPaymentHeader,
         eip712Data,
@@ -197,8 +189,6 @@ export function PaywallApp() {
           signature,
         },
       };
-
-      console.log("paymentPayload", paymentPayload);
 
       const paymentHeader: string = exact.evm.encodePayment(paymentPayload);
 
