@@ -133,15 +133,15 @@ const chainMap: Record<NetworkKey, { chain: Chain; name: string }> = {
  */
 export function getChainConfig(x402: Window["x402"]) {
   const paymentRequirements = Array.isArray(x402.paymentRequirements)
-      ? x402.paymentRequirements[0]
-      : x402.paymentRequirements;
+    ? x402.paymentRequirements[0]
+    : x402.paymentRequirements;
 
   const networkCandidate = paymentRequirements?.network;
   const fallbackNetwork: NetworkKey = x402.testnet ? "base-sepolia" : "base";
 
-  const network: NetworkKey = (networkCandidate in chainMap
-      ? networkCandidate
-      : fallbackNetwork) as NetworkKey;
+  const network: NetworkKey = (
+    networkCandidate in chainMap ? networkCandidate : fallbackNetwork
+  ) as NetworkKey;
 
   if (networkCandidate && !(networkCandidate in chainMap)) {
     console.warn(`Unknown network "${networkCandidate}", defaulting to "${fallbackNetwork}"`);
@@ -438,7 +438,7 @@ async function initializeApp() {
 }
 
 // Check if window exists (for browser environments only)
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
   window.addEventListener("load", () => {
     updatePaymentUI(window.x402);
 

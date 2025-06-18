@@ -57,5 +57,9 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "publishConfig": {
+    "name": "@sei-js/sei-x402-axios",
+    "access": "public"
+  }
 }

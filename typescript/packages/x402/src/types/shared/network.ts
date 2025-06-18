@@ -31,5 +31,5 @@ export const EvmNetworkToChainId = new Map<Network, number>([
 ]);
 
 export const ChainIdToNetwork = Object.fromEntries(
-    SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
+  SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
 ) as Record<number, Network>;
