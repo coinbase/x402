@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { base, baseSepolia, sei, seiTestnet } from "viem/chains";
 import { getChainConfig } from "./scripts";
+import { PaymentRequirements } from "../types";
 
 // Mock the global window object
 declare global {
@@ -8,7 +9,7 @@ declare global {
     x402: {
       amount?: number;
       testnet?: boolean;
-      paymentRequirements: any;
+      paymentRequirements: Partial<PaymentRequirements>;
       currentUrl: string;
       config: {
         chainConfig: Record<
@@ -37,7 +38,7 @@ describe("getChainConfig", () => {
           chainConfig: {},
         },
       },
-    } as any;
+    } as Window;
   });
 
   afterEach(() => {
