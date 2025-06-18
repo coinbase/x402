@@ -26,6 +26,7 @@ import { useFacilitator } from "x402/verify";
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
+ * @param cdpClientKey - Optional CDP client API key (required for built-in paywall)
  * @returns A Next.js middleware handler
  *
  * @example
@@ -80,6 +81,7 @@ export function paymentMiddleware(
   payTo: Address,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
+  cdpClientKey?: string,
 ) {
   const { verify, settle } = useFacilitator(facilitator);
   const x402Version = 1;
@@ -154,6 +156,7 @@ export function paymentMiddleware(
               >[0]["paymentRequirements"],
               currentUrl: request.url,
               testnet: network === "base-sepolia",
+              cdpClientKey,
             });
           return new NextResponse(html, {
             status: 402,

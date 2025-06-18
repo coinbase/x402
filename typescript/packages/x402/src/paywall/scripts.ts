@@ -10,28 +10,6 @@ import type { SignerWallet } from "../types/shared/evm";
 import type { PaymentRequirements } from "../types/verify";
 import type { Network } from "../types/shared";
 
-declare global {
-  interface Window {
-    x402: {
-      amount?: number;
-      testnet?: boolean;
-      paymentRequirements: PaymentRequirements | PaymentRequirements[];
-      currentUrl: string;
-      config: {
-        chainConfig: Record<
-          string,
-          {
-            usdcAddress: string;
-            usdcName: string;
-          }
-        >;
-      };
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ethereum?: any;
-  }
-}
-
 /**
  * Helper function to Base64 encode a string (for payment headers)
  *

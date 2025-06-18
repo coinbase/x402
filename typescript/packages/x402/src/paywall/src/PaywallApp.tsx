@@ -8,7 +8,7 @@ import { encodePayment } from "../../schemes/exact/evm/utils/paymentUtils";
 import { getUSDCBalance, getVersion } from "../../shared/evm/usdc";
 
 import type { SignerWallet } from "../../types/shared/evm";
-import type { PaymentPayload, PaymentRequirements } from "../../types/verify";
+import type { PaymentPayload } from "../../types/verify";
 import type { Network } from "../../types/shared";
 
 import { selectPaymentRequirements, ensureValidAmount } from "./utils";
@@ -22,26 +22,6 @@ import { Address, Avatar, Name, Identity } from "@coinbase/onchainkit/identity";
 import { useAccount, useSignTypedData } from "wagmi";
 import { getNetworkId } from "../../shared/network";
 import { exact } from "../../schemes";
-
-declare global {
-  interface Window {
-    x402: {
-      amount?: number;
-      testnet?: boolean;
-      paymentRequirements: PaymentRequirements | PaymentRequirements[];
-      currentUrl: string;
-      config: {
-        chainConfig: Record<
-          string,
-          {
-            usdcAddress: string;
-            usdcName: string;
-          }
-        >;
-      };
-    };
-  }
-}
 
 /**
  * Makes sure required functions are bundled

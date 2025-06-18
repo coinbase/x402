@@ -1,19 +1,26 @@
-import { base } from "wagmi/chains";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import type { ReactNode } from "react";
+import { base, baseSepolia } from "viem/chains";
+import "./window.d.ts";
 
-const apiKey = "DH5sdIHJLvw9pH5u05gIG68jMjdZLGDq";
+type ProvidersProps = {
+  children: ReactNode;
+};
 
 /**
+ * Providers component for the paywall
  *
- * @param props
- * @param props.children
+ * @param props - The component props
+ * @param props.children - The children of the Providers component
+ * @returns The Providers component
  */
-export function Providers(props: { children: ReactNode }) {
+export function Providers({ children }: ProvidersProps) {
+  const { testnet, cdpClientKey } = window.x402;
+
   return (
     <OnchainKitProvider
-      apiKey={apiKey}
-      chain={base as any}
+      apiKey={cdpClientKey}
+      chain={testnet ? baseSepolia : base}
       config={{
         appearance: {
           mode: "auto",
@@ -28,7 +35,7 @@ export function Providers(props: { children: ReactNode }) {
         },
       }}
     >
-      {props.children}
+      {children}
     </OnchainKitProvider>
   );
 }

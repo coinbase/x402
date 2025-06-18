@@ -7,6 +7,7 @@ interface PaywallOptions {
   paymentRequirements: PaymentRequirements[];
   currentUrl: string;
   testnet: boolean;
+  cdpClientKey?: string;
 }
 
 /**
@@ -17,6 +18,7 @@ interface PaywallOptions {
  * @param options.paymentRequirements - The payment requirements for the content
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
+ * @param options.cdpClientKey - CDP client API key for OnchainKit
  * @returns An HTML string containing the paywall page
  */
 export function getPaywallHtml({
@@ -24,6 +26,7 @@ export function getPaywallHtml({
   testnet,
   paymentRequirements,
   currentUrl,
+  cdpClientKey,
 }: PaywallOptions): string {
   // Create the configuration script to inject
   const configScript = `
@@ -35,9 +38,10 @@ export function getPaywallHtml({
       currentUrl: "${currentUrl}",
       config: {
         chainConfig: ${JSON.stringify(config)},
-      }
+      },
+      cdpClientKey: "${cdpClientKey}",
     };
-    console.log('Payment details initialized:', window.x402.paymentDetails);
+    console.log('Payment details initialized:', window.x402);
   </script>`;
 
   // Inject the configuration script into the head
