@@ -2,7 +2,7 @@ import base64
 import fnmatch
 import json
 import re
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Dict
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -10,7 +10,7 @@ from pydantic import validate_call
 
 from x402.chains import get_chain_id, get_token_name, get_token_version
 from x402.common import parse_money, x402_VERSION
-from x402.facilitator import FacilitatorClient
+from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.types import PaymentPayload, PaymentRequirements, x402PaymentRequiredResponse
 from x402.encoding import safe_base64_decode
 
@@ -69,7 +69,7 @@ def require_payment(
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
-    facilitator_url: str = "https://x402.org/facilitator",
+    facilitator_config: Optional[Dict[str, Any]] = None,
     network_id: str = "84532",
     resource: Optional[str] = None,
 ):
@@ -85,9 +85,9 @@ def require_payment(
         mime_type (str, optional): MIME type of the resource. Defaults to "".
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
         output_schema (Any, optional): JSON schema for the response. Defaults to None.
-        facilitator_url (str, optional): URL of the payment facilitator. Defaults to "https://x402.org/facilitator".
+        facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
+            If not provided, defaults to the public x402.org facilitator.
         network_id (str, optional): Ethereum network ID. Defaults to "84532" (Base Sepolia testnet).
-        custom_paywall_html (str, optional): Custom HTML to show when payment is required. Defaults to "".
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
@@ -103,7 +103,7 @@ def require_payment(
             f"Invalid amount: {amount}. Must be in the form '$3.10', 0.10, '0.001'. Error: {e}"
         )
 
-    facilitator = FacilitatorClient(facilitator_url)
+    facilitator = FacilitatorClient(facilitator_config)
 
     async def middleware(request: Request, call_next: Callable):
         # Skip if the path is not the same as the path in the middleware
@@ -147,7 +147,7 @@ def require_payment(
                     x402_version=x402_VERSION,
                     accepts=payment_requirements,
                     error=error,
-                ).model_dump(),
+                ).model_dump(by_alias=True),
                 status_code=402,
             )
 

@@ -2,22 +2,25 @@ import os
 from typing import Dict, Any
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
+from fastapi import FastAPI
 from x402.fastapi.middleware import require_payment
+from cdp.x402 import create_facilitator_config
 
 # Load environment variables
 load_dotenv()
 
+
 # Get configuration from environment
 NETWORK = os.getenv("NETWORK", "base-sepolia")
 ADDRESS = os.getenv("ADDRESS")
+CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
+CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
 
-if not ADDRESS:
+if not ADDRESS or not CDP_API_KEY_ID or not CDP_API_KEY_SECRET:
     raise ValueError("Missing required environment variables")
 
 app = FastAPI()
+facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
 
 # Apply payment middleware to specific routes
 app.middleware("http")(
@@ -26,6 +29,7 @@ app.middleware("http")(
         pay_to_address=ADDRESS,
         path="/weather",
         network_id=NETWORK,
+        facilitator_config=facilitator_config,
     )
 )
 
@@ -36,6 +40,7 @@ app.middleware("http")(
         pay_to_address=ADDRESS,
         path="/premium/*",
         network_id=NETWORK,
+        facilitator_config=facilitator_config,
     )
 )
 
