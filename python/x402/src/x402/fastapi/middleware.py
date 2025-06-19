@@ -2,28 +2,21 @@ import base64
 import fnmatch
 import json
 import re
-from typing import Any, Callable, Optional, Dict
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import validate_call
 
-from x402.chains import get_chain_id, get_token_name, get_token_version
-from x402.common import parse_money, x402_VERSION
-from x402.facilitator import FacilitatorClient, FacilitatorConfig
-from x402.types import PaymentPayload, PaymentRequirements, x402PaymentRequiredResponse
+from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
-
-
-def get_usdc_address(chain_id: int | str) -> str:
-    """Get the USDC contract address for a given chain ID"""
-    if isinstance(chain_id, str):
-        chain_id = int(chain_id)
-    if chain_id == 84532:  # Base Sepolia testnet
-        return "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
-    elif chain_id == 8453:  # Base mainnet
-        return "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    raise ValueError(f"Unsupported chain ID: {chain_id}")
+from x402.facilitator import FacilitatorClient
+from x402.types import (
+    PaymentPayload,
+    PaymentRequirements,
+    Price,
+    x402PaymentRequiredResponse,
+)
 
 
 def _path_is_match(path: str | list[str], request_path: str) -> bool:
@@ -61,10 +54,9 @@ def _path_is_match(path: str | list[str], request_path: str) -> bool:
 
 @validate_call
 def require_payment(
-    amount: str | int,
+    price: Price,
     pay_to_address: str,
     path: str | list[str] = "*",
-    asset: str = "",
     description: str = "",
     mime_type: str = "",
     max_deadline_seconds: int = 60,
@@ -74,12 +66,12 @@ def require_payment(
     resource: Optional[str] = None,
 ):
     """Generate a FastAPI middleware that gates payments for an endpoint.
-    Note:
-        FastAPI doesn't support path matching when applying middleware, path can either be "*" or an exact path or list of paths.
-            ex: "*", "/foo", ["/foo", "/bar"]
+
     Args:
-        amount (str | int): Payment amount in USD (e.g. "$3.10", 0.10, "0.001" or 10000 as units of token)
-        pay_to_address (str): Ethereum pay_to_address to receive the payment
+        price (Price): Payment price. Can be:
+            - Money: USD amount as string/int (e.g., "$3.10", 0.10, "0.001") - defaults to USDC
+            - TokenAmount: Custom token amount with asset information
+        pay_to_address (str): Ethereum address to receive the payment
         path (str | list[str], optional): Path to gate with payments. Defaults to "*" for all paths.
         description (str, optional): Description of what is being purchased. Defaults to "".
         mime_type (str, optional): MIME type of the resource. Defaults to "".
@@ -89,19 +81,17 @@ def require_payment(
             If not provided, defaults to the public x402.org facilitator.
         network_id (str, optional): Ethereum network ID. Defaults to "84532" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
+
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
     """
 
-    if asset == "":
-        asset = get_usdc_address(get_chain_id(network_id))
-
     try:
-        parsed_amount = parse_money(amount, asset, network_id)
-    except Exception as e:
-        raise ValueError(
-            f"Invalid amount: {amount}. Must be in the form '$3.10', 0.10, '0.001'. Error: {e}"
+        max_amount_required, asset_address, eip712_domain = (
+            process_price_to_atomic_amount(price, network_id)
         )
+    except Exception as e:
+        raise ValueError(f"Invalid price: {price}. Error: {e}")
 
     facilitator = FacilitatorClient(facilitator_config)
 
@@ -116,28 +106,20 @@ def require_payment(
         # Ensure output_schema and extra are objects, not null
         output_schema_obj = {} if output_schema is None else output_schema
 
-        # Get token name and version for EIP-712 signing
-        chain_id = get_chain_id(network_id)
-        token_name = get_token_name(chain_id, asset)
-        token_version = get_token_version(chain_id, asset)
-
         # Construct payment details
         payment_requirements = [
             PaymentRequirements(
                 scheme="exact",
                 network=network_id,
-                asset=asset,
-                max_amount_required=str(parsed_amount),
+                asset=asset_address,
+                max_amount_required=max_amount_required,
                 resource=resource_url,
                 description=description,
                 mime_type=mime_type,
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,
                 output_schema=output_schema_obj,
-                extra={
-                    "name": token_name,
-                    "version": token_version,
-                },
+                extra=eip712_domain,
             )
         ]
 

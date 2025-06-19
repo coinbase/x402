@@ -151,7 +151,7 @@ async def foo(req: request: Request):
     if payment_header == "":
         payment_required.error = "X-PAYMENT header not set"
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
     
@@ -161,7 +161,7 @@ async def foo(req: request: Request):
     if not verify_response.is_valid:
         payment_required.error = "Invalid payment"
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
 
@@ -173,7 +173,7 @@ async def foo(req: request: Request):
     else:
         payment_required.error = "Settle failed: " + settle_response.error
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
 ```

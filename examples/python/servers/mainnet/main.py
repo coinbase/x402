@@ -1,10 +1,10 @@
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
+from cdp.x402 import create_facilitator_config
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from x402.fastapi.middleware import require_payment
-from cdp.x402 import create_facilitator_config
 
 # Load environment variables
 load_dotenv()
@@ -25,7 +25,7 @@ facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRE
 # Apply payment middleware to specific routes
 app.middleware("http")(
     require_payment(
-        amount="$0.001",
+        price="$0.001",
         pay_to_address=ADDRESS,
         path="/weather",
         network_id=NETWORK,
@@ -36,7 +36,7 @@ app.middleware("http")(
 # Apply payment middleware to premium routes
 app.middleware("http")(
     require_payment(
-        amount="$0.01",
+        price="$0.01",
         pay_to_address=ADDRESS,
         path="/premium/*",
         network_id=NETWORK,

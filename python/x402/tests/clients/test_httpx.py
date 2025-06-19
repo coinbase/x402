@@ -86,7 +86,7 @@ async def test_on_response_payment_flow(hooks, payment_requirements):
     # Create initial 402 response
     response = Response(402)
     response.request = Request("GET", "https://example.com")
-    response._content = json.dumps(payment_response.model_dump()).encode()
+    response._content = json.dumps(payment_response.model_dump(by_alias=True)).encode()
 
     # Mock the retry response with payment response header
     payment_result = {
@@ -150,7 +150,7 @@ async def test_on_response_payment_error(hooks, payment_requirements):
     # Create initial 402 response
     response = Response(402)
     response.request = Request("GET", "https://example.com")
-    response._content = json.dumps(payment_response.model_dump()).encode()
+    response._content = json.dumps(payment_response.model_dump(by_alias=True)).encode()
 
     # Test payment error handling
     with pytest.raises(PaymentError):

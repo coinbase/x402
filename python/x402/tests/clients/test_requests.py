@@ -140,7 +140,9 @@ def test_adapter_payment_flow(adapter, payment_requirements):
     # Create initial 402 response
     initial_response = Response()
     initial_response.status_code = 402
-    initial_response._content = json.dumps(payment_response.model_dump()).encode()
+    initial_response._content = json.dumps(
+        payment_response.model_dump(by_alias=True)
+    ).encode()
 
     # Mock the retry response with payment response header
     payment_result = {
@@ -216,7 +218,9 @@ def test_adapter_payment_error(adapter, payment_requirements):
     # Create initial 402 response
     initial_response = Response()
     initial_response.status_code = 402
-    initial_response._content = json.dumps(payment_response.model_dump()).encode()
+    initial_response._content = json.dumps(
+        payment_response.model_dump(by_alias=True)
+    ).encode()
 
     # Create a prepared request
     request = PreparedRequest()

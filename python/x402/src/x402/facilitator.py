@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Dict, TypedDict
+from typing import Callable, Optional, TypedDict
 import httpx
 from x402.types import (
     PaymentPayload,

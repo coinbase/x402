@@ -37,7 +37,7 @@ def test_payment_requirements_serde():
         "asset": "0x0000000000000000000000000000000000000000",
         "extra": None,
     }
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert PaymentRequirements(**expected) == original
 
 
@@ -58,8 +58,12 @@ def test_x402_payment_required_response_serde():
     original = x402PaymentRequiredResponse(
         x402_version=1, accepts=[payment_req], error=""
     )
-    expected = {"x402Version": 1, "accepts": [payment_req.model_dump()], "error": ""}
-    assert original.model_dump() == expected
+    expected = {
+        "x402Version": 1,
+        "accepts": [payment_req.model_dump(by_alias=True)],
+        "error": "",
+    }
+    assert original.model_dump(by_alias=True) == expected
     assert x402PaymentRequiredResponse(**expected) == original
 
 
@@ -80,7 +84,7 @@ def test_eip3009_authorization_serde():
         "validBefore": "1000",
         "nonce": "0x789",
     }
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert EIP3009Authorization(**expected) == original
 
 
@@ -94,15 +98,15 @@ def test_exact_payment_payload_serde():
         nonce="0x789",
     )
     original = ExactPaymentPayload(signature="0x123", authorization=auth)
-    expected = {"signature": "0x123", "authorization": auth.model_dump()}
-    assert original.model_dump() == expected
+    expected = {"signature": "0x123", "authorization": auth.model_dump(by_alias=True)}
+    assert original.model_dump(by_alias=True) == expected
     assert ExactPaymentPayload(**expected) == original
 
 
 def test_verify_response_serde():
     original = VerifyResponse(is_valid=True, invalid_reason=None, payer="0x123")
     expected = {"isValid": True, "invalidReason": None, "payer": "0x123"}
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert VerifyResponse(**expected) == original
 
 
@@ -121,7 +125,7 @@ def test_settle_response_serde():
         "network": "base",
         "payer": "0x123",
     }
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert SettleResponse(**expected) == original
 
 
@@ -145,14 +149,14 @@ def test_payment_payload_serde():
         "x402Version": 1,
         "scheme": "exact",
         "network": "base",
-        "payload": payload.model_dump(),
+        "payload": payload.model_dump(by_alias=True),
     }
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert PaymentPayload(**expected) == original
 
 
 def test_x402_headers_serde():
     original = X402Headers(x_payment="test-payment")
     expected = {"x_payment": "test-payment"}
-    assert original.model_dump() == expected
+    assert original.model_dump(by_alias=True) == expected
     assert X402Headers(**expected) == original

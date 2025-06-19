@@ -12,7 +12,7 @@ def test_middleware_invalid_payment():
     app_with_middleware.get("/test")(test_endpoint)
     app_with_middleware.middleware("http")(
         require_payment(
-            amount="$1.00",
+            price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             network_id="base-sepolia",
             description="Test payment",
@@ -34,7 +34,7 @@ def test_app_middleware_path_matching():
 
     app_with_middleware.middleware("http")(
         require_payment(
-            amount="$1.00",
+            price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/test",
             network_id="base-sepolia",
@@ -62,7 +62,7 @@ def test_middleware_path_list_matching():
 
     app_with_middleware.middleware("http")(
         require_payment(
-            amount="$1.00",
+            price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path=["/test1", "/test2"],
             network_id="base-sepolia",
