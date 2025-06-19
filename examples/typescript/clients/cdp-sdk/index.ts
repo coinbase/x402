@@ -1,7 +1,6 @@
 import { CdpClient } from "@coinbase/cdp-sdk";
 import axios from "axios";
 import { config } from "dotenv";
-import { LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import { decodeXPaymentResponse, withPaymentInterceptor } from "x402-axios";
 
@@ -17,6 +16,7 @@ if (!baseURL || !apiKeyId || !apiKeySecret || !walletSecret || !endpointPath) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
 const client = new CdpClient({
   apiKeyId,
   apiKeySecret,
@@ -26,8 +26,7 @@ const serverAccount = await client.evm.getOrCreateAccount({
   name: "x402",
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const account = toAccount<LocalAccount>(serverAccount as any);
+const account = toAccount(serverAccount);
 
 const api = withPaymentInterceptor(
   axios.create({

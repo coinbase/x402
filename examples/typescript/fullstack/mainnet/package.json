@@ -17,7 +17,7 @@
     "next": "canary",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "viem": "^2.26.2",
+    "viem": "^2.21.26",
     "x402-next": "workspace:*",
     "@coinbase/x402": "workspace:*"
   },

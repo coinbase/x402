@@ -10,10 +10,10 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.15.0",
+    "@coinbase/cdp-sdk": "^1.16.0",
     "axios": "^1.7.9",
     "dotenv": "^16.5.0",
-    "viem": "^2.23.1",
+    "viem": "^2.21.26",
     "x402-axios": "workspace:*"
   },
   "devDependencies": {
