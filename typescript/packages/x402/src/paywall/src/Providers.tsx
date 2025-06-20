@@ -15,7 +15,7 @@ type ProvidersProps = {
  * @returns The Providers component
  */
 export function Providers({ children }: ProvidersProps) {
-  const { testnet, cdpClientKey } = window.x402;
+  const { testnet, cdpClientKey, appName, appLogo } = window.x402;
 
   return (
     <OnchainKitProvider
@@ -24,6 +24,8 @@ export function Providers({ children }: ProvidersProps) {
       config={{
         appearance: {
           mode: "auto",
+          name: appName,
+          logo: appLogo,
         },
         wallet: {
           display: "modal",

@@ -17,6 +17,7 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
+  PaywallConfig,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -26,7 +27,7 @@ import { useFacilitator } from "x402/verify";
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
- * @param cdpClientKey - Optional CDP client API key (required for built-in paywall)
+ * @param paywall - Optional configuration for the default paywall
  * @returns A Hono middleware handler
  *
  * @example
@@ -58,6 +59,11 @@ import { useFacilitator } from "x402/verify";
  *       verify: { "Authorization": "Bearer token" },
  *       settle: { "Authorization": "Bearer token" }
  *     })
+ *   },
+ *   {
+ *     cdpClientKey: 'your-cdp-client-key',
+ *     appLogo: '/favicon.svg',
+ *     appName: 'Paywall',
  *   }
  * ));
  * ```
@@ -66,7 +72,7 @@ export function paymentMiddleware(
   payTo: Address,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
-  cdpClientKey?: string,
+  paywall?: PaywallConfig,
 ) {
   const { verify, settle } = useFacilitator(facilitator);
   const x402Version = 1;
@@ -137,7 +143,9 @@ export function paymentMiddleware(
             >[0]["paymentRequirements"],
             currentUrl,
             testnet: network === "base-sepolia",
-            cdpClientKey,
+            cdpClientKey: paywall?.cdpClientKey,
+            appName: paywall?.appName,
+            appLogo: paywall?.appLogo,
           });
         return c.html(html, 402);
       }

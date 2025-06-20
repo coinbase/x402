@@ -20,7 +20,11 @@ export const middleware = paymentMiddleware(
   {
     url: facilitatorUrl,
   },
-  cdpClientKey,
+  {
+    cdpClientKey,
+    appLogo: "/favicon.svg",
+    appName: "Paywall",
+  },
 );
 
 // Configure which paths the middleware should run on

@@ -8,6 +8,8 @@ interface PaywallOptions {
   currentUrl: string;
   testnet: boolean;
   cdpClientKey?: string;
+  appName?: string;
+  appLogo?: string;
 }
 
 /**
@@ -19,6 +21,8 @@ interface PaywallOptions {
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
  * @param options.cdpClientKey - CDP client API key for OnchainKit
+ * @param options.appName - The name of the application to display in the wallet connection modal
+ * @param options.appLogo - The logo of the application to display in the wallet connection modal
  * @returns An HTML string containing the paywall page
  */
 export function getPaywallHtml({
@@ -27,6 +31,8 @@ export function getPaywallHtml({
   paymentRequirements,
   currentUrl,
   cdpClientKey,
+  appName,
+  appLogo,
 }: PaywallOptions): string {
   // Create the configuration script to inject
   const configScript = `
@@ -40,6 +46,8 @@ export function getPaywallHtml({
         chainConfig: ${JSON.stringify(config)},
       },
       cdpClientKey: "${cdpClientKey}",
+      appName: "${appName}",
+      appLogo: "${appLogo}",
     };
     console.log('Payment details initialized:', window.x402);
   </script>`;

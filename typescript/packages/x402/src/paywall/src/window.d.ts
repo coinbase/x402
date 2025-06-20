@@ -8,6 +8,8 @@ declare global {
       paymentRequirements: PaymentRequirements | PaymentRequirements[];
       currentUrl: string;
       cdpClientKey?: string;
+      appName?: string;
+      appLogo?: string;
       config: {
         chainConfig: Record<
           string,
