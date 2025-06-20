@@ -26,7 +26,7 @@ from x402.fastapi.middleware import require_payment
 
 app = FastAPI()
 app.middleware("http")(
-    require_payment(amount="0.01", pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
+    require_payment(price="0.01", pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
 )
 
 @app.get("/")
@@ -38,7 +38,7 @@ To protect specific routes:
 
 ```py
 app.middleware("http")(
-    require_payment(amount="0.01",
+    require_payment(price="0.01",
     pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C"),
     path="/foo"  # <-- this can also be a list ex: ["/foo", "/bar"]
 )
