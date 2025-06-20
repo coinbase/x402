@@ -5,7 +5,9 @@ const EvmMaxAtomicUnits = 18;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
-const EvmSignatureRegex = /^0x[0-9a-fA-F]{130,}$/;
+const EvmECDSASignatureRegex = /^0x[0-9a-fA-F]{130}$/;
+const Evm6492SignatureRegex =
+  /^0x[0-9a-fA-F]+6492649264926492649264926492649264926492649264926492649264926492$/;
 // Enums
 export const schemes = ["exact"] as const;
 export const x402Versions = [1] as const;
@@ -59,7 +61,7 @@ export const ExactEvmPayloadAuthorizationSchema = z.object({
 export type ExactEvmPayloadAuthorization = z.infer<typeof ExactEvmPayloadAuthorizationSchema>;
 
 export const ExactEvmPayloadSchema = z.object({
-  signature: z.string().regex(EvmSignatureRegex),
+  signature: z.string().regex(EvmECDSASignatureRegex).or(z.string().regex(Evm6492SignatureRegex)),
   authorization: ExactEvmPayloadAuthorizationSchema,
 });
 export type ExactEvmPayload = z.infer<typeof ExactEvmPayloadSchema>;

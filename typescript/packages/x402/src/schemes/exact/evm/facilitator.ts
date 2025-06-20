@@ -196,6 +196,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     };
   }
 
+  // Returns the original signature (no-op) if the signature is not a 6492 signature
   const { signature } = parseErc6492Signature(paymentPayload.payload.signature as Hex);
 
   const tx = await wallet.writeContract({
