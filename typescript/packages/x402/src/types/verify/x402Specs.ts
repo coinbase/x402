@@ -5,7 +5,7 @@ const EvmMaxAtomicUnits = 18;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
-const EvmSignatureRegex = /^0x[0-9a-fA-F]{130}$/;
+const EvmSignatureRegex = /^0x[0-9a-fA-F]{130,}$/;
 // Enums
 export const schemes = ["exact"] as const;
 export const x402Versions = [1] as const;
