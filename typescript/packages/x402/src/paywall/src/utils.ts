@@ -1,15 +1,4 @@
 import { Network, PaymentRequirements } from "../../types";
-import { Chain } from "viem";
-
-/**
- * Helper function to Base64 encode a string (for payment headers)
- *
- * @param data - The string data to encode to Base64
- * @returns The Base64 encoded string
- */
-export function safeBase64Encode(data: string): string {
-  return window.btoa(data);
-}
 
 /**
  * Selects the most appropriate payment requirement from a list
@@ -63,51 +52,4 @@ export function ensureValidAmount(paymentRequirements: PaymentRequirements): Pay
   }
 
   return updatedRequirements;
-}
-
-/**
- * Connects to the wallet and switches to the required chain
- *
- * @param chain - The blockchain chain to connect to
- * @returns The connected wallet address
- */
-export async function connectWallet(chain: Chain): Promise<`0x${string}`> {
-  if (!window.ethereum) {
-    throw new Error("No injected Ethereum provider found. Please install MetaMask or similar.");
-  }
-
-  const addresses = (await window.ethereum.request({
-    method: "eth_requestAccounts",
-  })) as `0x${string}`[];
-
-  if (!addresses || addresses.length === 0) {
-    throw new Error("No accounts found");
-  }
-
-  try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: `0x${chain.id.toString(16)}` }],
-    });
-  } catch (switchError: unknown) {
-    const error = switchError as { code: number };
-    if (error.code === 4902) {
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: `0x${chain.id.toString(16)}`,
-            chainName: chain.name,
-            nativeCurrency: chain.nativeCurrency,
-            rpcUrls: [chain.rpcUrls.default.http[0]],
-            blockExplorerUrls: [chain.blockExplorers?.default.url],
-          },
-        ],
-      });
-    } else {
-      throw switchError;
-    }
-  }
-
-  return addresses[0];
 }

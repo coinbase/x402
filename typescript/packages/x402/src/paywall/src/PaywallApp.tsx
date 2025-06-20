@@ -1,39 +1,25 @@
-import { useState, useEffect, useCallback } from "react";
-
-import { createWalletClient, createPublicClient, http, custom, publicActions } from "viem";
-import { base, baseSepolia } from "viem/chains";
-
-import { preparePaymentHeader } from "../../schemes/exact/evm/client";
-import { encodePayment } from "../../schemes/exact/evm/utils/paymentUtils";
-import { getUSDCBalance, getVersion } from "../../shared/evm/usdc";
-
-import type { SignerWallet } from "../../types/shared/evm";
-import type { PaymentPayload } from "../../types/verify";
-import type { Network } from "../../types/shared";
-
-import { selectPaymentRequirements, ensureValidAmount } from "./utils";
+import { Address, Avatar, EthBalance, Identity, Name } from "@coinbase/onchainkit/identity";
 import {
   ConnectWallet,
   Wallet,
   WalletDropdown,
   WalletDropdownDisconnect,
+  WalletDropdownFundLink,
 } from "@coinbase/onchainkit/wallet";
-import { Address, Avatar, Name, Identity } from "@coinbase/onchainkit/identity";
+import { useCallback, useState } from "react";
+import { createPublicClient, createWalletClient, custom, http, publicActions } from "viem";
+import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSignTypedData } from "wagmi";
-import { getNetworkId } from "../../shared/network";
-import { exact } from "../../schemes";
 
-/**
- * Makes sure required functions are bundled
- *
- * @returns An object containing all required functions
- */
-function ensureFunctionsAreAvailable() {
-  return {
-    getVersion,
-    encodePayment,
-  };
-}
+import { exact } from "../../schemes";
+import { preparePaymentHeader } from "../../schemes/exact/evm/client";
+import { getUSDCBalance } from "../../shared/evm/usdc";
+import { getNetworkId } from "../../shared/network";
+import type { Network } from "../../types/shared";
+import type { SignerWallet } from "../../types/shared/evm";
+import type { PaymentPayload } from "../../types/verify";
+
+import { ensureValidAmount, selectPaymentRequirements } from "./utils";
 
 /**
  * Main Paywall App Component
@@ -68,10 +54,6 @@ export function PaywallApp() {
   const paymentRequirements = x402
     ? selectPaymentRequirements(x402.paymentRequirements, network as Network, "exact")
     : null;
-
-  useEffect(() => {
-    ensureFunctionsAreAvailable();
-  }, []);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -253,11 +235,13 @@ export function PaywallApp() {
           <Name />
         </ConnectWallet>
         <WalletDropdown>
-          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+          <Identity hasCopyAddressOnClick>
             <Avatar />
             <Name />
             <Address />
+            <EthBalance />
           </Identity>
+          <WalletDropdownFundLink />
           <WalletDropdownDisconnect />
         </WalletDropdown>
       </Wallet>
