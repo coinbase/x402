@@ -29,11 +29,6 @@ const options: esbuild.BuildOptions = {
   },
   mainFields: ["browser", "module", "main"],
   conditions: ["browser"],
-  // Add alias for consistent React resolution
-  // alias: {
-  //   react: require.resolve("react"),
-  //   "react-dom": require.resolve("react-dom"),
-  // },
   plugins: [
     htmlPlugin({
       files: [
@@ -53,11 +48,6 @@ const options: esbuild.BuildOptions = {
   ],
   // Mark problematic dependencies as external
   external: ["crypto"],
-  // Configure JSX properly
-  // jsxFactory: "React.createElement",
-  // jsxFragment: "React.Fragment",
-  // Ensure React globals are available
-  // inject: [],
 };
 
 // Run the build and then create the template.ts file
@@ -88,7 +78,6 @@ async function build() {
 
       // Generate a TypeScript file with the template as a constant
       const tsContent = `// THIS FILE IS AUTO-GENERATED - DO NOT EDIT
-// Generated at ${new Date().toISOString()}
 /**
  * The pre-built, self-contained paywall template with inlined CSS and JS
  */
