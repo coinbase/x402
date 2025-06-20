@@ -23,7 +23,7 @@ export const middleware = paymentMiddleware(
   {
     cdpClientKey,
     appLogo: "/favicon.svg",
-    appName: "Paywall",
+    appName: "x402 Demo",
   },
 );
 

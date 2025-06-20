@@ -77,8 +77,8 @@ import { useFacilitator } from "x402/verify";
  *   },
  *   {
  *     cdpClientKey: 'your-cdp-client-key',
- *     appLogo: '/favicon.svg',
- *     appName: 'Paywall',
+ *     appLogo: '/images/logo.svg',
+ *     appName: 'My App',
  *   }
  * );
  * ```
