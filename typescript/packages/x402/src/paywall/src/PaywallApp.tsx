@@ -1,10 +1,9 @@
-import { Address, Avatar, EthBalance, Identity, Name } from "@coinbase/onchainkit/identity";
+import { Avatar, Name } from "@coinbase/onchainkit/identity";
 import {
   ConnectWallet,
   Wallet,
   WalletDropdown,
   WalletDropdownDisconnect,
-  WalletDropdownFundLink,
 } from "@coinbase/onchainkit/wallet";
 import { useCallback, useState } from "react";
 import { createPublicClient, createWalletClient, custom, http, publicActions } from "viem";
@@ -54,6 +53,10 @@ export function PaywallApp() {
   const paymentRequirements = x402
     ? selectPaymentRequirements(x402.paymentRequirements, network as Network, "exact")
     : null;
+
+  const handleOnConnect = useCallback(() => {
+    setStatus("Wallet connected! You can now proceed with payment.");
+  }, []);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -210,43 +213,34 @@ export function PaywallApp() {
   }
 
   return (
-    <div className="container">
+    <div className="container gap-8">
       <div className="header">
         <h1 className="title">Payment Required</h1>
-        {paymentRequirements.description && (
-          <p className="subtitle">{paymentRequirements.description}.</p>
-        )}
         <p>
-          To access this content, please pay ${amount} {chainName} USDC.
+          {paymentRequirements.description && `${paymentRequirements.description}.`} To access this
+          content, please pay ${amount} {chainName} USDC.
         </p>
         {testnet && (
           <p className="instructions">
             Need Base Sepolia USDC?{" "}
             <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
-              Get some here.
+              Get some <u>here</u>.
             </a>
           </p>
         )}
       </div>
 
-      <Wallet>
-        <ConnectWallet>
-          <Avatar />
-          <Name />
-        </ConnectWallet>
-        <WalletDropdown>
-          <Identity hasCopyAddressOnClick>
-            <Avatar />
-            <Name />
-            <Address />
-            <EthBalance />
-          </Identity>
-          <WalletDropdownFundLink />
-          <WalletDropdownDisconnect />
-        </WalletDropdown>
-      </Wallet>
+      <div className="content w-full">
+        <Wallet className="w-full">
+          <ConnectWallet className="w-full py-2" onConnect={handleOnConnect}>
+            <Avatar className="h-5 w-5 opacity-80" />
+            <Name className="opacity-80 text-sm" />
+          </ConnectWallet>
+          <WalletDropdown>
+            <WalletDropdownDisconnect className="opacity-80" />
+          </WalletDropdown>
+        </Wallet>
 
-      <div className="content">
         {isConnected && (
           <div id="payment-section">
             <div className="payment-details">

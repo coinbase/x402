@@ -23,7 +23,8 @@ export function Providers({ children }: ProvidersProps) {
       chain={testnet ? baseSepolia : base}
       config={{
         appearance: {
-          mode: "auto",
+          mode: "light",
+          theme: "base",
           name: appName,
           logo: appLogo,
         },
