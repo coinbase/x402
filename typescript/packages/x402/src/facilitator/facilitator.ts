@@ -1,5 +1,9 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
-import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
+import {
+  verify as verifyExactSvm,
+  settle as settleExactSvm,
+  getFeePayer as getFeePayerExactSvm,
+} from "../schemes/exact/svm";
 import { NetworkEnum, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { ConnectedClient, SignerWallet } from "../types/shared/evm";
 import {
@@ -10,6 +14,7 @@ import {
   ExactEvmPayload,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
+import { KeyPairSigner } from "@solana/kit";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -91,6 +96,28 @@ export async function settle<transport extends Transport, chain extends Chain>(
         ? ""
         : (payload.payload as ExactEvmPayload).authorization.from,
   };
+}
+
+/**
+ * Get the fee payer for the given payment requirements and signer.
+ *
+ * @param client - The signer wallet or keypair signer to get the fee payer for
+ * @param paymentRequirements - The payment requirements to get the fee payer for
+ * @returns The fee payer address
+ */
+export async function getFeePayer<transport extends Transport, chain extends Chain>(
+  client: SignerWallet<chain, transport> | KeyPairSigner,
+  paymentRequirements: PaymentRequirements,
+): Promise<string> {
+  // exact scheme
+  if (paymentRequirements.scheme === "exact") {
+    // svm
+    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      return await getFeePayerExactSvm(client as KeyPairSigner);
+    }
+  }
+
+  return "";
 }
 
 export type Supported = {

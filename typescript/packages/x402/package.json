@@ -44,6 +44,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@solana/kit": "^2.1.1",
     "viem": "^2.23.1",
     "zod": "^3.24.2"
   },

@@ -96,7 +96,27 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as SettleResponse;
   }
 
-  return { verify, settle };
-}
+  /**
+   * Gets the address of the facilitator that will be used to pay the network fee.
+   *
+   * @param facilitator - The facilitator config to use. If not provided, the default facilitator will be used.
+   * @returns A promise that resolves to the fee payer's address.
+   */
+  async function getFeePayer(facilitator?: FacilitatorConfig): Promise<string> {
+    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-export const { verify, settle } = useFacilitator();
+    const res = await fetch(`${url}/fee-payer`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to get fee payer: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data as string;
+  }
+
+  return { verify, settle, getFeePayer };
+}

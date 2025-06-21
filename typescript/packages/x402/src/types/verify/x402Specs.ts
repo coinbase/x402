@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { NetworkSchema } from "../shared";
+import { SvmAddressRegex, SvmTxSignatureRegex } from "../shared/svm";
+import { Base64EncodedRegex } from "../../shared/base64";
 
 // Constants
 const EvmMaxAtomicUnits = 18;
@@ -7,8 +9,6 @@ const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
 const EvmSignatureRegex = /^0x[0-9a-fA-F]{130}$/;
-const SvmSignatureRegex = /^(?=[1-9A-HJ-NP-Za-km-z]{86,88}$)[1-9A-HJ-NP-Za-km-z]+$/;
-const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;
 
 // Enums
 export const schemes = ["exact"] as const;
@@ -36,6 +36,7 @@ const isInteger = (value: string) => Number.isInteger(Number(value)) && Number(v
 const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
 
 // x402PaymentRequirements
+const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
 export const PaymentRequirementsSchema = z.object({
   scheme: z.enum(schemes),
   network: NetworkSchema,
@@ -44,7 +45,7 @@ export const PaymentRequirementsSchema = z.object({
   description: z.string(),
   mimeType: z.string(),
   outputSchema: z.record(z.any()).optional(),
-  payTo: z.string().regex(MixedAddressRegex),
+  payTo: EvmOrSvmAddress,
   maxTimeoutSeconds: z.number().int(),
   asset: z.string().regex(MixedAddressRegex),
   extra: z.record(z.any()).optional(),
@@ -70,7 +71,7 @@ export type ExactEvmPayload = z.infer<typeof ExactEvmPayloadSchema>;
 
 // x402ExactSvmPayload
 export const ExactSvmPayloadSchema = z.object({
-  signature: z.string().regex(SvmSignatureRegex),
+  signature: z.string().regex(SvmTxSignatureRegex),
   transaction: z.string().regex(Base64EncodedRegex),
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
@@ -91,7 +92,7 @@ export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
 export const VerifyResponseSchema = z.object({
   isValid: z.boolean(),
   invalidReason: z.enum(ErrorReasons).optional(),
-  payer: z.string().regex(MixedAddressRegex).optional(),
+  payer: EvmOrSvmAddress.optional(),
 });
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
@@ -99,7 +100,7 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 export const SettleResponseSchema = z.object({
   success: z.boolean(),
   errorReason: z.enum(ErrorReasons).optional(),
-  payer: z.string().regex(MixedAddressRegex).optional(),
+  payer: EvmOrSvmAddress.optional(),
   transaction: z.string().regex(MixedAddressRegex),
   network: NetworkSchema,
 });

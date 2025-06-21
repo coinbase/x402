@@ -5,6 +5,7 @@ import {
   PaymentRequirements,
 } from "../../../types/verify";
 import { NetworkEnum } from "../../../types/shared";
+import { KeyPairSigner } from "@solana/kit";
 
 // facilitator will:
 // - propose a transaction to the client and send it in the 402 PAYMENT REQUIRED response
@@ -56,18 +57,13 @@ export async function settle(
 }
 
 /**
- * Propose a transaction to the client.
- * TODO: Implement this and update docstring
+ * Get the fee payer for the given signer.
  *
- * @param payload - The payment payload to propose a transaction for
- * @param paymentRequirements - The payment requirements to propose a transaction for
- * @returns A base64 encoded string representing the serialized proposed transaction
+ * @param signer - The signer to get the fee payer for
+ * @returns The fee payer address
  */
-export async function proposeTransaction(
-  payload: PaymentPayload,
-  paymentRequirements: PaymentRequirements,
-): Promise<string> {
-  return "";
+export async function getFeePayer(signer: KeyPairSigner): Promise<string> {
+  return signer.address.toString();
 }
 
 /* eslint-enable @typescript-eslint/no-unused-vars */
