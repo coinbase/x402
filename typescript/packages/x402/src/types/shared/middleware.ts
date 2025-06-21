@@ -10,6 +10,12 @@ export type FacilitatorConfig = {
   createAuthHeaders?: CreateHeaders;
 };
 
+export type PaywallConfig = {
+  cdpClientKey?: string;
+  appName?: string;
+  appLogo?: string;
+};
+
 export type PaymentMiddlewareConfig = {
   description?: string;
   mimeType?: string;
