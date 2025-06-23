@@ -62,8 +62,14 @@ export async function settle(
  * @param signer - The signer to get the fee payer for
  * @returns The fee payer address
  */
-export async function getFeePayer(signer: KeyPairSigner): Promise<string> {
-  return signer.address.toString();
+export function getFeePayer(signer: KeyPairSigner): GetFeePayerResponse {
+  return {
+    feePayer: signer.address.toString(),
+  };
 }
+
+export type GetFeePayerResponse = {
+  feePayer: string;
+};
 
 /* eslint-enable @typescript-eslint/no-unused-vars */

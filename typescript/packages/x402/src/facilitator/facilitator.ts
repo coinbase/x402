@@ -3,6 +3,7 @@ import {
   verify as verifyExactSvm,
   settle as settleExactSvm,
   getFeePayer as getFeePayerExactSvm,
+  GetFeePayerResponse,
 } from "../schemes/exact/svm";
 import { NetworkEnum, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { ConnectedClient, SignerWallet } from "../types/shared/evm";
@@ -108,16 +109,18 @@ export async function settle<transport extends Transport, chain extends Chain>(
 export async function getFeePayer<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | KeyPairSigner,
   paymentRequirements: PaymentRequirements,
-): Promise<string> {
+): Promise<GetFeePayerResponse> {
   // exact scheme
   if (paymentRequirements.scheme === "exact") {
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await getFeePayerExactSvm(client as KeyPairSigner);
+      return getFeePayerExactSvm(client as KeyPairSigner);
     }
   }
 
-  return "";
+  return {
+    feePayer: "",
+  };
 }
 
 export type Supported = {
