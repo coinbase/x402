@@ -15,16 +15,12 @@
     "format": "turbo run format",
     "lint:check": "turbo run lint:check",
     "format:check": "turbo run format:check",
-    "test": "turbo run test",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish"
+    "test": "turbo run test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@changesets/cli": "^2.28.1",
     "tsup": "^8.4.0",
     "turbo": "^2.5.0",
     "typescript": "^5.8.3"

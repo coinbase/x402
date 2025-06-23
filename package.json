@@ -1,4 +1,19 @@
 {
+  "name": "sei-x402",
   "private": true,
-  "packageManager": "pnpm@10.7.0"
+  "packageManager": "pnpm@10.7.0",
+  "scripts": {
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "cd typescript && pnpm build && cd .. && changeset publish",
+    "build": "cd typescript && pnpm build",
+    "test": "cd typescript && pnpm test",
+    "dev": "cd typescript && pnpm dev"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.28.1"
+  },
+  "workspaces": [
+    "typescript/packages/*"
+  ]
 }
