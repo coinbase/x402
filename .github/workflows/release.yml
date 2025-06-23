@@ -17,9 +17,6 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-    defaults:
-      run:
-        working-directory: ./typescript
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -39,7 +36,6 @@ jobs:
           node-version: 20
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
-          cache-dependency-path: ./typescript
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
@@ -52,7 +48,6 @@ jobs:
         uses: changesets/action@v1
         with:
           publish: pnpm release
-          cwd: ${{ github.workspace }}/typescript
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
