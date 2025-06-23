@@ -37,7 +37,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: "pnpm"
 
-      - name: Install Dependencies
+      - name: Install Root Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install TypeScript Dependencies
+        working-directory: ./typescript
         run: pnpm install --frozen-lockfile
 
       - name: Build Packages
