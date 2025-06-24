@@ -37,6 +37,7 @@ const hasMaxLength = (maxLength: number) => (value: string) => value.length <= m
 
 // x402PaymentRequirements
 const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
+const mixedAddressOrSvmAddress = z.string().regex(MixedAddressRegex).or(z.string().regex(SvmAddressRegex));
 export const PaymentRequirementsSchema = z.object({
   scheme: z.enum(schemes),
   network: NetworkSchema,
@@ -47,7 +48,7 @@ export const PaymentRequirementsSchema = z.object({
   outputSchema: z.record(z.any()).optional(),
   payTo: EvmOrSvmAddress,
   maxTimeoutSeconds: z.number().int(),
-  asset: z.string().regex(MixedAddressRegex),
+  asset: mixedAddressOrSvmAddress,
   extra: z.record(z.any()).optional(),
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;

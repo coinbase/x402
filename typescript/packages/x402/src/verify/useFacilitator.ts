@@ -1,3 +1,4 @@
+import { GetFeePayerResponse } from "../schemes/exact/svm/facilitator";
 import { toJsonSafe } from "../shared";
 import { FacilitatorConfig } from "../types";
 import {
@@ -102,12 +103,15 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
    * @param facilitator - The facilitator config to use. If not provided, the default facilitator will be used.
    * @returns A promise that resolves to the fee payer's address.
    */
-  async function getFeePayer(facilitator?: FacilitatorConfig): Promise<string> {
+  async function getFeePayer(paymentRequirements: PaymentRequirements): Promise<GetFeePayerResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
     const res = await fetch(`${url}/fee-payer`, {
-      method: "GET",
+      method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        paymentRequirements: toJsonSafe(paymentRequirements),
+      }),
     });
 
     if (res.status !== 200) {
@@ -115,7 +119,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     }
 
     const data = await res.json();
-    return data as string;
+    return data as GetFeePayerResponse;
   }
 
   return { verify, settle, getFeePayer };
