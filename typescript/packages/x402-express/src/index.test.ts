@@ -8,15 +8,18 @@ import {
   RoutesConfig,
   FacilitatorConfig,
   RouteConfig,
+  NetworkEnum,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
+import { Address as SolanaAddress } from "@solana/kit";
 
 // Mock dependencies
 vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn().mockReturnValue({
     verify: vi.fn(),
     settle: vi.fn(),
+    getFeePayer: vi.fn(),
   }),
 }));
 
@@ -94,6 +97,7 @@ describe("paymentMiddleware()", () => {
   let middleware: ReturnType<typeof paymentMiddleware>;
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
+  let mockGetFeePayer: ReturnType<typeof useFacilitator>["getFeePayer"];
 
   const middlewareConfig: PaymentMiddlewareConfig = {
     description: "Test payment",
@@ -112,7 +116,7 @@ describe("paymentMiddleware()", () => {
   const routesConfig: RoutesConfig = {
     "/test": {
       price: "$0.001",
-      network: "base-sepolia",
+      network: NetworkEnum.BASE_SEPOLIA,
       config: middlewareConfig,
     },
   };
@@ -120,7 +124,7 @@ describe("paymentMiddleware()", () => {
   const validPayment: PaymentPayload = {
     scheme: "exact",
     x402Version: 1,
-    network: "base-sepolia",
+    network: NetworkEnum.BASE_SEPOLIA,
     payload: {
       signature: "0x123",
       authorization: {
@@ -156,10 +160,12 @@ describe("paymentMiddleware()", () => {
     mockNext = vi.fn();
     mockVerify = vi.fn();
     mockSettle = vi.fn();
+    mockGetFeePayer = vi.fn();
 
     vi.mocked(useFacilitator).mockReturnValue({
       verify: mockVerify,
       settle: mockSettle,
+      getFeePayer: mockGetFeePayer,
     });
 
     // Setup paywall HTML mock
@@ -177,7 +183,7 @@ describe("paymentMiddleware()", () => {
           verb: "GET",
           config: {
             price: "$0.001",
-            network: "base-sepolia",
+            network: NetworkEnum.BASE_SEPOLIA,
             config: middlewareConfig,
           },
         };
@@ -248,7 +254,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: NetworkEnum.BASE_SEPOLIA,
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -274,7 +280,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: NetworkEnum.BASE_SEPOLIA,
     });
 
     // Mock response.end to capture arguments
@@ -308,7 +314,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: NetworkEnum.BASE_SEPOLIA,
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -358,7 +364,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: NetworkEnum.BASE_SEPOLIA,
     });
 
     // Simulate downstream handler setting status 500
@@ -377,5 +383,99 @@ describe("paymentMiddleware()", () => {
     // make assertions
     expect(mockSettle).not.toHaveBeenCalled();
     expect(mockRes.statusCode).toBe(500);
+  });
+
+  it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: NetworkEnum.SOLANA_DEVNET,
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddress12345";
+    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayer);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: NetworkEnum.SOLANA_DEVNET,
+        config: middlewareConfig,
+      },
+    });
+
+    middleware = paymentMiddleware(solanaPayTo as SolanaAddress, solanaRoutesConfig, facilitatorConfig);
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockGetFeePayer).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: NetworkEnum.SOLANA_DEVNET,
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({
+              feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+  });
+
+  it("should return 402 with feePayer for solana-mainnet when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: NetworkEnum.SOLANA_MAINNET,
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddressMainnet";
+    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayer);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: NetworkEnum.SOLANA_MAINNET,
+        config: middlewareConfig,
+      },
+    });
+
+    middleware = paymentMiddleware(solanaPayTo as SolanaAddress, solanaRoutesConfig, facilitatorConfig);
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockGetFeePayer).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: NetworkEnum.SOLANA_MAINNET,
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({
+              feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
   });
 });
