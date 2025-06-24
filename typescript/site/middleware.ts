@@ -1,5 +1,5 @@
 import { Address } from "viem";
-import { paymentMiddleware, Resource, Network } from "x402-next";
+import { paymentMiddleware, Resource, Network } from "@sei-js/x402-next";
 
 const address = process.env.RESOURCE_WALLET_ADDRESS as Address;
 const network = process.env.NETWORK as Network;

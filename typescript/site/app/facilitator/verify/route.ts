@@ -5,7 +5,7 @@ import {
   PaymentRequirementsSchema,
   VerifyResponse,
   evm,
-} from "x402/types";
+} from "@sei-js/x402/types";
 import { verify } from "x402/facilitator";
 
 type VerifyRequest = {
