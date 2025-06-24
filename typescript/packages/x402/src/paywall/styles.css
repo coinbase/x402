@@ -53,6 +53,8 @@ h6 {
   --button-primary-hover-color: #1d4ed8;
   --button-secondary-color: #059669;
   --button-secondary-hover-color: #047857;
+  --button-error-color: #ef4444;
+  --button-error-hover-color: #dc2626;
 }
 
 .ock-font-family {
@@ -149,12 +151,6 @@ body {
   background-color: var(--button-primary-hover-color);
 }
 
-.button-primary.connected,
-.button-primary.connected:hover {
-  opacity: 0.3;
-  cursor: default;
-}
-
 .button-secondary {
   background-color: var(--button-secondary-color);
   color: white;
@@ -162,6 +158,15 @@ body {
 
 .button-secondary:hover {
   background-color: var(--button-secondary-hover-color);
+}
+
+.button-error {
+  background-color: var(--button-error-color);
+  color: white;
+}
+
+.button-error:hover {
+  background-color: var(--button-error-hover-color);
 }
 
 .payment-details {

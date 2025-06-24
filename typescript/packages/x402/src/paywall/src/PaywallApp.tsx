@@ -5,20 +5,38 @@ import {
   WalletDropdown,
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
-import { useCallback, useState } from "react";
-import { createPublicClient, createWalletClient, custom, http, publicActions } from "viem";
+import { useCallback, useEffect, useState } from "react";
+import { Address, createPublicClient, custom, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { useAccount, useSignTypedData } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 
 import { exact } from "../../schemes";
-import { preparePaymentHeader } from "../../schemes/exact/evm/client";
-import { getUSDCBalance } from "../../shared/evm/usdc";
-import { getNetworkId } from "../../shared/network";
-import type { Network } from "../../types/shared";
-import type { SignerWallet } from "../../types/shared/evm";
-import type { PaymentPayload } from "../../types/verify";
+import { getUSDCBalance } from "../../shared/evm";
+import { selectPaymentRequirements } from "../../client";
+import { createSignerWalletClient } from "../../schemes/exact/evm";
 
-import { ensureValidAmount, selectPaymentRequirements } from "./utils";
+import { ensureValidAmount } from "./utils";
+
+/**
+ * Simple Spinner component for loading states
+ *
+ * @param props - The component props
+ * @param props.className - Optional CSS classes to apply to the spinner
+ * @returns The Spinner component
+ */
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <div className={`inline-flex items-center justify-center ${className}`}>
+      <div
+        className="animate-spin border-2 border-gray-200 border-t-gray-400 rounded-full w-4 h-4"
+        style={{
+          animation: "spin 1s linear infinite",
+          borderTopWidth: "2px",
+        }}
+      />
+    </div>
+  );
+}
 
 /**
  * Main Paywall App Component
@@ -26,36 +44,43 @@ import { ensureValidAmount, selectPaymentRequirements } from "./utils";
  * @returns The PaywallApp component
  */
 export function PaywallApp() {
-  const { address, isConnected } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { address, isConnected, chainId: connectedChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
 
   const [status, setStatus] = useState<string>("");
+  const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
 
   const x402 = window.x402;
-  const chain = x402?.testnet ? baseSepolia : base;
-  const network = x402?.testnet ? "base-sepolia" : "base";
-  const amount = x402?.amount || 0;
-  const testnet = x402?.testnet ?? true;
+  const amount = x402.amount || 0;
+  const testnet = x402.testnet ?? true;
+  const paymentChain = testnet ? baseSepolia : base;
   const chainName = testnet ? "Base Sepolia" : "Base";
+  const network = testnet ? "base-sepolia" : "base";
 
   const publicClient = createPublicClient({
-    chain,
+    chain: paymentChain,
     transport: http(),
   }).extend(publicActions);
 
-  const walletClient = createWalletClient({
-    chain,
-    transport: custom(window.ethereum),
-    account: address,
-  }).extend(publicActions) as SignerWallet;
-
   const paymentRequirements = x402
-    ? selectPaymentRequirements(x402.paymentRequirements, network as Network, "exact")
+    ? selectPaymentRequirements([x402.paymentRequirements].flat(), network, "exact")
     : null;
 
-  const handleOnConnect = useCallback(() => {
-    setStatus("Wallet connected! You can now proceed with payment.");
+  useEffect(() => {
+    if (isConnected && paymentChain.id === connectedChainId) {
+      setIsCorrectChain(true);
+    } else if (isConnected && paymentChain.id !== connectedChainId) {
+      setIsCorrectChain(false);
+      setStatus(`On the wrong network. Please switch to ${chainName}.`);
+    } else {
+      setIsCorrectChain(null);
+      setStatus("");
+    }
+  }, [paymentChain.id, connectedChainId, isConnected]);
+
+  const handleOnConnect = useCallback(async () => {
+    await handleSwitchChain();
   }, []);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
@@ -69,50 +94,35 @@ export function PaywallApp() {
     }
   }, []);
 
-  const preparePayment = useCallback(
-    async (x402Version = 1) => {
-      if (!paymentRequirements || !address) {
-        throw new Error("Payment requirements are not set");
-      }
+  const handleSwitchChain = useCallback(async () => {
+    if (isCorrectChain) {
+      return;
+    }
 
-      const validPaymentRequirements = ensureValidAmount(paymentRequirements);
-      const unSignedPaymentHeader = preparePaymentHeader(
-        address,
-        x402Version,
-        validPaymentRequirements,
-      );
-
-      const eip712Data = {
-        types: {
-          TransferWithAuthorization: [
-            { name: "from", type: "address" },
-            { name: "to", type: "address" },
-            { name: "value", type: "uint256" },
-            { name: "validAfter", type: "uint256" },
-            { name: "validBefore", type: "uint256" },
-            { name: "nonce", type: "bytes32" },
-          ],
-        },
-        domain: {
-          name: validPaymentRequirements.extra?.name,
-          version: validPaymentRequirements.extra?.version,
-          chainId: getNetworkId(validPaymentRequirements.network),
-          verifyingContract: validPaymentRequirements.asset as `0x${string}`,
-        },
-        primaryType: "TransferWithAuthorization" as const,
-        message: unSignedPaymentHeader.payload.authorization,
-      };
-
-      return {
-        unSignedPaymentHeader,
-        eip712Data,
-      };
-    },
-    [paymentRequirements, address],
-  );
+    try {
+      setStatus("");
+      await switchChainAsync({ chainId: paymentChain.id });
+      // Small delay to let wallet settle
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Failed to switch network");
+    }
+  }, [switchChainAsync, paymentChain, isCorrectChain]);
 
   const handlePayment = useCallback(async () => {
-    if (!walletClient || !address || !x402 || !paymentRequirements) {
+    if (!address || !x402 || !paymentRequirements) {
+      return;
+    }
+
+    await handleSwitchChain();
+
+    const walletClient = createSignerWalletClient(
+      paymentChain,
+      custom(window.ethereum),
+      address as Address,
+    );
+
+    if (!walletClient) {
       setStatus("No wallet connected. Please connect your wallet first.");
       return;
     }
@@ -124,32 +134,20 @@ export function PaywallApp() {
       const balance = await getUSDCBalance(publicClient, address);
 
       if (balance === 0n) {
-        throw new Error(
-          `Your USDC balance is 0. Please make sure you have USDC tokens on ${chain.name}`,
-        );
+        throw new Error(`Insufficient balance. Make sure you have USDC on ${chainName}`);
       }
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Failed to check USDC balance");
-      return;
-    }
 
-    setStatus("Creating payment signature...");
+      setStatus("Creating payment signature...");
+      const validPaymentRequirements = ensureValidAmount(paymentRequirements);
+      const initialPayment = await exact.evm.createPayment(
+        walletClient,
+        1,
+        validPaymentRequirements,
+      );
 
-    try {
-      const { unSignedPaymentHeader, eip712Data } = await preparePayment();
-      const signature = await signTypedDataAsync(eip712Data);
-      const paymentPayload: PaymentPayload = {
-        ...unSignedPaymentHeader,
-        payload: {
-          ...unSignedPaymentHeader.payload,
-          signature,
-        },
-      };
-
-      const paymentHeader: string = exact.evm.encodePayment(paymentPayload);
+      const paymentHeader: string = exact.evm.encodePayment(initialPayment);
 
       setStatus("Requesting content with payment...");
-
       const response = await fetch(x402.currentUrl, {
         headers: {
           "X-PAYMENT": paymentHeader,
@@ -164,18 +162,14 @@ export function PaywallApp() {
         const errorData = await response.json().catch(() => ({}));
         if (errorData && typeof errorData.x402Version === "number") {
           // Retry with server's x402Version
-          const { unSignedPaymentHeader: retryUnSignedPaymentHeader, eip712Data } =
-            await preparePayment(errorData.x402Version);
-          const retrySignature = await signTypedDataAsync(eip712Data);
+          const retryPayment = await exact.evm.createPayment(
+            walletClient,
+            errorData.x402Version,
+            validPaymentRequirements,
+          );
 
-          const retryPaymentPayload: PaymentPayload = {
-            ...retryUnSignedPaymentHeader,
-            payload: {
-              ...retryUnSignedPaymentHeader.payload,
-              signature: retrySignature,
-            },
-          };
-          const retryHeader: string = exact.evm.encodePayment(retryPaymentPayload);
+          retryPayment.x402Version = errorData.x402Version;
+          const retryHeader = exact.evm.encodePayment(retryPayment);
           const retryResponse = await fetch(x402.currentUrl, {
             headers: {
               "X-PAYMENT": retryHeader,
@@ -199,7 +193,7 @@ export function PaywallApp() {
     } finally {
       setIsPaying(false);
     }
-  }, [walletClient, address, x402, paymentRequirements, publicClient, chain]);
+  }, [address, x402, paymentRequirements, publicClient, paymentChain, handleSwitchChain]);
 
   if (!x402 || !paymentRequirements) {
     return (
@@ -232,7 +226,11 @@ export function PaywallApp() {
 
       <div className="content w-full">
         <Wallet className="w-full">
-          <ConnectWallet className="w-full py-2" onConnect={handleOnConnect}>
+          <ConnectWallet
+            className="w-full py-2"
+            onConnect={handleOnConnect}
+            disconnectedLabel="Connect wallet"
+          >
             <Avatar className="h-5 w-5 opacity-80" />
             <Name className="opacity-80 text-sm" />
           </ConnectWallet>
@@ -260,9 +258,19 @@ export function PaywallApp() {
               </div>
             </div>
 
-            <button className="button button-secondary" onClick={handlePayment} disabled={isPaying}>
-              {isPaying ? "Processing..." : "Pay Now"}
-            </button>
+            {isCorrectChain ? (
+              <button
+                className="button button-secondary"
+                onClick={handlePayment}
+                disabled={isPaying}
+              >
+                {isPaying ? <Spinner className="ml-2" /> : "Pay now"}
+              </button>
+            ) : (
+              <button className="button button-primary" onClick={handleSwitchChain}>
+                Switch to {chainName}
+              </button>
+            )}
           </div>
         )}
 
