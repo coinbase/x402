@@ -6,37 +6,16 @@ import {
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
 import { useCallback, useEffect, useState } from "react";
-import { Address, createPublicClient, custom, http, publicActions } from "viem";
+import { createPublicClient, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
 import { exact } from "../../schemes";
 import { getUSDCBalance } from "../../shared/evm";
 import { selectPaymentRequirements } from "../../client";
-import { createSignerWalletClient } from "../../schemes/exact/evm";
 
 import { ensureValidAmount } from "./utils";
-
-/**
- * Simple Spinner component for loading states
- *
- * @param props - The component props
- * @param props.className - Optional CSS classes to apply to the spinner
- * @returns The Spinner component
- */
-function Spinner({ className = "" }: { className?: string }) {
-  return (
-    <div className={`inline-flex items-center justify-center ${className}`}>
-      <div
-        className="animate-spin border-2 border-gray-200 border-t-gray-400 rounded-full w-4 h-4"
-        style={{
-          animation: "spin 1s linear infinite",
-          borderTopWidth: "2px",
-        }}
-      />
-    </div>
-  );
-}
+import { Spinner } from "./Spinner";
 
 /**
  * Main Paywall App Component
