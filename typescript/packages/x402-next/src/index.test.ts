@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "@sei-js/x402/schemes";
-import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "@sei-js/x402/shared";
+import {
+  findMatchingRoute,
+  getPaywallHtml,
+  findMatchingPaymentRequirements,
+} from "@sei-js/x402/shared";
 import {
   FacilitatorConfig,
   PaymentMiddlewareConfig,
