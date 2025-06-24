@@ -1,6 +1,6 @@
 {
-  "name": "x402-express",
-  "version": "0.3.5",
+  "name": "@sei-js/x402-express",
+  "version": "0.3.4",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -41,7 +41,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "viem": "^2.23.1",
-    "x402": "workspace:^",
+    "@sei-js/x402": "workspace:^",
     "zod": "^3.24.2"
   },
   "exports": {
@@ -58,9 +58,5 @@
   },
   "files": [
     "dist"
-  ],
-  "publishConfig": {
-    "name": "@sei-js/sei-x402-express",
-    "access": "public"
-  }
+  ]
 }

@@ -1,6 +1,6 @@
 {
-  "name": "@coinbase/x402",
-  "version": "0.3.9",
+  "name": "@sei-js/coinbase-x402",
+  "version": "0.3.8",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
