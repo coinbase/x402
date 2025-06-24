@@ -25,6 +25,7 @@ import { Spinner } from "./Spinner";
 export function PaywallApp() {
   const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
+  const { data: wagmiWalletClient } = useWalletClient();
 
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
@@ -49,6 +50,7 @@ export function PaywallApp() {
   useEffect(() => {
     if (isConnected && paymentChain.id === connectedChainId) {
       setIsCorrectChain(true);
+      setStatus("");
     } else if (isConnected && paymentChain.id !== connectedChainId) {
       setIsCorrectChain(false);
       setStatus(`On the wrong network. Please switch to ${chainName}.`);
@@ -95,16 +97,13 @@ export function PaywallApp() {
 
     await handleSwitchChain();
 
-    const walletClient = createSignerWalletClient(
-      paymentChain,
-      custom(window.ethereum),
-      address as Address,
-    );
-
-    if (!walletClient) {
-      setStatus("No wallet connected. Please connect your wallet first.");
+    // Use wagmi's wallet client which has the correct provider for the connected wallet
+    // This avoids MetaMask conflicts when multiple wallets are installed
+    if (!wagmiWalletClient) {
+      setStatus("Wallet client not available. Please reconnect your wallet.");
       return;
     }
+    const walletClient = wagmiWalletClient.extend(publicActions);
 
     setIsPaying(true);
 
