@@ -1,12 +1,4 @@
-import {
-  Account,
-  Address,
-  Chain,
-  createWalletClient,
-  LocalAccount,
-  publicActions,
-  Transport,
-} from "viem";
+import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
@@ -113,26 +105,4 @@ export async function createPaymentHeader(
 ): Promise<string> {
   const payment = await createPayment(client, x402Version, paymentRequirements);
   return encodePayment(payment);
-}
-
-/**
- * Creates a signer wallet client
- *
- * @param chain - The chain to use
- * @param transport - The transport to use
- * @param account - The account to use
- * @returns A signer wallet client
- */
-export function createSignerWalletClient(
-  chain: Chain,
-  transport: Transport,
-  account: `0x${string}` | Account,
-): SignerWallet {
-  const client = createWalletClient({
-    chain,
-    transport,
-    account,
-  }).extend(publicActions);
-
-  return client;
 }
