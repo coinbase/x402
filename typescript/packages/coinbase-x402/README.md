@@ -15,6 +15,8 @@ This package requires CDP API keys from the [Coinbase Developer Platform](https:
 - `CDP_API_KEY_ID`: Your CDP API key ID
 - `CDP_API_KEY_SECRET`: Your CDP API key secret
 
+You can optionally include a [CDP Client API Key](https://portal.cdp.coinbase.com/projects/api-keys/client-key) for the built-in paywall. For more on Paywall configuration options, check out the [paywall README](../x402/src/paywall/README.md).
+
 ## Quick Start
 
 ```typescript
