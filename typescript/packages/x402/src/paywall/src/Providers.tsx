@@ -19,14 +19,14 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <OnchainKitProvider
-      apiKey={cdpClientKey}
+      apiKey={cdpClientKey || undefined}
       chain={testnet ? baseSepolia : base}
       config={{
         appearance: {
           mode: "light",
           theme: "base",
-          name: appName,
-          logo: appLogo,
+          name: appName || undefined,
+          logo: appLogo || undefined,
         },
         wallet: {
           display: "modal",

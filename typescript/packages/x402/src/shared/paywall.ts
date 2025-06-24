@@ -45,9 +45,9 @@ export function getPaywallHtml({
       config: {
         chainConfig: ${JSON.stringify(config)},
       },
-      cdpClientKey: "${cdpClientKey}",
-      appName: "${appName}",
-      appLogo: "${appLogo}",
+      cdpClientKey: "${cdpClientKey || ""}",
+      appName: "${appName || ""}",
+      appLogo: "${appLogo || ""}",
     };
     console.log('Payment details initialized:', window.x402);
   </script>`;
