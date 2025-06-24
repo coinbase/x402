@@ -169,8 +169,6 @@ export const config = {
 # .env
 CDP_API_KEY_ID=your-cdp-api-key-id
 CDP_API_KEY_SECRET=your-cdp-api-key-secret
-
-CDP_CLIENT_API_KEY=your-cdp-client-key # optional
 ```
 
 **Important Note**: Once the `@coinbase/x402` package adds support for Edge runtime, you'll be able to use it directly without enforcing the nodejs runtime or requiring the canary version of next.
