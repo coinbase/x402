@@ -43,6 +43,7 @@ The `paymentMiddleware` function accepts three parameters:
 1. `payTo`: Your receiving address (`0x${string}`)
 2. `routes`: Route configurations for protected endpoints
 3. `facilitator`: (Optional) Configuration for the x402 facilitator service
+4. `paywall`: (Optional) Configuration for the built-in paywall
 
 See the Middleware Options section below for detailed configuration options.
 
@@ -81,6 +82,19 @@ interface PaymentMiddlewareConfig {
 type FacilitatorConfig = {
   url: string;                        // URL of the x402 facilitator service
   createAuthHeaders?: CreateHeaders;  // Optional function to create authentication headers
+};
+```
+
+
+### Paywall Configuration
+
+For more on paywall configuration options, refer to the [paywall README](../x402/src/paywall/README.md).
+
+```typescript
+type PaywallConfig = {
+  cdpClientKey?: string;              // Your CDP Client API Key
+  appName?: string;                   // Name displayed in the paywall wallet selection modal
+  appLogo?: string;                   // Logo for the paywall wallet selection modal
 };
 ```
 
@@ -151,7 +165,7 @@ export const config = {
 
 5. Set up your CDP API keys as environment variables:
 
-```
+```bash
 # .env
 CDP_API_KEY_ID=your-cdp-api-key-id
 CDP_API_KEY_SECRET=your-cdp-api-key-secret
