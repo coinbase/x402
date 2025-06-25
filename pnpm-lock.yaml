@@ -17,12 +17,12 @@ importers:
       '@coinbase/cdp-sdk':
         specifier: ^1.1.1
         version: 1.18.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -142,15 +142,15 @@ importers:
 
   typescript/packages/x402-axios:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       axios:
         specifier: ^1.7.9
         version: 1.10.0
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -203,15 +203,15 @@ importers:
 
   typescript/packages/x402-express:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       express:
         specifier: ^4.18.2
         version: 4.21.2
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -267,12 +267,12 @@ importers:
 
   typescript/packages/x402-fetch:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -325,15 +325,15 @@ importers:
 
   typescript/packages/x402-hono:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       hono:
         specifier: ^4.7.1
         version: 4.8.2
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -386,15 +386,15 @@ importers:
 
   typescript/packages/x402-next:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       next:
         specifier: ^15.2.4
         version: 15.3.4(@babel/core@7.27.4)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       viem:
         specifier: ^2.23.1
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.67
@@ -450,6 +450,12 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.0)
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../packages/x402
+      '@sei-js/x402-next':
+        specifier: workspace:^
+        version: link:../packages/x402-next
       next:
         specifier: ^15.2.4
         version: 15.3.4(@babel/core@7.27.4)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -462,15 +468,9 @@ importers:
       viem:
         specifier: ^2.26.2
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
-      x402:
-        specifier: workspace:^
-        version: link:../packages/x402
       x402-legacy:
         specifier: npm:x402@0.1.2
         version: x402@0.1.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      x402-next:
-        specifier: workspace:^
-        version: link:../packages/x402-next
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3
