@@ -1,6 +1,6 @@
-# x402
+# Sei x402
 
-Core TypeScript implementation of the x402 Payment Protocol. This package provides the foundational types, schemas, and utilities that power all x402 integrations.
+Core TypeScript implementation of the x402 Payment Protocol adapted for SEI. This package provides the foundational types, schemas, and utilities that power all x402 integrations.
 
 ## Installation
 
