@@ -25,7 +25,8 @@ const options: esbuild.BuildOptions = {
   jsx: "transform",
   define: {
     "process.env.NODE_ENV": '"development"',
-    global: "window",
+    global: "globalThis",
+    Buffer: "globalThis.Buffer",
   },
   mainFields: ["browser", "module", "main"],
   conditions: ["browser"],
@@ -46,6 +47,7 @@ const options: esbuild.BuildOptions = {
       ],
     }),
   ],
+  inject: ["./src/paywall/buffer-polyfill.ts"],
   // Mark problematic dependencies as external
   external: ["crypto"],
 };
