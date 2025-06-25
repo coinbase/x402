@@ -9,7 +9,7 @@ from x402.chains import (
 from x402.types import Price, TokenAmount
 
 
-def parse_money(amount: str | int, address: str, network_id: str) -> int:
+def parse_money(amount: str | int, address: str, network: str) -> int:
     """Parse money string or int into int
 
     Params:
@@ -20,7 +20,7 @@ def parse_money(amount: str | int, address: str, network_id: str) -> int:
             amount = amount[1:]
         amount = Decimal(amount)
 
-        chain_id = get_chain_id(network_id)
+        chain_id = get_chain_id(network)
         decimals = get_token_decimals(chain_id, address)
         amount = amount * Decimal(10**decimals)
         return int(amount)
@@ -28,13 +28,13 @@ def parse_money(amount: str | int, address: str, network_id: str) -> int:
 
 
 def process_price_to_atomic_amount(
-    price: Price, network_id: str
+    price: Price, network: str
 ) -> tuple[str, str, dict[str, str]]:
     """Process a Price into atomic amount, asset address, and EIP-712 domain info
 
     Args:
         price: Either Money (USD string/int) or TokenAmount
-        network_id: Network identifier
+        network: Network identifier
 
     Returns:
         Tuple of (max_amount_required, asset_address, eip712_domain)
@@ -50,7 +50,7 @@ def process_price_to_atomic_amount(
             amount = Decimal(str(price))
 
             # Get USDC address for the network
-            chain_id = get_chain_id(network_id)
+            chain_id = get_chain_id(network)
             asset_address = get_usdc_address(chain_id)
             decimals = get_token_decimals(chain_id, asset_address)
 
