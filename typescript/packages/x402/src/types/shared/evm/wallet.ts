@@ -10,7 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji } from "viem/chains";
+import { baseSepolia, avalancheFuji, base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -32,6 +32,22 @@ export type ConnectedClient<
   chain extends Chain | undefined = Chain,
   account extends Account | undefined = undefined,
 > = PublicClient<transport, chain, account>;
+
+/**
+ * Creates a public client configured for the Base mainnet
+ *
+ * @param network - The network to connect to
+ * @returns A public client instance connected to the specified chain
+ */
+export function createConnectedClient(
+  network: string,
+): ConnectedClient<Transport, Chain, undefined> {
+  const chain = getChainFromNetwork(network);
+  return createPublicClient({
+    chain,
+    transport: http(),
+  }).extend(publicActions);
+}
 
 /**
  * Creates a public client configured for the Base Sepolia testnet
@@ -58,6 +74,22 @@ export function createClientAvalancheFuji(): ConnectedClient<
   return createPublicClient({
     chain: avalancheFuji,
     transport: http(),
+  }).extend(publicActions);
+}
+
+/**
+ * Creates a wallet client configured for the specified chain with a private key
+ *
+ * @param network - The network to connect to
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to the specified chain with the provided private key
+ */
+export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+  const chain = getChainFromNetwork(network);
+  return createWalletClient({
+    chain,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
   }).extend(publicActions);
 }
 
@@ -131,4 +163,27 @@ export function isAccount<
     // Check for transaction signing (required by LocalAccount)
     typeof w.signTransaction === "function"
   );
+}
+
+/**
+ * Maps network strings to Chain objects
+ *
+ * @param network - The network string to convert to a Chain object
+ * @returns The corresponding Chain object
+ */
+function getChainFromNetwork(network: string | undefined): Chain {
+  if (!network) {
+    throw new Error("NETWORK environment variable is not set");
+  }
+
+  switch (network) {
+    case "base":
+      return base;
+    case "base-sepolia":
+      return baseSepolia;
+    case "avalanche-fuji":
+      return avalancheFuji;
+    default:
+      throw new Error(`Unsupported network: ${network}`);
+  }
 }
