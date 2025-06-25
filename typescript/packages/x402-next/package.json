@@ -1,5 +1,5 @@
 {
-  "name": "x402-next",
+  "name": "@sei-js/x402-next",
   "version": "0.3.5",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "viem": "^2.23.1",
-    "x402": "workspace:^",
+    "@sei-js/x402": "workspace:^",
     "next": "^15.2.4",
     "zod": "^3.24.2"
   },
@@ -58,9 +58,5 @@
   },
   "files": [
     "dist"
-  ],
-  "publishConfig": {
-    "name": "@sei-js/sei-x402-next",
-    "access": "public"
-  }
+  ]
 }

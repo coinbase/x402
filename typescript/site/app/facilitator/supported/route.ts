@@ -1,4 +1,4 @@
-import { SupportedPaymentKindsResponse } from "x402/types";
+import { SupportedPaymentKindsResponse } from "@sei-js/x402/types";
 
 /**
  * Returns the supported payment kinds for the x402 protocol

@@ -1,5 +1,5 @@
 {
-  "name": "@coinbase/x402",
+  "name": "@sei-js/coinbase-x402",
   "version": "0.3.9",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -40,7 +40,7 @@
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.1.1",
     "viem": "^2.23.1",
-    "x402": "workspace:^",
+    "@sei-js/x402": "workspace:^",
     "zod": "^3.24.2"
   },
   "exports": {

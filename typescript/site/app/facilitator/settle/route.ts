@@ -1,5 +1,5 @@
 import { Hex } from "viem";
-import { settle } from "x402/facilitator";
+import { settle } from "@sei-js/x402/facilitator";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
@@ -7,7 +7,7 @@ import {
   PaymentRequirementsSchema,
   SettleResponse,
   evm,
-} from "x402/types";
+} from "@sei-js/x402/types";
 
 type SettleRequest = {
   paymentPayload: PaymentPayload;

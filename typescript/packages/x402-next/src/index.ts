@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address } from "viem";
-import { exact } from "x402/schemes";
+import { exact } from "@sei-js/x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
@@ -9,7 +9,7 @@ import {
   getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
-} from "x402/shared";
+} from "@sei-js/x402/shared";
 import {
   FacilitatorConfig,
   moneySchema,
@@ -17,8 +17,8 @@ import {
   PaymentRequirements,
   Resource,
   RoutesConfig,
-} from "x402/types";
-import { useFacilitator } from "x402/verify";
+} from "@sei-js/x402/types";
+import { useFacilitator } from "@sei-js/x402/verify";
 
 /**
  * Creates a payment middleware factory for Next.js
@@ -262,4 +262,4 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "x402/types";
+} from "@sei-js/x402/types";

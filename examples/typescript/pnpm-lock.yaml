@@ -23,12 +23,12 @@ importers:
       '@coinbase/cdp-sdk':
         specifier: ^1.1.1
         version: 1.1.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -148,15 +148,15 @@ importers:
 
   ../../typescript/packages/x402-axios:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       axios:
         specifier: ^1.7.9
         version: 1.8.4
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -209,15 +209,15 @@ importers:
 
   ../../typescript/packages/x402-express:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       express:
         specifier: ^4.18.2
         version: 4.21.2
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -273,12 +273,12 @@ importers:
 
   ../../typescript/packages/x402-fetch:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -331,15 +331,15 @@ importers:
 
   ../../typescript/packages/x402-hono:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       hono:
         specifier: ^4.7.1
         version: 4.7.7
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -392,15 +392,15 @@ importers:
 
   ../../typescript/packages/x402-next:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../x402
       next:
         specifier: ^15.2.4
-        version: 15.3.1(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -471,15 +471,15 @@ importers:
       '@langchain/openai':
         specifier: ^0.5.2
         version: 0.5.10(@langchain/core@0.3.51(openai@4.97.0(ws@8.18.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.24.3)))(ws@8.18.1(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      '@sei-js/x402-fetch':
+        specifier: workspace:^
+        version: link:../../../typescript/packages/x402-fetch
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       viem:
         specifier: ^2.26.2
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402-fetch
       zod:
         specifier: ^3.24.2
         version: 3.24.3
@@ -520,6 +520,9 @@ importers:
 
   clients/axios:
     dependencies:
+      '@sei-js/x402-axios':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-axios
       axios:
         specifier: ^1.7.9
         version: 1.8.4
@@ -529,9 +532,6 @@ importers:
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-axios
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -569,6 +569,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.14.1(hono@4.7.7)
+      '@sei-js/x402-axios':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-axios
       axios:
         specifier: ^1.7.9
         version: 1.8.4
@@ -583,10 +586,7 @@ importers:
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
         specifier: file:../../../../typescript/packages/x402
-        version: file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-axios
+        version: '@sei-js/x402@file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)'
     devDependencies:
       '@types/node':
         specifier: ^22.13.5
@@ -597,6 +597,9 @@ importers:
 
   clients/fetch:
     dependencies:
+      '@sei-js/x402-fetch':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-fetch
       axios:
         specifier: ^1.7.9
         version: 1.8.4
@@ -606,9 +609,6 @@ importers:
       viem:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-fetch
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -716,15 +716,15 @@ importers:
 
   facilitator:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../../../typescript/packages/x402
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -805,15 +805,18 @@ importers:
 
   fullstack/mainnet:
     dependencies:
-      '@coinbase/x402':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/coinbase-x402
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.0)
+      '@sei-js/coinbase-x402':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/coinbase-x402
+      '@sei-js/x402-next':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-next
       next:
         specifier: canary
-        version: 15.4.0-canary.77(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 15.4.0-canary.77(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react:
         specifier: ^19.0.0
         version: 19.1.0
@@ -823,9 +826,6 @@ importers:
       viem:
         specifier: ^2.26.2
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402-next:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-next
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -881,9 +881,12 @@ importers:
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.0)
+      '@sei-js/x402-next':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-next
       next:
         specifier: ^15.2.4
-        version: 15.3.1(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        version: 15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react:
         specifier: ^19.0.0
         version: 19.1.0
@@ -893,9 +896,6 @@ importers:
       viem:
         specifier: ^2.26.2
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      x402-next:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-next
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -950,7 +950,7 @@ importers:
     dependencies:
       '@coinbase/onchainkit':
         specifier: latest
-        version: 0.38.13(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.24.3)
+        version: 0.38.13(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       '@tanstack/react-query':
         specifier: ^5
         version: 5.76.1(react@18.3.1)
@@ -997,15 +997,15 @@ importers:
 
   servers/advanced:
     dependencies:
+      '@sei-js/x402':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1046,15 +1046,15 @@ importers:
 
   servers/express:
     dependencies:
+      '@sei-js/x402-express':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-express
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402-express:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-express
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1098,15 +1098,15 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.14.1(hono@4.7.7)
+      '@sei-js/x402-hono':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-hono
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       hono:
         specifier: ^4.7.1
         version: 4.7.7
-      x402-hono:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-hono
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1144,18 +1144,18 @@ importers:
 
   servers/mainnet:
     dependencies:
-      '@coinbase/x402':
-        specifier: workspace:*
+      '@sei-js/coinbase-x402':
+        specifier: workspace:^
         version: link:../../../../typescript/packages/coinbase-x402
+      '@sei-js/x402-express':
+        specifier: workspace:^
+        version: link:../../../../typescript/packages/x402-express
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402-express:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-express
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -3171,6 +3171,9 @@ packages:
 
   '@scure/bip39@1.5.4':
     resolution: {integrity: sha512-TFM4ni0vKvCfBpohoh+/lY05i9gRbSwXWngAsF4CABQxoaOHijxuaZ2R6cStDQ5CHtHO9aGJTr4ksVJASRRyMA==}
+
+  '@sei-js/x402@file:../../typescript/packages/x402':
+    resolution: {directory: ../../typescript/packages/x402, type: directory}
 
   '@selderee/plugin-htmlparser2@0.11.0':
     resolution: {integrity: sha512-P33hHGdldxGabLFjPPpaTxVolMrzrcegejx+0GxjrIb9Zv48D8yAIA/QTDR2dFl7Uz7urX8aX6+5bCZslr+gWQ==}
@@ -7421,9 +7424,6 @@ packages:
   x402@0.3.3:
     resolution: {integrity: sha512-77Bc6xi8bo0V4Sw3FU+oW8kNcPRROd6B+MKaSKrGacoA8BtYGI6oTdPOxG0eZiGGXe2Vh9VsTCVtpjbTigMMGg==}
 
-  x402@file:../../typescript/packages/x402:
-    resolution: {directory: ../../typescript/packages/x402, type: directory}
-
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
@@ -8355,10 +8355,10 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@coinbase/onchainkit@0.38.13(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.24.3)':
+  '@coinbase/onchainkit@0.38.13(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(bufferutil@4.0.9)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)':
     dependencies:
       '@farcaster/frame-sdk': 0.0.28(typescript@5.8.3)(zod@3.24.3)
-      '@farcaster/frame-wagmi-connector': 0.0.16(@farcaster/frame-sdk@0.0.28(typescript@5.8.3)(zod@3.24.3))(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
+      '@farcaster/frame-wagmi-connector': 0.0.16(@farcaster/frame-sdk@0.0.28(typescript@5.8.3)(zod@3.24.3))(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
       '@tanstack/react-query': 5.76.1(react@18.3.1)
       '@wagmi/core': 2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
       clsx: 2.1.1
@@ -8815,7 +8815,7 @@ snapshots:
       - typescript
       - zod
 
-  '@farcaster/frame-wagmi-connector@0.0.16(@farcaster/frame-sdk@0.0.28(typescript@5.8.3)(zod@3.24.3))(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
+  '@farcaster/frame-wagmi-connector@0.0.16(@farcaster/frame-sdk@0.0.28(typescript@5.8.3)(zod@3.24.3))(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))':
     dependencies:
       '@farcaster/frame-sdk': 0.0.28(typescript@5.8.3)(zod@3.24.3)
       '@wagmi/core': 2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
@@ -9026,7 +9026,7 @@ snapshots:
   '@llama-flow/core@0.3.9(hono@4.7.7)(next@15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(p-retry@6.2.1)(zod@3.24.3)':
     optionalDependencies:
       hono: 4.7.7
-      next: 15.3.1(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      next: 15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       p-retry: 6.2.1
       zod: 3.24.3
 
@@ -9976,6 +9976,15 @@ snapshots:
       '@noble/hashes': 1.7.2
       '@scure/base': 1.2.4
 
+  '@sei-js/x402@file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      viem: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+      zod: 3.24.3
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
+
   '@selderee/plugin-htmlparser2@0.11.0':
     dependencies:
       domhandler: 5.0.3
@@ -10645,7 +10654,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@wagmi/connectors@5.8.3(@types/react@18.3.21)(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)':
+  '@wagmi/connectors@5.8.3(@types/react@18.3.21)(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)':
     dependencies:
       '@coinbase/wallet-sdk': 4.3.0
       '@metamask/sdk': 0.32.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -13895,7 +13904,7 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@15.3.1(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+  next@15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
       '@next/env': 15.3.1
       '@swc/counter': 0.1.3
@@ -13920,7 +13929,7 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@15.4.0-canary.77(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
+  next@15.4.0-canary.77(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
       '@next/env': 15.4.0-canary.77
       '@swc/helpers': 0.5.15
@@ -15580,7 +15589,7 @@ snapshots:
   wagmi@2.15.4(@tanstack/query-core@5.76.0)(@tanstack/react-query@5.76.1(react@18.3.1))(@types/react@18.3.21)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3):
     dependencies:
       '@tanstack/react-query': 5.76.1(react@18.3.1)
-      '@wagmi/connectors': 5.8.3(@types/react@18.3.21)(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)
+      '@wagmi/connectors': 5.8.3(@types/react@18.3.21)(@wagmi/core@2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.8.3)(utf-8-validate@5.0.10)(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))(zod@3.24.3)
       '@wagmi/core': 2.17.2(@tanstack/query-core@5.76.0)(@types/react@18.3.21)(react@18.3.1)(typescript@5.8.3)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3))
       react: 18.3.1
       use-sync-external-store: 1.4.0(react@18.3.1)
@@ -15825,15 +15834,6 @@ snapshots:
       - bufferutil
       - debug
       - encoding
-      - typescript
-      - utf-8-validate
-
-  x402@file:../../typescript/packages/x402(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-      zod: 3.24.3
-    transitivePeerDependencies:
-      - bufferutil
       - typescript
       - utf-8-validate
 

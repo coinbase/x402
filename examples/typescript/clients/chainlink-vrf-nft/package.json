@@ -15,7 +15,7 @@
     "viem": "^2.23.5",
     "x402": "file:../../../../typescript/packages/x402",
     "axios": "^1.7.9",
-    "x402-axios": "workspace:*"
+    "@sei-js/x402-axios": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.3",

@@ -2,7 +2,7 @@ import axios from "axios";
 import { config } from "dotenv";
 import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
+import { withPaymentInterceptor, decodeXPaymentResponse } from "@sei-js/x402-axios";
 
 config();
 

@@ -13,7 +13,7 @@
     "axios": "^1.7.9",
     "dotenv": "^16.5.0",
     "viem": "^2.23.1",
-    "x402-axios": "workspace:*"
+    "@sei-js/x402-axios": "workspace:^"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

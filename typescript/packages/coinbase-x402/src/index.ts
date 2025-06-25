@@ -1,6 +1,6 @@
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
-import { FacilitatorConfig } from "x402/types";
-import { CreateHeaders } from "x402/verify";
+import { FacilitatorConfig } from "@sei-js/x402/types";
+import { CreateHeaders } from "@sei-js/x402/verify";
 
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
