@@ -2,7 +2,7 @@
 
 // This declares the module "x402/facilitator" to have a simplified verify function signature
 // that doesn't cause deep type instantiation issues
-declare module "x402/facilitator" {
+declare module "@sei-js/x402/facilitator" {
   import {
     PaymentPayload,
     PaymentRequirements,
