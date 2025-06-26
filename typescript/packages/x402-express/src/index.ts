@@ -133,7 +133,7 @@ export function paymentMiddleware(
       if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
         const feePayer = await getFeePayer(paymentRequirements[0]);
         if (paymentRequirements[0].extra && "feePayer" in paymentRequirements[0].extra) {
-          paymentRequirements[0].extra.feePayer = feePayer;
+          paymentRequirements[0].extra.feePayer = feePayer.feePayer;
         }
       }
 

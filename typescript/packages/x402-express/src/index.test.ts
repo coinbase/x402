@@ -395,7 +395,8 @@ describe("paymentMiddleware()", () => {
     };
     const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
     const feePayer = "FeePayerAddress12345";
-    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayer);
+    const feePayerResponse = { feePayer: feePayer };
+    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayerResponse);
 
     vi.mocked(findMatchingRoute).mockReturnValue({
       pattern: /^\/test$/,
@@ -425,7 +426,7 @@ describe("paymentMiddleware()", () => {
             network: NetworkEnum.SOLANA_DEVNET,
             payTo: solanaPayTo,
             extra: expect.objectContaining({
-              feePayer: feePayer,
+              feePayer: feePayerResponse.feePayer,
             }),
           }),
         ]),
@@ -433,7 +434,7 @@ describe("paymentMiddleware()", () => {
     );
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayerResponse.feePayer);
   });
 
   it("should return 402 with feePayer for solana-mainnet when no payment header is present", async () => {
@@ -446,7 +447,8 @@ describe("paymentMiddleware()", () => {
     };
     const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
     const feePayer = "FeePayerAddressMainnet";
-    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayer);
+    const feePayerResponse = { feePayer: feePayer };
+    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayerResponse);
 
     vi.mocked(findMatchingRoute).mockReturnValue({
       pattern: /^\/test$/,
@@ -476,7 +478,7 @@ describe("paymentMiddleware()", () => {
             network: NetworkEnum.SOLANA_MAINNET,
             payTo: solanaPayTo,
             extra: expect.objectContaining({
-              feePayer,
+              feePayer: feePayerResponse.feePayer,
             }),
           }),
         ]),
@@ -484,6 +486,6 @@ describe("paymentMiddleware()", () => {
     );
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayerResponse.feePayer);
   });
 });
