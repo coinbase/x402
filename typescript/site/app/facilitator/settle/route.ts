@@ -21,7 +21,8 @@ type SettleRequest = {
  * @returns A JSON response with the settlement result
  */
 export async function POST(req: Request) {
-  const wallet = evm.createSignerSepolia(process.env.PRIVATE_KEY as Hex);
+  const network = process.env.NETWORK ?? "base-sepolia";
+  const wallet = evm.createSigner(network, process.env.PRIVATE_KEY as Hex);
 
   const body: SettleRequest = await req.json();
 

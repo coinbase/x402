@@ -16,6 +16,10 @@ export const middleware = paymentMiddleware(
     },
   },
   facilitator,
+  {
+    appName: "Mainnet x402 Demo",
+    appLogo: "/x402-icon-blue.png",
+  },
 );
 
 // Configure which paths the middleware should run on

@@ -10,7 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji } from "viem/chains";
+import { baseSepolia, avalancheFuji, base } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -34,20 +34,39 @@ export type ConnectedClient<
 > = PublicClient<transport, chain, account>;
 
 /**
- * Creates a public client configured for the Base Sepolia testnet
+ * Creates a public client configured for the specified network
  *
- * @returns A public client instance connected to Base Sepolia
+ * @param network - The network to connect to
+ * @returns A public client instance connected to the specified chain
  */
-export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
+export function createConnectedClient(
+  network: string,
+): ConnectedClient<Transport, Chain, undefined> {
+  const chain = getChainFromNetwork(network);
   return createPublicClient({
-    chain: baseSepolia,
+    chain,
     transport: http(),
   }).extend(publicActions);
 }
 
 /**
+ * Creates a public client configured for the Base Sepolia testnet
+ *
+ * @deprecated Use `createConnectedClient("base-sepolia")` instead
+ * @returns A public client instance connected to Base Sepolia
+ */
+export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
+  return createConnectedClient("base-sepolia") as ConnectedClient<
+    Transport,
+    typeof baseSepolia,
+    undefined
+  >;
+}
+
+/**
  * Creates a public client configured for the Avalanche Fuji testnet
  *
+ * @deprecated Use `createConnectedClient("avalanche-fuji")` instead
  * @returns A public client instance connected to Avalanche Fuji
  */
 export function createClientAvalancheFuji(): ConnectedClient<
@@ -55,38 +74,49 @@ export function createClientAvalancheFuji(): ConnectedClient<
   typeof avalancheFuji,
   undefined
 > {
-  return createPublicClient({
-    chain: avalancheFuji,
+  return createConnectedClient("avalanche-fuji") as ConnectedClient<
+    Transport,
+    typeof avalancheFuji,
+    undefined
+  >;
+}
+
+/**
+ * Creates a wallet client configured for the specified chain with a private key
+ *
+ * @param network - The network to connect to
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to the specified chain with the provided private key
+ */
+export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+  const chain = getChainFromNetwork(network);
+  return createWalletClient({
+    chain,
     transport: http(),
+    account: privateKeyToAccount(privateKey),
   }).extend(publicActions);
 }
 
 /**
  * Creates a wallet client configured for the Base Sepolia testnet with a private key
  *
+ * @deprecated Use `createSigner("base-sepolia", privateKey)` instead
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to Base Sepolia with the provided private key
  */
 export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
-  return createWalletClient({
-    chain: baseSepolia,
-    transport: http(),
-    account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
+  return createSigner("base-sepolia", privateKey) as SignerWallet<typeof baseSepolia>;
 }
 
 /**
  * Creates a wallet client configured for the Avalanche Fuji testnet with a private key
  *
+ * @deprecated Use `createSigner("avalanche-fuji", privateKey)` instead
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to Avalanche Fuji with the provided private key
  */
 export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
-  return createWalletClient({
-    chain: avalancheFuji,
-    transport: http(),
-    account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
+  return createSigner("avalanche-fuji", privateKey) as SignerWallet<typeof avalancheFuji>;
 }
 
 /**
@@ -131,4 +161,27 @@ export function isAccount<
     // Check for transaction signing (required by LocalAccount)
     typeof w.signTransaction === "function"
   );
+}
+
+/**
+ * Maps network strings to Chain objects
+ *
+ * @param network - The network string to convert to a Chain object
+ * @returns The corresponding Chain object
+ */
+function getChainFromNetwork(network: string | undefined): Chain {
+  if (!network) {
+    throw new Error("NETWORK environment variable is not set");
+  }
+
+  switch (network) {
+    case "base":
+      return base;
+    case "base-sepolia":
+      return baseSepolia;
+    case "avalanche-fuji":
+      return avalancheFuji;
+    default:
+      throw new Error(`Unsupported network: ${network}`);
+  }
 }
