@@ -12,6 +12,7 @@ export type FacilitatorConfig = {
 
 export type PaywallConfig = {
   cdpClientKey?: string;
+  cdpProjectId?: string;
   appName?: string;
   appLogo?: string;
 };
