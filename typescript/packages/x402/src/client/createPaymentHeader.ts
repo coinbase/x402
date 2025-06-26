@@ -1,7 +1,9 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
-import { SupportedEVMNetworks } from "../types/shared";
+import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
+import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { SignerWallet } from "../types/shared/evm";
 import { PaymentRequirements } from "../types/verify";
+import { KeyPairSigner } from "@solana/kit";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -12,16 +14,29 @@ import { PaymentRequirements } from "../types/verify";
  * @returns A promise that resolves to the created payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet,
+  client: SignerWallet | KeyPairSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {
-  if (
-    paymentRequirements.scheme === "exact" &&
-    SupportedEVMNetworks.includes(paymentRequirements.network)
-  ) {
-    return await createPaymentHeaderExactEVM(client, x402Version, paymentRequirements);
+  // exact scheme
+  if (paymentRequirements.scheme === "exact") {
+    // evm
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      return await createPaymentHeaderExactEVM(
+        client as SignerWallet,
+        x402Version,
+        paymentRequirements,
+      );
+    }
+    // svm
+    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      return await createPaymentHeaderExactSVM(
+        client as KeyPairSigner,
+        x402Version,
+        paymentRequirements,
+      );
+    }
+    throw new Error("Unsupported network");
   }
-
   throw new Error("Unsupported scheme");
 }

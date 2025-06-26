@@ -3,7 +3,7 @@ import { base, baseSepolia } from "viem/chains";
 
 import { createPayment, createPaymentHeader } from "../schemes/exact/evm/client";
 import { createNonce, signAuthorization } from "../schemes/exact/evm/sign";
-import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
+import { encodePayment } from "../schemes/utils/paymentUtils";
 import { getUSDCBalance, getVersion } from "../shared/evm/usdc";
 
 import type { SignerWallet } from "../types/shared/evm";

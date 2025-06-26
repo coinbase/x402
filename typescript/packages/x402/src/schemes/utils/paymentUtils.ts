@@ -1,11 +1,13 @@
-import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { NetworkEnum } from "../../../../types";
+import { safeBase64Encode, safeBase64Decode } from "../../shared";
+import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
   ExactEvmPayload,
   ExactSvmPayload,
-} from "../../../../types/verify";
+} from "../../types/verify";
+
+// TODO: write tests for this file
 
 /**
  * Encodes a payment payload into a base64 string, ensuring bigint values are properly stringified
@@ -16,12 +18,8 @@ import {
 export function encodePayment(payment: PaymentPayload): string {
   let safe: PaymentPayload;
 
-  if (
-    payment.network == NetworkEnum.SOLANA_MAINNET ||
-    payment.network == NetworkEnum.SOLANA_DEVNET
-  ) {
-    safe = { ...payment, payload: payment.payload as ExactSvmPayload };
-  } else {
+  // evm
+  if (SupportedEVMNetworks.includes(payment.network)) {
     const evmPayload = payment.payload as ExactEvmPayload;
     safe = {
       ...payment,
@@ -35,9 +33,16 @@ export function encodePayment(payment: PaymentPayload): string {
         ) as ExactEvmPayload["authorization"],
       },
     };
+    return safeBase64Encode(JSON.stringify(safe));
   }
 
-  return safeBase64Encode(JSON.stringify(safe));
+  // svm
+  if (SupportedSVMNetworks.includes(payment.network)) {
+    safe = { ...payment, payload: payment.payload as ExactSvmPayload };
+    return safeBase64Encode(JSON.stringify(safe));
+  }
+
+  throw new Error("Invalid network");
 }
 
 /**
@@ -51,16 +56,21 @@ export function decodePayment(payment: string): PaymentPayload {
   const parsed = JSON.parse(decoded);
 
   let obj: PaymentPayload;
-  if (parsed.network == NetworkEnum.SOLANA_MAINNET || parsed.network == NetworkEnum.SOLANA_DEVNET) {
+  if (SupportedSVMNetworks.includes(parsed.network)) {
     obj = {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
     };
-  } else {
+  }
+
+  // evm
+  else if (SupportedEVMNetworks.includes(parsed.network)) {
     obj = {
       ...parsed,
       payload: parsed.payload as ExactEvmPayload,
     };
+  } else {
+    throw new Error("Invalid network");
   }
 
   const validated = PaymentPayloadSchema.parse(obj);

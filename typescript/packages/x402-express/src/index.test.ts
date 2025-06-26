@@ -407,7 +407,11 @@ describe("paymentMiddleware()", () => {
       },
     });
 
-    middleware = paymentMiddleware(solanaPayTo as SolanaAddress, solanaRoutesConfig, facilitatorConfig);
+    middleware = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
 
     mockReq.headers = {};
     await middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -421,7 +425,7 @@ describe("paymentMiddleware()", () => {
             network: NetworkEnum.SOLANA_DEVNET,
             payTo: solanaPayTo,
             extra: expect.objectContaining({
-              feePayer,
+              feePayer: feePayer,
             }),
           }),
         ]),
@@ -454,7 +458,11 @@ describe("paymentMiddleware()", () => {
       },
     });
 
-    middleware = paymentMiddleware(solanaPayTo as SolanaAddress, solanaRoutesConfig, facilitatorConfig);
+    middleware = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
 
     mockReq.headers = {};
     await middleware(mockReq as Request, mockRes as Response, mockNext);

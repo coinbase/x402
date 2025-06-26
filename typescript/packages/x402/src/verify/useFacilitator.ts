@@ -100,10 +100,12 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   /**
    * Gets the address of the facilitator that will be used to pay the network fee.
    *
-   * @param facilitator - The facilitator config to use. If not provided, the default facilitator will be used.
+   * @param paymentRequirements - The payment requirements to get the fee payer for
    * @returns A promise that resolves to the fee payer's address.
    */
-  async function getFeePayer(paymentRequirements: PaymentRequirements): Promise<GetFeePayerResponse> {
+  async function getFeePayer(
+    paymentRequirements: PaymentRequirements,
+  ): Promise<GetFeePayerResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
     const res = await fetch(`${url}/fee-payer`, {

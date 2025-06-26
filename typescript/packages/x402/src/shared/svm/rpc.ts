@@ -1,16 +1,13 @@
-import bs58 from "bs58";
 import {
   createSolanaRpc,
   devnet,
-  KeyPairSigner,
   mainnet,
   RpcDevnet,
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
   RpcMainnet,
-  createKeyPairSignerFromPrivateKeyBytes,
-  createKeyPairSignerFromBytes,
 } from "@solana/kit";
+import { NetworkEnum } from "../../types";
 
 /**
  * Creates a Solana RPC client for the devnet network.
@@ -19,7 +16,9 @@ import {
  * @returns A Solana RPC client.
  */
 export function createDevnetRpcClient(url?: string): RpcDevnet<SolanaRpcApiDevnet> {
-  return createSolanaRpc(url ? devnet(url) : devnet("devnet")) as RpcDevnet<SolanaRpcApiDevnet>;
+  return createSolanaRpc(
+    url ? devnet(url) : devnet("https://api.devnet.solana.com"),
+  ) as RpcDevnet<SolanaRpcApiDevnet>;
 }
 
 /**
@@ -30,28 +29,26 @@ export function createDevnetRpcClient(url?: string): RpcDevnet<SolanaRpcApiDevne
  */
 export function createMainnetRpcClient(url?: string): RpcMainnet<SolanaRpcApiMainnet> {
   return createSolanaRpc(
-    url ? mainnet(url) : mainnet("mainnet"),
+    url ? mainnet(url) : mainnet("https://api.mainnet-beta.solana.com"),
   ) as RpcMainnet<SolanaRpcApiMainnet>;
 }
 
 /**
- * Creates a Solana signer from a private key.
+ * Gets the RPC client for the given network.
  *
- * @param privateKey - The base58 encoded private key to create a signer from.
- * @returns A Solana signer.
+ * @param network - The network to get the RPC client for
+ * @param url - Optional URL of the network. If not provided, the default URL will be used.
+ * @returns The RPC client for the given network
  */
-export async function createSignerFromBase58(privateKey: string): Promise<KeyPairSigner> {
-  // decode the base58 encoded private key
-  const bytes = bs58.decode(privateKey);
-
-  // generate a keypair signer from the bytes based on the byte-length
-  // 64 bytes represents concatenated private + public key
-  if (bytes.length === 64) {
-    return await createKeyPairSignerFromBytes(bytes);
+export function getRpcClient(
+  network: NetworkEnum,
+  url?: string,
+): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
+  if (network === NetworkEnum.SOLANA_DEVNET) {
+    return createDevnetRpcClient(url);
+  } else if (network === NetworkEnum.SOLANA_MAINNET) {
+    return createMainnetRpcClient(url);
+  } else {
+    throw new Error("Invalid network");
   }
-  // 32 bytes represents only the private key
-  if (bytes.length === 32) {
-    return await createKeyPairSignerFromPrivateKeyBytes(bytes);
-  }
-  throw new Error(`Unexpected key length: ${bytes.length}. Expected 32 or 64 bytes.`);
 }

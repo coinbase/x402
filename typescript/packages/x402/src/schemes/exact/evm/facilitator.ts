@@ -69,7 +69,7 @@ export async function verify<
   let erc20Address: Address;
   let version: string;
   try {
-    chainId = getNetworkId(payload.network);
+    chainId = getNetworkId(payload.network) as number;
     name = paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName;
     erc20Address = paymentRequirements.asset as Address;
     version = paymentRequirements.extra?.version ?? (await getVersion(client));
@@ -102,7 +102,7 @@ export async function verify<
   const recoveredAddress = await verifyTypedData({
     address: (payload.payload as ExactEvmPayload).authorization.from as Address,
     ...permitTypedData,
-    signature: payload.payload.signature as Hex,
+    signature: (payload.payload as ExactEvmPayload).signature as Hex,
   });
   if (!recoveredAddress) {
     return {
@@ -218,7 +218,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       BigInt((paymentPayload.payload as ExactEvmPayload).authorization.validAfter),
       BigInt((paymentPayload.payload as ExactEvmPayload).authorization.validBefore),
       (paymentPayload.payload as ExactEvmPayload).authorization.nonce as Hex,
-      paymentPayload.payload.signature as Hex,
+      (paymentPayload.payload as ExactEvmPayload).signature as Hex,
     ],
     chain: wallet.chain as Chain,
   });

@@ -3,7 +3,7 @@ import { createSignerSepolia, SignerWallet } from "../../../types/shared/evm";
 import { PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createPaymentHeader, preparePaymentHeader, signPaymentHeader } from "./client";
 import { signAuthorization } from "./sign";
-import { encodePayment } from "./utils/paymentUtils";
+import { encodePayment } from "../../utils/paymentUtils";
 
 vi.mock("./sign", async () => {
   const actual = await vi.importActual("./sign");
@@ -13,7 +13,7 @@ vi.mock("./sign", async () => {
   };
 });
 
-vi.mock("./utils/paymentUtils", () => ({
+vi.mock("../../utils/paymentUtils", () => ({
   encodePayment: vi.fn().mockReturnValue("encoded-payment-header"),
 }));
 

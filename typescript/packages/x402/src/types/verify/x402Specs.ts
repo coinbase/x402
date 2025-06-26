@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NetworkSchema } from "../shared";
-import { SvmAddressRegex, SvmTxSignatureRegex } from "../shared/svm";
+import { SvmAddressRegex } from "../shared/svm";
 import { Base64EncodedRegex } from "../../shared/base64";
 
 // Constants
@@ -37,7 +37,10 @@ const hasMaxLength = (maxLength: number) => (value: string) => value.length <= m
 
 // x402PaymentRequirements
 const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
-const mixedAddressOrSvmAddress = z.string().regex(MixedAddressRegex).or(z.string().regex(SvmAddressRegex));
+const mixedAddressOrSvmAddress = z
+  .string()
+  .regex(MixedAddressRegex)
+  .or(z.string().regex(SvmAddressRegex));
 export const PaymentRequirementsSchema = z.object({
   scheme: z.enum(schemes),
   network: NetworkSchema,
@@ -72,7 +75,6 @@ export type ExactEvmPayload = z.infer<typeof ExactEvmPayloadSchema>;
 
 // x402ExactSvmPayload
 export const ExactSvmPayloadSchema = z.object({
-  signature: z.string().regex(SvmTxSignatureRegex),
   transaction: z.string().regex(Base64EncodedRegex),
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;

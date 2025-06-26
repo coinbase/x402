@@ -10,19 +10,21 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
+    "@solana/kit": "^2.1.1",
     "axios": "^1.7.9",
+    "bs58": "^6.0.0",
     "dotenv": "^16.4.7",
     "viem": "^2.23.1",
     "x402-fetch": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
-    "eslint": "^9.24.0",
-    "eslint-plugin-jsdoc": "^50.6.9",
-    "eslint-plugin-prettier": "^5.2.6",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsdoc": "^50.6.9",
+    "eslint-plugin-prettier": "^5.2.6",
     "prettier": "3.5.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"

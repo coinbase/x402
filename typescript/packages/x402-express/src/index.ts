@@ -13,6 +13,7 @@ import {
 import {
   FacilitatorConfig,
   moneySchema,
+  NetworkEnum,
   PaymentPayload,
   PaymentRequirements,
   Resource,
@@ -36,7 +37,7 @@ import { useFacilitator } from "x402/verify";
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: 'base-sepolia'
+ *     network: NetworkEnum.BASE_SEPOLIA
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * ));
@@ -46,7 +47,7 @@ import { useFacilitator } from "x402/verify";
  *   {
  *     '/weather/*': {
  *       price: '$0.001', // USDC amount in dollars
- *       network: 'base',
+ *       network: NetworkEnum.BASE_SEPOLIA,
  *       config: {
  *         description: 'Access to weather data'
  *       }
@@ -67,7 +68,7 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
 ) {
-  const { verify, settle } = useFacilitator(facilitator);
+  const { verify, settle, getFeePayer } = useFacilitator(facilitator);
   const x402Version = 1;
 
   // Pre-compile route patterns to regex and extract verbs
@@ -116,8 +117,7 @@ export function paymentMiddleware(
                 version: asset.eip712.version,
               }
             : {
-                transaction: "base64 encoded transaction",
-                feePayer: "base58 encoded public key of the facilitator",
+                feePayer: "",
               },
       },
     ];
@@ -128,6 +128,16 @@ export function paymentMiddleware(
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
     if (!payment) {
+      // if the network is solana, ask the facilitator for the address that will be used to pay the network fee
+      // TODO refactor this to be a separate function
+      if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
+        const feePayer = await getFeePayer(paymentRequirements[0]);
+        if (paymentRequirements[0].extra && "feePayer" in paymentRequirements[0].extra) {
+          paymentRequirements[0].extra.feePayer = feePayer;
+        }
+      }
+
+      // TODO handle paywall html for solana
       if (isWebBrowser) {
         let displayAmount: number;
         if (typeof price === "string" || typeof price === "number") {
@@ -149,7 +159,7 @@ export function paymentMiddleware(
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
-            testnet: network === "base-sepolia",
+            testnet: network === NetworkEnum.BASE_SEPOLIA,
           });
         res.status(402).send(html);
         return;
@@ -164,6 +174,7 @@ export function paymentMiddleware(
 
     let decodedPayment: PaymentPayload;
     try {
+      // TODO handle solana payment header
       decodedPayment = exact.evm.decodePayment(payment);
       decodedPayment.x402Version = x402Version;
     } catch (error) {
@@ -189,6 +200,7 @@ export function paymentMiddleware(
     }
 
     try {
+      // TODO handle solana verify
       const response = await verify(decodedPayment, selectedPaymentRequirements);
       if (!response.isValid) {
         res.status(402).json({
@@ -236,6 +248,7 @@ export function paymentMiddleware(
     }
 
     try {
+      // TODO handle solana settle
       const settleResponse = await settle(decodedPayment, selectedPaymentRequirements);
       const responseHeader = settleResponseHeader(settleResponse);
       res.setHeader("X-PAYMENT-RESPONSE", responseHeader);

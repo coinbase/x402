@@ -1,4 +1,4 @@
-import { Network, PaymentRequirements } from "../types";
+import { Network, NetworkEnum, PaymentRequirements } from "../types";
 import { getUsdcAddressForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
 
@@ -15,10 +15,10 @@ import { getNetworkId } from "../shared/network";
 export function selectPaymentRequirements(paymentRequirements: PaymentRequirements[], network?: Network, scheme?: "exact"): PaymentRequirements {
   // Sort `base` payment requirements to the front of the list. This is to ensure that base is preferred if available.
   paymentRequirements.sort((a, b) => {
-    if (a.network === "base" && b.network !== "base") {
+    if (a.network === NetworkEnum.BASE && b.network !== NetworkEnum.BASE) {
       return -1;
     }
-    if (a.network !== "base" && b.network === "base") {
+    if (a.network !== NetworkEnum.BASE && b.network === NetworkEnum.BASE) {
       return 1;
     }
     return 0;
@@ -44,12 +44,10 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
   if (usdcRequirements.length > 0) {
     return usdcRequirements[0];
   }
-
   // If no USDC requirements are found, return the first broadly accepted requirement.
   if (broadlyAcceptedPaymentRequirements.length > 0) {
     return broadlyAcceptedPaymentRequirements[0];
   }
-
   // If no matching requirements are found, return the first requirement.
   return paymentRequirements[0];
 }

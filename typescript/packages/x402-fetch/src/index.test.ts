@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { wrapFetchWithPayment } from "./index";
-import { evm, PaymentRequirements } from "x402/types";
+import { evm, NetworkEnum, PaymentRequirements } from "x402/types";
 
 vi.mock("x402/client", () => ({
   createPaymentHeader: vi.fn(),
@@ -16,7 +16,7 @@ describe("fetchWithPayment()", () => {
   const validPaymentRequirements: PaymentRequirements[] = [
     {
       scheme: "exact",
-      network: "base-sepolia",
+      network: NetworkEnum.BASE_SEPOLIA, // "base-sepolia",
       maxAmountRequired: "100000", // 0.1 USDC in base units
       resource: "https://api.example.com/resource",
       description: "Test payment",
