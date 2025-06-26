@@ -1,7 +1,5 @@
 import base64
-import fnmatch
 import json
-import re
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request
@@ -11,45 +9,13 @@ from pydantic import validate_call
 from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient
+from x402.path import path_is_match
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
     Price,
     x402PaymentRequiredResponse,
 )
-
-
-def _path_is_match(path: str | list[str], request_path: str) -> bool:
-    """
-    Check if request path matches the specified path pattern(s).
-
-    Supports:
-    - Exact matching: "/api/users"
-    - Glob patterns: "/api/users/*", "/api/*/profile"
-    - Regex patterns (prefix with 'regex:'): "regex:^/api/users/\d+$"
-    - List of any of the above
-    """
-
-    def single_path_match(pattern: str) -> bool:
-        # Regex pattern
-        if pattern.startswith("regex:"):
-            regex_pattern = pattern[6:]  # Remove 'regex:' prefix
-            return bool(re.match(regex_pattern, request_path))
-
-        # Glob pattern (contains * or ?)
-        elif "*" in pattern or "?" in pattern:
-            return fnmatch.fnmatch(request_path, pattern)
-
-        # Exact match
-        else:
-            return pattern == request_path
-
-    if isinstance(path, str):
-        return single_path_match(path)
-    elif isinstance(path, list):
-        return any(single_path_match(p) for p in path)
-
-    return False
 
 
 @validate_call
@@ -62,7 +28,7 @@ def require_payment(
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
     facilitator_config: Optional[Dict[str, Any]] = None,
-    network_id: str = "84532",
+    network: str = "base-sepolia",
     resource: Optional[str] = None,
 ):
     """Generate a FastAPI middleware that gates payments for an endpoint.
@@ -79,7 +45,7 @@ def require_payment(
         output_schema (Any, optional): JSON schema for the response. Defaults to None.
         facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
-        network_id (str, optional): Ethereum network ID. Defaults to "84532" (Base Sepolia testnet).
+        network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
 
     Returns:
@@ -88,7 +54,7 @@ def require_payment(
 
     try:
         max_amount_required, asset_address, eip712_domain = (
-            process_price_to_atomic_amount(price, network_id)
+            process_price_to_atomic_amount(price, network)
         )
     except Exception as e:
         raise ValueError(f"Invalid price: {price}. Error: {e}")
@@ -97,7 +63,7 @@ def require_payment(
 
     async def middleware(request: Request, call_next: Callable):
         # Skip if the path is not the same as the path in the middleware
-        if not _path_is_match(path, request.url.path):
+        if not path_is_match(path, request.url.path):
             return await call_next(request)
 
         # Get resource URL if not explicitly provided
@@ -110,7 +76,7 @@ def require_payment(
         payment_requirements = [
             PaymentRequirements(
                 scheme="exact",
-                network=network_id,
+                network=network,
                 asset=asset_address,
                 max_amount_required=max_amount_required,
                 resource=resource_url,

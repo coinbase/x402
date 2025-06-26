@@ -1,6 +1,6 @@
-# x402 fastapi Example Server
+# x402 Flask Example Server
 
-This is an example FastAPI server that demonstrates how to use the x402 `fastapi` middleware to implement paywall functionality in your API endpoints.
+This is an example Flask server that demonstrates how to use the x402 `flask` middleware to implement paywall functionality in your API endpoints.
 
 ## Prerequisites
 
@@ -32,20 +32,21 @@ The server will start on http://localhost:4021
 To add more paid endpoints, follow this pattern:
 
 ```python
-# First, configure the payment middleware with your routes
-app.middleware("http")(
-    require_payment(
-        path="/your-endpoint",
-        price="$0.10",
-        pay_to_address=ADDRESS,
-        network=NETWORK,
-    )
+# First, initialize the payment middleware
+payment_middleware = PaymentMiddleware(app)
+
+# Then add payment configurations for your routes
+payment_middleware.add(
+    path="/your-endpoint",
+    price="$0.10",
+    pay_to_address=ADDRESS,
+    network=NETWORK,
 )
 
 # Then define your routes as normal
-@app.get("/your-endpoint")
-async def your_endpoint():
-    return {
+@app.route("/your-endpoint")
+def your_endpoint():
+    return jsonify({
         # Your response data
-    }
+    })
 ```

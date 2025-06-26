@@ -28,7 +28,7 @@ app.middleware("http")(
         price="$0.001",
         pay_to_address=ADDRESS,
         path="/weather",
-        network_id=NETWORK,
+        network=NETWORK,
         facilitator_config=facilitator_config,
     )
 )
@@ -39,7 +39,7 @@ app.middleware("http")(
         price="$0.01",
         pay_to_address=ADDRESS,
         path="/premium/*",
-        network_id=NETWORK,
+        network=NETWORK,
         facilitator_config=facilitator_config,
     )
 )
