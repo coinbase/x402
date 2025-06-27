@@ -1,0 +1,26 @@
+import { facilitator } from "@coinbase/x402";
+import { Address } from "viem";
+import { paymentMiddleware } from "x402-next";
+
+const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
+const network = (process.env.NETWORK || "base-sepolia") as "base" | "base-sepolia";
+
+export const middleware = paymentMiddleware(
+  payTo,
+  {
+    "/api/protected": {
+      price: "$0.01",
+      network,
+      config: {
+        description: "Protected route",
+      },
+    },
+  },
+  facilitator,
+);
+
+// Configure which paths the middleware should run on
+export const config = {
+  matcher: ["/api/protected"],
+  runtime: "nodejs",
+};

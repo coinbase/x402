@@ -1,0 +1,26 @@
+{
+  "version": "next",
+  "imageUrl": "https://example.com/app-logo.png",
+  "button": {
+    "title": "🚀 Example App",
+    "action": {
+      "type": "launch_frame",
+      "name": "Example Mini App",
+      "url": "https://example.com",
+      "splashImageUrl": "https://example.com/app-logo-200x200.png",
+      "splashBackgroundColor": "#3b82f6"
+    }
+  },
+  "frame": {
+    "version": "next",
+    "name": "Example App",
+    "iconUrl": "https://example.com/app-logo.png",
+    "homeUrl": "https://example.com",
+    "imageUrl": "https://example.com/app-logo.png",
+    "button": {
+      "title": "Launch App",
+      "action": "launch_frame"
+    },
+    "webhookUrl": "https://example.com/api/webhook"
+  }
+}
