@@ -77,6 +77,7 @@ import { useFacilitator } from "x402/verify";
  *   },
  *   {
  *     cdpClientKey: 'your-cdp-client-key',
+ *     cdpProjectId: 'your-cdp-project-id',
  *     appLogo: '/images/logo.svg',
  *     appName: 'My App',
  *   }
@@ -163,6 +164,7 @@ export function paymentMiddleware(
               currentUrl: request.url,
               testnet: network === "base-sepolia",
               cdpClientKey: paywall?.cdpClientKey,
+              cdpProjectId: paywall?.cdpProjectId,
               appLogo: paywall?.appLogo,
               appName: paywall?.appName,
             });

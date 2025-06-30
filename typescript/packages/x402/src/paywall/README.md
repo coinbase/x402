@@ -1,42 +1,38 @@
 # x402 Paywall
 
-The x402 paywall is designed to work with x402 middleware-enabled servers and handles wallet connection, network switching, USDC balance checking, and payment processing automatically.
-
-## Configuration
-
-### CDP Client Key
-
-You can optionally include a [CDP Client API Key](https://docs.cdp.coinbase.com/get-started/docs/cdp-api-keys) from the [Coinbase Developer Platform](https://portal.cdp.coinbase.com/projects/api-keys/client-key). This unlocks **enhanced OnchainKit features** in the wallet connection experience:
-
-- **Access to Coinbase's RPC nodes** (if you don't provide your own RPC URL)
-- **Enhanced performance** through Coinbase's hosted infrastructure
-
-It is not required for basic functionality or logo & name customization.
-
+Automatic wallet connection and payment UI for x402 middleware-enabled servers. Handles wallet connection, network switching, balance checking, and payment processing.
 
 ```typescript
 export const middleware = paymentMiddleware(
   address,
   {
-    "/protected": {
-      price: "$0.01",
-    },
+    "/protected": { price: "$0.01" },
   },
   {
-    appLogo: "/logos/your-app.png",
-    appName: "Your App Name",
-    cdpClientKey: "your-cdp-client-key",
+    appLogo: "/logos/your-app.png",         // Optional
+    appName: "Your App Name",               // Optional
+    cdpClientKey: "your-cdp-client-key",    // Optional: Enhanced RPC
+    cdpProjectId: "your-cdp-project-id",    // Optional: Fund button
   },
 );
 ```
+
+## Features
+
+**Wallet Connection & Payment Processing:** Supports Coinbase Smart Wallet, Coinbase EOA, MetaMask, Phantom, Rabby, Trust Wallet, and Frame. Includes x402 payment processing by default.
+
+**Enhanced RPC** (optional): Add `cdpClientKey` to use Coinbase's hosted RPC infrastructure for improved performance.
+
+**Fund/Onramp Button** (optional): Add `cdpProjectId` to enable onramp functionality in the wallet dropdown. Provides Coinbase Smart Wallet Fund flow or Coinbase Onramp depending on wallet type. This is only available on Base mainnet.
 
 ## Configuration Options
 
 | Option | Description |
 |--------|-------------|
-| `appLogo` | Your app's logo for the paywall wallet selection modal |
-| `appName` | Your app's name displayed in the paywall wallet selection modal |
-| `cdpClientKey` | Coinbase Developer Platform [Client API Key](https://docs.cdp.coinbase.com/get-started/docs/cdp-api-keys) (only required for [enhanced OnchainKit features](https://docs.base.org/onchainkit/config/onchainkit-provider#apikey)) |
+| `appLogo` | Logo URL for wallet selection modal (optional, defaults to no logo) |
+| `appName` | App name displayed in wallet selection modal (optional, defaults to "Dapp") |
+| `cdpClientKey` | [Coinbase Developer Platform Client API Key](https://docs.cdp.coinbase.com/get-started/docs/cdp-api-keys) for enhanced RPC |
+| `cdpProjectId` | [Coinbase Developer Platform Project ID](https://docs.base.org/onchainkit/config/onchainkit-provider#project-id) for Fund/Onramp button |
 
 
 ## Usage

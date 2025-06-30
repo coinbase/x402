@@ -4,6 +4,7 @@ import {
   Wallet,
   WalletDropdown,
   WalletDropdownDisconnect,
+  WalletDropdownFundLink,
 } from "@coinbase/onchainkit/wallet";
 import { useCallback, useEffect, useState } from "react";
 import { createPublicClient, http, publicActions } from "viem";
@@ -37,6 +38,8 @@ export function PaywallApp() {
   const paymentChain = testnet ? baseSepolia : base;
   const chainName = testnet ? "Base Sepolia" : "Base";
   const network = testnet ? "base-sepolia" : "base";
+
+  const showOnramp = x402.cdpProjectId && !testnet;
 
   const publicClient = createPublicClient({
     chain: paymentChain,
@@ -213,6 +216,7 @@ export function PaywallApp() {
             <Name className="opacity-80 text-sm" />
           </ConnectWallet>
           <WalletDropdown>
+            {showOnramp && <WalletDropdownFundLink />}
             <WalletDropdownDisconnect className="opacity-80" />
           </WalletDropdown>
         </Wallet>

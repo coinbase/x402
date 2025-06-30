@@ -8,6 +8,7 @@ declare global {
       paymentRequirements: PaymentRequirements | PaymentRequirements[];
       currentUrl: string;
       cdpClientKey?: string;
+      cdpProjectId?: string;
       appName?: string;
       appLogo?: string;
       config: {
