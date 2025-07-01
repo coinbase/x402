@@ -21,7 +21,7 @@ app.use(
         // USDC amount in dollars
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
-        network: "sei-testnet",
+        network: "base-sepolia",
       },
       "/premium/*": {
         // Define atomic amounts in any EIP-3009 token
@@ -36,7 +36,7 @@ app.use(
             },
           },
         },
-        network: "sei-testnet",
+        network: "base-sepolia",
       },
     },
     {

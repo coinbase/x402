@@ -1,9 +1,5 @@
 import { AxiosInstance, AxiosError } from "axios";
-import {
-  ChainIdToNetwork,
-  PaymentRequirements,
-  PaymentRequirementsSchema,
-} from "x402/types";
+import { ChainIdToNetwork, PaymentRequirements, PaymentRequirementsSchema } from "x402/types";
 import { evm } from "x402/types";
 import {
   createPaymentHeader,
