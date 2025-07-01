@@ -36,6 +36,7 @@ app.use(
             },
           },
         },
+        // network: "base" // uncomment for Base mainnet
         network: "base-sepolia",
       },
     },
