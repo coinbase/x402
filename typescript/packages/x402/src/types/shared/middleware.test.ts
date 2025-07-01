@@ -4,7 +4,7 @@ import {
   findMatchingRoute,
   getDefaultAsset,
   processPriceToAtomicAmount,
-} from "@sei-js/x402/shared";
+} from "x402/shared";
 import { RoutePattern, RoutesConfig } from "./middleware";
 import { Network } from "./network";
 

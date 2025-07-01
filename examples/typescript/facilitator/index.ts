@@ -1,14 +1,14 @@
 /* eslint-env node */
 import { config } from "dotenv";
 import express from "express";
-import { verify, settle } from "@sei-js/x402/facilitator";
+import { verify, settle } from "x402/facilitator";
 import {
   PaymentRequirementsSchema,
   PaymentRequirements,
   evm,
   PaymentPayload,
   PaymentPayloadSchema,
-} from "@sei-js/x402/types";
+} from "x402/types";
 
 config();
 
@@ -19,7 +19,7 @@ if (!PRIVATE_KEY) {
   process.exit(1);
 }
 
-const { createClientSeiTestnet, createSignerSeiTestnet } = evm;
+const { createClientSepolia, createSignerSepolia } = evm;
 
 const app = express();
 
@@ -36,7 +36,7 @@ type SettleRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const client = createClientSeiTestnet();
+const client = createClientSepolia();
 
 app.get("/verify", (req, res) => {
   res.json({
@@ -78,7 +78,7 @@ app.get("/supported", (req, res) => {
       {
         x402Version: 1,
         scheme: "exact",
-        network: "sei-testnet",
+        network: "base-sepolia",
       },
     ],
   });
@@ -86,7 +86,7 @@ app.get("/supported", (req, res) => {
 
 app.post("/settle", async (req, res) => {
   try {
-    const signer = createSignerSeiTestnet(PRIVATE_KEY as `0x${string}`);
+    const signer = createSignerSepolia(PRIVATE_KEY as `0x${string}`);
     const body: SettleRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);

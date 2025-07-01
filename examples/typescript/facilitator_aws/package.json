@@ -21,7 +21,7 @@
     "express": "^4.18.2",
     "serverless-http": "^3.2.0",
     "source-map-support": "^0.5.21",
-    "@sei-js/x402": "workspace:*"
+    "x402": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

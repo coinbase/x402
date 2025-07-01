@@ -13,7 +13,7 @@
     "@hono/node-server": "^1.13.8",
     "dotenv": "^16.4.7",
     "hono": "^4.7.1",
-    "@sei-js/x402-hono": "workspace:^"
+    "x402-hono": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^7.2.0",

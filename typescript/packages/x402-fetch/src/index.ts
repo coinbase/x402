@@ -1,10 +1,10 @@
-import { ChainIdToNetwork, PaymentRequirementsSchema } from "@sei-js/x402/types";
-import { evm } from "@sei-js/x402/types";
+import { ChainIdToNetwork, PaymentRequirementsSchema } from "x402/types";
+import { evm } from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
-} from "@sei-js/x402/client";
+} from "x402/client";
 import { Account } from "viem";
 
 /**
@@ -101,4 +101,4 @@ export function wrapFetchWithPayment(
   };
 }
 
-export { decodeXPaymentResponse } from "@sei-js/x402/shared";
+export { decodeXPaymentResponse } from "x402/shared";

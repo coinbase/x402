@@ -1,5 +1,5 @@
 {
-  "name": "@sei-js/x402",
+  "name": "x402",
   "version": "0.4.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

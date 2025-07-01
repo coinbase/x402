@@ -3,13 +3,13 @@ import {
   ChainIdToNetwork,
   PaymentRequirements,
   PaymentRequirementsSchema,
-} from "@sei-js/x402/types";
-import { evm } from "@sei-js/x402/types";
+} from "x402/types";
+import { evm } from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
-} from "@sei-js/x402/client";
+} from "x402/client";
 import { Account } from "viem";
 
 /**
@@ -98,4 +98,4 @@ export function withPaymentInterceptor(
   return axiosClient;
 }
 
-export { decodeXPaymentResponse } from "@sei-js/x402/shared";
+export { decodeXPaymentResponse } from "x402/shared";
