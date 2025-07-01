@@ -27,7 +27,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
@@ -155,7 +155,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
@@ -216,7 +216,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
@@ -277,7 +277,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
@@ -338,7 +338,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
@@ -399,7 +399,7 @@ importers:
         specifier: ^2.23.1
         version: 2.27.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
       x402:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../x402
       zod:
         specifier: ^3.24.2
