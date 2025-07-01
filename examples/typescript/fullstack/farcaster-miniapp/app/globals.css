@@ -19,12 +19,16 @@ body {
 
 /* Mini app optimizations */
 @media (max-width: 768px) {
-  button, [role="button"] {
+
+  button,
+  [role="button"] {
     min-height: 44px;
     min-width: 44px;
   }
-  
-  input, textarea, select {
+
+  input,
+  textarea,
+  select {
     font-size: 16px;
   }
 }
@@ -64,4 +68,3 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
-

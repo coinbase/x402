@@ -1,27 +1,47 @@
-'use client';
+"use client";
 
-import { Wallet } from '@coinbase/onchainkit/wallet';
-import { sdk } from '@farcaster/frame-sdk';
-import { wrapFetchWithPayment } from 'x402-fetch';
-import { useEffect, useState } from 'react';
-import { getWalletClient } from 'wagmi/actions';
-import { useAccount } from 'wagmi';
-import { createConfig, http } from '@wagmi/core'
-import { base, baseSepolia } from '@wagmi/core/chains'
-import { createClient } from 'viem'
-
-const config = createConfig({
-  chains: [base, baseSepolia],
-  client({ chain }) {
-    return createClient({ chain, transport: http() })
-  },
-})
+import {
+  useMiniKit,
+  useAddFrame,
+} from "@coinbase/onchainkit/minikit";
+import {
+  Name,
+  Identity,
+  Address,
+  Avatar,
+  EthBalance,
+} from "@coinbase/onchainkit/identity";
+import {
+  ConnectWallet,
+  Wallet,
+  WalletDropdown,
+  WalletDropdownDisconnect,
+} from "@coinbase/onchainkit/wallet";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useAccount } from "wagmi";
+import { sdk } from "@farcaster/frame-sdk";
+import { wrapFetchWithPayment } from "x402-fetch";
+import { getWalletClient } from "wagmi/actions";
+import { createConfig, http } from "@wagmi/core";
+import { base, baseSepolia } from "@wagmi/core/chains";
+import { createClient } from "viem";
 
 export default function App() {
-  const { address, isConnected, connector, chainId } = useAccount();
+  const { setFrameReady, isFrameReady, context } = useMiniKit();
+  const [frameAdded, setFrameAdded] = useState(false);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
+  const { address, isConnected, connector, chainId } = useAccount();
+
+  const addFrame = useAddFrame();
+
+  const config = createConfig({
+    chains: [base, baseSepolia],
+    client({ chain }) {
+      return createClient({ chain, transport: http() });
+    },
+  });
 
   // Initialize Farcaster Mini App SDK
   useEffect(() => {
@@ -38,47 +58,90 @@ export default function App() {
     initMiniApp();
   }, []);
 
-  const handleProtectedAction = async () => {
+  useEffect(() => {
+    if (!isFrameReady) {
+      setFrameReady();
+    }
+  }, [setFrameReady, isFrameReady]);
+
+  const handleAddFrame = useCallback(async () => {
+    const frameAdded = await addFrame();
+    setFrameAdded(Boolean(frameAdded));
+  }, [addFrame]);
+
+  const handleProtectedAction = useCallback(async () => {
     if (!isConnected) {
-      setMessage('Please connect your wallet first');
+      setMessage("Please connect your wallet first");
       return;
     }
 
     setIsLoading(true);
-    setMessage('');
+    setMessage("");
 
     const walletClient = await getWalletClient(config, {
       account: address,
       chainId: chainId,
-      connector: connector
+      connector: connector,
     });
 
     if (!walletClient) {
-      setMessage('Wallet client not available');
+      setMessage("Wallet client not available");
       return;
     }
 
     // For x402-fetch, we need to pass the wallet client's account
-    const fetchWithPayment = wrapFetchWithPayment(fetch, walletClient as unknown as Parameters<typeof wrapFetchWithPayment>[1]);
+    const fetchWithPayment = wrapFetchWithPayment(
+      fetch,
+      walletClient as unknown as Parameters<typeof wrapFetchWithPayment>[1]
+    );
 
     try {
-      const response = await fetchWithPayment('/api/protected', {
-        method: 'GET',
+      const response = await fetchWithPayment("/api/protected", {
+        method: "GET",
       });
 
       if (!response.ok) {
+        console.log(response)
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       setMessage(`Success! Response: ${JSON.stringify(data)}`);
     } catch (error) {
-      console.error('Error calling protected API:', error);
-      setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error calling protected API:", error);
+      setMessage(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isConnected, address, chainId, connector, config]);
+
+  const saveFrameButton = useMemo(() => {
+    if (context && !context.client.added) {
+      return (
+        <button
+          onClick={handleAddFrame}
+          className="text-blue-600 hover:text-blue-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+        >
+          Save Frame
+        </button>
+      );
+    }
+
+    if (frameAdded) {
+      return (
+        <div className="flex items-center space-x-1 text-sm font-medium text-green-600 dark:text-green-400">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>Saved</span>
+        </div>
+      );
+    }
+
+    return null;
+  }, [context, frameAdded, handleAddFrame]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -93,8 +156,24 @@ export default function App() {
               </p>
             </div>
 
-            <div className="flex-shrink-0">
-              <Wallet />
+            <div className="flex items-center space-x-2">
+              <div className="flex-shrink-0">
+                <Wallet className="z-10">
+                  <ConnectWallet>
+                    <Name className="text-inherit" />
+                  </ConnectWallet>
+                  <WalletDropdown>
+                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                      <Avatar />
+                      <Name />
+                      <Address />
+                      <EthBalance />
+                    </Identity>
+                    <WalletDropdownDisconnect />
+                  </WalletDropdown>
+                </Wallet>
+              </div>
+              <div>{saveFrameButton}</div>
             </div>
           </div>
         </div>
@@ -147,7 +226,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Action Button */}
+          {/* Protected Action */}
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Protected Action
@@ -172,28 +251,26 @@ export default function App() {
                 'Call Protected API'
               )}
             </button>
-          </div>
-
-          {/* Message Display */}
-          {message && (
-            <div className={`p-4 rounded-lg border ${message.startsWith('Error')
-              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-              : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-              }`}>
-              <div className="flex items-center space-x-2">
-                {message.startsWith('Error') ? (
-                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                )}
-                <span className="font-medium">{message}</span>
+            {message && (
+              <div className={`mt-4 p-4 rounded-lg border ${message.startsWith('Error')
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                }`}>
+                <div className="flex items-center space-x-2">
+                  {message.startsWith('Error') ? (
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  <span className="font-medium">{message}</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Instructions */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
@@ -202,8 +279,8 @@ export default function App() {
             </h3>
             <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
               <p>• Connect your wallet using the button in the header</p>
-              <p>• The app will automatically detect if it's running in a Farcaster Mini App</p>
-              <p>• Use the "Call Protected API" button to test the protected endpoint</p>
+              <p>• The app will automatically detect if it&apos;s running in a Farcaster Mini App</p>
+              <p>• Use the &quot;Call Protected API&quot; button to test the protected endpoint</p>
               <p>• Customize this template by adding your own features and logic</p>
             </div>
           </div>
