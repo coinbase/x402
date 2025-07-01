@@ -12,7 +12,6 @@ export const middleware = paymentMiddleware(
     appLogo: "/logos/your-app.png",         // Optional
     appName: "Your App Name",               // Optional
     cdpClientKey: "your-cdp-client-key",    // Optional: Enhanced RPC
-    cdpProjectId: "your-cdp-project-id",    // Optional: Fund button
   },
 );
 ```
@@ -23,8 +22,6 @@ export const middleware = paymentMiddleware(
 
 **Enhanced RPC** (optional): Add `cdpClientKey` to use Coinbase's hosted RPC infrastructure for improved performance.
 
-**Fund/Onramp Button** (optional): Add `cdpProjectId` to enable onramp functionality in the wallet dropdown. Provides Coinbase Smart Wallet Fund flow or Coinbase Onramp depending on wallet type. This is only available on Base mainnet.
-
 ## Configuration Options
 
 | Option | Description |
@@ -32,7 +29,6 @@ export const middleware = paymentMiddleware(
 | `appLogo` | Logo URL for wallet selection modal (optional, defaults to no logo) |
 | `appName` | App name displayed in wallet selection modal (optional, defaults to "Dapp") |
 | `cdpClientKey` | [Coinbase Developer Platform Client API Key](https://docs.cdp.coinbase.com/get-started/docs/cdp-api-keys) for enhanced RPC |
-| `cdpProjectId` | [Coinbase Developer Platform Project ID](https://docs.base.org/onchainkit/config/onchainkit-provider#project-id) for Fund/Onramp button |
 
 
 ## Usage

@@ -96,7 +96,6 @@ For more on paywall configuration options, refer to the [paywall README](../x402
 ```typescript
 type PaywallConfig = {
   cdpClientKey?: string;              // Your CDP Client API Key
-  cdpProjectId?: string;              // Your CDP project ID
   appName?: string;                   // Name displayed in the paywall wallet selection modal
   appLogo?: string;                   // Logo for the paywall wallet selection modal
 };

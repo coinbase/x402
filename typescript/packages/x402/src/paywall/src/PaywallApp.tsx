@@ -1,3 +1,4 @@
+import { FundButton, getOnrampBuyUrl } from "@coinbase/onchainkit/fund";
 import { Avatar, Name } from "@coinbase/onchainkit/identity";
 import {
   ConnectWallet,
@@ -6,7 +7,7 @@ import {
   WalletDropdownDisconnect,
   WalletDropdownFundLink,
 } from "@coinbase/onchainkit/wallet";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPublicClient, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
@@ -15,7 +16,7 @@ import { exact } from "../../schemes";
 import { getUSDCBalance } from "../../shared/evm";
 import { selectPaymentRequirements } from "../../client";
 
-import { ensureValidAmount } from "./utils";
+import { ensureValidAmount, generateOnrampSessionToken } from "./utils";
 import { Spinner } from "./Spinner";
 
 /**
@@ -31,6 +32,8 @@ export function PaywallApp() {
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [usdcBalance, setUsdcBalance] = useState<bigint>();
+  const [sessionToken, setSessionToken] = useState<string | undefined>();
 
   const x402 = window.x402;
   const amount = x402.amount || 0;
@@ -39,7 +42,15 @@ export function PaywallApp() {
   const chainName = testnet ? "Base Sepolia" : "Base";
   const network = testnet ? "base-sepolia" : "base";
 
-  const showOnramp = x402.cdpProjectId && !testnet;
+  // Convert amount in dollars to USDC units to avoid floating point precision issues when comparing
+  const amountInUSDC = BigInt(amount * 1_000_000);
+  const insufficientBalance = usdcBalance !== undefined && usdcBalance < amountInUSDC;
+
+  useEffect(() => {
+    if (address) {
+      checkUSDCBalance();
+    }
+  }, [address]);
 
   const publicClient = createPublicClient({
     chain: paymentChain,
@@ -63,9 +74,41 @@ export function PaywallApp() {
     }
   }, [paymentChain.id, connectedChainId, isConnected]);
 
+  const checkUSDCBalance = useCallback(async () => {
+    if (!address) {
+      return;
+    }
+    const balance = await getUSDCBalance(publicClient, address);
+    setUsdcBalance(balance);
+  }, [address, publicClient]);
+
+  useEffect(() => {
+    if (!address) {
+      setSessionToken(undefined);
+      return;
+    }
+
+    generateOnrampSessionToken(address).then(token => {
+      console.log("onrampSessionToken", token);
+      setSessionToken(token);
+    });
+  }, [address]);
+
+  const onrampBuyUrl = useMemo(() => {
+    if (!sessionToken) {
+      return;
+    }
+    return getOnrampBuyUrl({
+      presetFiatAmount: 2,
+      fiatCurrency: "USD",
+      sessionToken,
+    });
+  }, [sessionToken]);
+
   const handleOnConnect = useCallback(async () => {
     await handleSwitchChain();
-  }, []);
+    await checkUSDCBalance();
+  }, [checkUSDCBalance]);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -208,7 +251,7 @@ export function PaywallApp() {
       <div className="content w-full">
         <Wallet className="w-full">
           <ConnectWallet
-            className="w-full py-2"
+            className="w-full py-3"
             onConnect={handleOnConnect}
             disconnectedLabel="Connect wallet"
           >
@@ -220,7 +263,6 @@ export function PaywallApp() {
             <WalletDropdownDisconnect className="opacity-80" />
           </WalletDropdown>
         </Wallet>
-
         {isConnected && (
           <div id="payment-section">
             <div className="payment-details">
@@ -241,13 +283,23 @@ export function PaywallApp() {
             </div>
 
             {isCorrectChain ? (
-              <button
-                className="button button-secondary"
-                onClick={handlePayment}
-                disabled={isPaying}
-              >
-                {isPaying ? <Spinner className="ml-2" /> : "Pay now"}
-              </button>
+              <div className="cta-container">
+                {Boolean(!testnet && isConnected && insufficientBalance === true) && (
+                  <FundButton
+                    fundingUrl={onrampBuyUrl}
+                    text="Get more USDC"
+                    hideIcon
+                    className="button button-positive"
+                  />
+                )}
+                <button
+                  className="button button-primary"
+                  onClick={handlePayment}
+                  disabled={isPaying}
+                >
+                  {isPaying ? <Spinner /> : "Pay now"}
+                </button>
+              </div>
             ) : (
               <button className="button button-primary" onClick={handleSwitchChain}>
                 Switch to {chainName}
@@ -255,7 +307,6 @@ export function PaywallApp() {
             )}
           </div>
         )}
-
         {status && <div className="status">{status}</div>}
       </div>
     </div>

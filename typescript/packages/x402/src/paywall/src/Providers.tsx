@@ -15,12 +15,11 @@ type ProvidersProps = {
  * @returns The Providers component
  */
 export function Providers({ children }: ProvidersProps) {
-  const { testnet, cdpClientKey, cdpProjectId, appName, appLogo } = window.x402;
+  const { testnet, cdpClientKey, appName, appLogo } = window.x402;
 
   return (
     <OnchainKitProvider
       apiKey={cdpClientKey || undefined}
-      projectId={cdpProjectId || undefined}
       chain={testnet ? baseSepolia : base}
       config={{
         appearance: {
