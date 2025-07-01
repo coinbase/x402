@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const tokenRequestPayload = {
       addresses: addresses.map((addr: { address: string; blockchains?: string[] }) => ({
         address: addr.address,
-        blockchains: addr.blockchains || ["ethereum", "base"],
+        blockchains: addr.blockchains || ["base"],
       })),
       ...(assets && { assets }),
     };
@@ -79,18 +79,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = (await response.json()) as {
-      data: {
-        token: string;
-        channel_id: string;
-      };
-    };
+    const data = await response.json();
 
-    return NextResponse.json({
-      success: true,
-      token: data.data.token,
-      channelId: data.data.channel_id,
-    });
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Error generating session token:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

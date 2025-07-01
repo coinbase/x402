@@ -5,10 +5,9 @@ import {
   Wallet,
   WalletDropdown,
   WalletDropdownDisconnect,
-  WalletDropdownFundLink,
 } from "@coinbase/onchainkit/wallet";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPublicClient, http, publicActions } from "viem";
+import { createPublicClient, formatUnits, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
@@ -32,7 +31,7 @@ export function PaywallApp() {
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [usdcBalance, setUsdcBalance] = useState<bigint>();
+  const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
   const [sessionToken, setSessionToken] = useState<string | undefined>();
 
   const x402 = window.x402;
@@ -41,14 +40,13 @@ export function PaywallApp() {
   const paymentChain = testnet ? baseSepolia : base;
   const chainName = testnet ? "Base Sepolia" : "Base";
   const network = testnet ? "base-sepolia" : "base";
-
-  // Convert amount in dollars to USDC units to avoid floating point precision issues when comparing
-  const amountInUSDC = BigInt(amount * 1_000_000);
-  const insufficientBalance = usdcBalance !== undefined && usdcBalance < amountInUSDC;
+  const showOnramp = !testnet && isConnected;
 
   useEffect(() => {
     if (address) {
+      handleSwitchChain();
       checkUSDCBalance();
+      getSessionToken();
     }
   }, [address]);
 
@@ -79,19 +77,16 @@ export function PaywallApp() {
       return;
     }
     const balance = await getUSDCBalance(publicClient, address);
-    setUsdcBalance(balance);
+    const formattedBalance = formatUnits(balance, 6);
+    setFormattedUsdcBalance(formattedBalance);
   }, [address, publicClient]);
 
-  useEffect(() => {
+  const getSessionToken = useCallback(async () => {
     if (!address) {
-      setSessionToken(undefined);
       return;
     }
-
-    generateOnrampSessionToken(address).then(token => {
-      console.log("onrampSessionToken", token);
-      setSessionToken(token);
-    });
+    const token = await generateOnrampSessionToken(address);
+    setSessionToken(token);
   }, [address]);
 
   const onrampBuyUrl = useMemo(() => {
@@ -104,11 +99,6 @@ export function PaywallApp() {
       sessionToken,
     });
   }, [sessionToken]);
-
-  const handleOnConnect = useCallback(async () => {
-    await handleSwitchChain();
-    await checkUSDCBalance();
-  }, [checkUSDCBalance]);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -250,16 +240,11 @@ export function PaywallApp() {
 
       <div className="content w-full">
         <Wallet className="w-full">
-          <ConnectWallet
-            className="w-full py-3"
-            onConnect={handleOnConnect}
-            disconnectedLabel="Connect wallet"
-          >
+          <ConnectWallet className="w-full py-3" disconnectedLabel="Connect wallet">
             <Avatar className="h-5 w-5 opacity-80" />
             <Name className="opacity-80 text-sm" />
           </ConnectWallet>
           <WalletDropdown>
-            {showOnramp && <WalletDropdownFundLink />}
             <WalletDropdownDisconnect className="opacity-80" />
           </WalletDropdown>
         </Wallet>
@@ -270,6 +255,12 @@ export function PaywallApp() {
                 <span className="payment-label">Wallet:</span>
                 <span className="payment-value">
                   {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Loading..."}
+                </span>
+              </div>
+              <div className="payment-row">
+                <span className="payment-label">Available balance:</span>
+                <span className="payment-value">
+                  {formattedUsdcBalance ? `$${formattedUsdcBalance} USDC` : "Loading..."}
                 </span>
               </div>
               <div className="payment-row">
@@ -284,12 +275,13 @@ export function PaywallApp() {
 
             {isCorrectChain ? (
               <div className="cta-container">
-                {Boolean(!testnet && isConnected && insufficientBalance === true) && (
+                {showOnramp && (
                   <FundButton
                     fundingUrl={onrampBuyUrl}
                     text="Get more USDC"
                     hideIcon
                     className="button button-positive"
+                    onClick={getSessionToken}
                   />
                 )}
                 <button
