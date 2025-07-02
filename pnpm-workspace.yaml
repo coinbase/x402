@@ -1,3 +1,0 @@
-packages:
-  - "typescript/packages/*"
-  - "typescript/site"

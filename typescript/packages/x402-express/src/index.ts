@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Address } from "viem";
-import { exact } from "@sei-js/x402/schemes";
+import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
@@ -8,7 +8,7 @@ import {
   getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
-} from "@sei-js/x402/shared";
+} from "x402/shared";
 import {
   FacilitatorConfig,
   moneySchema,
@@ -17,8 +17,8 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
-} from "@sei-js/x402/types";
-import { useFacilitator } from "@sei-js/x402/verify";
+} from "x402/types";
+import { useFacilitator } from "x402/verify";
 
 /**
  * Creates a payment middleware factory for Express
@@ -258,4 +258,4 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "@sei-js/x402/types";
+} from "x402/types";

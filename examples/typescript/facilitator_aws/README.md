@@ -1,4 +1,4 @@
-# x402 Facilitator AWS Lambda Example
+# x402 Facilitator AWS Lambda Example on Sei Testnet
 
 This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol, deployed as an AWS Lambda function using AWS CDK.
 

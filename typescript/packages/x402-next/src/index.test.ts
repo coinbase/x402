@@ -1,27 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exact } from "@sei-js/x402/schemes";
-import {
-  findMatchingRoute,
-  getPaywallHtml,
-  findMatchingPaymentRequirements,
-} from "@sei-js/x402/shared";
+import { exact } from "x402/schemes";
+import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
 import {
   FacilitatorConfig,
   PaymentMiddlewareConfig,
   PaymentPayload,
   PaymentRequirements,
   RouteConfig,
-} from "@sei-js/x402/types";
-import { useFacilitator } from "@sei-js/x402/verify";
+} from "x402/types";
+import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
 
 // Mock dependencies
-vi.mock("@sei-js/x402/verify", () => ({
+vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn(),
 }));
 
-vi.mock("@sei-js/x402/shared", async importOriginal => {
+vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -81,11 +77,11 @@ vi.mock("@sei-js/x402/shared", async importOriginal => {
   };
 });
 
-vi.mock("@sei-js/x402/shared/evm", () => ({
+vi.mock("x402/shared/evm", () => ({
   getUsdcAddressForChain: vi.fn().mockReturnValue("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
 }));
 
-vi.mock("@sei-js/x402/schemes", () => ({
+vi.mock("x402/schemes", () => ({
   exact: {
     evm: {
       decodePayment: vi.fn(),

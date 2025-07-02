@@ -6,11 +6,11 @@ import {
   InternalAxiosRequestConfig,
 } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evm, PaymentRequirements } from "@sei-js/x402/types";
+import { evm, PaymentRequirements } from "x402/types";
 import { withPaymentInterceptor } from "./index";
 
 // Mock the createPaymentHeader function
-vi.mock("@sei-js/x402/client", () => ({
+vi.mock("x402/client", () => ({
   createPaymentHeader: vi.fn(),
   selectPaymentRequirements: vi.fn(),
 }));
@@ -82,7 +82,7 @@ describe("withPaymentInterceptor()", () => {
     } as unknown as typeof evm.SignerWallet;
 
     // Mock payment requirements selector
-    const { selectPaymentRequirements } = await import("@sei-js/x402/client");
+    const { selectPaymentRequirements } = await import("x402/client");
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
       (requirements, _) => requirements[0],
     );
@@ -111,7 +111,7 @@ describe("withPaymentInterceptor()", () => {
     const paymentHeader = "payment-header-value";
     const successResponse = { data: "success" } as AxiosResponse;
 
-    const { createPaymentHeader, selectPaymentRequirements } = await import("@sei-js/x402/client");
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
       (requirements, _) => requirements[0],
@@ -164,7 +164,7 @@ describe("withPaymentInterceptor()", () => {
 
   it("should reject if payment header creation fails", async () => {
     const paymentError = new Error("Payment failed");
-    const { createPaymentHeader } = await import("@sei-js/x402/client");
+    const { createPaymentHeader } = await import("x402/client");
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockRejectedValue(paymentError);
 
     const error = createAxiosError(402, createErrorConfig(), {

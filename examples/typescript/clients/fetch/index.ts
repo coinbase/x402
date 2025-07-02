@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { decodeXPaymentResponse, wrapFetchWithPayment } from "@sei-js/x402-fetch";
+import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
