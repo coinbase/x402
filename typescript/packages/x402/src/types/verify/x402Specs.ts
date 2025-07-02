@@ -20,6 +20,17 @@ export const ErrorReasons = [
   "invalid_exact_evm_payload_authorization_value",
   "invalid_exact_evm_payload_signature",
   "invalid_exact_evm_payload_recipient_mismatch",
+  "invalid_exact_svm_payload_transaction",
+  "invalid_exact_svm_payload_transaction_instructions",
+  "invalid_exact_svm_payload_transaction_not_a_transfer_instruction",
+  "invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked",
+  "invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked",
+  "invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata",
+  "invalid_exact_svm_payload_transaction_cannot_derive_receiver_ata",
+  "invalid_exact_svm_payload_transaction_receiver_ata_not_found",
+  "invalid_exact_svm_payload_transaction_sender_ata_not_found",
+  "invalid_exact_svm_payload_transaction_amount_mismatch",
+  "invalid_exact_svm_payload_transaction_simulation_failed",
   "invalid_network",
   "invalid_payload",
   "invalid_payment_requirements",
@@ -32,8 +43,11 @@ export const ErrorReasons = [
 ] as const;
 
 // Refiners
-const isInteger = (value: string) => Number.isInteger(Number(value)) && Number(value) >= 0;
-const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
+const isInteger: (value: string) => boolean = (value) =>
+  Number.isInteger(Number(value)) && Number(value) >= 0;
+const hasMaxLength =
+  (maxLength: number) => (value: string) =>
+    value.length <= maxLength;
 
 // x402PaymentRequirements
 const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));

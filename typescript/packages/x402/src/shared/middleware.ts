@@ -9,6 +9,7 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  NetworkEnum,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -91,14 +92,14 @@ export function findMatchingRoute(
  */
 export function getDefaultAsset(network: Network) {
   // solana mainnet
-  if (network === "solana-mainnet") {
+  if (network === NetworkEnum.SOLANA_MAINNET) {
     return {
       address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       decimals: 6,
     };
   }
   // solana devnet
-  if (network === "solana-devnet") {
+  if (network === NetworkEnum.SOLANA_DEVNET) {
     return {
       address: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
       decimals: 6,

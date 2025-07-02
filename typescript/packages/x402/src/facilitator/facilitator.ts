@@ -31,7 +31,7 @@ export async function verify<
   chain extends Chain,
   account extends Account | undefined,
 >(
-  client: ConnectedClient<transport, chain, account>,
+  client: ConnectedClient<transport, chain, account> | KeyPairSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
@@ -39,12 +39,20 @@ export async function verify<
   if (paymentRequirements.scheme === "exact") {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return verifyExactEvm(client, payload, paymentRequirements);
+      return verifyExactEvm(
+        client as ConnectedClient<transport, chain, account>,
+        payload,
+        paymentRequirements,
+      );
     }
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await verifyExactSvm(payload, paymentRequirements);
+      return await verifyExactSvm(
+        client as KeyPairSigner,
+        payload,
+        paymentRequirements,
+      );
     }
   }
 
@@ -93,7 +101,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     network: paymentRequirements.network,
     payer:
       paymentRequirements.network === NetworkEnum.SOLANA_MAINNET ||
-      paymentRequirements.network === NetworkEnum.SOLANA_DEVNET
+        paymentRequirements.network === NetworkEnum.SOLANA_DEVNET
         ? ""
         : (payload.payload as ExactEvmPayload).authorization.from,
   };
