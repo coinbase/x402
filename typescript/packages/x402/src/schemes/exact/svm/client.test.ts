@@ -3,6 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { type Address, type KeyPairSigner, generateKeyPairSigner } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as token2022 from "@solana-program/token-2022";
+import * as token from "@solana-program/token";
 import * as paymentUtils from "../../utils/paymentUtils";
 import { PaymentRequirements } from "../../../types/verify";
 import * as rpc from "../../../shared/svm/rpc";
@@ -18,6 +19,16 @@ vi.mock("@solana-program/token-2022", async importOriginal => {
     ...actual,
     findAssociatedTokenPda: vi.fn(),
     getTransferCheckedInstruction: vi.fn().mockReturnValue({ instruction: "mock" }),
+    fetchMint: vi.fn().mockResolvedValue({ data: { decimals: 9 } }),
+  };
+});
+vi.mock("@solana-program/token", async importOriginal => {
+  const actual = await importOriginal<typeof token>();
+  return {
+    ...actual,
+    findAssociatedTokenPda: vi.fn(),
+    getTransferCheckedInstruction: vi.fn().mockReturnValue({ instruction: "mock" }),
+    fetchMint: vi.fn().mockResolvedValue({ data: { decimals: 9 } }),
   };
 });
 vi.mock("@solana/kit", async importOriginal => {
@@ -35,18 +46,21 @@ describe("SVM Client", () => {
 
   beforeAll(async () => {
     clientSigner = await generateKeyPairSigner();
+    const payToAddress = (await generateKeyPairSigner()).address;
+    const assetAddress = (await generateKeyPairSigner()).address;
+    const feePayerAddress = (await generateKeyPairSigner()).address;
     paymentRequirements = {
       scheme: "exact",
       network: NetworkEnum.SOLANA_DEVNET,
-      payTo: "payToAddress_deadbeef" as Address,
-      asset: "assetAddress_deadbeef" as Address,
+      payTo: payToAddress,
+      asset: assetAddress,
       maxAmountRequired: "1000",
       resource: "http://example.com/resource",
       description: "Test description",
       mimeType: "text/plain",
       maxTimeoutSeconds: 60,
       extra: {
-        feePayer: "feePayerAddress_deadbeef" as Address,
+        feePayer: feePayerAddress,
       },
     };
   });
@@ -64,6 +78,60 @@ describe("SVM Client", () => {
             value: {
               blockhash: "mockBlockhash",
               lastValidBlockHeight: 1234,
+            },
+          }),
+        }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token.TOKEN_PROGRAM_ADDRESS,
+            },
+          }),
+        }),
+      };
+      vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
+      vi.spyOn(token, "findAssociatedTokenPda")
+        .mockResolvedValueOnce(["sourceATA" as Address, 1 as any])
+        .mockResolvedValueOnce(["destinationATA" as Address, 1 as any]);
+
+      const mockedPartiallySign = vi.spyOn(solanaKit, "partiallySignTransactionMessageWithSigners");
+      const mockedToBase64 = vi.spyOn(solanaKit, "getBase64EncodedWireTransaction");
+
+      // Act
+      const paymentPayload = await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
+      expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce();
+      expect(token.findAssociatedTokenPda).toHaveBeenCalledTimes(2);
+      expect(token.getTransferCheckedInstruction).toHaveBeenCalledOnce();
+      expect(mockedPartiallySign).toHaveBeenCalledOnce();
+      expect(mockedToBase64).toHaveBeenCalledWith("signed_tx_message");
+      expect(paymentPayload).toEqual({
+        scheme: "exact",
+        network: "solana-devnet",
+        x402Version: 1,
+        payload: {
+          transaction: "base64_encoded_tx",
+        },
+      });
+    });
+
+    it("should create and sign a payment for a token-2022 token", async () => {
+      // Arrange
+      const mockRpcClient = {
+        getLatestBlockhash: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              blockhash: "mockBlockhash",
+              lastValidBlockHeight: 1234,
+            },
+          }),
+        }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token2022.TOKEN_2022_PROGRAM_ADDRESS,
             },
           }),
         }),
@@ -95,6 +163,25 @@ describe("SVM Client", () => {
         },
       });
     });
+
+    it("should throw an error if asset is not from a known token program", async () => {
+      // Arrange
+      const mockRpcClient = {
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: "someotherprogram" as any,
+            },
+          }),
+        }),
+      };
+      vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
+
+      // Act & Assert
+      await expect(createAndSignPayment(clientSigner, 1, paymentRequirements)).rejects.toThrow(
+        "Asset was not created by a known token program",
+      );
+    });
   });
 
   describe("createPaymentHeader", () => {
@@ -109,9 +196,16 @@ describe("SVM Client", () => {
             },
           }),
         }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token.TOKEN_PROGRAM_ADDRESS,
+            },
+          }),
+        }),
       };
       vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
-      vi.spyOn(token2022, "findAssociatedTokenPda")
+      vi.spyOn(token, "findAssociatedTokenPda")
         .mockResolvedValueOnce(["sourceATA" as Address, 1 as any])
         .mockResolvedValueOnce(["destinationATA" as Address, 1 as any]);
       vi.spyOn(paymentUtils, "encodePayment").mockReturnValue("encoded_payment_header");
@@ -135,9 +229,16 @@ describe("SVM Client", () => {
             },
           }),
         }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token.TOKEN_PROGRAM_ADDRESS,
+            },
+          }),
+        }),
       };
       vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
-      vi.spyOn(token2022, "findAssociatedTokenPda")
+      vi.spyOn(token, "findAssociatedTokenPda")
         .mockResolvedValueOnce(["sourceATA" as Address, 1 as any])
         .mockResolvedValueOnce(["destinationATA" as Address, 1 as any]);
       const encodePaymentSpy = vi
@@ -166,9 +267,16 @@ describe("SVM Client", () => {
             },
           }),
         }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token.TOKEN_PROGRAM_ADDRESS,
+            },
+          }),
+        }),
       };
       vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
-      vi.spyOn(token2022, "findAssociatedTokenPda")
+      vi.spyOn(token, "findAssociatedTokenPda")
         .mockResolvedValueOnce(["sourceATA" as Address, 1 as any])
         .mockResolvedValueOnce(["destinationATA" as Address, 1 as any]);
       vi.spyOn(solanaKit, "partiallySignTransactionMessageWithSigners").mockRejectedValue(
@@ -192,9 +300,16 @@ describe("SVM Client", () => {
             },
           }),
         }),
+        getAccountInfo: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              owner: token.TOKEN_PROGRAM_ADDRESS,
+            },
+          }),
+        }),
       };
       vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
-      vi.spyOn(token2022, "findAssociatedTokenPda")
+      vi.spyOn(token, "findAssociatedTokenPda")
         .mockResolvedValueOnce(["sourceATA" as Address, 1 as any])
         .mockResolvedValueOnce(["destinationATA" as Address, 1 as any]);
       vi.spyOn(solanaKit, "partiallySignTransactionMessageWithSigners").mockResolvedValue(

@@ -96,7 +96,6 @@ async function createTransferTransactionMessage(
   );
 }
 
-
 /**
  * Creates a transfer instruction for the given client and payment requirements.
  * This function will determine which transfer instruction to create
@@ -116,11 +115,9 @@ async function createTransferInstruction(
   const tokenAccount = await rpc.getAccountInfo(asset as Address).send();
   if (tokenAccount.value?.owner.toString() === TOKEN_PROGRAM_ADDRESS.toString()) {
     return createTransferInstructionToken(client, paymentRequirements);
-  }
-  else if (tokenAccount.value?.owner.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
+  } else if (tokenAccount.value?.owner.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
     return createTransferInstructionToken2022(client, paymentRequirements);
-  }
-  else {
+  } else {
     throw new Error("Asset was not created by a known token program");
   }
 }

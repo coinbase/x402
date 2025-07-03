@@ -44,6 +44,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@solana-program/token": "^0.5.1",
     "@solana-program/token-2022": "^0.4.2",
     "@solana/kit": "^2.1.1",
     "bs58": "^6.0.0",
