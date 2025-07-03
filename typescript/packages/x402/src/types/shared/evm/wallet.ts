@@ -98,30 +98,6 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
 }
 
 /**
- * Creates a public client configured for the Sei testnet
- *
- * @returns A public client instance connected to Sei testnet
- */
-export function createClientSeiTestnet(): ConnectedClient<Transport, typeof seiTestnet, undefined> {
-  return createPublicClient({
-    chain: seiTestnet,
-    transport: http(),
-  }).extend(publicActions);
-}
-
-/**
- * Creates a public client configured for the Sei mainnet
- *
- * @returns A public client instance connected to Sei mainnet
- */
-export function createClientSei(): ConnectedClient<Transport, typeof sei, undefined> {
-  return createPublicClient({
-    chain: sei,
-    transport: http(),
-  }).extend(publicActions);
-}
-
-/**
  * Creates a wallet client configured for the Base Sepolia testnet with a private key
  *
  * @deprecated Use `createSigner("base-sepolia", privateKey)` instead
@@ -205,6 +181,10 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return baseSepolia;
     case "avalanche-fuji":
       return avalancheFuji;
+    case "sei":
+      return sei;
+    case "sei-testnet":
+      return seiTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
