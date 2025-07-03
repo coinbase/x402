@@ -244,12 +244,14 @@ export function paymentMiddleware(
       if (settlement.success) {
         response.headers.set(
           "X-PAYMENT-RESPONSE",
-          safeBase64Encode(JSON.stringify({
-            success: true,
-            transaction: settlement.transaction,
-            network: settlement.network,
-            payer: settlement.payer,
-          })),
+          safeBase64Encode(
+            JSON.stringify({
+              success: true,
+              transaction: settlement.transaction,
+              network: settlement.network,
+              payer: settlement.payer,
+            }),
+          ),
         );
       }
     } catch (error) {
