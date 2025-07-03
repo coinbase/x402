@@ -39,7 +39,6 @@ export class TestDiscovery {
     let serverDirs = readdirSync(serversDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    serverDirs = ['flask']
 
     for (const serverName of serverDirs) {
       const serverDir = join(serversDir, serverName);
@@ -80,7 +79,6 @@ export class TestDiscovery {
     let clientDirs = readdirSync(clientsDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    clientDirs = ['requests']
 
     for (const clientName of clientDirs) {
       const clientDir = join(clientsDir, clientName);
