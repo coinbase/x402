@@ -1,4 +1,4 @@
-import { Account, Address, Chain, Transport } from "viem";
+import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
@@ -53,7 +53,7 @@ export function preparePaymentHeader(
  * @returns A promise that resolves to the signed payment payload
  */
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | Account,
+  client: SignerWallet<chain, transport> | LocalAccount,
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<PaymentPayload> {
@@ -81,7 +81,7 @@ export async function signPaymentHeader<transport extends Transport, chain exten
  * @returns A promise that resolves to the complete signed payment payload
  */
 export async function createPayment<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | Account,
+  client: SignerWallet<chain, transport> | LocalAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayload> {
@@ -99,7 +99,7 @@ export async function createPayment<transport extends Transport, chain extends C
  * @returns A promise that resolves to the encoded payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet | Account,
+  client: SignerWallet | LocalAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {

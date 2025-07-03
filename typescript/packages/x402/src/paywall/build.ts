@@ -12,19 +12,21 @@ const OUTPUT_HTML = path.join(DIST_DIR, "paywall.html");
 const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
-  entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
+  entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
   treeShaking: true,
-  minify: false,
+  minify: false, // Keep readable for development mode
   format: "iife",
   sourcemap: false,
   platform: "browser",
   target: "es2020",
+  jsx: "transform",
   define: {
-    "process.env.NODE_ENV": '"production"',
-    global: "window",
+    "process.env.NODE_ENV": '"development"',
+    global: "globalThis",
+    Buffer: "globalThis.Buffer",
   },
   mainFields: ["browser", "module", "main"],
   conditions: ["browser"],
@@ -32,7 +34,7 @@ const options: esbuild.BuildOptions = {
     htmlPlugin({
       files: [
         {
-          entryPoints: ["src/paywall/scripts.ts", "src/paywall/styles.css"],
+          entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
           filename: "paywall.html",
           title: "Payment Required",
           scriptLoading: "module",
@@ -45,8 +47,9 @@ const options: esbuild.BuildOptions = {
       ],
     }),
   ],
+  inject: ["./src/paywall/buffer-polyfill.ts"],
   // Mark problematic dependencies as external
-  external: ["crypto", "viem/actions", "@wagmi/*"],
+  external: ["crypto"],
 };
 
 // Run the build and then create the template.ts file
@@ -77,7 +80,6 @@ async function build() {
 
       // Generate a TypeScript file with the template as a constant
       const tsContent = `// THIS FILE IS AUTO-GENERATED - DO NOT EDIT
-// Generated at ${new Date().toISOString()}
 /**
  * The pre-built, self-contained paywall template with inlined CSS and JS
  */
