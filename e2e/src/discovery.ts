@@ -11,8 +11,8 @@ import {
 
 const facilitatorNetworkCombos = [
   { useCdpFacilitator: false, network: 'base-sepolia' },
-  // { useCdpFacilitator: true, network: 'base-sepolia' },
-  // { useCdpFacilitator: true, network: 'base' }
+  { useCdpFacilitator: true, network: 'base-sepolia' },
+  { useCdpFacilitator: true, network: 'base' }
 ];
 
 export class TestDiscovery {

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p ${PORT:-4021}",
+    "dev": "NODE_NO_WARNINGS=1 next dev -p ${PORT:-4021}",
     "build": "next build",
     "start": "next start",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
