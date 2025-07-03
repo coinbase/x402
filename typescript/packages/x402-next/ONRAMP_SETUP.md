@@ -94,20 +94,8 @@ Once set up, your x402 paywall will automatically use Secure Init for onramp fun
 3. Check browser console for detailed error messages
 4. Verify CDP Portal settings
 
-## Migration Timeline
-
-- **June 27, 2025**: Secure Init becomes default for new apps
-- **July 31, 2025**: Secure Init becomes mandatory for all apps
-
 ## Resources
 
 - [CDP Documentation](https://docs.cdp.coinbase.com)
 - [x402 Protocol](https://x402.org)
 - [CDP Discord](https://discord.com/invite/cdp)
-
-## Support
-
-If you encounter issues:
-1. Check this troubleshooting guide
-2. Verify your environment variables and API keys
-3. Join the [CDP Discord](https://discord.com/invite/cdp) for community support 
