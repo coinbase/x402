@@ -39,7 +39,7 @@ export class TestDiscovery {
     let serverDirs = readdirSync(serversDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    serverDirs = ['express']
+    serverDirs = ['fastapi']
 
     for (const serverName of serverDirs) {
       const serverDir = join(serversDir, serverName);
