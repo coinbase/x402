@@ -1,4 +1,4 @@
-import { Account, Address, Chain, getAddress, Hex, Transport, verifyTypedData } from "viem";
+import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
@@ -98,7 +98,7 @@ export async function verify<
       nonce: payload.payload.authorization.nonce,
     },
   };
-  const recoveredAddress = await verifyTypedData({
+  const recoveredAddress = await client.verifyTypedData({
     address: payload.payload.authorization.from as Address,
     ...permitTypedData,
     signature: payload.payload.signature as Hex,
@@ -196,6 +196,9 @@ export async function settle<transport extends Transport, chain extends Chain>(
     };
   }
 
+  // Returns the original signature (no-op) if the signature is not a 6492 signature
+  const { signature } = parseErc6492Signature(paymentPayload.payload.signature as Hex);
+
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,
     abi,
@@ -207,7 +210,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       BigInt(paymentPayload.payload.authorization.validAfter),
       BigInt(paymentPayload.payload.authorization.validBefore),
       paymentPayload.payload.authorization.nonce as Hex,
-      paymentPayload.payload.signature as Hex,
+      signature,
     ],
     chain: wallet.chain as Chain,
   });

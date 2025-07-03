@@ -12,7 +12,7 @@ const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client
 
 dotenv.config();
 
-const { createClientSeiTestnet, createSignerSeiTestnet } = evm;
+const { createConnectedClient, createSigner } = evm;
 
 // Initialize AWS Secrets Manager client
 const secretsClient = new SecretsManagerClient({});
@@ -56,7 +56,7 @@ const app = express();
 // Configure express to parse JSON bodies
 app.use(express.json());
 
-const client = createClientSeiTestnet();
+const client = createConnectedClient("sei-testnet");
 
 app.get("/verify", (req, res) => {
   res.json({
@@ -108,7 +108,7 @@ app.get("/supported", (req, res) => {
 app.post("/settle", async (req, res) => {
   try {
     const privateKey = await getPrivateKey();
-    const signer = createSignerSeiTestnet(privateKey);
+    const signer = createSigner("sei-testnet", privateKey);
     const body = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);

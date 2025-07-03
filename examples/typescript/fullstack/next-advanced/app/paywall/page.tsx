@@ -16,6 +16,16 @@ function PaymentForm({
 }) {
   const { address, isConnected } = useAccount();
   const [isProcessing, setIsProcessing] = useState(false);
+  const { isError, isSuccess, signTypedDataAsync } = useSignTypedData();
+
+  if (!address || !isConnected) {
+    return (
+      <div>
+        <Wallet />
+        <p>Please connect your wallet to proceed with payment.</p>
+      </div>
+    );
+  }
 
   const unSignedPaymentHeader = preparePaymentHeader(
     address,
@@ -38,13 +48,11 @@ function PaymentForm({
       name: paymentRequirements.extra?.name,
       version: paymentRequirements.extra?.version,
       chainId: getNetworkId(paymentRequirements.network),
-      verifyingContract: paymentRequirements.asset,
+      verifyingContract: paymentRequirements.asset as `0x${string}`,
     },
     primaryType: "TransferWithAuthorization" as const,
     message: unSignedPaymentHeader.payload.authorization,
   };
-
-  const { isError, isSuccess, signTypedDataAsync } = useSignTypedData();
 
   async function handlePayment() {
     setIsProcessing(true);
