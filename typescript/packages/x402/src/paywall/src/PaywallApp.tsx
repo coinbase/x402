@@ -11,12 +11,13 @@ import { createPublicClient, formatUnits, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
+import { selectPaymentRequirements } from "../../client";
 import { exact } from "../../schemes";
 import { getUSDCBalance } from "../../shared/evm";
-import { selectPaymentRequirements } from "../../client";
 
-import { ensureValidAmount, generateOnrampSessionToken } from "./utils";
 import { Spinner } from "./Spinner";
+import { useOnrampSessionToken } from "./useOnrampSessionToken";
+import { ensureValidAmount } from "./utils";
 
 /**
  * Main Paywall App Component
@@ -27,12 +28,12 @@ export function PaywallApp() {
   const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { data: wagmiWalletClient } = useWalletClient();
+  const { sessionToken } = useOnrampSessionToken(address);
 
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
-  const [sessionToken, setSessionToken] = useState<string | undefined>();
 
   const x402 = window.x402;
   const amount = x402.amount || 0;
@@ -46,7 +47,6 @@ export function PaywallApp() {
     if (address) {
       handleSwitchChain();
       checkUSDCBalance();
-      getSessionToken();
     }
   }, [address]);
 
@@ -80,14 +80,6 @@ export function PaywallApp() {
     const formattedBalance = formatUnits(balance, 6);
     setFormattedUsdcBalance(formattedBalance);
   }, [address, publicClient]);
-
-  const getSessionToken = useCallback(async () => {
-    if (!address) {
-      return;
-    }
-    const token = await generateOnrampSessionToken(address);
-    setSessionToken(token);
-  }, [address]);
 
   const onrampBuyUrl = useMemo(() => {
     if (!sessionToken) {
@@ -281,7 +273,6 @@ export function PaywallApp() {
                     text="Get more USDC"
                     hideIcon
                     className="button button-positive"
-                    onClick={getSessionToken}
                   />
                 )}
                 <button
