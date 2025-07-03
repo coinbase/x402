@@ -256,6 +256,32 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Sei Testnet USDC asset details", () => {
+    const result = getDefaultAsset("sei-testnet");
+
+    expect(result).toEqual({
+      address: "0xeAcd10aaA6f362a94823df6BBC3C536841870772",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Sei USDC asset details", () => {
+    const result = getDefaultAsset("sei");
+
+    expect(result).toEqual({
+      address: "0x3894085Ef7Ff0f0aeDf52E2A2704928d1Ec074F1",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
