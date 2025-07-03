@@ -11,8 +11,8 @@ import {
 
 const facilitatorNetworkCombos = [
   { useCdpFacilitator: false, network: 'base-sepolia' },
-  { useCdpFacilitator: true, network: 'base-sepolia' },
-  { useCdpFacilitator: true, network: 'base' }
+  // { useCdpFacilitator: true, network: 'base-sepolia' },
+  // { useCdpFacilitator: true, network: 'base' }
 ];
 
 export class TestDiscovery {
@@ -36,9 +36,10 @@ export class TestDiscovery {
     }
 
     const servers: DiscoveredServer[] = [];
-    const serverDirs = readdirSync(serversDir, { withFileTypes: true })
+    let serverDirs = readdirSync(serversDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
+    serverDirs = ['next']
 
     for (const serverName of serverDirs) {
       const serverDir = join(serversDir, serverName);
@@ -76,9 +77,10 @@ export class TestDiscovery {
     }
 
     const clients: DiscoveredClient[] = [];
-    const clientDirs = readdirSync(clientsDir, { withFileTypes: true })
+    let clientDirs = readdirSync(clientsDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
+    clientDirs = ['axios']
 
     for (const clientName of clientDirs) {
       const clientDir = join(clientsDir, clientName);

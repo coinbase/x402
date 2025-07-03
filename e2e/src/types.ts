@@ -36,7 +36,9 @@ export interface TestEndpoint {
   path: string;
   method: string;
   description: string;
-  requiresPayment: boolean;
+  requiresPayment?: boolean;
+  health?: boolean;
+  close?: boolean;
 }
 
 export interface TestConfig {

@@ -23,9 +23,44 @@ export interface ServerResult<T> {
 
 export class GenericServerProxy extends BaseProxy implements ServerProxy {
   private port: number = 4021;
+  private healthEndpoint: string = '/health';
+  private closeEndpoint: string = '/close';
 
   constructor(directory: string) {
-    super(directory, 'Server listening');
+    // Use different ready logs for different server types
+    const readyLog = directory.includes('next') ? 'Ready' : 'Server listening';
+    super(directory, readyLog);
+
+    // Load endpoints from test config
+    this.loadEndpoints();
+  }
+
+  private loadEndpoints(): void {
+    try {
+      const { readFileSync, existsSync } = require('fs');
+      const { join } = require('path');
+      const configPath = join(this.directory, 'test.config.json');
+
+      if (existsSync(configPath)) {
+        const configContent = readFileSync(configPath, 'utf-8');
+        const config = JSON.parse(configContent);
+
+        // Load health endpoint
+        const healthEndpoint = config.endpoints?.find((endpoint: any) => endpoint.health);
+        if (healthEndpoint) {
+          this.healthEndpoint = healthEndpoint.path;
+        }
+
+        // Load close endpoint
+        const closeEndpoint = config.endpoints?.find((endpoint: any) => endpoint.close);
+        if (closeEndpoint) {
+          this.closeEndpoint = closeEndpoint.path;
+        }
+      }
+    } catch (error) {
+      // Fallback to defaults if config loading fails
+      console.warn(`Failed to load endpoints from config for ${this.directory}, using defaults`);
+    }
   }
 
   async start(config: ServerConfig): Promise<void> {
@@ -74,7 +109,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
 
   async health(): Promise<ServerResult<HealthResponse>> {
     try {
-      const response = await fetch(`http://localhost:${this.port}/health`);
+      const response = await fetch(`http://localhost:${this.port}${this.healthEndpoint}`);
 
       if (!response.ok) {
         return {
@@ -100,7 +135,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
 
   async close(): Promise<ServerResult<CloseResponse>> {
     try {
-      const response = await fetch(`http://localhost:${this.port}/close`, {
+      const response = await fetch(`http://localhost:${this.port}${this.closeEndpoint}`, {
         method: 'POST'
       });
 
@@ -146,7 +181,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
   }
 
   getHealthUrl(): string {
-    return `http://localhost:${this.port}/health`;
+    return `http://localhost:${this.port}${this.healthEndpoint}`;
   }
 
   getProtectedPath(): string {

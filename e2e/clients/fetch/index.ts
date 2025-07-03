@@ -1,14 +1,14 @@
-import axios from "axios";
 import { config } from "dotenv";
 import { Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
+import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex;
-const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
-const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
+const baseURL = process.env.RESOURCE_SERVER_URL as string;
+const endpointPath = process.env.ENDPOINT_PATH as string;
+const url = `${baseURL}${endpointPath}`;
 
 if (!baseURL || !privateKey || !endpointPath) {
   console.error("Missing required environment variables");
@@ -16,28 +16,19 @@ if (!baseURL || !privateKey || !endpointPath) {
 }
 
 const account = privateKeyToAccount(privateKey);
+const fetchWithPayment = wrapFetchWithPayment(fetch, account);
 
-const api = withPaymentInterceptor(
-  axios.create({
-    baseURL,
-  }),
-  account,
-);
-
-api
-  .get(endpointPath)
-  .then(response => {
-    console.log("Response received:", {
-      status: response.status,
-      headers: response.headers,
-      data: response.data
-    });
+fetchWithPayment(url, {
+  method: "GET",
+})
+  .then(async response => {
+    const data = await response.json();
 
     const result = {
       success: true,
-      data: response.data,
+      data: data,
       status_code: response.status,
-      payment_response: decodeXPaymentResponse(response.headers["x-payment-response"])
+      payment_response: decodeXPaymentResponse(response.headers.get("x-payment-response"))
     };
 
     // Output structured result as JSON for proxy to parse

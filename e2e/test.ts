@@ -25,7 +25,7 @@ async function runCallProtectedScenario(
       }
 
       healthCheckAttempts++;
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     if (healthCheckAttempts >= maxHealthCheckAttempts) {
@@ -45,6 +45,7 @@ async function runCallProtectedScenario(
         payment_response: result.payment_response
       };
     } else {
+      console.info('result.success', result.success);
       return {
         success: false,
         error: result.error

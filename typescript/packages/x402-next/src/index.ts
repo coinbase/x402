@@ -20,6 +20,7 @@ import {
   PaywallConfig,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
+import { safeBase64Encode } from "x402/shared";
 
 /**
  * Creates a payment middleware factory for Next.js
@@ -243,12 +244,12 @@ export function paymentMiddleware(
       if (settlement.success) {
         response.headers.set(
           "X-PAYMENT-RESPONSE",
-          JSON.stringify({
+          safeBase64Encode(JSON.stringify({
             success: true,
             transaction: settlement.transaction,
             network: settlement.network,
             payer: settlement.payer,
-          }),
+          })),
         );
       }
     } catch (error) {

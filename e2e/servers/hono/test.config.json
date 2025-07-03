@@ -13,13 +13,13 @@
       "path": "/health",
       "method": "GET",
       "description": "Health check endpoint",
-      "requiresPayment": false
+      "health": true
     },
     {
       "path": "/close",
       "method": "POST",
       "description": "Graceful shutdown endpoint",
-      "requiresPayment": false
+      "close": true
     }
   ],
   "environment": {
