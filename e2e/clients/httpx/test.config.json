@@ -1,7 +1,8 @@
 {
-  "name": "fetch",
+  "name": "httpx",
   "type": "client",
-  "language": "typescript",
+  "language": "python",
+  "description": "Python httpx client with x402 payment hooks",
   "environment": {
     "required": [
       "PRIVATE_KEY",

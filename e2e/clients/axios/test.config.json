@@ -2,14 +2,6 @@
   "name": "axios",
   "type": "client",
   "language": "typescript",
-  "supportedMethods": [
-    "GET",
-    "POST"
-  ],
-  "capabilities": {
-    "payment": true,
-    "authentication": true
-  },
   "environment": {
     "required": [
       "PRIVATE_KEY",

@@ -51,6 +51,7 @@ export abstract class BaseProxy {
         trimmed.startsWith('npm ') ||
         trimmed.startsWith('node ') ||
         trimmed.startsWith('python ') ||
+        trimmed.startsWith('uv run ') ||
         trimmed.startsWith('go run ')) {
 
         // Split the command into parts

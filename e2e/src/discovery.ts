@@ -39,7 +39,7 @@ export class TestDiscovery {
     let serverDirs = readdirSync(serversDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    serverDirs = ['next']
+    serverDirs = ['express']
 
     for (const serverName of serverDirs) {
       const serverDir = join(serversDir, serverName);
@@ -80,7 +80,7 @@ export class TestDiscovery {
     let clientDirs = readdirSync(clientsDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    clientDirs = ['axios']
+    clientDirs = ['httpx']
 
     for (const clientName of clientDirs) {
       const clientDir = join(clientsDir, clientName);
@@ -91,7 +91,7 @@ export class TestDiscovery {
           const configContent = readFileSync(configPath, 'utf-8');
           const config: TestConfig = JSON.parse(configContent);
 
-          if (config.type === 'client' && config.capabilities?.payment) {
+          if (config.type === 'client') {
             clients.push({
               name: clientName,
               directory: clientDir,
@@ -122,19 +122,7 @@ export class TestDiscovery {
         // Only test endpoints that require payment
         const testableEndpoints = server.config.endpoints?.filter(endpoint => {
           // Only include endpoints that require payment
-          if (!endpoint.requiresPayment) {
-            return false;
-          }
-          // Client must support payment
-          if (!client.config.capabilities?.payment) {
-            return false;
-          }
-          // Client must support the HTTP method
-          if (client.config.supportedMethods &&
-            !client.config.supportedMethods.includes(endpoint.method)) {
-            return false;
-          }
-          return true;
+          return endpoint.requiresPayment;
         }) || [];
 
         for (const endpoint of testableEndpoints) {

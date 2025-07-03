@@ -45,7 +45,6 @@ async function runCallProtectedScenario(
         payment_response: result.payment_response
       };
     } else {
-      console.info('result.success', result.success);
       return {
         success: false,
         error: result.error
