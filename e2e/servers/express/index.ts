@@ -37,6 +37,16 @@ app.get("/protected", (req, res) => {
   });
 });
 
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.post("/close", (req, res) => {
+  res.json({ message: "Server shutting down" });
+  console.log("Received shutdown request");
+  process.exit(0);
+});
+
 app.listen(parseInt(port), () => {
-  console.log(`Express server listening at http://localhost:${port}`);
+  console.log(`Server listening at http://localhost:${port}`);
 }); 

@@ -14,6 +14,9 @@ importers:
       axios:
         specifier: ^1.6.0
         version: 1.10.0
+      dotenv:
+        specifier: ^17.0.1
+        version: 17.0.1
       express:
         specifier: ^4.18.0
         version: 4.21.2
@@ -595,6 +598,55 @@ importers:
         specifier: ^5.3.0
         version: 5.8.3
 
+  servers/hono:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.13.8
+        version: 1.15.0(hono@4.8.3)
+      dotenv:
+        specifier: ^16.4.7
+        version: 16.6.1
+      hono:
+        specifier: ^4.7.1
+        version: 4.8.3
+      x402-hono:
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402-hono
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.24.0
+        version: 9.30.1
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.29.1
+        version: 8.35.1(@typescript-eslint/parser@8.35.1(eslint@9.30.1)(typescript@5.8.3))(eslint@9.30.1)(typescript@5.8.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.29.1
+        version: 8.35.1(eslint@9.30.1)(typescript@5.8.3)
+      eslint:
+        specifier: ^9.24.0
+        version: 9.30.1
+      eslint-plugin-import:
+        specifier: ^2.31.0
+        version: 2.32.0(@typescript-eslint/parser@8.35.1(eslint@9.30.1)(typescript@5.8.3))(eslint@9.30.1)
+      eslint-plugin-jsdoc:
+        specifier: ^50.6.9
+        version: 50.8.0(eslint@9.30.1)
+      eslint-plugin-prettier:
+        specifier: ^5.2.6
+        version: 5.5.1(eslint@9.30.1)(prettier@3.5.2)
+      prettier:
+        specifier: 3.5.2
+        version: 3.5.2
+      tsup:
+        specifier: ^7.2.0
+        version: 7.3.0(postcss@8.5.6)(ts-node@10.9.2(@types/node@22.16.0)(typescript@5.8.3))(typescript@5.8.3)
+      tsx:
+        specifier: ^4.7.0
+        version: 4.20.3
+      typescript:
+        specifier: ^5.3.0
+        version: 5.8.3
+
 packages:
 
   '@adraffy/ens-normalize@1.11.0':
@@ -1041,6 +1093,12 @@ packages:
     resolution: {integrity: sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ==}
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
+
+  '@hono/node-server@1.15.0':
+    resolution: {integrity: sha512-MjmK4l5N4dQpZ9OSWN0tCj7ejuc7WvuWMzSKtc89bnknJykAeHxzRigXBTYZk85H6Awrii6RM59iUiUluApu2A==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -2483,6 +2541,10 @@ packages:
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
+
+  dotenv@17.0.1:
+    resolution: {integrity: sha512-GLjkduuAL7IMJg/ZnOPm9AnWKJ82mSE2tzXLaJ/6hD6DhwGfZaXG77oB8qbReyiczNxnbxQKyh0OE5mXq0bAHA==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -5152,6 +5214,10 @@ snapshots:
     dependencies:
       graphql: 16.11.0
 
+  '@hono/node-server@1.15.0(hono@4.8.3)':
+    dependencies:
+      hono: 4.8.3
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.6':
@@ -7381,6 +7447,8 @@ snapshots:
       esutils: 2.0.3
 
   dotenv@16.6.1: {}
+
+  dotenv@17.0.1: {}
 
   dunder-proto@1.0.1:
     dependencies:
