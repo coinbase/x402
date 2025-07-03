@@ -80,7 +80,7 @@ export class TestDiscovery {
     let clientDirs = readdirSync(clientsDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
-    clientDirs = ['httpx']
+    clientDirs = ['requests']
 
     for (const clientName of clientDirs) {
       const clientDir = join(clientsDir, clientName);
