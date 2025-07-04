@@ -21,6 +21,8 @@ import {
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
+import { POST } from "./api/session-token";
+
 /**
  * Creates a payment middleware factory for Next.js
  *
@@ -274,3 +276,6 @@ export type {
   RouteConfig,
   RoutesConfig,
 } from "x402/types";
+
+// Export session token API handlers for Onramp
+export { POST };

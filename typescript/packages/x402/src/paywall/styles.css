@@ -44,15 +44,15 @@ h6 {
   --background-color: #f9fafb;
   --container-background-color: white;
   --text-color: #111827;
-  --subtitle-text-color: #4b5563;
-  --instructions-text-color: #4b5563;
+  --secondary-text-color: #4b5563;
   --details-background-color: #f9fafb;
   --details-background-color-hover: #f3f4f6;
-  --details-text-color: #111827;
   --button-primary-color: #2563eb;
   --button-primary-hover-color: #1d4ed8;
-  --button-secondary-color: #059669;
-  --button-secondary-hover-color: #047857;
+  --button-secondary-color: #eef0f3;
+  --button-secondary-hover-color: #e9ebee;
+  --button-positive-color: #059669;
+  --button-positive-hover-color: #047857;
   --button-error-color: #ef4444;
   --button-error-hover-color: #dc2626;
 }
@@ -61,7 +61,7 @@ h6 {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
 
-.ock-bg-secondary {
+.ock-bg-secondary, .ock-bg-default {
   background-color: var(--details-background-color);
   transition: background-color 150ms;
 }
@@ -72,6 +72,10 @@ h6 {
 
 .opacity-80 {
   opacity: 0.8;
+}
+
+[data-testid="ockWalletDropdown"] {
+  z-index: 10;
 }
 
 body {
@@ -113,12 +117,12 @@ body {
 }
 
 .subtitle {
-  color: var(--subtitle-text-color);
+  color: var(--secondary-text-color);
 }
 
 .instructions {
   font-size: 0.9rem;
-  color: var(--instructions-text-color);
+  color: var(--secondary-text-color);
   font-style: italic;
 }
 
@@ -130,16 +134,12 @@ body {
 
 .button {
   width: 100%;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   font-weight: 600;
   border: none;
   cursor: pointer;
   transition: background-color 150ms;
-}
-
-.button:focus {
-  outline: none;
 }
 
 .button-primary {
@@ -153,11 +153,20 @@ body {
 
 .button-secondary {
   background-color: var(--button-secondary-color);
-  color: white;
+  color: var(--text-color);
 }
 
 .button-secondary:hover {
   background-color: var(--button-secondary-hover-color);
+}
+
+.button-positive {
+  background-color: var(--button-positive-color);
+  color: white;
+}
+
+.button-positive:hover {
+  background-color: var(--button-positive-hover-color);
 }
 
 .button-error {
@@ -188,7 +197,7 @@ body {
 }
 
 .payment-label {
-  color: var(--details-text-color);
+  color: var(--text-color);
 }
 
 .payment-value {
@@ -202,4 +211,11 @@ body {
 .status {
   text-align: center;
   font-size: 0.875rem;
+}
+
+.cta-container {
+  display: flex;
+  flex-basis: 50%;
+  flex-direction: row;
+  gap: 0.5rem;
 }

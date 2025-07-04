@@ -34,6 +34,10 @@ export function getPaywallHtml({
   appName,
   appLogo,
 }: PaywallOptions): string {
+  const logOnTestnet = testnet
+    ? "console.log('Payment requirements initialized:', window.x402);"
+    : "";
+
   // Create the configuration script to inject
   const configScript = `
   <script>
@@ -49,7 +53,7 @@ export function getPaywallHtml({
       appName: "${appName || ""}",
       appLogo: "${appLogo || ""}",
     };
-    console.log('Payment details initialized:', window.x402);
+    ${logOnTestnet}
   </script>`;
 
   // Inject the configuration script into the head

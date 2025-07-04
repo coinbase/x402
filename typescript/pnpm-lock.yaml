@@ -413,6 +413,9 @@ importers:
 
   packages/x402-next:
     dependencies:
+      '@coinbase/cdp-sdk':
+        specifier: ^1.1.1
+        version: 1.18.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       next:
         specifier: ^15.2.4
         version: 15.3.4(@babel/core@7.27.4)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
