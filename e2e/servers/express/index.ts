@@ -56,6 +56,13 @@ app.get("/protected", (req, res) => {
   });
 });
 
+app.get("/protected-2", (req, res) => {
+  res.json({
+    message: "Protected endpoint #2 accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
