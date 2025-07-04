@@ -71,19 +71,12 @@ async function runTest() {
   const serverAddress = process.env.SERVER_ADDRESS;
   const clientPrivateKey = process.env.CLIENT_PRIVATE_KEY;
   const serverPort = parseInt(process.env.SERVER_PORT || '4021');
-  // const serverNetwork = process.env.SERVER_NETWORK || 'base-sepolia';
-  // const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
 
   if (!serverAddress || !clientPrivateKey) {
     console.error('❌ Missing required environment variables:');
     console.error('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
     process.exit(1);
   }
-
-  console.log('📋 Configuration:');
-  console.log(`   Server Address: ${serverAddress}`);
-  console.log(`   Server Port: ${serverPort}`);
-  console.log('');
 
   // Discover all servers and clients
   const discovery = new TestDiscovery();
