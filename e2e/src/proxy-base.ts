@@ -5,6 +5,7 @@ import { join } from 'path';
 export interface RunConfig {
   port?: number;
   env?: Record<string, string>;
+  verbose?: boolean;
   [key: string]: any;
 }
 
@@ -82,6 +83,10 @@ export abstract class BaseProxy {
 
       this.process.stdout?.on('data', (data) => {
         output += data.toString();
+        // Log stdout in verbose mode
+        if (config.verbose) {
+          console.log(`[${this.directory}] stdout: ${data.toString()}`);
+        }
         if (output.includes(this.readyLog)) {
           resolve();
         }
@@ -89,7 +94,10 @@ export abstract class BaseProxy {
 
       this.process.stderr?.on('data', (data) => {
         stderr += data.toString();
-        console.error(`[${this.directory}] stderr: ${data.toString()}`);
+        // Only log stderr if verbose mode is enabled or if it's an error
+        if (config.verbose) {
+          console.error(`[${this.directory}] stderr: ${data.toString()}`);
+        }
       });
 
       this.process.on('error', (error) => {
@@ -206,11 +214,18 @@ export abstract class BaseProxy {
 
       childProcess.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
+        // Log stdout in verbose mode
+        if (config.verbose) {
+          console.log(`[${this.directory}] stdout: ${data.toString()}`);
+        }
       });
 
       childProcess.stderr?.on('data', (data: Buffer) => {
         stderr += data.toString();
-        console.error(`[${this.directory}] stderr: ${data.toString()}`);
+        // Only log stderr if verbose mode is enabled or if it's an error
+        if (config.verbose) {
+          console.error(`[${this.directory}] stderr: ${data.toString()}`);
+        }
       });
 
       childProcess.on('close', (code: number | null) => {

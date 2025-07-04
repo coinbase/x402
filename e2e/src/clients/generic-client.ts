@@ -16,9 +16,10 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
     super(directory, '');
   }
 
-  async call(config: ClientConfig): Promise<ClientCallResult> {
+  async call(config: ClientConfig, verbose: boolean = false): Promise<ClientCallResult> {
     try {
       const runConfig: RunConfig = {
+        verbose,
         env: {
           PRIVATE_KEY: config.privateKey,
           RESOURCE_SERVER_URL: config.serverUrl,

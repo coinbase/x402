@@ -13,6 +13,7 @@
     "@coinbase/x402": "workspace:*",
     "dotenv": "^16.6.1",
     "express": "^4.18.2",
+    "x402": "^0.4.1",
     "x402-express": "workspace:*"
   },
   "devDependencies": {

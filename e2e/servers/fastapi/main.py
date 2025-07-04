@@ -9,6 +9,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from x402.fastapi.middleware import require_payment
 from x402.types import EIP712Domain, TokenAmount, TokenAsset
+from x402.chains import (
+    get_chain_id,
+    get_token_decimals,
+    get_token_name,
+    get_token_version,
+    get_default_token_address,
+)
 
 # Load environment variables
 load_dotenv()
@@ -34,6 +41,10 @@ if USE_CDP_FACILITATOR and (not CDP_API_KEY_ID or not CDP_API_KEY_SECRET):
     )
     sys.exit(1)
 
+
+chain_id = get_chain_id(NETWORK)
+address = get_default_token_address(chain_id)
+
 app = FastAPI()
 
 # Create facilitator config if using CDP
@@ -43,11 +54,32 @@ if USE_CDP_FACILITATOR:
 
     facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
 
-# Apply payment middleware to protected endpoint
+# Apply payment middleware to protected endpoints
 app.middleware("http")(
     require_payment(
         path="/protected",
         price="$0.001",
+        pay_to_address=ADDRESS,
+        network=NETWORK,
+        facilitator_config=facilitator_config,
+    )
+)
+
+# Add second protected endpoint with ERC20TokenAmount price
+app.middleware("http")(
+    require_payment(
+        path="/protected-2",
+        price=TokenAmount(
+            amount="1000",  # 1000 USDC units (0.001 USDC)
+            asset=TokenAsset(
+                address=address,
+                decimals=get_token_decimals(chain_id, address),
+                eip712=EIP712Domain(
+                    name=get_token_name(chain_id, address),
+                    version=get_token_version(chain_id, address),
+                ),
+            ),
+        ),
         pay_to_address=ADDRESS,
         network=NETWORK,
         facilitator_config=facilitator_config,
@@ -67,7 +99,18 @@ async def protected_endpoint() -> Dict[str, Any]:
     return {
         "message": "Access granted to protected resource",
         "timestamp": "2024-01-01T00:00:00Z",
-        "data": {"resource": "premium_content", "access_level": "paid"},
+    }
+
+
+@app.get("/protected-2")
+async def protected_endpoint_2() -> Dict[str, Any]:
+    """Protected endpoint that requires ERC20 payment"""
+    if shutdown_requested:
+        raise HTTPException(status_code=503, detail="Server shutting down")
+
+    return {
+        "message": "Access granted to protected resource #2",
+        "timestamp": "2024-01-01T00:00:00Z",
     }
 
 

@@ -63,11 +63,12 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
     }
   }
 
-  async start(config: ServerConfig): Promise<void> {
+  async start(config: ServerConfig, verbose: boolean = false): Promise<void> {
     this.port = config.port;
 
     const runConfig: RunConfig = {
       port: config.port,
+      verbose,
       env: {
         USE_CDP_FACILITATOR: config.useCdpFacilitator.toString(),
         CDP_API_KEY_ID: process.env.CDP_API_KEY_ID || '',

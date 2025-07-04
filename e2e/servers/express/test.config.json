@@ -10,6 +10,12 @@
       "requiresPayment": true
     },
     {
+      "path": "/protected-2",
+      "method": "GET",
+      "description": "Protected endpoint requiring ERC20 payment",
+      "requiresPayment": true
+    },
+    {
       "path": "/health",
       "method": "GET",
       "description": "Health check endpoint",

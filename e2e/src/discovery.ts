@@ -142,26 +142,26 @@ export class TestDiscovery {
   /**
  * Print discovery summary
  */
-  printDiscoverySummary(): void {
+  printDiscoverySummary(logFn: (message: string) => void = console.log): void {
     const servers = this.discoverServers();
     const clients = this.discoverClients();
     const scenarios = this.generateTestScenarios();
 
-    console.log('🔍 Test Discovery Summary');
-    console.log('========================');
-    console.log(`📡 Servers found: ${servers.length}`);
+    logFn('🔍 Test Discovery Summary');
+    logFn('========================');
+    logFn(`📡 Servers found: ${servers.length}`);
     servers.forEach(server => {
       const paidEndpoints = server.config.endpoints?.filter(e => e.requiresPayment).length || 0;
-      console.log(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints`);
+      logFn(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints`);
     });
 
-    console.log(`📱 Clients found: ${clients.length}`);
+    logFn(`📱 Clients found: ${clients.length}`);
     clients.forEach(client => {
-      console.log(`   - ${client.name} (${client.config.language})`);
+      logFn(`   - ${client.name} (${client.config.language})`);
     });
 
-    console.log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
-    console.log(`📊 Test scenarios: ${scenarios.length}`);
-    console.log('');
+    logFn(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
+    logFn(`📊 Test scenarios: ${scenarios.length}`);
+    logFn('');
   }
 } 
