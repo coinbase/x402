@@ -147,15 +147,7 @@ describe("paymentMiddleware()", () => {
     (findMatchingRoute as ReturnType<typeof vi.fn>).mockImplementation(
       (routePatterns, path, method) => {
         if (path === "/protected/test" && method === "GET") {
-          return {
-            pattern: /^\/protected\/test$/,
-            verb: "GET",
-            config: {
-              price: "$0.001",
-              network: "base-sepolia",
-              config: middlewareConfig,
-            },
-          };
+          return routePatterns[0];
         }
         return undefined;
       },
@@ -277,48 +269,19 @@ describe("paymentMiddleware()", () => {
   });
 
   it("should throw error for invalid route patterns", async () => {
-    const middleware = paymentMiddleware(
-      payTo,
-      {
-        "GET ": {
-          price: 1.0,
-          network: "base-sepolia",
-          config: middlewareConfig,
-        },
-      },
-      facilitatorConfig,
-    );
-
-    const request = {
-      ...mockRequest,
-      headers: new Headers(),
-    } as NextRequest;
-
-    const response = await middleware(request);
-    expect(response.status).toBe(402);
-    const json = await response.json();
-    expect(json).toEqual({
-      x402Version: 1,
-      error: "X-PAYMENT header is required",
-      accepts: [
+    expect(() => {
+      paymentMiddleware(
+        payTo,
         {
-          scheme: "exact",
-          network: "base-sepolia",
-          maxAmountRequired: "1000",
-          resource: "https://api.example.com/resource",
-          description: "Test payment",
-          mimeType: "application/json",
-          payTo: "0x1234567890123456789012345678901234567890",
-          maxTimeoutSeconds: 300,
-          outputSchema: { type: "object" },
-          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-          extra: {
-            name: "USDC",
-            version: "2",
+          "GET ": {
+            price: 1.0,
+            network: "base-sepolia",
+            config: middlewareConfig,
           },
         },
-      ],
-    });
+        facilitatorConfig,
+      );
+    }).toThrow(/Invalid route pattern/);
   });
 
   it("should return 402 with payment requirements when no payment header is present", async () => {
@@ -337,7 +300,7 @@ describe("paymentMiddleware()", () => {
     expect(json.accepts[0]).toEqual({
       scheme: "exact",
       network: "base-sepolia",
-      maxAmountRequired: "1000",
+      maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
       mimeType: "application/json",
@@ -397,7 +360,7 @@ describe("paymentMiddleware()", () => {
     expect(mockVerify).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
       network: "base-sepolia",
-      maxAmountRequired: "1000",
+      maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
       mimeType: "application/json",
@@ -446,7 +409,7 @@ describe("paymentMiddleware()", () => {
         {
           scheme: "exact",
           network: "base-sepolia",
-          maxAmountRequired: "1000",
+          maxAmountRequired: "1000000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
           mimeType: "application/json",
@@ -491,7 +454,7 @@ describe("paymentMiddleware()", () => {
     expect(mockSettle).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
       network: "base-sepolia",
-      maxAmountRequired: "1000",
+      maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
       mimeType: "application/json",
@@ -532,12 +495,12 @@ describe("paymentMiddleware()", () => {
     const json = await response.json();
     expect(json).toEqual({
       x402Version: 1,
-      error: expect.any(Object),
+      error: expect.any(String),
       accepts: [
         {
           scheme: "exact",
           network: "base-sepolia",
-          maxAmountRequired: "1000",
+          maxAmountRequired: "1000000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
           mimeType: "application/json",
@@ -555,49 +518,19 @@ describe("paymentMiddleware()", () => {
   });
 
   it("should handle invalid payment amount configuration", async () => {
-    middleware = paymentMiddleware(
-      payTo,
-      {
-        "/protected/*": {
-          price: "invalid",
-          network: "base-sepolia",
-          config: middlewareConfig,
-        },
-      },
-      facilitatorConfig,
-    );
-
-    const request = {
-      ...mockRequest,
-      headers: new Headers(),
-    } as NextRequest;
-
-    const response = await middleware(request);
-
-    expect(response.status).toBe(402);
-    const json = await response.json();
-    expect(json).toEqual({
-      x402Version: 1,
-      error: "X-PAYMENT header is required",
-      accepts: [
+    expect(() => {
+      paymentMiddleware(
+        payTo,
         {
-          scheme: "exact",
-          network: "base-sepolia",
-          maxAmountRequired: "1000",
-          resource: "https://api.example.com/resource",
-          description: "Test payment",
-          mimeType: "application/json",
-          payTo: "0x1234567890123456789012345678901234567890",
-          maxTimeoutSeconds: 300,
-          outputSchema: { type: "object" },
-          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-          extra: {
-            name: "USDC",
-            version: "2",
+          "/protected/*": {
+            price: "invalid",
+            network: "base-sepolia",
+            config: middlewareConfig,
           },
         },
-      ],
-    });
+        facilitatorConfig,
+      );
+    }).toThrow(/Invalid price/);
   });
 
   it("should handle custom token amounts", async () => {
@@ -608,7 +541,7 @@ describe("paymentMiddleware()", () => {
           price: {
             amount: "1000000000000000000",
             asset: {
-              address: "0xCustomAssetAddress",
+              address: "0x1234567890123456789012345678901234567890",
               decimals: 18,
               eip712: {
                 name: "Custom Token",
@@ -639,17 +572,17 @@ describe("paymentMiddleware()", () => {
     expect(json.accepts[0]).toEqual({
       scheme: "exact",
       network: "base-sepolia",
-      maxAmountRequired: "1000",
+      maxAmountRequired: "1000000000000000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
       mimeType: "application/json",
       payTo: "0x1234567890123456789012345678901234567890",
       maxTimeoutSeconds: 300,
       outputSchema: { type: "object" },
-      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      asset: "0x1234567890123456789012345678901234567890",
       extra: {
-        name: "USDC",
-        version: "2",
+        name: "Custom Token",
+        version: "1.0",
       },
     });
   });
@@ -683,7 +616,6 @@ describe("paymentMiddleware()", () => {
     });
 
     const response = await middleware(request);
-    console.log(response);
 
     expect(response.status).toBe(500);
     expect(mockSettle).not.toHaveBeenCalled();

@@ -1,25 +1,36 @@
-import { NextFunction, Request, Response } from "express";
-import { Address, getAddress } from "viem";
+import type { NextFunction, Request, Response } from "express";
+import type { Address } from "viem";
+import type { FacilitatorConfig, PaywallConfig, RoutesConfig } from "x402/types";
 import { exact } from "x402/schemes";
-import {
-  computeRoutePatterns,
-  findMatchingPaymentRequirements,
-  findMatchingRoute,
-  getPaywallHtml,
-  processPriceToAtomicAmount,
-  toJsonSafe,
-} from "x402/shared";
-import {
-  FacilitatorConfig,
-  moneySchema,
-  PaymentPayload,
-  PaymentRequirements,
-  PaywallConfig,
-  Resource,
-  RoutesConfig,
-  settleResponseHeader,
-} from "x402/types";
+import { getPaywallHtml, toJsonSafe } from "x402/shared";
+import { moneySchema, settleResponseHeader } from "x402/types";
 import { useFacilitator } from "x402/verify";
+import { PaymentMiddleware, X402Error } from "x402/middleware";
+
+type EndArgs =
+  | [cb?: () => void]
+  | [chunk: unknown, cb?: () => void]
+  | [chunk: unknown, encoding: BufferEncoding, cb?: () => void];
+
+/**
+ * Creates a deferred promise with exposed `resolve` and `reject` functions.
+ *
+ * Useful for integrating with callback-style APIs or pausing execution until
+ * an external event (like `res.end`) occurs.
+ *
+ * @returns An object containing the promise, and its associated `resolve` and `reject` functions.
+ */
+function defer<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return { promise, resolve, reject };
+}
 
 /**
  * Creates a payment middleware factory for Express
@@ -28,6 +39,7 @@ import { useFacilitator } from "x402/verify";
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
  * @param paywall - Optional configuration for the default paywall
+ * @param useFacilitatorFn - Optional useFacilitator function, used in dev/testing mode
  * @returns An Express middleware handler
  *
  * @example
@@ -73,60 +85,50 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
+  useFacilitatorFn: typeof useFacilitator = useFacilitator,
 ) {
-  const { verify, settle } = useFacilitator(facilitator);
-  const x402Version = 1;
-
-  // Pre-compile route patterns to regex and extract verbs
-  const routePatterns = computeRoutePatterns(routes);
+  const middlewares = PaymentMiddleware.forRoutes<Request>(
+    payTo,
+    routes,
+    function paymentFromRequest(req) {
+      const paymentHeader = req.header("X-PAYMENT");
+      if (!paymentHeader) {
+        return undefined;
+      }
+      return exact.evm.decodePayment(paymentHeader);
+    },
+    function canRenderPaywall(req) {
+      const userAgent = req.header("User-Agent") || "";
+      const acceptHeader = req.header("Accept") || "";
+      return acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
+    },
+    facilitator,
+    paywall,
+    useFacilitatorFn,
+  );
 
   return async function paymentMiddleware(
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> {
-    const matchingRoute = findMatchingRoute(routePatterns, req.path, req.method.toUpperCase());
-
-    if (!matchingRoute) {
+    // Determine whether the current request matches any protected route.
+    // If it doesn't, skip payment logic and proceed as usual.
+    const x402Middleware = middlewares.match(req.path, req.method.toUpperCase());
+    if (!x402Middleware) {
       return next();
     }
 
-    const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const originalEnd = res.end.bind(res);
+    const deferred = defer<EndArgs>();
 
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      throw new Error(atomicAmountForAsset.error);
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
-    const resourceUrl: Resource =
-      resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
-
-    const paymentRequirements: PaymentRequirements[] = [
-      {
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: getAddress(asset.address),
-        outputSchema: outputSchema ?? undefined,
-        extra: asset.eip712,
-      },
-    ];
-
-    const payment = req.header("X-PAYMENT");
-    const userAgent = req.header("User-Agent") || "";
-    const acceptHeader = req.header("Accept") || "";
-    const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-
-    if (!payment) {
-      if (isWebBrowser) {
+    try {
+      const paymentRequirements = x402Middleware.paymentRequirements(req);
+      const payment = await x402Middleware.acquirePayment(req, paymentRequirements);
+      if (!payment) {
+        const price = x402Middleware.config.price;
+        const network = x402Middleware.config.network;
+        const customPaywallHtml = x402Middleware.config.config?.customPaywallHtml;
         let displayAmount: number;
         if (typeof price === "string" || typeof price === "number") {
           const parsed = moneySchema.safeParse(price);
@@ -156,106 +158,46 @@ export function paymentMiddleware(
         res.status(402).send(html);
         return;
       }
-      res.status(402).json({
-        x402Version,
-        error: "X-PAYMENT header is required",
-        accepts: toJsonSafe(paymentRequirements),
-      });
-      return;
-    }
 
-    let decodedPayment: PaymentPayload;
-    try {
-      decodedPayment = exact.evm.decodePayment(payment);
-      decodedPayment.x402Version = x402Version;
-    } catch (error) {
-      res.status(402).json({
-        x402Version,
-        error: error || "Invalid or malformed payment header",
-        accepts: toJsonSafe(paymentRequirements),
-      });
-      return;
-    }
+      // Monkey-patch `res.end` to capture when the response is finalized.
+      // This allows us to defer settlement logic until after the underlying response is available.
+      res.end = function (...args: EndArgs) {
+        deferred.resolve(args);
+        return res;
+      };
 
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
-    if (!selectedPaymentRequirements) {
-      res.status(402).json({
-        x402Version,
-        error: "Unable to find matching payment requirements",
-        accepts: toJsonSafe(paymentRequirements),
-      });
-      return;
-    }
+      // Proceed to the next middleware or route handler.
+      next();
+      // Wait for the response to finish before attempting payment settlement.
+      await deferred.promise;
 
-    try {
-      const response = await verify(decodedPayment, selectedPaymentRequirements);
-      if (!response.isValid) {
-        res.status(402).json({
-          x402Version,
-          error: response.invalidReason,
-          accepts: toJsonSafe(paymentRequirements),
-          payer: response.payer,
-        });
+      // If the response from the protected route is >= 400, do not settle payment
+      if (res.statusCode >= 400) {
+        // We turn res.end back to the original fn in the `finally` clause below.
         return;
       }
-    } catch (error) {
-      res.status(402).json({
-        x402Version,
-        error,
-        accepts: toJsonSafe(paymentRequirements),
-      });
-      return;
-    }
 
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    type EndArgs =
-      | [cb?: () => void]
-      | [chunk: any, cb?: () => void]
-      | [chunk: any, encoding: BufferEncoding, cb?: () => void];
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-
-    const originalEnd = res.end.bind(res);
-    let endArgs: EndArgs | null = null;
-
-    res.end = function (...args: EndArgs) {
-      endArgs = args;
-      return res; // maintain correct return type
-    };
-
-    // Proceed to the next middleware or route handler
-    await next();
-
-    // If the response from the protected route is >= 400, do not settle payment
-    if (res.statusCode >= 400) {
-      res.end = originalEnd;
-      if (endArgs) {
-        originalEnd(...(endArgs as Parameters<typeof res.end>));
-      }
-      return;
-    }
-
-    try {
-      const settleResponse = await settle(decodedPayment, selectedPaymentRequirements);
-      const responseHeader = settleResponseHeader(settleResponse);
+      const settlement = await payment.settle();
+      const responseHeader = settleResponseHeader(settlement);
       res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
-    } catch (error) {
-      // If settlement fails and the response hasn't been sent yet, return an error
-      if (!res.headersSent) {
-        res.status(402).json({
-          x402Version,
-          error,
-          accepts: toJsonSafe(paymentRequirements),
-        });
-        return;
+    } catch (e) {
+      // Return a structured 402 error response if the failure is a known x402 error
+      // and the headers haven't yet been sent.
+      if (e instanceof X402Error) {
+        if (!res.headersSent) {
+          res.status(402).json(e.toJSON());
+          return;
+        }
+      } else {
+        throw e;
       }
     } finally {
+      // Ensure the original `res.end` is restored to avoid side effects.
+      // Then call it with the originally captured arguments to finalize the response.
       res.end = originalEnd;
-      if (endArgs) {
+      deferred.promise.then(endArgs => {
         originalEnd(...(endArgs as Parameters<typeof res.end>));
-      }
+      });
     }
   };
 }
