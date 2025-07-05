@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPaywallHtml, findMatchingRoute } from "x402/shared";
 import { exact } from "x402/schemes";
@@ -27,33 +27,6 @@ vi.mock("x402/shared", async importOriginal => {
     getPaywallHtml: vi.fn(),
     getNetworkId: vi.fn().mockReturnValue("base-sepolia"),
     toJsonSafe: vi.fn(x => x),
-    computeRoutePatterns: vi.fn().mockImplementation(routes => {
-      const normalizedRoutes = Object.fromEntries(
-        Object.entries(routes).map(([pattern, value]) => [
-          pattern,
-          typeof value === "string" || typeof value === "number"
-            ? ({ price: value, network: "base-sepolia" } as RouteConfig)
-            : (value as RouteConfig),
-        ]),
-      );
-
-      return Object.entries(normalizedRoutes).map(([pattern, routeConfig]) => {
-        const [verb, path] = pattern.includes(" ") ? pattern.split(/\s+/) : ["*", pattern];
-        if (!path) {
-          throw new Error(`Invalid route pattern: ${pattern}`);
-        }
-        return {
-          verb: verb.toUpperCase(),
-          pattern: new RegExp(
-            `^${path
-              .replace(/\*/g, ".*?")
-              .replace(/\[([^\]]+)\]/g, "[^/]+")
-              .replace(/\//g, "\\/")}$`,
-          ),
-          config: routeConfig,
-        };
-      });
-    }),
     findMatchingRoute: vi
       .fn()
       .mockImplementation(
@@ -153,9 +126,11 @@ describe("paymentMiddleware()", () => {
       end: vi.fn().mockReturnThis(),
       headersSent: false,
     } as unknown as Response;
-    mockNext = vi.fn();
+    mockNext = vi.fn().mockImplementation(() => {
+      mockRes?.end?.();
+    });
     mockVerify = vi.fn();
-    mockSettle = vi.fn();
+    mockSettle = vi.fn().mockImplementation(() => Promise.resolve({ success: true }));
 
     vi.mocked(useFacilitator).mockReturnValue({
       verify: mockVerify,
@@ -172,20 +147,18 @@ describe("paymentMiddleware()", () => {
     // Setup route pattern matching mock
     vi.mocked(findMatchingRoute).mockImplementation((routePatterns, path, method) => {
       if (path === "/test" && method === "GET") {
-        return {
-          pattern: /^\/test$/,
-          verb: "GET",
-          config: {
-            price: "$0.001",
-            network: "base-sepolia",
-            config: middlewareConfig,
-          },
-        };
+        return routePatterns[0];
       }
       return undefined;
     });
 
-    middleware = paymentMiddleware(payTo, routesConfig, facilitatorConfig);
+    middleware = paymentMiddleware(
+      payTo,
+      routesConfig,
+      facilitatorConfig,
+      undefined,
+      useFacilitator,
+    );
   });
 
   it("should return 402 with payment requirements when no payment header is present", async () => {
@@ -217,6 +190,7 @@ describe("paymentMiddleware()", () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
     };
+    mockRes.statusCode = 200;
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -244,7 +218,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Invalid payment"),
+      error: "Invalid payment",
       accepts: [
         {
           scheme: "exact",
@@ -304,7 +278,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Settlement failed"),
+      error: "Settlement failed",
       accepts: [
         {
           scheme: "exact",

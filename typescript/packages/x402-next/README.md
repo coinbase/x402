@@ -36,6 +36,51 @@ export const config = {
 };
 ```
 
+## Protect Individual Route Handlers
+
+Use `withPayment()` to protect a single `GET`, `POST`, or other HTTP method in a file-based route (e.g., `app/api/*/route.ts`).
+
+This is ideal when:
+- You’re not using a global middleware
+- You want fine-grained control over payment requirements
+- You only want to apply payments to certain methods or endpoints
+
+**Example: Protect an API route:**
+
+```typescript
+// app/api/premium/route.ts
+import { withPayment } from "x402-next";
+
+export const GET = withPayment(
+    async (req) => {
+        return new Response("Welcome to the premium zone");
+    }, 
+    {
+        price: "$0.01", 
+        network: "base-sepolia", 
+        payTo: "0xYourAddress", 
+        config: {
+            description: "Premium content",
+        },
+    }
+);
+```
+
+### Parameters
+
+```typescript
+function withPayment(
+    handler: (req: NextRequest) => Promise<Response>,
+    config: RouteConfig & {
+        payTo: string;
+        facilitator?: FacilitatorConfig;
+        paywall?: PaywallConfig;
+    }
+): (req: NextRequest) => Promise<Response>
+```
+
+You can use the same price, network, and facilitator options as with paymentMiddleware.
+
 ## Configuration
 
 The `paymentMiddleware` function accepts three parameters:
