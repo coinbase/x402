@@ -1,25 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { Address, getAddress } from "viem";
-import { exact } from "x402/schemes";
-import {
-  computeRoutePatterns,
-  findMatchingPaymentRequirements,
-  findMatchingRoute,
-  getPaywallHtml,
-  processPriceToAtomicAmount,
-  toJsonSafe,
-} from "x402/shared";
+import { Address } from "viem";
+import { ExactEvmMiddleware } from "x402/shared";
 import {
   FacilitatorConfig,
-  moneySchema,
-  PaymentPayload,
-  PaymentRequirements,
+  PaywallConfig,
   Resource,
   RoutesConfig,
-  PaywallConfig,
 } from "x402/types";
-import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
 
 /**
@@ -90,50 +78,25 @@ export function paymentMiddleware(
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
 ) {
-  const { verify, settle } = useFacilitator(facilitator);
-  const x402Version = 1;
-
-  // Pre-compile route patterns to regex and extract verbs
-  const routePatterns = computeRoutePatterns(routes);
+  const x402 = new ExactEvmMiddleware(payTo, routes, facilitator, paywall);
 
   return async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
     const method = request.method.toUpperCase();
 
-    // Find matching route configuration
-    const matchingRoute = findMatchingRoute(routePatterns, pathname, method);
+    const resourceUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource;
 
-    if (!matchingRoute) {
+    const result = await x402.processRequest(
+      pathname,
+      method,
+      resourceUrl,
+    );
+
+    if (!result.requiresPayment) {
       return NextResponse.next();
     }
 
-    const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
-
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      return new NextResponse(atomicAmountForAsset.error, { status: 500 });
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
-    const resourceUrl =
-      resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
-    const paymentRequirements: PaymentRequirements[] = [
-      {
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        outputSchema,
-        extra: asset.eip712,
-      },
-    ];
+    const { paymentRequirements, displayAmount, customPaywallHtml, network } = result;
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");
@@ -142,31 +105,13 @@ export function paymentMiddleware(
       if (accept?.includes("text/html")) {
         const userAgent = request.headers.get("User-Agent");
         if (userAgent?.includes("Mozilla")) {
-          let displayAmount: number;
-          if (typeof price === "string" || typeof price === "number") {
-            const parsed = moneySchema.safeParse(price);
-            if (parsed.success) {
-              displayAmount = parsed.data;
-            } else {
-              displayAmount = Number.NaN;
-            }
-          } else {
-            displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-          }
-
-          const html =
-            customPaywallHtml ??
-            getPaywallHtml({
-              amount: displayAmount,
-              paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-                typeof getPaywallHtml
-              >[0]["paymentRequirements"],
-              currentUrl: request.url,
-              testnet: network === "base-sepolia",
-              cdpClientKey: paywall?.cdpClientKey,
-              appLogo: paywall?.appLogo,
-              appName: paywall?.appName,
-            });
+          const html = x402.generatePaywallHtml(
+            paymentRequirements,
+            displayAmount,
+            request.url,
+            network,
+            customPaywallHtml,
+          );
           return new NextResponse(html, {
             status: 402,
             headers: { "Content-Type": "text/html" },
@@ -174,57 +119,26 @@ export function paymentMiddleware(
         }
       }
 
+      const errorResponse = x402.createErrorResponse(
+        "X-PAYMENT header is required",
+        paymentRequirements!,
+      );
       return new NextResponse(
-        JSON.stringify({
-          x402Version,
-          error: "X-PAYMENT header is required",
-          accepts: paymentRequirements,
-        }),
+        JSON.stringify(errorResponse),
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // Verify payment
-    let decodedPayment: PaymentPayload;
-    try {
-      decodedPayment = exact.evm.decodePayment(paymentHeader);
-      decodedPayment.x402Version = x402Version;
-    } catch (error) {
-      return new NextResponse(
-        JSON.stringify({
-          x402Version,
-          error: error instanceof Error ? error : "Invalid payment",
-          accepts: paymentRequirements,
-        }),
-        { status: 402, headers: { "Content-Type": "application/json" } },
+    const verification = await x402.verifyPayment(paymentHeader, paymentRequirements!);
+
+    if (!verification.success) {
+      const errorResponse = x402.createErrorResponse(
+        verification.error!,
+        paymentRequirements!,
+        verification.payer,
       );
-    }
-
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
-    if (!selectedPaymentRequirements) {
       return new NextResponse(
-        JSON.stringify({
-          x402Version,
-          error: "Unable to find matching payment requirements",
-          accepts: toJsonSafe(paymentRequirements),
-        }),
-        { status: 402, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
-
-    if (!verification.isValid) {
-      return new NextResponse(
-        JSON.stringify({
-          x402Version,
-          error: verification.invalidReason,
-          accepts: paymentRequirements,
-          payer: verification.payer,
-        }),
+        JSON.stringify(errorResponse),
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -238,29 +152,30 @@ export function paymentMiddleware(
     }
 
     // Settle payment after response
-    try {
-      const settlement = await settle(decodedPayment, selectedPaymentRequirements);
+    const settlement = await x402.settlePayment(
+      verification.decodedPayment!,
+      verification.selectedRequirements!,
+    );
 
-      if (settlement.success) {
-        response.headers.set(
-          "X-PAYMENT-RESPONSE",
-          safeBase64Encode(
-            JSON.stringify({
-              success: true,
-              transaction: settlement.transaction,
-              network: settlement.network,
-              payer: settlement.payer,
-            }),
-          ),
-        );
-      }
-    } catch (error) {
+    if (settlement.success) {
+      response.headers.set(
+        "X-PAYMENT-RESPONSE",
+        safeBase64Encode(
+          JSON.stringify({
+            success: true,
+            transaction: settlement.responseHeader,
+            network: network!,
+            payer: verification.payer,
+          }),
+        ),
+      );
+    } else {
+      const errorResponse = x402.createErrorResponse(
+        settlement.error!,
+        paymentRequirements!,
+      );
       return new NextResponse(
-        JSON.stringify({
-          x402Version,
-          error: error instanceof Error ? error : "Settlement failed",
-          accepts: paymentRequirements,
-        }),
+        JSON.stringify(errorResponse),
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }

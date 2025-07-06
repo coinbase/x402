@@ -8,11 +8,19 @@ import {
   ERC20TokenAmount,
   PaymentRequirements,
   PaymentPayload,
+  FacilitatorConfig,
+  PaywallConfig,
+  PaymentOption,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
 import { getUsdcAddressForChain } from "./evm";
 import { getNetworkId } from "./network";
+import { exact } from "../schemes";
+import { getPaywallHtml } from "./paywall";
+import { toJsonSafe } from "./json";
+import { useFacilitator } from "../verify";
+import { settleResponseHeader } from "../types";
 
 /**
  * Computes the route patterns for the given routes config
@@ -138,6 +146,29 @@ export function processPriceToAtomicAmount(
 }
 
 /**
+ * Converts a route config to payment options
+ *
+ * @param routeConfig - The route config to convert
+ * @returns Array of payment options
+ */
+export function routeConfigToPaymentOptions(routeConfig: RouteConfig): PaymentOption[] {
+  const { price, network, prices } = routeConfig;
+
+  // If prices array is provided, use it
+  if (prices && prices.length > 0) {
+    return prices;
+  }
+
+  // Backward compatibility: use price and network if provided
+  if (price && network) {
+    return [{ price, network }];
+  }
+
+  // Fallback to default if neither is provided
+  return [];
+}
+
+/**
  * Finds the matching payment requirements for the given payment
  *
  * @param paymentRequirements - The payment requirements to search through
@@ -167,4 +198,265 @@ export function decodeXPaymentResponse(header: string) {
     network: Network;
     payer: Address;
   };
+}
+
+/**
+ * Core X402 middleware logic that can be used across different frameworks
+ */
+export class ExactEvmMiddleware {
+  private routePatterns: RoutePattern[];
+  private verify: ReturnType<typeof useFacilitator>["verify"];
+  private settle: ReturnType<typeof useFacilitator>["settle"];
+  private x402Version = 1;
+
+  constructor(
+    private payTo: Address,
+    routes: RoutesConfig,
+    facilitator?: FacilitatorConfig,
+    private paywall?: PaywallConfig,
+  ) {
+    this.routePatterns = computeRoutePatterns(routes);
+    const facilitatorFunctions = useFacilitator(facilitator);
+    this.verify = facilitatorFunctions.verify;
+    this.settle = facilitatorFunctions.settle;
+  }
+
+  /**
+   * Process a request and determine if payment is required
+   */
+  async processRequest(
+    path: string,
+    method: string,
+    resourceUrl?: string,
+  ): Promise<
+    | { requiresPayment: false }
+    | {
+      requiresPayment: true;
+      paymentRequirements: PaymentRequirements[];
+      displayAmount: number;
+      customPaywallHtml?: string;
+      network: Network;
+    }
+  > {
+    const matchingRoute = findMatchingRoute(this.routePatterns, path, method.toUpperCase());
+
+    if (!matchingRoute) {
+      return { requiresPayment: false };
+    }
+
+    const { config = {} } = matchingRoute.config;
+    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } = config;
+
+    // Convert route config to payment options
+    const paymentOptions = routeConfigToPaymentOptions(matchingRoute.config);
+
+    // Process each payment option into payment requirements
+    const paymentRequirements: PaymentRequirements[] = [];
+    let displayAmount = 0;
+    let primaryNetwork: Network = "base-sepolia";
+
+    for (const { price, network } of paymentOptions) {
+      const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
+      if ("error" in atomicAmountForAsset) {
+        throw new Error(atomicAmountForAsset.error);
+      }
+      const { maxAmountRequired, asset } = atomicAmountForAsset;
+
+      const finalResourceUrl: string = resource || resourceUrl || path;
+
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: finalResourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "application/json",
+        payTo: this.payTo,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
+        asset: asset.address,
+        outputSchema,
+        extra: asset.eip712,
+      });
+
+      // Calculate display amount for paywall (use the first one as primary)
+      if (paymentRequirements.length === 1) {
+        if (typeof price === "string" || typeof price === "number") {
+          const parsed = moneySchema.safeParse(price);
+          if (parsed.success) {
+            displayAmount = parsed.data;
+          } else {
+            displayAmount = Number.NaN;
+          }
+        } else {
+          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
+        }
+        primaryNetwork = network;
+      }
+    }
+
+    return {
+      requiresPayment: true,
+      paymentRequirements,
+      displayAmount,
+      customPaywallHtml,
+      network: primaryNetwork,
+    };
+  }
+
+  /**
+   * Generate paywall HTML for web browsers
+   */
+  generatePaywallHtml(
+    paymentRequirements: PaymentRequirements[],
+    displayAmount: number,
+    currentUrl: string,
+    network: Network,
+    customPaywallHtml?: string,
+  ): string {
+    return (
+      customPaywallHtml ||
+      getPaywallHtml({
+        amount: displayAmount,
+        paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
+          typeof getPaywallHtml
+        >[0]["paymentRequirements"],
+        currentUrl,
+        testnet: network === "base-sepolia",
+        cdpClientKey: this.paywall?.cdpClientKey,
+        appName: this.paywall?.appName,
+        appLogo: this.paywall?.appLogo,
+      })
+    );
+  }
+
+  /**
+   * Verify a payment header
+   */
+  async verifyPayment(
+    paymentHeader: string,
+    paymentRequirements: PaymentRequirements[],
+  ): Promise<{
+    success: boolean;
+    decodedPayment?: PaymentPayload;
+    selectedRequirements?: PaymentRequirements;
+    error?: string;
+    payer?: string;
+  }> {
+    let decodedPayment: PaymentPayload;
+    try {
+      decodedPayment = exact.evm.decodePayment(paymentHeader);
+      decodedPayment.x402Version = this.x402Version;
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Invalid or malformed payment header",
+      };
+    }
+
+    const selectedPaymentRequirements = findMatchingPaymentRequirements(
+      paymentRequirements,
+      decodedPayment,
+    );
+    if (!selectedPaymentRequirements) {
+      return {
+        success: false,
+        error: "Unable to find matching payment requirements",
+      };
+    }
+
+    try {
+      const response = await this.verify(decodedPayment, selectedPaymentRequirements);
+      if (!response.isValid) {
+        return {
+          success: false,
+          error: response.invalidReason,
+          payer: response.payer,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Verification failed",
+      };
+    }
+
+    return {
+      success: true,
+      decodedPayment,
+      selectedRequirements: selectedPaymentRequirements,
+    };
+  }
+
+  /**
+   * Settle a payment
+   */
+  async settlePayment(
+    decodedPayment: PaymentPayload,
+    selectedRequirements: PaymentRequirements,
+  ): Promise<{
+    success: boolean;
+    responseHeader?: string;
+    error?: string;
+  }> {
+    try {
+      const settleResponse = await this.settle(decodedPayment, selectedRequirements);
+      const responseHeader = settleResponseHeader(settleResponse);
+      return {
+        success: true,
+        responseHeader,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Settlement failed",
+      };
+    }
+  }
+
+  /**
+   * Check if the request is from a web browser
+   */
+  isWebBrowser(headers: Record<string, string | string[] | undefined>): boolean {
+    const userAgent = Array.isArray(headers["user-agent"])
+      ? headers["user-agent"][0]
+      : headers["user-agent"] || "";
+    const acceptHeader = Array.isArray(headers["accept"])
+      ? headers["accept"][0]
+      : headers["accept"] || "";
+    return acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
+  }
+
+  /**
+   * Create a standard error response
+   */
+  createErrorResponse(
+    error: string,
+    paymentRequirements: PaymentRequirements[],
+    payer?: string,
+  ): {
+    x402Version: number;
+    error: string;
+    accepts: object;
+    payer?: string;
+  } {
+    return {
+      x402Version: this.x402Version,
+      error,
+      accepts: toJsonSafe(paymentRequirements),
+      ...(payer && { payer }),
+    };
+  }
+}
+
+/**
+ * Creates a new ExactEvmMiddleware instance
+ *
+ * @param payTo - The address to receive payments
+ * @param routes - The routes config to use
+ * @param facilitator - Optional facilitator configuration
+ * @param paywall - Optional paywall configuration
+ * @returns A new ExactEvmMiddleware instance
+ */
+export function exactEvmMiddleware(payTo: Address, routes: RoutesConfig, facilitator?: FacilitatorConfig, paywall?: PaywallConfig) {
+  return new ExactEvmMiddleware(payTo, routes, facilitator, paywall);
 }

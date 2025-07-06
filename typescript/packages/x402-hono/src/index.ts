@@ -1,25 +1,12 @@
 import type { Context } from "hono";
-import { Address, getAddress } from "viem";
-import { exact } from "x402/schemes";
-import {
-  computeRoutePatterns,
-  findMatchingPaymentRequirements,
-  findMatchingRoute,
-  getPaywallHtml,
-  processPriceToAtomicAmount,
-  toJsonSafe,
-} from "x402/shared";
+import { Address } from "viem";
+import { ExactEvmMiddleware } from "x402/shared";
 import {
   FacilitatorConfig,
-  moneySchema,
-  PaymentPayload,
-  PaymentRequirements,
+  PaywallConfig,
   Resource,
   RoutesConfig,
-  settleResponseHeader,
-  PaywallConfig,
 } from "x402/types";
-import { useFacilitator } from "x402/verify";
 
 /**
  * Creates a payment middleware factory for Hono
@@ -74,134 +61,59 @@ export function paymentMiddleware(
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
 ) {
-  const { verify, settle } = useFacilitator(facilitator);
-  const x402Version = 1;
-
-  // Pre-compile route patterns to regex and extract verbs
-  const routePatterns = computeRoutePatterns(routes);
+  const x402 = new ExactEvmMiddleware(payTo, routes, facilitator, paywall);
 
   return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
-    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, c.req.method.toUpperCase());
-    if (!matchingRoute) {
+    const resourceUrl: Resource = c.req.url as Resource;
+
+    const result = await x402.processRequest(
+      c.req.path,
+      c.req.method,
+      resourceUrl,
+    );
+
+    if (!result.requiresPayment) {
       return next();
     }
 
-    const { price, network } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      matchingRoute.config.config || {};
-
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      throw new Error(atomicAmountForAsset.error);
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
-    const resourceUrl: Resource = resource || (c.req.url as Resource);
-
-    const paymentRequirements: PaymentRequirements[] = [
-      {
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        outputSchema,
-        extra: asset.eip712,
-      },
-    ];
+    const { paymentRequirements, displayAmount, customPaywallHtml, network } = result;
 
     const payment = c.req.header("X-PAYMENT");
-    const userAgent = c.req.header("User-Agent") || "";
-    const acceptHeader = c.req.header("Accept") || "";
-    const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
     if (!payment) {
-      if (isWebBrowser) {
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
-
+      // Create headers object for browser detection
+      const headers = {
+        "user-agent": c.req.header("User-Agent"),
+        "accept": c.req.header("Accept"),
+      };
+      if (x402.isWebBrowser(headers)) {
         const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
-        const html =
-          customPaywallHtml ??
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appName: paywall?.appName,
-            appLogo: paywall?.appLogo,
-          });
+        const html = x402.generatePaywallHtml(
+          paymentRequirements,
+          displayAmount,
+          currentUrl,
+          network,
+          customPaywallHtml,
+        );
         return c.html(html, 402);
       }
-      return c.json(
-        {
-          error: "X-PAYMENT header is required",
-          accepts: paymentRequirements,
-          x402Version,
-        },
-        402,
+
+      const errorResponse = x402.createErrorResponse(
+        "X-PAYMENT header is required",
+        paymentRequirements!,
       );
+      return c.json(errorResponse, 402);
     }
 
-    // Verify payment
-    let decodedPayment: PaymentPayload;
-    try {
-      decodedPayment = exact.evm.decodePayment(payment);
-      decodedPayment.x402Version = x402Version;
-    } catch (error) {
-      return c.json(
-        {
-          error: error instanceof Error ? error : new Error("Invalid or malformed payment header"),
-          accepts: paymentRequirements,
-          x402Version,
-        },
-        402,
-      );
-    }
+    const verification = await x402.verifyPayment(payment, paymentRequirements!);
 
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
-    if (!selectedPaymentRequirements) {
-      return c.json(
-        {
-          error: "Unable to find matching payment requirements",
-          accepts: toJsonSafe(paymentRequirements),
-          x402Version,
-        },
-        402,
+    if (!verification.success) {
+      const errorResponse = x402.createErrorResponse(
+        verification.error!,
+        paymentRequirements!,
+        verification.payer,
       );
-    }
-
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
-
-    if (!verification.isValid) {
-      return c.json(
-        {
-          error: new Error(verification.invalidReason),
-          accepts: paymentRequirements,
-          payer: verification.payer,
-          x402Version,
-        },
-        402,
-      );
+      return c.json(errorResponse, 402);
     }
 
     // Proceed with request
@@ -217,21 +129,16 @@ export function paymentMiddleware(
     c.res = undefined;
 
     // Settle payment before processing the request, as Hono middleware does not allow us to set headers after the response has been sent
-    try {
-      const settlement = await settle(decodedPayment, selectedPaymentRequirements);
-      if (settlement.success) {
-        const responseHeader = settleResponseHeader(settlement);
-        res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
-      } else {
-        throw new Error(settlement.errorReason);
-      }
-    } catch (error) {
+    const settlement = await x402.settlePayment(
+      verification.decodedPayment!,
+      verification.selectedRequirements!,
+    );
+
+    if (settlement.success) {
+      res.headers.set("X-PAYMENT-RESPONSE", settlement.responseHeader!);
+    } else {
       res = c.json(
-        {
-          error: error instanceof Error ? error : new Error("Failed to settle payment"),
-          accepts: paymentRequirements,
-          x402Version,
-        },
+        x402.createErrorResponse(settlement.error!, paymentRequirements!),
         402,
       );
     }
