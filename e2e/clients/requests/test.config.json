@@ -1,0 +1,14 @@
+{
+  "name": "requests",
+  "type": "client",
+  "language": "python",
+  "description": "Python requests client with x402 HTTP adapter",
+  "environment": {
+    "required": [
+      "PRIVATE_KEY",
+      "RESOURCE_SERVER_URL",
+      "ENDPOINT_PATH"
+    ],
+    "optional": []
+  }
+}

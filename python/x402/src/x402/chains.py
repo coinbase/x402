@@ -82,3 +82,11 @@ def get_token_decimals(chain_id: str, address: str) -> int:
         if token["address"] == address:
             return token["decimals"]
     raise ValueError(f"Token not found for chain {chain_id} and address {address}")
+
+
+def get_default_token_address(chain_id: str, token_type: str = "usdc") -> str:
+    """Get the default token address for a given chain and token type"""
+    for token in KNOWN_TOKENS[chain_id]:
+        if token["human_name"] == token_type:
+            return token["address"]
+    raise ValueError(f"Token type '{token_type}' not found for chain {chain_id}")

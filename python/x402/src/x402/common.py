@@ -5,6 +5,7 @@ from x402.chains import (
     get_token_decimals,
     get_token_name,
     get_token_version,
+    get_default_token_address,
 )
 from x402.types import Price, TokenAmount
 
@@ -86,16 +87,8 @@ def process_price_to_atomic_amount(
 def get_usdc_address(chain_id: int | str) -> str:
     """Get the USDC contract address for a given chain ID"""
     if isinstance(chain_id, str):
-        chain_id = int(chain_id)
-    if chain_id == 84532:  # Base Sepolia testnet
-        return "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
-    elif chain_id == 8453:  # Base mainnet
-        return "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    elif chain_id == 43113:  # Avalanche Fuji testnet
-        return "0x5425890298aed601595a70AB815c96711a31Bc65"
-    elif chain_id == 43114:  # Avalanche mainnet
-        return "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
-    raise ValueError(f"Unsupported chain ID: {chain_id}")
+        chain_id = str(chain_id)  # Keep as string for consistency
+    return get_default_token_address(chain_id, "usdc")
 
 
 x402_VERSION = 1

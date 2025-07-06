@@ -1,0 +1,52 @@
+# X402 Server Protocol
+
+## CLI Interface
+1. Must be runnable through a CLI command, which can be parsed from 'run.sh'
+2. Must output specific logs
+3. Must error code 0 or 1, with a JSON response payload
+
+## Environment Variables / CLI Arguments
+The following parameters must be configurable:
+- `USE_CDP_FACILITATOR`: Flag to switch facilitators from default
+- `NETWORK`: Network to use (e.g., "base-sepolia", "base")
+- `ADDRESS`: Address to receive payments
+- `PORT`: Port to listen on (default: 4021)
+
+## Required Endpoints
+
+### GET /protected
+- **Purpose**: Protected endpoint that requires payment
+- **Price**: $0.001
+- **Success Response (200)**:
+  ```json
+  {
+    "message": "Protected endpoint accessed successfully",
+    "timestamp": "2024-01-01T00:00:00Z"
+  }
+  ```
+- **Payment Failure Response (402)**:
+  ```json
+  {
+    "error": "Payment required",
+    "message": "Failed to process payment"
+  }
+  ```
+
+### POST /close
+- **Purpose**: Gracefully shut down the server
+- **Response**: Should terminate the process with exit code 0
+- **Usage**: Called by proxy to clean up resources
+
+### GET /health (Optional)
+- **Purpose**: Health check endpoint
+- **Response (200)**:
+  ```json
+  {
+    "status": "ok"
+  }
+  ```
+
+## Startup Requirements
+- Must log "Server listening" when ready to accept requests
+- Must handle graceful shutdown on SIGTERM/SIGINT
+- Must validate required environment variables on startup

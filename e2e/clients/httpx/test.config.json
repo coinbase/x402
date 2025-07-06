@@ -1,0 +1,14 @@
+{
+  "name": "httpx",
+  "type": "client",
+  "language": "python",
+  "description": "Python httpx client with x402 payment hooks",
+  "environment": {
+    "required": [
+      "PRIVATE_KEY",
+      "RESOURCE_SERVER_URL",
+      "ENDPOINT_PATH"
+    ],
+    "optional": []
+  }
+}
