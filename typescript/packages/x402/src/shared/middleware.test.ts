@@ -430,19 +430,32 @@ describe("ExactEvmMiddleware", () => {
       mw.isWebBrowser({
         "user-agent": "Mozilla/5.0",
         accept: "text/html,application/xhtml+xml",
-      })
+      }),
     ).toBe(true);
     expect(
       mw.isWebBrowser({
         "user-agent": "curl/7.0",
         accept: "application/json",
-      })
+      }),
     ).toBe(false);
   });
 
   it("createErrorResponse returns correct error object", () => {
     const mw = new ExactEvmMiddleware(payTo, routes);
-    const err = mw.createErrorResponse("fail", [{ scheme: "exact", network: "base-sepolia", maxAmountRequired: "1000", resource: "r", description: "", mimeType: "application/json", payTo, maxTimeoutSeconds: 300, asset: "0xabc", extra: { name: "USDC", version: "2" } }]);
+    const err = mw.createErrorResponse("fail", [
+      {
+        scheme: "exact",
+        network: "base-sepolia",
+        maxAmountRequired: "1000",
+        resource: "r",
+        description: "",
+        mimeType: "application/json",
+        payTo,
+        maxTimeoutSeconds: 300,
+        asset: "0xabc",
+        extra: { name: "USDC", version: "2" },
+      },
+    ]);
     expect(err).toMatchObject({ x402Version: 1, error: "fail", accepts: expect.any(Array) });
   });
 
@@ -450,7 +463,9 @@ describe("ExactEvmMiddleware", () => {
     const mw = new ExactEvmMiddleware(payTo, routes);
     // Patch decodePayment to throw
     const { exact } = await import("../schemes");
-    vi.mocked(exact.evm.decodePayment).mockImplementation(() => { throw new Error("bad header"); });
+    vi.mocked(exact.evm.decodePayment).mockImplementation(() => {
+      throw new Error("bad header");
+    });
     const result = await mw.verifyPayment("bad", []);
     expect(result).toMatchObject({ success: false, error: "bad header" });
   });
@@ -476,7 +491,10 @@ describe("ExactEvmMiddleware", () => {
       },
     });
     const result = await mw.verifyPayment("header", []);
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining("Unable to find matching payment requirements") });
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining("Unable to find matching payment requirements"),
+    });
   });
 
   const fullPaymentReq = {
@@ -545,7 +563,25 @@ describe("ExactEvmMiddleware", () => {
   it("settlePayment returns success if settle passes", async () => {
     mockSettle.mockResolvedValue({ tx: "0xabc" });
     const mw = new ExactEvmMiddleware(payTo, routes);
-    const result = await mw.settlePayment({} as any, {} as any);
+    const result = await mw.settlePayment(
+      {
+        scheme: "exact" as const,
+        network: "base-sepolia" as const,
+        x402Version: 1,
+        payload: {
+          signature: "0x123",
+          authorization: {
+            from: "0x123",
+            to: "0x456",
+            value: "0x123",
+            validAfter: "0x123",
+            validBefore: "0x123",
+            nonce: "0x123",
+          },
+        },
+      },
+      fullPaymentReq,
+    );
     expect(result.success).toBe(true);
     expect(result.responseHeader).toBeDefined();
   });
@@ -553,7 +589,25 @@ describe("ExactEvmMiddleware", () => {
   it("settlePayment returns error if settle throws", async () => {
     mockSettle.mockRejectedValue(new Error("settle failed"));
     const mw = new ExactEvmMiddleware(payTo, routes);
-    const result = await mw.settlePayment({} as any, {} as any);
+    const result = await mw.settlePayment(
+      {
+        scheme: "exact" as const,
+        network: "base-sepolia" as const,
+        x402Version: 1,
+        payload: {
+          signature: "0x123",
+          authorization: {
+            from: "0x123",
+            to: "0x456",
+            value: "0x123",
+            validAfter: "0x123",
+            validBefore: "0x123",
+            nonce: "0x123",
+          },
+        },
+      },
+      fullPaymentReq,
+    );
     expect(result.success).toBe(false);
     expect(result.error).toBe("settle failed");
   });

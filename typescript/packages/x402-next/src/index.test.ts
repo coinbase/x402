@@ -12,6 +12,11 @@ vi.mock("x402/shared", () => ({
 // Mock NextResponse
 vi.mock("next/server", () => ({
   NextResponse: class MockNextResponse extends Response {
+    /**
+     * Creates a new NextResponse instance
+     *
+     * @returns A new MockNextResponse instance
+     */
     static next() {
       return new MockNextResponse();
     }
@@ -52,7 +57,9 @@ describe("paymentMiddleware()", () => {
     };
 
     // Mock the ExactEvmMiddleware constructor
-    vi.mocked(ExactEvmMiddleware).mockImplementation(() => mockX402 as any);
+    vi.mocked(ExactEvmMiddleware).mockImplementation(
+      () => mockX402 as unknown as InstanceType<typeof ExactEvmMiddleware>,
+    );
 
     // Setup request mock
     mockRequest = {
@@ -82,7 +89,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.processRequest).toHaveBeenCalledWith(
       "/protected/test",
       "GET",
-      "https://example.com/protected/test"
+      "https://example.com/protected/test",
     );
     expect(response).toBeInstanceOf(Response);
   });
@@ -123,7 +130,7 @@ describe("paymentMiddleware()", () => {
 
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "X-PAYMENT header is required",
-      paymentRequirements
+      paymentRequirements,
     );
     expect(response.status).toBe(402);
     expect(response.headers.get("Content-Type")).toBe("application/json");
@@ -165,7 +172,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "https://example.com/protected/test",
       "base-sepolia",
-      undefined
+      undefined,
     );
     expect(response.status).toBe(402);
     expect(response.headers.get("Content-Type")).toBe("text/html");
@@ -278,7 +285,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Invalid payment",
       paymentRequirements,
-      "0x123"
+      "0x123",
     );
     expect(response.status).toBe(402);
     expect(response.headers.get("Content-Type")).toBe("application/json");
@@ -348,7 +355,7 @@ describe("paymentMiddleware()", () => {
 
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Settlement failed",
-      paymentRequirements
+      paymentRequirements,
     );
     expect(response.status).toBe(402);
     expect(response.headers.get("Content-Type")).toBe("application/json");
@@ -405,7 +412,9 @@ describe("paymentMiddleware()", () => {
 
     // Mock NextResponse.next to return a 500 response
     const originalNext = NextResponse.next;
-    NextResponse.next = vi.fn().mockResolvedValue(new NextResponse("Internal server error", { status: 500 }));
+    NextResponse.next = vi
+      .fn()
+      .mockResolvedValue(new NextResponse("Internal server error", { status: 500 }));
 
     const response = await middleware(mockRequest);
 
@@ -453,7 +462,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "https://example.com/protected/test",
       "base-sepolia",
-      customPaywallHtml
+      customPaywallHtml,
     );
     expect(response.status).toBe(402);
   });
@@ -475,7 +484,7 @@ describe("paymentMiddleware()", () => {
       payTo,
       routesConfig,
       facilitatorConfig,
-      paywallConfig
+      paywallConfig,
     );
   });
 });

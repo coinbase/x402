@@ -1,12 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { Address } from "viem";
 import { ExactEvmMiddleware } from "x402/shared";
-import {
-  FacilitatorConfig,
-  PaywallConfig,
-  Resource,
-  RoutesConfig,
-} from "x402/types";
+import { FacilitatorConfig, PaywallConfig, Resource, RoutesConfig } from "x402/types";
 
 /**
  * Creates a payment middleware factory for Express
@@ -70,11 +65,7 @@ export function paymentMiddleware(
   ): Promise<void> {
     const resourceUrl: Resource = `${req.protocol}://${req.headers.host}${req.path}` as Resource;
 
-    const result = await x402.processRequest(
-      req.path,
-      req.method,
-      resourceUrl,
-    );
+    const result = await x402.processRequest(req.path, req.method, resourceUrl);
 
     if (!result.requiresPayment) {
       return next();
@@ -152,10 +143,7 @@ export function paymentMiddleware(
     if (settlement.success) {
       res.setHeader("X-PAYMENT-RESPONSE", settlement.responseHeader!);
     } else if (!res.headersSent) {
-      const errorResponse = x402.createErrorResponse(
-        settlement.error!,
-        paymentRequirements!,
-      );
+      const errorResponse = x402.createErrorResponse(settlement.error!, paymentRequirements!);
       res.status(402).json(errorResponse);
       return;
     }

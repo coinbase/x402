@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ExactEvmMiddleware } from "x402/shared";
+import { Context } from "hono";
+import { paymentMiddleware } from "./index";
+
 // Mock first!
 vi.mock("x402/shared", () => ({
   ExactEvmMiddleware: vi.fn(),
 }));
-
-import { ExactEvmMiddleware } from "x402/shared";
-import { Context } from "hono";
-import { paymentMiddleware } from "./index";
 
 describe("paymentMiddleware()", () => {
   let mockContext: Context;
@@ -45,11 +45,13 @@ describe("paymentMiddleware()", () => {
     };
 
     // Mock the ExactEvmMiddleware constructor
-    vi.mocked(ExactEvmMiddleware).mockImplementation(() => mockX402 as any);
+    vi.mocked(ExactEvmMiddleware).mockImplementation(
+      () => mockX402 as unknown as InstanceType<typeof ExactEvmMiddleware>,
+    );
 
     // Setup mock context
     const mockHeaders = new Headers();
-    headersSpy = vi.spyOn(mockHeaders, 'set');
+    headersSpy = vi.spyOn(mockHeaders, "set");
 
     mockContext = {
       req: {
@@ -84,7 +86,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.processRequest).toHaveBeenCalledWith(
       "/weather",
       "GET",
-      "http://localhost:3000/weather"
+      "http://localhost:3000/weather",
     );
     expect(mockNext).toHaveBeenCalled();
   });
@@ -131,17 +133,20 @@ describe("paymentMiddleware()", () => {
 
     expect(mockX402.isWebBrowser).toHaveBeenCalledWith({
       "user-agent": "curl/7.68.0",
-      "accept": "application/json",
+      accept: "application/json",
     });
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "X-PAYMENT header is required",
-      paymentRequirements
+      paymentRequirements,
     );
-    expect(mockContext.json).toHaveBeenCalledWith({
-      x402Version: 1,
-      error: "X-PAYMENT header is required",
-      accepts: paymentRequirements,
-    }, 402);
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        x402Version: 1,
+        error: "X-PAYMENT header is required",
+        accepts: paymentRequirements,
+      },
+      402,
+    );
   });
 
   it("should return HTML paywall for browser requests", async () => {
@@ -185,7 +190,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "/weather",
       "base-sepolia",
-      undefined
+      undefined,
     );
     expect(mockContext.html).toHaveBeenCalledWith("<html>Paywall</html>", 402);
   });
@@ -302,14 +307,17 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Invalid payment",
       paymentRequirements,
-      "0x123"
+      "0x123",
     );
-    expect(mockContext.json).toHaveBeenCalledWith({
-      x402Version: 1,
-      error: "Invalid payment",
-      accepts: paymentRequirements,
-      payer: "0x123",
-    }, 402);
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        x402Version: 1,
+        error: "Invalid payment",
+        accepts: paymentRequirements,
+        payer: "0x123",
+      },
+      402,
+    );
   });
 
   it("should handle settlement failure", async () => {
@@ -379,13 +387,16 @@ describe("paymentMiddleware()", () => {
 
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Settlement failed",
-      paymentRequirements
+      paymentRequirements,
     );
-    expect(mockContext.json).toHaveBeenCalledWith({
-      x402Version: 1,
-      error: "Settlement failed",
-      accepts: paymentRequirements,
-    }, 402);
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        x402Version: 1,
+        error: "Settlement failed",
+        accepts: paymentRequirements,
+      },
+      402,
+    );
   });
 
   it("should not settle payment if protected route returns status >= 400", async () => {
@@ -441,7 +452,7 @@ describe("paymentMiddleware()", () => {
     });
 
     // Simulate downstream handler setting status 500
-    Object.defineProperty(mockContext.res, 'status', { value: 500, writable: true });
+    Object.defineProperty(mockContext.res, "status", { value: 500, writable: true });
 
     await middleware(mockContext, mockNext);
 
@@ -492,7 +503,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "/weather",
       "base-sepolia",
-      customPaywallHtml
+      customPaywallHtml,
     );
   });
 
@@ -513,7 +524,7 @@ describe("paymentMiddleware()", () => {
       payTo,
       routesConfig,
       facilitatorConfig,
-      paywallConfig
+      paywallConfig,
     );
   });
 });

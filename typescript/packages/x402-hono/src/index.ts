@@ -1,12 +1,7 @@
 import type { Context } from "hono";
 import { Address } from "viem";
 import { ExactEvmMiddleware } from "x402/shared";
-import {
-  FacilitatorConfig,
-  PaywallConfig,
-  Resource,
-  RoutesConfig,
-} from "x402/types";
+import { FacilitatorConfig, PaywallConfig, Resource, RoutesConfig } from "x402/types";
 
 /**
  * Creates a payment middleware factory for Hono
@@ -66,11 +61,7 @@ export function paymentMiddleware(
   return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
     const resourceUrl: Resource = c.req.url as Resource;
 
-    const result = await x402.processRequest(
-      c.req.path,
-      c.req.method,
-      resourceUrl,
-    );
+    const result = await x402.processRequest(c.req.path, c.req.method, resourceUrl);
 
     if (!result.requiresPayment) {
       return next();
@@ -84,7 +75,7 @@ export function paymentMiddleware(
       // Create headers object for browser detection
       const headers = {
         "user-agent": c.req.header("User-Agent"),
-        "accept": c.req.header("Accept"),
+        accept: c.req.header("Accept"),
       };
       if (x402.isWebBrowser(headers)) {
         const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
@@ -137,10 +128,7 @@ export function paymentMiddleware(
     if (settlement.success) {
       res.headers.set("X-PAYMENT-RESPONSE", settlement.responseHeader!);
     } else {
-      res = c.json(
-        x402.createErrorResponse(settlement.error!, paymentRequirements!),
-        402,
-      );
+      res = c.json(x402.createErrorResponse(settlement.error!, paymentRequirements!), 402);
     }
 
     c.res = res;

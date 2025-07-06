@@ -209,6 +209,14 @@ export class ExactEvmMiddleware {
   private settle: ReturnType<typeof useFacilitator>["settle"];
   private x402Version = 1;
 
+  /**
+   * Creates a new ExactEvmMiddleware instance
+   *
+   * @param payTo - The address to receive payments
+   * @param routes - Configuration for protected routes and their payment requirements
+   * @param facilitator - Optional configuration for the payment facilitator service
+   * @param paywall - Optional configuration for the default paywall
+   */
   constructor(
     private payTo: Address,
     routes: RoutesConfig,
@@ -223,6 +231,11 @@ export class ExactEvmMiddleware {
 
   /**
    * Process a request and determine if payment is required
+   *
+   * @param path - The request path to check against configured routes
+   * @param method - The HTTP method of the request
+   * @param resourceUrl - Optional resource URL, defaults to path if not provided
+   * @returns Object indicating whether payment is required and payment details if so
    */
   async processRequest(
     path: string,
@@ -231,12 +244,12 @@ export class ExactEvmMiddleware {
   ): Promise<
     | { requiresPayment: false }
     | {
-      requiresPayment: true;
-      paymentRequirements: PaymentRequirements[];
-      displayAmount: number;
-      customPaywallHtml?: string;
-      network: Network;
-    }
+        requiresPayment: true;
+        paymentRequirements: PaymentRequirements[];
+        displayAmount: number;
+        customPaywallHtml?: string;
+        network: Network;
+      }
   > {
     const matchingRoute = findMatchingRoute(this.routePatterns, path, method.toUpperCase());
 
@@ -245,7 +258,8 @@ export class ExactEvmMiddleware {
     }
 
     const { config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } = config;
+    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
+      config;
 
     // Convert route config to payment options
     const paymentOptions = routeConfigToPaymentOptions(matchingRoute.config);
@@ -305,6 +319,13 @@ export class ExactEvmMiddleware {
 
   /**
    * Generate paywall HTML for web browsers
+   *
+   * @param paymentRequirements - The payment requirements to display in the paywall
+   * @param displayAmount - The amount to display in the paywall (in dollars)
+   * @param currentUrl - The current URL where the paywall is being shown
+   * @param network - The network for the payment
+   * @param customPaywallHtml - Optional custom HTML to use instead of the default paywall
+   * @returns HTML string for the paywall page
    */
   generatePaywallHtml(
     paymentRequirements: PaymentRequirements[],
@@ -331,6 +352,10 @@ export class ExactEvmMiddleware {
 
   /**
    * Verify a payment header
+   *
+   * @param paymentHeader - The X-PAYMENT header value to verify
+   * @param paymentRequirements - The payment requirements to verify against
+   * @returns Object indicating verification success/failure and related details
    */
   async verifyPayment(
     paymentHeader: string,
@@ -389,6 +414,10 @@ export class ExactEvmMiddleware {
 
   /**
    * Settle a payment
+   *
+   * @param decodedPayment - The decoded payment payload to settle
+   * @param selectedRequirements - The payment requirements that were selected for this payment
+   * @returns Object indicating settlement success/failure and response header if successful
    */
   async settlePayment(
     decodedPayment: PaymentPayload,
@@ -415,6 +444,9 @@ export class ExactEvmMiddleware {
 
   /**
    * Check if the request is from a web browser
+   *
+   * @param headers - The request headers to check for browser indicators
+   * @returns True if the request appears to be from a web browser
    */
   isWebBrowser(headers: Record<string, string | string[] | undefined>): boolean {
     const userAgent = Array.isArray(headers["user-agent"])
@@ -428,6 +460,11 @@ export class ExactEvmMiddleware {
 
   /**
    * Create a standard error response
+   *
+   * @param error - The error message to include in the response
+   * @param paymentRequirements - The payment requirements to include in the accepts array
+   * @param payer - Optional payer address to include in the response
+   * @returns Standardized error response object
    */
   createErrorResponse(
     error: string,
@@ -457,6 +494,11 @@ export class ExactEvmMiddleware {
  * @param paywall - Optional paywall configuration
  * @returns A new ExactEvmMiddleware instance
  */
-export function exactEvmMiddleware(payTo: Address, routes: RoutesConfig, facilitator?: FacilitatorConfig, paywall?: PaywallConfig) {
+export function exactEvmMiddleware(
+  payTo: Address,
+  routes: RoutesConfig,
+  facilitator?: FacilitatorConfig,
+  paywall?: PaywallConfig,
+) {
   return new ExactEvmMiddleware(payTo, routes, facilitator, paywall);
 }

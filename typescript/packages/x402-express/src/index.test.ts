@@ -44,7 +44,9 @@ describe("paymentMiddleware()", () => {
     };
 
     // Mock the ExactEvmMiddleware constructor
-    vi.mocked(ExactEvmMiddleware).mockImplementation(() => mockX402 as any);
+    vi.mocked(ExactEvmMiddleware).mockImplementation(
+      () => mockX402 as unknown as InstanceType<typeof ExactEvmMiddleware>,
+    );
 
     // Setup mock request
     mockReq = {
@@ -89,7 +91,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.processRequest).toHaveBeenCalledWith(
       "/test",
       "GET",
-      "http://localhost:3000/test"
+      "http://localhost:3000/test",
     );
     expect(mockNext).toHaveBeenCalled();
     expect(mockRes.status).not.toHaveBeenCalled();
@@ -131,7 +133,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.isWebBrowser).toHaveBeenCalledWith(mockReq.headers);
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "X-PAYMENT header is required",
-      paymentRequirements
+      paymentRequirements,
     );
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
@@ -175,7 +177,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "/test",
       "base-sepolia",
-      undefined
+      undefined,
     );
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.send).toHaveBeenCalledWith("<html>Paywall</html>");
@@ -287,7 +289,7 @@ describe("paymentMiddleware()", () => {
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Invalid payment",
       paymentRequirements,
-      "0x123"
+      "0x123",
     );
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
@@ -362,7 +364,7 @@ describe("paymentMiddleware()", () => {
 
     expect(mockX402.createErrorResponse).toHaveBeenCalledWith(
       "Settlement failed",
-      paymentRequirements
+      paymentRequirements,
     );
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
@@ -426,10 +428,9 @@ describe("paymentMiddleware()", () => {
 
     // Mock response.end to capture arguments
     const endArgs: Parameters<Response["end"]>[] = [];
-    const originalEnd = mockRes.end;
     mockRes.end = vi.fn().mockImplementation((...args: Parameters<Response["end"]>) => {
       endArgs.push(args);
-      return mockRes as any;
+      return mockRes as unknown as Response;
     });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -538,7 +539,7 @@ describe("paymentMiddleware()", () => {
       0.001,
       "/test",
       "base-sepolia",
-      customPaywallHtml
+      customPaywallHtml,
     );
     expect(mockRes.status).toHaveBeenCalledWith(402);
   });
@@ -560,7 +561,7 @@ describe("paymentMiddleware()", () => {
       payTo,
       routesConfig,
       facilitatorConfig,
-      paywallConfig
+      paywallConfig,
     );
   });
 });

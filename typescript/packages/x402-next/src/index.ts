@@ -2,12 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address } from "viem";
 import { ExactEvmMiddleware } from "x402/shared";
-import {
-  FacilitatorConfig,
-  PaywallConfig,
-  Resource,
-  RoutesConfig,
-} from "x402/types";
+import { FacilitatorConfig, PaywallConfig, Resource, RoutesConfig } from "x402/types";
 import { safeBase64Encode } from "x402/shared";
 
 /**
@@ -84,13 +79,10 @@ export function paymentMiddleware(
     const pathname = request.nextUrl.pathname;
     const method = request.method.toUpperCase();
 
-    const resourceUrl = `${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource;
+    const resourceUrl =
+      `${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource;
 
-    const result = await x402.processRequest(
-      pathname,
-      method,
-      resourceUrl,
-    );
+    const result = await x402.processRequest(pathname, method, resourceUrl);
 
     if (!result.requiresPayment) {
       return NextResponse.next();
@@ -123,10 +115,10 @@ export function paymentMiddleware(
         "X-PAYMENT header is required",
         paymentRequirements!,
       );
-      return new NextResponse(
-        JSON.stringify(errorResponse),
-        { status: 402, headers: { "Content-Type": "application/json" } },
-      );
+      return new NextResponse(JSON.stringify(errorResponse), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const verification = await x402.verifyPayment(paymentHeader, paymentRequirements!);
@@ -137,10 +129,10 @@ export function paymentMiddleware(
         paymentRequirements!,
         verification.payer,
       );
-      return new NextResponse(
-        JSON.stringify(errorResponse),
-        { status: 402, headers: { "Content-Type": "application/json" } },
-      );
+      return new NextResponse(JSON.stringify(errorResponse), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Proceed with request
@@ -170,14 +162,11 @@ export function paymentMiddleware(
         ),
       );
     } else {
-      const errorResponse = x402.createErrorResponse(
-        settlement.error!,
-        paymentRequirements!,
-      );
-      return new NextResponse(
-        JSON.stringify(errorResponse),
-        { status: 402, headers: { "Content-Type": "application/json" } },
-      );
+      const errorResponse = x402.createErrorResponse(settlement.error!, paymentRequirements!);
+      return new NextResponse(JSON.stringify(errorResponse), {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     return response;
