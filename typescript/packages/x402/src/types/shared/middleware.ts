@@ -39,9 +39,17 @@ export interface ERC20TokenAmount {
 
 export type Price = Money | ERC20TokenAmount;
 
-export interface RouteConfig {
+export interface PaymentOption {
   price: Price;
   network: Network;
+}
+
+export interface RouteConfig {
+  // Backward compatibility: single payment option
+  price?: Price;
+  network?: Network;
+  // New: multiple payment options
+  prices?: PaymentOption[];
   config?: PaymentMiddlewareConfig;
 }
 
