@@ -73,7 +73,7 @@ export async function verify<
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
 export async function settle<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport>,
+  client: SignerWallet<chain, transport> | KeyPairSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
@@ -81,12 +81,20 @@ export async function settle<transport extends Transport, chain extends Chain>(
   if (paymentRequirements.scheme === "exact") {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return settleExactEvm(client, payload, paymentRequirements);
+      return settleExactEvm(
+        client as SignerWallet<chain, transport>,
+        payload,
+        paymentRequirements,
+      );
     }
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactSvm(payload, paymentRequirements);
+      return await settleExactSvm(
+        client as KeyPairSigner,
+        payload,
+        paymentRequirements,
+      );
     }
   }
 
@@ -97,7 +105,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     network: paymentRequirements.network,
     payer:
       paymentRequirements.network === NetworkEnum.SOLANA_MAINNET ||
-      paymentRequirements.network === NetworkEnum.SOLANA_DEVNET
+        paymentRequirements.network === NetworkEnum.SOLANA_DEVNET
         ? ""
         : (payload.payload as ExactEvmPayload).authorization.from,
   };

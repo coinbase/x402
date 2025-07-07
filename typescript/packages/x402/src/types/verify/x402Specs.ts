@@ -21,6 +21,7 @@ export const ErrorReasons = [
   "invalid_exact_evm_payload_signature",
   "invalid_exact_evm_payload_recipient_mismatch",
   "invalid_exact_svm_payload_transaction",
+  "invalid_exact_svm_payload_transaction_instructions",
   "invalid_exact_svm_payload_transaction_instructions_length",
   "invalid_exact_svm_payload_transaction_not_a_transfer_instruction",
   "invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked",
@@ -35,11 +36,13 @@ export const ErrorReasons = [
   "invalid_payload",
   "invalid_payment_requirements",
   "invalid_scheme",
-  "unsupported_scheme",
-  "invalid_x402_version",
   "invalid_transaction_state",
-  "unexpected_verify_error",
+  "invalid_x402_version",
+  "settle_exact_svm_block_height_exceeded",
+  "settle_exact_svm_transaction_confirmation_timed_out",
+  "unsupported_scheme",
   "unexpected_settle_error",
+  "unexpected_verify_error",
 ] as const;
 
 // Refiners
