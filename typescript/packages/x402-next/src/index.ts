@@ -168,6 +168,7 @@ export function paymentMiddleware(
               cdpClientKey: paywall?.cdpClientKey,
               appLogo: paywall?.appLogo,
               appName: paywall?.appName,
+              sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
             });
           return new NextResponse(html, {
             status: 402,

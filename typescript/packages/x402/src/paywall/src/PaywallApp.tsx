@@ -41,7 +41,7 @@ export function PaywallApp() {
   const paymentChain = testnet ? baseSepolia : base;
   const chainName = testnet ? "Base Sepolia" : "Base";
   const network = testnet ? "base-sepolia" : "base";
-  const showOnramp = !testnet && isConnected;
+  const showOnramp = Boolean(!testnet && isConnected && x402.sessionTokenEndpoint);
 
   useEffect(() => {
     if (address) {

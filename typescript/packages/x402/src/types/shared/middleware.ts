@@ -14,6 +14,7 @@ export type PaywallConfig = {
   cdpClientKey?: string;
   appName?: string;
   appLogo?: string;
+  sessionTokenEndpoint?: string;
 };
 
 export type PaymentMiddlewareConfig = {

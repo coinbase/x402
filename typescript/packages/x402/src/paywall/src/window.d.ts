@@ -10,6 +10,7 @@ declare global {
       cdpClientKey?: string;
       appName?: string;
       appLogo?: string;
+      sessionTokenEndpoint?: string;
       config: {
         chainConfig: Record<
           string,
