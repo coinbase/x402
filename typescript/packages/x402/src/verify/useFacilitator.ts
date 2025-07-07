@@ -1,5 +1,5 @@
 import { toJsonSafe } from "../shared";
-import { FacilitatorConfig } from "../types";
+import { FacilitatorConfig, RequestStructure } from "../types";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -68,6 +68,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   async function settle(
     payload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
+    requestStructure?: RequestStructure,
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
@@ -84,6 +85,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
         x402Version: payload.x402Version,
         paymentPayload: toJsonSafe(payload),
         paymentRequirements: toJsonSafe(paymentRequirements),
+        requestStructure: requestStructure ? toJsonSafe(requestStructure) : undefined,
       }),
     });
 

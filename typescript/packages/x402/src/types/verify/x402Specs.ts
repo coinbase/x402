@@ -76,6 +76,87 @@ export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
   payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
 };
 
+// x402RequestStructure
+const HTTPVerbsSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]);
+export type HTTPVerbs = z.infer<typeof HTTPVerbsSchema>;
+
+export const HTTPRequestStructureSchema = z.object({
+  spec: z.literal("http"),
+  method: HTTPVerbsSchema,
+  queryParams: z.record(z.string(), z.string()).optional(),
+  bodyType: z.enum(["json", "form-data", "multipart-form-data", "text", "binary"]).optional(),
+  bodyFields: z.record(z.string(), z.any()).optional(),
+  headerFields: z.record(z.string(), z.any()).optional(),
+});
+
+export const MCPRequestStructureSchema = z.object({
+  spec: z.literal("mcp"),
+  sessionIsPayed: z.boolean(),
+  payedAction: z.object({
+    kind: z.enum(["prompts", "resources", "tools"]),
+    name: z.string(),
+  }).optional(),
+});
+
+export const OpenAPIRequestStructureSchema = z.object({
+  spec: z.literal("openapi"),
+  openApiUrl: z.string().url(),
+  path: z.string(),
+});
+
+export const RequestStructureSchema = z.discriminatedUnion("spec", [
+  HTTPRequestStructureSchema,
+  MCPRequestStructureSchema,
+  OpenAPIRequestStructureSchema,
+]);
+
+export type HTTPRequestStructure = z.infer<typeof HTTPRequestStructureSchema>;
+export type MCPRequestStructure = z.infer<typeof MCPRequestStructureSchema>;
+export type OpenAPIRequestStructure = z.infer<typeof OpenAPIRequestStructureSchema>;
+export type RequestStructure = z.infer<typeof RequestStructureSchema>;
+
+// x402BazaarItem
+export const BazaarItemSchema = z.object({
+  paymentRequirements: PaymentRequirementsSchema,
+  requestStructure: RequestStructureSchema,
+  metadata: z.object({
+    // TODO: Decide on metadata so we know what to track in db
+    categories: z.array(z.string()).optional(),
+    successRate7d: z.number().optional(),
+    avgLatencyMs: z.number().optional(),
+    uptimePercentage: z.number().optional(),
+    lastSeen: z.date().optional(),
+    totalRequests: z.number().optional(),
+  }).optional(),
+});
+export type BazaarItem = z.infer<typeof BazaarItemSchema>;
+
+// x402BazaarResponse
+export const BazaarResponseSchema = z.object({
+  version: z.number(),
+  items: z.array(BazaarItemSchema),
+  numItems: z.number(),
+  pagination: z.object({
+    offset: z.number(),
+  }),
+});
+export type BazaarResponse = z.infer<typeof BazaarResponseSchema>;
+
+// x402SettleRequest
+export const SettleRequestSchema = z.object({
+  paymentPayload: PaymentPayloadSchema,
+  paymentRequirements: PaymentRequirementsSchema,
+  requestStructure: RequestStructureSchema.optional(),
+});
+export type SettleRequest = z.infer<typeof SettleRequestSchema>;
+
+// x402VerifyRequest
+export const VerifyRequestSchema = z.object({
+  paymentPayload: PaymentPayloadSchema,
+  paymentRequirements: PaymentRequirementsSchema,
+});
+export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
+
 // x402VerifyResponse
 export const VerifyResponseSchema = z.object({
   isValid: z.boolean(),
