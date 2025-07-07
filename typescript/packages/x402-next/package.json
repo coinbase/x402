@@ -38,7 +38,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.1.1",
+    "@coinbase/cdp-sdk": "^1.22.0",
     "next": "^15.2.4",
     "viem": "^2.21.26",
     "x402": "workspace:^",
