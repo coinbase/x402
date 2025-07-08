@@ -94,6 +94,7 @@ type PaywallConfig = {
   cdpClientKey?: string;              // Your CDP Client API Key
   appName?: string;                   // Name displayed in the paywall wallet selection modal
   appLogo?: string;                   // Logo for the paywall wallet selection modal
+  sessionTokenEndpoint?: string;      // API endpoint for Coinbase Onramp session authentication
 };
 ```
 
@@ -176,41 +177,62 @@ CDP_API_KEY_SECRET=your-cdp-api-key-secret
 
 **Note**: Onramp integration is completely optional. Your x402 paywall will work perfectly without it. This feature is for users who want to provide an easy way for their customers to fund their wallets directly from the paywall.
 
-### Quick Onramp Setup
+When configured, a "Get more USDC" button will appear in your paywall, allowing users to purchase USDC directly through Coinbase Onramp.
 
-#### 1. Install CDP SDK (if not already installed)
+### Quick Setup
+
+#### 1. Install Dependencies
 
 ```bash
 npm install @coinbase/cdp-sdk
 ```
 
-#### 2. Set Up Session Token API
+#### 2. Configure Your Middleware
 
-Create the session token API endpoint in your Next.js app:
+Add `sessionTokenEndpoint` to your middleware configuration. This tells the paywall where to find your session token API:
+
+```typescript
+export const middleware = paymentMiddleware(
+  payTo,
+  routes,
+  facilitator,
+  {
+    sessionTokenEndpoint: "/api/x402/session-token", // Enable onramp functionality
+    cdpClientKey: "your-cdp-client-key",
+    appName: "My App",
+  }
+);
+```
+
+**Important**: The `sessionTokenEndpoint` can be any path you choose - just make sure it matches where you create your API route in the next step. Without this configuration, the "Get more USDC" button will be hidden.
+
+#### 3. Create the Session Token API
+
+Create an API route that matches the path you configured above:
 
 ```typescript
 // app/api/x402/session-token/route.ts
 export { POST } from "x402-next";
 ```
 
-That's it! The x402-next package provides the complete implementation.
+That's it! The `x402-next` package provides the complete session token implementation.
 
-#### 3. Get CDP API Keys
+#### 4. Get CDP API Keys
 
 1. Go to [CDP Portal](https://portal.cdp.coinbase.com/)
 2. Navigate to your project's **[API Keys](https://portal.cdp.coinbase.com/projects/api-keys)**
 3. Click **Create API key**
 4. Download and securely store your API key
 
-#### 4. Enable Onramp Secure Initialization in CDP Portal
+#### 5. Enable Onramp Secure Initialization in CDP Portal
 
 1. Go to [CDP Portal](https://portal.cdp.coinbase.com/)
 2. Navigate to **Payments → [Onramp & Offramp](https://portal.cdp.coinbase.com/products/onramp)**
 3. Toggle **"Enforce secure initialization"** to **Enabled**
 
-#### 5. Environment Variables
+#### 6. Set Environment Variables
 
-Set up your CDP API keys as environment variables::
+Add your CDP API keys to your environment:
 
 ```bash
 # .env
@@ -239,8 +261,10 @@ Once set up, your x402 paywall will automatically show a "Get more USDC" button 
     - Verify your project has Onramp enabled
 
 3. **API route not found**
-    - Ensure you've created `app/api/x402/session-token/route.ts`
+    - Ensure you've created your session token API route at the path you configured
+    - Check that your API route path matches your `sessionTokenEndpoint` configuration
     - Verify the export: `export { POST } from "x402-next";`
+    - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, create `app/api/custom/onramp/route.ts`
 
 
 
