@@ -1,3 +1,5 @@
+"use client";
+
 import { FundButton, getOnrampBuyUrl } from "@coinbase/onchainkit/fund";
 import { Avatar, Name } from "@coinbase/onchainkit/identity";
 import {
