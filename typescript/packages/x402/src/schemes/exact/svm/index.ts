@@ -1,2 +1,2 @@
-export * from "./facilitator";
+export * from "./facilitator/index";
 export * from "./client";

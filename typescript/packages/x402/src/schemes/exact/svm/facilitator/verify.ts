@@ -1,27 +1,18 @@
 import {
   VerifyResponse,
-  SettleResponse,
   PaymentPayload,
   PaymentRequirements,
   ExactSvmPayload,
   ErrorReasons,
-} from "../../../types/verify";
-import { NetworkEnum, SupportedSVMNetworks } from "../../../types/shared";
+} from "../../../../types/verify";
+import { NetworkEnum, SupportedSVMNetworks } from "../../../../types/shared";
 import {
   Address,
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
-  assertIsTransactionMessageWithBlockhashLifetime,
-  Commitment,
   decompileTransactionMessageFetchingLookupTables,
-  getBase64EncodedWireTransaction,
   getCompiledTransactionMessageDecoder,
-  getSignatureFromTransaction,
-  isSolanaError,
   KeyPairSigner,
-  SendTransactionApi,
-  signTransaction,
-  SOLANA_ERROR__BLOCK_HEIGHT_EXCEEDED,
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
   RpcDevnet,
@@ -41,14 +32,12 @@ import {
   TOKEN_PROGRAM_ADDRESS,
   TokenInstruction,
 } from "@solana-program/token";
-import { SCHEME } from "..";
 import {
   decodeTransaction,
   getRpcClient,
-  getRpcSubscriptions,
   signAndSimulateTransaction,
-} from "../../../shared/svm";
-import { createBlockHeightExceedencePromiseFactory, waitForRecentTransactionConfirmation, createRecentSignatureConfirmationPromiseFactory } from "@solana/transaction-confirmation";
+} from "../../../../shared/svm";
+import { SCHEME } from "../../";
 
 /**
  * Verify the payment payload against the payment requirements.
@@ -70,15 +59,6 @@ export async function verify(
 
     const svmPayload = payload.payload as ExactSvmPayload;
     const decodedTransaction = decodeTransaction(svmPayload);
-
-    // We can see the signatures of the transaction
-    for (const [address, maybeSignature] of Object.entries(decodedTransaction.signatures)) {
-      if (maybeSignature) {
-        console.log(`[step 1] ${address} has signed the transaction`);
-      } else {
-        console.log(`[step 1] ${address} is required to sign the transaction but hasn't yet`);
-      }
-    }
 
     const rpc = getRpcClient(payload.network as NetworkEnum);
     const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
@@ -121,161 +101,6 @@ export async function verify(
     };
   }
 }
-
-/**
- * Settle the payment payload against the payment requirements.
- * TODO: Implement this and update docstring
- * TODO: handle durable nonce lifetime transactions
- *
- * @param payload - The payment payload to settle
- * @param paymentRequirements - The payment requirements to settle against
- * @returns A SettleResponse indicating if the payment is settled and any error reason
- */
-export async function settle(
-  signer: KeyPairSigner,
-  payload: PaymentPayload,
-  paymentRequirements: PaymentRequirements,
-): Promise<SettleResponse> {
-  console.log("in exact svm settle");
-  // verify the payment is still valid
-  const verifyResponse = await verify(signer, payload, paymentRequirements);
-  if (!verifyResponse.isValid) {
-    return {
-      success: false,
-      errorReason: verifyResponse.invalidReason,
-      network: payload.network,
-      transaction: ""
-    };
-  }
-
-  // decode the transaction from a base64 encoded string
-  const svmPayload = payload.payload as ExactSvmPayload;
-  const decodedTransaction = decodeTransaction(svmPayload);
-
-  // sign the transaction with the fee payer
-  const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
-
-  // decode the transaction message from a byte array
-  const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
-    signedTransaction.messageBytes,
-  );
-
-  const rpc = getRpcClient(payload.network as NetworkEnum);
-  const rpcSubscriptions = getRpcSubscriptions(payload.network as NetworkEnum);
-
-  // decompile the transaction message
-  const decompiledTransactionMessage = await decompileTransactionMessageFetchingLookupTables(
-    compiledTransactionMessage,
-    rpc,
-  );
-
-  // assert that the transaction has a blockhash lifetime constraint
-  assertIsTransactionMessageWithBlockhashLifetime(decompiledTransactionMessage);
-
-  const payer = compiledTransactionMessage.staticAccounts[0];
-  const abortController = new AbortController();
-  const commitment = "confirmed" as Commitment;
-  const signature = getSignatureFromTransaction(signedTransaction);
-
-  const getRecentSignatureConfirmationPromise = createRecentSignatureConfirmationPromiseFactory({
-    rpc,
-    rpcSubscriptions,
-  } as Parameters<typeof createRecentSignatureConfirmationPromiseFactory>[0]);
-
-  const getBlockHeightExceedencePromise = createBlockHeightExceedencePromiseFactory({
-    rpc,
-    rpcSubscriptions,
-  } as Parameters<typeof createBlockHeightExceedencePromiseFactory>[0]);
-
-  const config = {
-    abortSignal: abortController.signal,
-    commitment,
-    getBlockHeightExceedencePromise,
-    getRecentSignatureConfirmationPromise,
-  }
-
-  const signedTransactionWithBlockhashLifetime = {
-    ...signedTransaction,
-    lifetimeConstraint: decompiledTransactionMessage.lifetimeConstraint,
-  }
-
-  // Set a timeout to abort after 60 seconds
-  const timeout = setTimeout(() => {
-    abortController.abort("Transaction confirmation timed out after 60 seconds");
-  }, 60000);
-
-  try {
-    // serialize the signed transaction into a base64 encoded wire transaction
-    const base64EncodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
-
-    // set default sendTxConfig if not provided
-    const sendTxConfig = { skipPreflight: true, encoding: "base64" };
-
-    type SendTransactionConfig = Parameters<SendTransactionApi["sendTransaction"]>[1];
-
-    // send the transaction to the network
-    console.log("sending tx to network: ", signature);
-    await rpc
-      .sendTransaction(base64EncodedTransaction, sendTxConfig as SendTransactionConfig)
-      .send();
-
-    console.log("waiting for tx to be confirmed");
-    await waitForRecentTransactionConfirmation({
-      ...config,
-      transaction: signedTransactionWithBlockhashLifetime,
-    });
-    console.log("tx confirmed: ", signature);
-
-    return {
-      success: true,
-      errorReason: undefined,
-      payer: payer,
-      transaction: signature,
-      network: payload.network,
-    };
-  } catch (error) {
-    console.error("Error settling transaction: ", error);
-
-    // block height exceeded
-    if (isSolanaError(error, SOLANA_ERROR__BLOCK_HEIGHT_EXCEEDED)) {
-      return {
-        success: false,
-        errorReason: "settle_exact_svm_block_height_exceeded",
-        network: payload.network,
-        transaction: signature,
-      };
-    }
-    // transaction confirmation timed out
-    else if (error instanceof DOMException && error.name === "AbortError") {
-      return {
-        success: false,
-        errorReason: "settle_exact_svm_transaction_confirmation_timed_out",
-        network: payload.network,
-        transaction: signature,
-      };
-    } else {
-      throw error;
-    }
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Get the fee payer for the given signer.
- *
- * @param signer - The signer to get the fee payer for
- * @returns The fee payer address
- */
-export function getFeePayer(signer: KeyPairSigner): GetFeePayerResponse {
-  return {
-    feePayer: signer.address.toString(),
-  };
-}
-
-export type GetFeePayerResponse = {
-  feePayer: string;
-};
 
 /**
  * Verify that the scheme and network are supported.
