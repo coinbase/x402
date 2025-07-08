@@ -146,6 +146,7 @@ export function paymentMiddleware(
             cdpClientKey: paywall?.cdpClientKey,
             appName: paywall?.appName,
             appLogo: paywall?.appLogo,
+            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
           });
         return c.html(html, 402);
       }
