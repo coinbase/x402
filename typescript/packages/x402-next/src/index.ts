@@ -22,6 +22,8 @@ import {
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
 
+import { POST } from "./api/session-token";
+
 /**
  * Creates a payment middleware factory for Next.js
  *
@@ -166,6 +168,7 @@ export function paymentMiddleware(
               cdpClientKey: paywall?.cdpClientKey,
               appLogo: paywall?.appLogo,
               appName: paywall?.appName,
+              sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
             });
           return new NextResponse(html, {
             status: 402,
@@ -277,3 +280,6 @@ export type {
   RouteConfig,
   RoutesConfig,
 } from "x402/types";
+
+// Export session token API handlers for Onramp
+export { POST };

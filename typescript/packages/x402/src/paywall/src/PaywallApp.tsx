@@ -1,3 +1,6 @@
+"use client";
+
+import { FundButton, getOnrampBuyUrl } from "@coinbase/onchainkit/fund";
 import { Avatar, Name } from "@coinbase/onchainkit/identity";
 import {
   ConnectWallet,
@@ -5,17 +8,18 @@ import {
   WalletDropdown,
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
-import { useCallback, useEffect, useState } from "react";
-import { createPublicClient, http, publicActions } from "viem";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPublicClient, formatUnits, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
+import { selectPaymentRequirements } from "../../client";
 import { exact } from "../../schemes";
 import { getUSDCBalance } from "../../shared/evm";
-import { selectPaymentRequirements } from "../../client";
 
-import { ensureValidAmount } from "./utils";
 import { Spinner } from "./Spinner";
+import { useOnrampSessionToken } from "./useOnrampSessionToken";
+import { ensureValidAmount } from "./utils";
 
 /**
  * Main Paywall App Component
@@ -26,10 +30,12 @@ export function PaywallApp() {
   const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { data: wagmiWalletClient } = useWalletClient();
+  const { sessionToken } = useOnrampSessionToken(address);
 
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
 
   const x402 = window.x402;
   const amount = x402.amount || 0;
@@ -37,6 +43,14 @@ export function PaywallApp() {
   const paymentChain = testnet ? baseSepolia : base;
   const chainName = testnet ? "Base Sepolia" : "Base";
   const network = testnet ? "base-sepolia" : "base";
+  const showOnramp = Boolean(!testnet && isConnected && x402.sessionTokenEndpoint);
+
+  useEffect(() => {
+    if (address) {
+      handleSwitchChain();
+      checkUSDCBalance();
+    }
+  }, [address]);
 
   const publicClient = createPublicClient({
     chain: paymentChain,
@@ -60,9 +74,25 @@ export function PaywallApp() {
     }
   }, [paymentChain.id, connectedChainId, isConnected]);
 
-  const handleOnConnect = useCallback(async () => {
-    await handleSwitchChain();
-  }, []);
+  const checkUSDCBalance = useCallback(async () => {
+    if (!address) {
+      return;
+    }
+    const balance = await getUSDCBalance(publicClient, address);
+    const formattedBalance = formatUnits(balance, 6);
+    setFormattedUsdcBalance(formattedBalance);
+  }, [address, publicClient]);
+
+  const onrampBuyUrl = useMemo(() => {
+    if (!sessionToken) {
+      return;
+    }
+    return getOnrampBuyUrl({
+      presetFiatAmount: 2,
+      fiatCurrency: "USD",
+      sessionToken,
+    });
+  }, [sessionToken]);
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -204,11 +234,7 @@ export function PaywallApp() {
 
       <div className="content w-full">
         <Wallet className="w-full">
-          <ConnectWallet
-            className="w-full py-2"
-            onConnect={handleOnConnect}
-            disconnectedLabel="Connect wallet"
-          >
+          <ConnectWallet className="w-full py-3" disconnectedLabel="Connect wallet">
             <Avatar className="h-5 w-5 opacity-80" />
             <Name className="opacity-80 text-sm" />
           </ConnectWallet>
@@ -216,7 +242,6 @@ export function PaywallApp() {
             <WalletDropdownDisconnect className="opacity-80" />
           </WalletDropdown>
         </Wallet>
-
         {isConnected && (
           <div id="payment-section">
             <div className="payment-details">
@@ -224,6 +249,12 @@ export function PaywallApp() {
                 <span className="payment-label">Wallet:</span>
                 <span className="payment-value">
                   {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Loading..."}
+                </span>
+              </div>
+              <div className="payment-row">
+                <span className="payment-label">Available balance:</span>
+                <span className="payment-value">
+                  {formattedUsdcBalance ? `$${formattedUsdcBalance} USDC` : "Loading..."}
                 </span>
               </div>
               <div className="payment-row">
@@ -237,13 +268,23 @@ export function PaywallApp() {
             </div>
 
             {isCorrectChain ? (
-              <button
-                className="button button-secondary"
-                onClick={handlePayment}
-                disabled={isPaying}
-              >
-                {isPaying ? <Spinner className="ml-2" /> : "Pay now"}
-              </button>
+              <div className="cta-container">
+                {showOnramp && (
+                  <FundButton
+                    fundingUrl={onrampBuyUrl}
+                    text="Get more USDC"
+                    hideIcon
+                    className="button button-positive"
+                  />
+                )}
+                <button
+                  className="button button-primary"
+                  onClick={handlePayment}
+                  disabled={isPaying}
+                >
+                  {isPaying ? <Spinner /> : "Pay now"}
+                </button>
+              </div>
             ) : (
               <button className="button button-primary" onClick={handleSwitchChain}>
                 Switch to {chainName}
@@ -251,7 +292,6 @@ export function PaywallApp() {
             )}
           </div>
         )}
-
         {status && <div className="status">{status}</div>}
       </div>
     </div>
