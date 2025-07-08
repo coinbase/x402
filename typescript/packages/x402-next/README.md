@@ -181,13 +181,7 @@ When configured, a "Get more USDC" button will appear in your paywall, allowing 
 
 ### Quick Setup
 
-#### 1. Install Dependencies
-
-```bash
-npm install @coinbase/cdp-sdk
-```
-
-#### 2. Configure Your Middleware
+#### 1. Configure Your Middleware
 
 Add `sessionTokenEndpoint` to your middleware configuration. This tells the paywall where to find your session token API:
 
@@ -206,7 +200,7 @@ export const middleware = paymentMiddleware(
 
 **Important**: The `sessionTokenEndpoint` can be any path you choose - just make sure it matches where you create your API route in the next step. Without this configuration, the "Get more USDC" button will be hidden.
 
-#### 3. Create the Session Token API
+#### 2. Create the Session Token API
 
 Create an API route that matches the path you configured above:
 
@@ -217,20 +211,20 @@ export { POST } from "x402-next";
 
 That's it! The `x402-next` package provides the complete session token implementation.
 
-#### 4. Get CDP API Keys
+#### 3. Get CDP API Keys
 
 1. Go to [CDP Portal](https://portal.cdp.coinbase.com/)
 2. Navigate to your project's **[API Keys](https://portal.cdp.coinbase.com/projects/api-keys)**
 3. Click **Create API key**
 4. Download and securely store your API key
 
-#### 5. Enable Onramp Secure Initialization in CDP Portal
+#### 4. Enable Onramp Secure Initialization in CDP Portal
 
 1. Go to [CDP Portal](https://portal.cdp.coinbase.com/)
 2. Navigate to **Payments → [Onramp & Offramp](https://portal.cdp.coinbase.com/products/onramp)**
 3. Toggle **"Enforce secure initialization"** to **Enabled**
 
-#### 6. Set Environment Variables
+#### 5. Set Environment Variables
 
 Add your CDP API keys to your environment:
 
@@ -265,7 +259,6 @@ Once set up, your x402 paywall will automatically show a "Get more USDC" button 
     - Check that your API route path matches your `sessionTokenEndpoint` configuration
     - Verify the export: `export { POST } from "x402-next";`
     - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, create `app/api/custom/onramp/route.ts`
-
 
 
 ## Resources
