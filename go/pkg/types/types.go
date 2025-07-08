@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/coinbase/x402/go/pkg/x402"
 )
 
 // PaymentRequirements represents the payment requirements for a resource
@@ -85,7 +87,7 @@ func DecodePaymentPayloadFromBase64(encoded string) (*PaymentPayload, error) {
 	}
 
 	// Set the x402Version after decoding, matching the TypeScript behavior
-	payload.X402Version = 1
+	payload.X402Version = x402.CurrentVersion
 
 	return &payload, nil
 }
