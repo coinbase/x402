@@ -6,6 +6,11 @@ import {
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
   RpcMainnet,
+  createSolanaRpcSubscriptions,
+  RpcSubscriptionsFromTransport,
+  SolanaRpcSubscriptionsApi,
+  RpcSubscriptionsTransportFromClusterUrl,
+  ClusterUrl,
 } from "@solana/kit";
 import { NetworkEnum } from "../../types";
 
@@ -48,6 +53,26 @@ export function getRpcClient(
     return createDevnetRpcClient(url);
   } else if (network === NetworkEnum.SOLANA_MAINNET) {
     return createMainnetRpcClient(url);
+  } else {
+    throw new Error("Invalid network");
+  }
+}
+
+/**
+ * Gets the RPC subscriptions for the given network.
+ *
+ * @param network - The network to get the RPC subscriptions for
+ * @param url - Optional URL of the network. If not provided, the default URL will be used.
+ * @returns The RPC subscriptions for the given network
+ */
+export function getRpcSubscriptions(
+  network: NetworkEnum,
+  url?: string,
+): RpcSubscriptionsFromTransport<SolanaRpcSubscriptionsApi, RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>> {
+  if (network === NetworkEnum.SOLANA_DEVNET) {
+    return createSolanaRpcSubscriptions(devnet(url ?? "wss://api.devnet.solana.com"));
+  } else if (network === NetworkEnum.SOLANA_MAINNET) {
+    return createSolanaRpcSubscriptions(mainnet(url ?? "wss://api.mainnet-beta.solana.com"));
   } else {
     throw new Error("Invalid network");
   }

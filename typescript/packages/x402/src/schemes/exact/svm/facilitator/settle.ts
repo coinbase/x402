@@ -95,6 +95,7 @@ export async function settle(
 
 /**
  * Send a signed transaction to the RPC.
+ * TODO: can some of this functionality be moved to the shared/svm/rpc.ts file?
  *
  * @param signedTransaction - The signed transaction to send
  * @param rpc - The RPC client to use to send the transaction
@@ -115,6 +116,7 @@ export async function sendSignedTransaction(
 
 /**
  * Confirm a signed transaction.
+ * TODO: can some of this functionality be moved to the shared/svm/rpc.ts file?
  *
  * @param signedTransaction - The signed transaction to confirm
  * @param rpc - The RPC client to use to confirm the transaction
