@@ -1,3 +1,4 @@
+import { LocalAccount } from "viem";
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
@@ -14,7 +15,7 @@ import { KeyPairSigner } from "@solana/kit";
  * @returns A promise that resolves to the created payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet | KeyPairSigner,
+  client: SignerWallet | LocalAccount | KeyPairSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {

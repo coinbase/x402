@@ -13,7 +13,8 @@ type VerifyRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const client = evm.createClientSepolia();
+const network = process.env.NETWORK ?? "base-sepolia";
+const client = evm.createConnectedClient(network);
 
 /**
  * Handles POST requests to verify x402 payments

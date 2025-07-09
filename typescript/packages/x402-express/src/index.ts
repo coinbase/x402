@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
@@ -16,6 +16,7 @@ import {
   NetworkEnum,
   PaymentPayload,
   PaymentRequirements,
+  PaywallConfig,
   Resource,
   RoutesConfig,
   settleResponseHeader,
@@ -29,6 +30,7 @@ import { useFacilitator } from "x402/verify";
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
+ * @param paywall - Optional configuration for the default paywall
  * @returns An Express middleware handler
  *
  * @example
@@ -60,6 +62,11 @@ import { useFacilitator } from "x402/verify";
  *       verify: { "Authorization": "Bearer token" },
  *       settle: { "Authorization": "Bearer token" }
  *     })
+ *   },
+ *   {
+ *     cdpClientKey: 'your-cdp-client-key',
+ *     appLogo: '/images/logo.svg',
+ *     appName: 'My App',
  *   }
  * ));
  * ```
@@ -68,6 +75,7 @@ export function paymentMiddleware(
   payTo: Address | SolanaAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
+  paywall?: PaywallConfig,
 ) {
   const { verify, settle, getFeePayer } = useFacilitator(facilitator);
   const x402Version = 1;
@@ -107,19 +115,16 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "",
-        payTo,
+        payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
+        asset: getAddress(asset.address),
         outputSchema: outputSchema ?? undefined,
         extra:
           "eip712" in asset
-            ? {
-                name: asset.eip712.name,
-                version: asset.eip712.version,
-              }
+            ? asset.eip712
             : {
-                feePayer: "",
-              },
+              feePayer: "",
+            },
       },
     ];
 
@@ -158,6 +163,10 @@ export function paymentMiddleware(
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
             testnet: network === NetworkEnum.BASE_SEPOLIA,
+            cdpClientKey: paywall?.cdpClientKey,
+            appName: paywall?.appName,
+            appLogo: paywall?.appLogo,
+            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
           });
         res.status(402).send(html);
         return;

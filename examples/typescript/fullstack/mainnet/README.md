@@ -21,7 +21,7 @@ cp .env.local .env
 cd ../../
 pnpm install
 pnpm build
-cd fullstack/next
+cd fullstack/mainnet
 ```
 
 2. Install and start the Next.js example:
