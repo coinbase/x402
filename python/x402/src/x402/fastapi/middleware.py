@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, get_args
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -59,6 +59,11 @@ def require_payment(
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
     """
+
+    # Validate network is supported
+    supported_networks = get_args(SupportedNetworks)
+    if network not in supported_networks:
+        raise ValueError(f"Unsupported network: {network}. Must be one of: {supported_networks}")
 
     try:
         max_amount_required, asset_address, eip712_domain = (

@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, get_args
 from flask import Flask, request, g
 from x402.path import path_is_match
 from x402.types import (
@@ -9,6 +9,7 @@ from x402.types import (
     PaymentRequirements,
     x402PaymentRequiredResponse,
     PaywallConfig,
+    SupportedNetworks,
 )
 from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
@@ -60,7 +61,7 @@ class PaymentMiddleware:
         max_deadline_seconds: int = 60,
         output_schema: Any = None,
         facilitator_config: Optional[Dict[str, Any]] = None,
-        network: str = "base-sepolia",
+        network: SupportedNetworks = "base-sepolia",
         resource: Optional[str] = None,
         paywall_config: Optional[PaywallConfig] = None,
         custom_paywall_html: Optional[str] = None,
@@ -114,6 +115,11 @@ class PaymentMiddleware:
 
     def _create_middleware(self, config: Dict[str, Any], next_app):
         """Create a WSGI middleware function for the given configuration."""
+
+        # Validate network is supported
+        supported_networks = get_args(SupportedNetworks)
+        if config["network"] not in supported_networks:
+            raise ValueError(f"Unsupported network: {config['network']}. Must be one of: {supported_networks}")
 
         # Process price configuration (same as FastAPI)
         try:
