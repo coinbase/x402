@@ -33,7 +33,7 @@ import {
   TokenInstruction,
 } from "@solana-program/token";
 import {
-  decodeTransaction,
+  decodeTransactionFromPayload,
   getRpcClient,
   signAndSimulateTransaction,
 } from "../../../../shared/svm";
@@ -41,7 +41,6 @@ import { SCHEME } from "../../";
 
 /**
  * Verify the payment payload against the payment requirements.
- * TODO: refactor again
  *
  * @param signer - The signer that will sign and simulate the transaction
  * @param payload - The payment payload to verify
@@ -54,24 +53,18 @@ export async function verify(
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   try {
+    // verify that the scheme and network are supported
     verifySchemesAndNetworks(payload, paymentRequirements);
 
+    // decode the base64 encoded transaction
     const svmPayload = payload.payload as ExactSvmPayload;
-    const decodedTransaction = decodeTransaction(svmPayload);
-
+    const decodedTransaction = decodeTransactionFromPayload(svmPayload);
     const rpc = getRpcClient(payload.network as NetworkEnum);
-    const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
-      decodedTransaction.messageBytes,
-    );
-    const decompiledTransactionMessage = await decompileTransactionMessageFetchingLookupTables(
-      compiledTransactionMessage,
-      rpc,
-    );
 
-    const tokenInstruction = getValidatedTransferInstruction(decompiledTransactionMessage);
+    // perform transaction introspection to validate the transaction structure and details
+    await transactionIntrospection(svmPayload, paymentRequirements, rpc);
 
-    await verifyTransferDetails(tokenInstruction, paymentRequirements, rpc);
-
+    // simulate the transaction to ensure it will execute successfully
     const simulateResult = await signAndSimulateTransaction(signer, decodedTransaction, rpc);
     if (simulateResult.value?.err) {
       throw new Error(`invalid_exact_svm_payload_transaction_simulation_failed`);
@@ -81,19 +74,19 @@ export async function verify(
       isValid: true,
       invalidReason: undefined,
     };
-  } catch (e) {
+  } catch (error) {
     // if the error is one of the known error reasons, return the error reason
-    if (e instanceof Error) {
-      if (ErrorReasons.includes(e.message as (typeof ErrorReasons)[number])) {
+    if (error instanceof Error) {
+      if (ErrorReasons.includes(error.message as (typeof ErrorReasons)[number])) {
         return {
           isValid: false,
-          invalidReason: e.message as (typeof ErrorReasons)[number],
+          invalidReason: error.message as (typeof ErrorReasons)[number],
         };
       }
     }
 
     // if the error is not one of the known error reasons, return an unexpected error reason
-    console.error(e);
+    console.error(error);
     return {
       isValid: false,
       invalidReason: "unexpected_verify_error",
@@ -124,10 +117,36 @@ export function verifySchemesAndNetworks(
 }
 
 /**
- * Introspect the decompiled transaction message to make sure that it is an
- * expected transfer instruction.
+ * Perform transaction introspection to validate the transaction structure and transfer details.
+ * This function handles decoding the transaction, validating the transfer instruction,
+ * and verifying all transfer details against the payment requirements.
  *
- * If it is, return the validated transfer instruction.
+ * @param svmPayload - The SVM payload containing the transaction
+ * @param paymentRequirements - The payment requirements to verify against
+ * @param rpc - The RPC client to use for fetching token and ATA information
+ */
+async function transactionIntrospection(
+  svmPayload: ExactSvmPayload,
+  paymentRequirements: PaymentRequirements,
+  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
+): Promise<void> {
+  const decodedTransaction = decodeTransactionFromPayload(svmPayload);
+  const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
+    decodedTransaction.messageBytes,
+  );
+  const decompiledTransactionMessage = await decompileTransactionMessageFetchingLookupTables(
+    compiledTransactionMessage,
+    rpc,
+  );
+
+  // verify that the transaction and the transfer instruction are valid
+  const tokenInstruction = getValidatedTransferInstruction(decompiledTransactionMessage);
+  await verifyTransferDetails(tokenInstruction, paymentRequirements, rpc);
+}
+
+/**
+ * Inspect the decompiled transaction message to make sure that it is an
+ * expected transfer instruction.
  *
  * @param decompiledTransactionMessage - The decompiled transaction message to get the transfer instruction from
  * @returns The validated transfer instruction
@@ -139,7 +158,8 @@ export function getValidatedTransferInstruction(
     ? U
     : never,
 ) {
-  // verify that the transaction only contains one instruction (the transfer instruction)
+  // verify that the transaction only contains one
+  // token transfer instruction
   if (decompiledTransactionMessage.instructions.length !== 1) {
     throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
   }

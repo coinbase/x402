@@ -2,14 +2,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { getBase64Encoder, getTransactionDecoder } from "@solana/kit";
 import { ExactSvmPayload } from "../../types/verify";
-import { decodeTransaction } from "./transaction";
+import { decodeTransactionFromPayload } from "./transaction";
 
 vi.mock("@solana/kit", () => ({
   getBase64Encoder: vi.fn(),
   getTransactionDecoder: vi.fn(),
 }));
 
-describe("decodeTransaction", () => {
+describe("decodeTransactionFromPayload", () => {
   it("should decode a valid transaction string", () => {
     const mockDecodedTransaction = { signature: "a_valid_signature" };
     const encodeFn = vi.fn().mockReturnValue(new Uint8Array());
@@ -28,7 +28,7 @@ describe("decodeTransaction", () => {
       transaction: "a_valid_transaction_string",
     };
 
-    const result = decodeTransaction(svmPayload);
+    const result = decodeTransactionFromPayload(svmPayload);
     expect(result).toEqual(mockDecodedTransaction);
     expect(encodeFn).toHaveBeenCalledWith("a_valid_transaction_string");
     expect(decodeFn).toHaveBeenCalled();
@@ -47,6 +47,8 @@ describe("decodeTransaction", () => {
       transaction: "an_invalid_transaction_string",
     };
 
-    expect(() => decodeTransaction(svmPayload)).toThrow("invalid_exact_svm_payload_transaction");
+    expect(() => decodeTransactionFromPayload(svmPayload)).toThrow(
+      "invalid_exact_svm_payload_transaction",
+    );
   });
 });

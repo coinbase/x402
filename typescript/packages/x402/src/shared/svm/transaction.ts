@@ -19,7 +19,7 @@ import {
  * @param svmPayload - The SVM payload to decode
  * @returns The decoded transaction
  */
-export function decodeTransaction(svmPayload: ExactSvmPayload): Transaction {
+export function decodeTransactionFromPayload(svmPayload: ExactSvmPayload): Transaction {
   try {
     const base64Encoder = getBase64Encoder();
     const transactionBytes = base64Encoder.encode(svmPayload.transaction);

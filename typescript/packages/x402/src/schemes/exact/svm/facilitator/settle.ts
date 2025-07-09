@@ -23,7 +23,11 @@ import {
   RpcDevnet,
   RpcMainnet,
 } from "@solana/kit";
-import { decodeTransaction, getRpcClient, getRpcSubscriptions } from "../../../../shared/svm";
+import {
+  decodeTransactionFromPayload,
+  getRpcClient,
+  getRpcSubscriptions,
+} from "../../../../shared/svm";
 import {
   createBlockHeightExceedencePromiseFactory,
   waitForRecentTransactionConfirmation,
@@ -57,7 +61,7 @@ export async function settle(
   }
 
   const svmPayload = payload.payload as ExactSvmPayload;
-  const decodedTransaction = decodeTransaction(svmPayload);
+  const decodedTransaction = decodeTransactionFromPayload(svmPayload);
   const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
   const payer = signer.address.toString();
 

@@ -68,7 +68,7 @@ vi.mock("../../../../shared/svm", async () => {
   const actual = await vi.importActual("../../../../shared/svm");
   return {
     ...actual,
-    decodeTransaction: vi.fn(),
+    decodeTransactionFromPayload: vi.fn(),
     getRpcClient: vi.fn(),
     signAndSimulateTransaction: vi.fn(),
   };
@@ -366,7 +366,7 @@ describe("verify", () => {
       } as any;
 
       // mocks for happy path
-      vi.mocked(SvmShared.decodeTransaction).mockReturnValue({
+      vi.mocked(SvmShared.decodeTransactionFromPayload).mockReturnValue({
         signatures: {},
         messageBytes: new Uint8Array(),
       } as any);
@@ -417,7 +417,7 @@ describe("verify", () => {
 
     it("should return isValid: false if transaction decoding fails", async () => {
       const error = new Error("invalid_exact_svm_payload_transaction");
-      vi.mocked(SvmShared.decodeTransaction).mockImplementation(() => {
+      vi.mocked(SvmShared.decodeTransactionFromPayload).mockImplementation(() => {
         throw error;
       });
       const result = await verify(mockSigner, mockPayload, mockRequirements);

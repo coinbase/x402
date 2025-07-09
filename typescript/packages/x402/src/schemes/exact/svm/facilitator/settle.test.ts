@@ -5,7 +5,11 @@ import * as solanaKit from "@solana/kit";
 import * as transactionConfirmation from "@solana/transaction-confirmation";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import { NetworkEnum } from "../../../../types/shared";
-import { decodeTransaction, getRpcClient, getRpcSubscriptions } from "../../../../shared/svm";
+import {
+  decodeTransactionFromPayload,
+  getRpcClient,
+  getRpcSubscriptions,
+} from "../../../../shared/svm";
 import { verify } from "./verify";
 import * as settleModule from "./settle";
 
@@ -110,7 +114,7 @@ describe("SVM Settle", () => {
         invalidReason: undefined,
       };
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
-      vi.mocked(decodeTransaction).mockReturnValue(mockSignedTransaction);
+      vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
       vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
       // Mock the internal sendAndConfirmSignedTransaction by mocking its dependencies
@@ -138,7 +142,7 @@ describe("SVM Settle", () => {
 
       // Assert
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements);
-      expect(decodeTransaction).toHaveBeenCalledWith(paymentPayload.payload);
+      expect(decodeTransactionFromPayload).toHaveBeenCalledWith(paymentPayload.payload);
       expect(solanaKit.signTransaction).toHaveBeenCalledWith(
         [signer.keyPair],
         mockSignedTransaction,
@@ -181,7 +185,7 @@ describe("SVM Settle", () => {
         invalidReason: undefined,
       };
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
-      vi.mocked(decodeTransaction).mockReturnValue(mockSignedTransaction);
+      vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
       vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
       // Mock the \sendAndConfirmSignedTransaction to throw an error
