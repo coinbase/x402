@@ -56,7 +56,8 @@ app.post("/verify", async (req, res) => {
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
     const valid = await verify(client, paymentPayload, paymentRequirements);
     res.json(valid);
-  } catch {
+  } catch (error) {
+    console.error("error", error);
     res.status(400).json({ error: "Invalid request" });
   }
 });
@@ -93,6 +94,7 @@ app.post("/settle", async (req, res) => {
     const response = await settle(signer, paymentPayload, paymentRequirements);
     res.json(response);
   } catch (error) {
+    console.error("error", error);
     res.status(400).json({ error: `Invalid request: ${error}` });
   }
 });

@@ -7,6 +7,7 @@ import {
   PaymentRequirements,
   PaymentPayload,
   PaymentPayloadSchema,
+  NetworkEnum,
 } from "x402/types";
 import { svm } from "x402/shared";
 
@@ -19,13 +20,6 @@ if (!privateKey) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
-
-const {
-  createDevnetRpcClient,
-  createMainnetRpcClient,
-  createSignerFromBase58
-} = svm;
-const createClient = network === "solana-devnet" ? createDevnetRpcClient : createMainnetRpcClient;
 
 const app = express();
 
@@ -46,7 +40,12 @@ type FeePayerRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const client = createClient();
+const {
+  getRpcClient,
+  createSignerFromBase58
+} = svm;
+
+const rpc = getRpcClient(network as NetworkEnum);
 
 app.get("/verify", (req: Request, res: Response) => {
   res.json({
@@ -64,9 +63,12 @@ app.post("/verify", async (req: Request, res: Response) => {
     const body: VerifyRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-    const valid = await verify(client, paymentPayload, paymentRequirements);
+    const signer = await createSignerFromBase58(privateKey);
+
+    const valid = await verify(signer, paymentPayload, paymentRequirements);
     res.json(valid);
-  } catch {
+  } catch (error) {
+    console.error("error", error);
     res.status(400).json({ error: "Invalid request" });
   }
 });
@@ -96,13 +98,15 @@ app.get("/supported", (req: Request, res: Response) => {
 
 app.post("/settle", async (req: Request, res: Response) => {
   try {
-    const signer = await createSignerFromBase58(privateKey);
     const body: SettleRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-    const response = await settle(signer, paymentPayload, paymentRequirements);
-    res.json(response);
+    const signer = await createSignerFromBase58(privateKey);
+
+    const result = await settle(signer, paymentPayload, paymentRequirements);
+    res.json(result);
   } catch (error) {
+    console.error("error", error);
     res.status(400).json({ error: `Invalid request: ${error}` });
   }
 });
@@ -126,6 +130,7 @@ app.post("/fee-payer", async (req: Request, res: Response) => {
     // return the fee payer
     res.json(feePayer);
   } catch (error) {
+    console.error("error", error);
     res.status(400).json({ error: `Invalid request: ${error}` });
   }
 });
