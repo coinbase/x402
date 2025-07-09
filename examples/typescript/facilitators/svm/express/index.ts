@@ -7,14 +7,12 @@ import {
   PaymentRequirements,
   PaymentPayload,
   PaymentPayloadSchema,
-  NetworkEnum,
 } from "x402/types";
 import { svm } from "x402/shared";
 
 config();
 
 const privateKey = process.env.PRIVATE_KEY;
-const network = process.env.NETWORK;
 
 if (!privateKey) {
   console.error("Missing required environment variables");
@@ -40,12 +38,7 @@ type FeePayerRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const {
-  getRpcClient,
-  createSignerFromBase58
-} = svm;
-
-const rpc = getRpcClient(network as NetworkEnum);
+const { createSignerFromBase58 } = svm;
 
 app.get("/verify", (req: Request, res: Response) => {
   res.json({

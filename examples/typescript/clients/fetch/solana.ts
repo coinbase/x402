@@ -45,7 +45,7 @@ export async function createSignerFromBase58(privateKey: string): Promise<KeyPai
 const signer = await createSignerFromBase58(privateKey);
 
 // wrap the fetch function with x402 payments
-const fetchWithPayment = await wrapFetchWithPayment(fetch, signer);
+const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
 fetchWithPayment(url, {
   method: "GET",
@@ -54,9 +54,12 @@ fetchWithPayment(url, {
     const body = await response.json();
     console.log(body);
 
-    const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
-    console.log(paymentResponse);
+    if (response.headers.get("x-payment-response")) {
+      const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
+      console.log(paymentResponse);
+    }
   })
   .catch(error => {
+    console.error(error);
     console.error(error.response?.data?.error);
   });
