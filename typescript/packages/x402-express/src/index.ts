@@ -114,12 +114,12 @@ export function paymentMiddleware(
         extra:
           "eip712" in asset
             ? {
-              name: asset.eip712.name,
-              version: asset.eip712.version,
-            }
+                name: asset.eip712.name,
+                version: asset.eip712.version,
+              }
             : {
-              feePayer: "",
-            },
+                feePayer: "",
+              },
       },
     ];
 
