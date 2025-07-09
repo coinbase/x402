@@ -10,10 +10,7 @@ from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.path import path_is_match
-from x402.paywall import (
-    is_browser_request, 
-    get_paywall_html
-)
+from x402.paywall import is_browser_request, get_paywall_html
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
