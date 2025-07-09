@@ -7,16 +7,15 @@ from x402.types import (
     Price,
     PaymentPayload,
     PaymentRequirements,
+    x402PaymentRequiredResponse,
     PaywallConfig,
 )
-from x402.common import process_price_to_atomic_amount
+from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient
 from x402.paywall import (
     is_browser_request, 
-    create_html_response, 
-    create_json_response,
-    convert_to_wsgi_response
+    get_paywall_html
 )
 
 
@@ -160,25 +159,34 @@ class PaymentMiddleware:
 
                 def x402_response(error: str):
                     """Create a 402 response with payment requirements."""
-                    # Convert Flask request headers to dict for paywall detection
-                    headers_dict = dict(request.headers)
+                    request_headers = dict(request.headers)
+                    status = "402 Payment Required"
                     
-                    if is_browser_request(headers_dict):
-                        # Create HTML response and convert to WSGI format
-                        content, status_code, headers = create_html_response(
-                            error, payment_requirements, config["paywall_config"]
-                        )
-                        return convert_to_wsgi_response(content, status_code, headers, start_response)
+                    if is_browser_request(request_headers):
+                        html_content = get_paywall_html(error, payment_requirements, config["paywall_config"])
+                        headers = {"Content-Type": "text/html; charset=utf-8"}
+
+                        start_response(status, headers)
+                        return [html_content.encode("utf-8")]
                     else:
-                        # Create JSON response and convert to WSGI format
-                        content, status_code, headers = create_json_response(error, payment_requirements)
-                        return convert_to_wsgi_response(content, status_code, headers, start_response)
+                        response_data = x402PaymentRequiredResponse(
+                            x402_version=x402_VERSION,
+                            accepts=payment_requirements,
+                            error=error,
+                        ).model_dump(by_alias=True)
+
+                        headers = [
+                            ("Content-Type", "application/json"),
+                            ("Content-Length", str(len(json.dumps(response_data)))),
+                        ]
+
+                        start_response(status, headers)
+                        return [json.dumps(response_data).encode("utf-8")]
 
                 # Check for payment header
                 payment_header = request.headers.get("X-PAYMENT", "")
 
-                if payment_header == "":  # Return JSON response for API requests
-                    # TODO: add support for html paywall
+                if payment_header == "":
                     return x402_response("No X-PAYMENT header provided")
 
                 # Decode payment header

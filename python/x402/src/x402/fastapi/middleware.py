@@ -3,22 +3,22 @@ import json
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import validate_call
 
-from x402.common import process_price_to_atomic_amount
+from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.path import path_is_match
 from x402.paywall import (
     is_browser_request, 
-    create_html_response, 
-    create_json_response
+    get_paywall_html
 )
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
     Price,
+    x402PaymentRequiredResponse,
     PaywallConfig,
     SupportedNetworks,
 )
@@ -99,24 +99,37 @@ def require_payment(
         ]
 
         def x402_response(error: str):
-            # Convert FastAPI request headers to dict for paywall detection
-            headers_dict = dict(request.headers)
+            """Create a 402 response with payment requirements."""
+            request_headers = dict(request.headers)
+            status_code = 402
             
-            if is_browser_request(headers_dict):
-                content, status_code, headers = create_html_response(
-                    error, payment_requirements, paywall_config
+            if is_browser_request(request_headers):
+                html_content = get_paywall_html(error, payment_requirements, paywall_config)
+                headers = {"Content-Type": "text/html; charset=utf-8"}
+
+                return HTMLResponse(
+                    content=html_content,
+                    status_code=status_code,
+                    headers=headers,
                 )
-                from fastapi.responses import HTMLResponse
-                return HTMLResponse(content=content, status_code=status_code, headers=headers)
             else:
-                content, status_code, headers = create_json_response(error, payment_requirements)
-                return JSONResponse(content=content, status_code=status_code, headers=headers)
+                response_data = x402PaymentRequiredResponse(
+                        x402_version=x402_VERSION,
+                        accepts=payment_requirements,
+                        error=error,
+                    ).model_dump(by_alias=True)
+                headers = {"Content-Type": "application/json"}
+
+                return JSONResponse(
+                    content=response_data,
+                    status_code=status_code,
+                    headers=headers,
+                )
 
         # Check for payment header
         payment_header = request.headers.get("X-PAYMENT", "")
 
-        if payment_header == "":  # Return JSON response for API requests
-            # TODO: add support for html paywall
+        if payment_header == "":
             return x402_response("No X-PAYMENT header provided")
 
         # Decode payment header
