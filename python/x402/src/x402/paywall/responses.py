@@ -1,14 +1,15 @@
 import json
-from typing import List, Dict, Tuple, Callable, Any
+from typing import List, Dict, Tuple, Callable, Any, Optional
 
-from x402.types import PaymentRequirements, x402PaymentRequiredResponse
+from x402.types import PaymentRequirements, PaywallConfig, x402PaymentRequiredResponse
 from x402.common import x402_VERSION
 from .html import get_paywall_html
 
 
 def create_html_response(
     error: str,
-    payment_requirements: List[PaymentRequirements]
+    payment_requirements: List[PaymentRequirements],
+    paywall_config: Optional[PaywallConfig] = None
 ) -> Tuple[str, int, Dict[str, str]]:
     """
     Create HTML paywall response.
@@ -16,12 +17,13 @@ def create_html_response(
     Args:
         error: Error message to display
         payment_requirements: List of payment requirements
+        paywall_config: Optional paywall UI configuration
         
     Returns:
         Tuple of (content, status_code, headers) for framework-agnostic handling
     """
     # Get complete HTML with injected payment data
-    html_with_data = get_paywall_html(error, payment_requirements)
+    html_with_data = get_paywall_html(error, payment_requirements, paywall_config)
     
     headers = {"Content-Type": "text/html; charset=utf-8"}
     return html_with_data, 402, headers

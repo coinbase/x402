@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
-from x402.types import PaymentRequirements
+from x402.types import PaymentRequirements, PaywallConfig
 from x402.common import x402_VERSION
 
 
@@ -27,7 +27,8 @@ def load_paywall_html() -> str:
 
 def create_x402_config(
     error: str,
-    payment_requirements: List[PaymentRequirements]
+    payment_requirements: List[PaymentRequirements],
+    paywall_config: Optional[PaywallConfig] = None
 ) -> Dict[str, Any]:
     """Create x402 configuration object from payment requirements."""
     
@@ -46,6 +47,9 @@ def create_x402_config(
         current_url = requirements.resource or ""
         testnet = requirements.network == "base-sepolia"
     
+    # Get paywall config values or defaults
+    config = paywall_config or {}
+    
     # Create the window.x402 configuration object
     return {
         "amount": display_amount,
@@ -54,22 +58,23 @@ def create_x402_config(
         "currentUrl": current_url,
         "error": error,
         "x402_version": x402_VERSION,
-        "cdpClientKey": "",
-        "appName": "",
-        "appLogo": "",
-        "sessionTokenEndpoint": "",
+        "cdpClientKey": config.get("cdp_client_key", ""),
+        "appName": config.get("app_name", ""),
+        "appLogo": config.get("app_logo", ""),
+        "sessionTokenEndpoint": config.get("session_token_endpoint", ""),
     }
 
 
 def inject_payment_data(
     html_content: str, 
     error: str,
-    payment_requirements: List[PaymentRequirements]
+    payment_requirements: List[PaymentRequirements],
+    paywall_config: Optional[PaywallConfig] = None
 ) -> str:
     """Inject payment requirements into HTML as JavaScript variables."""
     
     # Create x402 configuration object
-    x402_config = create_x402_config(error, payment_requirements)
+    x402_config = create_x402_config(error, payment_requirements, paywall_config)
     
     # Create the configuration script (matching TypeScript pattern)
     log_on_testnet = "console.log('Payment requirements initialized:', window.x402);" if x402_config["testnet"] else ""
@@ -86,7 +91,8 @@ def inject_payment_data(
 
 def get_paywall_html(
     error: str,
-    payment_requirements: List[PaymentRequirements]
+    payment_requirements: List[PaymentRequirements],
+    paywall_config: Optional[PaywallConfig] = None
 ) -> str:
     """
     Load paywall HTML and inject payment data.
@@ -94,12 +100,13 @@ def get_paywall_html(
     Args:
         error: Error message to display
         payment_requirements: List of payment requirements
+        paywall_config: Optional paywall UI configuration
         
     Returns:
         Complete HTML with injected payment data
     """
     html_content = load_paywall_html()
-    return inject_payment_data(html_content, error, payment_requirements)
+    return inject_payment_data(html_content, error, payment_requirements, paywall_config)
 
 
 def create_simple_fallback_html() -> str:

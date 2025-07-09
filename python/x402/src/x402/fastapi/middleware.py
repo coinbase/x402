@@ -19,6 +19,7 @@ from x402.types import (
     PaymentPayload,
     PaymentRequirements,
     Price,
+    PaywallConfig,
     x402PaymentRequiredResponse,
 )
 
@@ -35,6 +36,7 @@ def require_payment(
     facilitator_config: Optional[Dict[str, Any]] = None,
     network: str = "base-sepolia",
     resource: Optional[str] = None,
+    paywall_config: Optional[PaywallConfig] = None,
 ):
     """Generate a FastAPI middleware that gates payments for an endpoint.
 
@@ -52,6 +54,8 @@ def require_payment(
             If not provided, defaults to the public x402.org facilitator.
         network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
+        paywall_config (Optional[PaywallConfig], optional): Configuration for paywall UI customization.
+            Includes options like cdp_client_key, app_name, app_logo, session_token_endpoint.
 
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
@@ -99,12 +103,12 @@ def require_payment(
             headers_dict = dict(request.headers)
             
             if is_browser_request(headers_dict):
-                # Create HTML response and convert to FastAPI format
-                content, status_code, headers = create_html_response(error, payment_requirements)
+                content, status_code, headers = create_html_response(
+                    error, payment_requirements, paywall_config
+                )
                 from fastapi.responses import HTMLResponse
                 return HTMLResponse(content=content, status_code=status_code, headers=headers)
             else:
-                # Create JSON response and convert to FastAPI format
                 content, status_code, headers = create_json_response(error, payment_requirements)
                 return JSONResponse(content=content, status_code=status_code, headers=headers)
 

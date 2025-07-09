@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -175,3 +175,11 @@ class X402Headers(BaseModel):
 
 class UnsupportedSchemeException(Exception):
     pass
+
+
+class PaywallConfig(TypedDict, total=False):
+    """Configuration for paywall UI customization (similar to TypeScript PaywallOptions)."""
+    cdp_client_key: str
+    app_name: str
+    app_logo: str
+    session_token_endpoint: str

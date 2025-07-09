@@ -7,7 +7,7 @@ from x402.types import (
     Price,
     PaymentPayload,
     PaymentRequirements,
-    x402PaymentRequiredResponse,
+    PaywallConfig,
 )
 from x402.common import process_price_to_atomic_amount
 from x402.encoding import safe_base64_decode
@@ -66,6 +66,7 @@ class PaymentMiddleware:
         facilitator_config: Optional[Dict[str, Any]] = None,
         network: str = "base-sepolia",
         resource: Optional[str] = None,
+        paywall_config: Optional[PaywallConfig] = None,
     ):
         """
         Add a payment middleware configuration.
@@ -81,6 +82,7 @@ class PaymentMiddleware:
             facilitator_config (dict, optional): Facilitator config
             network (str, optional): Network ID
             resource (str, optional): Resource URL
+            paywall_config (PaywallConfig, optional): Paywall UI customization config
         """
         config = {
             "price": price,
@@ -93,6 +95,7 @@ class PaymentMiddleware:
             "facilitator_config": facilitator_config,
             "network": network,
             "resource": resource,
+            "paywall_config": paywall_config,
         }
         self.middleware_configs.append(config)
 
@@ -162,7 +165,9 @@ class PaymentMiddleware:
                     
                     if is_browser_request(headers_dict):
                         # Create HTML response and convert to WSGI format
-                        content, status_code, headers = create_html_response(error, payment_requirements)
+                        content, status_code, headers = create_html_response(
+                            error, payment_requirements, config["paywall_config"]
+                        )
                         return convert_to_wsgi_response(content, status_code, headers, start_response)
                     else:
                         # Create JSON response and convert to WSGI format
