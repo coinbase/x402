@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Union, TypedDict
+from typing import Any, Optional, Union
+from typing_extensions import TypedDict # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel

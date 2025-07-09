@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, HTMLResponse
