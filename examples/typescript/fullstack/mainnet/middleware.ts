@@ -19,6 +19,7 @@ export const middleware = paymentMiddleware(
   {
     appName: "Mainnet x402 Demo",
     appLogo: "/x402-icon-blue.png",
+    sessionTokenEndpoint: "/api/x402/session-token",
   },
 );
 
