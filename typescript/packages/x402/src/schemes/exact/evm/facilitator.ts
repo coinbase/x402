@@ -209,7 +209,8 @@ export async function settle<transport extends Transport, chain extends Chain>(
 
   // Returns the original signature (no-op) if the signature is not a 6492 signature
   const { signature } = parseErc6492Signature(
-    (paymentPayload.payload as ExactEvmPayload).signature as Hex);
+    (paymentPayload.payload as ExactEvmPayload).signature as Hex,
+  );
 
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,

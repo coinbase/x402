@@ -11,7 +11,6 @@ import {
 } from "x402/shared";
 import {
   FacilitatorConfig,
-  ERC20TokenAmount,
   moneySchema,
   PaymentPayload,
   PaymentRequirements,
@@ -111,11 +110,12 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
         outputSchema,
-        extra: "eip712" in asset
-          ? asset.eip712
-          : {
-            feePayer: "",
-          },
+        extra:
+          "eip712" in asset
+            ? asset.eip712
+            : {
+                feePayer: "",
+              },
       },
     ];
 

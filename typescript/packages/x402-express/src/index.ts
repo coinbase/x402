@@ -131,7 +131,7 @@ export function paymentMiddleware(
     // svm networks
     else if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
       // make network call to facilitator to get the fee payer that will pay for gas
-      const feePayer = await getFeePayer(paymentRequirements[0]);
+      const feePayerResponse = await getFeePayer(paymentRequirements[0]);
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -144,12 +144,10 @@ export function paymentMiddleware(
         asset: asset.address,
         outputSchema: outputSchema ?? undefined,
         extra: {
-          feePayer,
+          ...feePayerResponse,
         },
       });
-    }
-
-    else {
+    } else {
       throw new Error(`Unsupported network: ${network}`);
     }
 
