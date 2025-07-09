@@ -691,4 +691,156 @@ describe("paymentMiddleware()", () => {
     // Restore original NextResponse.next
     mockNext.mockRestore();
   });
+
+  describe("session token integration", () => {
+    it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
+      const paywallConfig = {
+        cdpClientKey: "test-client-key",
+        appName: "Test App",
+        appLogo: "/test-logo.png",
+        sessionTokenEndpoint: "/api/x402/session-token",
+      };
+
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        {
+          "/protected/*": {
+            price: 1.0,
+            network: "base-sepolia",
+            config: middlewareConfig,
+          },
+        },
+        facilitatorConfig,
+        paywallConfig,
+      );
+
+      const request = {
+        ...mockRequest,
+        headers: new Headers({
+          Accept: "text/html",
+          "User-Agent": "Mozilla/5.0",
+        }),
+      } as NextRequest;
+
+      await middlewareWithPaywall(request);
+
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cdpClientKey: "test-client-key",
+          appName: "Test App",
+          appLogo: "/test-logo.png",
+          sessionTokenEndpoint: "/api/x402/session-token",
+        }),
+      );
+    });
+
+    it("should not pass sessionTokenEndpoint when not configured", async () => {
+      const paywallConfig = {
+        cdpClientKey: "test-client-key",
+        appName: "Test App",
+      };
+
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        {
+          "/protected/*": {
+            price: 1.0,
+            network: "base-sepolia",
+            config: middlewareConfig,
+          },
+        },
+        facilitatorConfig,
+        paywallConfig,
+      );
+
+      const request = {
+        ...mockRequest,
+        headers: new Headers({
+          Accept: "text/html",
+          "User-Agent": "Mozilla/5.0",
+        }),
+      } as NextRequest;
+
+      await middlewareWithPaywall(request);
+
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cdpClientKey: "test-client-key",
+          appName: "Test App",
+          sessionTokenEndpoint: undefined,
+        }),
+      );
+    });
+
+    it("should pass sessionTokenEndpoint even when other paywall config is minimal", async () => {
+      const paywallConfig = {
+        sessionTokenEndpoint: "/custom/session-token",
+      };
+
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        {
+          "/protected/*": {
+            price: 1.0,
+            network: "base-sepolia",
+            config: middlewareConfig,
+          },
+        },
+        facilitatorConfig,
+        paywallConfig,
+      );
+
+      const request = {
+        ...mockRequest,
+        headers: new Headers({
+          Accept: "text/html",
+          "User-Agent": "Mozilla/5.0",
+        }),
+      } as NextRequest;
+
+      await middlewareWithPaywall(request);
+
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionTokenEndpoint: "/custom/session-token",
+          cdpClientKey: undefined,
+          appName: undefined,
+          appLogo: undefined,
+        }),
+      );
+    });
+
+    it("should work without any paywall config", async () => {
+      const middlewareWithoutPaywall = paymentMiddleware(
+        payTo,
+        {
+          "/protected/*": {
+            price: 1.0,
+            network: "base-sepolia",
+            config: middlewareConfig,
+          },
+        },
+        facilitatorConfig,
+      );
+
+      const request = {
+        ...mockRequest,
+        headers: new Headers({
+          Accept: "text/html",
+          "User-Agent": "Mozilla/5.0",
+        }),
+      } as NextRequest;
+
+      await middlewareWithoutPaywall(request);
+
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionTokenEndpoint: undefined,
+          cdpClientKey: undefined,
+          appName: undefined,
+          appLogo: undefined,
+        }),
+      );
+    });
+  });
 });
