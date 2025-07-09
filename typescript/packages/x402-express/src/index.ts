@@ -12,6 +12,7 @@ import {
 } from "x402/shared";
 import {
   FacilitatorConfig,
+  ERC20TokenAmount,
   moneySchema,
   NetworkEnum,
   PaymentPayload,
@@ -20,6 +21,7 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
+  SupportedEVMNetworks,
   SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
@@ -107,8 +109,11 @@ export function paymentMiddleware(
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
-    let paymentRequirements: PaymentRequirements[] = [
-      {
+    let paymentRequirements: PaymentRequirements[] = [];
+
+    // evm networks
+    if (SupportedEVMNetworks.includes(network as NetworkEnum)) {
+      paymentRequirements.push({
         scheme: "exact",
         network,
         maxAmountRequired,
@@ -119,25 +124,39 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(asset.address),
         outputSchema: outputSchema ?? undefined,
-        extra:
-          "eip712" in asset
-            ? asset.eip712
-            : {
-              feePayer: "",
-            },
-      },
-    ];
+        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+      });
+    }
+
+    // svm networks
+    else if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
+      // make network call to facilitator to get the fee payer that will pay for gas
+      const feePayer = await getFeePayer(paymentRequirements[0]);
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "",
+        payTo: payTo,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: asset.address,
+        outputSchema: outputSchema ?? undefined,
+        extra: {
+          feePayer,
+        },
+      });
+    }
+
+    else {
+      throw new Error(`Unsupported network: ${network}`);
+    }
 
     const payment = req.header("X-PAYMENT");
     const userAgent = req.header("User-Agent") || "";
     const acceptHeader = req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-
-    // if the network is solana, ask the facilitator for the address that will sponsor the gas fee
-    if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
-      const feePayer = await getFeePayer(paymentRequirements[0]);
-      (paymentRequirements[0].extra as { feePayer: string }).feePayer = feePayer.feePayer;
-    }
 
     if (!payment) {
       // TODO handle paywall html for solana
