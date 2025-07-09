@@ -65,7 +65,6 @@ class PaymentRequirements(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -89,7 +88,6 @@ class x402PaymentRequiredResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -110,7 +108,6 @@ class EIP3009Authorization(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -131,7 +128,6 @@ class VerifyResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -146,7 +142,6 @@ class SettleResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -164,7 +159,6 @@ class PaymentPayload(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 

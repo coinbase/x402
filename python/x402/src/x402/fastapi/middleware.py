@@ -165,7 +165,7 @@ def require_payment(
             )
             if settle_response.success:
                 response.headers["X-PAYMENT-RESPONSE"] = base64.b64encode(
-                    settle_response.model_dump_json().encode("utf-8")
+                    settle_response.model_dump_json(by_alias=True).encode("utf-8")
                 ).decode("utf-8")
             else:
                 return x402_response("Settle failed: " + (settle_response.error_reason or "Unknown error"))

@@ -245,7 +245,7 @@ class PaymentMiddleware:
                         if settle_response.success:
                             # Add settlement response header
                             settlement_header = base64.b64encode(
-                                settle_response.model_dump_json().encode("utf-8")
+                                settle_response.model_dump_json(by_alias=True).encode("utf-8")
                             ).decode("utf-8")
                             response_wrapper.add_header(
                                 "X-PAYMENT-RESPONSE", settlement_header
