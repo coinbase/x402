@@ -68,7 +68,10 @@ export function getRpcClient(
 export function getRpcSubscriptions(
   network: NetworkEnum,
   url?: string,
-): RpcSubscriptionsFromTransport<SolanaRpcSubscriptionsApi, RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>> {
+): RpcSubscriptionsFromTransport<
+  SolanaRpcSubscriptionsApi,
+  RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>
+> {
   if (network === NetworkEnum.SOLANA_DEVNET) {
     return createSolanaRpcSubscriptions(devnet(url ?? "wss://api.devnet.solana.com"));
   } else if (network === NetworkEnum.SOLANA_MAINNET) {

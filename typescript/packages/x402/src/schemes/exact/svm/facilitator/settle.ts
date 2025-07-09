@@ -23,11 +23,7 @@ import {
   RpcDevnet,
   RpcMainnet,
 } from "@solana/kit";
-import {
-  decodeTransaction,
-  getRpcClient,
-  getRpcSubscriptions,
-} from "../../../../shared/svm";
+import { decodeTransaction, getRpcClient, getRpcSubscriptions } from "../../../../shared/svm";
 import {
   createBlockHeightExceedencePromiseFactory,
   waitForRecentTransactionConfirmation,
@@ -39,6 +35,7 @@ import { verify } from "./verify";
  * Settle the payment payload against the payment requirements.
  * TODO: handle durable nonce lifetime transactions
  *
+ * @param signer - The signer that will sign the transaction
  * @param payload - The payment payload to settle
  * @param paymentRequirements - The payment requirements to settle against
  * @returns A SettleResponse indicating if the payment is settled and any error reason
@@ -107,7 +104,7 @@ export async function sendSignedTransaction(
   sendTxConfig: Parameters<SendTransactionApi["sendTransaction"]>[1] = {
     skipPreflight: true,
     encoding: "base64",
-  }
+  },
 ): Promise<string> {
   const base64EncodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
   return await rpc.sendTransaction(base64EncodedTransaction, sendTxConfig).send();
@@ -184,7 +181,6 @@ export async function confirmSignedTransaction(
       success: true,
       signature,
     };
-
   } catch (error) {
     console.error(error);
 

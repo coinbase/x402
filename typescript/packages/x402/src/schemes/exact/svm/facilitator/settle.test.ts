@@ -3,17 +3,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { type KeyPairSigner, generateKeyPairSigner } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as transactionConfirmation from "@solana/transaction-confirmation";
-import {
-  PaymentPayload,
-  PaymentRequirements,
-  ExactSvmPayload,
-} from "../../../../types/verify";
+import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import { NetworkEnum } from "../../../../types/shared";
-import {
-  decodeTransaction,
-  getRpcClient,
-  getRpcSubscriptions,
-} from "../../../../shared/svm";
+import { decodeTransaction, getRpcClient, getRpcSubscriptions } from "../../../../shared/svm";
 import { verify } from "./verify";
 import * as settleModule from "./settle";
 
@@ -137,7 +129,9 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(undefined);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(
+        undefined,
+      );
 
       // Act
       const result = await settleModule.settle(signer, paymentPayload, paymentRequirements);
@@ -145,7 +139,10 @@ describe("SVM Settle", () => {
       // Assert
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements);
       expect(decodeTransaction).toHaveBeenCalledWith(paymentPayload.payload);
-      expect(solanaKit.signTransaction).toHaveBeenCalledWith([signer.keyPair], mockSignedTransaction);
+      expect(solanaKit.signTransaction).toHaveBeenCalledWith(
+        [signer.keyPair],
+        mockSignedTransaction,
+      );
       expect(mockRpcClient.sendTransaction).toHaveBeenCalled();
       expect(result).toEqual({
         success: true,
@@ -218,11 +215,18 @@ describe("SVM Settle", () => {
       });
 
       // Act
-      const result = await settleModule.sendSignedTransaction(mockSignedTransaction, mockRpcClient, sendTxConfig);
+      const result = await settleModule.sendSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        sendTxConfig,
+      );
 
       // Assert
       expect(solanaKit.getBase64EncodedWireTransaction).toHaveBeenCalledWith(mockSignedTransaction);
-      expect(mockRpcClient.sendTransaction).toHaveBeenCalledWith("base64_encoded_transaction", sendTxConfig);
+      expect(mockRpcClient.sendTransaction).toHaveBeenCalledWith(
+        "base64_encoded_transaction",
+        sendTxConfig,
+      );
       expect(result).toBe("mock_signature_123");
     });
 
@@ -241,7 +245,10 @@ describe("SVM Settle", () => {
       await settleModule.sendSignedTransaction(mockSignedTransaction, mockRpcClient);
 
       // Assert
-      expect(mockRpcClient.sendTransaction).toHaveBeenCalledWith("base64_encoded_transaction", expectedConfig);
+      expect(mockRpcClient.sendTransaction).toHaveBeenCalledWith(
+        "base64_encoded_transaction",
+        expectedConfig,
+      );
     });
 
     it("should throw unexpected RPC errors", async () => {
@@ -252,7 +259,9 @@ describe("SVM Settle", () => {
       });
 
       // Act & Assert
-      await expect(settleModule.sendSignedTransaction(mockSignedTransaction, mockRpcClient)).rejects.toThrow("RPC Error");
+      await expect(
+        settleModule.sendSignedTransaction(mockSignedTransaction, mockRpcClient),
+      ).rejects.toThrow("RPC Error");
     });
   });
 
@@ -271,15 +280,25 @@ describe("SVM Settle", () => {
         decode: vi.fn().mockReturnValue({}),
         read: vi.fn(),
       } as any);
-      vi.mocked(solanaKit.decompileTransactionMessageFetchingLookupTables).mockResolvedValue(mockDecompiledMessage);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(undefined);
+      vi.mocked(solanaKit.decompileTransactionMessageFetchingLookupTables).mockResolvedValue(
+        mockDecompiledMessage,
+      );
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(
+        undefined,
+      );
 
       // Act
-      const result = await settleModule.confirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions);
+      const result = await settleModule.confirmSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        mockRpcSubscriptions,
+      );
 
       // Assert
       expect(solanaKit.getSignatureFromTransaction).toHaveBeenCalledWith(mockSignedTransaction);
-      expect(solanaKit.assertIsTransactionMessageWithBlockhashLifetime).toHaveBeenCalledWith(mockDecompiledMessage);
+      expect(solanaKit.assertIsTransactionMessageWithBlockhashLifetime).toHaveBeenCalledWith(
+        mockDecompiledMessage,
+      );
       expect(transactionConfirmation.waitForRecentTransactionConfirmation).toHaveBeenCalled();
       expect(result).toEqual({
         success: true,
@@ -303,11 +322,17 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(blockHeightError);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(
+        blockHeightError,
+      );
       vi.mocked(solanaKit.isSolanaError).mockReturnValue(true);
 
       // Act
-      const result = await settleModule.confirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions);
+      const result = await settleModule.confirmSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        mockRpcSubscriptions,
+      );
 
       // Assert
       expect(result).toEqual({
@@ -319,7 +344,10 @@ describe("SVM Settle", () => {
 
     it("should handle transaction confirmation timeout", async () => {
       // Arrange
-      const abortError = new DOMException("Transaction confirmation timed out after 60 seconds", "AbortError");
+      const abortError = new DOMException(
+        "Transaction confirmation timed out after 60 seconds",
+        "AbortError",
+      );
       vi.mocked(solanaKit.getCompiledTransactionMessageDecoder).mockReturnValue({
         decode: vi.fn().mockReturnValue({}),
         read: vi.fn(),
@@ -332,12 +360,18 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(abortError);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(
+        abortError,
+      );
       // Ensure isSolanaError returns false for this error
       vi.mocked(solanaKit.isSolanaError).mockReturnValue(false);
 
       // Act
-      const result = await settleModule.confirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions);
+      const result = await settleModule.confirmSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        mockRpcSubscriptions,
+      );
 
       // Assert
       expect(result).toEqual({
@@ -362,12 +396,20 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(unexpectedError);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(
+        unexpectedError,
+      );
       // Ensure isSolanaError returns false for this error
       vi.mocked(solanaKit.isSolanaError).mockReturnValue(false);
 
       // Act & Assert
-      await expect(settleModule.confirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions)).rejects.toThrow("Unexpected error");
+      await expect(
+        settleModule.confirmSignedTransaction(
+          mockSignedTransaction,
+          mockRpcClient,
+          mockRpcSubscriptions,
+        ),
+      ).rejects.toThrow("Unexpected error");
     });
   });
 
@@ -389,10 +431,16 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(undefined);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(
+        undefined,
+      );
 
       // Act
-      const result = await settleModule.sendAndConfirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions);
+      const result = await settleModule.sendAndConfirmSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        mockRpcSubscriptions,
+      );
 
       // Assert
       expect(mockRpcClient.sendTransaction).toHaveBeenCalled();
@@ -410,7 +458,13 @@ describe("SVM Settle", () => {
       });
 
       // Act & Assert
-      await expect(settleModule.sendAndConfirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions)).rejects.toThrow("Send error");
+      await expect(
+        settleModule.sendAndConfirmSignedTransaction(
+          mockSignedTransaction,
+          mockRpcClient,
+          mockRpcSubscriptions,
+        ),
+      ).rejects.toThrow("Send error");
     });
 
     it("should propagate errors from confirmSignedTransaction", async () => {
@@ -431,12 +485,20 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(confirmError);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(
+        confirmError,
+      );
       // Ensure isSolanaError returns false for this error
       vi.mocked(solanaKit.isSolanaError).mockReturnValue(false);
 
       // Act & Assert
-      await expect(settleModule.sendAndConfirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions)).rejects.toThrow("Confirm error");
+      await expect(
+        settleModule.sendAndConfirmSignedTransaction(
+          mockSignedTransaction,
+          mockRpcClient,
+          mockRpcSubscriptions,
+        ),
+      ).rejects.toThrow("Confirm error");
     });
 
     it("should return confirmation failure result", async () => {
@@ -458,11 +520,17 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
-      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(blockHeightError);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockRejectedValue(
+        blockHeightError,
+      );
       vi.mocked(solanaKit.isSolanaError).mockReturnValue(true);
 
       // Act
-      const result = await settleModule.sendAndConfirmSignedTransaction(mockSignedTransaction, mockRpcClient, mockRpcSubscriptions);
+      const result = await settleModule.sendAndConfirmSignedTransaction(
+        mockSignedTransaction,
+        mockRpcClient,
+        mockRpcSubscriptions,
+      );
 
       // Assert
       expect(result).toEqual({
@@ -472,4 +540,4 @@ describe("SVM Settle", () => {
       });
     });
   });
-}); 
+});

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   verifySchemesAndNetworks,
@@ -29,7 +30,6 @@ import {
   findAssociatedTokenPda,
   fetchToken,
 } from "@solana-program/token-2022";
-
 
 vi.mock("@solana/kit", async () => {
   const actual = await vi.importActual("@solana/kit");
@@ -229,9 +229,7 @@ describe("verify", () => {
       } as any;
       const mockParsedInstruction = { instruction: "parsed" };
       vi.mocked(identifyTokenInstruction).mockReturnValue(TokenInstruction.TransferChecked);
-      vi.mocked(parseTransferCheckedInstructionToken).mockReturnValue(
-        mockParsedInstruction as any,
-      );
+      vi.mocked(parseTransferCheckedInstructionToken).mockReturnValue(mockParsedInstruction as any);
 
       const result = getValidatedTransferInstruction(mockDecompiledTransactionMessage);
 
@@ -251,12 +249,8 @@ describe("verify", () => {
         instructions: [mockInstruction],
       } as any;
       const mockParsedInstruction = { instruction: "parsed" };
-      vi.mocked(identifyToken2022Instruction).mockReturnValue(
-        Token2022Instruction.TransferChecked,
-      );
-      vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue(
-        mockParsedInstruction as any,
-      );
+      vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
+      vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue(mockParsedInstruction as any);
 
       const result = getValidatedTransferInstruction(mockDecompiledTransactionMessage);
 
@@ -381,19 +375,7 @@ describe("verify", () => {
         instructions: [
           {
             programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
-            data: new Uint8Array([
-              TokenInstruction.TransferChecked,
-              1,
-              2,
-              3,
-              4,
-              5,
-              6,
-              7,
-              8,
-              1,
-              1,
-            ]), // needs to be valid transfer checked data
+            data: new Uint8Array([TokenInstruction.TransferChecked, 1, 2, 3, 4, 5, 6, 7, 8, 1, 1]), // needs to be valid transfer checked data
             accounts: {
               mint: { address: "mintAddress" },
               destination: { address: "destinationAta" },
@@ -418,9 +400,7 @@ describe("verify", () => {
           amount: 1000n,
         },
       } as any);
-      vi.mocked(identifyToken2022Instruction).mockReturnValue(
-        Token2022Instruction.TransferChecked,
-      );
+      vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
     });
 
     it("should return isValid: true for a valid transaction", async () => {
@@ -471,9 +451,7 @@ describe("verify", () => {
       } as any);
       const result = await verify(mockSigner, mockPayload, mockRequirements);
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe(
-        "invalid_exact_svm_payload_transaction_simulation_failed",
-      );
+      expect(result.invalidReason).toBe("invalid_exact_svm_payload_transaction_simulation_failed");
     });
   });
 });
