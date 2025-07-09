@@ -272,6 +272,39 @@ describe("paymentMiddleware()", () => {
     });
   });
 
+  it("should return 402 if payment verification throws an error", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Unexpected error"));
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: new Error("Unexpected error"),
+      accepts: [
+        {
+          scheme: "exact",
+          network: NetworkEnum.BASE_SEPOLIA,
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema: { type: "object" },
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
   it("should handle settlement after response", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
@@ -298,7 +331,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.setHeader).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
   });
 
-  it("should handle settlement failure before response is sent", async () => {
+  it("should handle settle throwing an error before response is sent", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
     };
@@ -311,6 +344,46 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
       error: new Error("Settlement failed"),
+      accepts: [
+        {
+          scheme: "exact",
+          network: NetworkEnum.BASE_SEPOLIA,
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema: { type: "object" },
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
+  it("should handle unsuccessful settle before resource response is sent", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      errorReason: "invalid_transaction_state",
+      transaction: "0x123",
+      network: NetworkEnum.BASE_SEPOLIA,
+      payer: "0x123",
+    });
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: "invalid_transaction_state",
       accepts: [
         {
           scheme: "exact",

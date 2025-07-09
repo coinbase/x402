@@ -113,12 +113,12 @@ export function paymentMiddleware(
         extra:
           "eip712" in asset
             ? {
-                name: asset.eip712.name,
-                version: asset.eip712.version,
-              }
+              name: asset.eip712.name,
+              version: asset.eip712.version,
+            }
             : {
-                feePayer: "",
-              },
+              feePayer: "",
+            },
       },
     ];
 
@@ -127,16 +127,16 @@ export function paymentMiddleware(
     const acceptHeader = req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
-    if (!payment) {
-      // if the network is solana, ask the facilitator for the address that will be used to pay the network fee
-      // TODO refactor this to be a separate function
-      if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
-        const feePayer = await getFeePayer(paymentRequirements[0]);
-        if (paymentRequirements[0].extra && "feePayer" in paymentRequirements[0].extra) {
-          paymentRequirements[0].extra.feePayer = feePayer.feePayer;
-        }
+    // if the network is solana, ask the facilitator for the address that will be used to pay the network fee
+    // TODO refactor this to be a separate function
+    if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
+      const feePayer = await getFeePayer(paymentRequirements[0]);
+      if (paymentRequirements[0].extra && "feePayer" in paymentRequirements[0].extra) {
+        paymentRequirements[0].extra.feePayer = feePayer.feePayer;
       }
+    }
 
+    if (!payment) {
       // TODO handle paywall html for solana
       if (isWebBrowser) {
         let displayAmount: number;
@@ -178,6 +178,7 @@ export function paymentMiddleware(
       decodedPayment = exact.evm.decodePayment(payment);
       decodedPayment.x402Version = x402Version;
     } catch (error) {
+      console.error(error);
       res.status(402).json({
         x402Version,
         error: error || "Invalid or malformed payment header",
@@ -200,7 +201,6 @@ export function paymentMiddleware(
     }
 
     try {
-      // TODO handle solana verify
       const response = await verify(decodedPayment, selectedPaymentRequirements);
       if (!response.isValid) {
         res.status(402).json({
@@ -212,6 +212,7 @@ export function paymentMiddleware(
         return;
       }
     } catch (error) {
+      console.error(error);
       res.status(402).json({
         x402Version,
         error,
@@ -248,11 +249,21 @@ export function paymentMiddleware(
     }
 
     try {
-      // TODO handle solana settle
       const settleResponse = await settle(decodedPayment, selectedPaymentRequirements);
       const responseHeader = settleResponseHeader(settleResponse);
       res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
+
+      // if the settle fails, return an error
+      if (!settleResponse.success) {
+        res.status(402).json({
+          x402Version,
+          error: settleResponse.errorReason,
+          accepts: toJsonSafe(paymentRequirements),
+        });
+        return;
+      }
     } catch (error) {
+      console.error(error);
       // If settlement fails and the response hasn't been sent yet, return an error
       if (!res.headersSent) {
         res.status(402).json({
