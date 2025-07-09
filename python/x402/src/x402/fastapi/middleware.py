@@ -8,7 +8,7 @@ from pydantic import validate_call
 
 from x402.common import process_price_to_atomic_amount
 from x402.encoding import safe_base64_decode
-from x402.facilitator import FacilitatorClient
+from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.path import path_is_match
 from x402.paywall import (
     is_browser_request, 
@@ -20,7 +20,7 @@ from x402.types import (
     PaymentRequirements,
     Price,
     PaywallConfig,
-    x402PaymentRequiredResponse,
+    SupportedNetworks,
 )
 
 
@@ -33,8 +33,8 @@ def require_payment(
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
-    facilitator_config: Optional[Dict[str, Any]] = None,
-    network: str = "base-sepolia",
+    facilitator_config: Optional[FacilitatorConfig] = None,
+    network: SupportedNetworks = "base-sepolia",
     resource: Optional[str] = None,
     paywall_config: Optional[PaywallConfig] = None,
 ):
@@ -168,7 +168,7 @@ def require_payment(
                     settle_response.model_dump_json().encode("utf-8")
                 ).decode("utf-8")
             else:
-                return x402_response("Settle failed: " + settle_response.error)
+                return x402_response("Settle failed: " + (settle_response.error_reason or "Unknown error"))
         except Exception:
             return x402_response("Settle failed")
 

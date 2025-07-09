@@ -178,7 +178,7 @@ class UnsupportedSchemeException(Exception):
 
 
 class PaywallConfig(TypedDict, total=False):
-    """Configuration for paywall UI customization (similar to TypeScript PaywallOptions)."""
+    """Configuration for paywall UI customization"""
     cdp_client_key: str
     app_name: str
     app_logo: str
