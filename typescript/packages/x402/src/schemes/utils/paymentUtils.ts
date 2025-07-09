@@ -69,9 +69,7 @@ export function decodePayment(payment: string): PaymentPayload {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
     };
-  }
-
-  else {
+  } else {
     throw new Error("Invalid network");
   }
 
