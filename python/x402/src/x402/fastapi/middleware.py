@@ -34,6 +34,7 @@ def require_payment(
     network: SupportedNetworks = "base-sepolia",
     resource: Optional[str] = None,
     paywall_config: Optional[PaywallConfig] = None,
+    custom_paywall_html: Optional[str] = None,
 ):
     """Generate a FastAPI middleware that gates payments for an endpoint.
 
@@ -53,6 +54,7 @@ def require_payment(
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
         paywall_config (Optional[PaywallConfig], optional): Configuration for paywall UI customization.
             Includes options like cdp_client_key, app_name, app_logo, session_token_endpoint.
+        custom_paywall_html (Optional[str], optional): Custom HTML to display for paywall instead of default.
 
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
@@ -101,7 +103,10 @@ def require_payment(
             status_code = 402
             
             if is_browser_request(request_headers):
-                html_content = get_paywall_html(error, payment_requirements, paywall_config)
+                html_content = (
+                    custom_paywall_html or
+                    get_paywall_html(error, payment_requirements, paywall_config)
+                )
                 headers = {"Content-Type": "text/html; charset=utf-8"}
 
                 return HTMLResponse(

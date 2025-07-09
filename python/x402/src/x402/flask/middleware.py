@@ -63,6 +63,7 @@ class PaymentMiddleware:
         network: str = "base-sepolia",
         resource: Optional[str] = None,
         paywall_config: Optional[PaywallConfig] = None,
+        custom_paywall_html: Optional[str] = None,
     ):
         """
         Add a payment middleware configuration.
@@ -79,6 +80,7 @@ class PaymentMiddleware:
             network (str, optional): Network ID
             resource (str, optional): Resource URL
             paywall_config (PaywallConfig, optional): Paywall UI customization config
+            custom_paywall_html (str, optional): Custom HTML to display for paywall instead of default
         """
         config = {
             "price": price,
@@ -92,6 +94,7 @@ class PaymentMiddleware:
             "network": network,
             "resource": resource,
             "paywall_config": paywall_config,
+            "custom_paywall_html": custom_paywall_html,
         }
         self.middleware_configs.append(config)
 
@@ -160,7 +163,10 @@ class PaymentMiddleware:
                     status = "402 Payment Required"
                     
                     if is_browser_request(request_headers):
-                        html_content = get_paywall_html(error, payment_requirements, config["paywall_config"])
+                        html_content = (
+                            config["custom_paywall_html"] or
+                            get_paywall_html(error, payment_requirements, config["paywall_config"])
+                        )
                         headers = {"Content-Type": "text/html; charset=utf-8"}
 
                         start_response(status, headers)
