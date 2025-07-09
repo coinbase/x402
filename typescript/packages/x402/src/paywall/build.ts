@@ -17,7 +17,7 @@ const options: esbuild.BuildOptions = {
   metafile: true,
   outdir: DIST_DIR,
   treeShaking: true,
-  minify: false, // Keep readable for development mode
+  minify: true, // Use minify for production mode
   format: "iife",
   sourcemap: false,
   platform: "browser",
