@@ -13,7 +13,7 @@ from x402.types import (
 )
 from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
-from x402.facilitator import FacilitatorClient
+from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.paywall import is_browser_request, get_paywall_html
 
 
@@ -60,7 +60,7 @@ class PaymentMiddleware:
         mime_type: str = "",
         max_deadline_seconds: int = 60,
         output_schema: Any = None,
-        facilitator_config: Optional[Dict[str, Any]] = None,
+        facilitator_config: Optional[FacilitatorConfig] = None,
         network: str = "base-sepolia",
         resource: Optional[str] = None,
         paywall_config: Optional[PaywallConfig] = None,
@@ -173,7 +173,7 @@ class PaymentMiddleware:
                             config["custom_paywall_html"] or
                             get_paywall_html(error, payment_requirements, config["paywall_config"])
                         )
-                        headers = {"Content-Type": "text/html; charset=utf-8"}
+                        headers = [("Content-Type", "text/html; charset=utf-8")]
 
                         start_response(status, headers)
                         return [html_content.encode("utf-8")]
