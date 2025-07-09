@@ -7,8 +7,6 @@ import {
   ExactSvmPayload,
 } from "../../types/verify";
 
-// TODO: write tests for this file
-
 /**
  * Encodes a payment payload into a base64 string, ensuring bigint values are properly stringified
  *
@@ -56,20 +54,24 @@ export function decodePayment(payment: string): PaymentPayload {
   const parsed = JSON.parse(decoded);
 
   let obj: PaymentPayload;
-  if (SupportedSVMNetworks.includes(parsed.network)) {
+
+  // evm
+  if (SupportedEVMNetworks.includes(parsed.network)) {
+    obj = {
+      ...parsed,
+      payload: parsed.payload as ExactEvmPayload,
+    };
+  }
+
+  // svm
+  else if (SupportedSVMNetworks.includes(parsed.network)) {
     obj = {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
     };
   }
 
-  // evm
-  else if (SupportedEVMNetworks.includes(parsed.network)) {
-    obj = {
-      ...parsed,
-      payload: parsed.payload as ExactEvmPayload,
-    };
-  } else {
+  else {
     throw new Error("Invalid network");
   }
 
