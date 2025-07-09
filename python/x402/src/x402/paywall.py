@@ -29,7 +29,7 @@ def load_paywall_html() -> str:
     try:
         # Try to load the HTML file from the static directory
         # Look for the file relative to this module
-        current_dir = Path(__file__).parent.parent
+        current_dir = Path(__file__).parent
         paywall_file = current_dir / 'static' / 'paywall.html'
         
         if paywall_file.exists():
