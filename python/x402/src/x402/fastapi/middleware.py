@@ -6,10 +6,15 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from pydantic import validate_call
 
-from x402.common import process_price_to_atomic_amount, x402_VERSION
+from x402.common import process_price_to_atomic_amount
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient
 from x402.path import path_is_match
+from x402.paywall import (
+    is_browser_request, 
+    create_html_response, 
+    create_json_response
+)
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
@@ -90,14 +95,18 @@ def require_payment(
         ]
 
         def x402_response(error: str):
-            return JSONResponse(
-                content=x402PaymentRequiredResponse(
-                    x402_version=x402_VERSION,
-                    accepts=payment_requirements,
-                    error=error,
-                ).model_dump(by_alias=True),
-                status_code=402,
-            )
+            # Convert FastAPI request headers to dict for paywall detection
+            headers_dict = dict(request.headers)
+            
+            if is_browser_request(headers_dict):
+                # Create HTML response and convert to FastAPI format
+                content, status_code, headers = create_html_response(error, payment_requirements)
+                from fastapi.responses import HTMLResponse
+                return HTMLResponse(content=content, status_code=status_code, headers=headers)
+            else:
+                # Create JSON response and convert to FastAPI format
+                content, status_code, headers = create_json_response(error, payment_requirements)
+                return JSONResponse(content=content, status_code=status_code, headers=headers)
 
         # Check for payment header
         payment_header = request.headers.get("X-PAYMENT", "")
@@ -132,7 +141,8 @@ def require_payment(
         )
 
         if not verify_response.is_valid:
-            return x402_response("Invalid payment: " + verify_response.invalid_reason)
+            error_reason = verify_response.invalid_reason or "Unknown error"
+            return x402_response(f"Invalid payment: {error_reason}")
 
         request.state.payment_details = selected_payment_requirements
         request.state.verify_response = verify_response

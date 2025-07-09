@@ -9,9 +9,15 @@ from x402.types import (
     PaymentRequirements,
     x402PaymentRequiredResponse,
 )
-from x402.common import process_price_to_atomic_amount, x402_VERSION
+from x402.common import process_price_to_atomic_amount
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient
+from x402.paywall import (
+    is_browser_request, 
+    create_html_response, 
+    create_json_response,
+    convert_to_wsgi_response
+)
 
 
 class ResponseWrapper:
@@ -151,20 +157,17 @@ class PaymentMiddleware:
 
                 def x402_response(error: str):
                     """Create a 402 response with payment requirements."""
-                    response_data = x402PaymentRequiredResponse(
-                        x402_version=x402_VERSION,
-                        accepts=payment_requirements,
-                        error=error,
-                    ).model_dump(by_alias=True)
-
-                    status = "402 Payment Required"
-                    headers = [
-                        ("Content-Type", "application/json"),
-                        ("Content-Length", str(len(json.dumps(response_data)))),
-                    ]
-
-                    start_response(status, headers)
-                    return [json.dumps(response_data).encode("utf-8")]
+                    # Convert Flask request headers to dict for paywall detection
+                    headers_dict = dict(request.headers)
+                    
+                    if is_browser_request(headers_dict):
+                        # Create HTML response and convert to WSGI format
+                        content, status_code, headers = create_html_response(error, payment_requirements)
+                        return convert_to_wsgi_response(content, status_code, headers, start_response)
+                    else:
+                        # Create JSON response and convert to WSGI format
+                        content, status_code, headers = create_json_response(error, payment_requirements)
+                        return convert_to_wsgi_response(content, status_code, headers, start_response)
 
                 # Check for payment header
                 payment_header = request.headers.get("X-PAYMENT", "")
@@ -207,9 +210,8 @@ class PaymentMiddleware:
                     loop.close()
 
                 if not verify_response.is_valid:
-                    return x402_response(
-                        "Invalid payment: " + verify_response.invalid_reason
-                    )
+                    error_reason = verify_response.invalid_reason or "Unknown error"
+                    return x402_response(f"Invalid payment: {error_reason}")
 
                 # Store payment details in Flask g object
                 g.payment_details = selected_payment_requirements
@@ -223,7 +225,8 @@ class PaymentMiddleware:
 
                 # Check if response is successful (2xx status code)
                 if (
-                    response_wrapper.status_code >= 200
+                    response_wrapper.status_code is not None
+                    and response_wrapper.status_code >= 200
                     and response_wrapper.status_code < 300
                 ):
                     # Settle the payment for successful responses
