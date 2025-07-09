@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Dict, Optional, Union, get_args
+from typing import Any, Dict, Optional, Union, get_args, cast
 from flask import Flask, request, g
 from x402.path import path_is_match
 from x402.types import (
@@ -61,7 +61,7 @@ class PaymentMiddleware:
         max_deadline_seconds: int = 60,
         output_schema: Any = None,
         facilitator_config: Optional[Dict[str, Any]] = None,
-        network: SupportedNetworks = "base-sepolia",
+        network: str = "base-sepolia",
         resource: Optional[str] = None,
         paywall_config: Optional[PaywallConfig] = None,
         custom_paywall_html: Optional[str] = None,
@@ -150,7 +150,7 @@ class PaymentMiddleware:
                 payment_requirements = [
                     PaymentRequirements(
                         scheme="exact",
-                        network=config["network"],
+                        network=cast(SupportedNetworks, config["network"]),
                         asset=asset_address,
                         max_amount_required=max_amount_required,
                         resource=resource_url,

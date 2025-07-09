@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Callable, Optional, get_args
+from typing import Any, Callable, Optional, get_args, cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -31,7 +31,7 @@ def require_payment(
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
     facilitator_config: Optional[FacilitatorConfig] = None,
-    network: SupportedNetworks = "base-sepolia",
+    network: str = "base-sepolia",
     resource: Optional[str] = None,
     paywall_config: Optional[PaywallConfig] = None,
     custom_paywall_html: Optional[str] = None,
@@ -89,7 +89,7 @@ def require_payment(
         payment_requirements = [
             PaymentRequirements(
                 scheme="exact",
-                network=network,
+                network=cast(SupportedNetworks, network),
                 asset=asset_address,
                 max_amount_required=max_amount_required,
                 resource=resource_url,
