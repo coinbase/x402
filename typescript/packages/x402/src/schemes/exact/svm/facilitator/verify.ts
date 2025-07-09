@@ -41,8 +41,7 @@ import { SCHEME } from "../../";
 
 /**
  * Verify the payment payload against the payment requirements.
- * TODO: update docstring
- * TODO: remove logging and extra steps
+ * TODO: refactor again
  *
  * @param signer - The signer that will sign and simulate the transaction
  * @param payload - The payment payload to verify

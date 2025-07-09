@@ -19,6 +19,7 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
+  SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -127,13 +128,10 @@ export function paymentMiddleware(
     const acceptHeader = req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
-    // if the network is solana, ask the facilitator for the address that will be used to pay the network fee
-    // TODO refactor this to be a separate function
-    if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
+    // if the network is solana, ask the facilitator for the address that will sponsor the gas fee
+    if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
       const feePayer = await getFeePayer(paymentRequirements[0]);
-      if (paymentRequirements[0].extra && "feePayer" in paymentRequirements[0].extra) {
-        paymentRequirements[0].extra.feePayer = feePayer.feePayer;
-      }
+      (paymentRequirements[0].extra as { feePayer: string }).feePayer = feePayer.feePayer;
     }
 
     if (!payment) {
@@ -174,7 +172,6 @@ export function paymentMiddleware(
 
     let decodedPayment: PaymentPayload;
     try {
-      // TODO handle solana payment header
       decodedPayment = exact.evm.decodePayment(payment);
       decodedPayment.x402Version = x402Version;
     } catch (error) {
