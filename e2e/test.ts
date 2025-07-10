@@ -17,34 +17,15 @@ function log(message: string, toFile: boolean = true) {
 // Parse command line arguments
 const args = process.argv.slice(2);
 
-// Parse verbose test numbers (e.g., -v 54 55 56)
-const verboseTestNumbers = new Set<number>();
-const verboseIndex = args.findIndex(arg => arg === '-v' || arg === '--verbose');
-if (verboseIndex !== -1) {
-  // Check if there are numbers after -v
-  let hasNumbers = false;
-  for (let i = verboseIndex + 1; i < args.length; i++) {
-    const num = parseInt(args[i]);
-    if (!isNaN(num)) {
-      verboseTestNumbers.add(num);
-      hasNumbers = true;
-    } else {
-      // Stop at first non-number
-      break;
-    }
-  }
-
-  // If no numbers provided, make all tests verbose
-  if (!hasNumbers) {
-    verboseTestNumbers.add(-1); // Special marker for "all tests"
-  }
-}
+// Parse verbose flag
+const isVerbose = args.includes('-v') || args.includes('--verbose');
 
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
 const networkFilter = args.find(arg => arg.startsWith('--network='))?.split('=')[1];
-const facilitatorFilter = args.find(arg => arg.startsWith('--facilitator='))?.split('=')[1];
+const prodFilter = args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
+const languageFilter = args.find(arg => arg.startsWith('--language='))?.split('=')[1];
 
 // Parse log file argument
 const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
@@ -143,20 +124,22 @@ async function runTest() {
     console.log('Usage: npm test [options]');
     console.log('');
     console.log('Options:');
-    console.log('  -v [test_numbers...]       Enable verbose logging for specific test numbers');
+    console.log('  -v, --verbose              Enable verbose logging');
     console.log('  --log-file=<path>          Save verbose output to file');
+    console.log('  --language=<name>          Filter by language (typescript, python, go)');
     console.log('  --client=<name>            Filter by client name (e.g., httpx, axios)');
     console.log('  --server=<name>            Filter by server name (e.g., express, fastapi)');
-    console.log('  --network=<name>           Filter by network (e.g., base, base-sepolia)');
-    console.log('  --facilitator=<true|false> Filter by facilitator usage');
+    console.log('  --network=<name>           Filter by network (base, base-sepolia)');
+    console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
-    console.log('  npm test -- -v              # Run all tests with verbose logging');
-    console.log('  npm test -- -v 54           # Run all tests, verbose for test #54');
-    console.log('  npm test -- -v 54 55 56     # Run all tests, verbose for tests #54, #55, #56');
-    console.log('  npm test -- -v --log-file=test.log  # Save all verbose output to test.log');
-    console.log('  npm test -- --client=httpx --server=express -v 1');
+    console.log('  pnpm test                         # Run all tests');
+    console.log('  pnpm test -v                      # Run all tests with verbose logging');
+    console.log('  pnpm test -v --log-file=test.log  # Save verbose output to file');
+    console.log('  pnpm test --language=python       # Only Python clients and servers');
+    console.log('  pnpm test --client=httpx --server=express');
+    console.log('  pnpm test --network=base --prod=true');
     console.log('');
     return;
   }
@@ -174,12 +157,8 @@ async function runTest() {
   }
 
   log('🚀 Starting X402 E2E Test Suite');
-  if (verboseTestNumbers.size > 0) {
-    if (verboseTestNumbers.has(-1)) {
-      log('🔍 Verbose mode enabled for all tests');
-    } else {
-      log(`🔍 Verbose mode enabled for tests: ${Array.from(verboseTestNumbers).sort((a, b) => a - b).join(', ')}`);
-    }
+  if (isVerbose) {
+    log('🔍 Verbose mode enabled');
   }
   log('===============================');
 
@@ -207,30 +186,45 @@ async function runTest() {
 
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
+    // Language filter - if set, only run tests for this language (both client and server)
+    if (languageFilter && (scenario.client.config.language !== languageFilter || scenario.server.config.language !== languageFilter)) return false;
+
+    // Client filter - if set, only run tests for this client
     if (clientFilter && scenario.client.name !== clientFilter) return false;
+
+    // Server filter - if set, only run tests for this server
     if (serverFilter && scenario.server.name !== serverFilter) return false;
+
+    // Network filter - if set, only run tests for this network
     if (networkFilter && scenario.facilitatorNetworkCombo.network !== networkFilter) return false;
-    if (facilitatorFilter) {
-      const useFacilitator = facilitatorFilter === 'true';
-      if (scenario.facilitatorNetworkCombo.useCdpFacilitator !== useFacilitator) return false;
+
+    // Production filter - if set, filter by production vs testnet scenarios
+    if (prodFilter !== undefined) {
+      const isProd = prodFilter.toLowerCase() === 'true';
+      const isTestnetOnly = !scenario.facilitatorNetworkCombo.useCdpFacilitator && scenario.facilitatorNetworkCombo.network === 'base-sepolia';
+      if (isProd && isTestnetOnly) return false;
+      if (!isProd && !isTestnetOnly) return false;
     }
+
     return true;
   });
 
   if (filteredScenarios.length === 0) {
     log('❌ No test scenarios match the specified filters');
+    if (languageFilter) log(`   Language filter: ${languageFilter}`);
     if (clientFilter) log(`   Client filter: ${clientFilter}`);
     if (serverFilter) log(`   Server filter: ${serverFilter}`);
     if (networkFilter) log(`   Network filter: ${networkFilter}`);
-    if (facilitatorFilter) log(`   Facilitator filter: ${facilitatorFilter}`);
+    if (prodFilter) log(`   Production filter: ${prodFilter}`);
     return;
   }
 
   log(`🎯 Running ${filteredScenarios.length} filtered scenarios`);
+  if (languageFilter) log(`   Language: ${languageFilter}`);
   if (clientFilter) log(`   Client: ${clientFilter}`);
   if (serverFilter) log(`   Server: ${serverFilter}`);
   if (networkFilter) log(`   Network: ${networkFilter}`);
-  if (facilitatorFilter) log(`   Facilitator: ${facilitatorFilter}`);
+  if (prodFilter) log(`   Production: ${prodFilter}`);
   log('');
 
   // Run filtered scenarios
@@ -243,9 +237,6 @@ async function runTest() {
     const combo = scenario.facilitatorNetworkCombo;
     const comboLabel = `useCdpFacilitator=${combo.useCdpFacilitator}, network=${combo.network}`;
     const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path} [${comboLabel}]`;
-
-    // Check if this test should be verbose
-    const isVerbose = verboseTestNumbers.has(-1) || verboseTestNumbers.has(testNumber);
 
     const serverConfig: ServerConfig = {
       port: serverPort,
@@ -262,16 +253,6 @@ async function runTest() {
 
     try {
       log(`🧪 Testing #${testNumber}: ${testName}`);
-      if (isVerbose) {
-        log(`  📋 Scenario details:`);
-        log(`    - Client: ${scenario.client.name} (${scenario.client.config.language})`);
-        log(`    - Server: ${scenario.server.name} (${scenario.server.config.language})`);
-        log(`    - Endpoint: ${scenario.endpoint.path}`);
-        log(`    - Facilitator: ${combo.useCdpFacilitator ? 'CDP' : 'None'}`);
-        log(`    - Network: ${combo.network}`);
-        log('');
-      }
-
       const result = await runCallProtectedScenario(
         scenario.server.proxy,
         scenario.client.proxy,

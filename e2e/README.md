@@ -72,6 +72,75 @@ This will:
 2. Run all test scenarios (client × server × facilitator × network combinations)
 3. Display results with pass/fail status
 
+### Test Filters
+
+You can filter test scenarios using command-line arguments:
+
+```bash
+# Run specific test combinations
+pnpm test -- --client=httpx                  # Test only httpx client with all servers
+pnpm test -- --server=express                # Test only express server with all clients
+pnpm test -- --language=python               # Test only Python clients with Python servers
+pnpm test -- --network=base-sepolia          # Test only base-sepolia network
+pnpm test -- --prod=true                     # Test only production scenarios (CDP on base/base-sepolia)
+pnpm test -- --prod=false                    # Test only testnet scenarios (no CDP, base-sepolia only)
+
+# Combine filters with verbose logging
+pnpm test -- --client=httpx --server=express -v  # Test specific combination with detailed logs
+pnpm test -- --language=typescript --network=base -v --log-file=test.log  # Log to file
+
+# Combine filters
+pnpm test -- --client=httpx --server=express # Test specific client-server combination
+pnpm test -- --language=typescript --network=base # Test TypeScript implementations on base
+pnpm test -- --network=base --prod=true      # Test only production scenarios on base
+
+### Available Filters
+
+- `--language=<name>`: Filter by programming language
+  - Available languages: typescript, python, go
+  - Filters both clients and servers to match the specified language
+  - Default: Run all languages
+
+- `--client=<name>`: Filter by client implementation
+  - Available clients: httpx, axios, fetch, requests
+  - Default: Run all clients
+
+- `--server=<name>`: Filter by server implementation
+  - Available servers: express, fastapi, flask, gin, hono, next
+  - Default: Run all servers
+
+- `--network=<name>`: Filter by network
+  - Available networks: base, base-sepolia
+  - Default: Run all networks
+
+- `--prod=<true|false>`: Filter by production vs testnet scenarios
+  - `true`: Only run production scenarios (CDP facilitator on base/base-sepolia)
+  - `false`: Only run testnet scenarios (no CDP facilitator, base-sepolia only)
+  - Default: Run all scenarios
+
+### Verbose Logging
+
+- `-v, --verbose`: Enable detailed logging for all tests
+  - Shows detailed test execution steps
+  - Displays configuration details
+  - Shows full error information
+  - Default: Basic pass/fail logging only
+
+- `--log-file=<path>`: Save verbose output to a file
+  - Useful for debugging test failures
+  - Captures all verbose output
+  - Example: `--log-file=test.log`
+
+### Test Matrix
+
+The test suite runs a combination of:
+- Clients: HTTP clients in different languages (httpx, axios, fetch, requests)
+- Servers: HTTP servers in different languages (express, fastapi, flask, gin, hono, next)
+- Networks: Supported networks (base, base-sepolia)
+- Scenarios:
+  - Production: CDP facilitator on base and base-sepolia
+  - Testnet: No CDP facilitator on base-sepolia
+
 ### Test Output
 ```
 🚀 Starting X402 E2E Test Suite
