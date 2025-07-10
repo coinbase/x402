@@ -146,7 +146,7 @@ async function runTest() {
     console.log('  pnpm test -py -go                 # Test Python and Go implementations');
     console.log('  pnpm test -ts --client=axios      # Test TypeScript axios client');
     console.log('  pnpm test -d -py                  # Dev mode, Python implementations only');
-    console.log('  pnpm test --network=base --prod=true');
+    console.log('  pnpm test --network=base --prod=true # Base mainnet only');
     console.log('');
     return;
   }
