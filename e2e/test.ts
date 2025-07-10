@@ -15,12 +15,17 @@ const isDevMode = args.includes('--dev') || args.includes('-d');
 // Parse verbose flag
 const isVerbose = args.includes('-v') || args.includes('--verbose');
 
+// Parse language flags
+const languageFilters: string[] = [];
+if (args.includes('-ts') || args.includes('--typescript')) languageFilters.push('typescript');
+if (args.includes('-py') || args.includes('--python')) languageFilters.push('python');
+if (args.includes('-go') || args.includes('--go')) languageFilters.push('go');
+
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
 const networkFilter = isDevMode ? 'base-sepolia' : args.find(arg => arg.startsWith('--network='))?.split('=')[1];
 const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
-const languageFilter = args.find(arg => arg.startsWith('--language='))?.split('=')[1];
 
 // Parse log file argument
 const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
@@ -111,11 +116,10 @@ async function runTest() {
     console.log('');
     console.log('Filters:');
     console.log('  --log-file=<path>          Save verbose output to file');
-    console.log('  --client=<n>            Filter by client name (e.g., httpx, axios)');
-    console.log('  --server=<n>            Filter by server name (e.g., express, fastapi)');
-    console.log('  --network=<n>           Filter by network (base, base-sepolia)');
+    console.log('  --client=<n>               Filter by client name (e.g., httpx, axios)');
+    console.log('  --server=<n>               Filter by server name (e.g., express, fastapi)');
+    console.log('  --network=<n>              Filter by network (base, base-sepolia)');
     console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
-    console.log('  --language=<n>          Filter by language (e.g., typescript, python, go)');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
@@ -161,7 +165,7 @@ async function runTest() {
   }
 
   const activeFilters: FilterInfo[] = [
-    languageFilter && { name: 'Language', value: languageFilter },
+    languageFilters.length > 0 && { name: 'Languages', value: languageFilters.join(', ') },
     clientFilter && { name: 'Client', value: clientFilter },
     serverFilter && { name: 'Server', value: serverFilter },
     networkFilter && { name: 'Network', value: networkFilter },
@@ -183,7 +187,13 @@ async function runTest() {
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
     // Language filter - if languages specified, both client and server must match one of them
-    if (languageFilter && (!scenario.client.config.language.includes(languageFilter) || !scenario.server.config.language.includes(languageFilter))) return false;
+    if (languageFilters.length > 0) {
+      const matchesLanguage = languageFilters.some(lang =>
+        scenario.client.config.language.includes(lang) &&
+        scenario.server.config.language.includes(lang)
+      );
+      if (!matchesLanguage) return false;
+    }
 
     // Client filter - if set, only run tests for this client
     if (clientFilter && scenario.client.name !== clientFilter) return false;
