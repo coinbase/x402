@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 from typing import Any, Callable, Optional, get_args, cast
 
 from fastapi import Request
@@ -19,6 +20,8 @@ from x402.types import (
     PaywallConfig,
     SupportedNetworks,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @validate_call
@@ -144,7 +147,8 @@ def require_payment(
             payment_dict = json.loads(safe_base64_decode(payment_header))
             payment = PaymentPayload(**payment_dict)
         except Exception as e:
-            return x402_response(f"Invalid payment header format: {str(e)}")
+            logger.warning(f"Invalid payment header format from {request.client.host if request.client else 'unknown'}: {str(e)}")
+            return x402_response("Invalid payment header format")
 
         # Find matching payment requirements
         selected_payment_requirements = next(
