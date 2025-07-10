@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { GenericServerProxy } from './servers/generic-server';
 import { GenericClientProxy } from './clients/generic-client';
+import { log, verboseLog, errorLog } from './logger';
 import {
   TestConfig,
   DiscoveredServer,
@@ -58,7 +59,7 @@ export class TestDiscovery {
             });
           }
         } catch (error) {
-          console.warn(`Failed to load config for server ${serverName}:`, error);
+          errorLog(`Failed to load config for server ${serverName}: ${error}`);
         }
       }
     }
@@ -67,8 +68,8 @@ export class TestDiscovery {
   }
 
   /**
- * Discover all clients in the clients directory
- */
+   * Discover all clients in the clients directory
+   */
   discoverClients(): DiscoveredClient[] {
     const clientsDir = join(this.baseDir, 'clients');
     if (!existsSync(clientsDir)) {
@@ -98,7 +99,7 @@ export class TestDiscovery {
             });
           }
         } catch (error) {
-          console.warn(`Failed to load config for client ${clientName}:`, error);
+          errorLog(`Failed to load config for client ${clientName}: ${error}`);
         }
       }
     }
@@ -140,28 +141,28 @@ export class TestDiscovery {
   }
 
   /**
- * Print discovery summary
- */
-  printDiscoverySummary(logFn: (message: string) => void = console.log): void {
+   * Print discovery summary
+   */
+  printDiscoverySummary(): void {
     const servers = this.discoverServers();
     const clients = this.discoverClients();
     const scenarios = this.generateTestScenarios();
 
-    logFn('🔍 Test Discovery Summary');
-    logFn('========================');
-    logFn(`📡 Servers found: ${servers.length}`);
+    log('🔍 Test Discovery Summary');
+    log('========================');
+    log(`📡 Servers found: ${servers.length}`);
     servers.forEach(server => {
       const paidEndpoints = server.config.endpoints?.filter(e => e.requiresPayment).length || 0;
-      logFn(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints`);
+      log(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints`);
     });
 
-    logFn(`📱 Clients found: ${clients.length}`);
+    log(`📱 Clients found: ${clients.length}`);
     clients.forEach(client => {
-      logFn(`   - ${client.name} (${client.config.language})`);
+      log(`   - ${client.name} (${client.config.language})`);
     });
 
-    logFn(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
-    logFn(`📊 Test scenarios: ${scenarios.length}`);
-    logFn('');
+    log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
+    log(`📊 Test scenarios: ${scenarios.length}`);
+    log('');
   }
 } 

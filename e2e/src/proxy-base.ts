@@ -1,11 +1,11 @@
 import { spawn, ChildProcess } from 'child_process';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { log, verboseLog, errorLog } from './logger';
 
 export interface RunConfig {
   port?: number;
   env?: Record<string, string>;
-  verbose?: boolean;
   [key: string]: any;
 }
 
@@ -83,10 +83,7 @@ export abstract class BaseProxy {
 
       this.process.stdout?.on('data', (data) => {
         output += data.toString();
-        // Log stdout in verbose mode
-        if (config.verbose) {
-          console.log(`[${this.directory}] stdout: ${data.toString()}`);
-        }
+        verboseLog(`[${this.directory}] stdout: ${data.toString()}`);
         if (output.includes(this.readyLog)) {
           resolve();
         }
@@ -94,21 +91,18 @@ export abstract class BaseProxy {
 
       this.process.stderr?.on('data', (data) => {
         stderr += data.toString();
-        // Only log stderr if verbose mode is enabled or if it's an error
-        if (config.verbose) {
-          console.error(`[${this.directory}] stderr: ${data.toString()}`);
-        }
+        verboseLog(`[${this.directory}] stderr: ${data.toString()}`);
       });
 
       this.process.on('error', (error) => {
-        console.error(`[${this.directory}] Error:`, error);
+        errorLog(`[${this.directory}] Error: ${error}`);
         reject(error);
       });
 
       this.process.on('exit', (code) => {
         // Only log non-zero exit codes for debugging
         if (code !== 0) {
-          console.log(`[${this.directory}] Process exited with code ${code}`);
+          errorLog(`[${this.directory}] Process exited with code ${code}`);
         }
       });
 
@@ -151,50 +145,6 @@ export abstract class BaseProxy {
     }
   }
 
-  protected async waitForResult(): Promise<ProcessResult> {
-    return new Promise((resolve) => {
-      if (!this.process) {
-        resolve({ success: false, error: 'No process running' });
-        return;
-      }
-
-      let stdout = '';
-      let stderr = '';
-
-      this.process.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
-
-      this.process.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      this.process.on('close', (code) => {
-        if (code === 0) {
-          try {
-            // Find JSON result in stdout
-            const lines = stdout.split('\n');
-            const jsonLine = lines.find(line => line.trim().startsWith('{'));
-            if (jsonLine) {
-              const result = JSON.parse(jsonLine);
-              resolve({ success: true, data: result, exitCode: code });
-            } else {
-              resolve({ success: false, error: 'No JSON result found', exitCode: code });
-            }
-          } catch (error) {
-            resolve({ success: false, error: `Failed to parse result: ${error}`, exitCode: code });
-          }
-        } else {
-          resolve({ success: false, error: stderr || `Process exited with code ${code}`, exitCode: code || undefined });
-        }
-      });
-
-      this.process.on('error', (error) => {
-        resolve({ success: false, error: error.message });
-      });
-    });
-  }
-
   protected async runOneShotProcess(config: RunConfig): Promise<ProcessResult> {
     return new Promise((resolve) => {
       const command = this.getRunCommand();
@@ -214,18 +164,12 @@ export abstract class BaseProxy {
 
       childProcess.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
-        // Log stdout in verbose mode
-        if (config.verbose) {
-          console.log(`[${this.directory}] stdout: ${data.toString()}`);
-        }
+        verboseLog(`[${this.directory}] stdout: ${data.toString()}`);
       });
 
       childProcess.stderr?.on('data', (data: Buffer) => {
         stderr += data.toString();
-        // Only log stderr if verbose mode is enabled or if it's an error
-        if (config.verbose) {
-          console.error(`[${this.directory}] stderr: ${data.toString()}`);
-        }
+        verboseLog(`[${this.directory}] stderr: ${data.toString()}`);
       });
 
       childProcess.on('close', (code: number | null) => {
@@ -249,6 +193,7 @@ export abstract class BaseProxy {
       });
 
       childProcess.on('error', (error: Error) => {
+        errorLog(`[${this.directory}] Process error: ${error.message}`);
         resolve({ success: false, error: error.message });
       });
     });

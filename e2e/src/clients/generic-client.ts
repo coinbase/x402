@@ -1,5 +1,5 @@
-import { BaseProxy, RunConfig, ProcessResult } from '../proxy-base';
-import { ClientProxy, ClientConfig, ClientResult } from '../types';
+import { BaseProxy, RunConfig } from '../proxy-base';
+import { ClientConfig, ClientProxy } from '../types';
 
 export interface ClientCallResult {
   success: boolean;
@@ -16,10 +16,9 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
     super(directory, '');
   }
 
-  async call(config: ClientConfig, verbose: boolean = false): Promise<ClientCallResult> {
+  async call(config: ClientConfig): Promise<ClientCallResult> {
     try {
       const runConfig: RunConfig = {
-        verbose,
         env: {
           PRIVATE_KEY: config.privateKey,
           RESOURCE_SERVER_URL: config.serverUrl,

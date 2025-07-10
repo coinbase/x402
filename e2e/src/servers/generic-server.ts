@@ -1,5 +1,6 @@
 import { BaseProxy, RunConfig } from '../proxy-base';
 import { ServerProxy, ServerConfig } from '../types';
+import { verboseLog, errorLog } from '../logger';
 
 export interface ProtectedResponse {
   message: string;
@@ -59,16 +60,15 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       }
     } catch (error) {
       // Fallback to defaults if config loading fails
-      console.warn(`Failed to load endpoints from config for ${this.directory}, using defaults`);
+      errorLog(`Failed to load endpoints from config for ${this.directory}, using defaults`);
     }
   }
 
-  async start(config: ServerConfig, verbose: boolean = false): Promise<void> {
+  async start(config: ServerConfig): Promise<void> {
     this.port = config.port;
 
     const runConfig: RunConfig = {
       port: config.port,
-      verbose,
       env: {
         USE_CDP_FACILITATOR: config.useCdpFacilitator.toString(),
         CDP_API_KEY_ID: process.env.CDP_API_KEY_ID || '',
@@ -171,10 +171,10 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
           // Wait a bit for graceful shutdown
           await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
-          console.log('Graceful shutdown failed, using force kill');
+          verboseLog('Graceful shutdown failed, using force kill');
         }
       } catch (error) {
-        console.log('Graceful shutdown failed, using force kill');
+        verboseLog('Graceful shutdown failed, using force kill');
       }
     }
 
