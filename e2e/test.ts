@@ -1,18 +1,10 @@
 import { config } from 'dotenv';
 import { TestDiscovery } from './src/discovery';
 import { ServerConfig, ClientConfig, ScenarioResult } from './src/types';
-import { createWriteStream, WriteStream } from 'fs';
+import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
 
 // Load environment variables
 config();
-
-// Helper function to write to both console and log file
-function log(message: string, toFile: boolean = true) {
-  console.log(message);
-  if (logStream && toFile) {
-    logStream.write(message + '\n');
-  }
-}
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -32,20 +24,19 @@ const languageFilter = args.find(arg => arg.startsWith('--language='))?.split('=
 
 // Parse log file argument
 const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
-let logStream: WriteStream | null = null;
+
+// Initialize logger
+loggerConfig({ logFile, verbose: isVerbose });
 
 async function runCallProtectedScenario(
   server: any,
   client: any,
   serverConfig: ServerConfig,
-  callConfig: ClientConfig,
-  isVerbose: boolean = false
+  callConfig: ClientConfig
 ): Promise<ScenarioResult> {
   try {
-    if (isVerbose) {
-      log(`  🚀 Starting server with config: ${JSON.stringify(serverConfig, null, 2)}`);
-    }
-    await server.start(serverConfig, isVerbose);
+    verboseLog(`  🚀 Starting server with config: ${JSON.stringify(serverConfig, null, 2)}`);
+    await server.start(serverConfig);
 
     // Wait for server to be healthy before proceeding
     let healthCheckAttempts = 0;
@@ -53,13 +44,10 @@ async function runCallProtectedScenario(
 
     while (healthCheckAttempts < maxHealthCheckAttempts) {
       const healthResult = await server.health();
-      if (isVerbose) {
-        log(`  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${healthResult.success ? '✅' : '❌'}`);
-      }
+      verboseLog(`  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${healthResult.success ? '✅' : '❌'}`);
+
       if (healthResult.success) {
-        if (isVerbose) {
-          log(`  ✅ Server is healthy after ${healthCheckAttempts + 1} attempts`);
-        }
+        verboseLog(`  ✅ Server is healthy after ${healthCheckAttempts + 1} attempts`);
         break;
       }
 
@@ -68,23 +56,17 @@ async function runCallProtectedScenario(
     }
 
     if (healthCheckAttempts >= maxHealthCheckAttempts) {
-      if (isVerbose) {
-        log(`  ❌ Server failed to become healthy after ${maxHealthCheckAttempts} attempts`);
-      }
+      verboseLog(`  ❌ Server failed to become healthy after ${maxHealthCheckAttempts} attempts`);
       return {
         success: false,
         error: 'Server failed to become healthy after maximum attempts'
       };
     }
 
-    if (isVerbose) {
-      log(`  📞 Making client call with config: ${JSON.stringify(callConfig, null, 2)}`);
-    }
-    const result = await client.call(callConfig, isVerbose);
+    verboseLog(`  📞 Making client call with config: ${JSON.stringify(callConfig, null, 2)}`);
+    const result = await client.call(callConfig);
 
-    if (isVerbose) {
-      log(`  📊 Client call result: ${JSON.stringify(result, null, 2)}`);
-    }
+    verboseLog(`  📊 Client call result: ${JSON.stringify(result, null, 2)}`);
 
     if (result.success) {
       return {
@@ -101,18 +83,14 @@ async function runCallProtectedScenario(
     }
 
   } catch (error) {
-    if (isVerbose) {
-      log(`  💥 Scenario failed with error: ${error}`);
-    }
+    verboseLog(`  💥 Scenario failed with error: ${error}`);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error)
     };
   } finally {
     // Cleanup
-    if (isVerbose) {
-      log(`  🧹 Cleaning up server and client processes`);
-    }
+    verboseLog(`  🧹 Cleaning up server and client processes`);
     await server.stop();
     await client.forceStop();
   }
@@ -133,11 +111,11 @@ async function runTest() {
     console.log('');
     console.log('Filters:');
     console.log('  --log-file=<path>          Save verbose output to file');
-    console.log('  --client=<name>            Filter by client name (e.g., httpx, axios)');
-    console.log('  --server=<name>            Filter by server name (e.g., express, fastapi)');
-    console.log('  --network=<name>           Filter by network (base, base-sepolia)');
+    console.log('  --client=<n>            Filter by client name (e.g., httpx, axios)');
+    console.log('  --server=<n>            Filter by server name (e.g., express, fastapi)');
+    console.log('  --network=<n>           Filter by network (base, base-sepolia)');
     console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
-    console.log('  --language=<name>          Filter by language (e.g., typescript, python, go)');
+    console.log('  --language=<n>          Filter by language (e.g., typescript, python, go)');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
@@ -151,25 +129,7 @@ async function runTest() {
     return;
   }
 
-  // Initialize log file if specified
-  if (logFile) {
-    try {
-      logStream = createWriteStream(logFile);
-      log(`🚀 X402 E2E Test Suite - Log started at ${new Date().toISOString()}`);
-      log(`📝 Logging verbose output to: ${logFile}`);
-    } catch (error) {
-      console.error(`Failed to create log file ${logFile}:`, error);
-      process.exit(1);
-    }
-  }
-
   log('🚀 Starting X402 E2E Test Suite');
-  if (isDevMode) {
-    log('🛠️  Running in development mode (base-sepolia, no CDP)');
-  }
-  if (isVerbose) {
-    log('🔍 Verbose mode enabled');
-  }
   log('===============================');
 
   // Load configuration from environment
@@ -178,20 +138,46 @@ async function runTest() {
   const serverPort = parseInt(process.env.SERVER_PORT || '4021');
 
   if (!serverAddress || !clientPrivateKey) {
-    console.error('❌ Missing required environment variables:');
-    console.error('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
+    errorLog('❌ Missing required environment variables:');
+    errorLog('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
     process.exit(1);
   }
 
   // Discover all servers and clients
-  const discovery = new TestDiscovery();
-  discovery.printDiscoverySummary(log);
+  const discovery = new TestDiscovery('.');
+  discovery.printDiscoverySummary();
 
   const scenarios = discovery.generateTestScenarios();
 
   if (scenarios.length === 0) {
-    console.log('❌ No test scenarios found');
+    log('❌ No test scenarios found');
     return;
+  }
+
+  // Count active filters
+  interface FilterInfo {
+    name: string;
+    value: string;
+  }
+
+  const activeFilters: FilterInfo[] = [
+    languageFilter && { name: 'Language', value: languageFilter },
+    clientFilter && { name: 'Client', value: clientFilter },
+    serverFilter && { name: 'Server', value: serverFilter },
+    networkFilter && { name: 'Network', value: networkFilter },
+    prodFilter && { name: 'Production', value: prodFilter }
+  ].filter((f): f is FilterInfo => f !== null && f !== undefined);
+
+  log('📊 Test Scenarios');
+  log('===============');
+  log(`Total unfiltered scenarios: ${scenarios.length}`);
+  if (activeFilters.length > 0) {
+    log(`Active filters (${activeFilters.length}):`);
+    activeFilters.forEach(filter => {
+      log(`   - ${filter.name}: ${filter.value}`);
+    });
+  } else {
+    log('No active filters');
   }
 
   // Filter scenarios based on command line arguments
@@ -220,21 +206,11 @@ async function runTest() {
   });
 
   if (filteredScenarios.length === 0) {
-    log('❌ No test scenarios match the specified filters');
-    if (languageFilter) log(`   Language filter: ${languageFilter}`);
-    if (clientFilter) log(`   Client filter: ${clientFilter}`);
-    if (serverFilter) log(`   Server filter: ${serverFilter}`);
-    if (networkFilter) log(`   Network filter: ${networkFilter}`);
-    if (prodFilter) log(`   Production filter: ${prodFilter}`);
+    log('❌ No scenarios match the active filters');
     return;
   }
 
-  log(`🎯 Running ${filteredScenarios.length} filtered scenarios`);
-  if (languageFilter) log(`   Language: ${languageFilter}`);
-  if (clientFilter) log(`   Client: ${clientFilter}`);
-  if (serverFilter) log(`   Server: ${serverFilter}`);
-  if (networkFilter) log(`   Network: ${networkFilter}`);
-  if (prodFilter) log(`   Production: ${prodFilter}`);
+  log(`Scenarios to run: ${filteredScenarios.length}`);
   log('');
 
   // Run filtered scenarios
@@ -267,27 +243,20 @@ async function runTest() {
         scenario.server.proxy,
         scenario.client.proxy,
         serverConfig,
-        callConfig,
-        isVerbose
+        callConfig
       );
 
       if (result.success) {
-        if (isVerbose) {
-          log(`  ✅ Test passed`);
-        }
+        verboseLog(`  ✅ Test passed`);
         passed++;
       } else {
         log(`❌ #${testNumber} ${testName}: ${result.error}`);
-        if (isVerbose) {
-          log(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
-        }
+        verboseLog(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
         failed++;
       }
     } catch (error) {
       log(`❌ #${testNumber} ${testName}: ${error}`);
-      if (isVerbose) {
-        log(`  🔍 Exception details: ${error}`);
-      }
+      verboseLog(`  🔍 Exception details: ${error}`);
       failed++;
     }
   }
@@ -300,11 +269,8 @@ async function runTest() {
   log(`❌ Failed: ${failed}`);
   log(`📈 Total: ${passed + failed}`);
 
-  // Close log file if it was opened
-  if (logStream) {
-    logStream.end();
-    logStream = null;
-  }
+  // Close logger
+  closeLogger();
 
   if (failed > 0) {
     process.exit(1);
@@ -312,4 +278,4 @@ async function runTest() {
 }
 
 // Run the test
-runTest().catch(console.error);
+runTest().catch(error => errorLog(error));
