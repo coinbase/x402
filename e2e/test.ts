@@ -17,14 +17,17 @@ function log(message: string, toFile: boolean = true) {
 // Parse command line arguments
 const args = process.argv.slice(2);
 
+// Parse dev mode flag (sets network=base-sepolia, prod=false)
+const isDevMode = args.includes('--dev') || args.includes('-d');
+
 // Parse verbose flag
 const isVerbose = args.includes('-v') || args.includes('--verbose');
 
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = args.find(arg => arg.startsWith('--network='))?.split('=')[1];
-const prodFilter = args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
+const networkFilter = isDevMode ? 'base-sepolia' : args.find(arg => arg.startsWith('--network='))?.split('=')[1];
+const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
 const languageFilter = args.find(arg => arg.startsWith('--language='))?.split('=')[1];
 
 // Parse log file argument
@@ -118,27 +121,31 @@ async function runCallProtectedScenario(
 async function runTest() {
   // Show help if requested
   if (args.includes('-h') || args.includes('--help')) {
-    console.log('🚀 X402 E2E Test Suite');
-    console.log('======================');
-    console.log('');
     console.log('Usage: npm test [options]');
     console.log('');
     console.log('Options:');
+    console.log('Environment:');
+    console.log('  -d, --dev                  Development mode (base-sepolia, no CDP)');
     console.log('  -v, --verbose              Enable verbose logging');
+    console.log('  -ts, --typescript          Include TypeScript implementations');
+    console.log('  -py, --python              Include Python implementations');
+    console.log('  -go, --go                  Include Go implementations');
+    console.log('');
+    console.log('Filters:');
     console.log('  --log-file=<path>          Save verbose output to file');
-    console.log('  --language=<name>          Filter by language (typescript, python, go)');
     console.log('  --client=<name>            Filter by client name (e.g., httpx, axios)');
     console.log('  --server=<name>            Filter by server name (e.g., express, fastapi)');
     console.log('  --network=<name>           Filter by network (base, base-sepolia)');
     console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
+    console.log('  --language=<name>          Filter by language (e.g., typescript, python, go)');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
     console.log('  pnpm test                         # Run all tests');
-    console.log('  pnpm test -v                      # Run all tests with verbose logging');
-    console.log('  pnpm test -v --log-file=test.log  # Save verbose output to file');
-    console.log('  pnpm test --language=python       # Only Python clients and servers');
-    console.log('  pnpm test --client=httpx --server=express');
+    console.log('  pnpm test -d                      # Run tests in development mode');
+    console.log('  pnpm test -py -go                 # Test Python and Go implementations');
+    console.log('  pnpm test -ts --client=axios      # Test TypeScript axios client');
+    console.log('  pnpm test -d -py                  # Dev mode, Python implementations only');
     console.log('  pnpm test --network=base --prod=true');
     console.log('');
     return;
@@ -157,6 +164,9 @@ async function runTest() {
   }
 
   log('🚀 Starting X402 E2E Test Suite');
+  if (isDevMode) {
+    log('🛠️  Running in development mode (base-sepolia, no CDP)');
+  }
   if (isVerbose) {
     log('🔍 Verbose mode enabled');
   }
@@ -186,8 +196,8 @@ async function runTest() {
 
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
-    // Language filter - if set, only run tests for this language (both client and server)
-    if (languageFilter && (scenario.client.config.language !== languageFilter || scenario.server.config.language !== languageFilter)) return false;
+    // Language filter - if languages specified, both client and server must match one of them
+    if (languageFilter && (!scenario.client.config.language.includes(languageFilter) || !scenario.server.config.language.includes(languageFilter))) return false;
 
     // Client filter - if set, only run tests for this client
     if (clientFilter && scenario.client.name !== clientFilter) return false;
