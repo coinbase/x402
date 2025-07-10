@@ -143,9 +143,9 @@ export function paymentMiddleware(
         asset: asset.address,
         outputSchema: outputSchema ?? undefined,
         extra: {
-          feePayer: ""
+          feePayer: "",
         },
-      }
+      };
       // make network call to facilitator to get the fee payer that will pay for gas
       const feePayerResponse = await getFeePayer(tempPaymentRequirement);
       tempPaymentRequirement.extra = {
