@@ -114,8 +114,8 @@ export function paymentMiddleware(
           "eip712" in asset
             ? asset.eip712
             : {
-                feePayer: "",
-              },
+              feePayer: "",
+            },
       },
     ];
 

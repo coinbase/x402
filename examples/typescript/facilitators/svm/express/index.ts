@@ -1,11 +1,11 @@
 /* eslint-env node */
 import { config } from "dotenv";
-import express, { Request, Response } from "express";
+import express, { type Request, type Response } from "express";
 import { verify, settle, getFeePayer } from "x402/facilitator";
 import {
   PaymentRequirementsSchema,
-  PaymentRequirements,
-  PaymentPayload,
+  type PaymentRequirements,
+  type PaymentPayload,
   PaymentPayloadSchema,
 } from "x402/types";
 import { svm } from "x402/shared";

@@ -111,6 +111,7 @@ export function paymentMiddleware(
 
     let paymentRequirements: PaymentRequirements[] = [];
 
+    // TODO: create a shared middleware function to build payment requirements
     // evm networks
     if (SupportedEVMNetworks.includes(network as NetworkEnum)) {
       paymentRequirements.push({
@@ -130,9 +131,7 @@ export function paymentMiddleware(
 
     // svm networks
     else if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
-      // make network call to facilitator to get the fee payer that will pay for gas
-      const feePayerResponse = await getFeePayer(paymentRequirements[0]);
-      paymentRequirements.push({
+      let tempPaymentRequirement: PaymentRequirements = {
         scheme: "exact",
         network,
         maxAmountRequired,
@@ -144,9 +143,16 @@ export function paymentMiddleware(
         asset: asset.address,
         outputSchema: outputSchema ?? undefined,
         extra: {
-          ...feePayerResponse,
+          feePayer: ""
         },
-      });
+      }
+      // make network call to facilitator to get the fee payer that will pay for gas
+      const feePayerResponse = await getFeePayer(tempPaymentRequirement);
+      tempPaymentRequirement.extra = {
+        ...tempPaymentRequirement.extra,
+        feePayer: feePayerResponse.feePayer,
+      };
+      paymentRequirements.push(tempPaymentRequirement);
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }
