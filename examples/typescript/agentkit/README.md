@@ -1,13 +1,13 @@
-# x402-axios Example Client
+# AgentKit Example
 
-This is an example client that demonstrates how to use the `x402-axios` package to make HTTP requests to endpoints protected by the x402 payment protocol.
+This is an example that demonstrates how to create an interactive AI agent using AgentKit and LangChain. The agent can perform onchain actions and interact with various CDP (Coinbase Developer Platform) services.
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A running x402 server (you can use the example express server at `examples/typescript/servers/express`)
-- A valid Ethereum private key for making payments
+- OpenAI API key for the LLM
+- (Optional) CDP API keys for additional functionality
 
 ## Setup
 
@@ -16,15 +16,22 @@ This is an example client that demonstrates how to use the `x402-axios` package 
 cd ../../
 pnpm install
 pnpm build
-cd clients/axios
+cd agentkit
 ```
 
-2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+2. Copy `.env-local` to `.env` and configure your environment variables:
 ```bash
 cp .env-local .env
 ```
 
-3. Start the example client (remember you need to be running a server locally or point at an endpoint):
+Required environment variables:
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `PRIVATE_KEY`: (Optional) Your Ethereum private key. If not provided, a new one will be generated
+- `NETWORK_ID`: (Optional) Network to connect to (defaults to "base-sepolia")
+- `CDP_API_KEY_ID`: (Optional) Your CDP API key ID
+- `CDP_API_KEY_SECRET`: (Optional) Your CDP API key secret
+
+3. Start the example:
 ```bash
 pnpm dev
 ```
@@ -32,49 +39,63 @@ pnpm dev
 ## How It Works
 
 The example demonstrates how to:
-1. Create a wallet client using viem
-2. Create an Axios instance with x402 payment handling
-3. Make a request to a paid endpoint
-4. Handle the response or any errors
+1. Create an interactive AI agent using LangChain and AgentKit
+2. Set up wallet management for onchain interactions
+3. Configure various action providers (WETH, Wallet, ERC20, x402, CDP API)
+4. Handle streaming responses and tool executions
+5. Maintain an interactive chat session with the agent
 
 ## Example Code
 
+Here's a simplified version of how the agent is created:
+
 ```typescript
-import { config } from "dotenv";
-import { createWalletClient, http, publicActions } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor } from "x402-axios";
-import axios from "axios";
-import { baseSepolia } from "viem/chains";
+import { AgentKit, ViemWalletProvider } from "@coinbase/agentkit";
+import { ChatOpenAI } from "@langchain/openai";
+import { createReactAgent } from "@langchain/langgraph/prebuilt";
 
-config();
+// Initialize wallet provider
+const walletProvider = new ViemWalletProvider(client);
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
+// Configure action providers
+const actionProviders = [
+  wethActionProvider(),
+  walletActionProvider(),
+  erc20ActionProvider(),
+  x402ActionProvider()
+];
 
-// Create wallet client
-const account = privateKeyToAccount(PRIVATE_KEY as "0x${string}");
-const client = createWalletClient({
-  account,
-  transport: http(),
-  chain: baseSepolia,
-}).extend(publicActions);
+// Initialize AgentKit
+const agentkit = await AgentKit.from({
+  walletProvider,
+  actionProviders,
+});
 
-// Create Axios instance with payment handling
-const api = withPaymentInterceptor(
-  axios.create({
-    baseURL: RESOURCE_SERVER_URL,
-  }),
-  client
-);
+// Create LLM instance
+const llm = new ChatOpenAI({ model: "gpt-4o-mini" });
 
-// Make request to paid endpoint
-api
-  .get(ENDPOINT_PATH)
-  .then(response => {
-    console.log(response.headers);
-    console.log(response.data);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+// Create the agent
+const agent = createReactAgent({
+  llm,
+  tools: await getLangChainTools(agentkit),
+  checkpointSaver: new MemorySaver(),
+});
 ```
+
+## Features
+
+The agent can:
+- Interact with blockchain networks
+- Execute onchain transactions
+- Query wallet information
+- Interact with ERC20 tokens
+- Use x402 payment protocol
+- Access CDP API services (if configured)
+- Maintain conversation context
+- Stream responses in real-time
+
+## Additional Resources
+
+- [CDP Documentation](https://docs.cdp.coinbase.com)
+- [AgentKit Documentation](https://docs.cdp.coinbase.com/agentkit/docs)
+- [LangChain Documentation](https://js.langchain.com/docs)
