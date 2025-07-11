@@ -15,10 +15,10 @@ app.use(
 Payments on the internet are fundamentally flawed. Credit Cards are high friction, hard to accept, have minimum payments that are far too high, and don't fit into the programmatic nature of the internet.
 It's time for an open, internet-native form of payments. A payment rail that doesn't have high minimums + % based fee. Payments that are amazing for humans and AI agents.
 
-## Principals
+## Principles
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
-- **HTTP Native:** x402 is meant to seamlessly compliment the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
+- **HTTP Native:** x402 is meant to seamlessly complement the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
 - **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria laid out in [CONTRIBUTING.md](https://github.com/coinbase/x402/blob/main/CONTRIBUTING.md)
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
 - **Easy to use:** x402 needs to be 10x better than existing ways to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
@@ -46,7 +46,7 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 ## Technical Goals:
 
 - Permissionless and secure for clients and servers
-- Gassless for client and resource servers
+- Gasless for client and resource servers
 - Minimal integration for the resource server and client (1 line for the server, 1 function for the client)
 - Ability to trade off speed of response for guarantee of payment
 - Extensible to different payment flows and chains
