@@ -4,6 +4,7 @@ import { Network } from "./network";
 import { Resource } from "./resource";
 import { LocalAccount } from "viem";
 import { SignerWallet } from "./evm";
+import { HTTPRequestStructure } from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -44,6 +45,7 @@ export interface RouteConfig {
   price: Price;
   network: Network;
   config?: PaymentMiddlewareConfig;
+  request?: Omit<HTTPRequestStructure, "spec" | 'method'>;
 }
 
 export type RoutesConfig = Record<string, Price | RouteConfig>;
