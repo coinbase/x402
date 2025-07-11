@@ -58,7 +58,7 @@ export async function verify<
     invalidReason: "invalid_scheme",
     payer: SupportedEVMNetworks.includes(paymentRequirements.network)
       ? (payload.payload as ExactEvmPayload).authorization.from
-      : ""
+      : "",
   };
 }
 
@@ -80,7 +80,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
   if (paymentRequirements.scheme === "exact") {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactEvm(client as SignerWallet<chain, transport>, payload, paymentRequirements);
+      return await settleExactEvm(
+        client as SignerWallet<chain, transport>,
+        payload,
+        paymentRequirements,
+      );
     }
 
     // svm
@@ -96,7 +100,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     network: paymentRequirements.network,
     payer: SupportedEVMNetworks.includes(paymentRequirements.network)
       ? (payload.payload as ExactEvmPayload).authorization.from
-      : ""
+      : "",
   };
 }
 

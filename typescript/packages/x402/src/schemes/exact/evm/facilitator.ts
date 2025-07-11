@@ -115,10 +115,7 @@ export async function verify<
   }
 
   // Verify that payment was made to the correct address
-  if (
-    getAddress(exactEvmPayload.authorization.to) !==
-    getAddress(paymentRequirements.payTo)
-  ) {
+  if (getAddress(exactEvmPayload.authorization.to) !== getAddress(paymentRequirements.payTo)) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
@@ -129,8 +126,7 @@ export async function verify<
   // Verify deadline is not yet expired
   // Pad 3 block to account for round tripping
   if (
-    BigInt(exactEvmPayload.authorization.validBefore) <
-    BigInt(Math.floor(Date.now() / 1000) + 6)
+    BigInt(exactEvmPayload.authorization.validBefore) < BigInt(Math.floor(Date.now() / 1000) + 6)
   ) {
     return {
       isValid: false,
@@ -139,10 +135,7 @@ export async function verify<
     };
   }
   // Verify deadline is not yet valid
-  if (
-    BigInt(exactEvmPayload.authorization.validAfter) >
-    BigInt(Math.floor(Date.now() / 1000))
-  ) {
+  if (BigInt(exactEvmPayload.authorization.validAfter) > BigInt(Math.floor(Date.now() / 1000))) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_authorization_valid_after", //"Deadline on permit is in the future",
@@ -163,10 +156,7 @@ export async function verify<
     };
   }
   // Verify value in payload is enough to cover paymentRequirements.maxAmountRequired
-  if (
-    BigInt(exactEvmPayload.authorization.value) <
-    BigInt(paymentRequirements.maxAmountRequired)
-  ) {
+  if (BigInt(exactEvmPayload.authorization.value) < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
       invalidReason: "invalid_exact_evm_payload_authorization_value", //"Value in payload is not enough to cover paymentRequirements.maxAmountRequired",
@@ -212,9 +202,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
   }
 
   // Returns the original signature (no-op) if the signature is not a 6492 signature
-  const { signature } = parseErc6492Signature(
-    payload.signature as Hex,
-  );
+  const { signature } = parseErc6492Signature(payload.signature as Hex);
 
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,

@@ -113,7 +113,8 @@ app.post("/settle", async (req: Request, res: Response) => {
 app.get("/fee-payer", (req: Request, res: Response) => {
   res.json({
     endpoint: "/fee-payer",
-    description: "POST to get the facilitator's public address that will sponsor the gas fee for the transaction",
+    description:
+      "POST to get the facilitator's public address that will sponsor the gas fee for the transaction",
     body: {
       paymentRequirements: "PaymentRequirements",
     },
