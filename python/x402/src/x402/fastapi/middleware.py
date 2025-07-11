@@ -66,7 +66,9 @@ def require_payment(
     # Validate network is supported
     supported_networks = get_args(SupportedNetworks)
     if network not in supported_networks:
-        raise ValueError(f"Unsupported network: {network}. Must be one of: {supported_networks}")
+        raise ValueError(
+            f"Unsupported network: {network}. Must be one of: {supported_networks}"
+        )
 
     try:
         max_amount_required, asset_address, eip712_domain = (
@@ -109,11 +111,10 @@ def require_payment(
             """Create a 402 response with payment requirements."""
             request_headers = dict(request.headers)
             status_code = 402
-            
+
             if is_browser_request(request_headers):
-                html_content = (
-                    custom_paywall_html or
-                    get_paywall_html(error, payment_requirements, paywall_config)
+                html_content = custom_paywall_html or get_paywall_html(
+                    error, payment_requirements, paywall_config
                 )
                 headers = {"Content-Type": "text/html; charset=utf-8"}
 
@@ -124,10 +125,10 @@ def require_payment(
                 )
             else:
                 response_data = x402PaymentRequiredResponse(
-                        x402_version=x402_VERSION,
-                        accepts=payment_requirements,
-                        error=error,
-                    ).model_dump(by_alias=True)
+                    x402_version=x402_VERSION,
+                    accepts=payment_requirements,
+                    error=error,
+                ).model_dump(by_alias=True)
                 headers = {"Content-Type": "application/json"}
 
                 return JSONResponse(
@@ -147,7 +148,9 @@ def require_payment(
             payment_dict = json.loads(safe_base64_decode(payment_header))
             payment = PaymentPayload(**payment_dict)
         except Exception as e:
-            logger.warning(f"Invalid payment header format from {request.client.host if request.client else 'unknown'}: {str(e)}")
+            logger.warning(
+                f"Invalid payment header format from {request.client.host if request.client else 'unknown'}: {str(e)}"
+            )
             return x402_response("Invalid payment header format")
 
         # Find matching payment requirements
@@ -192,7 +195,10 @@ def require_payment(
                     settle_response.model_dump_json(by_alias=True).encode("utf-8")
                 ).decode("utf-8")
             else:
-                return x402_response("Settle failed: " + (settle_response.error_reason or "Unknown error"))
+                return x402_response(
+                    "Settle failed: "
+                    + (settle_response.error_reason or "Unknown error")
+                )
         except Exception:
             return x402_response("Settle failed")
 

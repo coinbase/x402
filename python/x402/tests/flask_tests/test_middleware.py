@@ -164,18 +164,18 @@ def test_browser_request_returns_html():
             }
         ]
     )
-    
+
     # Simulate browser request headers
     browser_headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     }
-    
+
     with app.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         assert resp.status_code == 402
         assert resp.content_type == "text/html; charset=utf-8"
-        
+
         # Check that HTML is returned
         html_content = resp.get_data(as_text=True)
         assert "<!DOCTYPE html>" in html_content or "<html>" in html_content
@@ -194,13 +194,13 @@ def test_api_client_request_returns_json():
             }
         ]
     )
-    
+
     # Simulate API client request headers
     api_headers = {
         "Accept": "application/json",
         "User-Agent": "curl/7.68.0",
     }
-    
+
     with app.test_client() as client:
         resp = client.get("/protected", headers=api_headers)
         assert resp.status_code == 402
@@ -218,7 +218,7 @@ def test_paywall_config_injection():
         "app_logo": "https://example.com/logo.png",
         "session_token_endpoint": "https://example.com/token",
     }
-    
+
     app = create_app_with_middleware(
         [
             {
@@ -230,16 +230,16 @@ def test_paywall_config_injection():
             }
         ]
     )
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0 (compatible browser)",
     }
-    
+
     with app.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         assert resp.status_code == 402
-        
+
         html_content = resp.get_data(as_text=True)
         assert "window.x402" in html_content
         assert '"cdpClientKey": "test-key-123"' in html_content
@@ -262,7 +262,7 @@ def test_custom_paywall_html():
     </body>
     </html>
     """
-    
+
     app = create_app_with_middleware(
         [
             {
@@ -274,16 +274,16 @@ def test_custom_paywall_html():
             }
         ]
     )
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     with app.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         assert resp.status_code == 402
-        
+
         html_content = resp.get_data(as_text=True)
         assert "Custom Payment Required" in html_content
         assert "custom-payment" in html_content
@@ -303,7 +303,7 @@ def test_mainnet_vs_testnet_config():
             }
         ]
     )
-    
+
     # Test mainnet (base)
     app_mainnet = create_app_with_middleware(
         [
@@ -315,18 +315,18 @@ def test_mainnet_vs_testnet_config():
             }
         ]
     )
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     with app_testnet.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         html_content = resp.get_data(as_text=True)
         assert '"testnet": true' in html_content
         assert "console.log('Payment requirements initialized" in html_content
-    
+
     with app_mainnet.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         html_content = resp.get_data(as_text=True)
@@ -347,12 +347,12 @@ def test_payment_amount_conversion():
             }
         ]
     )
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     with app.test_client() as client:
         resp = client.get("/protected", headers=browser_headers)
         html_content = resp.get_data(as_text=True)

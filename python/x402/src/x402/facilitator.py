@@ -1,5 +1,7 @@
 from typing import Callable, Optional
-from typing_extensions import TypedDict # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
+from typing_extensions import (
+    TypedDict,
+)  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 import httpx
 from x402.types import (
     PaymentPayload,

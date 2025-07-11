@@ -5,13 +5,14 @@ from x402.types import PaymentRequirements, PaywallConfig
 from x402.common import x402_VERSION
 from x402.template import PAYWALL_TEMPLATE
 
+
 def is_browser_request(headers: Dict[str, Any]) -> bool:
     """
     Determine if request is from a browser vs API client.
-    
+
     Args:
         headers: Dictionary of request headers (case-insensitive keys)
-        
+
     Returns:
         True if request appears to be from a browser, False otherwise
     """
@@ -24,35 +25,40 @@ def is_browser_request(headers: Dict[str, Any]) -> bool:
 
     return False
 
+
 def create_x402_config(
     error: str,
     payment_requirements: List[PaymentRequirements],
-    paywall_config: Optional[PaywallConfig] = None
+    paywall_config: Optional[PaywallConfig] = None,
 ) -> Dict[str, Any]:
     """Create x402 configuration object from payment requirements."""
-    
+
     requirements = payment_requirements[0] if payment_requirements else None
     display_amount = 0
     current_url = ""
     testnet = True
-    
+
     if requirements:
         # Convert atomic amount back to USD (assuming USDC with 6 decimals)
         try:
-            display_amount = float(requirements.max_amount_required) / 1000000  # USDC has 6 decimals
+            display_amount = (
+                float(requirements.max_amount_required) / 1000000
+            )  # USDC has 6 decimals
         except (ValueError, TypeError):
             display_amount = 0
-        
+
         current_url = requirements.resource or ""
         testnet = requirements.network == "base-sepolia"
-    
+
     # Get paywall config values or defaults
     config = paywall_config or {}
-    
+
     # Create the window.x402 configuration object
     return {
         "amount": display_amount,
-        "paymentRequirements": [req.model_dump(by_alias=True) for req in payment_requirements],
+        "paymentRequirements": [
+            req.model_dump(by_alias=True) for req in payment_requirements
+        ],
         "testnet": testnet,
         "currentUrl": current_url,
         "error": error,
@@ -65,19 +71,23 @@ def create_x402_config(
 
 
 def inject_payment_data(
-    html_content: str, 
+    html_content: str,
     error: str,
     payment_requirements: List[PaymentRequirements],
-    paywall_config: Optional[PaywallConfig] = None
+    paywall_config: Optional[PaywallConfig] = None,
 ) -> str:
     """Inject payment requirements into HTML as JavaScript variables."""
-    
+
     # Create x402 configuration object
     x402_config = create_x402_config(error, payment_requirements, paywall_config)
-    
+
     # Create the configuration script (matching TypeScript pattern)
-    log_on_testnet = "console.log('Payment requirements initialized:', window.x402);" if x402_config["testnet"] else ""
-    
+    log_on_testnet = (
+        "console.log('Payment requirements initialized:', window.x402);"
+        if x402_config["testnet"]
+        else ""
+    )
+
     config_script = f"""
   <script>
     window.x402 = {json.dumps(x402_config)};
@@ -91,17 +101,19 @@ def inject_payment_data(
 def get_paywall_html(
     error: str,
     payment_requirements: List[PaymentRequirements],
-    paywall_config: Optional[PaywallConfig] = None
+    paywall_config: Optional[PaywallConfig] = None,
 ) -> str:
     """
     Load paywall HTML and inject payment data.
-    
+
     Args:
         error: Error message to display
         payment_requirements: List of payment requirements
         paywall_config: Optional paywall UI configuration
-        
+
     Returns:
         Complete HTML with injected payment data
     """
-    return inject_payment_data(PAYWALL_TEMPLATE, error, payment_requirements, paywall_config)
+    return inject_payment_data(
+        PAYWALL_TEMPLATE, error, payment_requirements, paywall_config
+    )

@@ -119,7 +119,9 @@ class PaymentMiddleware:
         # Validate network is supported
         supported_networks = get_args(SupportedNetworks)
         if config["network"] not in supported_networks:
-            raise ValueError(f"Unsupported network: {config['network']}. Must be one of: {supported_networks}")
+            raise ValueError(
+                f"Unsupported network: {config['network']}. Must be one of: {supported_networks}"
+            )
 
         # Process price configuration (same as FastAPI)
         try:
@@ -167,11 +169,12 @@ class PaymentMiddleware:
                     """Create a 402 response with payment requirements."""
                     request_headers = dict(request.headers)
                     status = "402 Payment Required"
-                    
+
                     if is_browser_request(request_headers):
-                        html_content = (
-                            config["custom_paywall_html"] or
-                            get_paywall_html(error, payment_requirements, config["paywall_config"])
+                        html_content = config[
+                            "custom_paywall_html"
+                        ] or get_paywall_html(
+                            error, payment_requirements, config["paywall_config"]
                         )
                         headers = [("Content-Type", "text/html; charset=utf-8")]
 
@@ -262,7 +265,9 @@ class PaymentMiddleware:
                         if settle_response.success:
                             # Add settlement response header
                             settlement_header = base64.b64encode(
-                                settle_response.model_dump_json(by_alias=True).encode("utf-8")
+                                settle_response.model_dump_json(by_alias=True).encode(
+                                    "utf-8"
+                                )
                             ).decode("utf-8")
                             response_wrapper.add_header(
                                 "X-PAYMENT-RESPONSE", settlement_header

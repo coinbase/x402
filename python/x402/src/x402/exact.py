@@ -1,7 +1,9 @@
 import time
 import secrets
 from typing import Dict, Any
-from typing_extensions import TypedDict # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
+from typing_extensions import (
+    TypedDict,
+)  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 from eth_account import Account
 from x402.encoding import safe_base64_encode, safe_base64_decode
 from x402.types import (

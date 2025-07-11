@@ -329,19 +329,19 @@ def test_browser_request_returns_html():
             network="base-sepolia",
         )
     )
-    
+
     client = TestClient(app)
-    
+
     # Simulate browser request headers
     browser_headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     }
-    
+
     response = client.get("/protected", headers=browser_headers)
     assert response.status_code == 402
     assert response.headers["content-type"] == "text/html; charset=utf-8"
-    
+
     html_content = response.text
     assert "<!DOCTYPE html>" in html_content or "<html>" in html_content
     assert "window.x402" in html_content
@@ -359,15 +359,15 @@ def test_api_client_request_returns_json():
             network="base-sepolia",
         )
     )
-    
+
     client = TestClient(app)
-    
+
     # Simulate API client request headers
     api_headers = {
         "Accept": "application/json",
         "User-Agent": "curl/7.68.0",
     }
-    
+
     response = client.get("/protected", headers=api_headers)
     assert response.status_code == 402
     assert response.headers["content-type"] == "application/json"
@@ -380,11 +380,11 @@ def test_paywall_config_injection():
     # Use a plain dict that will be compatible with PaywallConfig
     paywall_config = {
         "cdp_client_key": "test-key-123",
-        "app_name": "Test Application", 
+        "app_name": "Test Application",
         "app_logo": "https://example.com/logo.png",
         "session_token_endpoint": "https://example.com/token",
     }
-    
+
     app = FastAPI()
     app.get("/protected")(test_endpoint)
     app.middleware("http")(
@@ -396,17 +396,17 @@ def test_paywall_config_injection():
             paywall_config=PaywallConfig(**paywall_config),
         )
     )
-    
+
     client = TestClient(app)
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0 (compatible browser)",
     }
-    
+
     response = client.get("/protected", headers=browser_headers)
     assert response.status_code == 402
-    
+
     html_content = response.text
     assert "window.x402" in html_content
     assert '"cdpClientKey": "test-key-123"' in html_content
@@ -429,7 +429,7 @@ def test_custom_paywall_html():
     </body>
     </html>
     """
-    
+
     app = FastAPI()
     app.get("/protected")(test_endpoint)
     app.middleware("http")(
@@ -441,17 +441,17 @@ def test_custom_paywall_html():
             custom_paywall_html=custom_html,
         )
     )
-    
+
     client = TestClient(app)
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     response = client.get("/protected", headers=browser_headers)
     assert response.status_code == 402
-    
+
     html_content = response.text
     assert "Custom Payment Required" in html_content
     assert "custom-payment" in html_content
@@ -471,7 +471,7 @@ def test_mainnet_vs_testnet_config():
             network="base-sepolia",
         )
     )
-    
+
     # Test mainnet (base)
     app_mainnet = FastAPI()
     app_mainnet.get("/protected")(test_endpoint)
@@ -483,21 +483,21 @@ def test_mainnet_vs_testnet_config():
             network="base",
         )
     )
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     client_testnet = TestClient(app_testnet)
     client_mainnet = TestClient(app_mainnet)
-    
+
     # Testnet should have console.log and testnet: true
     resp_testnet = client_testnet.get("/protected", headers=browser_headers)
     html_content_testnet = resp_testnet.text
     assert '"testnet": true' in html_content_testnet
     assert "console.log('Payment requirements initialized" in html_content_testnet
-    
+
     # Mainnet should not have console.log and testnet: false
     resp_mainnet = client_mainnet.get("/protected", headers=browser_headers)
     html_content_mainnet = resp_mainnet.text
@@ -517,14 +517,14 @@ def test_payment_amount_conversion():
             network="base-sepolia",
         )
     )
-    
+
     client = TestClient(app)
-    
+
     browser_headers = {
         "Accept": "text/html",
         "User-Agent": "Mozilla/5.0",
     }
-    
+
     response = client.get("/protected", headers=browser_headers)
     html_content = response.text
     # $0.001 should be converted to 0.001 in the display
