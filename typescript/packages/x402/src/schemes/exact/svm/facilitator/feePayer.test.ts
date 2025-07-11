@@ -1,30 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { KeyPairSigner } from "@solana/kit";
+import { beforeEach, describe, expect, it } from "vitest";
+import { generateKeyPairSigner, KeyPairSigner } from "@solana/kit";
 import { getFeePayer, GetFeePayerResponse } from "./feePayer";
 
 describe("getFeePayer", () => {
   let mockSigner: KeyPairSigner;
-  const signerAddress = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
 
-  beforeEach(() => {
-    // Create a mock KeyPairSigner
-    mockSigner = {
-      address: {
-        toString: vi.fn().mockReturnValue(signerAddress),
-      },
-      signMessage: vi.fn(),
-      signTransaction: vi.fn(),
-      signAllTransactions: vi.fn(),
-    } as unknown as KeyPairSigner;
+  beforeEach(async () => {
+    mockSigner = await generateKeyPairSigner();
   });
 
-  it("should return the signer's address as fee payer", async () => {
+  it("should return the facilitator's signer address as fee payer", async () => {
     const result = getFeePayer(mockSigner);
 
     expect(result).toEqual({
-      feePayer: signerAddress,
+      feePayer: mockSigner.address.toString(),
     });
-    expect(mockSigner.address.toString).toHaveBeenCalledOnce();
   });
 
   it("should return correct response type", async () => {
@@ -35,15 +25,6 @@ describe("getFeePayer", () => {
     });
   });
 
-  it("should handle different address formats", async () => {
-    const differentAddress = "11111111111111111111111111111112";
-    mockSigner.address.toString = vi.fn().mockReturnValue(differentAddress);
-
-    const result = getFeePayer(mockSigner);
-
-    expect(result.feePayer).toBe(differentAddress);
-  });
-
   it("should return a valid base58 address format", async () => {
     const result = getFeePayer(mockSigner);
 
@@ -51,11 +32,11 @@ describe("getFeePayer", () => {
     expect(result.feePayer).toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/);
   });
 
-  it("should handle empty address string", async () => {
-    mockSigner.address.toString = vi.fn().mockReturnValue("");
+  it("should return the same address when called multiple times", async () => {
+    const result1 = getFeePayer(mockSigner);
+    const result2 = getFeePayer(mockSigner);
 
-    const result = getFeePayer(mockSigner);
-
-    expect(result.feePayer).toBe("");
+    expect(result1.feePayer).toBe(result2.feePayer);
+    expect(result1.feePayer).toBe(mockSigner.address.toString());
   });
 });

@@ -83,7 +83,12 @@ app.get("/supported", (req: Request, res: Response) => {
       {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "solana-devnet",
+      },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "solana-mainnet",
       },
     ],
   });
@@ -104,8 +109,15 @@ app.post("/settle", async (req: Request, res: Response) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
+// fee payer endpoint
+app.get("/fee-payer", (req: Request, res: Response) => {
+  res.json({
+    endpoint: "/fee-payer",
+    description: "POST to get the facilitator's public address that will sponsor the gas fee for the transaction",
+    body: {
+      paymentRequirements: "PaymentRequirements",
+    },
+  });
 });
 
 app.post("/fee-payer", async (req: Request, res: Response) => {
@@ -126,4 +138,8 @@ app.post("/fee-payer", async (req: Request, res: Response) => {
     console.error("error", error);
     res.status(400).json({ error: `Invalid request: ${error}` });
   }
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
 });

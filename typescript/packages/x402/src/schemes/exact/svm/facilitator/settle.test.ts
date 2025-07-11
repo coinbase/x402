@@ -117,7 +117,6 @@ describe("SVM Settle", () => {
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
       vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
-      // Mock the internal sendAndConfirmSignedTransaction by mocking its dependencies
       vi.mocked(mockRpcClient.sendTransaction).mockReturnValue({
         send: vi.fn().mockResolvedValue("mock_signature_123"),
       });
@@ -143,6 +142,7 @@ describe("SVM Settle", () => {
       // Assert
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements);
       expect(decodeTransactionFromPayload).toHaveBeenCalledWith(paymentPayload.payload);
+      expect(transactionConfirmation.waitForRecentTransactionConfirmation).toHaveBeenCalledOnce();
       expect(solanaKit.signTransaction).toHaveBeenCalledWith(
         [signer.keyPair],
         mockSignedTransaction,

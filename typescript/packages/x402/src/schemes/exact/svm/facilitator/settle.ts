@@ -49,7 +49,6 @@ export async function settle(
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
-  console.log("in exact svm settle");
   const verifyResponse = await verify(signer, payload, paymentRequirements);
   if (!verifyResponse.isValid) {
     return {
@@ -95,7 +94,7 @@ export async function settle(
 
 /**
  * Send a signed transaction to the RPC.
- * TODO: can some of this be refactored to be moved to the shared/svm/rpc.ts file?
+ * TODO: should this be moved to the shared/svm/rpc.ts file?
  *
  * @param signedTransaction - The signed transaction to send
  * @param rpc - The RPC client to use to send the transaction
@@ -117,6 +116,7 @@ export async function sendSignedTransaction(
 /**
  * Confirm a signed transaction.
  * TODO: can some of this be refactored to be moved to the shared/svm/rpc.ts file?
+ * TODO: should the commitment and the timeout be passed in as parameters?
  *
  * @param signedTransaction - The signed transaction to confirm
  * @param rpc - The RPC client to use to confirm the transaction
@@ -155,7 +155,7 @@ export async function confirmSignedTransaction(
     };
 
     // create the config for the transaction confirmation
-    const commitment: Commitment = "confirmed";
+    const commitment: Commitment = "finalized";
 
     const getRecentSignatureConfirmationPromise = createRecentSignatureConfirmationPromiseFactory({
       rpc,

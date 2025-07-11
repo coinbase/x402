@@ -14,6 +14,5 @@ export function getNetworkId(network: Network): number | NetworkEnum {
   if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
     return network;
   }
-  // TODO: Solana
   throw new Error(`Unsupported network: ${network}`);
 }

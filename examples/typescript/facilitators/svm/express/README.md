@@ -3,8 +3,8 @@
 This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol. This implementation is for learning purposes and demonstrates how to build a facilitator service.
 
 For production use, we recommend using:
-- Testnet: https://x402.org/facilitator
-- Production: https://api.cdp.coinbase.com/platform/v2/x402
+- Testnet: TODO
+- Production: TODO
 
 ## Overview
 
@@ -21,8 +21,8 @@ This example demonstrates how to:
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum private key for Base Sepolia
-- Base Sepolia testnet ETH for transaction fees
+- A valid base58 encoded Solana private key for
+- SOL or Devnet SOL for transaction fees
 
 ## Setup
 
@@ -36,7 +36,7 @@ cd facilitator
 
 2. Create a `.env` file with the following variables:
 ```env
-PRIVATE_KEY=0xYourPrivateKey
+PRIVATE_KEY=yourbase58encodedprivatekey
 NETWORK="solana-devnet or solana-mainnet"
 ```
 
@@ -74,6 +74,19 @@ Request body:
 {
   payload: string;  // x402 payment payload
   details: PaymentRequirements;  // Payment requirements
+}
+```
+
+### GET /fee-payer
+Returns information about the fee-payer endpoint.
+
+### POST /fee-payer
+Returns the facilitator's public address that will sponsor the gas fee for the transaction.
+
+Request body:
+```typescript
+{
+  paymentRequirements: PaymentRequirements;  // Payment requirements
 }
 ```
 

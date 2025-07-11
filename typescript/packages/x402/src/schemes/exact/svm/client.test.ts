@@ -102,11 +102,11 @@ describe("SVM Client", () => {
 
       // Assert
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
-      expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce();
-      expect(token.findAssociatedTokenPda).toHaveBeenCalledTimes(2);
-      expect(token.getTransferCheckedInstruction).toHaveBeenCalledOnce();
-      expect(mockedPartiallySign).toHaveBeenCalledOnce();
-      expect(mockedToBase64).toHaveBeenCalledWith("signed_tx_message");
+      expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce();  // blockhash required for tx
+      expect(token.findAssociatedTokenPda).toHaveBeenCalledTimes(2);  // find sender and receiver ATA
+      expect(token.getTransferCheckedInstruction).toHaveBeenCalledOnce();  // transfer instruction
+      expect(mockedPartiallySign).toHaveBeenCalledOnce();  // partially sign tx
+      expect(mockedToBase64).toHaveBeenCalledWith("signed_tx_message");  // base64 encode tx
       expect(paymentPayload).toEqual({
         scheme: "exact",
         network: "solana-devnet",

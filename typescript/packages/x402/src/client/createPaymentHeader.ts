@@ -24,7 +24,7 @@ export async function createPaymentHeader(
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return await createPaymentHeaderExactEVM(
-        client as SignerWallet,
+        client as SignerWallet | LocalAccount,
         x402Version,
         paymentRequirements,
       );

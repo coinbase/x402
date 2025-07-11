@@ -15,6 +15,7 @@ import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
 import { selectPaymentRequirements } from "../../client";
 import { exact } from "../../schemes";
+import { encodePayment } from "../../schemes";
 import { getUSDCBalance } from "../../shared/evm";
 
 import { Spinner } from "./Spinner";
@@ -153,7 +154,7 @@ export function PaywallApp() {
         validPaymentRequirements,
       );
 
-      const paymentHeader: string = exact.evm.encodePayment(initialPayment);
+      const paymentHeader: string = encodePayment(initialPayment);
 
       setStatus("Requesting content with payment...");
       const response = await fetch(x402.currentUrl, {
@@ -177,7 +178,7 @@ export function PaywallApp() {
           );
 
           retryPayment.x402Version = errorData.x402Version;
-          const retryHeader = exact.evm.encodePayment(retryPayment);
+          const retryHeader = encodePayment(retryPayment);
           const retryResponse = await fetch(x402.currentUrl, {
             headers: {
               "X-PAYMENT": retryHeader,
