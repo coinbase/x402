@@ -9,6 +9,7 @@ import { createWalletClient } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import fs from "fs";
 import { http } from "viem";
+import { Network } from "x402/types";
 /**
  * Agent Configuration Guide
  *
@@ -42,10 +43,12 @@ const WALLET_DATA_FILE = "wallet_data.txt";
  *
  * @throws {Error} If the agent initialization fails.
  */
-export async function createAgent(): Promise<ReturnType<typeof createReactAgent>> {
+export async function createAgent(): Promise<{ agent: ReturnType<typeof createReactAgent>, config: { configurable: { thread_id: string } } }> {
+  const config = { configurable: { thread_id: "x402 AgentKit Chatbot Example!" } };
+
   // If agent has already been initialized, return it
   if (agent) {
-    return agent;
+    return { agent, config };
   }
 
   try {
@@ -66,7 +69,7 @@ export async function createAgent(): Promise<ReturnType<typeof createReactAgent>
     }
 
     const account = privateKeyToAccount(privateKey);
-    const networkId = process.env.NETWORK_ID as string;
+    const networkId = process.env.NETWORK_ID || "base-sepolia" as Network;
 
     const client = createWalletClient({
       account,
@@ -122,7 +125,10 @@ export async function createAgent(): Promise<ReturnType<typeof createReactAgent>
         `,
     });
 
-    return agent;
+    return {
+      agent,
+      config
+    }
   } catch (error) {
     console.error("Error initializing agent:", error);
     throw new Error("Failed to initialize agent");

@@ -10,7 +10,7 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/agentkit": "^0.8.2",
+    "@coinbase/agentkit": "link:../../../../agentkit/typescript/agentkit/dist",
     "@coinbase/agentkit-langchain": "^0.3.0",
     "@langchain/core": "0.3.30",
     "@langchain/langgraph": "^0.2.39",
