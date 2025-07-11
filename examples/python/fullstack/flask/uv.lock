@@ -1916,6 +1916,15 @@ wheels = [
 ]
 
 [[package]]
+name = "waitress"
+version = "3.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/cb/04ddb054f45faa306a230769e868c28b8065ea196891f09004ebace5b184/waitress-3.0.2.tar.gz", hash = "sha256:682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f", size = 179901, upload-time = "2024-11-16T20:02:35.195Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/57/a27182528c90ef38d82b636a11f606b0cbb0e17588ed205435f8affe3368/waitress-3.0.2-py3-none-any.whl", hash = "sha256:c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e", size = 56232, upload-time = "2024-11-16T20:02:33.858Z" },
+]
+
+[[package]]
 name = "watchfiles"
 version = "1.0.5"
 source = { registry = "https://pypi.org/simple" }
@@ -2118,18 +2127,18 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cdp-sdk" },
-    { name = "fastapi" },
+    { name = "flask" },
     { name = "python-dotenv" },
-    { name = "uvicorn" },
+    { name = "waitress" },
     { name = "x402" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "cdp-sdk", specifier = ">=1.15.0" },
-    { name = "fastapi", specifier = ">=0.109.0" },
+    { name = "flask", specifier = ">=3.1.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "uvicorn", specifier = ">=0.27.0" },
+    { name = "waitress", specifier = ">=2.1.2" },
     { name = "x402", editable = "../../../../python/x402" },
 ]
 

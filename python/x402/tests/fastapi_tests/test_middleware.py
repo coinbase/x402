@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from x402.fastapi.middleware import require_payment
+from x402.types import PaywallConfig
 
 
 async def test_endpoint():
@@ -24,7 +25,7 @@ def test_middleware_invalid_payment():
 
     assert response.status_code == 402
     assert "accepts" in response.json()
-    assert "Invalid payment header format:" in response.json()["error"]
+    assert "Invalid payment header format" in response.json()["error"]
 
 
 def test_app_middleware_path_matching():
@@ -314,3 +315,217 @@ def test_abusive_url_paths():
             assert path_is_match(regex_pattern, "/api/anything")
             assert path_is_match(regex_pattern, "/admin/panel")
             assert not path_is_match(regex_pattern, "/other/path")
+
+
+def test_browser_request_returns_html():
+    """Test that browser requests return HTML paywall instead of JSON."""
+    app = FastAPI()
+    app.get("/protected")(test_endpoint)
+    app.middleware("http")(
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+        )
+    )
+
+    client = TestClient(app)
+
+    # Simulate browser request headers
+    browser_headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    }
+
+    response = client.get("/protected", headers=browser_headers)
+    assert response.status_code == 402
+    assert response.headers["content-type"] == "text/html; charset=utf-8"
+
+    html_content = response.text
+    assert "<!DOCTYPE html>" in html_content or "<html>" in html_content
+    assert "window.x402" in html_content
+
+
+def test_api_client_request_returns_json():
+    """Test that API client requests return JSON response."""
+    app = FastAPI()
+    app.get("/protected")(test_endpoint)
+    app.middleware("http")(
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+        )
+    )
+
+    client = TestClient(app)
+
+    # Simulate API client request headers
+    api_headers = {
+        "Accept": "application/json",
+        "User-Agent": "curl/7.68.0",
+    }
+
+    response = client.get("/protected", headers=api_headers)
+    assert response.status_code == 402
+    assert response.headers["content-type"] == "application/json"
+    assert "accepts" in response.json()
+    assert "error" in response.json()
+
+
+def test_paywall_config_injection():
+    """Test that paywall configuration is properly injected into HTML."""
+    # Use a plain dict that will be compatible with PaywallConfig
+    paywall_config = {
+        "cdp_client_key": "test-key-123",
+        "app_name": "Test Application",
+        "app_logo": "https://example.com/logo.png",
+        "session_token_endpoint": "https://example.com/token",
+    }
+
+    app = FastAPI()
+    app.get("/protected")(test_endpoint)
+    app.middleware("http")(
+        require_payment(
+            price="$2.50",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+            paywall_config=PaywallConfig(**paywall_config),
+        )
+    )
+
+    client = TestClient(app)
+
+    browser_headers = {
+        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0 (compatible browser)",
+    }
+
+    response = client.get("/protected", headers=browser_headers)
+    assert response.status_code == 402
+
+    html_content = response.text
+    assert "window.x402" in html_content
+    assert '"cdpClientKey": "test-key-123"' in html_content
+    assert '"appName": "Test Application"' in html_content
+    assert '"appLogo": "https://example.com/logo.png"' in html_content
+    assert '"amount": 2.5' in html_content
+
+
+def test_custom_paywall_html():
+    """Test that custom paywall HTML is used when provided."""
+    custom_html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Custom Paywall</title>
+    </head>
+    <body>
+        <h1>Custom Payment Required</h1>
+        <div id="custom-payment">Please pay to continue</div>
+    </body>
+    </html>
+    """
+
+    app = FastAPI()
+    app.get("/protected")(test_endpoint)
+    app.middleware("http")(
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+            custom_paywall_html=custom_html,
+        )
+    )
+
+    client = TestClient(app)
+
+    browser_headers = {
+        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    response = client.get("/protected", headers=browser_headers)
+    assert response.status_code == 402
+
+    html_content = response.text
+    assert "Custom Payment Required" in html_content
+    assert "custom-payment" in html_content
+    assert "Custom Paywall" in html_content
+
+
+def test_mainnet_vs_testnet_config():
+    """Test that mainnet vs testnet is properly configured."""
+    # Test testnet (base-sepolia)
+    app_testnet = FastAPI()
+    app_testnet.get("/protected")(test_endpoint)
+    app_testnet.middleware("http")(
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+        )
+    )
+
+    # Test mainnet (base)
+    app_mainnet = FastAPI()
+    app_mainnet.get("/protected")(test_endpoint)
+    app_mainnet.middleware("http")(
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base",
+        )
+    )
+
+    browser_headers = {
+        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    client_testnet = TestClient(app_testnet)
+    client_mainnet = TestClient(app_mainnet)
+
+    # Testnet should have console.log and testnet: true
+    resp_testnet = client_testnet.get("/protected", headers=browser_headers)
+    html_content_testnet = resp_testnet.text
+    assert '"testnet": true' in html_content_testnet
+    assert "console.log('Payment requirements initialized" in html_content_testnet
+
+    # Mainnet should not have console.log and testnet: false
+    resp_mainnet = client_mainnet.get("/protected", headers=browser_headers)
+    html_content_mainnet = resp_mainnet.text
+    assert '"testnet": false' in html_content_mainnet
+    assert "console.log('Payment requirements initialized" not in html_content_mainnet
+
+
+def test_payment_amount_conversion():
+    """Test that payment amounts are properly converted to display values."""
+    app = FastAPI()
+    app.get("/protected")(test_endpoint)
+    app.middleware("http")(
+        require_payment(
+            price="$0.001",  # Small amount
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="base-sepolia",
+        )
+    )
+
+    client = TestClient(app)
+
+    browser_headers = {
+        "Accept": "text/html",
+        "User-Agent": "Mozilla/5.0",
+    }
+
+    response = client.get("/protected", headers=browser_headers)
+    html_content = response.text
+    # $0.001 should be converted to 0.001 in the display
+    assert '"amount": 0.001' in html_content

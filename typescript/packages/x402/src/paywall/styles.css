@@ -219,3 +219,14 @@ body {
   flex-direction: row;
   gap: 0.5rem;
 }
+
+.balance-button {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  min-height: 1rem;
+  min-width: 150px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}

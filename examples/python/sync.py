@@ -28,6 +28,12 @@ def main():
         if client_dir.is_dir():
             run_uv_sync(client_dir)
 
+    # Process fullstack directory
+    fullstack_dir = examples_dir / "fullstack"
+    for fullstack_dir in fullstack_dir.iterdir():
+        if fullstack_dir.is_dir():
+            run_uv_sync(fullstack_dir)
+
 
 if __name__ == "__main__":
     main()

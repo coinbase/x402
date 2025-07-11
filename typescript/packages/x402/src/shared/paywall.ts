@@ -14,6 +14,22 @@ interface PaywallOptions {
 }
 
 /**
+ * Escapes a string for safe injection into JavaScript string literals
+ *
+ * @param str - The string to escape
+ * @returns The escaped string
+ */
+function escapeString(str: string): string {
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t");
+}
+
+/**
  * Generates an HTML paywall page that allows users to pay for content access
  *
  * @param options - The options for generating the paywall
@@ -41,21 +57,21 @@ export function getPaywallHtml({
     ? "console.log('Payment requirements initialized:', window.x402);"
     : "";
 
-  // Create the configuration script to inject
+  // Create the configuration script to inject with proper escaping
   const configScript = `
   <script>
     window.x402 = {
       amount: ${amount},
       paymentRequirements: ${JSON.stringify(paymentRequirements)},
       testnet: ${testnet},
-      currentUrl: "${currentUrl}",
+      currentUrl: "${escapeString(currentUrl)}",
       config: {
         chainConfig: ${JSON.stringify(config)},
       },
-      cdpClientKey: "${cdpClientKey || ""}",
-      appName: "${appName || ""}",
-      appLogo: "${appLogo || ""}",
-      sessionTokenEndpoint: "${sessionTokenEndpoint || ""}",
+      cdpClientKey: "${escapeString(cdpClientKey || "")}",
+      appName: "${escapeString(appName || "")}",
+      appLogo: "${escapeString(appLogo || "")}",
+      sessionTokenEndpoint: "${escapeString(sessionTokenEndpoint || "")}",
     };
     ${logOnTestnet}
   </script>`;

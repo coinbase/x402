@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from typing import Any, Optional, Union
+from typing_extensions import (
+    TypedDict,
+)  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
@@ -65,7 +68,6 @@ class PaymentRequirements(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -89,7 +91,6 @@ class x402PaymentRequiredResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -110,7 +111,6 @@ class EIP3009Authorization(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -131,7 +131,6 @@ class VerifyResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -146,7 +145,6 @@ class SettleResponse(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -164,7 +162,6 @@ class PaymentPayload(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel,
         populate_by_name=True,
-        serialize_by_alias=True,
         from_attributes=True,
     )
 
@@ -175,3 +172,12 @@ class X402Headers(BaseModel):
 
 class UnsupportedSchemeException(Exception):
     pass
+
+
+class PaywallConfig(TypedDict, total=False):
+    """Configuration for paywall UI customization"""
+
+    cdp_client_key: str
+    app_name: str
+    app_logo: str
+    session_token_endpoint: str

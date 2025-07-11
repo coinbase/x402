@@ -11,13 +11,17 @@ const DIST_DIR = "src/paywall/dist";
 const OUTPUT_HTML = path.join(DIST_DIR, "paywall.html");
 const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 
+// Path to Python package static directory (relative to this TypeScript package)
+const PYTHON_DIR = path.join("..", "..", "..", "python", "x402", "src", "x402");
+const OUTPUT_PY = path.join(PYTHON_DIR, "template.py");
+
 const options: esbuild.BuildOptions = {
   entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
   treeShaking: true,
-  minify: false, // Keep readable for development mode
+  minify: true, // Use minify for production mode
   format: "iife",
   sourcemap: false,
   platform: "browser",
@@ -56,6 +60,7 @@ const options: esbuild.BuildOptions = {
 /**
  * Builds the paywall HTML template with bundled JS and CSS.
  * Creates a TypeScript file containing the template as a constant for runtime use.
+ * Copies the generated HTML to the Python package's static directory.
  */
 async function build() {
   try {
@@ -85,9 +90,14 @@ async function build() {
  */
 export const PAYWALL_TEMPLATE = ${JSON.stringify(html)};
 `;
+
+      const pyContent = `PAYWALL_TEMPLATE = ${JSON.stringify(html)}`;
+
       // Write the template.ts file
       fs.writeFileSync(OUTPUT_TS, tsContent);
       console.log(`Generated template.ts with bundled HTML (${html.length} bytes)`);
+      fs.writeFileSync(OUTPUT_PY, pyContent);
+      console.log(`Generated template.py with bundled HTML (${html.length} bytes)`);
     } else {
       throw new Error(`Bundled HTML file not found at ${OUTPUT_HTML}`);
     }
