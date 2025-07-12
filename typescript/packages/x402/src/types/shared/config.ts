@@ -1,4 +1,5 @@
 import { Address } from "viem";
+import { Address as SolanaAddress } from "@solana/kit";
 
 export const config: Record<string, ChainConfig> = {
   "84532": {
@@ -21,9 +22,17 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xcdf79194c6c285077a58da47641d4dbe51f63542",
     usdcName: "Bridged USDC",
   },
+  "solana-devnet": {
+    usdcAddress: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr" as SolanaAddress,
+    usdcName: "USDC",
+  },
+  "solana-mainnet": {
+    usdcAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" as SolanaAddress,
+    usdcName: "USDC",
+  },
 };
 
 export type ChainConfig = {
-  usdcAddress: Address;
+  usdcAddress: Address | SolanaAddress;
   usdcName: string;
 };

@@ -1,5 +1,5 @@
 packages:
-  - "facilitator"
+  - "facilitators/**/*"
   - "servers/*"
   - "clients/*"
   - "fullstack/*"

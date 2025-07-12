@@ -1,5 +1,5 @@
 import { Account, Address, Chain, Client, Transport } from "viem";
-import { ChainConfig, config } from "../../types/shared/evm/config";
+import { ChainConfig, config } from "../../types/shared/config";
 import { usdcABI as abi } from "../../types/shared/evm/erc20PermitABI";
 import { ConnectedClient } from "../../types/shared/evm/wallet";
 
@@ -85,7 +85,7 @@ export async function getUSDCBalance<
     return 0n;
   }
   const balance = await client.readContract({
-    address: usdc.usdcAddress,
+    address: usdc.usdcAddress as `0x${string}`,
     abi,
     functionName: "balanceOf",
     args: [address],
