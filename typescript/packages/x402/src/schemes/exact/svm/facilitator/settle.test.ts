@@ -4,7 +4,6 @@ import { type KeyPairSigner, generateKeyPairSigner } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as transactionConfirmation from "@solana/transaction-confirmation";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
-import { Network } from "../../../../types/shared";
 import {
   decodeTransactionFromPayload,
   getRpcClient,
