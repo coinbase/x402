@@ -3,7 +3,7 @@
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useState } from "react";
 import { verifyPayment } from "../actions";
-import { NetworkEnum, PaymentRequirements, PaymentPayload } from "x402/types";
+import { PaymentRequirements, PaymentPayload } from "x402/types";
 import { preparePaymentHeader } from "x402/client";
 import { getNetworkId } from "x402/shared";
 import { encodePayment } from "x402/schemes";
@@ -99,7 +99,7 @@ function PaymentForm({
 export default function Paywall() {
   const paymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia" as NetworkEnum,
+    network: "base-sepolia",
     maxAmountRequired: "10000",
     resource: "https://example.com",
     description: "Payment for a service",

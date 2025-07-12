@@ -14,7 +14,6 @@ import {
   FacilitatorConfig,
   ERC20TokenAmount,
   moneySchema,
-  NetworkEnum,
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
@@ -42,7 +41,7 @@ import { useFacilitator } from "x402/verify";
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: NetworkEnum.BASE_SEPOLIA
+ *     network: 'base-sepolia'
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * ));
@@ -52,7 +51,7 @@ import { useFacilitator } from "x402/verify";
  *   {
  *     '/weather/*': {
  *       price: '$0.001', // USDC amount in dollars
- *       network: NetworkEnum.BASE_SEPOLIA,
+ *       network: 'base',
  *       config: {
  *         description: 'Access to weather data'
  *       }
@@ -113,7 +112,7 @@ export function paymentMiddleware(
 
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
-    if (SupportedEVMNetworks.includes(network as NetworkEnum)) {
+    if (SupportedEVMNetworks.includes(network)) {
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -130,7 +129,7 @@ export function paymentMiddleware(
     }
 
     // svm networks
-    else if (SupportedSVMNetworks.includes(network as NetworkEnum)) {
+    else if (SupportedSVMNetworks.includes(network)) {
       let tempPaymentRequirement: PaymentRequirements = {
         scheme: "exact",
         network,
@@ -185,7 +184,7 @@ export function paymentMiddleware(
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
-            testnet: network === NetworkEnum.BASE_SEPOLIA,
+            testnet: network === "base-sepolia",
             cdpClientKey: paywall?.cdpClientKey,
             appName: paywall?.appName,
             appLogo: paywall?.appLogo,

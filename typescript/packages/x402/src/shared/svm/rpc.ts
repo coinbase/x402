@@ -12,7 +12,7 @@ import {
   RpcSubscriptionsTransportFromClusterUrl,
   ClusterUrl,
 } from "@solana/kit";
-import { NetworkEnum } from "../../types";
+import { Network } from "../../types/shared";
 
 /**
  * Creates a Solana RPC client for the devnet network.
@@ -46,12 +46,13 @@ export function createMainnetRpcClient(url?: string): RpcMainnet<SolanaRpcApiMai
  * @returns The RPC client for the given network
  */
 export function getRpcClient(
-  network: NetworkEnum,
+  network: Network,
   url?: string,
 ): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
-  if (network === NetworkEnum.SOLANA_DEVNET) {
+  // TODO: should the networks be replaced with enum references?
+  if (network === "solana-devnet") {
     return createDevnetRpcClient(url);
-  } else if (network === NetworkEnum.SOLANA_MAINNET) {
+  } else if (network === "solana-mainnet") {
     return createMainnetRpcClient(url);
   } else {
     throw new Error("Invalid network");
@@ -66,15 +67,16 @@ export function getRpcClient(
  * @returns The RPC subscriptions for the given network
  */
 export function getRpcSubscriptions(
-  network: NetworkEnum,
+  network: Network,
   url?: string,
 ): RpcSubscriptionsFromTransport<
   SolanaRpcSubscriptionsApi,
   RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>
 > {
-  if (network === NetworkEnum.SOLANA_DEVNET) {
+  // TODO: should the networks be replaced with enum references?
+  if (network === "solana-devnet") {
     return createSolanaRpcSubscriptions(devnet(url ?? "wss://api.devnet.solana.com"));
-  } else if (network === NetworkEnum.SOLANA_MAINNET) {
+  } else if (network === "solana-mainnet") {
     return createSolanaRpcSubscriptions(mainnet(url ?? "wss://api.mainnet-beta.solana.com"));
   } else {
     throw new Error("Invalid network");

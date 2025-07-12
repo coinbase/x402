@@ -1,38 +1,42 @@
 import { z } from "zod";
 
-export enum NetworkEnum {
-  BASE_SEPOLIA = "base-sepolia",
-  BASE = "base",
-  AVALANCHE_FUJI = "avalanche-fuji",
-  AVALANCHE = "avalanche",
-  IOTEX = "iotex",
-  SOLANA_MAINNET = "solana-mainnet",
-  SOLANA_DEVNET = "solana-devnet",
-}
-
-export const NetworkSchema = z.nativeEnum(NetworkEnum);
+export const NetworkSchema = z.enum([
+  "base-sepolia",
+  "base",
+  "avalanche-fuji",
+  "avalanche",
+  "iotex",
+  "solana-devnet",
+  "solana-mainnet"
+]);
 export type Network = z.infer<typeof NetworkSchema>;
 
+// evm
 export const SupportedEVMNetworks: Network[] = [
-  NetworkEnum.BASE_SEPOLIA,
-  NetworkEnum.BASE,
-  NetworkEnum.AVALANCHE_FUJI,
-  NetworkEnum.AVALANCHE,
-  NetworkEnum.IOTEX,
+  "base-sepolia",
+  "base",
+  "avalanche-fuji",
+  "avalanche",
+  "iotex",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
-  [NetworkEnum.BASE_SEPOLIA, 84532],
-  [NetworkEnum.BASE, 8453],
-  [NetworkEnum.AVALANCHE_FUJI, 43113],
-  [NetworkEnum.AVALANCHE, 43114],
-  [NetworkEnum.IOTEX, 4689],
+  ["base-sepolia", 84532],
+  ["base", 8453],
+  ["avalanche-fuji", 43113],
+  ["avalanche", 43114],
+  ["iotex", 4689],
 ]);
 
+// svm
 export const SupportedSVMNetworks: Network[] = [
-  NetworkEnum.SOLANA_MAINNET,
-  NetworkEnum.SOLANA_DEVNET,
+  "solana-devnet",
+  "solana-mainnet"
 ];
+export const SvmNetworkToChainId = new Map<Network, number>([
+  ["solana-devnet", 103],
+  ["solana-mainnet", 101],
+]);
 
 export const ChainIdToNetwork = Object.fromEntries(
-  SupportedEVMNetworks.map(network => [EvmNetworkToChainId.get(network), network]),
+  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [EvmNetworkToChainId.get(network), network]),
 ) as Record<number, Network>;

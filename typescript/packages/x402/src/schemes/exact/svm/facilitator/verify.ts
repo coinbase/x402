@@ -5,7 +5,7 @@ import {
   ExactSvmPayload,
   ErrorReasons,
 } from "../../../../types/verify";
-import { NetworkEnum, SupportedSVMNetworks } from "../../../../types/shared";
+import { SupportedSVMNetworks } from "../../../../types/shared";
 import {
   Address,
   assertIsInstructionWithAccounts,
@@ -59,7 +59,7 @@ export async function verify(
     // decode the base64 encoded transaction
     const svmPayload = payload.payload as ExactSvmPayload;
     const decodedTransaction = decodeTransactionFromPayload(svmPayload);
-    const rpc = getRpcClient(payload.network as NetworkEnum);
+    const rpc = getRpcClient(payload.network);
 
     // perform transaction introspection to validate the transaction structure and details
     await transactionIntrospection(svmPayload, paymentRequirements, rpc);

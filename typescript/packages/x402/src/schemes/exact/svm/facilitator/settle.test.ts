@@ -4,7 +4,7 @@ import { type KeyPairSigner, generateKeyPairSigner } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as transactionConfirmation from "@solana/transaction-confirmation";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
-import { NetworkEnum } from "../../../../types/shared";
+import { Network } from "../../../../types/shared";
 import {
   decodeTransactionFromPayload,
   getRpcClient,
@@ -60,7 +60,7 @@ describe("SVM Settle", () => {
 
     paymentRequirements = {
       scheme: "exact",
-      network: NetworkEnum.SOLANA_DEVNET,
+      network: "solana-devnet",
       payTo: payToAddress,
       asset: assetAddress,
       maxAmountRequired: "1000",
@@ -75,7 +75,7 @@ describe("SVM Settle", () => {
 
     paymentPayload = {
       scheme: "exact",
-      network: NetworkEnum.SOLANA_DEVNET,
+      network: "solana-devnet",
       x402Version: 1,
       payload: {
         transaction: "base64_encoded_transaction",
@@ -153,7 +153,7 @@ describe("SVM Settle", () => {
         errorReason: undefined,
         payer: signer.address.toString(),
         transaction: "mock_signature_123",
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
       });
     });
 
@@ -173,7 +173,7 @@ describe("SVM Settle", () => {
       expect(result).toEqual({
         success: false,
         errorReason: "invalid_exact_svm_payload_transaction_simulation_failed",
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         transaction: "",
       });
     });
@@ -200,7 +200,7 @@ describe("SVM Settle", () => {
       expect(result).toEqual({
         success: false,
         errorReason: "unexpected_settle_error",
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         transaction: "mock_signature_123",
       });
     });

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { encodePayment, decodePayment } from "./paymentUtils";
 import { PaymentPayload, ExactEvmPayload, ExactSvmPayload } from "../../types/verify";
-import { NetworkEnum, SupportedEVMNetworks, SupportedSVMNetworks } from "../../types";
+import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../types";
 
 // valid exact EVM payload
 const validEvmPayload: ExactEvmPayload = {
@@ -51,7 +51,7 @@ describe("paymentUtils", () => {
   });
 
   it("throws on invalid network in encodePayment", () => {
-    const invalidPayment = { ...validEvmPayment, network: "invalid-network" as NetworkEnum };
+    const invalidPayment = { ...validEvmPayment, network: "invalid-network" };
     expect(() => encodePayment(invalidPayment)).toThrow("Invalid network");
   });
 

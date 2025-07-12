@@ -13,7 +13,6 @@ import {
   decompileTransactionMessageFetchingLookupTables,
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
-import { NetworkEnum } from "../../../../types/shared";
 import { SCHEME } from "../../";
 import * as SvmShared from "../../../../shared/svm";
 import {
@@ -78,7 +77,7 @@ describe("verify", () => {
   describe("verifySchemesAndNetworks", () => {
     const validPayload: PaymentPayload = {
       scheme: SCHEME,
-      network: NetworkEnum.SOLANA_DEVNET,
+      network: "solana-devnet",
       x402Version: 1,
       payload: {
         transaction: "valid_transaction_string",
@@ -87,7 +86,7 @@ describe("verify", () => {
 
     const validRequirements: PaymentRequirements = {
       scheme: SCHEME,
-      network: NetworkEnum.SOLANA_DEVNET,
+      network: "solana-devnet",
       payTo: "someAddress",
       maxAmountRequired: "1000",
       resource: "resource",
@@ -116,7 +115,7 @@ describe("verify", () => {
     });
 
     it("should throw an error for mismatched networks", () => {
-      const invalidPayload = { ...validPayload, network: NetworkEnum.SOLANA_MAINNET };
+      const invalidPayload = { ...validPayload, network: "solana-mainnet" };
       expect(() => verifySchemesAndNetworks(invalidPayload, validRequirements)).toThrow(
         "invalid_network",
       );
@@ -125,11 +124,11 @@ describe("verify", () => {
     it("should throw an error for unsupported network in requirements", () => {
       const invalidRequirements = {
         ...validRequirements,
-        network: "unsupported-network" as NetworkEnum,
+        network: "unsupported-network",
       };
       const invalidPayload = {
         ...validPayload,
-        network: "unsupported-network" as NetworkEnum,
+        network: "unsupported-network",
       };
       expect(() => verifySchemesAndNetworks(invalidPayload, invalidRequirements)).toThrow(
         "invalid_network",
@@ -282,7 +281,7 @@ describe("verify", () => {
       };
       mockPaymentRequirements = {
         scheme: SCHEME,
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
         resource: "resource",
@@ -353,13 +352,13 @@ describe("verify", () => {
       mockSigner = {} as any;
       mockPayload = {
         scheme: SCHEME,
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         x402Version: 1,
         payload: { transaction: "..." } as ExactSvmPayload,
       };
       mockRequirements = {
         scheme: SCHEME,
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
         asset: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",

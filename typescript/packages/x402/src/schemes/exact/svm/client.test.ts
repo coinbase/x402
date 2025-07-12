@@ -8,7 +8,6 @@ import * as paymentUtils from "../../utils/paymentUtils";
 import { PaymentRequirements } from "../../../types/verify";
 import * as rpc from "../../../shared/svm/rpc";
 import { createAndSignPayment, createPaymentHeader } from "./client";
-import { NetworkEnum } from "../../../types/shared";
 
 // Mocking dependencies
 vi.mock("../../../shared/svm/rpc");
@@ -51,7 +50,7 @@ describe("SVM Client", () => {
     const feePayerAddress = (await generateKeyPairSigner()).address;
     paymentRequirements = {
       scheme: "exact",
-      network: NetworkEnum.SOLANA_DEVNET,
+      network: "solana-devnet",
       payTo: payToAddress,
       asset: assetAddress,
       maxAmountRequired: "1000",

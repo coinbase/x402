@@ -1,4 +1,4 @@
-import { Network, NetworkEnum, PaymentRequirements } from "../types";
+import { Network, PaymentRequirements } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
 
@@ -15,10 +15,10 @@ import { getNetworkId } from "../shared/network";
 export function selectPaymentRequirements(paymentRequirements: PaymentRequirements[], network?: Network, scheme?: "exact"): PaymentRequirements {
   // Sort `base` payment requirements to the front of the list. This is to ensure that base is preferred if available.
   paymentRequirements.sort((a, b) => {
-    if (a.network === NetworkEnum.BASE && b.network !== NetworkEnum.BASE) {
+    if (a.network === "base" && b.network !== "base") {
       return -1;
     }
-    if (a.network !== NetworkEnum.BASE && b.network === NetworkEnum.BASE) {
+    if (a.network !== "base" && b.network === "base") {
       return 1;
     }
     return 0;

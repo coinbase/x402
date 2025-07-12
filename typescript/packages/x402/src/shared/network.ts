@@ -1,4 +1,4 @@
-import { EvmNetworkToChainId, Network, NetworkEnum } from "../types/shared";
+import { EvmNetworkToChainId, Network, SvmNetworkToChainId } from "../types/shared";
 
 /**
  * Converts a network name to its corresponding chain ID
@@ -7,12 +7,12 @@ import { EvmNetworkToChainId, Network, NetworkEnum } from "../types/shared";
  * @returns The chain ID for the specified network
  * @throws Error if the network is not supported
  */
-export function getNetworkId(network: Network): number | NetworkEnum {
+export function getNetworkId(network: Network): number {
   if (EvmNetworkToChainId.has(network)) {
     return EvmNetworkToChainId.get(network)!;
   }
-  if (network === NetworkEnum.SOLANA_MAINNET || network === NetworkEnum.SOLANA_DEVNET) {
-    return network;
+  if (SvmNetworkToChainId.has(network)) {
+    return SvmNetworkToChainId.get(network)!;
   }
   throw new Error(`Unsupported network: ${network}`);
 }

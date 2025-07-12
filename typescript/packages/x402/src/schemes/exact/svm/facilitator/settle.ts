@@ -5,7 +5,6 @@ import {
   ExactSvmPayload,
   ErrorReasons,
 } from "../../../../types/verify";
-import { NetworkEnum } from "../../../../types/shared";
 import {
   assertIsTransactionMessageWithBlockhashLifetime,
   Commitment,
@@ -64,8 +63,8 @@ export async function settle(
   const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
   const payer = signer.address.toString();
 
-  const rpc = getRpcClient(payload.network as NetworkEnum);
-  const rpcSubscriptions = getRpcSubscriptions(payload.network as NetworkEnum);
+  const rpc = getRpcClient(payload.network);
+  const rpcSubscriptions = getRpcSubscriptions(payload.network);
 
   try {
     const { success, errorReason, signature } = await sendAndConfirmSignedTransaction(

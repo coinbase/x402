@@ -9,7 +9,6 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
-  NetworkEnum,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -92,14 +91,14 @@ export function findMatchingRoute(
  */
 export function getDefaultAsset(network: Network) {
   // solana mainnet
-  if (network === NetworkEnum.SOLANA_MAINNET) {
+  if (network === "solana-mainnet") {
     return {
       address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       decimals: 6,
     };
   }
   // solana devnet
-  if (network === NetworkEnum.SOLANA_DEVNET) {
+  if (network === "solana-devnet") {
     return {
       address: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
       decimals: 6,
@@ -108,7 +107,7 @@ export function getDefaultAsset(network: Network) {
 
   // evm-based
   const chainId = getNetworkId(network);
-  const usdc = getUsdcChainConfigForChain(chainId as number);
+  const usdc = getUsdcChainConfigForChain(chainId);
   if (!usdc) {
     throw new Error(`Unable to get default asset on ${network}`);
   }

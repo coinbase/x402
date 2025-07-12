@@ -8,7 +8,6 @@ import {
   RoutesConfig,
   FacilitatorConfig,
   RouteConfig,
-  NetworkEnum,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
@@ -116,7 +115,7 @@ describe("paymentMiddleware()", () => {
   const routesConfig: RoutesConfig = {
     "/test": {
       price: "$0.001",
-      network: NetworkEnum.BASE_SEPOLIA,
+      network: "base-sepolia",
       config: middlewareConfig,
     },
   };
@@ -124,7 +123,7 @@ describe("paymentMiddleware()", () => {
   const validPayment: PaymentPayload = {
     scheme: "exact",
     x402Version: 1,
-    network: NetworkEnum.BASE_SEPOLIA,
+    network: "base-sepolia",
     payload: {
       signature: "0x123",
       authorization: {
@@ -183,7 +182,7 @@ describe("paymentMiddleware()", () => {
           verb: "GET",
           config: {
             price: "$0.001",
-            network: NetworkEnum.BASE_SEPOLIA,
+            network: "base-sepolia",
             config: middlewareConfig,
           },
         };
@@ -254,7 +253,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: NetworkEnum.BASE_SEPOLIA,
+          network: "base-sepolia",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -287,7 +286,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: NetworkEnum.BASE_SEPOLIA,
+          network: "base-sepolia",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -313,7 +312,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: NetworkEnum.BASE_SEPOLIA,
+      network: "base-sepolia",
     });
 
     // Mock response.end to capture arguments
@@ -347,7 +346,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: NetworkEnum.BASE_SEPOLIA,
+          network: "base-sepolia",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -374,7 +373,7 @@ describe("paymentMiddleware()", () => {
       success: false,
       errorReason: "invalid_transaction_state",
       transaction: "0x123",
-      network: NetworkEnum.BASE_SEPOLIA,
+      network: "base-sepolia",
       payer: "0x123",
     });
 
@@ -387,7 +386,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: NetworkEnum.BASE_SEPOLIA,
+          network: "base-sepolia",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -437,7 +436,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: NetworkEnum.BASE_SEPOLIA,
+      network: "base-sepolia",
     });
 
     // Simulate downstream handler setting status 500
@@ -462,7 +461,7 @@ describe("paymentMiddleware()", () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/test": {
         price: "$0.001",
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         config: middlewareConfig,
       },
     };
@@ -476,7 +475,7 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       config: {
         price: "$0.001",
-        network: NetworkEnum.SOLANA_DEVNET,
+        network: "solana-devnet",
         config: middlewareConfig,
       },
     });
@@ -496,7 +495,7 @@ describe("paymentMiddleware()", () => {
       expect.objectContaining({
         accepts: expect.arrayContaining([
           expect.objectContaining({
-            network: NetworkEnum.SOLANA_DEVNET,
+            network: "solana-devnet",
             payTo: solanaPayTo,
             extra: expect.objectContaining({
               feePayer: feePayerResponse.feePayer,
@@ -514,7 +513,7 @@ describe("paymentMiddleware()", () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/test": {
         price: "$0.001",
-        network: NetworkEnum.SOLANA_MAINNET,
+        network: "solana-mainnet",
         config: middlewareConfig,
       },
     };
@@ -528,7 +527,7 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       config: {
         price: "$0.001",
-        network: NetworkEnum.SOLANA_MAINNET,
+        network: "solana-mainnet",
         config: middlewareConfig,
       },
     });
@@ -548,7 +547,7 @@ describe("paymentMiddleware()", () => {
       expect.objectContaining({
         accepts: expect.arrayContaining([
           expect.objectContaining({
-            network: NetworkEnum.SOLANA_MAINNET,
+            network: "solana-mainnet",
             payTo: solanaPayTo,
             extra: expect.objectContaining({
               feePayer: feePayerResponse.feePayer,

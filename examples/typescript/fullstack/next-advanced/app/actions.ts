@@ -3,14 +3,14 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { useFacilitator } from "x402/verify";
-import { NetworkEnum, PaymentRequirements } from "x402/types";
+import { PaymentRequirements } from "x402/types";
 import { exact } from "x402/schemes";
 
 export async function verifyPayment(payload: string): Promise<string> {
   // right now this needs to be defined in 2 places, we'll clean this up with a proper nextjs abstraction
   const paymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia" as NetworkEnum,
+    network: "base-sepolia",
     maxAmountRequired: "10000",
     resource: "https://example.com",
     description: "Payment for a service",

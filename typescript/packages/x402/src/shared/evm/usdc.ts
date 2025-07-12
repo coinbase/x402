@@ -2,7 +2,6 @@ import { Account, Address, Chain, Client, Transport } from "viem";
 import { ChainConfig, config } from "../../types/shared/config";
 import { usdcABI as abi } from "../../types/shared/evm/erc20PermitABI";
 import { ConnectedClient } from "../../types/shared/evm/wallet";
-import { NetworkEnum } from "../../types/shared";
 
 /**
  * Gets the USDC contract address for the current chain from the client
@@ -25,7 +24,7 @@ export function getUsdcAddress<
  * @param chainId - The chain ID to get the USDC contract address for
  * @returns The USDC contract address for the specified chain
  */
-export function getUsdcAddressForChain(chainId: number | NetworkEnum): Address {
+export function getUsdcAddressForChain(chainId: number): Address {
   return config[chainId.toString()].usdcAddress as Address;
 }
 
@@ -86,7 +85,7 @@ export async function getUSDCBalance<
     return 0n;
   }
   const balance = await client.readContract({
-    address: usdc.usdcAddress,
+    address: usdc.usdcAddress as `0x${string}`,
     abi,
     functionName: "balanceOf",
     args: [address],
