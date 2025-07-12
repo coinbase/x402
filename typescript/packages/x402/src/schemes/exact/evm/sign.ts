@@ -1,4 +1,4 @@
-import { Address, Chain, Hex, LocalAccount, toHex, Transport } from "viem";
+import { Chain, getAddress, Hex, LocalAccount, toHex, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import {
   authorizationTypes,
@@ -40,12 +40,12 @@ export async function signAuthorization<transport extends Transport, chain exten
       name,
       version,
       chainId,
-      verifyingContract: asset as Address,
+      verifyingContract: getAddress(asset),
     },
     primaryType: "TransferWithAuthorization" as const,
     message: {
-      from,
-      to,
+      from: getAddress(from),
+      to: getAddress(to),
       value,
       validAfter,
       validBefore,

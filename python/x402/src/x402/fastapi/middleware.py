@@ -1,113 +1,87 @@
 import base64
-import fnmatch
 import json
-import re
-from typing import Any, Callable, Optional
+import logging
+from typing import Any, Callable, Optional, get_args, cast
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import validate_call
 
-from x402.chains import get_chain_id, get_token_name, get_token_version
-from x402.common import parse_money, x402_VERSION
-from x402.facilitator import FacilitatorClient
-from x402.types import PaymentPayload, PaymentRequirements, x402PaymentRequiredResponse
+from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.encoding import safe_base64_decode
+from x402.facilitator import FacilitatorClient, FacilitatorConfig
+from x402.path import path_is_match
+from x402.paywall import is_browser_request, get_paywall_html
+from x402.types import (
+    PaymentPayload,
+    PaymentRequirements,
+    Price,
+    x402PaymentRequiredResponse,
+    PaywallConfig,
+    SupportedNetworks,
+)
 
-
-def get_usdc_address(chain_id: int | str) -> str:
-    """Get the USDC contract address for a given chain ID"""
-    if isinstance(chain_id, str):
-        chain_id = int(chain_id)
-    if chain_id == 84532:  # Base Sepolia testnet
-        return "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
-    elif chain_id == 8453:  # Base mainnet
-        return "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    raise ValueError(f"Unsupported chain ID: {chain_id}")
-
-
-def _path_is_match(path: str | list[str], request_path: str) -> bool:
-    """
-    Check if request path matches the specified path pattern(s).
-
-    Supports:
-    - Exact matching: "/api/users"
-    - Glob patterns: "/api/users/*", "/api/*/profile"
-    - Regex patterns (prefix with 'regex:'): "regex:^/api/users/\d+$"
-    - List of any of the above
-    """
-
-    def single_path_match(pattern: str) -> bool:
-        # Regex pattern
-        if pattern.startswith("regex:"):
-            regex_pattern = pattern[6:]  # Remove 'regex:' prefix
-            return bool(re.match(regex_pattern, request_path))
-
-        # Glob pattern (contains * or ?)
-        elif "*" in pattern or "?" in pattern:
-            return fnmatch.fnmatch(request_path, pattern)
-
-        # Exact match
-        else:
-            return pattern == request_path
-
-    if isinstance(path, str):
-        return single_path_match(path)
-    elif isinstance(path, list):
-        return any(single_path_match(p) for p in path)
-
-    return False
+logger = logging.getLogger(__name__)
 
 
 @validate_call
 def require_payment(
-    amount: str | int,
+    price: Price,
     pay_to_address: str,
     path: str | list[str] = "*",
-    asset: str = "",
     description: str = "",
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     output_schema: Any = None,
-    facilitator_url: str = "https://x402.org/facilitator",
-    network_id: str = "84532",
+    facilitator_config: Optional[FacilitatorConfig] = None,
+    network: str = "base-sepolia",
     resource: Optional[str] = None,
+    paywall_config: Optional[PaywallConfig] = None,
+    custom_paywall_html: Optional[str] = None,
 ):
     """Generate a FastAPI middleware that gates payments for an endpoint.
-    Note:
-        FastAPI doesn't support path matching when applying middleware, path can either be "*" or an exact path or list of paths.
-            ex: "*", "/foo", ["/foo", "/bar"]
+
     Args:
-        amount (str | int): Payment amount in USD (e.g. "$3.10", 0.10, "0.001" or 10000 as units of token)
-        pay_to_address (str): Ethereum pay_to_address to receive the payment
+        price (Price): Payment price. Can be:
+            - Money: USD amount as string/int (e.g., "$3.10", 0.10, "0.001") - defaults to USDC
+            - TokenAmount: Custom token amount with asset information
+        pay_to_address (str): Ethereum address to receive the payment
         path (str | list[str], optional): Path to gate with payments. Defaults to "*" for all paths.
         description (str, optional): Description of what is being purchased. Defaults to "".
         mime_type (str, optional): MIME type of the resource. Defaults to "".
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
         output_schema (Any, optional): JSON schema for the response. Defaults to None.
-        facilitator_url (str, optional): URL of the payment facilitator. Defaults to "https://x402.org/facilitator".
-        network_id (str, optional): Ethereum network ID. Defaults to "84532" (Base Sepolia testnet).
-        custom_paywall_html (str, optional): Custom HTML to show when payment is required. Defaults to "".
+        facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
+            If not provided, defaults to the public x402.org facilitator.
+        network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
+        paywall_config (Optional[PaywallConfig], optional): Configuration for paywall UI customization.
+            Includes options like cdp_client_key, app_name, app_logo, session_token_endpoint.
+        custom_paywall_html (Optional[str], optional): Custom HTML to display for paywall instead of default.
+
     Returns:
         Callable: FastAPI middleware function that checks for valid payment before processing requests
     """
 
-    if asset == "":
-        asset = get_usdc_address(get_chain_id(network_id))
-
-    try:
-        parsed_amount = parse_money(amount, asset, network_id)
-    except Exception as e:
+    # Validate network is supported
+    supported_networks = get_args(SupportedNetworks)
+    if network not in supported_networks:
         raise ValueError(
-            f"Invalid amount: {amount}. Must be in the form '$3.10', 0.10, '0.001'. Error: {e}"
+            f"Unsupported network: {network}. Must be one of: {supported_networks}"
         )
 
-    facilitator = FacilitatorClient(facilitator_url)
+    try:
+        max_amount_required, asset_address, eip712_domain = (
+            process_price_to_atomic_amount(price, network)
+        )
+    except Exception as e:
+        raise ValueError(f"Invalid price: {price}. Error: {e}")
+
+    facilitator = FacilitatorClient(facilitator_config)
 
     async def middleware(request: Request, call_next: Callable):
         # Skip if the path is not the same as the path in the middleware
-        if not _path_is_match(path, request.url.path):
+        if not path_is_match(path, request.url.path):
             return await call_next(request)
 
         # Get resource URL if not explicitly provided
@@ -116,46 +90,57 @@ def require_payment(
         # Ensure output_schema and extra are objects, not null
         output_schema_obj = {} if output_schema is None else output_schema
 
-        # Get token name and version for EIP-712 signing
-        chain_id = get_chain_id(network_id)
-        token_name = get_token_name(chain_id, asset)
-        token_version = get_token_version(chain_id, asset)
-
         # Construct payment details
         payment_requirements = [
             PaymentRequirements(
                 scheme="exact",
-                network=network_id,
-                asset=asset,
-                max_amount_required=str(parsed_amount),
+                network=cast(SupportedNetworks, network),
+                asset=asset_address,
+                max_amount_required=max_amount_required,
                 resource=resource_url,
                 description=description,
                 mime_type=mime_type,
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,
                 output_schema=output_schema_obj,
-                extra={
-                    "name": token_name,
-                    "version": token_version,
-                },
+                extra=eip712_domain,
             )
         ]
 
         def x402_response(error: str):
-            return JSONResponse(
-                content=x402PaymentRequiredResponse(
+            """Create a 402 response with payment requirements."""
+            request_headers = dict(request.headers)
+            status_code = 402
+
+            if is_browser_request(request_headers):
+                html_content = custom_paywall_html or get_paywall_html(
+                    error, payment_requirements, paywall_config
+                )
+                headers = {"Content-Type": "text/html; charset=utf-8"}
+
+                return HTMLResponse(
+                    content=html_content,
+                    status_code=status_code,
+                    headers=headers,
+                )
+            else:
+                response_data = x402PaymentRequiredResponse(
                     x402_version=x402_VERSION,
                     accepts=payment_requirements,
                     error=error,
-                ).model_dump(),
-                status_code=402,
-            )
+                ).model_dump(by_alias=True)
+                headers = {"Content-Type": "application/json"}
+
+                return JSONResponse(
+                    content=response_data,
+                    status_code=status_code,
+                    headers=headers,
+                )
 
         # Check for payment header
         payment_header = request.headers.get("X-PAYMENT", "")
 
-        if payment_header == "":  # Return JSON response for API requests
-            # TODO: add support for html paywall
+        if payment_header == "":
             return x402_response("No X-PAYMENT header provided")
 
         # Decode payment header
@@ -163,7 +148,10 @@ def require_payment(
             payment_dict = json.loads(safe_base64_decode(payment_header))
             payment = PaymentPayload(**payment_dict)
         except Exception as e:
-            return x402_response(f"Invalid payment header format: {str(e)}")
+            logger.warning(
+                f"Invalid payment header format from {request.client.host if request.client else 'unknown'}: {str(e)}"
+            )
+            return x402_response("Invalid payment header format")
 
         # Find matching payment requirements
         selected_payment_requirements = next(
@@ -184,7 +172,8 @@ def require_payment(
         )
 
         if not verify_response.is_valid:
-            return x402_response("Invalid payment: " + verify_response.invalid_reason)
+            error_reason = verify_response.invalid_reason or "Unknown error"
+            return x402_response(f"Invalid payment: {error_reason}")
 
         request.state.payment_details = selected_payment_requirements
         request.state.verify_response = verify_response
@@ -203,10 +192,13 @@ def require_payment(
             )
             if settle_response.success:
                 response.headers["X-PAYMENT-RESPONSE"] = base64.b64encode(
-                    settle_response.model_dump_json().encode("utf-8")
+                    settle_response.model_dump_json(by_alias=True).encode("utf-8")
                 ).decode("utf-8")
             else:
-                return x402_response("Settle failed: " + settle_response.error)
+                return x402_response(
+                    "Settle failed: "
+                    + (settle_response.error_reason or "Unknown error")
+                )
         except Exception:
             return x402_response("Settle failed")
 

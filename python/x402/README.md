@@ -13,8 +13,9 @@ pip install x402
 The x402 package provides the core building blocks for implementing the x402 Payment Protocol in Python. It's designed to be used by:
 
 - FastAPI middleware for accepting payments
-- HTTP clients for paying resources (httpx and requests)
-- Custom integrations
+- Flask middleware for accepting payments
+- httpx client for paying resources
+- requests client for paying resources
 
 ## FastAPI Integration
 
@@ -26,7 +27,7 @@ from x402.fastapi.middleware import require_payment
 
 app = FastAPI()
 app.middleware("http")(
-    require_payment(amount="0.01", pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
+    require_payment(price="0.01", pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C")
 )
 
 @app.get("/")
@@ -38,9 +39,44 @@ To protect specific routes:
 
 ```py
 app.middleware("http")(
-    require_payment(amount="0.01",
+    require_payment(price="0.01",
     pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C"),
     path="/foo"  # <-- this can also be a list ex: ["/foo", "/bar"]
+)
+```
+
+## Flask Integration
+
+The simplest way to add x402 payment protection to your Flask application:
+
+```py
+from flask import Flask
+from x402.flask.middleware import PaymentMiddleware
+
+app = Flask(__name__)
+
+# Initialize payment middleware
+payment_middleware = PaymentMiddleware(app)
+
+# Add payment protection for all routes
+payment_middleware.add(
+    price="$0.01",
+    pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+)
+
+@app.route("/")
+def root():
+    return {"message": "Hello World"}
+```
+
+To protect specific routes:
+
+```py
+# Protect specific endpoint
+payment_middleware.add(
+    path="/foo",
+    price="$0.001",
+    pay_to_address="0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
 )
 ```
 
@@ -151,7 +187,7 @@ async def foo(req: request: Request):
     if payment_header == "":
         payment_required.error = "X-PAYMENT header not set"
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
     
@@ -161,7 +197,7 @@ async def foo(req: request: Request):
     if not verify_response.is_valid:
         payment_required.error = "Invalid payment"
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
 
@@ -173,7 +209,7 @@ async def foo(req: request: Request):
     else:
         payment_required.error = "Settle failed: " + settle_response.error
         return JSONResponse(
-            content=payment_required.model_dump(),
+            content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
 ```
