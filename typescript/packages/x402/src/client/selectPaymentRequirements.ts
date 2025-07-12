@@ -1,12 +1,12 @@
 import { Network, NetworkEnum, PaymentRequirements } from "../types";
-import { getUsdcAddressForChain } from "../shared/evm";
+import { getUsdcChainConfigForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
 
 /**
  * Default selector for payment requirements.
  * Default behavior is to select the first payment requirement that has a USDC asset.
  * If no USDC payment requirement is found, the first payment requirement is selected.
- * 
+ *
  * @param paymentRequirements - The payment requirements to select from.
  * @param network - The network to check against. If not provided, the network will not be checked.
  * @param scheme - The scheme to check against. If not provided, the scheme will not be checked.
@@ -37,7 +37,7 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
   // Filter down to USDC requirements
   const usdcRequirements = broadlyAcceptedPaymentRequirements.filter(requirement => {
     // If the address is a USDC address, we return it.
-    return requirement.asset === getUsdcAddressForChain(getNetworkId(requirement.network));
+    return requirement.asset === getUsdcChainConfigForChain(getNetworkId(requirement.network))?.usdcAddress;
   });
 
   // Prioritize USDC requirements if available
@@ -54,7 +54,7 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
 
 /**
  * Selector for payment requirements.
- * 
+ *
  * @param paymentRequirements - The payment requirements to select from.
  * @param network - The network to check against. If not provided, the network will not be checked.
  * @param scheme - The scheme to check against. If not provided, the scheme will not be checked.

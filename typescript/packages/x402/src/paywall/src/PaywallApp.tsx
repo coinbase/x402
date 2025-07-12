@@ -37,6 +37,7 @@ export function PaywallApp() {
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
   const [isPaying, setIsPaying] = useState(false);
   const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
+  const [hideBalance, setHideBalance] = useState(true);
 
   const x402 = window.x402;
   const amount = x402.amount || 0;
@@ -255,7 +256,11 @@ export function PaywallApp() {
               <div className="payment-row">
                 <span className="payment-label">Available balance:</span>
                 <span className="payment-value">
-                  {formattedUsdcBalance ? `$${formattedUsdcBalance} USDC` : "Loading..."}
+                  <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
+                    {formattedUsdcBalance && !hideBalance
+                      ? `$${formattedUsdcBalance} USDC`
+                      : "••••• USDC"}
+                  </button>
                 </span>
               </div>
               <div className="payment-row">

@@ -13,7 +13,7 @@ import {
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
-import { getUsdcAddressForChain } from "./evm";
+import { getUsdcChainConfigForChain } from "./evm";
 import { getNetworkId } from "./network";
 
 /**
@@ -107,11 +107,16 @@ export function getDefaultAsset(network: Network) {
   }
 
   // evm-based
+  const chainId = getNetworkId(network);
+  const usdc = getUsdcChainConfigForChain(chainId as number);
+  if (!usdc) {
+    throw new Error(`Unable to get default asset on ${network}`);
+  }
   return {
-    address: getUsdcAddressForChain(getNetworkId(network)),
+    address: usdc.usdcAddress,
     decimals: 6,
     eip712: {
-      name: network === "base" ? "USD Coin" : network === "iotex" ? "Bridged USDC" : "USDC",
+      name: usdc.usdcName,
       version: "2",
     },
   };

@@ -1,5 +1,5 @@
 import { Account, Address, Chain, Client, Transport } from "viem";
-import { config } from "../../types/shared/config";
+import { ChainConfig, config } from "../../types/shared/config";
 import { usdcABI as abi } from "../../types/shared/evm/erc20PermitABI";
 import { ConnectedClient } from "../../types/shared/evm/wallet";
 import { NetworkEnum } from "../../types/shared";
@@ -21,11 +21,22 @@ export function getUsdcAddress<
 /**
  * Gets the USDC contract address for a specific chain ID
  *
+ * @deprecated Use `getUsdcChainConfigForChain` instead
  * @param chainId - The chain ID to get the USDC contract address for
  * @returns The USDC contract address for the specified chain
  */
 export function getUsdcAddressForChain(chainId: number | NetworkEnum): Address {
   return config[chainId.toString()].usdcAddress as Address;
+}
+
+/**
+ * Gets the USDC address and eip712 domain name for a specific chain ID
+ *
+ * @param chainId - The chain ID
+ * @returns The USDC contract address and eip712 domain name  for the specified chain
+ */
+export function getUsdcChainConfigForChain(chainId: number): ChainConfig | undefined {
+  return config[chainId.toString()];
 }
 
 // Cache for storing the version value
@@ -69,8 +80,13 @@ export async function getUSDCBalance<
   chain extends Chain,
   account extends Account | undefined = undefined,
 >(client: ConnectedClient<transport, chain, account>, address: Address): Promise<bigint> {
+  const chainId = client.chain!.id;
+  const usdc = getUsdcChainConfigForChain(chainId);
+  if (!usdc) {
+    return 0n;
+  }
   const balance = await client.readContract({
-    address: getUsdcAddressForChain(client.chain!.id),
+    address: usdc.usdcAddress,
     abi,
     functionName: "balanceOf",
     args: [address],

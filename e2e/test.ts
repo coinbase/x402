@@ -1,67 +1,47 @@
 import { config } from 'dotenv';
 import { TestDiscovery } from './src/discovery';
 import { ServerConfig, ClientConfig, ScenarioResult } from './src/types';
-import { createWriteStream, WriteStream } from 'fs';
+import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
 
 // Load environment variables
 config();
 
-// Helper function to write to both console and log file
-function log(message: string, toFile: boolean = true) {
-  console.log(message);
-  if (logStream && toFile) {
-    logStream.write(message + '\n');
-  }
-}
-
 // Parse command line arguments
 const args = process.argv.slice(2);
 
-// Parse verbose test numbers (e.g., -v 54 55 56)
-const verboseTestNumbers = new Set<number>();
-const verboseIndex = args.findIndex(arg => arg === '-v' || arg === '--verbose');
-if (verboseIndex !== -1) {
-  // Check if there are numbers after -v
-  let hasNumbers = false;
-  for (let i = verboseIndex + 1; i < args.length; i++) {
-    const num = parseInt(args[i]);
-    if (!isNaN(num)) {
-      verboseTestNumbers.add(num);
-      hasNumbers = true;
-    } else {
-      // Stop at first non-number
-      break;
-    }
-  }
+// Parse dev mode flag (sets network=base-sepolia, prod=false)
+const isDevMode = args.includes('--dev') || args.includes('-d');
 
-  // If no numbers provided, make all tests verbose
-  if (!hasNumbers) {
-    verboseTestNumbers.add(-1); // Special marker for "all tests"
-  }
-}
+// Parse verbose flag
+const isVerbose = args.includes('-v') || args.includes('--verbose');
+
+// Parse language flags
+const languageFilters: string[] = [];
+if (args.includes('-ts') || args.includes('--typescript')) languageFilters.push('typescript');
+if (args.includes('-py') || args.includes('--python')) languageFilters.push('python');
+if (args.includes('-go') || args.includes('--go')) languageFilters.push('go');
 
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = args.find(arg => arg.startsWith('--network='))?.split('=')[1];
-const facilitatorFilter = args.find(arg => arg.startsWith('--facilitator='))?.split('=')[1];
+const networkFilter = isDevMode ? 'base-sepolia' : args.find(arg => arg.startsWith('--network='))?.split('=')[1];
+const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
 
 // Parse log file argument
 const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
-let logStream: WriteStream | null = null;
+
+// Initialize logger
+loggerConfig({ logFile, verbose: isVerbose });
 
 async function runCallProtectedScenario(
   server: any,
   client: any,
   serverConfig: ServerConfig,
-  callConfig: ClientConfig,
-  isVerbose: boolean = false
+  callConfig: ClientConfig
 ): Promise<ScenarioResult> {
   try {
-    if (isVerbose) {
-      log(`  🚀 Starting server with config: ${JSON.stringify(serverConfig, null, 2)}`);
-    }
-    await server.start(serverConfig, isVerbose);
+    verboseLog(`  🚀 Starting server with config: ${JSON.stringify(serverConfig, null, 2)}`);
+    await server.start(serverConfig);
 
     // Wait for server to be healthy before proceeding
     let healthCheckAttempts = 0;
@@ -69,13 +49,10 @@ async function runCallProtectedScenario(
 
     while (healthCheckAttempts < maxHealthCheckAttempts) {
       const healthResult = await server.health();
-      if (isVerbose) {
-        log(`  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${healthResult.success ? '✅' : '❌'}`);
-      }
+      verboseLog(`  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${healthResult.success ? '✅' : '❌'}`);
+
       if (healthResult.success) {
-        if (isVerbose) {
-          log(`  ✅ Server is healthy after ${healthCheckAttempts + 1} attempts`);
-        }
+        verboseLog(`  ✅ Server is healthy after ${healthCheckAttempts + 1} attempts`);
         break;
       }
 
@@ -84,23 +61,17 @@ async function runCallProtectedScenario(
     }
 
     if (healthCheckAttempts >= maxHealthCheckAttempts) {
-      if (isVerbose) {
-        log(`  ❌ Server failed to become healthy after ${maxHealthCheckAttempts} attempts`);
-      }
+      verboseLog(`  ❌ Server failed to become healthy after ${maxHealthCheckAttempts} attempts`);
       return {
         success: false,
         error: 'Server failed to become healthy after maximum attempts'
       };
     }
 
-    if (isVerbose) {
-      log(`  📞 Making client call with config: ${JSON.stringify(callConfig, null, 2)}`);
-    }
-    const result = await client.call(callConfig, isVerbose);
+    verboseLog(`  📞 Making client call with config: ${JSON.stringify(callConfig, null, 2)}`);
+    const result = await client.call(callConfig);
 
-    if (isVerbose) {
-      log(`  📊 Client call result: ${JSON.stringify(result, null, 2)}`);
-    }
+    verboseLog(`  📊 Client call result: ${JSON.stringify(result, null, 2)}`);
 
     if (result.success) {
       return {
@@ -117,18 +88,14 @@ async function runCallProtectedScenario(
     }
 
   } catch (error) {
-    if (isVerbose) {
-      log(`  💥 Scenario failed with error: ${error}`);
-    }
+    verboseLog(`  💥 Scenario failed with error: ${error}`);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error)
     };
   } finally {
     // Cleanup
-    if (isVerbose) {
-      log(`  🧹 Cleaning up server and client processes`);
-    }
+    verboseLog(`  🧹 Cleaning up server and client processes`);
     await server.stop();
     await client.forceStop();
   }
@@ -137,50 +104,36 @@ async function runCallProtectedScenario(
 async function runTest() {
   // Show help if requested
   if (args.includes('-h') || args.includes('--help')) {
-    console.log('🚀 X402 E2E Test Suite');
-    console.log('======================');
-    console.log('');
     console.log('Usage: npm test [options]');
     console.log('');
     console.log('Options:');
-    console.log('  -v [test_numbers...]       Enable verbose logging for specific test numbers');
+    console.log('Environment:');
+    console.log('  -d, --dev                  Development mode (base-sepolia, no CDP)');
+    console.log('  -v, --verbose              Enable verbose logging');
+    console.log('  -ts, --typescript          Include TypeScript implementations');
+    console.log('  -py, --python              Include Python implementations');
+    console.log('  -go, --go                  Include Go implementations');
+    console.log('');
+    console.log('Filters:');
     console.log('  --log-file=<path>          Save verbose output to file');
-    console.log('  --client=<name>            Filter by client name (e.g., httpx, axios)');
-    console.log('  --server=<name>            Filter by server name (e.g., express, fastapi)');
-    console.log('  --network=<name>           Filter by network (e.g., base, base-sepolia)');
-    console.log('  --facilitator=<true|false> Filter by facilitator usage');
+    console.log('  --client=<n>               Filter by client name (e.g., httpx, axios)');
+    console.log('  --server=<n>               Filter by server name (e.g., express, fastapi)');
+    console.log('  --network=<n>              Filter by network (base, base-sepolia)');
+    console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
-    console.log('  npm test -- -v              # Run all tests with verbose logging');
-    console.log('  npm test -- -v 54           # Run all tests, verbose for test #54');
-    console.log('  npm test -- -v 54 55 56     # Run all tests, verbose for tests #54, #55, #56');
-    console.log('  npm test -- -v --log-file=test.log  # Save all verbose output to test.log');
-    console.log('  npm test -- --client=httpx --server=express -v 1');
+    console.log('  pnpm test                         # Run all tests');
+    console.log('  pnpm test -d                      # Run tests in development mode');
+    console.log('  pnpm test -py -go                 # Test Python and Go implementations');
+    console.log('  pnpm test -ts --client=axios      # Test TypeScript axios client');
+    console.log('  pnpm test -d -py                  # Dev mode, Python implementations only');
+    console.log('  pnpm test --network=base --prod=true # Base mainnet only');
     console.log('');
     return;
   }
 
-  // Initialize log file if specified
-  if (logFile) {
-    try {
-      logStream = createWriteStream(logFile);
-      log(`🚀 X402 E2E Test Suite - Log started at ${new Date().toISOString()}`);
-      log(`📝 Logging verbose output to: ${logFile}`);
-    } catch (error) {
-      console.error(`Failed to create log file ${logFile}:`, error);
-      process.exit(1);
-    }
-  }
-
   log('🚀 Starting X402 E2E Test Suite');
-  if (verboseTestNumbers.size > 0) {
-    if (verboseTestNumbers.has(-1)) {
-      log('🔍 Verbose mode enabled for all tests');
-    } else {
-      log(`🔍 Verbose mode enabled for tests: ${Array.from(verboseTestNumbers).sort((a, b) => a - b).join(', ')}`);
-    }
-  }
   log('===============================');
 
   // Load configuration from environment
@@ -189,48 +142,85 @@ async function runTest() {
   const serverPort = parseInt(process.env.SERVER_PORT || '4021');
 
   if (!serverAddress || !clientPrivateKey) {
-    console.error('❌ Missing required environment variables:');
-    console.error('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
+    errorLog('❌ Missing required environment variables:');
+    errorLog('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
     process.exit(1);
   }
 
   // Discover all servers and clients
-  const discovery = new TestDiscovery();
-  discovery.printDiscoverySummary(log);
+  const discovery = new TestDiscovery('.');
+  discovery.printDiscoverySummary();
 
   const scenarios = discovery.generateTestScenarios();
 
   if (scenarios.length === 0) {
-    console.log('❌ No test scenarios found');
+    log('❌ No test scenarios found');
     return;
+  }
+
+  // Count active filters
+  interface FilterInfo {
+    name: string;
+    value: string;
+  }
+
+  const activeFilters: FilterInfo[] = [
+    languageFilters.length > 0 && { name: 'Languages', value: languageFilters.join(', ') },
+    clientFilter && { name: 'Client', value: clientFilter },
+    serverFilter && { name: 'Server', value: serverFilter },
+    networkFilter && { name: 'Network', value: networkFilter },
+    prodFilter && { name: 'Production', value: prodFilter }
+  ].filter((f): f is FilterInfo => f !== null && f !== undefined);
+
+  log('📊 Test Scenarios');
+  log('===============');
+  log(`Total unfiltered scenarios: ${scenarios.length}`);
+  if (activeFilters.length > 0) {
+    log(`Active filters (${activeFilters.length}):`);
+    activeFilters.forEach(filter => {
+      log(`   - ${filter.name}: ${filter.value}`);
+    });
+  } else {
+    log('No active filters');
   }
 
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
-    if (clientFilter && scenario.client.name !== clientFilter) return false;
-    if (serverFilter && scenario.server.name !== serverFilter) return false;
-    if (networkFilter && scenario.facilitatorNetworkCombo.network !== networkFilter) return false;
-    if (facilitatorFilter) {
-      const useFacilitator = facilitatorFilter === 'true';
-      if (scenario.facilitatorNetworkCombo.useCdpFacilitator !== useFacilitator) return false;
+    // Language filter - if languages specified, both client and server must match one of them
+    if (languageFilters.length > 0) {
+      const matchesLanguage = languageFilters.some(lang =>
+        scenario.client.config.language.includes(lang) &&
+        scenario.server.config.language.includes(lang)
+      );
+      if (!matchesLanguage) return false;
     }
+
+    // Client filter - if set, only run tests for this client
+    if (clientFilter && scenario.client.name !== clientFilter) return false;
+
+    // Server filter - if set, only run tests for this server
+    if (serverFilter && scenario.server.name !== serverFilter) return false;
+
+    // Network filter - if set, only run tests for this network
+    if (networkFilter && scenario.facilitatorNetworkCombo.network !== networkFilter) return false;
+
+    // Production filter - if set, filter by production vs testnet scenarios
+    if (prodFilter !== undefined) {
+      const isProd = prodFilter.toLowerCase() === 'true';
+      const isTestnetOnly = !scenario.facilitatorNetworkCombo.useCdpFacilitator && scenario.facilitatorNetworkCombo.network === 'base-sepolia';
+      if (isProd && isTestnetOnly) return false;
+      if (!isProd && !isTestnetOnly) return false;
+    }
+
     return true;
   });
 
   if (filteredScenarios.length === 0) {
-    log('❌ No test scenarios match the specified filters');
-    if (clientFilter) log(`   Client filter: ${clientFilter}`);
-    if (serverFilter) log(`   Server filter: ${serverFilter}`);
-    if (networkFilter) log(`   Network filter: ${networkFilter}`);
-    if (facilitatorFilter) log(`   Facilitator filter: ${facilitatorFilter}`);
+    log('❌ No scenarios match the active filters');
     return;
   }
 
-  log(`🎯 Running ${filteredScenarios.length} filtered scenarios`);
-  if (clientFilter) log(`   Client: ${clientFilter}`);
-  if (serverFilter) log(`   Server: ${serverFilter}`);
-  if (networkFilter) log(`   Network: ${networkFilter}`);
-  if (facilitatorFilter) log(`   Facilitator: ${facilitatorFilter}`);
+  log(`Scenarios to run: ${filteredScenarios.length}`);
   log('');
 
   // Run filtered scenarios
@@ -243,9 +233,6 @@ async function runTest() {
     const combo = scenario.facilitatorNetworkCombo;
     const comboLabel = `useCdpFacilitator=${combo.useCdpFacilitator}, network=${combo.network}`;
     const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path} [${comboLabel}]`;
-
-    // Check if this test should be verbose
-    const isVerbose = verboseTestNumbers.has(-1) || verboseTestNumbers.has(testNumber);
 
     const serverConfig: ServerConfig = {
       port: serverPort,
@@ -262,41 +249,24 @@ async function runTest() {
 
     try {
       log(`🧪 Testing #${testNumber}: ${testName}`);
-      if (isVerbose) {
-        log(`  📋 Scenario details:`);
-        log(`    - Client: ${scenario.client.name} (${scenario.client.config.language})`);
-        log(`    - Server: ${scenario.server.name} (${scenario.server.config.language})`);
-        log(`    - Endpoint: ${scenario.endpoint.path}`);
-        log(`    - Facilitator: ${combo.useCdpFacilitator ? 'CDP' : 'None'}`);
-        log(`    - Network: ${combo.network}`);
-        log('');
-      }
-
       const result = await runCallProtectedScenario(
         scenario.server.proxy,
         scenario.client.proxy,
         serverConfig,
-        callConfig,
-        isVerbose
+        callConfig
       );
 
       if (result.success) {
-        if (isVerbose) {
-          log(`  ✅ Test passed`);
-        }
+        verboseLog(`  ✅ Test passed`);
         passed++;
       } else {
         log(`❌ #${testNumber} ${testName}: ${result.error}`);
-        if (isVerbose) {
-          log(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
-        }
+        verboseLog(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
         failed++;
       }
     } catch (error) {
       log(`❌ #${testNumber} ${testName}: ${error}`);
-      if (isVerbose) {
-        log(`  🔍 Exception details: ${error}`);
-      }
+      verboseLog(`  🔍 Exception details: ${error}`);
       failed++;
     }
   }
@@ -309,11 +279,8 @@ async function runTest() {
   log(`❌ Failed: ${failed}`);
   log(`📈 Total: ${passed + failed}`);
 
-  // Close log file if it was opened
-  if (logStream) {
-    logStream.end();
-    logStream = null;
-  }
+  // Close logger
+  closeLogger();
 
   if (failed > 0) {
     process.exit(1);
@@ -321,4 +288,4 @@ async function runTest() {
 }
 
 // Run the test
-runTest().catch(console.error);
+runTest().catch(error => errorLog(error));
