@@ -40,6 +40,7 @@ Examples of different server implementations:
 
 - `express/` - Example using Express.js with `x402-express`
 - `hono/` - Example using Hono framework with `x402-hono`
+- `tinyhttp/` - Example using tinyhttp framework with `x402-tinyhttp`
 
 ## Running Examples
 
