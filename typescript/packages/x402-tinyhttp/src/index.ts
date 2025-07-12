@@ -1,5 +1,4 @@
 import type { Request, Response } from "@tinyhttp/app";
-import type { BufferEncoding } from "node:buffer";
 import { Address } from "viem";
 import { exact } from "x402/schemes";
 import {
@@ -78,7 +77,11 @@ export function paymentMiddleware(
     res: Response,
     next: () => void,
   ): Promise<void> {
-    const matchingRoute = findMatchingRoute(routePatterns, req.path, req.method.toUpperCase());
+    const matchingRoute = findMatchingRoute(
+      routePatterns,
+      req.path,
+      req.method?.toUpperCase() || "GET",
+    );
 
     if (!matchingRoute) {
       return next();
@@ -206,7 +209,7 @@ export function paymentMiddleware(
     type EndArgs =
       | [cb?: () => void]
       | [chunk: any, cb?: () => void]
-      | [chunk: any, encoding: BufferEncoding, cb?: () => void];
+      | [chunk: any, encoding: string, cb?: () => void];
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     const originalEnd = res.end.bind(res);
@@ -252,4 +255,4 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "x402/types"; 
+} from "x402/types";
