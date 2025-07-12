@@ -1,5 +1,5 @@
 import type { Context } from "hono";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -17,6 +17,7 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
+  PaywallConfig,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -26,6 +27,7 @@ import { useFacilitator } from "x402/verify";
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
+ * @param paywall - Optional configuration for the default paywall
  * @returns A Hono middleware handler
  *
  * @example
@@ -57,6 +59,11 @@ import { useFacilitator } from "x402/verify";
  *       verify: { "Authorization": "Bearer token" },
  *       settle: { "Authorization": "Bearer token" }
  *     })
+ *   },
+ *   {
+ *     cdpClientKey: 'your-cdp-client-key',
+ *     appLogo: '/images/logo.svg',
+ *     appName: 'My App',
  *   }
  * ));
  * ```
@@ -65,6 +72,7 @@ export function paymentMiddleware(
   payTo: Address,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
+  paywall?: PaywallConfig,
 ) {
   const { verify, settle } = useFacilitator(facilitator);
   const x402Version = 1;
@@ -98,11 +106,11 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo,
+        payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: asset?.address ?? "",
+        asset: getAddress(asset.address),
         outputSchema,
-        extra: asset?.eip712,
+        extra: asset.eip712,
       },
     ];
 
@@ -135,6 +143,10 @@ export function paymentMiddleware(
             >[0]["paymentRequirements"],
             currentUrl,
             testnet: network === "base-sepolia",
+            cdpClientKey: paywall?.cdpClientKey,
+            appName: paywall?.appName,
+            appLogo: paywall?.appLogo,
+            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
           });
         return c.html(html, 402);
       }

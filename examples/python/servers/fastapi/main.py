@@ -1,21 +1,18 @@
 import os
-from typing import Dict, Any
+from typing import Any, Dict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-
+from fastapi import FastAPI
 from x402.fastapi.middleware import require_payment
+from x402.types import EIP712Domain, TokenAmount, TokenAsset
 
 # Load environment variables
 load_dotenv()
 
 # Get configuration from environment
-FACILITATOR_URL = os.getenv("FACILITATOR_URL")
-NETWORK = os.getenv("NETWORK", "base-sepolia")
 ADDRESS = os.getenv("ADDRESS")
 
-if not FACILITATOR_URL or not ADDRESS:
+if not ADDRESS:
     raise ValueError("Missing required environment variables")
 
 app = FastAPI()
@@ -23,22 +20,27 @@ app = FastAPI()
 # Apply payment middleware to specific routes
 app.middleware("http")(
     require_payment(
-        amount="$0.001",
-        pay_to_address=ADDRESS,
         path="/weather",
-        network_id=NETWORK,
-        facilitator_url=FACILITATOR_URL,
+        price="$0.001",
+        pay_to_address=ADDRESS,
+        network="base-sepolia",
     )
 )
 
 # Apply payment middleware to premium routes
 app.middleware("http")(
     require_payment(
-        amount="$0.01",
-        pay_to_address=ADDRESS,
         path="/premium/*",
-        network_id=NETWORK,
-        facilitator_url=FACILITATOR_URL,
+        price=TokenAmount(
+            amount="10000",
+            asset=TokenAsset(
+                address="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                decimals=6,
+                eip712=EIP712Domain(name="USDC", version="2"),
+            ),
+        ),
+        pay_to_address=ADDRESS,
+        network="base-sepolia",
     )
 )
 

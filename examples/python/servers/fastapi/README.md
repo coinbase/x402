@@ -35,11 +35,10 @@ To add more paid endpoints, follow this pattern:
 # First, configure the payment middleware with your routes
 app.middleware("http")(
     require_payment(
-        amount="$0.10",
-        pay_to_address=ADDRESS,
         path="/your-endpoint",
-        network_id=NETWORK,
-        facilitator_url=FACILITATOR_URL,
+        price="$0.10",
+        pay_to_address=ADDRESS,
+        network=NETWORK,
     )
 )
 

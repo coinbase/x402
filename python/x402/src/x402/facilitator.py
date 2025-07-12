@@ -1,3 +1,7 @@
+from typing import Callable, Optional
+from typing_extensions import (
+    TypedDict,
+)  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 import httpx
 from x402.types import (
     PaymentPayload,
@@ -7,28 +11,53 @@ from x402.types import (
 )
 
 
+class FacilitatorConfig(TypedDict, total=False):
+    """Configuration for the X402 facilitator service.
+
+    Attributes:
+        url: The base URL for the facilitator service
+        create_headers: Optional function to create authentication headers
+    """
+
+    url: str
+    create_headers: Callable[[], dict[str, dict[str, str]]]
+
+
 class FacilitatorClient:
-    def __init__(self, url: str):
-        if url.startswith("http://") or url.startswith("https://"):
-            if url.endswith("/"):
-                self.url = url[:-1]
-            else:
-                self.url = url
-        else:
+    def __init__(self, config: Optional[FacilitatorConfig] = None):
+        if config is None:
+            config = {"url": "https://x402.org/facilitator"}
+
+        # Validate URL format
+        url = config.get("url", "")
+        if not url.startswith(("http://", "https://")):
             raise ValueError(f"Invalid URL {url}, must start with http:// or https://")
+        if url.endswith("/"):
+            url = url[:-1]
+
+        self.config = {"url": url, "create_headers": config.get("create_headers")}
 
     async def verify(
         self, payment: PaymentPayload, payment_requirements: PaymentRequirements
     ) -> VerifyResponse:
         """Verify a payment header is valid and a request should be processed"""
+        headers = {"Content-Type": "application/json"}
+
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
+            headers.update(custom_headers.get("verify", {}))
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.url}/verify",
+                f"{self.config['url']}/verify",
                 json={
-                    "paymentPayload": payment.model_dump(),
-                    "paymentRequirements": payment_requirements.model_dump(),
+                    "x402Version": payment.x402_version,
+                    "paymentPayload": payment.model_dump(by_alias=True),
+                    "paymentRequirements": payment_requirements.model_dump(
+                        by_alias=True
+                    ),
                 },
+                headers=headers,
                 follow_redirects=True,
             )
 
@@ -38,13 +67,23 @@ class FacilitatorClient:
     async def settle(
         self, payment: PaymentPayload, payment_requirements: PaymentRequirements
     ) -> SettleResponse:
+        headers = {"Content-Type": "application/json"}
+
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
+            headers.update(custom_headers.get("settle", {}))
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.url}/settle",
+                f"{self.config['url']}/settle",
                 json={
-                    "paymentPayload": payment.model_dump(),
-                    "paymentRequirements": payment_requirements.model_dump(),
+                    "x402Version": payment.x402_version,
+                    "paymentPayload": payment.model_dump(by_alias=True),
+                    "paymentRequirements": payment_requirements.model_dump(
+                        by_alias=True
+                    ),
                 },
+                headers=headers,
                 follow_redirects=True,
             )
             data = response.json()

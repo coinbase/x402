@@ -1,5 +1,5 @@
 import time
-from typing import Optional, Callable, Dict, Any, List, Union
+from typing import Optional, Callable, Dict, Any, List
 from eth_account import Account
 from x402.exact import sign_payment_header
 from x402.types import (
@@ -12,9 +12,8 @@ from x402.encoding import safe_base64_decode
 import json
 
 # Define type for the payment requirements selector
-PaymentRequirementsType = Union[Dict[str, Any], PaymentRequirements]
 PaymentSelectorCallable = Callable[
-    [List[PaymentRequirementsType], Optional[str], Optional[str], Optional[int]],
+    [List[PaymentRequirements], Optional[str], Optional[str], Optional[int]],
     PaymentRequirements,
 ]
 
@@ -85,7 +84,7 @@ class x402Client:
 
     @staticmethod
     def default_payment_requirements_selector(
-        accepts: List[PaymentRequirementsType],
+        accepts: List[PaymentRequirements],
         network_filter: Optional[str] = None,
         scheme_filter: Optional[str] = None,
         max_value: Optional[int] = None,
@@ -105,10 +104,9 @@ class x402Client:
             UnsupportedSchemeException: If no supported scheme is found
             PaymentAmountExceededError: If payment amount exceeds max_value
         """
-        for req in accepts:
-            # If it's a dict, use key access; if it's a model, use attribute
-            scheme = req["scheme"] if isinstance(req, dict) else req.scheme
-            network = req["network"] if isinstance(req, dict) else req.network
+        for paymentRequirements in accepts:
+            scheme = paymentRequirements.scheme
+            network = paymentRequirements.network
 
             # Check scheme filter
             if scheme_filter and scheme != scheme_filter:
@@ -119,35 +117,28 @@ class x402Client:
                 continue
 
             if scheme == "exact":
-                # If it's already a PaymentRequirements, return it; else, construct it
-                result = (
-                    req
-                    if isinstance(req, PaymentRequirements)
-                    else PaymentRequirements(**req)
-                )
-
                 # Check max value if set
                 if max_value is not None:
-                    max_amount = int(result.max_amount_required)
+                    max_amount = int(paymentRequirements.max_amount_required)
                     if max_amount > max_value:
                         raise PaymentAmountExceededError(
                             f"Payment amount {max_amount} exceeds maximum allowed value {max_value}"
                         )
 
-                return result
+                return paymentRequirements
 
         raise UnsupportedSchemeException("No supported payment scheme found")
 
     def select_payment_requirements(
         self,
-        accepts: List[PaymentRequirementsType],
+        accepts: List[PaymentRequirements],
         network_filter: Optional[str] = None,
         scheme_filter: Optional[str] = None,
     ) -> PaymentRequirements:
         """Select payment requirements using the configured selector.
 
         Args:
-            accepts: List of accepted payment requirements (either dicts or PaymentRequirements instances)
+            accepts: List of accepted payment requirements (PaymentRequirements models)
             network_filter: Optional network to filter by
             scheme_filter: Optional scheme to filter by
 
