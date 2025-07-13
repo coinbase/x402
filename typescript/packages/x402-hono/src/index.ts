@@ -1,11 +1,9 @@
 import type { Context } from "hono";
 import type { Address } from "viem";
-import type { FacilitatorConfig, RoutesConfig, PaywallConfig } from "x402/types";
-import { exact } from "x402/schemes";
-import { getPaywallHtml, toJsonSafe } from "x402/shared";
-import { moneySchema, settleResponseHeader } from "x402/types";
-import { useFacilitator } from "x402/verify";
-import { PaymentMiddleware, X402Error } from "x402/middleware";
+import type { FacilitatorConfig, RoutesConfig, PaywallConfig, Resource } from "x402/types";
+import type { useFacilitator } from "x402/verify";
+import { settleResponseHeader } from "x402/types";
+import { PaymentMiddleware, X402Error, renderPaywallHtml } from "x402/middleware";
 
 /**
  * Creates a payment middleware factory for Hono
@@ -60,88 +58,49 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
-  useFacilitatorFn: typeof useFacilitator = useFacilitator,
+  useFacilitatorFn?: typeof useFacilitator,
 ) {
-  const middlewares = PaymentMiddleware.forRoutes<Context>(
-    payTo,
+  const middlewares = PaymentMiddleware.forRoutes<Context>({
     routes,
-    function paymentFromRequest(ctx) {
-      const paymentHeader = ctx.req.header("X-Payment");
-      if (!paymentHeader) {
-        return undefined;
-      }
-      return exact.evm.decodePayment(paymentHeader);
-    },
-    function canRenderPaywall(ctx) {
-      const userAgent = ctx.req.header("User-Agent") || "";
-      const acceptHeader = ctx.req.header("Accept") || "";
-      return acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-    },
+    payTo,
     facilitator,
     paywall,
+    getHeader: (ctx, name) => ctx.req.header(name),
     useFacilitatorFn,
-  );
+  });
 
-  return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
-    const x402Middleware = middlewares.match(c.req.path, c.req.method.toUpperCase());
-    if (!x402Middleware) {
+  return async function paymentMiddleware(ctx: Context, next: () => Promise<void>) {
+    const x402 = middlewares.match(ctx.req.path, ctx.req.method.toUpperCase());
+    if (!x402) {
       return next();
     }
 
-    try {
-      const paymentRequirements = x402Middleware.paymentRequirements(c);
-      const payment = await x402Middleware.acquirePayment(c, paymentRequirements);
-      if (!payment) {
-        const price = x402Middleware.config.price;
-        const network = x402Middleware.config.network;
-        const customPaywallHtml = x402Middleware.config.config?.customPaywallHtml;
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
+    const resource = ctx.req.url as Resource;
 
-        const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
-        const html =
-          customPaywallHtml ??
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appName: paywall?.appName,
-            appLogo: paywall?.appLogo,
-            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
-          });
-        return c.html(html, 402);
+    try {
+      const paymentRequirements = x402.paymentRequirements(resource);
+      const payment = await x402.verifyPayment(ctx, paymentRequirements);
+      if (!payment) {
+        const currentUrl = new URL(ctx.req.url).pathname + new URL(ctx.req.url).search;
+        const html = renderPaywallHtml(x402, paymentRequirements, currentUrl);
+        return ctx.html(html, 402);
       }
       // Proceed with request
       await next();
 
-      const res = c.res;
-
       // If the response from the protected route is >= 400, do not settle payment
-      if (res.status >= 400) {
+      if (ctx.res.status >= 400) {
         return;
       }
 
       const settlement = await payment.settle();
       const responseHeader = settleResponseHeader(settlement);
-      res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
+      ctx.res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
     } catch (e) {
       if (e instanceof X402Error) {
-        const headers = new Headers(c.res.headers);
+        const headers = new Headers(ctx.res.headers);
         headers.set("Content-Type", "application/json");
-        c.res = new Response(JSON.stringify(e), {
+        ctx.res = new Response(JSON.stringify(e), {
           headers: headers,
           status: 402,
         });

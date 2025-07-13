@@ -1,51 +1,17 @@
 import type { NextRequest } from "next/server";
 import type { Address } from "viem";
-import type { FacilitatorConfig, RoutesConfig, PaywallConfig, RouteConfig } from "x402/types";
+import type {
+  FacilitatorConfig,
+  RoutesConfig,
+  PaywallConfig,
+  Resource,
+  RouteConfig,
+} from "x402/types";
+import type { useFacilitator } from "x402/verify";
 import { NextResponse } from "next/server";
-import { exact } from "x402/schemes";
-import { getPaywallHtml, toJsonSafe } from "x402/shared";
-import { moneySchema, settleResponseHeader } from "x402/types";
-import { useFacilitator } from "x402/verify";
-import { PaymentMiddleware, X402Error } from "x402/middleware";
-import { PaymentPayload, Resource } from "x402/types";
-
+import { settleResponseHeader } from "x402/types";
+import { PaymentMiddleware, X402Error, renderPaywallHtml } from "x402/middleware";
 import { POST } from "./api/session-token";
-
-/**
- * Extracts and decodes a PaymentPayload from the X-PAYMENT header of a Next.js request.
- *
- * @param req - The incoming Next.js request.
- * @returns The decoded PaymentPayload if present, or undefined.
- */
-function paymentFromRequest(req: NextRequest): PaymentPayload | undefined {
-  const paymentHeader = req.headers.get("X-PAYMENT");
-  if (!paymentHeader) {
-    return undefined;
-  }
-  return exact.evm.decodePayment(paymentHeader);
-}
-
-/**
- * Derives the x402 resource identifier from the request URL.
- *
- * @param req - The incoming Next.js request.
- * @returns A resource string formatted as an absolute URL for use in payment requirements.
- */
-function resourceFromRequest(req: NextRequest): Resource {
-  return `${req.nextUrl.protocol}//${req.nextUrl.host}${req.nextUrl.pathname}` as Resource;
-}
-
-/**
- * Determines whether the request likely came from a browser capable of rendering a visual paywall.
- *
- * @param req - The incoming Next.js request.
- * @returns True if the request accepts HTML and comes from a browser (e.g., contains "Mozilla" in User-Agent).
- */
-function canRenderPaywall(req: NextRequest): boolean {
-  const userAgent = req.headers.get("User-Agent") || "";
-  const acceptHeader = req.headers.get("Accept") || "";
-  return acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-}
 
 /**
  * Creates a payment middleware factory for Next.js
@@ -115,85 +81,28 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
-  useFacilitatorFn: typeof useFacilitator = useFacilitator,
+  useFacilitatorFn?: typeof useFacilitator,
 ) {
-  const middlewares = PaymentMiddleware.forRoutes<NextRequest>(
-    payTo,
+  const middlewares = PaymentMiddleware.forRoutes<NextRequest>({
     routes,
-    paymentFromRequest,
-    canRenderPaywall,
+    payTo,
     facilitator,
     paywall,
+    getHeader: (req, name) => req.headers.get(name),
     useFacilitatorFn,
-  );
+  });
 
   return async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
     const method = request.method.toUpperCase();
 
     // Find matching route configuration
-    const x402Middleware = middlewares.match(pathname, method);
-    if (!x402Middleware) {
+    const x402 = middlewares.match(pathname, method);
+    if (!x402) {
       return NextResponse.next();
     }
-    try {
-      const paymentRequirements = x402Middleware.paymentRequirements(request);
-      const payment = await x402Middleware.acquirePayment(request, paymentRequirements);
-      if (!payment) {
-        const price = x402Middleware.config.price;
-        const network = x402Middleware.config.network;
-        const customPaywallHtml = x402Middleware.config.config?.customPaywallHtml;
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
-
-        const html =
-          customPaywallHtml ??
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl: request.url,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appLogo: paywall?.appLogo,
-            appName: paywall?.appName,
-            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,});
-        return new NextResponse(html, {
-          status: 402,
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      // Proceed with request
-      const response = NextResponse.next();
-      // TODO `NextResponse.next` returns a fresh instance of NextResponse used to continue routing and modify headers.
-      // There is no point to wait for it. We use it just to modify headers.
-      const settlement = await payment.settle();
-      const responseHeader = settleResponseHeader(settlement);
-      response.headers.set("X-PAYMENT-RESPONSE", responseHeader);
-      return response;
-    } catch (e) {
-      if (e instanceof X402Error) {
-        return new NextResponse(JSON.stringify(e), {
-          headers: {
-            "Content-Type": "application/json",
-          },
-          status: 402,
-        });
-      } else {
-        throw e;
-      }
-    }
+    const handler = nextHandler(x402, async () => NextResponse.next());
+    return handler(request);
   };
 }
 
@@ -228,54 +137,46 @@ export function withPayment(
     payTo: string;
     facilitator?: FacilitatorConfig;
     paywall?: PaywallConfig;
+    useFacilitatorFn?: typeof useFacilitator;
   },
 ) {
-  const x402Middleware = new PaymentMiddleware<NextRequest>({
+  const x402 = new PaymentMiddleware<NextRequest>({
     payTo: config.payTo,
     network: config.network,
     price: config.price,
     config: config.config,
     facilitator: config.facilitator,
     paywall: config.paywall,
-    paymentFromRequest,
-    canRenderPaywall,
-    resourceFromRequest,
+    getHeader: (req, name) => req.headers.get(name),
+    useFacilitatorFn: config.useFacilitatorFn,
   });
-  const paywall = config.paywall;
+  return nextHandler(x402, handler);
+}
 
-  return async function middleware(request: NextRequest) {
+/**
+ * Internal helper that wraps a request handler with x402 payment enforcement logic
+ * for use in Next.js middleware `paymentMiddleware` or route-level handlers via `withPayment`.
+ *
+ * This function performs the full x402 payment lifecycle around `handler`.
+ *
+ * @param x402 - The `PaymentMiddleware` instance configured for the current route
+ * @param handler - A user-defined async function that handles the request after successful payment
+ * @returns A Next.js-compatible handler that enforces payment and returns the original or 402 response
+ *
+ * @internal
+ */
+function nextHandler(
+  x402: PaymentMiddleware<NextRequest>,
+  handler: (req: NextRequest) => Promise<Response>,
+) {
+  return async function handle(request: NextRequest): Promise<Response | NextResponse> {
+    const resource =
+      `${request.nextUrl.protocol}//${request.nextUrl.host}${request.nextUrl.pathname}` as Resource;
     try {
-      const paymentRequirements = x402Middleware.paymentRequirements(request);
-      const payment = await x402Middleware.acquirePayment(request, paymentRequirements);
+      const paymentRequirements = x402.paymentRequirements(resource);
+      const payment = await x402.verifyPayment(request, paymentRequirements);
       if (!payment) {
-        const price = x402Middleware.config.price;
-        const network = x402Middleware.config.network;
-        const customPaywallHtml = x402Middleware.config.config?.customPaywallHtml;
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
-
-        const html =
-          customPaywallHtml ??
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl: request.url,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appLogo: paywall?.appLogo,
-            appName: paywall?.appName,
-          });
+        const html = renderPaywallHtml(x402, paymentRequirements, request.url);
         return new NextResponse(html, {
           status: 402,
           headers: { "Content-Type": "text/html" },
@@ -283,6 +184,8 @@ export function withPayment(
       }
 
       // Proceed with request
+      // NOTE: `NextResponse.next` returns a fresh instance of NextResponse used to continue routing and modify headers.
+      // There is no point in waiting for it. We use it just to modify headers.
       const response = await handler(request);
       const settlement = await payment.settle();
       const responseHeader = settleResponseHeader(settlement);

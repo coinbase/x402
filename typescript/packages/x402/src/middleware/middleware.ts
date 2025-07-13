@@ -1,6 +1,8 @@
-import type {
+import {
   FacilitatorConfig,
+  moneySchema,
   Network,
+  PaymentOption,
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
@@ -16,49 +18,85 @@ import {
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
+  getPaywallHtml,
 } from "../shared";
-import { type Address, getAddress } from "viem";
+import { getAddress } from "viem";
+import { exact } from "../schemes";
 
-export type { PaymentMiddlewareConfig, Settlement };
+export type { PaymentMiddlewareConfig, Settlement, HeaderName };
 export {
   PaymentMiddlewareConfigError,
   X402Error,
-  AcquiredPayment,
+  VerifiedPayment,
   PaymentMiddleware,
   MiddlewareRoutesMap,
+  renderPaywallHtml,
 };
 
 const X402_VERSION = 1;
 
+type HeaderName = "user-agent" | "x-payment" | "accept";
+type NonEmptyArray<T> = [T, ...Array<T>];
+
 /**
- * Configuration options for the PaymentMiddleware.
+ * Converts a `RouteConfig` object into a non-empty array of `PaymentOption`s.
+ * Supports both the legacy `price + network` format and the modern `prices[]` format.
  *
- * @template TRequest - The request type, typically a framework-specific request object.
+ * @param routeConfig - The configuration for a single route.
+ * @returns A non-empty array of payment options.
+ * @throws {PaymentMiddlewareConfigError} If no price configuration is provided.
  */
-type PaymentMiddlewareConfig<TRequest> = RouteConfig & {
+export function routeConfigToPaymentOptions(
+  routeConfig: RouteConfig,
+): NonEmptyArray<PaymentOption> {
+  const { price, network, prices } = routeConfig;
+
+  // If a prices array is provided, use it
+  if (prices && prices.length > 0) {
+    return prices as NonEmptyArray<PaymentOption>;
+  }
+
+  // Backward compatibility: use price and network if provided
+  if (price && network) {
+    return [{ price, network }];
+  }
+
+  throw new PaymentMiddlewareConfigError("No price provided");
+}
+
+/**
+ * Configuration options for the PaymentMiddleware instance.
+ *
+ * @template TRequest - Framework-specific request type (e.g., Express `Request`, Hono `Context`, etc.).
+ */
+type PaymentMiddlewareConfig<TRequest> = {
   /** The address to receive payments. */
   payTo: string;
   /** Optional facilitator configuration. */
   facilitator?: FacilitatorConfig;
   /** Optional metadata for rendering a paywall. */
   paywall?: PaywallConfig;
-  /** Function to derive the resource identifier from a request. Either `resource` or this `resourceFromRequest` should be configured. */
-  resourceFromRequest?: (request: TRequest) => Resource;
-  /** Determines whether a paywall can be rendered for the given request if no payment header is present */
-  canRenderPaywall?: (request: TRequest) => boolean;
-  /** Extracts and decodes the payment payload from the request. */
-  paymentFromRequest: (request: TRequest) => PaymentPayload | undefined;
-
-  /** Pass a custom ` processPriceToAtomicAmount ` function for testing purposes */
+  /**
+   * Function to retrieve the value of a given HTTP header from the request.
+   * Called for headers like `x-payment`, `accept`, and `user-agent`.
+   */
+  getHeader: (request: TRequest, name: HeaderName) => string | Array<string> | undefined | null;
+  /**
+   * Optional override for the price conversion logic, primarily used in tests.
+   *
+   * @internal
+   */
   processPriceToAtomicAmountFn?: typeof processPriceToAtomicAmount;
-  /** Pass a custom `facilitator.verify` function for testing purposes */
-  verifyFn?: ReturnType<typeof useFacilitator>["verify"];
-  /** Pass a custom `facilitator.settle` function for testing purposes */
-  settleFn?: ReturnType<typeof useFacilitator>["settle"];
+  /**
+   * Optional override for facilitator usage logic, primarily used in tests.
+   *
+   * @internal
+   */
+  useFacilitatorFn?: typeof useFacilitator;
 };
 
 /**
- * Thrown when the middleware is misconfigured or encounters an invalid setup.
+ * Error thrown during middleware configuration or setup validation.
  */
 class PaymentMiddlewareConfigError extends Error {
   readonly name = "PaymentMiddlewareConfigError";
@@ -133,14 +171,17 @@ type Settlement = {
   payer: string;
 };
 
+type SettleFn = ReturnType<typeof useFacilitator>["settle"];
+type VerifyFn = ReturnType<typeof useFacilitator>["verify"];
+
 /**
  * Represents a verified payment that can be settled after serving a response.
  */
-class AcquiredPayment {
+class VerifiedPayment {
   readonly payload: PaymentPayload;
   readonly selected: PaymentRequirements;
   readonly requirements: Array<PaymentRequirements>;
-  readonly #settle: ReturnType<typeof useFacilitator>["settle"];
+  readonly #settle: SettleFn;
 
   /**
    * Creates a wrapper for a verified payment, allowing it to be settled later.
@@ -154,7 +195,7 @@ class AcquiredPayment {
     payload: PaymentPayload,
     selected: PaymentRequirements,
     requirements: Array<PaymentRequirements>,
-    settle: ReturnType<typeof useFacilitator>["settle"],
+    settle: SettleFn,
   ) {
     this.payload = payload;
     this.selected = selected;
@@ -251,14 +292,19 @@ class MiddlewareRoutesMap<TRequest> extends Map<RoutePattern, PaymentMiddleware<
  * @template TRequest - The type of the incoming request object.
  */
 class PaymentMiddleware<TRequest> {
-  readonly config: RouteConfig;
+  readonly config: {
+    prices: NonEmptyArray<PaymentOption>;
+    config: RouteConfig["config"];
+  };
+  readonly paywall: PaywallConfig | undefined;
 
-  readonly #facilitator: ReturnType<typeof useFacilitator>;
-  readonly #paymentReq: Omit<PaymentRequirements, "resource">;
+  readonly #verify: VerifyFn;
+  readonly #settle: SettleFn;
+  readonly #paymentReqs: Array<
+    Omit<PaymentRequirements, "resource"> & Pick<Partial<PaymentRequirements>, "resource">
+  >;
 
-  readonly #resource: Resource | Required<PaymentMiddlewareConfig<TRequest>>["resourceFromRequest"];
-  readonly #paymentFromRequest: PaymentMiddlewareConfig<TRequest>["paymentFromRequest"];
-  readonly #canRenderPaywall?: (request: TRequest) => boolean;
+  readonly #getHeader: (request: TRequest, name: HeaderName) => string | undefined;
 
   /**
    * Constructs the middleware using the provided configuration.
@@ -266,49 +312,51 @@ class PaymentMiddleware<TRequest> {
    * @param config - Configuration including price, payTo, network, and request extractors.
    * @throws {PaymentMiddlewareConfigError} If required config is missing or invalid.
    */
-  constructor(config: PaymentMiddlewareConfig<TRequest>) {
-    let facilitator = useFacilitator(config.facilitator);
-    if (config.verifyFn) {
-      facilitator.verify = config.verifyFn;
-    }
-    if (config.settleFn) {
-      facilitator.settle = config.settleFn;
-    }
-    this.#facilitator = facilitator;
-    this.#paymentFromRequest = config.paymentFromRequest;
-    this.#canRenderPaywall = config.canRenderPaywall;
-
+  constructor(config: RouteConfig & PaymentMiddlewareConfig<TRequest>) {
+    const useFacilitatorFn = config.useFacilitatorFn || useFacilitator;
+    const facilitator = useFacilitatorFn(config.facilitator);
+    this.#verify = facilitator.verify.bind(facilitator);
+    this.#settle = facilitator.settle.bind(facilitator);
     this.config = {
-      price: config.price,
-      network: config.network,
+      prices: routeConfigToPaymentOptions(config),
       config: config.config,
     };
+    this.paywall = config.paywall;
 
-    const resource = config.config?.resource || config.resourceFromRequest;
-    if (!resource) {
-      throw new PaymentMiddlewareConfigError(
-        "Either config.resource or resourceFromRequest must be provided",
-      );
-    }
-    this.#resource = resource;
+    this.#getHeader = (request, name) => {
+      const header = config.getHeader(request, name);
+      if (!header) {
+        return undefined;
+      }
+      if (Array.isArray(header)) {
+        return header.join(",");
+      } else {
+        return header;
+      }
+    };
+
     const processPriceToAtomicAmountFn =
       config.processPriceToAtomicAmountFn || processPriceToAtomicAmount;
-    const atomicAmountForAsset = processPriceToAtomicAmountFn(config.price, config.network);
-    if ("error" in atomicAmountForAsset) {
-      throw new PaymentMiddlewareConfigError(atomicAmountForAsset.error);
-    }
-    this.#paymentReq = {
-      scheme: "exact",
-      network: config.network,
-      maxAmountRequired: atomicAmountForAsset.maxAmountRequired,
-      description: config.config?.description ?? "",
-      mimeType: config.config?.mimeType ?? "application/json",
-      payTo: getAddress(config.payTo),
-      maxTimeoutSeconds: config.config?.maxTimeoutSeconds ?? 300,
-      asset: getAddress(atomicAmountForAsset.asset.address),
-      outputSchema: config.config?.outputSchema,
-      extra: atomicAmountForAsset.asset.eip712,
-    };
+    const priceTags = routeConfigToPaymentOptions(config);
+    this.#paymentReqs = priceTags.map(priceTag => {
+      const atomicAmountForAsset = processPriceToAtomicAmountFn(priceTag.price, priceTag.network);
+      if ("error" in atomicAmountForAsset) {
+        throw new PaymentMiddlewareConfigError(atomicAmountForAsset.error);
+      }
+      return {
+        scheme: "exact",
+        network: priceTag.network,
+        maxAmountRequired: atomicAmountForAsset.maxAmountRequired,
+        description: config.config?.description ?? "",
+        mimeType: config.config?.mimeType ?? "application/json",
+        payTo: getAddress(config.payTo),
+        maxTimeoutSeconds: config.config?.maxTimeoutSeconds ?? 300,
+        asset: getAddress(atomicAmountForAsset.asset.address),
+        outputSchema: config.config?.outputSchema,
+        extra: atomicAmountForAsset.asset.eip712,
+        resource: config.config?.resource,
+      };
+    });
   }
 
   /**
@@ -317,42 +365,21 @@ class PaymentMiddleware<TRequest> {
    * This is typically used inside framework-specific adapters (e.g., Express, Hono, Next.js middleware) to build
    * the per-route middleware logic needed to enforce payments.
    *
-   * @template TRequest - The request type (e.g., Express `Request`, Hono `Context`, etc).
-   * @param payTo - The address to receive payments.
-   * @param routes - A mapping of route patterns to their associated payment configurations.
-   * @param paymentFromRequest - A function to extract the x402 payment payload from a request.
-   * @param canRenderPaywall - A function that determines if an HTML paywall should be rendered for a given request.
-   * @param facilitator - Optional facilitator configuration (e.g. custom verify/settle endpoints).
-   * @param paywall - Optional metadata for customizing the HTML paywall UI.
-   * @param useFacilitatorFn - Internal injection point for `useFacilitator`, primarily used for testing.
-   * @returns A `Map` associating route patterns with corresponding `PaymentMiddleware` instances.
+   * @param props - Includes shared middleware config and per-route payment setup.
+   * @returns A map from route patterns to ready-to-use middleware instances.
    */
   static forRoutes<TRequest>(
-    payTo: Address,
-    routes: RoutesConfig,
-    paymentFromRequest: PaymentMiddlewareConfig<TRequest>["paymentFromRequest"],
-    canRenderPaywall: PaymentMiddlewareConfig<TRequest>["canRenderPaywall"],
-    facilitator?: FacilitatorConfig,
-    paywall?: PaywallConfig,
-    useFacilitatorFn: typeof useFacilitator = useFacilitator,
+    props: { routes: RoutesConfig } & PaymentMiddlewareConfig<TRequest>,
   ): MiddlewareRoutesMap<TRequest> {
-    const { verify, settle } = useFacilitatorFn(facilitator);
+    const { routes, ...config } = props;
     const routePatterns = computeRoutePatterns(routes);
     return new MiddlewareRoutesMap<TRequest>(
       routePatterns.map(routePattern => {
         return [
           routePattern,
           new PaymentMiddleware<TRequest>({
-            payTo: payTo,
-            facilitator: facilitator,
-            paywall: paywall,
-            price: routePattern.config.price,
-            network: routePattern.config.network,
-            config: routePattern.config.config,
-            verifyFn: verify,
-            settleFn: settle,
-            paymentFromRequest,
-            canRenderPaywall,
+            ...routePattern.config,
+            ...config,
           }),
         ] as const;
       }),
@@ -360,44 +387,43 @@ class PaymentMiddleware<TRequest> {
   }
 
   /**
-   * Builds the full list of payment requirements for a given request.
+   * Computes payment requirements for a given resource on this route.
+   * The resource will be embedded into each requirement.
    *
-   * @param request - The incoming request.
-   * @returns An array of acceptable payment requirement objects.
+   * @param resource - The logical identifier of the resource being accessed (e.g. URL path).
+   * @returns An array of `PaymentRequirements` for the request.
    */
-  paymentRequirements(request: TRequest): Array<PaymentRequirements> {
-    let resource: Resource;
-    if (typeof this.#resource === "function") {
-      resource = this.#resource(request);
-    } else {
-      resource = this.#resource;
-    }
-    const paymentRequirement = Object.assign({}, this.#paymentReq, {
-      resource: resource,
+  paymentRequirements(resource: Resource): Array<PaymentRequirements> {
+    return this.#paymentReqs.map(req => {
+      return Object.assign({}, req, {
+        resource: req.resource || resource,
+      });
     });
-    return [paymentRequirement];
   }
 
   /**
-   * Attempts to acquire and verify a payment for the request.
+   * Attempts to verify a payment from the request and return a settlement-capable wrapper.
    *
    * @param request - The incoming HTTP request.
-   * @param paymentRequirements - Requirements this route expects.
-   * @returns An AcquiredPayment object on success, or undefined if paywall should be shown.
-   * @throws {X402Error} If payment is missing or invalid.
+   * @param paymentRequirements - Allowed payment options for this resource.
+   * @returns A `VerifiedPayment` object on success, or `undefined` if an HTML paywall should be rendered.
+   * @throws {X402Error} If the payment is missing, invalid, or does not match any requirements.
    */
-  async acquirePayment(
+  async verifyPayment(
     request: TRequest,
     paymentRequirements: Array<PaymentRequirements>,
-  ): Promise<AcquiredPayment | undefined> {
-    let paymentPayload: PaymentPayload | undefined;
-    try {
-      paymentPayload = this.#paymentFromRequest(request);
-    } catch (error) {
-      throw new X402Error(error as Error, paymentRequirements);
+  ): Promise<VerifiedPayment | undefined> {
+    const paymentHeader = this.#getHeader(request, "x-payment");
+    let paymentPayload: PaymentPayload | undefined = undefined;
+    if (paymentHeader) {
+      try {
+        paymentPayload = exact.evm.decodePayment(paymentHeader);
+      } catch (error) {
+        throw new X402Error(`Invalid payment: ${(error as Error).message}`, paymentRequirements);
+      }
     }
     if (!paymentPayload) {
-      if (this.#canRenderPaywall?.(request)) {
+      if (this.canRenderPaywall(request)) {
         return undefined;
       } else {
         throw new X402Error("X-PAYMENT header is required", paymentRequirements);
@@ -407,7 +433,7 @@ class PaymentMiddleware<TRequest> {
     if (!selected) {
       throw new X402Error("Unable to find matching payment requirements", paymentRequirements);
     }
-    const verification = await this.#facilitator.verify(paymentPayload, selected);
+    const verification = await this.#verify(paymentPayload, selected);
     if (!verification.isValid) {
       throw new X402Error(
         verification.invalidReason ?? "Payment verification failed",
@@ -415,11 +441,75 @@ class PaymentMiddleware<TRequest> {
         verification.payer,
       );
     }
-    return new AcquiredPayment(
-      paymentPayload,
-      selected,
-      paymentRequirements,
-      this.#facilitator.settle.bind(this.#facilitator),
-    );
+    return new VerifiedPayment(paymentPayload, selected, paymentRequirements, this.#settle);
+  }
+
+  /**
+   * Checks whether the request appears to come from a browser and accepts HTML.
+   * If true, middleware may respond with a paywall HTML page instead of JSON.
+   *
+   * @param request - The HTTP request to inspect.
+   * @returns `true` if paywall rendering is appropriate.
+   */
+  canRenderPaywall(request: TRequest): boolean {
+    const acceptHeader = this.#getHeader(request, "accept");
+    const userAgentHeader = this.#getHeader(request, "user-agent");
+    return Boolean(acceptHeader?.includes("text/html") && userAgentHeader?.includes("Mozilla"));
+  }
+}
+
+/**
+ * Renders a paywall HTML page based on the provided middleware and requirements.
+ * Uses the first `price` tag to determine the displayed amount.
+ *
+ * @param x402 - The middleware instance providing paywall context.
+ * @param paymentRequirements - Acceptable payment options.
+ * @param originalUrl - The full URL the user attempted to access.
+ * @returns A string containing HTML to be served as the paywall.
+ *
+ * Note: This is intentionally defined as a standalone function rather than a method on `PaymentMiddleware`
+ * to avoid forcing all consumers to include HTML and JS paywall-related code.
+ *
+ * By keeping it out of the class, bundlers like Webpack, Vite, or esbuild can tree-shake it away
+ * if the user does not call `renderPaywallHtml()` — reducing bundle size for non-browser/server use cases.
+ */
+function renderPaywallHtml(
+  x402: PaymentMiddleware<unknown>,
+  paymentRequirements: Array<PaymentRequirements>,
+  originalUrl: string,
+): string {
+  const paywall = x402.paywall;
+  const customPaywallHtml = x402.config.config?.customPaywallHtml;
+  let displayAmount: number;
+  // Calculate the display amount for paywall (use the first one as primary)
+  const priceTag = x402.config.prices[0];
+  const price = priceTag.price;
+  const network = priceTag.network;
+  if (typeof price === "string" || typeof price === "number") {
+    const parsed = moneySchema.safeParse(price);
+    if (parsed.success) {
+      displayAmount = parsed.data;
+    } else {
+      displayAmount = Number.NaN;
+    }
+  } else {
+    displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
+  }
+
+  if (customPaywallHtml) {
+    return customPaywallHtml;
+  } else {
+    return getPaywallHtml({
+      amount: displayAmount,
+      paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
+        typeof getPaywallHtml
+      >[0]["paymentRequirements"],
+      currentUrl: originalUrl,
+      testnet: network === "base-sepolia",
+      cdpClientKey: paywall?.cdpClientKey,
+      appName: paywall?.appName,
+      appLogo: paywall?.appLogo,
+      sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
+    });
   }
 }

@@ -1,16 +1,16 @@
-import type { NextFunction, Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getPaywallHtml, findMatchingRoute } from "x402/shared";
-import { exact } from "x402/schemes";
-import {
+import type { NextFunction, Request, Response } from "express";
+import type {
   PaymentMiddlewareConfig,
   PaymentPayload,
   RoutesConfig,
   FacilitatorConfig,
   RouteConfig,
 } from "x402/types";
+import { findMatchingRoute, safeBase64Encode } from "x402/shared";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
+import { renderPaywallHtml } from "x402/middleware";
 
 // Mock dependencies
 vi.mock("x402/verify", () => ({
@@ -20,13 +20,18 @@ vi.mock("x402/verify", () => ({
   }),
 }));
 
+vi.mock("x402/middleware", async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    renderPaywallHtml: vi.fn(),
+  };
+});
+
 vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    getPaywallHtml: vi.fn(),
-    getNetworkId: vi.fn().mockReturnValue("base-sepolia"),
-    toJsonSafe: vi.fn(x => x),
     findMatchingRoute: vi
       .fn()
       .mockImplementation(
@@ -45,20 +50,6 @@ vi.mock("x402/shared", async importOriginal => {
       ),
   };
 });
-
-vi.mock("x402/shared/evm", () => ({
-  getUsdcAddressForChain: vi.fn().mockReturnValue("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
-}));
-
-// Mock exact.evm.decodePayment
-vi.mock("x402/schemes", () => ({
-  exact: {
-    evm: {
-      encodePayment: vi.fn(),
-      decodePayment: vi.fn(),
-    },
-  },
-}));
 
 describe("paymentMiddleware()", () => {
   let mockReq: Partial<Request>;
@@ -90,30 +81,33 @@ describe("paymentMiddleware()", () => {
     },
   };
 
-  const validPayment: PaymentPayload = {
+  const VALID_PAYMENT: PaymentPayload = {
     scheme: "exact",
     x402Version: 1,
     network: "base-sepolia",
     payload: {
       signature: "0x123",
       authorization: {
-        from: "0x123",
-        to: "0x456",
-        value: "0x123",
+        from: "0xbac675c310721717cd4a37f6cbea1f081b1c2a07",
+        to: "0xbac675c310721717cd4a37f6cbea1f081b1c2a07",
+        value: "1000",
         validAfter: "0x123",
         validBefore: "0x123",
-        nonce: "0x123",
+        nonce: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       },
     },
   };
-  const encodedValidPayment = "encoded-payment";
+  const VALID_PAYMENT_B64 = safeBase64Encode(JSON.stringify(VALID_PAYMENT));
 
   beforeEach(() => {
     vi.resetAllMocks();
     mockReq = {
       path: "/test",
       method: "GET",
-      headers: {},
+      headers: {
+        host: "api.example.com",
+      },
+      protocol: "https",
       header: function (name: string) {
         return this.headers[name.toLowerCase()];
       },
@@ -138,11 +132,7 @@ describe("paymentMiddleware()", () => {
     });
 
     // Setup paywall HTML mock
-    vi.mocked(getPaywallHtml).mockReturnValue("<html>Paywall</html>");
-
-    // Setup exact.evm mocks
-    vi.mocked(exact.evm.encodePayment).mockReturnValue(encodedValidPayment);
-    vi.mocked(exact.evm.decodePayment).mockReturnValue(validPayment);
+    vi.mocked(renderPaywallHtml).mockReturnValue("<html>Paywall</html>");
 
     // Setup route pattern matching mock
     vi.mocked(findMatchingRoute).mockImplementation((routePatterns, path, method) => {
@@ -188,26 +178,22 @@ describe("paymentMiddleware()", () => {
 
   it("should verify payment and proceed if valid", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "x-payment": VALID_PAYMENT_B64,
     };
     mockRes.statusCode = 200;
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
-    expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
-    expect(mockVerify).toHaveBeenCalledWith(validPayment, expect.any(Object));
+    expect(mockVerify).toHaveBeenCalledWith(VALID_PAYMENT, expect.any(Object));
     expect(mockNext).toHaveBeenCalled();
   });
 
   it("should return 402 if payment verification fails", async () => {
     mockReq.headers = {
+      ...mockReq.headers,
       "x-payment": "invalid-payment-header",
     };
-    (exact.evm.decodePayment as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      throw new Error("Invalid payment");
-    });
-
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({
       isValid: false,
       invalidReason: "insufficient_funds",
@@ -218,7 +204,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: "Invalid payment",
+      error: "Invalid payment: Invalid character",
       accepts: [
         {
           scheme: "exact",
@@ -242,7 +228,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle settlement after response", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "x-payment": VALID_PAYMENT_B64,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -261,14 +247,13 @@ describe("paymentMiddleware()", () => {
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
-    expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
-    expect(mockSettle).toHaveBeenCalledWith(validPayment, expect.any(Object));
+    expect(mockSettle).toHaveBeenCalledWith(VALID_PAYMENT, expect.any(Object));
     expect(mockRes.setHeader).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
   });
 
   it("should handle settlement failure before response is sent", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "x-payment": VALID_PAYMENT_B64,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
@@ -302,7 +287,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle settlement failure after response is sent", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "x-payment": VALID_PAYMENT_B64,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
@@ -318,15 +303,14 @@ describe("paymentMiddleware()", () => {
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
-    expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
-    expect(mockSettle).toHaveBeenCalledWith(validPayment, expect.any(Object));
+    expect(mockSettle).toHaveBeenCalledWith(VALID_PAYMENT, expect.any(Object));
     // Should not try to send another response since headers are already sent
     expect(mockRes.status).not.toHaveBeenCalledWith(402);
   });
 
   it("should not settle payment if protected route returns status >= 400", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "x-payment": VALID_PAYMENT_B64,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -376,13 +360,17 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          cdpClientKey: "test-client-key",
-          appName: "Test App",
-          appLogo: "/test-logo.png",
-          sessionTokenEndpoint: "/api/x402/session-token",
+          paywall: {
+            cdpClientKey: "test-client-key",
+            appName: "Test App",
+            appLogo: "/test-logo.png",
+            sessionTokenEndpoint: "/api/x402/session-token",
+          },
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -406,12 +394,16 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          cdpClientKey: "test-client-key",
-          appName: "Test App",
-          sessionTokenEndpoint: undefined,
+          paywall: {
+            cdpClientKey: "test-client-key",
+            appName: "Test App",
+            sessionTokenEndpoint: undefined,
+          },
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -434,13 +426,17 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          sessionTokenEndpoint: "/custom/session-token",
-          cdpClientKey: undefined,
-          appName: undefined,
-          appLogo: undefined,
+          paywall: {
+            sessionTokenEndpoint: "/custom/session-token",
+            cdpClientKey: undefined,
+            appName: undefined,
+            appLogo: undefined,
+          },
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -454,13 +450,12 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithoutPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          sessionTokenEndpoint: undefined,
-          cdpClientKey: undefined,
-          appName: undefined,
-          appLogo: undefined,
+          paywall: undefined,
         }),
+        expect.any(Array),
+        undefined,
       );
     });
   });

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
-import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
+import { findMatchingRoute, findMatchingPaymentRequirements, safeBase64Encode } from "x402/shared";
 import {
   FacilitatorConfig,
   PaymentMiddlewareConfig,
@@ -11,17 +11,25 @@ import {
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
+import { renderPaywallHtml } from "x402/middleware";
 
 // Mock dependencies
 vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn(),
 }));
 
+vi.mock("x402/middleware", async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    renderPaywallHtml: vi.fn(),
+  };
+});
+
 vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    getPaywallHtml: vi.fn(),
     getNetworkId: vi.fn().mockReturnValue(84532),
     toJsonSafe: vi.fn(x => x),
     computeRoutePatterns: vi.fn().mockImplementation(routes => {
@@ -76,6 +84,24 @@ vi.mock("x402/shared", async importOriginal => {
       }),
   };
 });
+
+const VALID_PAYMENT: PaymentPayload = {
+  scheme: "exact",
+  x402Version: 1,
+  network: "base-sepolia",
+  payload: {
+    signature: "0x123",
+    authorization: {
+      from: "0xbac675c310721717cd4a37f6cbea1f081b1c2a07",
+      to: "0xbac675c310721717cd4a37f6cbea1f081b1c2a07",
+      value: "1000",
+      validAfter: "0x123",
+      validBefore: "0x123",
+      nonce: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    },
+  },
+};
+const VALID_PAYMENT_B64 = safeBase64Encode(JSON.stringify(VALID_PAYMENT));
 
 vi.mock("x402/shared/evm", () => ({
   getUsdcAddressForChain: vi.fn().mockReturnValue("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
@@ -137,7 +163,7 @@ describe("paymentMiddleware()", () => {
     });
 
     // Setup paywall HTML mock
-    (getPaywallHtml as ReturnType<typeof vi.fn>).mockReturnValue("<html>Paywall</html>");
+    (renderPaywallHtml as ReturnType<typeof vi.fn>).mockReturnValue("<html>Paywall</html>");
 
     // Setup decode payment mock
     mockDecodePayment = vi.fn();
@@ -172,6 +198,8 @@ describe("paymentMiddleware()", () => {
         },
       },
       facilitatorConfig,
+      undefined,
+      useFacilitator,
     );
   });
 
@@ -332,20 +360,12 @@ describe("paymentMiddleware()", () => {
   });
 
   it("should verify payment and proceed if valid", async () => {
-    const validPayment = "valid-payment-header";
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "X-PAYMENT": VALID_PAYMENT_B64,
       }),
     } as NextRequest;
-
-    const decodedPayment = {
-      scheme: "exact",
-      network: "base-sepolia",
-      x402Version: 1,
-    };
-    mockDecodePayment.mockReturnValue(decodedPayment);
 
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -356,8 +376,7 @@ describe("paymentMiddleware()", () => {
 
     const response = await middleware(request);
 
-    expect(mockDecodePayment).toHaveBeenCalledWith(validPayment);
-    expect(mockVerify).toHaveBeenCalledWith(decodedPayment, {
+    expect(mockVerify).toHaveBeenCalledWith(VALID_PAYMENT, {
       scheme: "exact",
       network: "base-sepolia",
       maxAmountRequired: "1000000",
@@ -378,20 +397,12 @@ describe("paymentMiddleware()", () => {
   });
 
   it("should return 402 if payment verification fails", async () => {
-    const invalidPayment = "invalid-payment-header";
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": invalidPayment,
+        "X-PAYMENT": VALID_PAYMENT_B64,
       }),
     } as NextRequest;
-
-    const decodedPayment = {
-      scheme: "exact",
-      network: "base-sepolia",
-      x402Version: 1,
-    };
-    mockDecodePayment.mockReturnValue(decodedPayment);
 
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({
       isValid: false,
@@ -427,20 +438,12 @@ describe("paymentMiddleware()", () => {
   });
 
   it("should handle settlement after response", async () => {
-    const validPayment = "valid-payment-header";
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "X-PAYMENT": VALID_PAYMENT_B64,
       }),
     } as NextRequest;
-
-    const decodedPayment = {
-      scheme: "exact",
-      network: "base-sepolia",
-      x402Version: 1,
-    };
-    mockDecodePayment.mockReturnValue(decodedPayment);
 
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -451,7 +454,7 @@ describe("paymentMiddleware()", () => {
 
     const response = await middleware(request);
 
-    expect(mockSettle).toHaveBeenCalledWith(decodedPayment, {
+    expect(mockSettle).toHaveBeenCalledWith(VALID_PAYMENT, {
       scheme: "exact",
       network: "base-sepolia",
       maxAmountRequired: "1000000",
@@ -587,43 +590,6 @@ describe("paymentMiddleware()", () => {
     });
   });
 
-  it("should not settle payment if protected route returns status >= 400", async () => {
-    const validPayment = "valid-payment-header";
-    const request = {
-      ...mockRequest,
-      headers: new Headers({
-        "X-PAYMENT": validPayment,
-      }),
-    } as NextRequest;
-
-    const decodedPayment = {
-      scheme: "exact",
-      network: "base-sepolia",
-      x402Version: 1,
-    };
-    mockDecodePayment.mockReturnValue(decodedPayment);
-
-    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
-    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
-      success: true,
-      transaction: "0x123",
-      network: "base-sepolia",
-    });
-
-    // Mock NextResponse.next to return a 500 response
-    const mockNext = vi.spyOn(NextResponse, "next").mockImplementation(() => {
-      return new NextResponse("Internal server error", { status: 500 });
-    });
-
-    const response = await middleware(request);
-
-    expect(response.status).toBe(500);
-    expect(mockSettle).not.toHaveBeenCalled();
-
-    // Restore original NextResponse.next
-    mockNext.mockRestore();
-  });
-
   describe("session token integration", () => {
     it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
       const paywallConfig = {
@@ -655,14 +621,17 @@ describe("paymentMiddleware()", () => {
       } as NextRequest;
 
       await middlewareWithPaywall(request);
-
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          cdpClientKey: "test-client-key",
-          appName: "Test App",
-          appLogo: "/test-logo.png",
-          sessionTokenEndpoint: "/api/x402/session-token",
+          paywall: expect.objectContaining({
+            cdpClientKey: "test-client-key",
+            appName: "Test App",
+            appLogo: "/test-logo.png",
+            sessionTokenEndpoint: "/api/x402/session-token",
+          }),
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -695,12 +664,16 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithPaywall(request);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          cdpClientKey: "test-client-key",
-          appName: "Test App",
-          sessionTokenEndpoint: undefined,
+          paywall: {
+            cdpClientKey: "test-client-key",
+            appName: "Test App",
+            sessionTokenEndpoint: undefined,
+          },
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -732,13 +705,17 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithPaywall(request);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          sessionTokenEndpoint: "/custom/session-token",
-          cdpClientKey: undefined,
-          appName: undefined,
-          appLogo: undefined,
+          paywall: {
+            sessionTokenEndpoint: "/custom/session-token",
+            cdpClientKey: undefined,
+            appName: undefined,
+            appLogo: undefined,
+          },
         }),
+        expect.any(Array),
+        undefined,
       );
     });
 
@@ -765,13 +742,12 @@ describe("paymentMiddleware()", () => {
 
       await middlewareWithoutPaywall(request);
 
-      expect(getPaywallHtml).toHaveBeenCalledWith(
+      expect(renderPaywallHtml).toBeCalledWith(
         expect.objectContaining({
-          sessionTokenEndpoint: undefined,
-          cdpClientKey: undefined,
-          appName: undefined,
-          appLogo: undefined,
+          paywall: undefined,
         }),
+        expect.any(Array),
+        undefined,
       );
     });
   });

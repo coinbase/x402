@@ -1,11 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Address } from "viem";
-import type { FacilitatorConfig, PaywallConfig, RoutesConfig } from "x402/types";
-import { exact } from "x402/schemes";
-import { getPaywallHtml, toJsonSafe } from "x402/shared";
-import { moneySchema, settleResponseHeader } from "x402/types";
-import { useFacilitator } from "x402/verify";
-import { PaymentMiddleware, X402Error } from "x402/middleware";
+import type { FacilitatorConfig, PaywallConfig, Resource, RoutesConfig } from "x402/types";
+import type { useFacilitator } from "x402/verify";
+import { settleResponseHeader } from "x402/types";
+import { PaymentMiddleware, X402Error, renderPaywallHtml } from "x402/middleware";
 
 type EndArgs =
   | [cb?: () => void]
@@ -85,27 +83,16 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
-  useFacilitatorFn: typeof useFacilitator = useFacilitator,
+  useFacilitatorFn?: typeof useFacilitator,
 ) {
-  const middlewares = PaymentMiddleware.forRoutes<Request>(
-    payTo,
+  const middlewares = PaymentMiddleware.forRoutes<Request>({
     routes,
-    function paymentFromRequest(req) {
-      const paymentHeader = req.header("X-PAYMENT");
-      if (!paymentHeader) {
-        return undefined;
-      }
-      return exact.evm.decodePayment(paymentHeader);
-    },
-    function canRenderPaywall(req) {
-      const userAgent = req.header("User-Agent") || "";
-      const acceptHeader = req.header("Accept") || "";
-      return acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-    },
+    payTo,
     facilitator,
     paywall,
+    getHeader: (req, name) => req.header(name),
     useFacilitatorFn,
-  );
+  });
 
   return async function paymentMiddleware(
     req: Request,
@@ -114,47 +101,20 @@ export function paymentMiddleware(
   ): Promise<void> {
     // Determine whether the current request matches any protected route.
     // If it doesn't, skip payment logic and proceed as usual.
-    const x402Middleware = middlewares.match(req.path, req.method.toUpperCase());
-    if (!x402Middleware) {
+    const x402 = middlewares.match(req.path, req.method.toUpperCase());
+    if (!x402) {
       return next();
     }
 
     const originalEnd = res.end.bind(res);
     const deferred = defer<EndArgs>();
 
+    const resource = `${req.protocol}://${req.headers.host}${req.path}` as Resource;
     try {
-      const paymentRequirements = x402Middleware.paymentRequirements(req);
-      const payment = await x402Middleware.acquirePayment(req, paymentRequirements);
+      const paymentRequirements = x402.paymentRequirements(resource);
+      const payment = await x402.verifyPayment(req, paymentRequirements);
       if (!payment) {
-        const price = x402Middleware.config.price;
-        const network = x402Middleware.config.network;
-        const customPaywallHtml = x402Middleware.config.config?.customPaywallHtml;
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
-
-        const html =
-          customPaywallHtml ||
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl: req.originalUrl,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appName: paywall?.appName,
-            appLogo: paywall?.appLogo,
-            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
-          });
+        const html = renderPaywallHtml(x402, paymentRequirements, req.originalUrl);
         res.status(402).send(html);
         return;
       }
@@ -166,23 +126,17 @@ export function paymentMiddleware(
         return res;
       };
 
-      // Proceed to the next middleware or route handler.
       next();
-      // Wait for the response to finish before attempting payment settlement.
-      await deferred.promise;
+      await deferred.promise; // Wait for the response to finish before attempting payment settlement.
 
-      // If the response from the protected route is >= 400, do not settle payment
       if (res.statusCode >= 400) {
-        // We turn res.end back to the original fn in the `finally` clause below.
-        return;
+        return; // We turn res.end back to the original fn in the `finally` clause below.
       }
 
       const settlement = await payment.settle();
       const responseHeader = settleResponseHeader(settlement);
       res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
     } catch (e) {
-      // Return a structured 402 error response if the failure is a known x402 error
-      // and the headers haven't yet been sent.
       if (e instanceof X402Error) {
         if (!res.headersSent) {
           res.status(402).json(e.toJSON());
