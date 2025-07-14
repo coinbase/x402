@@ -19,7 +19,6 @@ import {
   TransferCheckedInstruction as TransferCheckedInstructionToken2022,
 } from "@solana-program/token-2022";
 import {
-  fetchMint as fetchMintToken,
   findAssociatedTokenPda as findAssociatedTokenPdaToken,
   getTransferCheckedInstruction as getTransferCheckedInstructionToken,
   TOKEN_PROGRAM_ADDRESS,
@@ -112,11 +111,12 @@ async function createTransferInstruction(
   const { asset } = paymentRequirements;
 
   const rpc = getRpcClient(paymentRequirements.network);
-  const tokenAccount = await rpc.getAccountInfo(asset as Address).send();
-  if (tokenAccount.value?.owner.toString() === TOKEN_PROGRAM_ADDRESS.toString()) {
-    return createTransferInstructionToken(client, paymentRequirements);
-  } else if (tokenAccount.value?.owner.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
-    return createTransferInstructionToken2022(client, paymentRequirements);
+  const tokenMint = await fetchMintToken2022(rpc, asset as Address); // works for both token and token-2022
+
+  if (tokenMint.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()) {
+    return createTransferInstructionToken(client, paymentRequirements, tokenMint.data.decimals);
+  } else if (tokenMint.programAddress.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
+    return createTransferInstructionToken2022(client, paymentRequirements, tokenMint.data.decimals);
   } else {
     throw new Error("Asset was not created by a known token program");
   }
@@ -129,11 +129,13 @@ async function createTransferInstruction(
  *
  * @param client - The signer instance used to create the transfer instruction
  * @param paymentRequirements - The payment requirements
+ * @param decimals - The decimals of the token
  * @returns A promise that resolves to the transfer instruction
  */
 async function createTransferInstructionToken2022(
   client: KeyPairSigner,
   paymentRequirements: PaymentRequirements,
+  decimals: number,
 ): Promise<TransferCheckedInstructionToken2022> {
   const { asset, maxAmountRequired: amount, payTo } = paymentRequirements;
 
@@ -149,11 +151,6 @@ async function createTransferInstructionToken2022(
     tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
   });
 
-  // query the token program for the decimals
-  const rpc = getRpcClient(paymentRequirements.network);
-  const tokenMint = await fetchMintToken2022(rpc, asset as Address);
-  const decimals = tokenMint.data.decimals;
-
   return getTransferCheckedInstructionToken2022(
     {
       source: sourceATA[0],
@@ -161,7 +158,7 @@ async function createTransferInstructionToken2022(
       destination: destinationATA[0],
       authority: client.address,
       amount: BigInt(amount),
-      decimals: Number(decimals),
+      decimals: decimals,
     },
     { programAddress: TOKEN_2022_PROGRAM_ADDRESS },
   );
@@ -174,11 +171,13 @@ async function createTransferInstructionToken2022(
  *
  * @param client - The signer instance used to create the transfer instruction
  * @param paymentRequirements - The payment requirements
+ * @param decimals - The decimals of the token
  * @returns A promise that resolves to the transfer instruction
  */
 async function createTransferInstructionToken(
   client: KeyPairSigner,
   paymentRequirements: PaymentRequirements,
+  decimals: number,
 ): Promise<TransferCheckedInstructionToken> {
   const { asset, maxAmountRequired: amount, payTo } = paymentRequirements;
 
@@ -194,11 +193,6 @@ async function createTransferInstructionToken(
     tokenProgram: TOKEN_PROGRAM_ADDRESS,
   });
 
-  // query the token program for the decimals
-  const rpc = getRpcClient(paymentRequirements.network);
-  const tokenMint = await fetchMintToken(rpc, asset as Address);
-  const decimals = tokenMint.data.decimals;
-
   return getTransferCheckedInstructionToken(
     {
       source: sourceATA[0],
@@ -206,7 +200,7 @@ async function createTransferInstructionToken(
       destination: destinationATA[0],
       authority: client,
       amount: BigInt(amount),
-      decimals: Number(decimals),
+      decimals: decimals,
     },
     { programAddress: TOKEN_PROGRAM_ADDRESS },
   );
