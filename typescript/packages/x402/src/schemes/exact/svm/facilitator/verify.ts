@@ -11,6 +11,7 @@ import {
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
   decompileTransactionMessageFetchingLookupTables,
+  fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
   KeyPairSigner,
   SolanaRpcApiDevnet,
@@ -19,7 +20,6 @@ import {
   RpcMainnet,
 } from "@solana/kit";
 import {
-  fetchToken,
   findAssociatedTokenPda,
   identifyToken2022Instruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
@@ -236,20 +236,17 @@ export async function verifyTransferDetails(
     throw new Error(`invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata`);
   }
 
-  // verify that the destination ATA exists
-  try {
-    await fetchToken(rpc, payToATA[0]);
-  } catch (error) {
-    console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
-  }
-
-  // verify that the source ATA exists
-  try {
-    await fetchToken(rpc, tokenInstruction.accounts.source.address);
-  } catch (error) {
-    console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
+  // verify that the source and destination ATAs exist
+  const addresses = [tokenInstruction.accounts.source.address, payToATA[0]];
+  const maybeAccounts = await fetchEncodedAccounts(rpc, addresses);
+  const missingAccounts = maybeAccounts.filter(a => !a.exists);
+  for (const account of missingAccounts) {
+    if (account.address === tokenInstruction.accounts.source.address) {
+      throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
+    }
+    if (account.address === payToATA[0]) {
+      throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
+    }
   }
 
   // verify that the amount is correct

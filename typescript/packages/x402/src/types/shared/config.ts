@@ -23,7 +23,7 @@ export const config: Record<string, ChainConfig> = {
     usdcName: "Bridged USDC",
   },
   "solana-devnet": {
-    usdcAddress: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr" as SolanaAddress,
+    usdcAddress: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" as SolanaAddress,
     usdcName: "USDC",
   },
   "solana-mainnet": {

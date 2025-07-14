@@ -100,7 +100,7 @@ export function getDefaultAsset(network: Network) {
   // solana devnet
   if (network === "solana-devnet") {
     return {
-      address: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+      address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
       decimals: 6,
     };
   }

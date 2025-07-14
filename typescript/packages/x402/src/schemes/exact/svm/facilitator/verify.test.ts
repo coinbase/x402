@@ -11,6 +11,7 @@ import {
   assertIsInstructionWithData,
   assertIsInstructionWithAccounts,
   decompileTransactionMessageFetchingLookupTables,
+  fetchEncodedAccounts,
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import { SCHEME } from "../../";
@@ -27,7 +28,6 @@ import {
   identifyToken2022Instruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   findAssociatedTokenPda,
-  fetchToken,
 } from "@solana-program/token-2022";
 
 vi.mock("@solana/kit", async () => {
@@ -40,6 +40,7 @@ vi.mock("@solana/kit", async () => {
     assertIsInstructionWithAccounts: vi.fn(),
     getCompiledTransactionMessageDecoder: vi.fn().mockReturnValue({ decode: vi.fn() }),
     decompileTransactionMessageFetchingLookupTables: vi.fn(),
+    fetchEncodedAccounts: vi.fn(),
   };
 });
 
@@ -59,7 +60,6 @@ vi.mock("@solana-program/token-2022", async () => {
     identifyToken2022Instruction: vi.fn(),
     parseTransferCheckedInstruction: vi.fn(),
     findAssociatedTokenPda: vi.fn(),
-    fetchToken: vi.fn(),
   };
 });
 
@@ -72,6 +72,8 @@ vi.mock("../../../../shared/svm", async () => {
     signAndSimulateTransaction: vi.fn(),
   };
 });
+
+const devnetUSDCAddress = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 
 describe("verify", () => {
   describe("verifySchemesAndNetworks", () => {
@@ -288,12 +290,15 @@ describe("verify", () => {
         description: "description",
         mimeType: "mimeType",
         maxTimeoutSeconds: 60,
-        asset: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+        asset: devnetUSDCAddress,
       };
       mockRpc = {}; // Mock rpc object
 
       vi.mocked(findAssociatedTokenPda).mockResolvedValue(["destinationAta"] as any);
-      vi.mocked(fetchToken).mockResolvedValue({} as any);
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: true },
+      ] as any);
     });
 
     it("should not throw for valid transfer details", async () => {
@@ -310,24 +315,20 @@ describe("verify", () => {
     });
 
     it("should throw if receiver ATA is not found", async () => {
-      vi.mocked(fetchToken).mockImplementation(async (rpc, address) => {
-        if (address === "destinationAta") {
-          throw new Error("not found");
-        }
-        return {} as any;
-      });
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: false },
+      ] as any);
       await expect(
         verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_receiver_ata_not_found");
     });
 
     it("should throw if sender ATA is not found", async () => {
-      vi.mocked(fetchToken).mockImplementation(async (rpc, address) => {
-        if (address === "sourceAta") {
-          throw new Error("not found");
-        }
-        return {} as any;
-      });
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: false },
+        { address: "destinationAta", exists: true },
+      ] as any);
       await expect(
         verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_sender_ata_not_found");
@@ -361,7 +362,7 @@ describe("verify", () => {
         network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
-        asset: "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr",
+        asset: devnetUSDCAddress,
       } as any;
 
       // mocks for happy path
@@ -387,7 +388,10 @@ describe("verify", () => {
         value: { err: null },
       } as any);
       vi.mocked(findAssociatedTokenPda).mockResolvedValue(["destinationAta"] as any);
-      vi.mocked(fetchToken).mockResolvedValue({} as any);
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: true },
+      ] as any);
       vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue({
         programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
         accounts: {
