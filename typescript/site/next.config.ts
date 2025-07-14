@@ -13,11 +13,6 @@ const nextConfig: NextConfig = {
       use: ["@svgr/webpack"],
     });
 
-    // https://github.com/webpack/webpack/issues/14798
-    // config.externals.push({
-    //   "node:crypto": "commonjs crypto",
-    // });
-
     return config;
   },
 };

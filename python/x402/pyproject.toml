@@ -1,6 +1,6 @@
 [project]
 name = "x402"
-version = "0.1.2"
+version = "0.1.3"
 description = "x402: An internet native payments protocol"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -15,7 +15,8 @@ dependencies = [
     "eth-typing>=4.0.0",
     "eth-utils>=3.0.0",
     "fastapi[standard]>=0.115.12",
-    "pydantic>=2.10.3,<=2.10.4",
+    "flask>=3.0.0",
+    "pydantic>=2.10.3",
     "pydantic-settings>=2.2.1",
     "python-dotenv>=1.0.1",
     "web3>=6.0.0",

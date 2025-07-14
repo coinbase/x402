@@ -5,11 +5,12 @@ from x402.chains import (
     get_token_decimals,
     get_token_name,
     get_token_version,
+    get_default_token_address,
 )
 from x402.types import Price, TokenAmount
 
 
-def parse_money(amount: str | int, address: str, network_id: str) -> int:
+def parse_money(amount: str | int, address: str, network: str) -> int:
     """Parse money string or int into int
 
     Params:
@@ -20,7 +21,7 @@ def parse_money(amount: str | int, address: str, network_id: str) -> int:
             amount = amount[1:]
         amount = Decimal(amount)
 
-        chain_id = get_chain_id(network_id)
+        chain_id = get_chain_id(network)
         decimals = get_token_decimals(chain_id, address)
         amount = amount * Decimal(10**decimals)
         return int(amount)
@@ -28,13 +29,13 @@ def parse_money(amount: str | int, address: str, network_id: str) -> int:
 
 
 def process_price_to_atomic_amount(
-    price: Price, network_id: str
+    price: Price, network: str
 ) -> tuple[str, str, dict[str, str]]:
     """Process a Price into atomic amount, asset address, and EIP-712 domain info
 
     Args:
         price: Either Money (USD string/int) or TokenAmount
-        network_id: Network identifier
+        network: Network identifier
 
     Returns:
         Tuple of (max_amount_required, asset_address, eip712_domain)
@@ -50,7 +51,7 @@ def process_price_to_atomic_amount(
             amount = Decimal(str(price))
 
             # Get USDC address for the network
-            chain_id = get_chain_id(network_id)
+            chain_id = get_chain_id(network)
             asset_address = get_usdc_address(chain_id)
             decimals = get_token_decimals(chain_id, asset_address)
 
@@ -86,16 +87,8 @@ def process_price_to_atomic_amount(
 def get_usdc_address(chain_id: int | str) -> str:
     """Get the USDC contract address for a given chain ID"""
     if isinstance(chain_id, str):
-        chain_id = int(chain_id)
-    if chain_id == 84532:  # Base Sepolia testnet
-        return "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
-    elif chain_id == 8453:  # Base mainnet
-        return "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    elif chain_id == 43113:  # Avalanche Fuji testnet
-        return "0x5425890298aed601595a70AB815c96711a31Bc65"
-    elif chain_id == 43114:  # Avalanche mainnet
-        return "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
-    raise ValueError(f"Unsupported chain ID: {chain_id}")
+        chain_id = str(chain_id)  # Keep as string for consistency
+    return get_default_token_address(chain_id, "usdc")
 
 
 x402_VERSION = 1

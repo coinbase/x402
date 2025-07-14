@@ -10,7 +10,7 @@ export default [
     ignores: ["dist/**", "node_modules/**", "src/paywall/dist/**", "src/paywall/gen/**"],
   },
   {
-    files: ["**/*.ts"],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parser: tsParser,
       sourceType: "module",
