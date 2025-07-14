@@ -4,6 +4,8 @@ x402 welcomes contributions of schemes, middleware, new chain support, and more.
 CDP aims to make x402 as secure and trusted as possible.
 Merging contributions is at the discretion of the CDP Engineering team, based on the risk of the contribution and the quality of implementation.
 
+If you update the core x402 Typescript package, you'll need to rebuild the paywall via `pnpm build:paywall` and commit the resulting generated files as part of your PR.
+
 ## Middleware and language libraries
 
 Language libraries should implement best practices of the language they target, have tests, linting, and follow best practices for x402 client development.
