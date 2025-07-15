@@ -11,7 +11,7 @@ from x402.types import (
     PaywallConfig,
     SupportedNetworks,
 )
-from x402.common import process_price_to_atomic_amount, x402_VERSION
+from x402.common import process_price_to_atomic_amount, x402_VERSION, find_matching_payment_requirements
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.paywall import is_browser_request, get_paywall_html
@@ -209,14 +209,8 @@ class PaymentMiddleware:
                     return x402_response(f"Invalid payment header format: {str(e)}")
 
                 # Find matching payment requirements
-                selected_payment_requirements = next(
-                    (
-                        req
-                        for req in payment_requirements
-                        if req.scheme == payment.scheme
-                        and req.network == payment.network
-                    ),
-                    None,
+                selected_payment_requirements = find_matching_payment_requirements(
+                    payment_requirements, payment
                 )
 
                 if not selected_payment_requirements:

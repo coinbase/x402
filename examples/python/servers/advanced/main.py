@@ -10,6 +10,7 @@ from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.exact import decode_payment
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.encoding import safe_base64_encode
+from x402.common import find_matching_payment_requirements
 from x402.types import (
     PaymentPayload,
     PaymentRequirements,
@@ -65,33 +66,7 @@ async def payment_required_handler(request: Request, exc: PaymentRequiredExcepti
     )
 
 
-def select_payment_requirement(
-    decoded_payment: PaymentPayload,
-    payment_requirements: list[PaymentRequirements],
-) -> PaymentRequirements:
-    """
-    Selects the matching payment requirement for a given payment.
 
-    Args:
-        decoded_payment: The decoded payment payload
-        payment_requirements: List of payment requirements to match against
-
-    Returns:
-        The selected payment requirement
-    """
-    return (
-        payment_requirements[0]
-        if len(payment_requirements) == 1
-        else next(
-            (
-                req
-                for req in payment_requirements
-                if req.scheme == decoded_payment.scheme
-                and req.network == decoded_payment.network
-            ),
-            payment_requirements[0],  # Fallback to first if no match
-        )
-    )
 
 
 def create_exact_payment_requirements(
@@ -182,9 +157,9 @@ async def verify_payment(
         raise PaymentRequiredException(error_data)
 
     try:
-        selected_payment_requirement = select_payment_requirement(
-            decoded_payment, payment_requirements
-        )
+        selected_payment_requirement = find_matching_payment_requirements(
+            payment_requirements, decoded_payment
+        ) or payment_requirements[0]
         verify_response = await facilitator.verify(
             decoded_payment, selected_payment_requirement
         )
@@ -375,9 +350,9 @@ async def multiple_payment_requirements(
     decoded_payment = PaymentPayload(**decoded_payment_dict)
 
     # Find the matching payment requirement
-    selected_payment_requirement = select_payment_requirement(
-        decoded_payment, payment_requirements
-    )
+    selected_payment_requirement = find_matching_payment_requirements(
+        payment_requirements, decoded_payment
+    ) or payment_requirements[0]
 
     settle_response = await facilitator.settle(
         decoded_payment, selected_payment_requirement
