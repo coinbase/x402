@@ -65,6 +65,35 @@ async def payment_required_handler(request: Request, exc: PaymentRequiredExcepti
     )
 
 
+def select_payment_requirement(
+    decoded_payment: PaymentPayload,
+    payment_requirements: list[PaymentRequirements],
+) -> PaymentRequirements:
+    """
+    Selects the matching payment requirement for a given payment.
+
+    Args:
+        decoded_payment: The decoded payment payload
+        payment_requirements: List of payment requirements to match against
+
+    Returns:
+        The selected payment requirement
+    """
+    return (
+        payment_requirements[0]
+        if len(payment_requirements) == 1
+        else next(
+            (
+                req
+                for req in payment_requirements
+                if req.scheme == decoded_payment.scheme
+                and req.network == decoded_payment.network
+            ),
+            payment_requirements[0],  # Fallback to first if no match
+        )
+    )
+
+
 def create_exact_payment_requirements(
     price: Price,
     network: SupportedNetworks,
@@ -153,8 +182,11 @@ async def verify_payment(
         raise PaymentRequiredException(error_data)
 
     try:
+        selected_payment_requirement = select_payment_requirement(
+            decoded_payment, payment_requirements
+        )
         verify_response = await facilitator.verify(
-            decoded_payment, payment_requirements[0]
+            decoded_payment, selected_payment_requirement
         )
         if not verify_response.is_valid:
             error_data = x402PaymentRequiredResponse(
@@ -343,19 +375,13 @@ async def multiple_payment_requirements(
     decoded_payment = PaymentPayload(**decoded_payment_dict)
 
     # Find the matching payment requirement
-    selected_payment_requirement = (
-        payment_requirements[0] if len(payment_requirements) == 1
-        else next(
-            (
-                req
-                for req in payment_requirements
-                if req.scheme == decoded_payment.scheme and req.network == decoded_payment.network
-            ),
-            payment_requirements[0],  # Fallback to first if no match
-        )
+    selected_payment_requirement = select_payment_requirement(
+        decoded_payment, payment_requirements
     )
 
-    settle_response = await facilitator.settle(decoded_payment, selected_payment_requirement)
+    settle_response = await facilitator.settle(
+        decoded_payment, selected_payment_requirement
+    )
     response_header = settle_response_header(settle_response)
 
     # Set the payment response header
