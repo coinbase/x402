@@ -27,6 +27,7 @@ async def main():
     async with x402HttpxClient(account=account, base_url=base_url) as client:
         # Make request - payment handling is automatic
         try:
+            assert endpoint_path is not None  # we already guard against None above
             print(f"Making request to {endpoint_path}")
             response = await client.get(endpoint_path)
 
