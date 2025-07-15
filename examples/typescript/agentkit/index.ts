@@ -6,6 +6,15 @@ import dotenv from "dotenv";
 // Load environment variables
 dotenv.config();
 
+/**
+ * Main entry point for the AgentKit chatbot application.
+ * Initializes an AI agent and starts an interactive chat session in the terminal.
+ * The agent can process user input, execute onchain actions, and provide streaming responses.
+ * Users can exit the chat by typing 'q' or 'quit'.
+ *
+ * @returns {Promise<void>} Resolves when the chat session ends or errors
+ * @throws {Error} If agent initialization fails or encounters an unexpected error
+ */
 async function main() {
   try {
     // Initialize the agent
@@ -40,9 +49,12 @@ async function main() {
 
         try {
           // Get streaming response from agent
-          const stream = await agent.stream({
-            messages: [new HumanMessage(userInput)]
-          }, config);
+          const stream = await agent.stream(
+            {
+              messages: [new HumanMessage(userInput)],
+            },
+            config,
+          );
 
           // Process the stream chunks
           console.log("\nAgent: ");
@@ -58,7 +70,10 @@ async function main() {
           }
           console.log("\n-------------------");
         } catch (error) {
-          console.error("\nError getting agent response:", error instanceof Error ? error.message : error);
+          console.error(
+            "\nError getting agent response:",
+            error instanceof Error ? error.message : error,
+          );
           console.log("-------------------");
         }
       }
@@ -72,7 +87,7 @@ async function main() {
 }
 
 // Run the main function
-main().catch((error) => {
+main().catch(error => {
   console.error("Unexpected error:", error instanceof Error ? error.message : error);
   process.exit(1);
-}); 
+});

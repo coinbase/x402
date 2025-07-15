@@ -3,7 +3,16 @@ import { MemorySaver } from "@langchain/langgraph";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { Hex } from "viem";
-import { ActionProvider, AgentKit, cdpApiActionProvider, erc20ActionProvider, NETWORK_ID_TO_VIEM_CHAIN, walletActionProvider, wethActionProvider, x402ActionProvider } from "@coinbase/agentkit";
+import {
+  ActionProvider,
+  AgentKit,
+  cdpApiActionProvider,
+  erc20ActionProvider,
+  NETWORK_ID_TO_VIEM_CHAIN,
+  walletActionProvider,
+  wethActionProvider,
+  x402ActionProvider,
+} from "@coinbase/agentkit";
 import { ViemWalletProvider } from "@coinbase/agentkit";
 import { createWalletClient } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -43,7 +52,10 @@ const WALLET_DATA_FILE = "wallet_data.txt";
  *
  * @throws {Error} If the agent initialization fails.
  */
-export async function createAgent(): Promise<{ agent: ReturnType<typeof createReactAgent>, config: { configurable: { thread_id: string } } }> {
+export async function createAgent(): Promise<{
+  agent: ReturnType<typeof createReactAgent>;
+  config: { configurable: { thread_id: string } };
+}> {
   const config = { configurable: { thread_id: "x402 AgentKit Chatbot Example!" } };
 
   // If agent has already been initialized, return it
@@ -69,7 +81,7 @@ export async function createAgent(): Promise<{ agent: ReturnType<typeof createRe
     }
 
     const account = privateKeyToAccount(privateKey);
-    const networkId = process.env.NETWORK_ID || "base-sepolia" as Network;
+    const networkId = process.env.NETWORK_ID || ("base-sepolia" as Network);
 
     const client = createWalletClient({
       account,
@@ -83,7 +95,7 @@ export async function createAgent(): Promise<{ agent: ReturnType<typeof createRe
       wethActionProvider(),
       walletActionProvider(),
       erc20ActionProvider(),
-      x402ActionProvider()
+      x402ActionProvider(),
     ];
 
     const canUseCdpApi = process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET;
@@ -127,8 +139,8 @@ export async function createAgent(): Promise<{ agent: ReturnType<typeof createRe
 
     return {
       agent,
-      config
-    }
+      config,
+    };
   } catch (error) {
     console.error("Error initializing agent:", error);
     throw new Error("Failed to initialize agent");
