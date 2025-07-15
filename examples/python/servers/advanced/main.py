@@ -342,7 +342,17 @@ async def multiple_payment_requirements(
     decoded_payment_dict = decode_payment(x_payment)
     decoded_payment = PaymentPayload(**decoded_payment_dict)
 
-    settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+    # Find the matching payment requirement
+    selected_payment_requirement = next(
+        (
+            req
+            for req in payment_requirements
+            if req.scheme == decoded_payment.scheme and req.network == decoded_payment.network
+        ),
+        payment_requirements[0],  # Fallback to first if no match
+    )
+
+    settle_response = await facilitator.settle(decoded_payment, selected_payment_requirement)
     response_header = settle_response_header(settle_response)
 
     # Set the payment response header

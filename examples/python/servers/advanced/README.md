@@ -17,7 +17,7 @@ This is an advanced Python example using FastAPI that demonstrates how to implem
 
 ## Setup
 
-1. Copy `.env-local` to `.env` and add your Ethereum address and optionally your CDP API Key info:
+1. Copy `.env-local` to `.env` and add your Ethereum address:
 
 ```bash
 cp .env-local .env
