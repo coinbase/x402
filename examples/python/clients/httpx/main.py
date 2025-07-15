@@ -28,6 +28,13 @@ def custom_payment_selector(
     """Custom payment selector that filters by network."""
     from x402.clients.base import x402Client
 
+    # Ignore the network_filter parameter for this example - we hardcode base-sepolia
+    _ = network_filter
+
+    # NOTE: In a real application, you'd want to dynamically choose the most
+    # appropriate payment requirement based on user preferences, available funds,
+    # network conditions, or other business logic rather than hardcoding a network.
+
     # Filter by base-sepolia network (testnet)
     return x402Client.default_payment_requirements_selector(
         accepts,
