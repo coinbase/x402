@@ -66,6 +66,24 @@ function createExactPaymentRequirements(
 }
 
 /**
+ * Selects the matching payment requirement for a given payment
+ *
+ * @param decodedPayment - The decoded payment payload
+ * @param paymentRequirements - Array of payment requirements to match against
+ * @returns The selected payment requirement
+ */
+function selectPaymentRequirement(
+  decodedPayment: PaymentPayload,
+  paymentRequirements: PaymentRequirements[],
+): PaymentRequirements {
+  return paymentRequirements.length === 1
+    ? paymentRequirements[0]
+    : paymentRequirements.find(
+        req => req.scheme === decodedPayment.scheme && req.network === decodedPayment.network,
+      ) || paymentRequirements[0];
+}
+
+/**
  * Verifies a payment and handles the response
  *
  * @param req - The Express request object
@@ -102,7 +120,11 @@ async function verifyPayment(
   }
 
   try {
-    const response = await verify(decodedPayment, paymentRequirements[0]);
+    const selectedPaymentRequirement = selectPaymentRequirement(
+      decodedPayment,
+      paymentRequirements,
+    );
+    const response = await verify(decodedPayment, selectedPaymentRequirement);
     if (!response.isValid) {
       res.status(402).json({
         x402Version,
@@ -241,10 +263,15 @@ app.get("/multiple-payment-requirements", async (req, res) => {
 
   try {
     // Process payment synchronously
-    const settleResponse = await settle(
-      exact.evm.decodePayment(req.header("X-PAYMENT")!),
-      paymentRequirements[0],
+    const decodedPayment = exact.evm.decodePayment(req.header("X-PAYMENT")!);
+
+    // Find the matching payment requirement
+    const selectedPaymentRequirement = selectPaymentRequirement(
+      decodedPayment,
+      paymentRequirements,
     );
+
+    const settleResponse = await settle(decodedPayment, selectedPaymentRequirement);
     const responseHeader = settleResponseHeader(settleResponse);
     res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
 
