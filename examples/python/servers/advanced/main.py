@@ -1,10 +1,10 @@
 import os
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.exact import decode_payment
@@ -38,7 +38,7 @@ if not FACILITATOR_URL:
 
 if not PAY_TO_ADDRESS:
     raise ValueError("Missing required environment variable: PAY_TO_ADDRESS")
-    
+
 
 app = FastAPI(title="x402 Advanced Server Example")
 
@@ -57,9 +57,9 @@ def create_exact_payment_requirements(
 ) -> PaymentRequirements:
     """
     Creates payment requirements for a given price and network.
-    
+
     This handles both USD string prices (e.g., "$0.001") and TokenAmount objects.
-    
+
     Args:
         price: The price to be paid for the resource (USD string or TokenAmount)
         network: The blockchain network to use for payment
@@ -67,16 +67,16 @@ def create_exact_payment_requirements(
         description: Optional description of the payment
         mime_type: MIME type of the resource
         max_timeout_seconds: Maximum timeout for the payment
-        
+
     Returns:
         PaymentRequirements object
-        
+
     Raises:
         ValueError: If price format is invalid
     """
     try:
-        max_amount_required, asset_address, eip712_domain = process_price_to_atomic_amount(
-            price, network
+        max_amount_required, asset_address, eip712_domain = (
+            process_price_to_atomic_amount(price, network)
         )
     except Exception as e:
         raise ValueError(f"Invalid price: {price}. Error: {e}")
@@ -102,11 +102,11 @@ async def verify_payment(
 ) -> tuple[bool, JSONResponse]:
     """
     Verifies a payment and handles the response.
-    
+
     Args:
         request: The FastAPI request object
         payment_requirements: List of payment requirements to verify against
-        
+
     Returns:
         Tuple of (is_valid, error_response_or_placeholder)
         If is_valid is True, the second element is a placeholder JSONResponse
@@ -140,13 +140,16 @@ async def verify_payment(
         return False, error_response
 
     try:
-        verify_response = await facilitator.verify(decoded_payment, payment_requirements[0])
+        verify_response = await facilitator.verify(
+            decoded_payment, payment_requirements[0]
+        )
         if not verify_response.is_valid:
             error_response = JSONResponse(
                 status_code=402,
                 content=x402PaymentRequiredResponse(
                     x402_version=x402_VERSION,
-                    error=verify_response.invalid_reason or "Payment verification failed",
+                    error=verify_response.invalid_reason
+                    or "Payment verification failed",
                     accepts=payment_requirements,
                 ).model_dump(by_alias=True),
             )
@@ -170,13 +173,13 @@ async def verify_payment(
 def settle_response_header(response: SettleResponse) -> str:
     """
     Creates a settlement response header.
-    
+
     This is the Python equivalent of the TypeScript settleResponseHeader function.
     It base64 encodes the settlement response for use in the X-PAYMENT-RESPONSE header.
-    
+
     Args:
         response: The settlement response from the facilitator
-        
+
     Returns:
         A base64 encoded string containing the settlement response
     """
@@ -185,7 +188,7 @@ def settle_response_header(response: SettleResponse) -> str:
 
 # Delayed settlement example endpoint
 @app.get("/delayed-settlement")
-async def delayed_settlement(request: Request) -> Union[Dict[str, Any], JSONResponse]:
+async def delayed_settlement(request: Request) -> Dict[str, Any]:
     """
     Demonstrates asynchronous payment processing.
     Returns the weather data immediately without waiting for payment settlement.
@@ -203,7 +206,7 @@ async def delayed_settlement(request: Request) -> Union[Dict[str, Any], JSONResp
 
     is_valid, error_response = await verify_payment(request, payment_requirements)
     if not is_valid:
-        return error_response
+        raise HTTPException(status_code=402, detail=error_response.body)
 
     # Return weather data immediately
     response_data = {
@@ -220,13 +223,15 @@ async def delayed_settlement(request: Request) -> Union[Dict[str, Any], JSONResp
             if not x_payment:
                 logger.error("X-PAYMENT header missing in async processing")
                 return
-                
+
             decoded_payment_dict = decode_payment(x_payment)
             decoded_payment = PaymentPayload(**decoded_payment_dict)
-            
-            settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+
+            settle_response = await facilitator.settle(
+                decoded_payment, payment_requirements[0]
+            )
             response_header = settle_response_header(settle_response)
-            
+
             # In a real application, you would store this response header
             # and associate it with the payment for later verification
             logger.info(f"Payment settled: {response_header}")
@@ -243,7 +248,7 @@ async def delayed_settlement(request: Request) -> Union[Dict[str, Any], JSONResp
 
 # Dynamic price example endpoint
 @app.get("/dynamic-price")
-async def dynamic_price(request: Request) -> Union[Dict[str, Any], JSONResponse]:
+async def dynamic_price(request: Request, response: Response) -> Dict[str, Any]:
     """
     Shows how to implement variable pricing based on request parameters.
     Accepts a 'multiplier' query parameter to adjust the base price.
@@ -266,46 +271,41 @@ async def dynamic_price(request: Request) -> Union[Dict[str, Any], JSONResponse]
 
     is_valid, error_response = await verify_payment(request, payment_requirements)
     if not is_valid:
-        return error_response
+        raise HTTPException(status_code=402, detail=error_response.body)
 
     try:
         # Process payment synchronously
         x_payment = request.headers.get("X-PAYMENT")
         if not x_payment:
             raise ValueError("X-PAYMENT header is required")
-            
+
         decoded_payment_dict = decode_payment(x_payment)
         decoded_payment = PaymentPayload(**decoded_payment_dict)
-        
-        settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+
+        settle_response = await facilitator.settle(
+            decoded_payment, payment_requirements[0]
+        )
         response_header = settle_response_header(settle_response)
-        
-        # Return the weather data with payment response header
-        response = JSONResponse(
-            content={
-                "report": {
-                    "success": "sunny",
-                    "temperature": 70,
-                }
-            }
-        )
+
+        # Set the payment response header
         response.headers["X-PAYMENT-RESPONSE"] = response_header
-        return response
+
+        # Return the weather data
+        return {
+            "report": {
+                "success": "sunny",
+                "temperature": 70,
+            }
+        }
     except Exception as e:
-        error_response = JSONResponse(
-            status_code=402,
-            content=x402PaymentRequiredResponse(
-                x402_version=x402_VERSION,
-                error=str(e),
-                accepts=payment_requirements,
-            ).model_dump(by_alias=True),
-        )
-        return error_response
+        raise HTTPException(status_code=402, detail=str(e))
 
 
 # Multiple payment requirements example endpoint
 @app.get("/multiple-payment-requirements")
-async def multiple_payment_requirements(request: Request) -> Union[Dict[str, Any], JSONResponse]:
+async def multiple_payment_requirements(
+    request: Request, response: Response
+) -> Dict[str, Any]:
     """
     Illustrates how to accept multiple payment options.
     Allows clients to pay using different assets (e.g., USDC or custom tokens).
@@ -339,44 +339,37 @@ async def multiple_payment_requirements(request: Request) -> Union[Dict[str, Any
 
     is_valid, error_response = await verify_payment(request, payment_requirements)
     if not is_valid:
-        return error_response
+        raise HTTPException(status_code=402, detail=error_response.body)
 
     try:
         # Process payment synchronously
         x_payment = request.headers.get("X-PAYMENT")
         if not x_payment:
             raise ValueError("X-PAYMENT header is required")
-            
+
         decoded_payment_dict = decode_payment(x_payment)
         decoded_payment = PaymentPayload(**decoded_payment_dict)
-        
-        settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+
+        settle_response = await facilitator.settle(
+            decoded_payment, payment_requirements[0]
+        )
         response_header = settle_response_header(settle_response)
-        
-        # Return the weather data with payment response header
-        response = JSONResponse(
-            content={
-                "report": {
-                    "success": "sunny",
-                    "temperature": 70,
-                }
-            }
-        )
+
+        # Set the payment response header
         response.headers["X-PAYMENT-RESPONSE"] = response_header
-        return response
+
+        # Return the weather data
+        return {
+            "report": {
+                "success": "sunny",
+                "temperature": 70,
+            }
+        }
     except Exception as e:
-        error_response = JSONResponse(
-            status_code=402,
-            content=x402PaymentRequiredResponse(
-                x402_version=x402_VERSION,
-                error=str(e),
-                accepts=payment_requirements,
-            ).model_dump(by_alias=True),
-        )
-        return error_response
+        raise HTTPException(status_code=402, detail=str(e))
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=4021) 
+    uvicorn.run(app, host="0.0.0.0", port=4021)
