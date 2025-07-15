@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
 from x402.clients.httpx import x402HttpxClient
-from x402.clients.base import decode_x_payment_response
+from x402.clients.base import decode_x_payment_response, x402Client
 
 # Load environment variables
 load_dotenv()
@@ -22,11 +22,36 @@ account = Account.from_key(private_key)
 print(f"Initialized account: {account.address}")
 
 
+def custom_payment_selector(
+    accepts, network_filter=None, scheme_filter=None, max_value=None
+):
+    """Custom payment selector that filters by network."""
+    # Ignore the network_filter parameter for this example - we hardcode base-sepolia
+    _ = network_filter
+
+    # NOTE: In a real application, you'd want to dynamically choose the most
+    # appropriate payment requirement based on user preferences, available funds,
+    # network conditions, or other business logic rather than hardcoding a network.
+
+    # Filter by base-sepolia network (testnet)
+    return x402Client.default_payment_requirements_selector(
+        accepts,
+        network_filter="base-sepolia",
+        scheme_filter=scheme_filter,
+        max_value=max_value,
+    )
+
+
 async def main():
-    # Create x402HttpxClient with built-in payment handling
-    async with x402HttpxClient(account=account, base_url=base_url) as client:
+    # Create x402HttpxClient with built-in payment handling and network filtering
+    async with x402HttpxClient(
+        account=account,
+        base_url=base_url,
+        payment_requirements_selector=custom_payment_selector,
+    ) as client:
         # Make request - payment handling is automatic
         try:
+            assert endpoint_path is not None  # we already guard against None above
             print(f"Making request to {endpoint_path}")
             response = await client.get(endpoint_path)
 

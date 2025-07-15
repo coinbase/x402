@@ -1,12 +1,8 @@
-from unittest.mock import patch
-
 from x402.paywall import (
     is_browser_request,
-    load_paywall_html,
     create_x402_config,
     inject_payment_data,
     get_paywall_html,
-    create_simple_fallback_html,
 )
 from x402.types import PaymentRequirements, PaywallConfig
 
@@ -52,39 +48,6 @@ class TestIsBrowserRequest:
             "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)",
         }
         assert is_browser_request(headers) is False
-
-
-class TestLoadPaywallHtml:
-    """Test HTML loading functionality."""
-
-    def test_load_existing_paywall_html(self):
-        # This test depends on the actual paywall.html file existing
-        html_content = load_paywall_html()
-        assert isinstance(html_content, str)
-        assert len(html_content) > 0
-        assert "<html>" in html_content or "<!DOCTYPE html>" in html_content
-
-    @patch("pathlib.Path.exists")
-    def test_load_fallback_when_file_missing(self, mock_exists):
-        mock_exists.return_value = False
-        html_content = load_paywall_html()
-
-        # Should return the fallback HTML
-        assert "Payment Required" in html_content
-        assert "<html>" in html_content
-        assert "window.x402" in html_content
-
-    @patch("pathlib.Path.read_text")
-    @patch("pathlib.Path.exists")
-    def test_load_fallback_on_exception(self, mock_exists, mock_read_text):
-        mock_exists.return_value = True
-        mock_read_text.side_effect = Exception("File read error")
-
-        html_content = load_paywall_html()
-
-        # Should return the fallback HTML
-        assert "Payment Required" in html_content
-        assert "<html>" in html_content
 
 
 class TestCreateX402Config:
@@ -297,25 +260,3 @@ class TestGetPaywallHtml:
         assert '"amount": 2.0' in result
         assert '"appName": "My App"' in result
         assert '"appLogo": "https://example.com/logo.png"' in result
-
-
-class TestCreateSimpleFallbackHtml:
-    """Test the fallback HTML creation."""
-
-    def test_create_simple_fallback_html(self):
-        html_content = create_simple_fallback_html()
-
-        assert isinstance(html_content, str)
-        assert "<!DOCTYPE html>" in html_content
-        assert "Payment Required" in html_content
-        assert "window.x402" in html_content
-        assert "payment-details" in html_content
-        assert "<style>" in html_content
-
-        # Check that it's valid HTML structure
-        assert html_content.count("<html>") == 1
-        assert html_content.count("</html>") == 1
-        assert html_content.count("<head>") == 1
-        assert html_content.count("</head>") == 1
-        assert html_content.count("<body>") == 1
-        assert html_content.count("</body>") == 1

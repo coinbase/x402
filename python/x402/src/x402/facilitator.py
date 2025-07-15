@@ -54,7 +54,7 @@ class FacilitatorClient:
                     "x402Version": payment.x402_version,
                     "paymentPayload": payment.model_dump(by_alias=True),
                     "paymentRequirements": payment_requirements.model_dump(
-                        by_alias=True
+                        by_alias=True, exclude_none=True
                     ),
                 },
                 headers=headers,
@@ -80,7 +80,7 @@ class FacilitatorClient:
                     "x402Version": payment.x402_version,
                     "paymentPayload": payment.model_dump(by_alias=True),
                     "paymentRequirements": payment_requirements.model_dump(
-                        by_alias=True
+                        by_alias=True, exclude_none=True
                     ),
                 },
                 headers=headers,

@@ -10,7 +10,7 @@ import {
   settleResponseHeader,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
-import { processPriceToAtomicAmount } from "x402/shared";
+import { processPriceToAtomicAmount, findMatchingPaymentRequirements } from "x402/shared";
 
 config();
 
@@ -102,7 +102,10 @@ async function verifyPayment(
   }
 
   try {
-    const response = await verify(decodedPayment, paymentRequirements[0]);
+    const selectedPaymentRequirement =
+      findMatchingPaymentRequirements(paymentRequirements, decodedPayment) ||
+      paymentRequirements[0];
+    const response = await verify(decodedPayment, selectedPaymentRequirement);
     if (!response.isValid) {
       res.status(402).json({
         x402Version,
@@ -241,10 +244,14 @@ app.get("/multiple-payment-requirements", async (req, res) => {
 
   try {
     // Process payment synchronously
-    const settleResponse = await settle(
-      exact.evm.decodePayment(req.header("X-PAYMENT")!),
-      paymentRequirements[0],
-    );
+    const decodedPayment = exact.evm.decodePayment(req.header("X-PAYMENT")!);
+
+    // Find the matching payment requirement
+    const selectedPaymentRequirement =
+      findMatchingPaymentRequirements(paymentRequirements, decodedPayment) ||
+      paymentRequirements[0];
+
+    const settleResponse = await settle(decodedPayment, selectedPaymentRequirement);
     const responseHeader = settleResponseHeader(settleResponse);
     res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
 
