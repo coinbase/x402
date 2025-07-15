@@ -20,12 +20,12 @@ def parse_money(amount: str | int, address: str, network: str) -> int:
     if isinstance(amount, str):
         if amount.startswith("$"):
             amount = amount[1:]
-        amount = Decimal(amount)
+        decimal_amount = Decimal(amount)
 
         chain_id = get_chain_id(network)
         decimals = get_token_decimals(chain_id, address)
-        amount = amount * Decimal(10**decimals)
-        return int(amount)
+        decimal_amount = decimal_amount * Decimal(10**decimals)
+        return int(decimal_amount)
     return amount
 
 
@@ -87,9 +87,8 @@ def process_price_to_atomic_amount(
 
 def get_usdc_address(chain_id: int | str) -> str:
     """Get the USDC contract address for a given chain ID"""
-    if isinstance(chain_id, str):
-        chain_id = str(chain_id)  # Keep as string for consistency
-    return get_default_token_address(chain_id, "usdc")
+    chain_id_str = str(chain_id)  # Convert to string for consistency
+    return get_default_token_address(chain_id_str, "usdc")
 
 
 def find_matching_payment_requirements(

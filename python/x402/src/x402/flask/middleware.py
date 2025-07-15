@@ -11,7 +11,11 @@ from x402.types import (
     PaywallConfig,
     SupportedNetworks,
 )
-from x402.common import process_price_to_atomic_amount, x402_VERSION, find_matching_payment_requirements
+from x402.common import (
+    process_price_to_atomic_amount,
+    x402_VERSION,
+    find_matching_payment_requirements,
+)
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.paywall import is_browser_request, get_paywall_html

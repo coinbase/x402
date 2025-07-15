@@ -7,7 +7,11 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import validate_call
 
-from x402.common import process_price_to_atomic_amount, x402_VERSION, find_matching_payment_requirements
+from x402.common import (
+    process_price_to_atomic_amount,
+    x402_VERSION,
+    find_matching_payment_requirements,
+)
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.path import path_is_match
