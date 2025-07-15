@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
 from x402.clients.httpx import x402HttpxClient
-from x402.clients.base import decode_x_payment_response
+from x402.clients.base import decode_x_payment_response, x402Client
 
 # Load environment variables
 load_dotenv()
@@ -26,8 +26,6 @@ def custom_payment_selector(
     accepts, network_filter=None, scheme_filter=None, max_value=None
 ):
     """Custom payment selector that filters by network."""
-    from x402.clients.base import x402Client
-
     # Ignore the network_filter parameter for this example - we hardcode base-sepolia
     _ = network_filter
 
