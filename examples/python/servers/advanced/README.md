@@ -10,13 +10,14 @@ This is an advanced Python example using FastAPI that demonstrates how to implem
 ## Prerequisites
 
 - Python 3.10+
+- uv ([https://github.com/astral-sh/uv](https://github.com/astral-sh/uv?tab=readme-ov-file#installation))
 - A valid Ethereum address for receiving payments
 - Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+  - Get them here: [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
 
 ## Setup
 
-1. Copy `.env-local` to `.env` and add your Ethereum address:
+1. Copy `.env-local` to `.env` and add your Ethereum address and optionally your CDP API Key info:
 
 ```bash
 cp .env-local .env
@@ -38,32 +39,14 @@ The server will start on http://localhost:4021
 
 This advanced implementation provides a structured approach to handling payments with:
 
-1. **`create_exact_payment_requirements()` function** - The Python equivalent of the TypeScript `createExactPaymentRequirements` function
-2. **`verify_payment()` function** - Handles payment verification and error responses
-3. Support for delayed payment settlement
-4. Dynamic pricing capabilities
-5. Multiple payment requirement options
-6. Proper error handling and response formatting
-7. Integration with the x402 facilitator service
+1. Helper functions for creating payment requirements and verifying payments
+2. Support for delayed payment settlement
+3. Dynamic pricing capabilities
+4. Multiple payment requirement options
+5. Proper error handling and response formatting
+6. Integration with the x402 facilitator service
 
-## Key Functions
-
-### create_exact_payment_requirements()
-
-This is the Python equivalent of the TypeScript `createExactPaymentRequirements` function that was requested in the user feedback. It handles both USD string prices and TokenAmount objects:
-
-```python
-def create_exact_payment_requirements(
-    price: Price,                    # "$0.001" or TokenAmount object
-    network: SupportedNetworks,      # "base-sepolia" or "base"
-    resource: str,                   # The resource URL
-    description: str = "",           # Optional description
-    mime_type: str = "application/json",
-    max_timeout_seconds: int = 60,
-) -> PaymentRequirements:
-```
-
-**Usage examples:**
+## Usage examples:
 
 ```python
 # USD price (automatically converts to USDC)
@@ -77,7 +60,7 @@ payment_req = create_exact_payment_requirements(
 # Specific token amount
 payment_req = create_exact_payment_requirements(
     price=TokenAmount(
-        amount="1000",  # 1000 microUSDC (0.001 USDC)
+        amount="1000",
         asset=TokenAsset(
             address="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
             decimals=6,
@@ -107,7 +90,7 @@ You can test the server using one of the example Python clients:
 ### Using the httpx Client
 ```bash
 cd ../../clients/httpx
-# Ensure .env is setup with your private key
+# Ensure .env is set up
 uv sync
 uv run python main.py
 ```
@@ -115,7 +98,7 @@ uv run python main.py
 ### Using the requests Client
 ```bash
 cd ../../clients/requests
-# Ensure .env is setup with your private key
+# Ensure .env is set up
 uv sync
 uv run python main.py
 ```
@@ -191,7 +174,7 @@ To add more paid endpoints with delayed payment settlement, you can follow this 
 
 ```python
 @app.get("/your-endpoint")
-async def your_endpoint(request: Request) -> Union[Dict[str, Any], JSONResponse]:
+async def your_endpoint(request: Request) -> Dict[str, Any]:
     resource = str(request.url)
     payment_requirements = [
         create_exact_payment_requirements(
@@ -204,7 +187,7 @@ async def your_endpoint(request: Request) -> Union[Dict[str, Any], JSONResponse]
 
     is_valid, error_response = await verify_payment(request, payment_requirements)
     if not is_valid:
-        return error_response
+        raise HTTPException(status_code=402, detail=error_response.body)
 
     # Return your protected resource immediately
     response_data = {
@@ -223,7 +206,7 @@ async def your_endpoint(request: Request) -> Union[Dict[str, Any], JSONResponse]
             decoded_payment = PaymentPayload(**decoded_payment_dict)
             
             settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
-            response_header = create_settle_response_header(settle_response)
+            response_header = settle_response_header(settle_response)
             
             # In a real application, you would store this response header
             # and associate it with the payment for later verification
@@ -239,18 +222,24 @@ async def your_endpoint(request: Request) -> Union[Dict[str, Any], JSONResponse]
     return response_data
 ```
 
+For endpoints that need to set response headers (like the X-PAYMENT-RESPONSE header), use the `Response` parameter:
+
+```python
+@app.get("/your-endpoint")
+async def your_endpoint(request: Request, response: Response) -> Dict[str, Any]:
+    # ... payment verification logic ...
+
+    # Process payment synchronously
+    settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+    response_header = settle_response_header(settle_response)
+
+    # Set the payment response header
+    response.headers["X-PAYMENT-RESPONSE"] = response_header
+
+    # Return your data
+    return {
+        "your": "data"
+    }
+```
+
 For dynamic pricing or multiple payment requirements, refer to the `/dynamic-price` and `/multiple-payment-requirements` endpoints in the example code for implementation details.
-
-## Key Differences from TypeScript
-
-This Python implementation provides equivalent functionality to the TypeScript version with these key differences:
-
-1. **`create_exact_payment_requirements()`** replaces `createExactPaymentRequirements()`
-2. **`process_price_to_atomic_amount()`** replaces `processPriceToAtomicAmount()`
-3. **`decode_payment()`** replaces `exact.evm.decodePayment()`
-4. **`FacilitatorClient`** replaces `useFacilitator()`
-5. **`asyncio.create_task()`** replaces JavaScript's background promise handling
-6. **Pydantic models** replace TypeScript interfaces for type safety
-7. **FastAPI** replaces Express.js for the web framework
-
-The core concepts and patterns remain the same, making it easy to translate between the two implementations. 
