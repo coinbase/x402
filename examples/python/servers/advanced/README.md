@@ -128,7 +128,7 @@ The server includes example endpoints that demonstrate different payment scenari
 ## Response Format
 
 ### Payment Required (402)
-```json
+```json5
 {
   "x402Version": 1,
   "error": "X-PAYMENT header is required",
@@ -154,7 +154,7 @@ The server includes example endpoints that demonstrate different payment scenari
 ```
 
 ### Successful Response
-```json
+```json5
 // Body
 {
   "report": {
