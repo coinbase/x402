@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from x402.common import process_price_to_atomic_amount, x402_VERSION
 from x402.exact import decode_payment
@@ -45,6 +45,24 @@ app = FastAPI(title="x402 Advanced Server Example")
 # Initialize facilitator client
 facilitator_config: FacilitatorConfig = {"url": FACILITATOR_URL}
 facilitator = FacilitatorClient(facilitator_config)
+
+
+class PaymentRequiredException(Exception):
+    """Custom exception for payment required responses"""
+
+    def __init__(self, error_data: dict):
+        self.error_data = error_data
+        super().__init__(error_data.get("error", "Payment required"))
+
+
+@app.exception_handler(PaymentRequiredException)
+async def payment_required_handler(request: Request, exc: PaymentRequiredException):
+    """Handle payment required exceptions with proper 402 responses"""
+    return JSONResponse(
+        status_code=402,
+        content=exc.error_data,
+        headers={"Content-Type": "application/json"},
+    )
 
 
 def create_exact_payment_requirements(
@@ -99,75 +117,61 @@ def create_exact_payment_requirements(
 async def verify_payment(
     request: Request,
     payment_requirements: list[PaymentRequirements],
-) -> tuple[bool, JSONResponse]:
+) -> bool:
     """
-    Verifies a payment and handles the response.
+    Verifies a payment and raises PaymentRequiredException if invalid.
 
     Args:
         request: The FastAPI request object
         payment_requirements: List of payment requirements to verify against
 
     Returns:
-        Tuple of (is_valid, error_response_or_placeholder)
-        If is_valid is True, the second element is a placeholder JSONResponse
-        If is_valid is False, the second element contains the actual error response
+        True if payment is valid
+
+    Raises:
+        PaymentRequiredException: If payment is required or invalid
     """
     x_payment = request.headers.get("X-PAYMENT")
     if not x_payment:
-        error_response = JSONResponse(
-            status_code=402,
-            content=x402PaymentRequiredResponse(
-                x402_version=x402_VERSION,
-                error="X-PAYMENT header is required",
-                accepts=payment_requirements,
-            ).model_dump(by_alias=True),
-        )
-        return False, error_response
+        error_data = x402PaymentRequiredResponse(
+            x402_version=x402_VERSION,
+            error="X-PAYMENT header is required",
+            accepts=payment_requirements,
+        ).model_dump(by_alias=True)
+        raise PaymentRequiredException(error_data)
 
     try:
         decoded_payment_dict = decode_payment(x_payment)
         decoded_payment_dict["x402Version"] = x402_VERSION
         decoded_payment = PaymentPayload(**decoded_payment_dict)
     except Exception as e:
-        error_response = JSONResponse(
-            status_code=402,
-            content=x402PaymentRequiredResponse(
-                x402_version=x402_VERSION,
-                error=str(e) or "Invalid or malformed payment header",
-                accepts=payment_requirements,
-            ).model_dump(by_alias=True),
-        )
-        return False, error_response
+        error_data = x402PaymentRequiredResponse(
+            x402_version=x402_VERSION,
+            error=str(e) or "Invalid or malformed payment header",
+            accepts=payment_requirements,
+        ).model_dump(by_alias=True)
+        raise PaymentRequiredException(error_data)
 
     try:
         verify_response = await facilitator.verify(
             decoded_payment, payment_requirements[0]
         )
         if not verify_response.is_valid:
-            error_response = JSONResponse(
-                status_code=402,
-                content=x402PaymentRequiredResponse(
-                    x402_version=x402_VERSION,
-                    error=verify_response.invalid_reason
-                    or "Payment verification failed",
-                    accepts=payment_requirements,
-                ).model_dump(by_alias=True),
-            )
-            return False, error_response
-    except Exception as e:
-        error_response = JSONResponse(
-            status_code=402,
-            content=x402PaymentRequiredResponse(
+            error_data = x402PaymentRequiredResponse(
                 x402_version=x402_VERSION,
-                error=str(e),
+                error=verify_response.invalid_reason or "Payment verification failed",
                 accepts=payment_requirements,
-            ).model_dump(by_alias=True),
-        )
-        return False, error_response
+            ).model_dump(by_alias=True)
+            raise PaymentRequiredException(error_data)
+    except Exception as e:
+        error_data = x402PaymentRequiredResponse(
+            x402_version=x402_VERSION,
+            error=str(e),
+            accepts=payment_requirements,
+        ).model_dump(by_alias=True)
+        raise PaymentRequiredException(error_data)
 
-    # Return placeholder response when payment is valid
-    placeholder_response = JSONResponse(content={"status": "valid"})
-    return True, placeholder_response
+    return True
 
 
 def settle_response_header(response: SettleResponse) -> str:
@@ -204,9 +208,7 @@ async def delayed_settlement(request: Request) -> Dict[str, Any]:
         )
     ]
 
-    is_valid, error_response = await verify_payment(request, payment_requirements)
-    if not is_valid:
-        raise HTTPException(status_code=402, detail=error_response.body)
+    await verify_payment(request, payment_requirements)
 
     # Return weather data immediately
     response_data = {
@@ -269,36 +271,29 @@ async def dynamic_price(request: Request, response: Response) -> Dict[str, Any]:
         )
     ]
 
-    is_valid, error_response = await verify_payment(request, payment_requirements)
-    if not is_valid:
-        raise HTTPException(status_code=402, detail=error_response.body)
+    await verify_payment(request, payment_requirements)
 
-    try:
-        # Process payment synchronously
-        x_payment = request.headers.get("X-PAYMENT")
-        if not x_payment:
-            raise ValueError("X-PAYMENT header is required")
+    # Process payment synchronously
+    x_payment = request.headers.get("X-PAYMENT")
+    if not x_payment:
+        raise ValueError("X-PAYMENT header is required")
 
-        decoded_payment_dict = decode_payment(x_payment)
-        decoded_payment = PaymentPayload(**decoded_payment_dict)
+    decoded_payment_dict = decode_payment(x_payment)
+    decoded_payment = PaymentPayload(**decoded_payment_dict)
 
-        settle_response = await facilitator.settle(
-            decoded_payment, payment_requirements[0]
-        )
-        response_header = settle_response_header(settle_response)
+    settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+    response_header = settle_response_header(settle_response)
 
-        # Set the payment response header
-        response.headers["X-PAYMENT-RESPONSE"] = response_header
+    # Set the payment response header
+    response.headers["X-PAYMENT-RESPONSE"] = response_header
 
-        # Return the weather data
-        return {
-            "report": {
-                "success": "sunny",
-                "temperature": 70,
-            }
+    # Return the weather data
+    return {
+        "report": {
+            "success": "sunny",
+            "temperature": 70,
         }
-    except Exception as e:
-        raise HTTPException(status_code=402, detail=str(e))
+    }
 
 
 # Multiple payment requirements example endpoint
@@ -337,36 +332,29 @@ async def multiple_payment_requirements(
         ),
     ]
 
-    is_valid, error_response = await verify_payment(request, payment_requirements)
-    if not is_valid:
-        raise HTTPException(status_code=402, detail=error_response.body)
+    await verify_payment(request, payment_requirements)
 
-    try:
-        # Process payment synchronously
-        x_payment = request.headers.get("X-PAYMENT")
-        if not x_payment:
-            raise ValueError("X-PAYMENT header is required")
+    # Process payment synchronously
+    x_payment = request.headers.get("X-PAYMENT")
+    if not x_payment:
+        raise ValueError("X-PAYMENT header is required")
 
-        decoded_payment_dict = decode_payment(x_payment)
-        decoded_payment = PaymentPayload(**decoded_payment_dict)
+    decoded_payment_dict = decode_payment(x_payment)
+    decoded_payment = PaymentPayload(**decoded_payment_dict)
 
-        settle_response = await facilitator.settle(
-            decoded_payment, payment_requirements[0]
-        )
-        response_header = settle_response_header(settle_response)
+    settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
+    response_header = settle_response_header(settle_response)
 
-        # Set the payment response header
-        response.headers["X-PAYMENT-RESPONSE"] = response_header
+    # Set the payment response header
+    response.headers["X-PAYMENT-RESPONSE"] = response_header
 
-        # Return the weather data
-        return {
-            "report": {
-                "success": "sunny",
-                "temperature": 70,
-            }
+    # Return the weather data
+    return {
+        "report": {
+            "success": "sunny",
+            "temperature": 70,
         }
-    except Exception as e:
-        raise HTTPException(status_code=402, detail=str(e))
+    }
 
 
 if __name__ == "__main__":
