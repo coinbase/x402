@@ -10,6 +10,7 @@ import {
   Address,
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
+  CompilableTransactionMessage,
   decompileTransactionMessageFetchingLookupTables,
   fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
@@ -18,7 +19,16 @@ import {
   SolanaRpcApiMainnet,
   RpcDevnet,
   RpcMainnet,
+  Instruction,
+  AccountLookupMeta,
+  AccountMeta,
+  InstructionWithData,
 } from "@solana/kit";
+import {
+  parseSetComputeUnitLimitInstruction,
+  parseSetComputeUnitPriceInstruction,
+  COMPUTE_BUDGET_PROGRAM_ADDRESS,
+} from "@solana-program/compute-budget";
 import {
   findAssociatedTokenPda,
   identifyToken2022Instruction,
@@ -134,38 +144,110 @@ async function transactionIntrospection(
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,
   );
-  const decompiledTransactionMessage = await decompileTransactionMessageFetchingLookupTables(
+  const transactionMessage = await decompileTransactionMessageFetchingLookupTables(
     compiledTransactionMessage,
     rpc,
   );
 
-  // verify that the transaction and the transfer instruction are valid
-  const tokenInstruction = getValidatedTransferInstruction(decompiledTransactionMessage);
+  // verify that the transaction contains the expected instructions
+  verifyTransactionInstructions(transactionMessage);
+
+  // validate that the transfer instruction is valid
+  const tokenInstruction = getValidatedTransferInstruction(transactionMessage.instructions[2]);
   await verifyTransferDetails(tokenInstruction, paymentRequirements, rpc);
 }
 
 /**
- * Inspect the decompiled transaction message to make sure that it is an
- * expected transfer instruction.
+ * Verify that the transaction contains the expected instructions.
  *
- * @param decompiledTransactionMessage - The decompiled transaction message to get the transfer instruction from
+ * @param transactionMessage - The transaction message to verify
+ * @throws Error if the transaction does not contain the expected instructions
+ */
+function verifyTransactionInstructions(transactionMessage: CompilableTransactionMessage) {
+  // validate the number of expected instructions
+  if (transactionMessage.instructions.length !== 3) {
+    throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
+  }
+  const computeLimitInstruction = transactionMessage.instructions[0];
+  const computePriceInstruction = transactionMessage.instructions[1];
+
+  verifyComputeLimitInstruction(computeLimitInstruction);
+  verifyComputePriceInstruction(computePriceInstruction);
+}
+
+/**
+ * Verify that the compute limit instruction is valid.
+ *
+ * @param instruction - The compute limit instruction to verify
+ * @throws Error if the compute limit instruction is invalid
+ */
+function verifyComputeLimitInstruction(
+  instruction: Instruction<
+    string,
+    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
+  >,
+) {
+  try {
+    if (
+      instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
+      instruction.data?.[0] !== 2 // discriminator of set compute unit limit instruction
+    ) {
+      throw new Error(
+        `invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`,
+      );
+    }
+    parseSetComputeUnitLimitInstruction(
+      instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
+    );
+  } catch (error) {
+    console.error(error);
+    throw new Error(`invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`);
+  }
+}
+
+/**
+ * Verify that the compute price instruction is valid.
+ *
+ * @param instruction - The compute price instruction to verify
+ * @throws Error if the compute price instruction is invalid
+ */
+function verifyComputePriceInstruction(
+  instruction: Instruction<
+    string,
+    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
+  >,
+) {
+  try {
+    if (
+      instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
+      instruction.data?.[0] !== 3 // discriminator of set compute unit price instruction
+    ) {
+      throw new Error(
+        `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`,
+      );
+    }
+    parseSetComputeUnitPriceInstruction(
+      instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
+    );
+  } catch (error) {
+    console.error(error);
+    throw new Error(`invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`);
+  }
+}
+
+/**
+ * Inspect the decompiled transaction message to make sure that it is a valid
+ * transfer instruction.
+ *
+ * @param instruction - The instruction to get the transfer instruction from
  * @returns The validated transfer instruction
  */
 export function getValidatedTransferInstruction(
-  decompiledTransactionMessage: ReturnType<
-    typeof decompileTransactionMessageFetchingLookupTables
-  > extends Promise<infer U>
-    ? U
-    : never,
+  instruction: Instruction<
+    string,
+    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
+  >,
 ) {
-  // verify that the transaction only contains one
-  // token transfer instruction
-  if (decompiledTransactionMessage.instructions.length !== 1) {
-    throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
-  }
-
-  const instruction = decompiledTransactionMessage.instructions[0];
-
   try {
     assertIsInstructionWithData(instruction);
     assertIsInstructionWithAccounts(instruction);

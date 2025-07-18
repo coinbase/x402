@@ -14,6 +14,7 @@ import {
   fetchEncodedAccounts,
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
+import { Network } from "../../../../types";
 import { SCHEME } from "../../";
 import * as SvmShared from "../../../../shared/svm";
 import {
@@ -29,6 +30,7 @@ import {
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   findAssociatedTokenPda,
 } from "@solana-program/token-2022";
+import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "@solana-program/compute-budget";
 
 vi.mock("@solana/kit", async () => {
   const actual = await vi.importActual("@solana/kit");
@@ -60,6 +62,15 @@ vi.mock("@solana-program/token-2022", async () => {
     identifyToken2022Instruction: vi.fn(),
     parseTransferCheckedInstruction: vi.fn(),
     findAssociatedTokenPda: vi.fn(),
+  };
+});
+
+vi.mock("@solana-program/compute-budget", async () => {
+  const actual = await vi.importActual("@solana-program/compute-budget");
+  return {
+    ...actual,
+    parseSetComputeUnitLimitInstruction: vi.fn(),
+    parseSetComputeUnitPriceInstruction: vi.fn(),
   };
 });
 
@@ -117,7 +128,7 @@ describe("verify", () => {
     });
 
     it("should throw an error for mismatched networks", () => {
-      const invalidPayload = { ...validPayload, network: "solana-mainnet" };
+      const invalidPayload = { ...validPayload, network: "solana-mainnet" as Network };
       expect(() => verifySchemesAndNetworks(invalidPayload, validRequirements)).toThrow(
         "invalid_network",
       );
@@ -126,11 +137,11 @@ describe("verify", () => {
     it("should throw an error for unsupported network in requirements", () => {
       const invalidRequirements = {
         ...validRequirements,
-        network: "unsupported-network",
+        network: "unsupported-network" as Network,
       };
       const invalidPayload = {
         ...validPayload,
-        network: "unsupported-network",
+        network: "unsupported-network" as Network,
       };
       expect(() => verifySchemesAndNetworks(invalidPayload, invalidRequirements)).toThrow(
         "invalid_network",
@@ -145,77 +156,54 @@ describe("verify", () => {
       vi.mocked(assertIsInstructionWithAccounts).mockReturnValue(undefined);
     });
 
-    it("should throw an error if transaction has more than one instruction", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [{}, {}],
-      } as any;
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
-        "invalid_exact_svm_payload_transaction_instructions_length",
-      );
-    });
-
     it("should throw an error if instruction validation fails for data", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [{}],
-      } as any;
+      const mockInstruction = {};
       vi.mocked(assertIsInstructionWithData).mockImplementation(() => {
         throw new Error("Invalid instruction data");
       });
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
+      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instructions",
       );
     });
 
     it("should throw an error if instruction validation fails for accounts", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [{}],
-      } as any;
+      const mockInstruction = {};
       vi.mocked(assertIsInstructionWithAccounts).mockImplementation(() => {
         throw new Error("Invalid instruction accounts");
       });
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
+      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instructions",
       );
     });
 
     it("should throw an error for a non-transfer instruction", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [{ programAddress: { toString: () => "some_other_program" } }],
-      } as any;
+      const mockInstruction = { programAddress: { toString: () => "some_other_program" } };
 
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
+      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_not_a_transfer_instruction",
       );
     });
 
     it("should throw if spl-token instruction is not TransferChecked", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [
-          {
-            programAddress: { toString: () => TOKEN_PROGRAM_ADDRESS.toString() },
-            data: new Uint8Array(),
-          },
-        ],
-      } as any;
+      const mockInstruction = {
+        programAddress: { toString: () => TOKEN_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array(),
+      };
       vi.mocked(identifyTokenInstruction).mockReturnValue("some_other_instruction" as any);
 
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
+      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked",
       );
     });
 
     it("should throw if token-2022 instruction is not TransferChecked", () => {
-      const mockDecompiledTransactionMessage = {
-        instructions: [
-          {
-            programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
-            data: new Uint8Array(),
-          },
-        ],
-      } as any;
+      const mockInstruction = {
+        programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array(),
+      };
       vi.mocked(identifyToken2022Instruction).mockReturnValue("some_other_instruction" as any);
 
-      expect(() => getValidatedTransferInstruction(mockDecompiledTransactionMessage)).toThrow(
+      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked",
       );
     });
@@ -225,14 +213,11 @@ describe("verify", () => {
         programAddress: { toString: () => TOKEN_PROGRAM_ADDRESS.toString() },
         data: new Uint8Array(),
       };
-      const mockDecompiledTransactionMessage = {
-        instructions: [mockInstruction],
-      } as any;
       const mockParsedInstruction = { instruction: "parsed" };
       vi.mocked(identifyTokenInstruction).mockReturnValue(TokenInstruction.TransferChecked);
       vi.mocked(parseTransferCheckedInstructionToken).mockReturnValue(mockParsedInstruction as any);
 
-      const result = getValidatedTransferInstruction(mockDecompiledTransactionMessage);
+      const result = getValidatedTransferInstruction(mockInstruction as any);
 
       expect(result).toEqual(mockParsedInstruction);
       expect(parseTransferCheckedInstructionToken).toHaveBeenCalledWith({
@@ -246,14 +231,11 @@ describe("verify", () => {
         programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
         data: new Uint8Array(),
       };
-      const mockDecompiledTransactionMessage = {
-        instructions: [mockInstruction],
-      } as any;
       const mockParsedInstruction = { instruction: "parsed" };
       vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
       vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue(mockParsedInstruction as any);
 
-      const result = getValidatedTransferInstruction(mockDecompiledTransactionMessage);
+      const result = getValidatedTransferInstruction(mockInstruction as any);
 
       expect(result).toEqual(mockParsedInstruction);
       expect(parseTransferCheckedInstruction2022).toHaveBeenCalledWith({
@@ -346,6 +328,9 @@ describe("verify", () => {
     let mockSigner: KeyPairSigner;
     let mockPayload: PaymentPayload;
     let mockRequirements: PaymentRequirements;
+    let mockComputeLimitInstruction: any;
+    let mockComputePriceInstruction: any;
+    let mockTransferInstruction: any;
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -364,6 +349,23 @@ describe("verify", () => {
         maxAmountRequired: "1000",
         asset: devnetUSDCAddress,
       } as any;
+      mockComputeLimitInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([2, 100, 25, 0, 0]),
+      };
+      mockComputePriceInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+      };
+      mockTransferInstruction = {
+        programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([TokenInstruction.TransferChecked, 1, 2, 3, 4, 5, 6, 7, 8, 1, 1]), // needs to be valid transfer checked data
+        accounts: {
+          mint: { address: "mintAddress" },
+          destination: { address: "destinationAta" },
+          source: { address: "sourceAta" },
+        },
+      };
 
       // mocks for happy path
       vi.mocked(SvmShared.decodeTransactionFromPayload).mockReturnValue({
@@ -373,15 +375,9 @@ describe("verify", () => {
       vi.mocked(SvmShared.getRpcClient).mockReturnValue({} as any);
       vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
         instructions: [
-          {
-            programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
-            data: new Uint8Array([TokenInstruction.TransferChecked, 1, 2, 3, 4, 5, 6, 7, 8, 1, 1]), // needs to be valid transfer checked data
-            accounts: {
-              mint: { address: "mintAddress" },
-              destination: { address: "destinationAta" },
-              source: { address: "sourceAta" },
-            },
-          },
+          mockComputeLimitInstruction,
+          mockComputePriceInstruction,
+          mockTransferInstruction,
         ],
       } as any);
       vi.mocked(SvmShared.signAndSimulateTransaction).mockResolvedValue({
@@ -430,7 +426,7 @@ describe("verify", () => {
 
     it("should return isValid: false if instruction validation fails", async () => {
       vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
-        instructions: [{}, {}],
+        instructions: [mockTransferInstruction, mockTransferInstruction],
       } as any);
       const result = await verify(mockSigner, mockPayload, mockRequirements);
       expect(result.isValid).toBe(false);
