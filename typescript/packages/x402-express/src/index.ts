@@ -11,10 +11,12 @@ import {
 } from "x402/shared";
 import {
   FacilitatorConfig,
+  HTTPVerbs,
   moneySchema,
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
+  RequestStructure,
   Resource,
   RoutesConfig,
   settleResponseHeader,
@@ -76,7 +78,6 @@ export function paymentMiddleware(
 ) {
   const { verify, settle } = useFacilitator(facilitator);
   const x402Version = 1;
-
   // Pre-compile route patterns to regex and extract verbs
   const routePatterns = computeRoutePatterns(routes);
 
@@ -91,7 +92,8 @@ export function paymentMiddleware(
       return next();
     }
 
-    const { price, network, config = {} } = matchingRoute.config;
+
+    const { price, network, config = {}, request = {} } = matchingRoute.config;
     const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
       config;
 
@@ -103,6 +105,12 @@ export function paymentMiddleware(
 
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
+
+    const requestStructure: RequestStructure = {
+      spec: "http",
+      method: req.method.toUpperCase() as HTTPVerbs,
+      ...request
+    };
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -238,7 +246,7 @@ export function paymentMiddleware(
     }
 
     try {
-      const settleResponse = await settle(decodedPayment, selectedPaymentRequirements);
+      const settleResponse = await settle(decodedPayment, selectedPaymentRequirements, requestStructure);
       const responseHeader = settleResponseHeader(settleResponse);
       res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
     } catch (error) {
