@@ -2,9 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   verifySchemesAndNetworks,
-  getValidatedTransferInstruction,
-  verifyTransferDetails,
+  getValidatedTransferCheckedInstruction,
+  verifyTransferCheckedInstruction,
   verify,
+  verifyTransactionInstructions,
+  verifyComputeLimitInstruction,
+  verifyComputePriceInstruction,
 } from "./verify";
 import {
   KeyPairSigner,
@@ -29,8 +32,13 @@ import {
   identifyToken2022Instruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   findAssociatedTokenPda,
+  parseCreateAssociatedTokenInstruction,
 } from "@solana-program/token-2022";
 import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "@solana-program/compute-budget";
+import {
+  parseSetComputeUnitLimitInstruction,
+  parseSetComputeUnitPriceInstruction,
+} from "@solana-program/compute-budget";
 
 vi.mock("@solana/kit", async () => {
   const actual = await vi.importActual("@solana/kit");
@@ -62,6 +70,7 @@ vi.mock("@solana-program/token-2022", async () => {
     identifyToken2022Instruction: vi.fn(),
     parseTransferCheckedInstruction: vi.fn(),
     findAssociatedTokenPda: vi.fn(),
+    parseCreateAssociatedTokenInstruction: vi.fn(),
   };
 });
 
@@ -149,7 +158,7 @@ describe("verify", () => {
     });
   });
 
-  describe("getValidatedTransferInstruction", () => {
+  describe("getValidatedTransferCheckedInstruction", () => {
     beforeEach(() => {
       vi.clearAllMocks();
       vi.mocked(assertIsInstructionWithData).mockReturnValue(undefined);
@@ -161,7 +170,7 @@ describe("verify", () => {
       vi.mocked(assertIsInstructionWithData).mockImplementation(() => {
         throw new Error("Invalid instruction data");
       });
-      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
+      expect(() => getValidatedTransferCheckedInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instructions",
       );
     });
@@ -171,7 +180,7 @@ describe("verify", () => {
       vi.mocked(assertIsInstructionWithAccounts).mockImplementation(() => {
         throw new Error("Invalid instruction accounts");
       });
-      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
+      expect(() => getValidatedTransferCheckedInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instructions",
       );
     });
@@ -179,7 +188,7 @@ describe("verify", () => {
     it("should throw an error for a non-transfer instruction", () => {
       const mockInstruction = { programAddress: { toString: () => "some_other_program" } };
 
-      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
+      expect(() => getValidatedTransferCheckedInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_not_a_transfer_instruction",
       );
     });
@@ -191,7 +200,7 @@ describe("verify", () => {
       };
       vi.mocked(identifyTokenInstruction).mockReturnValue("some_other_instruction" as any);
 
-      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
+      expect(() => getValidatedTransferCheckedInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked",
       );
     });
@@ -203,7 +212,7 @@ describe("verify", () => {
       };
       vi.mocked(identifyToken2022Instruction).mockReturnValue("some_other_instruction" as any);
 
-      expect(() => getValidatedTransferInstruction(mockInstruction as any)).toThrow(
+      expect(() => getValidatedTransferCheckedInstruction(mockInstruction as any)).toThrow(
         "invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked",
       );
     });
@@ -217,7 +226,7 @@ describe("verify", () => {
       vi.mocked(identifyTokenInstruction).mockReturnValue(TokenInstruction.TransferChecked);
       vi.mocked(parseTransferCheckedInstructionToken).mockReturnValue(mockParsedInstruction as any);
 
-      const result = getValidatedTransferInstruction(mockInstruction as any);
+      const result = getValidatedTransferCheckedInstruction(mockInstruction as any);
 
       expect(result).toEqual(mockParsedInstruction);
       expect(parseTransferCheckedInstructionToken).toHaveBeenCalledWith({
@@ -235,7 +244,7 @@ describe("verify", () => {
       vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
       vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue(mockParsedInstruction as any);
 
-      const result = getValidatedTransferInstruction(mockInstruction as any);
+      const result = getValidatedTransferCheckedInstruction(mockInstruction as any);
 
       expect(result).toEqual(mockParsedInstruction);
       expect(parseTransferCheckedInstruction2022).toHaveBeenCalledWith({
@@ -245,7 +254,7 @@ describe("verify", () => {
     });
   });
 
-  describe("verifyTransferDetails", () => {
+  describe("verifyTransferCheckedInstruction", () => {
     let mockTokenInstruction: any;
     let mockPaymentRequirements: PaymentRequirements;
     let mockRpc: any;
@@ -277,6 +286,7 @@ describe("verify", () => {
       mockRpc = {}; // Mock rpc object
 
       vi.mocked(findAssociatedTokenPda).mockResolvedValue(["destinationAta"] as any);
+      vi.mocked(SvmShared.getRpcClient).mockReturnValue(mockRpc);
       vi.mocked(fetchEncodedAccounts).mockResolvedValue([
         { address: "sourceAta", exists: true },
         { address: "destinationAta", exists: true },
@@ -285,14 +295,18 @@ describe("verify", () => {
 
     it("should not throw for valid transfer details", async () => {
       await expect(
-        verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: false,
+        }),
       ).resolves.not.toThrow();
     });
 
     it("should throw for incorrect destination ATA", async () => {
       vi.mocked(findAssociatedTokenPda).mockResolvedValue(["incorrectAta"] as any);
       await expect(
-        verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: false,
+        }),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata");
     });
 
@@ -302,7 +316,9 @@ describe("verify", () => {
         { address: "destinationAta", exists: false },
       ] as any);
       await expect(
-        verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: false,
+        }),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_receiver_ata_not_found");
     });
 
@@ -312,15 +328,31 @@ describe("verify", () => {
         { address: "destinationAta", exists: true },
       ] as any);
       await expect(
-        verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: false,
+        }),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_sender_ata_not_found");
     });
 
     it("should throw for amount mismatch", async () => {
       mockPaymentRequirements.maxAmountRequired = "1001";
       await expect(
-        verifyTransferDetails(mockTokenInstruction, mockPaymentRequirements, mockRpc),
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: false,
+        }),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_amount_mismatch");
+    });
+
+    it("should not throw if receiver ATA is not found but tx has create ATA instruction", async () => {
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: false },
+      ] as any);
+      await expect(
+        verifyTransferCheckedInstruction(mockTokenInstruction, mockPaymentRequirements, {
+          txHasCreateDestATAInstruction: true,
+        }),
+      ).resolves.not.toThrow();
     });
   });
 
@@ -451,6 +483,240 @@ describe("verify", () => {
       const result = await verify(mockSigner, mockPayload, mockRequirements);
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("invalid_exact_svm_payload_transaction_simulation_failed");
+    });
+  });
+
+  describe("verifyTransactionInstructions", () => {
+    let mockTransactionMessage: any;
+    let mockPaymentRequirements: PaymentRequirements;
+    let mockComputeLimitInstruction: any;
+    let mockComputePriceInstruction: any;
+    let mockTransferInstruction: any;
+    let mockCreateATAInstruction: any;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+
+      mockPaymentRequirements = {
+        scheme: SCHEME,
+        network: "solana-devnet",
+        payTo: "payToAddress",
+        maxAmountRequired: "1000",
+        asset: devnetUSDCAddress,
+      } as any;
+
+      mockComputeLimitInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([2, 100, 25, 0, 0]),
+      };
+      mockComputePriceInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+      };
+      mockTransferInstruction = {
+        programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([3, 1, 2, 3, 4, 5, 6, 7, 8, 1, 1]), // TransferChecked is 3
+        accounts: {
+          mint: { address: devnetUSDCAddress },
+          destination: { address: "destinationAta" },
+          source: { address: "sourceAta" },
+        },
+      };
+      mockCreateATAInstruction = {
+        programAddress: { toString: () => "AssociatedTokenAccountProgram" },
+        accounts: {
+          owner: { address: "payToAddress" },
+          mint: { address: devnetUSDCAddress },
+        },
+        data: new Uint8Array(),
+      };
+
+      vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue({
+        programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
+        accounts: {
+          mint: { address: devnetUSDCAddress },
+          destination: { address: "destinationAta" },
+          source: { address: "sourceAta" },
+        },
+        data: { amount: 1000n },
+      } as any);
+      vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
+      vi.mocked(findAssociatedTokenPda).mockResolvedValue(["destinationAta"] as any);
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: true },
+      ] as any);
+      vi.mocked(SvmShared.getRpcClient).mockReturnValue({} as any);
+      vi.mocked(parseCreateAssociatedTokenInstruction).mockReturnValue({
+        accounts: {
+          owner: { address: "payToAddress" },
+          mint: { address: devnetUSDCAddress },
+        },
+      } as any);
+    });
+
+    it("should throw an error if the transaction has less than 3 instructions", async () => {
+      mockTransactionMessage = {
+        instructions: [mockComputeLimitInstruction, mockComputePriceInstruction],
+      };
+
+      await expect(
+        verifyTransactionInstructions(mockTransactionMessage, mockPaymentRequirements),
+      ).rejects.toThrow("invalid_exact_svm_payload_transaction_instructions_length");
+    });
+
+    it("should throw an error if the transaction has more than 4 instructions", async () => {
+      mockTransactionMessage = {
+        instructions: [
+          mockComputeLimitInstruction,
+          mockComputePriceInstruction,
+          mockCreateATAInstruction,
+          mockTransferInstruction,
+          mockTransferInstruction,
+        ],
+      };
+
+      await expect(
+        verifyTransactionInstructions(mockTransactionMessage, mockPaymentRequirements),
+      ).rejects.toThrow("invalid_exact_svm_payload_transaction_instructions_length");
+    });
+
+    it("should throw an error if the tx has 3 instructions and the destination ATA does not exist", async () => {
+      mockTransactionMessage = {
+        instructions: [
+          mockComputeLimitInstruction,
+          mockComputePriceInstruction,
+          mockTransferInstruction,
+        ],
+      };
+
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: false },
+      ] as any);
+
+      await expect(
+        verifyTransactionInstructions(mockTransactionMessage, mockPaymentRequirements),
+      ).rejects.toThrow("invalid_exact_svm_payload_transaction_receiver_ata_not_found");
+    });
+
+    it("should throw if the 3rd instruction in a 4-instruction tx is not a create ATA instruction", async () => {
+      mockTransactionMessage = {
+        instructions: [
+          mockComputeLimitInstruction,
+          mockComputePriceInstruction,
+          mockTransferInstruction,
+          mockTransferInstruction,
+        ],
+      };
+
+      vi.mocked(parseCreateAssociatedTokenInstruction).mockImplementation(() => {
+        throw new Error("not a create ata ix");
+      });
+
+      await expect(
+        verifyTransactionInstructions(mockTransactionMessage, mockPaymentRequirements),
+      ).rejects.toThrow("invalid_exact_svm_payload_transaction_create_ata_instruction");
+    });
+
+    it("should not throw if the tx has 4 instructions and the 3rd is a create ATA instruction", async () => {
+      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
+        { address: "sourceAta", exists: true },
+        { address: "destinationAta", exists: false },
+      ] as any);
+
+      mockTransactionMessage = {
+        instructions: [
+          mockComputeLimitInstruction,
+          mockComputePriceInstruction,
+          mockCreateATAInstruction,
+          mockTransferInstruction,
+        ],
+      };
+
+      await expect(
+        verifyTransactionInstructions(mockTransactionMessage, mockPaymentRequirements),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe("verifyComputeLimitInstruction", () => {
+    let mockInstruction: any;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([2, 100, 25, 0, 0]),
+      };
+      vi.mocked(parseSetComputeUnitLimitInstruction).mockReturnValue({} as any);
+    });
+
+    it("should not throw for a valid compute limit instruction", () => {
+      expect(() => verifyComputeLimitInstruction(mockInstruction)).not.toThrow();
+    });
+
+    it("should throw if the program address is incorrect", () => {
+      mockInstruction.programAddress = { toString: () => "incorrect_program_address" };
+      expect(() => verifyComputeLimitInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction",
+      );
+    });
+
+    it("should throw if the instruction discriminator is incorrect", () => {
+      mockInstruction.data = new Uint8Array([99, 100, 25, 0, 0]);
+      expect(() => verifyComputeLimitInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction",
+      );
+    });
+
+    it("should throw if parseSetComputeUnitLimitInstruction throws", () => {
+      vi.mocked(parseSetComputeUnitLimitInstruction).mockImplementation(() => {
+        throw new Error("parsing failed");
+      });
+      expect(() => verifyComputeLimitInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction",
+      );
+    });
+  });
+
+  describe("verifyComputePriceInstruction", () => {
+    let mockInstruction: any;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockInstruction = {
+        programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
+        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+      };
+      vi.mocked(parseSetComputeUnitPriceInstruction).mockReturnValue({} as any);
+    });
+
+    it("should not throw for a valid compute price instruction", () => {
+      expect(() => verifyComputePriceInstruction(mockInstruction)).not.toThrow();
+    });
+
+    it("should throw if the program address is incorrect", () => {
+      mockInstruction.programAddress = { toString: () => "incorrect_program_address" };
+      expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction",
+      );
+    });
+
+    it("should throw if the instruction discriminator is incorrect", () => {
+      mockInstruction.data = new Uint8Array([99, 232, 3, 0, 0, 0, 0, 0, 0]);
+      expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction",
+      );
+    });
+
+    it("should throw if parseSetComputeUnitPriceInstruction throws", () => {
+      vi.mocked(parseSetComputeUnitPriceInstruction).mockImplementation(() => {
+        throw new Error("parsing failed");
+      });
+      expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow(
+        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction",
+      );
     });
   });
 });

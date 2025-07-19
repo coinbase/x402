@@ -32,6 +32,7 @@ import {
 import {
   findAssociatedTokenPda,
   identifyToken2022Instruction,
+  parseCreateAssociatedTokenInstruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   Token2022Instruction,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -135,7 +136,7 @@ export function verifySchemesAndNetworks(
  * @param paymentRequirements - The payment requirements to verify against
  * @param rpc - The RPC client to use for fetching token and ATA information
  */
-async function transactionIntrospection(
+export async function transactionIntrospection(
   svmPayload: ExactSvmPayload,
   paymentRequirements: PaymentRequirements,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
@@ -150,29 +151,48 @@ async function transactionIntrospection(
   );
 
   // verify that the transaction contains the expected instructions
-  verifyTransactionInstructions(transactionMessage);
-
-  // validate that the transfer instruction is valid
-  const tokenInstruction = getValidatedTransferInstruction(transactionMessage.instructions[2]);
-  await verifyTransferDetails(tokenInstruction, paymentRequirements, rpc);
+  await verifyTransactionInstructions(transactionMessage, paymentRequirements);
 }
 
 /**
  * Verify that the transaction contains the expected instructions.
  *
  * @param transactionMessage - The transaction message to verify
+ * @param paymentRequirements - The payment requirements to verify against
  * @throws Error if the transaction does not contain the expected instructions
  */
-function verifyTransactionInstructions(transactionMessage: CompilableTransactionMessage) {
+export async function verifyTransactionInstructions(
+  transactionMessage: CompilableTransactionMessage,
+  paymentRequirements: PaymentRequirements,
+) {
   // validate the number of expected instructions
-  if (transactionMessage.instructions.length !== 3) {
+  if (
+    transactionMessage.instructions.length !== 3 &&
+    transactionMessage.instructions.length !== 4
+  ) {
     throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
   }
-  const computeLimitInstruction = transactionMessage.instructions[0];
-  const computePriceInstruction = transactionMessage.instructions[1];
 
-  verifyComputeLimitInstruction(computeLimitInstruction);
-  verifyComputePriceInstruction(computePriceInstruction);
+  // verify that the compute limit and price instructions are valid
+  verifyComputeLimitInstruction(transactionMessage.instructions[0]);
+  verifyComputePriceInstruction(transactionMessage.instructions[1]);
+
+  // verify that the transfer instruction is valid
+  // this expects the destination ATA to already exist
+  if (transactionMessage.instructions.length === 3) {
+    await verifyTransferInstruction(transactionMessage.instructions[2], paymentRequirements, {
+      txHasCreateDestATAInstruction: false,
+    });
+  }
+
+  // verify that the transfer instruction is valid
+  // this expects the destination ATA to be created in the same transaction
+  else {
+    verifyCreateATAInstruction(transactionMessage.instructions[2], paymentRequirements);
+    verifyTransferInstruction(transactionMessage.instructions[3], paymentRequirements, {
+      txHasCreateDestATAInstruction: true,
+    });
+  }
 }
 
 /**
@@ -181,7 +201,7 @@ function verifyTransactionInstructions(transactionMessage: CompilableTransaction
  * @param instruction - The compute limit instruction to verify
  * @throws Error if the compute limit instruction is invalid
  */
-function verifyComputeLimitInstruction(
+export function verifyComputeLimitInstruction(
   instruction: Instruction<
     string,
     readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
@@ -211,7 +231,7 @@ function verifyComputeLimitInstruction(
  * @param instruction - The compute price instruction to verify
  * @throws Error if the compute price instruction is invalid
  */
-function verifyComputePriceInstruction(
+export function verifyComputePriceInstruction(
   instruction: Instruction<
     string,
     readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
@@ -236,13 +256,134 @@ function verifyComputePriceInstruction(
 }
 
 /**
+ * Verify that the create ATA instruction is valid.
+ *
+ * @param instruction - The create ATA instruction to verify
+ * @param paymentRequirements - The payment requirements to verify against
+ * @throws Error if the create ATA instruction is invalid
+ */
+export function verifyCreateATAInstruction(
+  instruction: Instruction<
+    string,
+    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
+  >,
+  paymentRequirements: PaymentRequirements,
+) {
+  let createATAInstruction: ReturnType<typeof parseCreateAssociatedTokenInstruction>;
+
+  // validate and refine the type of the create ATA instruction
+  try {
+    assertIsInstructionWithAccounts(instruction);
+    assertIsInstructionWithData(instruction);
+
+    // parse the create ATA instruction
+    createATAInstruction = parseCreateAssociatedTokenInstruction({
+      ...instruction,
+      data: new Uint8Array(instruction.data),
+    });
+  } catch (error) {
+    console.error(error);
+    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction`);
+  }
+
+  // verify that the ATA is created for the expected payee
+  if (createATAInstruction.accounts.owner.address !== paymentRequirements.payTo) {
+    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_payee`);
+  }
+
+  // verify that the ATA is created for the expected asset
+  if (createATAInstruction.accounts.mint.address !== paymentRequirements.asset) {
+    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_asset`);
+  }
+}
+
+/**
+ * Verify that the transfer instruction is valid.
+ *
+ * @param instruction - The transfer instruction to verify
+ * @param paymentRequirements - The payment requirements to verify against
+ * @param {object} options - The options for the verification of the transfer instruction
+ * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
+ * @throws Error if the transfer instruction is invalid
+ */
+export async function verifyTransferInstruction(
+  instruction: Instruction<
+    string,
+    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
+  >,
+  paymentRequirements: PaymentRequirements,
+  { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
+) {
+  // get a validated and parsed transferChecked instruction
+  const tokenInstruction = getValidatedTransferCheckedInstruction(instruction);
+  await verifyTransferCheckedInstruction(tokenInstruction, paymentRequirements, {
+    txHasCreateDestATAInstruction,
+  });
+}
+
+/**
+ * Verify that the transfer checked instruction is valid.
+ *
+ * @param parsedInstruction - The parsed transfer checked instruction to verify
+ * @param paymentRequirements - The payment requirements to verify against
+ * @param {object} options - The options for the verification of the transfer checked instruction
+ * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
+ * @throws Error if the transfer checked instruction is invalid
+ */
+export async function verifyTransferCheckedInstruction(
+  parsedInstruction: ReturnType<typeof parseTransferCheckedInstruction2022>,
+  paymentRequirements: PaymentRequirements,
+  { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
+) {
+  // get the token program address
+  const tokenProgramAddress =
+    parsedInstruction.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()
+      ? TOKEN_PROGRAM_ADDRESS
+      : TOKEN_2022_PROGRAM_ADDRESS;
+
+  // get the expected receiver's ATA
+  const payToATA = await findAssociatedTokenPda({
+    mint: paymentRequirements.asset as Address,
+    owner: paymentRequirements.payTo as Address,
+    tokenProgram: tokenProgramAddress,
+  });
+
+  // verify that the transfer is to the expected ATA
+  if (parsedInstruction.accounts.destination.address !== payToATA[0]) {
+    throw new Error(`invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata`);
+  }
+
+  // verify that the source and destination ATAs exist
+  const addresses = [parsedInstruction.accounts.source.address, payToATA[0]];
+  const rpc = getRpcClient(paymentRequirements.network);
+  const maybeAccounts = await fetchEncodedAccounts(rpc, addresses);
+  const missingAccounts = maybeAccounts.filter(a => !a.exists);
+  for (const missingAccount of missingAccounts) {
+    if (missingAccount.address === parsedInstruction.accounts.source.address) {
+      throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
+    }
+    if (missingAccount.address === payToATA[0] && !txHasCreateDestATAInstruction) {
+      throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
+    }
+  }
+
+  // verify that the amount is correct
+  const instructionAmount = parsedInstruction.data.amount;
+  const paymentRequirementsAmount = BigInt(paymentRequirements.maxAmountRequired);
+  if (instructionAmount !== paymentRequirementsAmount) {
+    throw new Error(`invalid_exact_svm_payload_transaction_amount_mismatch`);
+  }
+}
+
+/**
  * Inspect the decompiled transaction message to make sure that it is a valid
  * transfer instruction.
  *
  * @param instruction - The instruction to get the transfer instruction from
  * @returns The validated transfer instruction
+ * @throws Error if the instruction is not a valid transfer checked instruction
  */
-export function getValidatedTransferInstruction(
+export function getValidatedTransferCheckedInstruction(
   instruction: Instruction<
     string,
     readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
@@ -252,7 +393,7 @@ export function getValidatedTransferInstruction(
     assertIsInstructionWithData(instruction);
     assertIsInstructionWithAccounts(instruction);
   } catch (error) {
-    console.error("error", error);
+    console.error(error);
     throw new Error(`invalid_exact_svm_payload_transaction_instructions`);
   }
 
@@ -288,53 +429,6 @@ export function getValidatedTransferInstruction(
   else {
     throw new Error(`invalid_exact_svm_payload_transaction_not_a_transfer_instruction`);
   }
+
   return tokenInstruction;
-}
-
-/**
- * Verify the transfer instruction details.
- *
- * @param tokenInstruction - The token instruction to verify
- * @param paymentRequirements - The payment requirements to verify against
- * @param rpc - The RPC client to use to fetch the token and ATA
- */
-export async function verifyTransferDetails(
-  tokenInstruction: ReturnType<typeof getValidatedTransferInstruction>,
-  paymentRequirements: PaymentRequirements,
-  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
-) {
-  const tokenProgramAddress =
-    tokenInstruction.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()
-      ? TOKEN_PROGRAM_ADDRESS
-      : TOKEN_2022_PROGRAM_ADDRESS;
-
-  const payToATA = await findAssociatedTokenPda({
-    mint: tokenInstruction.accounts.mint.address,
-    owner: paymentRequirements.payTo as Address,
-    tokenProgram: tokenProgramAddress,
-  });
-
-  if (tokenInstruction.accounts.destination.address !== payToATA[0]) {
-    throw new Error(`invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata`);
-  }
-
-  // verify that the source and destination ATAs exist
-  const addresses = [tokenInstruction.accounts.source.address, payToATA[0]];
-  const maybeAccounts = await fetchEncodedAccounts(rpc, addresses);
-  const missingAccounts = maybeAccounts.filter(a => !a.exists);
-  for (const account of missingAccounts) {
-    if (account.address === tokenInstruction.accounts.source.address) {
-      throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
-    }
-    if (account.address === payToATA[0]) {
-      throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
-    }
-  }
-
-  // verify that the amount is correct
-  const instructionAmount = tokenInstruction.data.amount;
-  const paymentRequirementsAmount = BigInt(paymentRequirements.maxAmountRequired);
-  if (instructionAmount !== paymentRequirementsAmount) {
-    throw new Error(`invalid_exact_svm_payload_transaction_amount_mismatch`);
-  }
 }
