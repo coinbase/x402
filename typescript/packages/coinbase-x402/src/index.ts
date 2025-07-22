@@ -5,8 +5,8 @@ import { CreateHeaders } from "x402/verify";
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
-const X402_VERSION = "0.3.7";
-const SDK_VERSION = "1.1.1";
+const X402_SDK_VERSION = "0.4.2";
+const CDP_SDK_VERSION = "1.1.1";
 
 /**
  * Creates an authorization header for a request to the Coinbase API.
@@ -40,10 +40,10 @@ export async function createAuthHeader(
  */
 export function createCorrelationHeader(): string {
   const data: Record<string, string> = {
-    sdk_version: SDK_VERSION,
+    sdk_version: CDP_SDK_VERSION,
     sdk_language: "typescript",
     source: "x402",
-    source_version: X402_VERSION,
+    source_version: X402_SDK_VERSION,
   };
   return Object.keys(data)
     .map(key => `${key}=${encodeURIComponent(data[key])}`)

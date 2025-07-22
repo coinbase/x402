@@ -1,6 +1,6 @@
 {
   "name": "x402-hono",
-  "version": "0.3.4",
+  "version": "0.4.2",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -38,8 +38,9 @@
     "vite": "^6.2.6"
   },
   "dependencies": {
+    "@coinbase/cdp-sdk": "^1.22.0",
     "hono": "^4.7.1",
-    "viem": "^2.23.1",
+    "viem": "^2.21.26",
     "x402": "workspace:^",
     "zod": "^3.24.2"
   },

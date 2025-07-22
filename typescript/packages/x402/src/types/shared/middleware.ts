@@ -2,10 +2,19 @@ import { CreateHeaders } from "../../verify";
 import { Money } from "./money";
 import { Network } from "./network";
 import { Resource } from "./resource";
+import { LocalAccount } from "viem";
+import { SignerWallet } from "./evm";
 
 export type FacilitatorConfig = {
   url: Resource;
   createAuthHeaders?: CreateHeaders;
+};
+
+export type PaywallConfig = {
+  cdpClientKey?: string;
+  appName?: string;
+  appLogo?: string;
+  sessionTokenEndpoint?: string;
 };
 
 export type PaymentMiddlewareConfig = {
@@ -44,3 +53,5 @@ export interface RoutePattern {
   pattern: RegExp;
   config: RouteConfig;
 }
+
+export type Wallet = SignerWallet | LocalAccount;

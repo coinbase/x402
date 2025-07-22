@@ -1,0 +1,13 @@
+{
+  "name": "fetch",
+  "type": "client",
+  "language": "typescript",
+  "environment": {
+    "required": [
+      "PRIVATE_KEY",
+      "RESOURCE_SERVER_URL",
+      "ENDPOINT_PATH"
+    ],
+    "optional": []
+  }
+}
