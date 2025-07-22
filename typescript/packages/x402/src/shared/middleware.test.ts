@@ -256,6 +256,18 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Ethereum Mainnet USDC asset details", () => {
+    const result = getDefaultAsset("mainnet");
+    expect(result).toEqual({
+      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      decimals: 6,
+      eip712: {
+        name: "USD Coin",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
@@ -286,6 +298,21 @@ describe("processPriceToAtomicAmount", () => {
         decimals: 6,
         eip712: {
           name: "USDC",
+          version: "2",
+        },
+      },
+    });
+  });
+
+  it("should handle string price in dollars for mainnet", () => {
+    const result = processPriceToAtomicAmount("$0.01", "mainnet");
+    expect(result).toEqual({
+      maxAmountRequired: "10000",
+      asset: {
+        address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        decimals: 6,
+        eip712: {
+          name: "USD Coin",
           version: "2",
         },
       },

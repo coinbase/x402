@@ -10,7 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, mainnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -181,6 +181,8 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return baseSepolia;
     case "avalanche-fuji":
       return avalancheFuji;
+    case "mainnet":
+      return mainnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

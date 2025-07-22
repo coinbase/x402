@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const NetworkSchema = z.enum([
+  "mainnet",
   "base-sepolia",
   "base",
   "avalanche-fuji",
@@ -10,6 +11,7 @@ export const NetworkSchema = z.enum([
 export type Network = z.infer<typeof NetworkSchema>;
 
 export const SupportedEVMNetworks: Network[] = [
+  "mainnet",
   "base-sepolia",
   "base",
   "avalanche-fuji",
@@ -17,6 +19,7 @@ export const SupportedEVMNetworks: Network[] = [
   "iotex",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
+  ["mainnet", 1],
   ["base-sepolia", 84532],
   ["base", 8453],
   ["avalanche-fuji", 43113],
