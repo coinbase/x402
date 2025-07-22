@@ -18,6 +18,7 @@ import {
   RoutesConfig,
   settleResponseHeader,
   PaywallConfig,
+  RequestStructure,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -81,14 +82,22 @@ export function paymentMiddleware(
   const routePatterns = computeRoutePatterns(routes);
 
   return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
-    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, c.req.method.toUpperCase());
+    const method = c.req.method.toUpperCase();
+    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, method);
     if (!matchingRoute) {
       return next();
     }
 
-    const { price, network } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      matchingRoute.config.config || {};
+    const { price, network, config = {} } = matchingRoute.config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -97,6 +106,22 @@ export function paymentMiddleware(
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
     const resourceUrl: Resource = resource || (c.req.url as Resource);
+
+    const input = inputSchema
+      ? ({
+          spec: "http",
+          method,
+          ...inputSchema,
+        } as RequestStructure)
+      : undefined;
+
+    const requestStructure =
+      input || outputSchema
+        ? {
+            input,
+            output: outputSchema,
+          }
+        : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -109,7 +134,8 @@ export function paymentMiddleware(
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
-        outputSchema,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: requestStructure,
         extra: asset.eip712,
       },
     ];
