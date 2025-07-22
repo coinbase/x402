@@ -19,6 +19,9 @@ vi.mock("@solana-program/token-2022", async importOriginal => {
     ...actual,
     findAssociatedTokenPda: vi.fn(),
     getTransferCheckedInstruction: vi.fn().mockReturnValue({ instruction: "mock" }),
+    getCreateAssociatedTokenInstruction: vi
+      .fn()
+      .mockReturnValue({ instruction: "mock_token_2022_create_ata" }),
     fetchMint: vi.fn(),
   };
 });
@@ -28,6 +31,9 @@ vi.mock("@solana-program/token", async importOriginal => {
     ...actual,
     findAssociatedTokenPda: vi.fn(),
     getTransferCheckedInstruction: vi.fn().mockReturnValue({ instruction: "mock" }),
+    getCreateAssociatedTokenInstruction: vi
+      .fn()
+      .mockReturnValue({ instruction: "mock_spl_token_create_ata" }),
   };
 });
 vi.mock("@solana/kit", async importOriginal => {
@@ -37,10 +43,15 @@ vi.mock("@solana/kit", async importOriginal => {
     createTransactionMessage: vi.fn().mockReturnValue({ version: 0, instructions: [] }),
     setTransactionMessageFeePayer: vi.fn().mockImplementation((_payer, tx) => tx),
     setTransactionMessageLifetimeUsingBlockhash: vi.fn().mockImplementation((_bh, tx) => tx),
-    appendTransactionMessageInstructions: vi.fn().mockImplementation((_ixs, tx) => tx),
-    prependTransactionMessageInstruction: vi.fn().mockImplementation((_ix, tx) => tx),
+    appendTransactionMessageInstructions: vi.fn().mockImplementation((ixs, tx) => {
+      return { ...tx, instructions: [...tx.instructions, ...ixs] };
+    }),
+    prependTransactionMessageInstruction: vi.fn().mockImplementation((ix, tx) => {
+      return { ...tx, instructions: [ix, ...tx.instructions] };
+    }),
     partiallySignTransactionMessageWithSigners: vi.fn().mockResolvedValue("signed_tx_message"),
     getBase64EncodedWireTransaction: vi.fn().mockReturnValue("base64_encoded_tx"),
+    fetchEncodedAccount: vi.fn(),
   };
 });
 vi.mock("@solana-program/compute-budget", async importOriginal => {
@@ -68,7 +79,7 @@ describe("SVM Client", () => {
     getRecentPrioritizationFees: vi.fn().mockReturnValue({
       send: vi.fn().mockResolvedValue([]),
     }),
-    getAccountInfo: vi.fn(),
+    fetchEncodedAccount: vi.fn(),
   };
 
   beforeAll(async () => {
@@ -97,6 +108,9 @@ describe("SVM Client", () => {
 
     // Mock RPC client
     vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
+
+    // Mock fetchEncodedAccount to return existing account by default when fetching ATAs
+    vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: true } as any);
 
     // Mock fetchMint to determine token program
     vi.spyOn(token2022, "fetchMint").mockImplementation(async (_rpc, address) => {
@@ -137,6 +151,7 @@ describe("SVM Client", () => {
       // Arrange
       const mockedPartiallySign = vi.spyOn(solanaKit, "partiallySignTransactionMessageWithSigners");
       const mockedToBase64 = vi.spyOn(solanaKit, "getBase64EncodedWireTransaction");
+      const findAtaSpy = vi.spyOn(token, "findAssociatedTokenPda");
 
       // Act
       const paymentPayload = await createAndSignPayment(clientSigner, 1, paymentRequirements);
@@ -145,7 +160,8 @@ describe("SVM Client", () => {
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
       expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce(); // blockhash required for tx
       expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce(); // get compute unit price
-      expect(token.findAssociatedTokenPda).toHaveBeenCalledTimes(2); // find sender and receiver ATA
+      // find sender and receiver ATA -- receiver ATA is fetched once for create ATA ix and once for transfer ix
+      expect(findAtaSpy).toHaveBeenCalledTimes(3);
       expect(token.getTransferCheckedInstruction).toHaveBeenCalledOnce(); // transfer instruction
       expect(mockedPartiallySign).toHaveBeenCalledOnce(); // partially sign tx
       expect(mockedToBase64).toHaveBeenCalledWith("signed_tx_message"); // base64 encode tx
@@ -180,6 +196,7 @@ describe("SVM Client", () => {
 
       const mockedPartiallySign = vi.spyOn(solanaKit, "partiallySignTransactionMessageWithSigners");
       const mockedToBase64 = vi.spyOn(solanaKit, "getBase64EncodedWireTransaction");
+      const findAtaSpy = vi.spyOn(token2022, "findAssociatedTokenPda");
 
       // Act
       const paymentPayload = await createAndSignPayment(clientSigner, 1, paymentRequirements);
@@ -188,7 +205,8 @@ describe("SVM Client", () => {
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
       expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce();
       expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
-      expect(token2022.findAssociatedTokenPda).toHaveBeenCalledTimes(2);
+      // find sender and receiver ATA -- receiver ATA is fetched once for create ATA ix and once for transfer ix
+      expect(findAtaSpy).toHaveBeenCalledTimes(3);
       expect(token2022.getTransferCheckedInstruction).toHaveBeenCalledOnce();
       expect(mockedPartiallySign).toHaveBeenCalledOnce();
       expect(mockedToBase64).toHaveBeenCalledWith("signed_tx_message");
@@ -355,6 +373,20 @@ describe("SVM Client", () => {
       expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
       expect(computePriceSpy).toHaveBeenCalledWith(10_000_000, expect.any(Object));
     });
+
+    it("should handle rounding of prioritization fees", async () => {
+      const fees = [{ prioritizationFee: 1234.5, slot: 1 }];
+      mockRpcClient.getRecentPrioritizationFees.mockReturnValue({
+        send: vi.fn().mockResolvedValue(fees),
+      });
+      const computePriceSpy = vi.spyOn(computeBudget, "setTransactionMessageComputeUnitPrice");
+
+      // Act
+      await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(computePriceSpy).toHaveBeenCalledWith(1235, expect.any(Object));
+    });
   });
 
   describe("createTransferInstruction", () => {
@@ -385,6 +417,93 @@ describe("SVM Client", () => {
       // Assert
       expect(token2022.getTransferCheckedInstruction).toHaveBeenCalledOnce();
       expect(token.getTransferCheckedInstruction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("ATA creation", () => {
+    it("should create ATA for spl-token if it does not exist", async () => {
+      // Arrange
+      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: false } as any);
+      const createAtaSpy = vi.spyOn(token, "getCreateAssociatedTokenInstruction");
+      const appendIxSpy = vi.spyOn(solanaKit, "appendTransactionMessageInstructions");
+
+      // Act
+      await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(createAtaSpy).toHaveBeenCalledOnce();
+      expect(appendIxSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ instruction: "mock_spl_token_create_ata" }),
+        ]),
+        expect.any(Object),
+      );
+    });
+
+    it("should not create ATA for spl-token if it exists", async () => {
+      // Arrange
+      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: true } as any);
+      const createAtaSpy = vi.spyOn(token, "getCreateAssociatedTokenInstruction");
+
+      // Act
+      await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(createAtaSpy).not.toHaveBeenCalled();
+    });
+
+    it("should create ATA for token-2022 if it does not exist", async () => {
+      // Arrange
+      vi.spyOn(token2022, "fetchMint").mockResolvedValue({
+        address: paymentRequirements.asset as Address,
+        programAddress: token2022.TOKEN_2022_PROGRAM_ADDRESS,
+        data: { decimals: 6 },
+      } as any);
+      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: false } as any);
+      const createAtaSpy = vi.spyOn(token2022, "getCreateAssociatedTokenInstruction");
+      const appendIxSpy = vi.spyOn(solanaKit, "appendTransactionMessageInstructions");
+
+      // Act
+      await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(createAtaSpy).toHaveBeenCalledOnce();
+      expect(appendIxSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ instruction: "mock_token_2022_create_ata" }),
+        ]),
+        expect.any(Object),
+      );
+    });
+
+    it("should not create ATA for token-2022 if it exists", async () => {
+      // Arrange
+      vi.spyOn(token2022, "fetchMint").mockResolvedValue({
+        address: paymentRequirements.asset as Address,
+        programAddress: token2022.TOKEN_2022_PROGRAM_ADDRESS,
+        data: { decimals: 6 },
+      } as any);
+      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: true } as any);
+      const createAtaSpy = vi.spyOn(token2022, "getCreateAssociatedTokenInstruction");
+
+      // Act
+      await createAndSignPayment(clientSigner, 1, paymentRequirements);
+
+      // Assert
+      expect(createAtaSpy).not.toHaveBeenCalled();
+    });
+
+    it("should throw an error if feePayer is not provided when creating ATA", async () => {
+      // Arrange
+      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: false } as any);
+      const paymentReqsWithoutFeePayer = { ...paymentRequirements, extra: {} };
+
+      // Act & Assert
+      await expect(
+        createAndSignPayment(clientSigner, 1, paymentReqsWithoutFeePayer),
+      ).rejects.toThrow(
+        "feePayer is required in paymentRequirements.extra in order to set the facilitator as the fee payer for the create associated token account instruction",
+      );
     });
   });
 });
