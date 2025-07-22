@@ -4,12 +4,18 @@ This example demonstrates two different approaches to use the x402 package with 
 
 ## Setup and Usage
 
-1. Install dependencies:
+1. Copy `.env-local` to `.env` and add your private key.
+
+```bash
+cp .env-local .env
+```
+
+2. Install dependencies:
 ```bash
 uv sync
 ```
 
-2. Run one of the examples:
+3. Run one of the examples:
 ```bash
 # Simple approach
 uv run python main.py
