@@ -22,6 +22,14 @@ app.use(
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
         network: "base-sepolia",
+        config: {
+          inputSchema: {
+            queryParams: {
+              city: "string",
+              country: "string",
+            }
+          },
+        }
       },
       "/premium/*": {
         // Define atomic amounts in any EIP-3009 token
