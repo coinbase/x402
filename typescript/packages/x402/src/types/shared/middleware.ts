@@ -4,6 +4,7 @@ import { Network } from "./network";
 import { Resource } from "./resource";
 import { LocalAccount } from "viem";
 import { SignerWallet } from "./evm";
+import { HTTPRequestStructure } from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -21,6 +22,7 @@ export type PaymentMiddlewareConfig = {
   description?: string;
   mimeType?: string;
   maxTimeoutSeconds?: number;
+  inputSchema?: Omit<HTTPRequestStructure, "spec" | "method">;
   outputSchema?: object;
   customPaywallHtml?: string;
   resource?: Resource;
