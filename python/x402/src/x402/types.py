@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from enum import Enum
+from typing import Any, Optional, Union, Dict, Literal
 from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
@@ -9,6 +10,45 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from x402.networks import SupportedNetworks
+
+
+# Add HTTP request structure types
+class HTTPVerbs(str, Enum):
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+    OPTIONS = "OPTIONS"
+    HEAD = "HEAD"
+
+
+class HTTPInputSchema(BaseModel):
+    """Schema for HTTP request input, excluding spec and method which are handled by the middleware"""
+
+    query_params: Optional[Dict[str, str]] = None
+    body_type: Optional[
+        Literal["json", "form-data", "multipart-form-data", "text", "binary"]
+    ] = None
+    body_fields: Optional[Dict[str, Any]] = None
+    header_fields: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class HTTPRequestStructure(HTTPInputSchema):
+    """Complete HTTP request structure including spec and method"""
+
+    spec: Literal["http"]
+    method: HTTPVerbs
+
+
+# For now we only support HTTP, but could add MCP and OpenAPI later
+RequestStructure = HTTPRequestStructure
 
 
 class TokenAmount(BaseModel):

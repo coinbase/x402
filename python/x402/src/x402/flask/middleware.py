@@ -10,6 +10,7 @@ from x402.types import (
     x402PaymentRequiredResponse,
     PaywallConfig,
     SupportedNetworks,
+    HTTPInputSchema,
 )
 from x402.common import (
     process_price_to_atomic_amount,
@@ -63,7 +64,8 @@ class PaymentMiddleware:
         description: str = "",
         mime_type: str = "",
         max_deadline_seconds: int = 60,
-        output_schema: Any = None,
+        input_schema: Optional[HTTPInputSchema] = None,
+        output_schema: Optional[Any] = None,
         facilitator_config: Optional[FacilitatorConfig] = None,
         network: str = "base-sepolia",
         resource: Optional[str] = None,
@@ -80,7 +82,8 @@ class PaymentMiddleware:
             description (str, optional): Description of the resource
             mime_type (str, optional): MIME type of the resource
             max_deadline_seconds (int, optional): Max time for payment
-            output_schema (Any, optional): JSON schema for response
+            input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
+            output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
             facilitator_config (dict, optional): Facilitator config
             network (str, optional): Network ID
             resource (str, optional): Resource URL
@@ -94,6 +97,7 @@ class PaymentMiddleware:
             "description": description,
             "mime_type": mime_type,
             "max_deadline_seconds": max_deadline_seconds,
+            "input_schema": input_schema,
             "output_schema": output_schema,
             "facilitator_config": facilitator_config,
             "network": network,
@@ -147,10 +151,22 @@ class PaymentMiddleware:
                 # Get resource URL if not explicitly provided
                 resource_url = config["resource"] or request.url
 
-                # Ensure output_schema and extra are objects, not null
-                output_schema_obj = (
-                    {} if config["output_schema"] is None else config["output_schema"]
-                )
+                # Create input structure if input_schema is provided
+                input_structure = None
+                if config["input_schema"]:
+                    input_structure = {
+                        "spec": "http",
+                        "method": request.method.upper(),
+                        **config["input_schema"].model_dump(),
+                    }
+
+                # Create request structure if either input or output is provided
+                request_structure = None
+                if input_structure or config["output_schema"]:
+                    request_structure = {
+                        "input": input_structure,
+                        "output": config["output_schema"],
+                    }
 
                 # Construct payment details
                 payment_requirements = [
@@ -164,7 +180,8 @@ class PaymentMiddleware:
                         mime_type=config["mime_type"],
                         pay_to=config["pay_to_address"],
                         max_timeout_seconds=config["max_deadline_seconds"],
-                        output_schema=output_schema_obj,
+                        # TODO: Rename output_schema to request_structure
+                        output_schema=request_structure,
                         extra=eip712_domain,
                     )
                 ]
