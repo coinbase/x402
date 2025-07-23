@@ -8,6 +8,8 @@ from x402.types import (
     PaymentRequirements,
     VerifyResponse,
     SettleResponse,
+    DiscoveryListRequest,
+    DiscoveryListResponse,
 )
 
 
@@ -88,3 +90,39 @@ class FacilitatorClient:
             )
             data = response.json()
             return SettleResponse(**data)
+
+    async def list(
+        self, request: Optional[DiscoveryListRequest] = None
+    ) -> DiscoveryListResponse:
+        """List discovery items from the facilitator service.
+
+        Args:
+            request: Optional parameters for filtering and pagination
+
+        Returns:
+            DiscoveryListResponse containing the list of discovery items and pagination info
+        """
+        if request is None:
+            request = DiscoveryListRequest()
+
+        # Build query parameters, excluding None values
+        params = {
+            k: str(v)
+            for k, v in request.model_dump(by_alias=True).items()
+            if v is not None
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.config['url']}/discovery/list",
+                params=params,
+                follow_redirects=True,
+            )
+
+            if response.status_code != 200:
+                raise ValueError(
+                    f"Failed to list discovery: {response.status_code} {response.text}"
+                )
+
+            data = response.json()
+            return DiscoveryListResponse(**data)

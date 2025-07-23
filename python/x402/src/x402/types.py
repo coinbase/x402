@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Optional, Union, Dict, Literal
+from typing import Any, Optional, Union, Dict, Literal, List
 from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
@@ -221,3 +221,40 @@ class PaywallConfig(TypedDict, total=False):
     app_name: str
     app_logo: str
     session_token_endpoint: str
+
+
+class BazaarItem(BaseModel):
+    """A bazaar item represents a discoverable resource in the X402 ecosystem."""
+
+    resource: str
+    type: str = Field(..., pattern="^http$")  # Currently only supports 'http'
+    x402_version: int = Field(..., alias="x402Version")
+    accepts: List["PaymentRequirements"]
+    last_updated: int = Field(..., alias="lastUpdated", gt=0)
+    metadata: Optional[dict] = None
+
+
+class DiscoveryListRequest(BaseModel):
+    """Request parameters for listing discovery items."""
+
+    type: Optional[str] = None
+    resource: Optional[str] = None
+    page_size: Optional[int] = Field(None, alias="pageSize")
+    page_token: Optional[str] = Field(None, alias="pageToken")
+
+
+class DiscoveryListPagination(BaseModel):
+    """Pagination information for discovery list responses."""
+
+    page_size: int = Field(..., alias="pageSize")
+    page_token: str = Field(..., alias="pageToken")
+    next_page_token: Optional[str] = Field(None, alias="nextPageToken")
+
+
+class DiscoveryListResponse(BaseModel):
+    """Response from the discovery list endpoint."""
+
+    x402_version: int = Field(..., alias="x402Version")
+    items: List[BazaarItem]
+    num_items: int = Field(..., alias="numItems")
+    pagination: DiscoveryListPagination
