@@ -195,14 +195,13 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator();
       const config = {
         type: "test-type",
-        resource: "https://example.com/resource",
         pageSize: 10,
         pageToken: "test-token",
       };
       await list(config);
 
       const expectedUrl =
-        "https://x402.org/facilitator/discovery/list?type=test-type&resource=https%3A%2F%2Fexample.com%2Fresource&pageSize=10&pageToken=test-token";
+        "https://x402.org/facilitator/discovery/list?type=test-type&pageSize=10&pageToken=test-token";
       expect(fetch).toHaveBeenCalledWith(expectedUrl, {
         method: "GET",
       });
@@ -212,7 +211,6 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator();
       const config = {
         type: "test-type",
-        resource: undefined,
         pageSize: 10,
         pageToken: undefined,
       };

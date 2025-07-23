@@ -161,7 +161,6 @@ export type SettleResponse = z.infer<typeof SettleResponseSchema>;
 // x402DiscoverListRequest
 export const DiscoverListRequestSchema = z.object({
   type: z.string().optional(),
-  resource: z.string().optional(),
   pageSize: z.number().optional(),
   pageToken: z.string().optional(),
 });

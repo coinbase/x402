@@ -238,7 +238,6 @@ class DiscoveryListRequest(BaseModel):
     """Request parameters for listing discovery items."""
 
     type: Optional[str] = None
-    resource: Optional[str] = None
     page_size: Optional[int] = Field(None, alias="pageSize")
     page_token: Optional[str] = Field(None, alias="pageToken")
 
