@@ -27,9 +27,9 @@ app.use(
             queryParams: {
               city: "string",
               country: "string",
-            }
+            },
           },
-        }
+        },
       },
       "/premium/*": {
         // Define atomic amounts in any EIP-3009 token
