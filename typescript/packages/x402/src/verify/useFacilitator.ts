@@ -1,5 +1,5 @@
 import { toJsonSafe } from "../shared";
-import { FacilitatorConfig } from "../types";
+import { DiscoverListRequest, DiscoveryListResponse, FacilitatorConfig } from "../types";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -96,7 +96,35 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as SettleResponse;
   }
 
-  return { verify, settle };
+  /**
+   * Lists the discovery items with the facilitator service
+   *
+   * @param config - The configuration for the discovery list request
+   * @returns A promise that resolves to the discovery list response
+   */
+  async function list(config: DiscoverListRequest = {}): Promise<DiscoveryListResponse> {
+    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+
+    const urlParams = new URLSearchParams(
+      Object.entries(config)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => [key, value.toString()]),
+    );
+
+    const res = await fetch(`${url}/discovery/list?${urlParams.toString()}`, {
+      method: "GET",
+    });
+
+    if (res.status !== 200) {
+      const text = res.statusText;
+      throw new Error(`Failed to list discovery: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    return data as DiscoveryListResponse;
+  }
+
+  return { verify, settle, list };
 }
 
-export const { verify, settle } = useFacilitator();
+export const { verify, settle, list } = useFacilitator();

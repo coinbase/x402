@@ -170,4 +170,69 @@ describe("useFacilitator", () => {
       );
     });
   });
+
+  describe("list", () => {
+    it("should call fetch with the correct URL and method", async () => {
+      const { list } = useFacilitator();
+      await list();
+
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/discovery/list?", {
+        method: "GET",
+      });
+    });
+
+    it("should use custom URL when provided", async () => {
+      const customUrl = "https://custom-facilitator.org";
+      const { list } = useFacilitator({ url: customUrl });
+      await list();
+
+      expect(fetch).toHaveBeenCalledWith(`${customUrl}/discovery/list?`, {
+        method: "GET",
+      });
+    });
+
+    it("should properly encode query parameters", async () => {
+      const { list } = useFacilitator();
+      const config = {
+        type: "test-type",
+        resource: "https://example.com/resource",
+        pageSize: 10,
+        pageToken: "test-token",
+      };
+      await list(config);
+
+      const expectedUrl =
+        "https://x402.org/facilitator/discovery/list?type=test-type&resource=https%3A%2F%2Fexample.com%2Fresource&pageSize=10&pageToken=test-token";
+      expect(fetch).toHaveBeenCalledWith(expectedUrl, {
+        method: "GET",
+      });
+    });
+
+    it("should filter out undefined query parameters", async () => {
+      const { list } = useFacilitator();
+      const config = {
+        type: "test-type",
+        resource: undefined,
+        pageSize: 10,
+        pageToken: undefined,
+      };
+      await list(config);
+
+      const expectedUrl = "https://x402.org/facilitator/discovery/list?type=test-type&pageSize=10";
+      expect(fetch).toHaveBeenCalledWith(expectedUrl, {
+        method: "GET",
+      });
+    });
+
+    it("should throw error on non-200 response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 400,
+        statusText: "Bad Request",
+        json: async () => ({}),
+      });
+      const { list } = useFacilitator();
+
+      await expect(list()).rejects.toThrow("Failed to list discovery: 400 Bad Request");
+    });
+  });
 });
