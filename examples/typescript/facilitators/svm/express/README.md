@@ -37,7 +37,7 @@ cd facilitator
 2. Create a `.env` file with the following variables:
 ```env
 PRIVATE_KEY=yourbase58encodedprivatekey
-NETWORK="solana-devnet or solana-mainnet"
+NETWORK="solana-devnet or solana"
 ```
 
 3. Start the server:

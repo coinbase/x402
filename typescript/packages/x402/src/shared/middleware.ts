@@ -91,7 +91,7 @@ export function findMatchingRoute(
  */
 export function getDefaultAsset(network: Network) {
   // solana mainnet
-  if (network === "solana-mainnet") {
+  if (network === "solana") {
     return {
       address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       decimals: 6,

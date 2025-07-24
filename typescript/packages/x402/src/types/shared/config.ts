@@ -22,11 +22,13 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xcdf79194c6c285077a58da47641d4dbe51f63542",
     usdcName: "Bridged USDC",
   },
-  "solana-devnet": {
+  // solana devnet
+  "103": {
     usdcAddress: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" as SolanaAddress,
     usdcName: "USDC",
   },
-  "solana-mainnet": {
+  // solana mainnet
+  "101": {
     usdcAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" as SolanaAddress,
     usdcName: "USDC",
   },

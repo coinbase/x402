@@ -509,11 +509,11 @@ describe("paymentMiddleware()", () => {
     expect(responseJson.accepts[0].extra.feePayer).toBe(feePayerResponse.feePayer);
   });
 
-  it("should return 402 with feePayer for solana-mainnet when no payment header is present", async () => {
+  it("should return 402 with feePayer for solana mainnet when no payment header is present", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/test": {
         price: "$0.001",
-        network: "solana-mainnet",
+        network: "solana",
         config: middlewareConfig,
       },
     };
@@ -527,7 +527,7 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       config: {
         price: "$0.001",
-        network: "solana-mainnet",
+        network: "solana",
         config: middlewareConfig,
       },
     });
@@ -547,7 +547,7 @@ describe("paymentMiddleware()", () => {
       expect.objectContaining({
         accepts: expect.arrayContaining([
           expect.objectContaining({
-            network: "solana-mainnet",
+            network: "solana",
             payTo: solanaPayTo,
             extra: expect.objectContaining({
               feePayer: feePayerResponse.feePayer,

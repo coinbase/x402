@@ -137,7 +137,7 @@ describe("verify", () => {
     });
 
     it("should throw an error for mismatched networks", () => {
-      const invalidPayload = { ...validPayload, network: "solana-mainnet" as Network };
+      const invalidPayload = { ...validPayload, network: "solana" as Network };
       expect(() => verifySchemesAndNetworks(invalidPayload, validRequirements)).toThrow(
         "invalid_network",
       );

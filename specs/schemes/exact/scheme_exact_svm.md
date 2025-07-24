@@ -35,7 +35,7 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 ```json
 {
   "scheme": "exact",
-  "network": "solana-mainnet",
+  "network": "solana",
   "maxAmountRequired": "1000",
   "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   "payTo": "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHDBg4",
@@ -64,7 +64,7 @@ Once decoded, the `X-PAYMENT` header is a JSON string with the following propert
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "solana-mainnet",
+  "network": "solana",
   "payload": {
     "transaction": "AAAAAAAAAAAAA...AAAAAAAAAAAAA="
   }
@@ -84,7 +84,7 @@ Once decoded, the `X-PAYMENT-RESPONSE` is a JSON string with the following prope
 {
   "success": true | false,
   "transaction": "base58 encoded transaction signature",
-  "network": "solana-mainnet" | "solana-devnet",
+  "network": "solana" | "solana-devnet",
   "payer": "base58 encoded public address of the transaction fee payer"
 }
 ```

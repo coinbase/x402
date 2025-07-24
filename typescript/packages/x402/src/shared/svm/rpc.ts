@@ -52,7 +52,7 @@ export function getRpcClient(
   // TODO: should the networks be replaced with enum references?
   if (network === "solana-devnet") {
     return createDevnetRpcClient(url);
-  } else if (network === "solana-mainnet") {
+  } else if (network === "solana") {
     return createMainnetRpcClient(url);
   } else {
     throw new Error("Invalid network");
@@ -76,7 +76,7 @@ export function getRpcSubscriptions(
   // TODO: should the networks be replaced with enum references?
   if (network === "solana-devnet") {
     return createSolanaRpcSubscriptions(devnet(url ?? "wss://api.devnet.solana.com"));
-  } else if (network === "solana-mainnet") {
+  } else if (network === "solana") {
     return createSolanaRpcSubscriptions(mainnet(url ?? "wss://api.mainnet-beta.solana.com"));
   } else {
     throw new Error("Invalid network");

@@ -88,7 +88,7 @@ app.get("/supported", (req: Request, res: Response) => {
       {
         x402Version: 1,
         scheme: "exact",
-        network: "solana-mainnet",
+        network: "solana",
       },
     ],
   });
