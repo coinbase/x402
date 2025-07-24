@@ -1,6 +1,6 @@
 # x402 Facilitator Example
 
-This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol. This implementation is for learning purposes and demonstrates how to build a facilitator service.
+This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol on Solana. This implementation is for learning purposes and demonstrates how to build a facilitator service.
 
 For production use, we recommend using:
 - Testnet: TODO
@@ -8,9 +8,10 @@ For production use, we recommend using:
 
 ## Overview
 
-The facilitator provides two main endpoints:
-- `/verify`: Verifies x402 payment payloads
-- `/settle`: Settles x402 payments by signing and broadcasting transactions
+The facilitator provides three main endpoints:
+- `/verify`: Verifies x402 payment payloads.
+- `/settle`: Settles x402 payments by signing and broadcasting transactions.
+- `/fee-payer`: Gets the address of the account that will pay the transaction fee. 
 
 This example demonstrates how to:
 1. Set up a basic Express server to handle x402 payment verification and settlement
