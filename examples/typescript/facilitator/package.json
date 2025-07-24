@@ -1,5 +1,5 @@
 {
-  "name": "evm-express-facilitator-example",
+  "name": "facilitator-example",
   "private": true,
   "type": "module",
   "scripts": {
