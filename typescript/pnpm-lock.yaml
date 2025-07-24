@@ -242,9 +242,6 @@ importers:
       x402:
         specifier: workspace:^
         version: link:../x402
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.67
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -359,17 +356,14 @@ importers:
         specifier: ^1.22.0
         version: 1.22.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       hono:
-        specifier: ^4.7.1
-        version: 4.8.2
+        specifier: ^4.8.4
+        version: 4.8.4
       viem:
         specifier: ^2.21.26
         version: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.67)
       x402:
         specifier: workspace:^
         version: link:../x402
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.67
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -3681,6 +3675,10 @@ packages:
 
   hono@4.8.2:
     resolution: {integrity: sha512-hM+1RIn9PK1I6SiTNS6/y7O1mvg88awYLFEuEtoiMtRyT3SD2iu9pSFgbBXT3b1Ua4IwzvSTLvwO0SEhDxCi4w==}
+    engines: {node: '>=16.9.0'}
+
+  hono@4.8.4:
+    resolution: {integrity: sha512-KOIBp1+iUs0HrKztM4EHiB2UtzZDTBihDtOF5K6+WaJjCPeaW4Q92R8j63jOhvJI5+tZSMuKD9REVEXXY9illg==}
     engines: {node: '>=16.9.0'}
 
   html-encoding-sniffer@4.0.0:
@@ -9954,6 +9952,8 @@ snapshots:
       function-bind: 1.1.2
 
   hono@4.8.2: {}
+
+  hono@4.8.4: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:

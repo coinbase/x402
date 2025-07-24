@@ -1,25 +1,9 @@
 import type { Context } from "hono";
-import { Address, getAddress } from "viem";
-import { exact } from "x402/schemes";
-import {
-  computeRoutePatterns,
-  findMatchingPaymentRequirements,
-  findMatchingRoute,
-  getPaywallHtml,
-  processPriceToAtomicAmount,
-  toJsonSafe,
-} from "x402/shared";
-import {
-  FacilitatorConfig,
-  moneySchema,
-  PaymentPayload,
-  PaymentRequirements,
-  Resource,
-  RoutesConfig,
-  settleResponseHeader,
-  PaywallConfig,
-} from "x402/types";
-import { useFacilitator } from "x402/verify";
+import type { Address } from "viem";
+import type { FacilitatorConfig, RoutesConfig, PaywallConfig, Resource } from "x402/types";
+import type { useFacilitator } from "x402/verify";
+import { settleResponseHeader } from "x402/types";
+import { PaymentMiddleware, X402Error, renderPaywallHtml } from "x402/middleware";
 
 /**
  * Creates a payment middleware factory for Hono
@@ -28,6 +12,7 @@ import { useFacilitator } from "x402/verify";
  * @param routes - Configuration for protected routes and their payment requirements
  * @param facilitator - Optional configuration for the payment facilitator service
  * @param paywall - Optional configuration for the default paywall
+ * @param useFacilitatorFn - Optional useFacilitator function, used in dev/testing mode
  * @returns A Hono middleware handler
  *
  * @example
@@ -73,171 +58,56 @@ export function paymentMiddleware(
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
+  useFacilitatorFn?: typeof useFacilitator,
 ) {
-  const { verify, settle } = useFacilitator(facilitator);
-  const x402Version = 1;
+  const middlewares = PaymentMiddleware.forRoutes<Context>({
+    routes,
+    payTo,
+    facilitator,
+    paywall,
+    getHeader: (ctx, name) => ctx.req.header(name),
+    useFacilitatorFn,
+  });
 
-  // Pre-compile route patterns to regex and extract verbs
-  const routePatterns = computeRoutePatterns(routes);
-
-  return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
-    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, c.req.method.toUpperCase());
-    if (!matchingRoute) {
+  return async function paymentMiddleware(ctx: Context, next: () => Promise<void>) {
+    const x402 = middlewares.match(ctx.req.path, ctx.req.method.toUpperCase());
+    if (!x402) {
       return next();
     }
 
-    const { price, network } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      matchingRoute.config.config || {};
+    const resource = ctx.req.url as Resource;
 
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      throw new Error(atomicAmountForAsset.error);
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
-    const resourceUrl: Resource = resource || (c.req.url as Resource);
-
-    const paymentRequirements: PaymentRequirements[] = [
-      {
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        outputSchema,
-        extra: asset.eip712,
-      },
-    ];
-
-    const payment = c.req.header("X-PAYMENT");
-    const userAgent = c.req.header("User-Agent") || "";
-    const acceptHeader = c.req.header("Accept") || "";
-    const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
-
-    if (!payment) {
-      if (isWebBrowser) {
-        let displayAmount: number;
-        if (typeof price === "string" || typeof price === "number") {
-          const parsed = moneySchema.safeParse(price);
-          if (parsed.success) {
-            displayAmount = parsed.data;
-          } else {
-            displayAmount = Number.NaN;
-          }
-        } else {
-          displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
-        }
-
-        const currentUrl = new URL(c.req.url).pathname + new URL(c.req.url).search;
-        const html =
-          customPaywallHtml ??
-          getPaywallHtml({
-            amount: displayAmount,
-            paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
-              typeof getPaywallHtml
-            >[0]["paymentRequirements"],
-            currentUrl,
-            testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appName: paywall?.appName,
-            appLogo: paywall?.appLogo,
-            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
-          });
-        return c.html(html, 402);
+    try {
+      const paymentRequirements = x402.paymentRequirements(resource);
+      const payment = await x402.verifyPayment(ctx, paymentRequirements);
+      if (!payment) {
+        const currentUrl = new URL(ctx.req.url).pathname + new URL(ctx.req.url).search;
+        const html = renderPaywallHtml(x402, paymentRequirements, currentUrl);
+        return ctx.html(html, 402);
       }
-      return c.json(
-        {
-          error: "X-PAYMENT header is required",
-          accepts: paymentRequirements,
-          x402Version,
-        },
-        402,
-      );
-    }
+      // Proceed with request
+      await next();
 
-    // Verify payment
-    let decodedPayment: PaymentPayload;
-    try {
-      decodedPayment = exact.evm.decodePayment(payment);
-      decodedPayment.x402Version = x402Version;
-    } catch (error) {
-      return c.json(
-        {
-          error: error instanceof Error ? error : new Error("Invalid or malformed payment header"),
-          accepts: paymentRequirements,
-          x402Version,
-        },
-        402,
-      );
-    }
+      // If the response from the protected route is >= 400, do not settle payment
+      if (ctx.res.status >= 400) {
+        return;
+      }
 
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
-    if (!selectedPaymentRequirements) {
-      return c.json(
-        {
-          error: "Unable to find matching payment requirements",
-          accepts: toJsonSafe(paymentRequirements),
-          x402Version,
-        },
-        402,
-      );
-    }
-
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
-
-    if (!verification.isValid) {
-      return c.json(
-        {
-          error: new Error(verification.invalidReason),
-          accepts: paymentRequirements,
-          payer: verification.payer,
-          x402Version,
-        },
-        402,
-      );
-    }
-
-    // Proceed with request
-    await next();
-
-    let res = c.res;
-
-    // If the response from the protected route is >= 400, do not settle payment
-    if (res.status >= 400) {
-      return;
-    }
-
-    c.res = undefined;
-
-    // Settle payment before processing the request, as Hono middleware does not allow us to set headers after the response has been sent
-    try {
-      const settlement = await settle(decodedPayment, selectedPaymentRequirements);
-      if (settlement.success) {
-        const responseHeader = settleResponseHeader(settlement);
-        res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
+      const settlement = await payment.settle();
+      const responseHeader = settleResponseHeader(settlement);
+      ctx.res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
+    } catch (e) {
+      if (e instanceof X402Error) {
+        const headers = new Headers(ctx.res.headers);
+        headers.set("Content-Type", "application/json");
+        ctx.res = new Response(JSON.stringify(e), {
+          headers: headers,
+          status: 402,
+        });
       } else {
-        throw new Error(settlement.errorReason);
+        throw e;
       }
-    } catch (error) {
-      res = c.json(
-        {
-          error: error instanceof Error ? error : new Error("Failed to settle payment"),
-          accepts: paymentRequirements,
-          x402Version,
-        },
-        402,
-      );
     }
-
-    c.res = res;
   };
 }
 
