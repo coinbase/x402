@@ -8,8 +8,8 @@ from x402.types import (
     PaymentRequirements,
     VerifyResponse,
     SettleResponse,
-    DiscoveryListRequest,
-    DiscoveryListResponse,
+    DiscoveryResourcesRequest,
+    DiscoveryResourcesResponse,
 )
 
 
@@ -92,18 +92,24 @@ class FacilitatorClient:
             return SettleResponse(**data)
 
     async def list(
-        self, request: Optional[DiscoveryListRequest] = None
-    ) -> DiscoveryListResponse:
-        """List discovery items from the facilitator service.
+        self, request: Optional[DiscoveryResourcesRequest] = None
+    ) -> DiscoveryResourcesResponse:
+        """List discovery resources from the facilitator service.
 
         Args:
             request: Optional parameters for filtering and pagination
 
         Returns:
-            DiscoveryListResponse containing the list of discovery items and pagination info
+            DiscoveryResourcesResponse containing the list of discovery resources and pagination info
         """
         if request is None:
-            request = DiscoveryListRequest()
+            request = DiscoveryResourcesRequest()
+
+        headers = {"Content-Type": "application/json"}
+
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
+            headers.update(custom_headers.get("list", {}))
 
         # Build query parameters, excluding None values
         params = {
@@ -114,15 +120,16 @@ class FacilitatorClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{self.config['url']}/discovery/list",
+                f"{self.config['url']}/discovery/resources",
                 params=params,
+                headers=headers,
                 follow_redirects=True,
             )
 
             if response.status_code != 200:
                 raise ValueError(
-                    f"Failed to list discovery: {response.status_code} {response.text}"
+                    f"Failed to list discovery resources: {response.status_code} {response.text}"
                 )
 
             data = response.json()
-            return DiscoveryListResponse(**data)
+            return DiscoveryResourcesResponse(**data)
