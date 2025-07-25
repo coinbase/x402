@@ -110,7 +110,12 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
         outputSchema,
-        extra: asset.eip712,
+        extra:
+          "eip712" in asset
+            ? asset.eip712
+            : {
+                feePayer: "",
+              },
       },
     ];
 
