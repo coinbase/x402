@@ -233,27 +233,50 @@ class BazaarItem(BaseModel):
     last_updated: int = Field(..., alias="lastUpdated", gt=0)
     metadata: Optional[dict] = None
 
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
 
-class DiscoveryListRequest(BaseModel):
-    """Request parameters for listing discovery items."""
+
+class DiscoveryResourcesRequest(BaseModel):
+    """Request parameters for listing discovery resources."""
 
     type: Optional[str] = None
-    page_size: Optional[int] = Field(None, alias="pageSize")
-    page_token: Optional[str] = Field(None, alias="pageToken")
+    limit: Optional[int] = None
+    offset: Optional[int] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
 
 
-class DiscoveryListPagination(BaseModel):
-    """Pagination information for discovery list responses."""
+class DiscoveryResourcesPagination(BaseModel):
+    """Pagination information for discovery resources responses."""
 
-    page_size: int = Field(..., alias="pageSize")
-    page_token: str = Field(..., alias="pageToken")
-    next_page_token: Optional[str] = Field(None, alias="nextPageToken")
+    limit: int
+    offset: int
+    total: int
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
 
 
-class DiscoveryListResponse(BaseModel):
-    """Response from the discovery list endpoint."""
+class DiscoveryResourcesResponse(BaseModel):
+    """Response from the discovery resources endpoint."""
 
     x402_version: int = Field(..., alias="x402Version")
     items: List[BazaarItem]
-    num_items: int = Field(..., alias="numItems")
-    pagination: DiscoveryListPagination
+    pagination: DiscoveryResourcesPagination
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
