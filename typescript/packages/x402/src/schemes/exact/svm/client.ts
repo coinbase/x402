@@ -1,4 +1,4 @@
-import { encodePayment } from "../../utils/paymentUtils";
+import { encodePayment } from "../../utils";
 import {
   Address,
   pipe,

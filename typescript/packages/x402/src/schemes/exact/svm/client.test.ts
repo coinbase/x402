@@ -5,7 +5,7 @@ import * as solanaKit from "@solana/kit";
 import * as token2022 from "@solana-program/token-2022";
 import * as token from "@solana-program/token";
 import * as computeBudget from "@solana-program/compute-budget";
-import * as paymentUtils from "../../utils/paymentUtils";
+import * as paymentUtils from "../../utils";
 import { PaymentRequirements } from "../../../types/verify";
 import * as rpc from "../../../shared/svm/rpc";
 import { createAndSignPayment, createPaymentHeader } from "./client";

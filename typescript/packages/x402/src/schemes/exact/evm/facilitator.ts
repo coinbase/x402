@@ -71,7 +71,7 @@ export async function verify<
   let erc20Address: Address;
   let version: string;
   try {
-    chainId = getNetworkId(payload.network) as number;
+    chainId = getNetworkId(payload.network);
     name = paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName;
     erc20Address = paymentRequirements.asset as Address;
     version = paymentRequirements.extra?.version ?? (await getVersion(client));

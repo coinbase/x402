@@ -1,5 +1,5 @@
 import { signPaymentHeader as signPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
-import { encodePayment } from "../schemes/utils/paymentUtils";
+import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
 import { SupportedEVMNetworks } from "../types/shared";
 import { SignerWallet } from "../types/shared/evm";
 import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";

@@ -6,7 +6,7 @@ import { verifyPayment } from "../actions";
 import { PaymentRequirements, PaymentPayload } from "x402/types";
 import { preparePaymentHeader } from "x402/client";
 import { getNetworkId } from "x402/shared";
-import { encodePayment } from "x402/schemes";
+import { exact } from "x402/schemes";
 import { useAccount, useSignTypedData } from "wagmi";
 
 function PaymentForm({
@@ -47,7 +47,7 @@ function PaymentForm({
     domain: {
       name: paymentRequirements.extra?.name,
       version: paymentRequirements.extra?.version,
-      chainId: getNetworkId(paymentRequirements.network) as number,
+      chainId: getNetworkId(paymentRequirements.network),
       verifyingContract: paymentRequirements.asset as `0x${string}`,
     },
     primaryType: "TransferWithAuthorization" as const,
@@ -66,7 +66,7 @@ function PaymentForm({
       },
     };
 
-    const payment: string = encodePayment(paymentPayload);
+    const payment: string = exact.evm.encodePayment(paymentPayload);
 
     const verifyPaymentWithPayment = verifyPayment.bind(null, payment);
     const result = await verifyPaymentWithPayment();
