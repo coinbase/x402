@@ -23,6 +23,7 @@ from x402.types import (
     x402PaymentRequiredResponse,
     PaywallConfig,
     SupportedNetworks,
+    HTTPInputSchema,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,8 @@ def require_payment(
     description: str = "",
     mime_type: str = "",
     max_deadline_seconds: int = 60,
-    output_schema: Any = None,
+    input_schema: Optional[HTTPInputSchema] = None,
+    output_schema: Optional[Any] = None,
     facilitator_config: Optional[FacilitatorConfig] = None,
     network: str = "base-sepolia",
     resource: Optional[str] = None,
@@ -54,7 +56,8 @@ def require_payment(
         description (str, optional): Description of what is being purchased. Defaults to "".
         mime_type (str, optional): MIME type of the resource. Defaults to "".
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
-        output_schema (Any, optional): JSON schema for the response. Defaults to None.
+        input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
+        output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
         facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
         network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
@@ -91,8 +94,19 @@ def require_payment(
         # Get resource URL if not explicitly provided
         resource_url = resource or str(request.url)
 
-        # Ensure output_schema and extra are objects, not null
-        output_schema_obj = {} if output_schema is None else output_schema
+        # Create input structure if input_schema is provided
+        input_structure = None
+        if input_schema:
+            input_structure = {
+                "type": "http",
+                "method": request.method.upper(),
+                **input_schema.model_dump(),
+            }
+
+        # Create request structure if either input or output is provided
+        request_structure = None
+        if input_structure or output_schema:
+            request_structure = {"input": input_structure, "output": output_schema}
 
         # Construct payment details
         payment_requirements = [
@@ -106,7 +120,8 @@ def require_payment(
                 mime_type=mime_type,
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,
-                output_schema=output_schema_obj,
+                # TODO: Rename output_schema to request_structure
+                output_schema=request_structure,
                 extra=eip712_domain,
             )
         ]

@@ -92,7 +92,16 @@ describe("paymentMiddleware()", () => {
     mimeType: "application/json",
     maxTimeoutSeconds: 300,
     outputSchema: { type: "object" },
+    inputSchema: { queryParams: { type: "string" } },
     resource: "https://api.example.com/resource",
+  };
+  const outputSchema = {
+    input: {
+      method: "GET",
+      type: "http",
+      ...middlewareConfig.inputSchema,
+    },
+    output: middlewareConfig.outputSchema,
   };
 
   const facilitatorConfig: FacilitatorConfig = {
@@ -203,7 +212,7 @@ describe("paymentMiddleware()", () => {
             payTo: "0x1234567890123456789012345678901234567890",
             maxTimeoutSeconds: 300,
             asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            outputSchema: { type: "object" },
+            outputSchema,
             extra: {
               name: "USDC",
               version: "2",
@@ -276,7 +285,7 @@ describe("paymentMiddleware()", () => {
             payTo: "0x1234567890123456789012345678901234567890",
             maxTimeoutSeconds: 300,
             asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            outputSchema: { type: "object" },
+            outputSchema,
             extra: {
               name: "USDC",
               version: "2",
@@ -348,7 +357,7 @@ describe("paymentMiddleware()", () => {
             payTo: "0x1234567890123456789012345678901234567890",
             maxTimeoutSeconds: 300,
             asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            outputSchema: { type: "object" },
+            outputSchema,
             extra: {
               name: "USDC",
               version: "2",

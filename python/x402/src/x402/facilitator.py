@@ -8,6 +8,8 @@ from x402.types import (
     PaymentRequirements,
     VerifyResponse,
     SettleResponse,
+    DiscoveryResourcesRequest,
+    DiscoveryResourcesResponse,
 )
 
 
@@ -88,3 +90,46 @@ class FacilitatorClient:
             )
             data = response.json()
             return SettleResponse(**data)
+
+    async def list(
+        self, request: Optional[DiscoveryResourcesRequest] = None
+    ) -> DiscoveryResourcesResponse:
+        """List discovery resources from the facilitator service.
+
+        Args:
+            request: Optional parameters for filtering and pagination
+
+        Returns:
+            DiscoveryResourcesResponse containing the list of discovery resources and pagination info
+        """
+        if request is None:
+            request = DiscoveryResourcesRequest()
+
+        headers = {"Content-Type": "application/json"}
+
+        if self.config.get("create_headers"):
+            custom_headers = await self.config["create_headers"]()
+            headers.update(custom_headers.get("list", {}))
+
+        # Build query parameters, excluding None values
+        params = {
+            k: str(v)
+            for k, v in request.model_dump(by_alias=True).items()
+            if v is not None
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.config['url']}/discovery/resources",
+                params=params,
+                headers=headers,
+                follow_redirects=True,
+            )
+
+            if response.status_code != 200:
+                raise ValueError(
+                    f"Failed to list discovery resources: {response.status_code} {response.text}"
+                )
+
+            data = response.json()
+            return DiscoveryResourcesResponse(**data)
