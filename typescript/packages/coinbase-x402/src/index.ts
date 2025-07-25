@@ -13,6 +13,7 @@ const CDP_SDK_VERSION = "1.29.0";
  *
  * @param apiKeyId - The api key ID
  * @param apiKeySecret - The api key secret
+ * @param requestMethod - The method for the request (e.g. 'POST')
  * @param requestHost - The host for the request (e.g. 'https://x402.org/facilitator')
  * @param requestPath - The path for the request (e.g. '/verify')
  * @returns The authorization header string
@@ -20,13 +21,14 @@ const CDP_SDK_VERSION = "1.29.0";
 export async function createAuthHeader(
   apiKeyId: string,
   apiKeySecret: string,
+  requestMethod: string,
   requestHost: string,
   requestPath: string,
 ) {
   const jwt = await generateJwt({
     apiKeyId,
     apiKeySecret,
-    requestMethod: "POST",
+    requestMethod,
     requestHost,
     requestPath,
   });
@@ -75,6 +77,7 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
         Authorization: await createAuthHeader(
           apiKeyId,
           apiKeySecret,
+          "POST",
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/verify`,
         ),
@@ -84,6 +87,7 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
         Authorization: await createAuthHeader(
           apiKeyId,
           apiKeySecret,
+          "POST",
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
         ),
@@ -93,6 +97,7 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
         Authorization: await createAuthHeader(
           apiKeyId,
           apiKeySecret,
+          "GET",
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/discovery/resources`,
         ),
