@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
               description: "AI text completion service",
               outputSchema: {
                 input: {
-                  spec: "http",
+                  type: "http",
                   method: "POST",
                   bodyType: "json",
                   bodyFields: {
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
               description: "AI image generation service",
               outputSchema: {
                 input: {
-                  spec: "http",
+                  type: "http",
                   method: "POST",
                   bodyType: "json",
                   bodyFields: {

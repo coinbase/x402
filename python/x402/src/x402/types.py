@@ -41,9 +41,9 @@ class HTTPInputSchema(BaseModel):
 
 
 class HTTPRequestStructure(HTTPInputSchema):
-    """Complete HTTP request structure including spec and method"""
+    """Complete HTTP request structure including protocol type and method"""
 
-    spec: Literal["http"]
+    type: Literal["http"]
     method: HTTPVerbs
 
 

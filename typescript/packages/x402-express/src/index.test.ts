@@ -106,7 +106,7 @@ describe("paymentMiddleware()", () => {
   const outputSchema = {
     input: {
       method: "GET",
-      spec: "http",
+      type: "http",
       ...middlewareConfig.inputSchema,
     },
     output: middlewareConfig.outputSchema,
