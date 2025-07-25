@@ -1,5 +1,5 @@
 import { PAYWALL_TEMPLATE } from "../paywall/gen/template";
-import { config } from "../types/shared/config";
+import { config } from "../types/shared/evm/config";
 import { PaymentRequirements } from "../types/verify";
 
 interface PaywallOptions {

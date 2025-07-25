@@ -1,5 +1,5 @@
 import { Account, Address, Chain, Client, Transport } from "viem";
-import { ChainConfig, config } from "../../types/shared/config";
+import { ChainConfig, config } from "../../types/shared/evm/config";
 import { usdcABI as abi } from "../../types/shared/evm/erc20PermitABI";
 import { ConnectedClient } from "../../types/shared/evm/wallet";
 

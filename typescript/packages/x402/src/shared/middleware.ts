@@ -90,22 +90,6 @@ export function findMatchingRoute(
  * @returns The default asset
  */
 export function getDefaultAsset(network: Network) {
-  // solana mainnet
-  if (network === "solana") {
-    return {
-      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-      decimals: 6,
-    };
-  }
-  // solana devnet
-  if (network === "solana-devnet") {
-    return {
-      address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-      decimals: 6,
-    };
-  }
-
-  // evm-based
   const chainId = getNetworkId(network);
   const usdc = getUsdcChainConfigForChain(chainId);
   if (!usdc) {
