@@ -109,7 +109,7 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-          spec: "http",
+          type: "http",
           method,
           ...inputSchema,
         } as RequestStructure)

@@ -81,7 +81,7 @@ const HTTPVerbsSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTION
 export type HTTPVerbs = z.infer<typeof HTTPVerbsSchema>;
 
 export const HTTPRequestStructureSchema = z.object({
-  spec: z.literal("http"),
+  type: z.literal("http"),
   method: HTTPVerbsSchema,
   queryParams: z.record(z.string(), z.string()).optional(),
   bodyType: z.enum(["json", "form-data", "multipart-form-data", "text", "binary"]).optional(),
@@ -90,7 +90,7 @@ export const HTTPRequestStructureSchema = z.object({
 });
 
 // export const MCPRequestStructureSchema = z.object({
-//   spec: z.literal("mcp"),
+//   type: z.literal("mcp"),
 //   sessionIsPayed: z.boolean(),
 //   payedAction: z.object({
 //     kind: z.enum(["prompts", "resources", "tools"]),
@@ -99,12 +99,12 @@ export const HTTPRequestStructureSchema = z.object({
 // });
 
 // export const OpenAPIRequestStructureSchema = z.object({
-//   spec: z.literal("openapi"),
+//   type: z.literal("openapi"),
 //   openApiUrl: z.string().url(),
 //   path: z.string(),
 // });
 
-export const RequestStructureSchema = z.discriminatedUnion("spec", [
+export const RequestStructureSchema = z.discriminatedUnion("type", [
   HTTPRequestStructureSchema,
   // MCPRequestStructureSchema,
   // OpenAPIRequestStructureSchema,

@@ -155,7 +155,7 @@ class PaymentMiddleware:
                 input_structure = None
                 if config["input_schema"]:
                     input_structure = {
-                        "spec": "http",
+                        "type": "http",
                         "method": request.method.upper(),
                         **config["input_schema"].model_dump(),
                     }

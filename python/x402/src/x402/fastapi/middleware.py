@@ -98,7 +98,7 @@ def require_payment(
         input_structure = None
         if input_schema:
             input_structure = {
-                "spec": "http",
+                "type": "http",
                 "method": request.method.upper(),
                 **input_schema.model_dump(),
             }
