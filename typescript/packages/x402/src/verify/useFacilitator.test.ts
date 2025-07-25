@@ -176,8 +176,9 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator();
       await list();
 
-      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/discovery/list?", {
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/discovery/resources?", {
         method: "GET",
+        headers: { "Content-Type": "application/json" },
       });
     });
 
@@ -186,8 +187,9 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator({ url: customUrl });
       await list();
 
-      expect(fetch).toHaveBeenCalledWith(`${customUrl}/discovery/list?`, {
+      expect(fetch).toHaveBeenCalledWith(`${customUrl}/discovery/resources?`, {
         method: "GET",
+        headers: { "Content-Type": "application/json" },
       });
     });
 
@@ -195,15 +197,16 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator();
       const config = {
         type: "test-type",
-        pageSize: 10,
-        pageToken: "test-token",
+        limit: 10,
+        offset: 20,
       };
       await list(config);
 
       const expectedUrl =
-        "https://x402.org/facilitator/discovery/list?type=test-type&pageSize=10&pageToken=test-token";
+        "https://x402.org/facilitator/discovery/resources?type=test-type&limit=10&offset=20";
       expect(fetch).toHaveBeenCalledWith(expectedUrl, {
         method: "GET",
+        headers: { "Content-Type": "application/json" },
       });
     });
 
@@ -211,14 +214,16 @@ describe("useFacilitator", () => {
       const { list } = useFacilitator();
       const config = {
         type: "test-type",
-        pageSize: 10,
-        pageToken: undefined,
+        limit: 10,
+        offset: undefined,
       };
       await list(config);
 
-      const expectedUrl = "https://x402.org/facilitator/discovery/list?type=test-type&pageSize=10";
+      const expectedUrl =
+        "https://x402.org/facilitator/discovery/resources?type=test-type&limit=10";
       expect(fetch).toHaveBeenCalledWith(expectedUrl, {
         method: "GET",
+        headers: { "Content-Type": "application/json" },
       });
     });
 
