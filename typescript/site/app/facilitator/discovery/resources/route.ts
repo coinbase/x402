@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  DiscoverListRequest,
-  DiscoveryListResponse,
-  DiscoveryListResponseSchema,
+  DiscoveryResourcesRequest,
+  DiscoveryResourcesResponse,
+  DiscoveryResourcesResponseSchema,
 } from "x402/types";
 
 /**
@@ -18,19 +18,19 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const { resource, pageSize, pageToken } = Object.fromEntries(
+    const { offset, limit } = Object.fromEntries(
       searchParams.entries(),
-    ) as DiscoverListRequest;
+    ) as DiscoveryResourcesRequest;
 
     // TODO: Search by type, resource, fetching page size and page token
 
     // For now, return mock data
-    const mockDiscoveryListResponse: DiscoveryListResponse = {
+    const mockDiscoveryResourcesResponse: DiscoveryResourcesResponse = {
       x402Version: 1,
       items: [
         {
           type: "http",
-          resource,
+          resource: "https://api.example.com/ai/completion",
           x402Version: 1,
           lastUpdated: Date.now(),
           accepts: [
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
         },
         {
           type: "http",
-          resource,
+          resource: "https://api.example.com/image/generate",
           x402Version: 1,
           lastUpdated: Date.now(),
           accepts: [
@@ -105,16 +105,17 @@ export async function GET(request: NextRequest) {
           },
         },
       ],
-      numItems: 2,
       pagination: {
-        pageSize,
-        pageToken,
-        nextPageToken: undefined, // Latest token
+        limit,
+        offset,
+        total: 2,
       },
     };
 
     // Validate response with schema
-    const validatedResponse = DiscoveryListResponseSchema.parse(mockDiscoveryListResponse);
+    const validatedResponse = DiscoveryResourcesResponseSchema.parse(
+      mockDiscoveryResourcesResponse,
+    );
 
     return NextResponse.json(validatedResponse);
   } catch (error) {

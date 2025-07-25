@@ -159,25 +159,24 @@ export const SettleResponseSchema = z.object({
 export type SettleResponse = z.infer<typeof SettleResponseSchema>;
 
 // x402DiscoverListRequest
-export const DiscoverListRequestSchema = z.object({
+export const DicoveryResourcesRequestSchema = z.object({
   type: z.string().optional(),
-  pageSize: z.number().optional(),
-  pageToken: z.string().optional(),
+  limit: z.number().optional(),
+  offset: z.number().optional(),
 });
-export type DiscoverListRequest = z.infer<typeof DiscoverListRequestSchema>;
+export type DiscoveryResourcesRequest = z.infer<typeof DicoveryResourcesRequestSchema>;
 
-// x402DiscoveryListResponse aka x402BazaarResponse
-export const DiscoveryListResponseSchema = z.object({
+// x402DiscoveryResourcesResponse aka x402BazaarResponse
+export const DiscoveryResourcesResponseSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   items: z.array(BazaarItemSchema),
-  numItems: z.number(),
   pagination: z.object({
-    pageSize: z.number(),
-    pageToken: z.string(),
-    nextPageToken: z.string().optional(),
+    limit: z.number(),
+    offset: z.number(),
+    total: z.number(),
   }),
 });
-export type DiscoveryListResponse = z.infer<typeof DiscoveryListResponseSchema>;
+export type DiscoveryResourcesResponse = z.infer<typeof DiscoveryResourcesResponseSchema>;
 
 // x402SupportedPaymentKind
 export const SupportedPaymentKindSchema = z.object({

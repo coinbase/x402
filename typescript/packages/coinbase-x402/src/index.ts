@@ -6,7 +6,7 @@ const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
 const X402_SDK_VERSION = "0.4.2";
-const CDP_SDK_VERSION = "1.1.1";
+const CDP_SDK_VERSION = "1.29.0";
 
 /**
  * Creates an authorization header for a request to the Coinbase API.
@@ -86,6 +86,15 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
           apiKeySecret,
           requestHost,
           `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
+        ),
+        "Correlation-Context": createCorrelationHeader(),
+      },
+      list: {
+        Authorization: await createAuthHeader(
+          apiKeyId,
+          apiKeySecret,
+          requestHost,
+          `${COINBASE_FACILITATOR_V2_ROUTE}/discovery/resources`,
         ),
         "Correlation-Context": createCorrelationHeader(),
       },
