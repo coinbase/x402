@@ -154,7 +154,7 @@ export async function confirmSignedTransaction(
     };
 
     // create the config for the transaction confirmation
-    const commitment: Commitment = "finalized";
+    const commitment: Commitment = "confirmed";
 
     const getRecentSignatureConfirmationPromise = createRecentSignatureConfirmationPromiseFactory({
       rpc,
