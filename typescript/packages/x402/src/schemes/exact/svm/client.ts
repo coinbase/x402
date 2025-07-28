@@ -10,11 +10,6 @@ import {
   prependTransactionMessageInstruction,
   getBase64EncodedWireTransaction,
   type KeyPairSigner,
-  RpcDevnet,
-  SolanaRpcApiDevnet,
-  RpcMainnet,
-  SolanaRpcApiMainnet,
-  AccountRole,
   fetchEncodedAccount,
   TransactionSigner,
   Instruction,
@@ -103,17 +98,16 @@ async function createTransferTransactionMessage(
   // create the transfer instruction
   const transferInstructions = await createAtaAndTransferInstructions(client, paymentRequirements);
 
-  // get priority fee
-  const computeUnitPrice = await getComputeUnitPrice(rpc, transferInstructions);
-
-  // estimate the compute budget limit (gas limit)
+  // create tx to simulate
   const feePayer = paymentRequirements.extra?.feePayer as Address;
   const txToSimulate = pipe(
     createTransactionMessage({ version: 0 }),
-    tx => setTransactionMessageComputeUnitPrice(computeUnitPrice, tx),
+    tx => setTransactionMessageComputeUnitPrice(1, tx), // 1 microlamport priority fee
     tx => setTransactionMessageFeePayer(feePayer, tx),
     tx => appendTransactionMessageInstructions(transferInstructions, tx),
   );
+
+  // estimate the compute budget limit (gas limit)
   const estimateComputeUnitLimit = estimateComputeUnitLimitFactory({ rpc });
   const estimatedUnits = await estimateComputeUnitLimit(txToSimulate);
 
@@ -375,49 +369,4 @@ async function createTransferInstructionToken(
     },
     { programAddress: TOKEN_PROGRAM_ADDRESS },
   );
-}
-
-/**
- * Gets a suitable compute unit price for the given instructions.
- *
- * @param rpc - The RPC client to use for getting the recent prioritization fees
- * @param instructions - The instructions to get the compute unit price for
- * @returns A promise that resolves to the compute unit price
- */
-async function getComputeUnitPrice(
-  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
-  instructions: Instruction[],
-): Promise<number> {
-  // get the addresses of the write locked accounts
-  const writeLockedAccounts: Address[] = [
-    ...new Set(
-      instructions.flatMap(
-        instruction =>
-          instruction.accounts
-            ?.filter(account => account.role === AccountRole.WRITABLE)
-            .map(account => account.address) ?? [],
-      ),
-    ),
-  ];
-
-  // call RPC to get the recent prioritization fees on the write-locked accounts
-  const recentPrices = await rpc.getRecentPrioritizationFees(writeLockedAccounts).send();
-
-  if (recentPrices.length === 0) {
-    return 10_000_000; // default to 10 lamports, same as phantom wallet
-  }
-
-  // take the 90th percentile of the recent prices
-  const sortedPrices = [...recentPrices].sort((a, b) =>
-    Number(a.prioritizationFee - b.prioritizationFee),
-  );
-  const percentileIndex = Math.floor(0.9 * (sortedPrices.length - 1));
-  const percentilePrice = sortedPrices[percentileIndex].prioritizationFee;
-  const bidPrice = Math.ceil(Number(percentilePrice));
-
-  if (bidPrice === 0) {
-    return 10_000_000; // default to 10,000,000 microlamports, same as phantom wallet
-  }
-
-  return bidPrice;
 }

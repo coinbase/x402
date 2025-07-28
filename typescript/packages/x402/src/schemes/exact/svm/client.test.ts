@@ -76,9 +76,6 @@ describe("SVM Client", () => {
         },
       }),
     }),
-    getRecentPrioritizationFees: vi.fn().mockReturnValue({
-      send: vi.fn().mockResolvedValue([]),
-    }),
     fetchEncodedAccount: vi.fn(),
   };
 
@@ -159,7 +156,6 @@ describe("SVM Client", () => {
       // Assert
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
       expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce(); // blockhash required for tx
-      expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce(); // get compute unit price
       // find sender and receiver ATA -- receiver ATA is fetched once for create ATA ix and once for transfer ix
       expect(findAtaSpy).toHaveBeenCalledTimes(3);
       expect(token.getTransferCheckedInstruction).toHaveBeenCalledOnce(); // transfer instruction
@@ -204,7 +200,6 @@ describe("SVM Client", () => {
       // Assert
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet");
       expect(mockRpcClient.getLatestBlockhash).toHaveBeenCalledOnce();
-      expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
       // find sender and receiver ATA -- receiver ATA is fetched once for create ATA ix and once for transfer ix
       expect(findAtaSpy).toHaveBeenCalledTimes(3);
       expect(token2022.getTransferCheckedInstruction).toHaveBeenCalledOnce();
@@ -316,76 +311,15 @@ describe("SVM Client", () => {
   });
 
   describe("getComputeUnitPrice", () => {
-    it("should return default price when no recent fees are available", async () => {
+    it("should return default price of 1 microlamport", async () => {
       // Arrange
-      mockRpcClient.getRecentPrioritizationFees.mockReturnValue({
-        send: vi.fn().mockResolvedValue([]),
-      });
       const computePriceSpy = vi.spyOn(computeBudget, "setTransactionMessageComputeUnitPrice");
 
       // Act
       await createAndSignPayment(clientSigner, 1, paymentRequirements);
 
       // Assert
-      expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
-      expect(computePriceSpy).toHaveBeenCalledWith(10_000_000, expect.any(Object));
-    });
-
-    it("should calculate the 90th percentile price correctly", async () => {
-      // Arrange
-      const fees = [
-        { prioritizationFee: 1000, slot: 1 },
-        { prioritizationFee: 2000, slot: 2 },
-        { prioritizationFee: 3000, slot: 3 },
-        { prioritizationFee: 4000, slot: 4 },
-        { prioritizationFee: 5000, slot: 5 },
-        { prioritizationFee: 6000, slot: 6 },
-        { prioritizationFee: 7000, slot: 7 },
-        { prioritizationFee: 8000, slot: 8 },
-        { prioritizationFee: 9000, slot: 9 },
-        { prioritizationFee: 10000, slot: 10 },
-      ];
-      mockRpcClient.getRecentPrioritizationFees.mockReturnValue({
-        send: vi.fn().mockResolvedValue(fees),
-      });
-      const computePriceSpy = vi.spyOn(computeBudget, "setTransactionMessageComputeUnitPrice");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements);
-
-      // Assert
-      expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
-      expect(computePriceSpy).toHaveBeenCalledWith(9000, expect.any(Object));
-    });
-
-    it("should return default price when calculated percentile is zero", async () => {
-      // Arrange
-      const fees = [{ prioritizationFee: 0, slot: 1 }];
-      mockRpcClient.getRecentPrioritizationFees.mockReturnValue({
-        send: vi.fn().mockResolvedValue(fees),
-      });
-      const computePriceSpy = vi.spyOn(computeBudget, "setTransactionMessageComputeUnitPrice");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements);
-
-      // Assert
-      expect(mockRpcClient.getRecentPrioritizationFees).toHaveBeenCalledOnce();
-      expect(computePriceSpy).toHaveBeenCalledWith(10_000_000, expect.any(Object));
-    });
-
-    it("should handle rounding of prioritization fees", async () => {
-      const fees = [{ prioritizationFee: 1234.5, slot: 1 }];
-      mockRpcClient.getRecentPrioritizationFees.mockReturnValue({
-        send: vi.fn().mockResolvedValue(fees),
-      });
-      const computePriceSpy = vi.spyOn(computeBudget, "setTransactionMessageComputeUnitPrice");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements);
-
-      // Assert
-      expect(computePriceSpy).toHaveBeenCalledWith(1235, expect.any(Object));
+      expect(computePriceSpy).toHaveBeenCalledWith(1, expect.any(Object));
     });
   });
 

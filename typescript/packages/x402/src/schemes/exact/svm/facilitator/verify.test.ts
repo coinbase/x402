@@ -387,7 +387,7 @@ describe("verify", () => {
       };
       mockComputePriceInstruction = {
         programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
-        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+        data: new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]),
       };
       mockTransferInstruction = {
         programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
@@ -411,6 +411,12 @@ describe("verify", () => {
           mockComputePriceInstruction,
           mockTransferInstruction,
         ],
+      } as any);
+      vi.mocked(parseSetComputeUnitPriceInstruction).mockReturnValue({
+        data: {
+          discriminator: 3,
+          microLamports: 1n,
+        },
       } as any);
       vi.mocked(SvmShared.signAndSimulateTransaction).mockResolvedValue({
         value: { err: null },
@@ -511,7 +517,7 @@ describe("verify", () => {
       };
       mockComputePriceInstruction = {
         programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
-        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+        data: new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]),
       };
       mockTransferInstruction = {
         programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
@@ -687,9 +693,14 @@ describe("verify", () => {
       vi.clearAllMocks();
       mockInstruction = {
         programAddress: { toString: () => COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() },
-        data: new Uint8Array([3, 232, 3, 0, 0, 0, 0, 0, 0]),
+        data: new Uint8Array([3, 1, 0, 0, 0, 0, 0, 0, 0]),
       };
-      vi.mocked(parseSetComputeUnitPriceInstruction).mockReturnValue({} as any);
+      vi.mocked(parseSetComputeUnitPriceInstruction).mockReturnValue({
+        data: {
+          discriminator: 3,
+          microLamports: 1n,
+        },
+      } as any);
     });
 
     it("should not throw for a valid compute price instruction", () => {
@@ -704,7 +715,7 @@ describe("verify", () => {
     });
 
     it("should throw if the instruction discriminator is incorrect", () => {
-      mockInstruction.data = new Uint8Array([99, 232, 3, 0, 0, 0, 0, 0, 0]);
+      mockInstruction.data = new Uint8Array([99, 0, 0, 0, 0, 0, 0, 0, 0]);
       expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow(
         "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction",
       );
@@ -714,8 +725,21 @@ describe("verify", () => {
       vi.mocked(parseSetComputeUnitPriceInstruction).mockImplementation(() => {
         throw new Error("parsing failed");
       });
+      expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow("parsing failed");
+    });
+
+    it("should throw if the compute unit price is greater than 5 lamports", () => {
+      // Arrange
+      vi.mocked(parseSetComputeUnitPriceInstruction).mockReturnValue({
+        data: {
+          discriminator: 3,
+          microLamports: 5_000_001n,
+        },
+      } as any);
+
+      // Act & Assert
       expect(() => verifyComputePriceInstruction(mockInstruction)).toThrow(
-        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction",
+        "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high",
       );
     });
   });

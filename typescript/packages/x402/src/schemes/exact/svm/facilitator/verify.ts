@@ -227,6 +227,8 @@ export function verifyComputeLimitInstruction(
 
 /**
  * Verify that the compute price instruction is valid.
+ * This function throws an error if the compute unit price is greater than 5 lamports,
+ * to protect the facilitator against gas fee abuse from the client.
  *
  * @param instruction - The compute price instruction to verify
  * @throws Error if the compute price instruction is invalid
@@ -237,21 +239,21 @@ export function verifyComputePriceInstruction(
     readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
   >,
 ) {
-  try {
-    if (
-      instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
-      instruction.data?.[0] !== 3 // discriminator of set compute unit price instruction
-    ) {
-      throw new Error(
-        `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`,
-      );
-    }
-    parseSetComputeUnitPriceInstruction(
-      instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
-    );
-  } catch (error) {
-    console.error(error);
+  if (
+    instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
+    instruction.data?.[0] !== 3 // discriminator of set compute unit price instruction
+  ) {
     throw new Error(`invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`);
+  }
+  const parsedInstruction = parseSetComputeUnitPriceInstruction(
+    instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
+  );
+
+  // TODO: allow the facilitator to pass in an optional max compute unit price
+  if (parsedInstruction.data.microLamports > 5 * 1_000_000) {
+    throw new Error(
+      `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high`,
+    );
   }
 }
 
