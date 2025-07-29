@@ -92,8 +92,15 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+      errorMessages,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -158,7 +165,7 @@ export function paymentMiddleware(
       }
       res.status(402).json({
         x402Version,
-        error: "X-PAYMENT header is required",
+        error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -171,7 +178,7 @@ export function paymentMiddleware(
     } catch (error) {
       res.status(402).json({
         x402Version,
-        error: error || "Invalid or malformed payment header",
+        error: errorMessages?.invalidPayment || error || "Invalid or malformed payment header",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -184,7 +191,8 @@ export function paymentMiddleware(
     if (!selectedPaymentRequirements) {
       res.status(402).json({
         x402Version,
-        error: "Unable to find matching payment requirements",
+        error:
+          errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -195,7 +203,7 @@ export function paymentMiddleware(
       if (!response.isValid) {
         res.status(402).json({
           x402Version,
-          error: response.invalidReason,
+          error: errorMessages?.verificationFailed || response.invalidReason,
           accepts: toJsonSafe(paymentRequirements),
           payer: response.payer,
         });
@@ -204,7 +212,7 @@ export function paymentMiddleware(
     } catch (error) {
       res.status(402).json({
         x402Version,
-        error,
+        error: errorMessages?.verificationFailed || error,
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -246,7 +254,7 @@ export function paymentMiddleware(
       if (!res.headersSent) {
         res.status(402).json({
           x402Version,
-          error,
+          error: errorMessages?.settlementFailed || error,
           accepts: toJsonSafe(paymentRequirements),
         });
         return;
