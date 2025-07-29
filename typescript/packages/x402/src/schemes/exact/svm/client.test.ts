@@ -25,12 +25,6 @@ vi.mock("@solana-program/token-2022", async importOriginal => {
     fetchMint: vi.fn(),
   };
 });
-vi.mock("@solana-program/token", async importOriginal => {
-  const actual = await importOriginal<typeof token>();
-  return {
-    ...actual,
-  };
-});
 vi.mock("@solana/kit", async importOriginal => {
   const actual = await importOriginal<typeof solanaKit>();
   return {
