@@ -110,8 +110,15 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+      errorMessages,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -180,7 +187,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
