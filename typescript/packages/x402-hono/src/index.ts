@@ -97,6 +97,7 @@ export function paymentMiddleware(
       outputSchema,
       customPaywallHtml,
       resource,
+      errorMessages,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -109,18 +110,18 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-          type: "http",
-          method,
-          ...inputSchema,
-        } as RequestStructure)
+        type: "http",
+        method,
+        ...inputSchema,
+      } as RequestStructure)
       : undefined;
 
     const requestStructure =
       input || outputSchema
         ? {
-            input,
-            output: outputSchema,
-          }
+          input,
+          output: outputSchema,
+        }
         : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
@@ -178,7 +179,7 @@ export function paymentMiddleware(
       }
       return c.json(
         {
-          error: "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
           accepts: paymentRequirements,
           x402Version,
         },
