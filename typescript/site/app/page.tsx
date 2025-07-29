@@ -100,16 +100,23 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-4 mb-6 justify-center">
               <Link
+                href="/ecosystem"
+                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2 text-lg"
+              >
+                <Squares2X2Icon className="w-5 h-5 mr-1" />
+                View Ecosystem
+              </Link>
+            </div>
+            <div className="flex flex-wrap gap-4 mb-8 justify-center">
+              <Link
                 href="/x402-whitepaper.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2 text-lg"
+                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
               >
                 <DocumentTextIcon className="w-5 h-5 mr-1" />
                 Read the whitepaper
               </Link>
-            </div>
-            <div className="flex flex-wrap gap-4 mb-8 justify-center">
               <Link
                 href="https://x402.gitbook.io/x402"
                 target="_blank"
@@ -128,12 +135,57 @@ export default function Home() {
                 <CodeBracketIcon className="w-5 h-5 mr-1" />
                 Try it out
               </Link>
+            </div>
+            
+            {/* Partner Logos */}
+            <div className="flex flex-wrap gap-8 justify-center items-center opacity-70 mb-8">
               <Link
-                href="/ecosystem"
-                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
+                href="https://neynar.com/blog/agents-frames-and-the-future-of-farcaster-neynar-s-vision-for-x402"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
               >
-                <Squares2X2Icon className="w-5 h-5 mr-1" />
-                View Ecosystem
+                <img src="/logos/neynar.png" alt="Neynar" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
+              </Link>
+              <Link
+                href="https://402.pinata.cloud/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
+              >
+                <img src="/logos/pinata.png" alt="Pinata" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
+              </Link>
+              <Link
+                href="https://onbonsai.gitbook.io/docs/smart-media/content-generation-api"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
+              >
+                <img src="/logos/bonsai.png" alt="Bonsai" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
+              </Link>
+              <Link
+                href="https://docs.1shotapi.com/automation/n8n.html#monetize-n8n-workflows-with-x402"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
+              >
+                <img src="/logos/1shot-api.png" alt="1shot" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
+              </Link>
+              <Link
+                href="https://proxy402.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
+              >
+                <img src="/logos/proxy402.png" alt="Proxy402" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
+              </Link>
+              <Link
+                href="https://facilitator.x402.rs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-all duration-300 hover:scale-110"
+              >
+                <img src="/logos/x402-rs.svg" alt="x402.rs" className="h-16 grayscale hover:grayscale-0 transition-all duration-300" />
               </Link>
             </div>
           </div>
