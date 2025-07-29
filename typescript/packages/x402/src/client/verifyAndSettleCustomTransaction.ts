@@ -19,7 +19,7 @@ import { exact } from "../schemes";
  *   - responseHeader: The response header if successful, empty string if failed
  *   - error: The error message if failed
 */
-export async function verifyAndSettleCustomPayment(
+export async function verifyAndSettleCustomTransaction(
   amount: Money,
   address: string,
   facilitator: FacilitatorConfig,

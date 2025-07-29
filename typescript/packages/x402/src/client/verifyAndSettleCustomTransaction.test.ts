@@ -8,7 +8,7 @@ vi.mock("../types", async () => {
   };
 });
 
-import { verifyAndSettleCustomPayment } from "./verifyAndSettleCustomPayment";
+import { verifyAndSettleCustomTransaction } from "./verifyAndSettleCustomTransaction";
 import { useFacilitator } from "../verify";
 import { processPriceToAtomicAmount } from "../shared";
 import { exact } from "../schemes";
@@ -17,7 +17,7 @@ vi.mock("../verify");
 vi.mock("../shared");
 vi.mock("../schemes");
 
-describe("verifyAndSettleCustomPayment", () => {
+describe("verifyAndSettleCustomTransaction", () => {
   const facilitator = { url: "http://facilitator" } as any;
   const address = "0xRecipient";
   const network = "testnet" as any;
@@ -39,7 +39,7 @@ describe("verifyAndSettleCustomPayment", () => {
       settle: vi.fn().mockResolvedValue("settlement"),
     });
 
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader,
       resource,
       network,
@@ -60,7 +60,7 @@ describe("verifyAndSettleCustomPayment", () => {
       settle: vi.fn(),
     });
 
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader,
       resource,
       network,
@@ -81,7 +81,7 @@ describe("verifyAndSettleCustomPayment", () => {
       settle: vi.fn(),
     });
 
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader,
       resource,
       network,
@@ -103,7 +103,7 @@ describe("verifyAndSettleCustomPayment", () => {
       settle: vi.fn().mockRejectedValue({ response: { data: "settle error" } }),
     });
 
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader,
       resource,
       network,
@@ -116,7 +116,7 @@ describe("verifyAndSettleCustomPayment", () => {
 
   it("should return failure if processPriceToAtomicAmount returns error", async () => {
     (processPriceToAtomicAmount as any).mockReturnValue({ error: "bad amount" });
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader,
       resource,
       network,
@@ -127,7 +127,7 @@ describe("verifyAndSettleCustomPayment", () => {
   });
 
   it("should return failure if paymentHeader is missing", async () => {
-    const result = await verifyAndSettleCustomPayment("$10.00", address, facilitator, {
+    const result = await verifyAndSettleCustomTransaction("$10.00", address, facilitator, {
       paymentHeader: "",
       resource,
       network,

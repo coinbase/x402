@@ -3,4 +3,4 @@ export * from "./preparePaymentHeader";
 export * from "./selectPaymentRequirements";
 export * from "./signPaymentHeader";
 export * from "./signCustomTransaction";
-export * from "./verifyAndSettleCustomPayment";
+export * from "./verifyAndSettleCustomTransaction";
