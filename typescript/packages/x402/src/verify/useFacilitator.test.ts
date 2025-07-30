@@ -170,4 +170,33 @@ describe("useFacilitator", () => {
       );
     });
   });
+
+  describe("supported", () => {
+    it("should call fetch with the correct default URL", async () => {
+      const { supported } = useFacilitator();
+      await supported();
+
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/supported");
+    });
+
+    it("should call fetch with the correct custom URL", async () => {
+      const { supported } = useFacilitator({ url: "https://custom-facilitator.org" });
+      await supported();
+
+      expect(fetch).toHaveBeenCalledWith("https://custom-facilitator.org/supported");
+    });
+
+    it("should throw error on non-200 response", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({}),
+      });
+      const { supported } = useFacilitator();
+
+      await expect(supported()).rejects.toThrow(
+        "Failed to get supported payment kinds: 500 Internal Server Error",
+      );
+    });
+  });
 });

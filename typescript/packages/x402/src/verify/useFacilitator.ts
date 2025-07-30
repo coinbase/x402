@@ -1,6 +1,6 @@
 import { GetFeePayerResponse } from "../schemes/exact/svm/facilitator";
 import { toJsonSafe } from "../shared";
-import { FacilitatorConfig } from "../types";
+import { FacilitatorConfig, SupportedPaymentKindsResponse } from "../types";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -98,6 +98,24 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   }
 
   /**
+   * Gets the supported payment kinds from the facilitator service.
+   *
+   * @returns A promise that resolves to the supported payment kinds
+   */
+  async function supported(): Promise<SupportedPaymentKindsResponse> {
+    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+
+    const res = await fetch(`${url}/supported`);
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to get supported payment kinds: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data as SupportedPaymentKindsResponse;
+  }
+
+  /**
    * Gets the address of the facilitator that will be used to pay the network fee.
    *
    * @param paymentRequirements - The payment requirements to get the fee payer for
@@ -124,5 +142,5 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as GetFeePayerResponse;
   }
 
-  return { verify, settle, getFeePayer };
+  return { verify, settle, getFeePayer, supported };
 }
