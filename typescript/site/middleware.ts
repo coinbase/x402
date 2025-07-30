@@ -12,7 +12,13 @@ export const middleware = paymentMiddleware(
     "/protected": {
       price: "$0.01",
       config: {
-        description: "Access to protected content",
+        description: "Access the demo content on x402.org",
+        outputSchema: {
+          inputSchema: {
+            type: "http",
+            method: "GET",
+          },
+        },
       },
       network,
     },
