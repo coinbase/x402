@@ -27,88 +27,11 @@ export async function GET(request: NextRequest) {
     // For now, return mock data
     const mockListDiscoveryResourcesResponse: ListDiscoveryResourcesResponse = {
       x402Version: 1,
-      items: [
-        {
-          type: "http",
-          resource: "https://api.example.com/ai/completion",
-          x402Version: 1,
-          lastUpdated: Date.now(),
-          accepts: [
-            {
-              scheme: "exact",
-              network: "base",
-              maxAmountRequired: "1000000000000000000", // 1 ETH in wei
-              resource: "https://api.example.com/ai/completion",
-              description: "AI text completion service",
-              outputSchema: {
-                input: {
-                  type: "http",
-                  method: "POST",
-                  bodyType: "json",
-                  bodyFields: {
-                    prompt: "string",
-                    maxTokens: "number",
-                  },
-                  headerFields: {
-                    "Content-Type": "application/json",
-                  },
-                },
-              },
-              mimeType: "application/json",
-              payTo: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
-              maxTimeoutSeconds: 300,
-              asset: "0x0000000000000000000000000000000000000000", // ETH
-            },
-          ],
-          metadata: {
-            categories: ["ai", "text-generation"],
-            successRate7d: 98.5,
-            avgLatencyMs: 1200,
-            totalRequests: 15420,
-          },
-        },
-        {
-          type: "http",
-          resource: "https://api.example.com/image/generate",
-          x402Version: 1,
-          lastUpdated: Date.now(),
-          accepts: [
-            {
-              scheme: "exact",
-              network: "base",
-              maxAmountRequired: "500000000000000000", // 0.5 ETH in wei
-              resource: "https://api.example.com/image/generate",
-              description: "AI image generation service",
-              outputSchema: {
-                input: {
-                  type: "http",
-                  method: "POST",
-                  bodyType: "json",
-                  bodyFields: {
-                    prompt: "string",
-                    width: "number",
-                    height: "number",
-                  },
-                },
-              },
-              mimeType: "application/json",
-              payTo: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
-              maxTimeoutSeconds: 600,
-              asset: "0x0000000000000000000000000000000000000000", // ETH
-            },
-          ],
-          metadata: {
-            categories: ["ai", "image-generation"],
-            successRate7d: 95.2,
-            avgLatencyMs: 4500,
-            totalRequests: 8230,
-          },
-        },
-      ],
+      items: [],
       pagination: {
         limit,
         offset,
-        total: 2,
+        total: 0,
       },
     };
 
