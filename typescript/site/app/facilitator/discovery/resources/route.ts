@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  DiscoveryResourcesRequest,
-  DiscoveryResourcesResponse,
-  DiscoveryResourcesResponseSchema,
+  ListDiscoveryResourcesRequest,
+  ListDiscoveryResourcesResponse,
+  ListDiscoveryResourcesResponseSchema,
 } from "x402/types";
 
 /**
@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const { offset, limit } = Object.fromEntries(
       searchParams.entries(),
-    ) as DiscoveryResourcesRequest;
+    ) as ListDiscoveryResourcesRequest;
 
     // TODO: Search by type, resource, fetching page size and page token
 
     // For now, return mock data
-    const mockDiscoveryResourcesResponse: DiscoveryResourcesResponse = {
+    const mockListDiscoveryResourcesResponse: ListDiscoveryResourcesResponse = {
       x402Version: 1,
       items: [
         {
@@ -113,8 +113,8 @@ export async function GET(request: NextRequest) {
     };
 
     // Validate response with schema
-    const validatedResponse = DiscoveryResourcesResponseSchema.parse(
-      mockDiscoveryResourcesResponse,
+    const validatedResponse = ListDiscoveryResourcesResponseSchema.parse(
+      mockListDiscoveryResourcesResponse,
     );
 
     return NextResponse.json(validatedResponse);

@@ -8,8 +8,8 @@ from x402.types import (
     PaymentRequirements,
     VerifyResponse,
     SettleResponse,
-    DiscoveryResourcesRequest,
-    DiscoveryResourcesResponse,
+    ListDiscoveryResourcesRequest,
+    ListDiscoveryResourcesResponse,
 )
 
 
@@ -92,18 +92,18 @@ class FacilitatorClient:
             return SettleResponse(**data)
 
     async def list(
-        self, request: Optional[DiscoveryResourcesRequest] = None
-    ) -> DiscoveryResourcesResponse:
+        self, request: Optional[ListDiscoveryResourcesRequest] = None
+    ) -> ListDiscoveryResourcesResponse:
         """List discovery resources from the facilitator service.
 
         Args:
             request: Optional parameters for filtering and pagination
 
         Returns:
-            DiscoveryResourcesResponse containing the list of discovery resources and pagination info
+            ListDiscoveryResourcesResponse containing the list of discovery resources and pagination info
         """
         if request is None:
-            request = DiscoveryResourcesRequest()
+            request = ListDiscoveryResourcesRequest()
 
         headers = {"Content-Type": "application/json"}
 
@@ -132,4 +132,4 @@ class FacilitatorClient:
                 )
 
             data = response.json()
-            return DiscoveryResourcesResponse(**data)
+            return ListDiscoveryResourcesResponse(**data)

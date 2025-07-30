@@ -115,8 +115,8 @@ export type HTTPRequestStructure = z.infer<typeof HTTPRequestStructureSchema>;
 // export type OpenAPIRequestStructure = z.infer<typeof OpenAPIRequestStructureSchema>;
 export type RequestStructure = z.infer<typeof RequestStructureSchema>;
 
-// x402BazaarItem
-export const BazaarItemSchema = z.object({
+// x402DiscoveryResource
+export const DiscoveredResourceSchema = z.object({
   resource: z.string(),
   type: z.enum(["http"]),
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
@@ -124,7 +124,7 @@ export const BazaarItemSchema = z.object({
   lastUpdated: z.number().positive(),
   metadata: z.record(z.any()).optional(),
 });
-export type BazaarItem = z.infer<typeof BazaarItemSchema>;
+export type DiscoveredResource = z.infer<typeof DiscoveredResourceSchema>;
 
 // x402SettleRequest
 export const SettleRequestSchema = z.object({
@@ -159,24 +159,24 @@ export const SettleResponseSchema = z.object({
 export type SettleResponse = z.infer<typeof SettleResponseSchema>;
 
 // x402DiscoverListRequest
-export const DicoveryResourcesRequestSchema = z.object({
+export const ListDiscoveryResourcesRequestSchema = z.object({
   type: z.string().optional(),
   limit: z.number().optional(),
   offset: z.number().optional(),
 });
-export type DiscoveryResourcesRequest = z.infer<typeof DicoveryResourcesRequestSchema>;
+export type ListDiscoveryResourcesRequest = z.infer<typeof ListDiscoveryResourcesRequestSchema>;
 
-// x402DiscoveryResourcesResponse aka x402BazaarResponse
-export const DiscoveryResourcesResponseSchema = z.object({
+// x402ListDiscoveryResourcesResponse
+export const ListDiscoveryResourcesResponseSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
-  items: z.array(BazaarItemSchema),
+  items: z.array(DiscoveredResourceSchema),
   pagination: z.object({
     limit: z.number(),
     offset: z.number(),
     total: z.number(),
   }),
 });
-export type DiscoveryResourcesResponse = z.infer<typeof DiscoveryResourcesResponseSchema>;
+export type ListDiscoveryResourcesResponse = z.infer<typeof ListDiscoveryResourcesResponseSchema>;
 
 // x402SupportedPaymentKind
 export const SupportedPaymentKindSchema = z.object({

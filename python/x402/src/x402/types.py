@@ -223,8 +223,8 @@ class PaywallConfig(TypedDict, total=False):
     session_token_endpoint: str
 
 
-class BazaarItem(BaseModel):
-    """A bazaar item represents a discoverable resource in the X402 ecosystem."""
+class DiscoveredResource(BaseModel):
+    """A discovery resource represents a discoverable resource in the X402 ecosystem."""
 
     resource: str
     type: str = Field(..., pattern="^http$")  # Currently only supports 'http'
@@ -240,7 +240,7 @@ class BazaarItem(BaseModel):
     )
 
 
-class DiscoveryResourcesRequest(BaseModel):
+class ListDiscoveryResourcesRequest(BaseModel):
     """Request parameters for listing discovery resources."""
 
     type: Optional[str] = None
@@ -268,11 +268,11 @@ class DiscoveryResourcesPagination(BaseModel):
     )
 
 
-class DiscoveryResourcesResponse(BaseModel):
+class ListDiscoveryResourcesResponse(BaseModel):
     """Response from the discovery resources endpoint."""
 
     x402_version: int = Field(..., alias="x402Version")
-    items: List[BazaarItem]
+    items: List[DiscoveredResource]
     pagination: DiscoveryResourcesPagination
 
     model_config = ConfigDict(

@@ -1,5 +1,9 @@
 import { toJsonSafe } from "../shared";
-import { DiscoveryResourcesRequest, DiscoveryResourcesResponse, FacilitatorConfig } from "../types";
+import {
+  ListDiscoveryResourcesRequest,
+  ListDiscoveryResourcesResponse,
+  FacilitatorConfig,
+} from "../types";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -103,7 +107,9 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
    * @param config - The configuration for the discovery list request
    * @returns A promise that resolves to the discovery list response
    */
-  async function list(config: DiscoveryResourcesRequest = {}): Promise<DiscoveryResourcesResponse> {
+  async function list(
+    config: ListDiscoveryResourcesRequest = {},
+  ): Promise<ListDiscoveryResourcesResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
     let headers = { "Content-Type": "application/json" };
@@ -131,7 +137,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     }
 
     const data = await res.json();
-    return data as DiscoveryResourcesResponse;
+    return data as ListDiscoveryResourcesResponse;
   }
 
   return { verify, settle, list };
