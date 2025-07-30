@@ -40,9 +40,15 @@ export interface ERC20TokenAmount {
 
 export type Price = Money | ERC20TokenAmount;
 
-export interface RouteConfig {
+export interface PaymentOption {
   price: Price;
   network: Network;
+}
+
+export interface RouteConfig {
+  price?: Price;
+  network?: Network;
+  prices?: Array<PaymentOption>;
   config?: PaymentMiddlewareConfig;
 }
 
