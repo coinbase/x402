@@ -19,7 +19,7 @@ vi.mock("x402/verify", () => ({
     verify: vi.fn(),
     settle: vi.fn(),
     supported: vi.fn(),
-    getFeePayer: vi.fn(),
+    list: vi.fn(),
   }),
 }));
 
@@ -98,7 +98,7 @@ describe("paymentMiddleware()", () => {
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
   let mockSupported: ReturnType<typeof useFacilitator>["supported"];
-  let mockGetFeePayer: ReturnType<typeof useFacilitator>["getFeePayer"];
+  let mockList: ReturnType<typeof useFacilitator>["list"];
 
   const middlewareConfig: PaymentMiddlewareConfig = {
     description: "Test payment",
@@ -171,13 +171,13 @@ describe("paymentMiddleware()", () => {
     mockVerify = vi.fn();
     mockSettle = vi.fn();
     mockSupported = vi.fn();
-    mockGetFeePayer = vi.fn();
+    mockList = vi.fn();
 
     vi.mocked(useFacilitator).mockReturnValue({
       verify: mockVerify,
       settle: mockSettle,
       supported: mockSupported,
-      getFeePayer: mockGetFeePayer,
+      list: mockList,
     });
 
     // Setup paywall HTML mock
@@ -588,116 +588,117 @@ describe("paymentMiddleware()", () => {
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
-    describe("session token integration", () => {
-      it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
-        const paywallConfig = {
+  });
+
+  describe("session token integration", () => {
+    it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
+      const paywallConfig = {
+        cdpClientKey: "test-client-key",
+        appName: "Test App",
+        appLogo: "/test-logo.png",
+        sessionTokenEndpoint: "/api/x402/session-token",
+      };
+
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        routesConfig,
+        facilitatorConfig,
+        paywallConfig,
+      );
+
+      mockReq.headers = {
+        accept: "text/html",
+        "user-agent": "Mozilla/5.0",
+      };
+
+      await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
           cdpClientKey: "test-client-key",
           appName: "Test App",
           appLogo: "/test-logo.png",
           sessionTokenEndpoint: "/api/x402/session-token",
-        };
+        }),
+      );
+    });
 
-        const middlewareWithPaywall = paymentMiddleware(
-          payTo,
-          routesConfig,
-          facilitatorConfig,
-          paywallConfig,
-        );
+    it("should not pass sessionTokenEndpoint when not configured", async () => {
+      const paywallConfig = {
+        cdpClientKey: "test-client-key",
+        appName: "Test App",
+      };
 
-        mockReq.headers = {
-          accept: "text/html",
-          "user-agent": "Mozilla/5.0",
-        };
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        routesConfig,
+        facilitatorConfig,
+        paywallConfig,
+      );
 
-        await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
+      mockReq.headers = {
+        accept: "text/html",
+        "user-agent": "Mozilla/5.0",
+      };
 
-        expect(getPaywallHtml).toHaveBeenCalledWith(
-          expect.objectContaining({
-            cdpClientKey: "test-client-key",
-            appName: "Test App",
-            appLogo: "/test-logo.png",
-            sessionTokenEndpoint: "/api/x402/session-token",
-          }),
-        );
-      });
+      await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      it("should not pass sessionTokenEndpoint when not configured", async () => {
-        const paywallConfig = {
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
           cdpClientKey: "test-client-key",
           appName: "Test App",
-        };
+          sessionTokenEndpoint: undefined,
+        }),
+      );
+    });
 
-        const middlewareWithPaywall = paymentMiddleware(
-          payTo,
-          routesConfig,
-          facilitatorConfig,
-          paywallConfig,
-        );
+    it("should pass sessionTokenEndpoint even when other paywall config is minimal", async () => {
+      const paywallConfig = {
+        sessionTokenEndpoint: "/custom/session-token",
+      };
 
-        mockReq.headers = {
-          accept: "text/html",
-          "user-agent": "Mozilla/5.0",
-        };
+      const middlewareWithPaywall = paymentMiddleware(
+        payTo,
+        routesConfig,
+        facilitatorConfig,
+        paywallConfig,
+      );
 
-        await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
+      mockReq.headers = {
+        accept: "text/html",
+        "user-agent": "Mozilla/5.0",
+      };
 
-        expect(getPaywallHtml).toHaveBeenCalledWith(
-          expect.objectContaining({
-            cdpClientKey: "test-client-key",
-            appName: "Test App",
-            sessionTokenEndpoint: undefined,
-          }),
-        );
-      });
+      await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-      it("should pass sessionTokenEndpoint even when other paywall config is minimal", async () => {
-        const paywallConfig = {
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
           sessionTokenEndpoint: "/custom/session-token",
-        };
+          cdpClientKey: undefined,
+          appName: undefined,
+          appLogo: undefined,
+        }),
+      );
+    });
 
-        const middlewareWithPaywall = paymentMiddleware(
-          payTo,
-          routesConfig,
-          facilitatorConfig,
-          paywallConfig,
-        );
+    it("should work without any paywall config", async () => {
+      const middlewareWithoutPaywall = paymentMiddleware(payTo, routesConfig, facilitatorConfig);
 
-        mockReq.headers = {
-          accept: "text/html",
-          "user-agent": "Mozilla/5.0",
-        };
+      mockReq.headers = {
+        accept: "text/html",
+        "user-agent": "Mozilla/5.0",
+      };
 
-        await middlewareWithPaywall(mockReq as Request, mockRes as Response, mockNext);
+      await middlewareWithoutPaywall(mockReq as Request, mockRes as Response, mockNext);
 
-        expect(getPaywallHtml).toHaveBeenCalledWith(
-          expect.objectContaining({
-            sessionTokenEndpoint: "/custom/session-token",
-            cdpClientKey: undefined,
-            appName: undefined,
-            appLogo: undefined,
-          }),
-        );
-      });
-
-      it("should work without any paywall config", async () => {
-        const middlewareWithoutPaywall = paymentMiddleware(payTo, routesConfig, facilitatorConfig);
-
-        mockReq.headers = {
-          accept: "text/html",
-          "user-agent": "Mozilla/5.0",
-        };
-
-        await middlewareWithoutPaywall(mockReq as Request, mockRes as Response, mockNext);
-
-        expect(getPaywallHtml).toHaveBeenCalledWith(
-          expect.objectContaining({
-            sessionTokenEndpoint: undefined,
-            cdpClientKey: undefined,
-            appName: undefined,
-            appLogo: undefined,
-          }),
-        );
-      });
+      expect(getPaywallHtml).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionTokenEndpoint: undefined,
+          cdpClientKey: undefined,
+          appName: undefined,
+          appLogo: undefined,
+        }),
+      );
     });
   });
 });

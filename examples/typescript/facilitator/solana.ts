@@ -1,7 +1,7 @@
 /* eslint-env node */
 import { config } from "dotenv";
 import express, { type Request, type Response } from "express";
-import { verify, settle, getFeePayer } from "x402/facilitator";
+import { verify, settle } from "x402/facilitator";
 import {
   PaymentRequirementsSchema,
   type PaymentRequirements,
@@ -31,10 +31,6 @@ type VerifyRequest = {
 
 type SettleRequest = {
   paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
-
-type FeePayerRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
@@ -112,38 +108,6 @@ app.post("/settle", async (req: Request, res: Response) => {
 
     const result = await settle(signer, paymentPayload, paymentRequirements);
     res.json(result);
-  } catch (error) {
-    console.error("error", error);
-    res.status(400).json({ error: `Invalid request: ${error}` });
-  }
-});
-
-// fee payer endpoint
-app.get("/fee-payer", (req: Request, res: Response) => {
-  res.json({
-    endpoint: "/fee-payer",
-    description:
-      "POST to get the facilitator's public address that will sponsor the gas fee for the transaction",
-    body: {
-      paymentRequirements: "PaymentRequirements",
-    },
-  });
-});
-
-app.post("/fee-payer", async (req: Request, res: Response) => {
-  try {
-    // load the private key from the environment variable
-    const signer = await createSignerFromBase58(privateKey);
-
-    // parse the payment requirements from the request body
-    const body: FeePayerRequest = req.body;
-    const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-
-    // get the fee payer
-    const feePayer = await getFeePayer(signer, paymentRequirements);
-
-    // return the fee payer
-    res.json(feePayer);
   } catch (error) {
     console.error("error", error);
     res.status(400).json({ error: `Invalid request: ${error}` });

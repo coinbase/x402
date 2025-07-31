@@ -1,4 +1,3 @@
-import { GetFeePayerResponse } from "../schemes/exact/svm/facilitator";
 import { toJsonSafe } from "../shared";
 import {
   ListDiscoveryResourcesRequest,
@@ -122,33 +121,6 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   }
 
   /**
-   * Gets the address of the facilitator that will be used to pay the network fee.
-   *
-   * @param paymentRequirements - The payment requirements to get the fee payer for
-   * @returns A promise that resolves to the fee payer's address.
-   */
-  async function getFeePayer(
-    paymentRequirements: PaymentRequirements,
-  ): Promise<GetFeePayerResponse> {
-    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
-
-    const res = await fetch(`${url}/fee-payer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        paymentRequirements: toJsonSafe(paymentRequirements),
-      }),
-    });
-
-    if (res.status !== 200) {
-      throw new Error(`Failed to get fee payer: ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    return data as GetFeePayerResponse;
-  }
-
-  /**
    * Lists the discovery items with the facilitator service
    *
    * @param config - The configuration for the discovery list request
@@ -187,7 +159,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as ListDiscoveryResourcesResponse;
   }
 
-  return { verify, settle, getFeePayer, supported, list };
+  return { verify, settle, supported, list };
 }
 
 export const { verify, settle, supported, list } = useFacilitator();

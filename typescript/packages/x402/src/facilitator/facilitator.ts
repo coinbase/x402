@@ -1,10 +1,5 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
-import {
-  verify as verifyExactSvm,
-  settle as settleExactSvm,
-  getFeePayer as getFeePayerExactSvm,
-  GetFeePayerResponse,
-} from "../schemes/exact/svm";
+import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { ConnectedClient, SignerWallet } from "../types/shared/evm";
 import {
@@ -104,34 +99,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
   };
 }
 
-/**
- * Get the fee payer for the given payment requirements and signer.
- *
- * @param client - The signer wallet or keypair signer to get the fee payer for
- * @param paymentRequirements - The payment requirements to get the fee payer for
- * @returns The fee payer address
- */
-export async function getFeePayer<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | KeyPairSigner,
-  paymentRequirements: PaymentRequirements,
-): Promise<GetFeePayerResponse> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
-    // svm
-    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return getFeePayerExactSvm(client as KeyPairSigner);
-    }
-  }
-
-  return {
-    feePayer: "",
-  };
-}
-
 export type Supported = {
   x402Version: number;
   kind: {
     scheme: string;
     networkId: string;
+    extra: object;
   }[];
 };
