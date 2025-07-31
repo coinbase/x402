@@ -132,18 +132,18 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-        type: "http",
-        method,
-        ...inputSchema,
-      } as RequestStructure)
+          type: "http",
+          method,
+          ...inputSchema,
+        } as RequestStructure)
       : undefined;
 
     const requestStructure =
       input || outputSchema
         ? {
-          input,
-          output: outputSchema,
-        }
+            input,
+            output: outputSchema,
+          }
         : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
@@ -163,9 +163,8 @@ export function paymentMiddleware(
           "eip712" in asset
             ? asset.eip712
             : {
-              feePayer: "",
-            },
-
+                feePayer: "",
+              },
       },
     ];
 

@@ -118,18 +118,18 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-        type: "http",
-        method: req.method.toUpperCase(),
-        ...inputSchema,
-      } as RequestStructure)
+          type: "http",
+          method: req.method.toUpperCase(),
+          ...inputSchema,
+        } as RequestStructure)
       : undefined;
 
     const requestStructure =
       input || outputSchema
         ? {
-          input,
-          output: outputSchema,
-        }
+            input,
+            output: outputSchema,
+          }
         : undefined;
 
     let paymentRequirements: PaymentRequirements[] = [];
