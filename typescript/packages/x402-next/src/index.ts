@@ -18,6 +18,7 @@ import {
   Resource,
   RoutesConfig,
   PaywallConfig,
+  RequestStructure,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
@@ -110,8 +111,15 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -121,6 +129,23 @@ export function paymentMiddleware(
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
+
+    const input = inputSchema
+      ? ({
+        type: "http",
+        method,
+        ...inputSchema,
+      } as RequestStructure)
+      : undefined;
+
+    const requestStructure =
+      input || outputSchema
+        ? {
+          input,
+          output: outputSchema,
+        }
+        : undefined;
+
     const paymentRequirements: PaymentRequirements[] = [
       {
         scheme: "exact",
@@ -132,13 +157,15 @@ export function paymentMiddleware(
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
-        outputSchema,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: requestStructure,
         extra:
           "eip712" in asset
             ? asset.eip712
             : {
-                feePayer: "",
-              },
+              feePayer: "",
+            },
+
       },
     ];
 

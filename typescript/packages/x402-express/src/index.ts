@@ -17,6 +17,7 @@ import {
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
+  RequestStructure,
   Resource,
   RoutesConfig,
   settleResponseHeader,
@@ -96,8 +97,15 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -107,6 +115,22 @@ export function paymentMiddleware(
 
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
+
+    const input = inputSchema
+      ? ({
+        type: "http",
+        method: req.method.toUpperCase(),
+        ...inputSchema,
+      } as RequestStructure)
+      : undefined;
+
+    const requestStructure =
+      input || outputSchema
+        ? {
+          input,
+          output: outputSchema,
+        }
+        : undefined;
 
     let paymentRequirements: PaymentRequirements[] = [];
 
@@ -123,7 +147,8 @@ export function paymentMiddleware(
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(asset.address),
-        outputSchema: outputSchema ?? undefined,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: requestStructure,
         extra: (asset as ERC20TokenAmount["asset"]).eip712,
       });
     }
@@ -157,7 +182,8 @@ export function paymentMiddleware(
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: asset.address,
-        outputSchema: outputSchema ?? undefined,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: requestStructure,
         extra: {
           feePayer,
         },

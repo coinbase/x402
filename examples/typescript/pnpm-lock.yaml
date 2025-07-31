@@ -21,8 +21,8 @@ importers:
   ../../typescript/packages/coinbase-x402:
     dependencies:
       '@coinbase/cdp-sdk':
-        specifier: ^1.1.1
-        version: 1.1.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
+        specifier: ^1.29.0
+        version: 1.29.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       viem:
         specifier: ^2.21.26
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
@@ -1996,14 +1996,14 @@ packages:
   '@coinbase/agentkit@0.5.0':
     resolution: {integrity: sha512-e/c+jmg7sTP4rgGLYQ94flDDPO1pyKwatJ7Hm3W9aXJ21WP6ccyEhchFwMuVtG9VVcIp8vqUYOb5+rwa0cGsgA==}
 
-  '@coinbase/cdp-sdk@1.1.2':
-    resolution: {integrity: sha512-5Zz5Q7luSla07KmJeYeQ7MC0SnKRVF756Tu1Y3Sw6gxa57ll0XdmJpODCY78DbHZi3pMSwF72vOzm1FAAgdJSA==}
-
   '@coinbase/cdp-sdk@1.16.0':
     resolution: {integrity: sha512-qXR1bRMl2FmDA48iAuvPNq0b/4grTVia1V/9+JtiUfMi1SLIasAi2DP8sT/B4MF1N3Pp9k5XdB0y2qw8ON+yHw==}
 
   '@coinbase/cdp-sdk@1.22.0':
     resolution: {integrity: sha512-B5zOdRC0kJw+CKO2jJ1hVVefiEzXEtVMSdm8iHyjg5qn0CMtbgwBLllPlTMYR3u+idZatYEQAIc6ExVrP6X0Rw==}
+
+  '@coinbase/cdp-sdk@1.29.0':
+    resolution: {integrity: sha512-gFzrerfmbm4Qey6ckRhFh51Pnhhrwvb57r0dbzbME8oYaiIKaSPCRfdw2dsUPr+iQMe/SPGEQUKrKv8HXR6ENA==}
 
   '@coinbase/coinbase-sdk@0.20.0':
     resolution: {integrity: sha512-OoMMktKbjmeEwtwQCK3kIIoX5M+hNelxAGX5Llymvw6bmyrMDaEBZ/Myga9kaLJ+7Hi5Y4jPDy4Cy2MGxxXg6w==}
@@ -9012,22 +9012,6 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@coinbase/cdp-sdk@1.1.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)':
-    dependencies:
-      '@solana/web3.js': 1.98.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      abitype: 1.0.6(typescript@5.8.3)(zod@3.24.3)
-      axios: 1.8.4
-      jose: 6.0.10
-      md5: 2.3.0
-      viem: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - typescript
-      - utf-8-validate
-      - zod
-
   '@coinbase/cdp-sdk@1.16.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -9047,6 +9031,25 @@ snapshots:
       - utf-8-validate
 
   '@coinbase/cdp-sdk@1.22.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
+      abitype: 1.0.6(typescript@5.8.3)(zod@3.25.64)
+      axios: 1.8.4
+      jose: 6.0.10
+      md5: 2.3.0
+      uncrypto: 0.1.3
+      viem: 2.31.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.64)
+      zod: 3.25.64
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+
+  '@coinbase/cdp-sdk@1.29.0(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)':
     dependencies:
       '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       '@solana/web3.js': 1.98.2(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
@@ -14611,11 +14614,6 @@ snapshots:
     dependencies:
       jsonparse: 1.3.1
       through: 2.3.8
-
-  abitype@1.0.6(typescript@5.8.3)(zod@3.24.3):
-    optionalDependencies:
-      typescript: 5.8.3
-      zod: 3.24.3
 
   abitype@1.0.6(typescript@5.8.3)(zod@3.25.64):
     optionalDependencies:
