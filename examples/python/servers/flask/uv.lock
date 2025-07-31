@@ -1822,7 +1822,7 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "0.1.4"
+version = "0.1.5"
 source = { editable = "../../../../python/x402" }
 dependencies = [
     { name = "eth-account" },
