@@ -1,0 +1,7 @@
+{
+  "name": "Snack Money API",
+  "description": "Unified payment API for X, Farcaster, and verifiable identities",
+  "logoUrl": "/logos/snackmoney.png",
+  "websiteUrl": "https://api.snack.money/docs",
+  "category": "Services/Endpoints"
+}
