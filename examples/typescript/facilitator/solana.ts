@@ -77,18 +77,27 @@ app.get("/settle", (req: Request, res: Response) => {
   });
 });
 
-app.get("/supported", (req: Request, res: Response) => {
+app.get("/supported", async (req: Request, res: Response) => {
+  const signer = await createSignerFromBase58(privateKey);
+  const feePayer = signer.address;
+
   res.json({
     kinds: [
       {
         x402Version: 1,
         scheme: "exact",
         network: "solana-devnet",
+        extra: {
+          feePayer,
+        },
       },
       {
         x402Version: 1,
         scheme: "exact",
         network: "solana",
+        extra: {
+          feePayer,
+        },
       },
     ],
   });

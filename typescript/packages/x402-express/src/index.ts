@@ -78,7 +78,7 @@ export function paymentMiddleware(
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
 ) {
-  const { verify, settle, getFeePayer } = useFacilitator(facilitator);
+  const { verify, settle, supported } = useFacilitator(facilitator);
   const x402Version = 1;
 
   // Pre-compile route patterns to regex and extract verbs
@@ -130,7 +130,24 @@ export function paymentMiddleware(
 
     // svm networks
     else if (SupportedSVMNetworks.includes(network)) {
-      let tempPaymentRequirement: PaymentRequirements = {
+      // get the supported payments from the facilitator
+      const paymentKinds = await supported();
+
+      // find the payment kind that matches the network and scheme
+      let feePayer: string | undefined;
+      for (const kind of paymentKinds.kinds) {
+        if (kind.network === network && kind.scheme === "exact") {
+          feePayer = kind?.extra?.feePayer;
+          break;
+        }
+      }
+
+      // if no fee payer is found, throw an error
+      if (!feePayer) {
+        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
+      }
+
+      paymentRequirements.push({
         scheme: "exact",
         network,
         maxAmountRequired,
@@ -142,16 +159,9 @@ export function paymentMiddleware(
         asset: asset.address,
         outputSchema: outputSchema ?? undefined,
         extra: {
-          feePayer: "",
+          feePayer,
         },
-      };
-      // make network call to facilitator to get the fee payer that will pay for gas
-      const feePayerResponse = await getFeePayer(tempPaymentRequirement);
-      tempPaymentRequirement.extra = {
-        ...tempPaymentRequirement.extra,
-        feePayer: feePayerResponse.feePayer,
-      };
-      paymentRequirements.push(tempPaymentRequirement);
+      });
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }

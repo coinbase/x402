@@ -187,15 +187,15 @@ describe("useFacilitator", () => {
     });
 
     it("should throw error on non-200 response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         status: 500,
         statusText: "Internal Server Error",
-        json: async () => ({}),
       });
+
       const { supported } = useFacilitator();
 
       await expect(supported()).rejects.toThrow(
-        "Failed to get supported payment kinds: 500 Internal Server Error",
+        "Failed to get supported payment kinds: Internal Server Error",
       );
     });
   });

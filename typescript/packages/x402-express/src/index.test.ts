@@ -18,6 +18,7 @@ vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn().mockReturnValue({
     verify: vi.fn(),
     settle: vi.fn(),
+    supported: vi.fn(),
     getFeePayer: vi.fn(),
   }),
 }));
@@ -96,6 +97,7 @@ describe("paymentMiddleware()", () => {
   let middleware: ReturnType<typeof paymentMiddleware>;
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
+  let mockSupported: ReturnType<typeof useFacilitator>["supported"];
   let mockGetFeePayer: ReturnType<typeof useFacilitator>["getFeePayer"];
 
   const middlewareConfig: PaymentMiddlewareConfig = {
@@ -159,11 +161,13 @@ describe("paymentMiddleware()", () => {
     mockNext = vi.fn();
     mockVerify = vi.fn();
     mockSettle = vi.fn();
+    mockSupported = vi.fn();
     mockGetFeePayer = vi.fn();
 
     vi.mocked(useFacilitator).mockReturnValue({
       verify: mockVerify,
       settle: mockSettle,
+      supported: mockSupported,
       getFeePayer: mockGetFeePayer,
     });
 
@@ -467,8 +471,16 @@ describe("paymentMiddleware()", () => {
     };
     const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
     const feePayer = "FeePayerAddress12345";
-    const feePayerResponse = { feePayer: feePayer };
-    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayerResponse);
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana-devnet",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
 
     vi.mocked(findMatchingRoute).mockReturnValue({
       pattern: /^\/test$/,
@@ -490,7 +502,7 @@ describe("paymentMiddleware()", () => {
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(402);
-    expect(mockGetFeePayer).toHaveBeenCalled();
+    expect(mockSupported).toHaveBeenCalled();
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
         accepts: expect.arrayContaining([
@@ -498,7 +510,7 @@ describe("paymentMiddleware()", () => {
             network: "solana-devnet",
             payTo: solanaPayTo,
             extra: expect.objectContaining({
-              feePayer: feePayerResponse.feePayer,
+              feePayer: feePayer,
             }),
           }),
         ]),
@@ -506,7 +518,7 @@ describe("paymentMiddleware()", () => {
     );
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayerResponse.feePayer);
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
   });
 
   it("should return 402 with feePayer for solana mainnet when no payment header is present", async () => {
@@ -519,8 +531,16 @@ describe("paymentMiddleware()", () => {
     };
     const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
     const feePayer = "FeePayerAddressMainnet";
-    const feePayerResponse = { feePayer: feePayer };
-    (mockGetFeePayer as ReturnType<typeof vi.fn>).mockResolvedValue(feePayerResponse);
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
 
     vi.mocked(findMatchingRoute).mockReturnValue({
       pattern: /^\/test$/,
@@ -542,7 +562,7 @@ describe("paymentMiddleware()", () => {
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(402);
-    expect(mockGetFeePayer).toHaveBeenCalled();
+    expect(mockSupported).toHaveBeenCalled();
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
         accepts: expect.arrayContaining([
@@ -550,7 +570,7 @@ describe("paymentMiddleware()", () => {
             network: "solana",
             payTo: solanaPayTo,
             extra: expect.objectContaining({
-              feePayer: feePayerResponse.feePayer,
+              feePayer: feePayer,
             }),
           }),
         ]),
@@ -558,7 +578,7 @@ describe("paymentMiddleware()", () => {
     );
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayerResponse.feePayer);
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
     describe("session token integration", () => {
       it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
         const paywallConfig = {
