@@ -1246,6 +1246,9 @@ importers:
 
   servers/express:
     dependencies:
+      '@solana/addresses':
+        specifier: ^2.3.0
+        version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
       dotenv:
         specifier: ^16.4.7
         version: 16.5.0
