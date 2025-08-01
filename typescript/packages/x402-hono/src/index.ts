@@ -136,7 +136,12 @@ export function paymentMiddleware(
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: requestStructure,
-        extra: asset.eip712,
+        extra:
+          "eip712" in asset
+            ? asset.eip712
+            : {
+                feePayer: "",
+              },
       },
     ];
 

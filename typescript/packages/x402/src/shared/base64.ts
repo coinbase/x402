@@ -1,3 +1,5 @@
+export const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;
+
 /**
  * Encodes a string to base64 format
  *
