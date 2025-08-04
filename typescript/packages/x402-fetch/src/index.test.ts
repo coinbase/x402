@@ -7,6 +7,16 @@ vi.mock("x402/client", () => ({
   selectPaymentRequirements: vi.fn(),
 }));
 
+// Helper function to check if headers match expected values
+const headersMatch = (headers: Headers, expectedHeaders: Record<string, string>) => {
+  for (const [key, value] of Object.entries(expectedHeaders)) {
+    if (headers.get(key) !== value) {
+      return false;
+    }
+  }
+  return true;
+};
+
 type RequestInitWithRetry = RequestInit & { __is402Retry?: boolean };
 
 describe("fetchWithPayment()", () => {
@@ -98,11 +108,13 @@ describe("fetchWithPayment()", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch).toHaveBeenLastCalledWith("https://api.example.com", {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-      },
+      headers: expect.toSatisfy(headers =>
+        headersMatch(headers, {
+          "Content-Type": "application/json",
+          "X-PAYMENT": paymentHeader,
+          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+        }),
+      ),
       __is402Retry: true,
     } as RequestInitWithRetry);
   });
@@ -165,5 +177,40 @@ describe("fetchWithPayment()", () => {
         method: "GET",
       } as RequestInitWithRetry),
     ).rejects.toBe(paymentError);
+  });
+
+  it("should preserve Headers object during retry", async () => {
+    const paymentHeader = "payment-header-value";
+    const successResponse = createResponse(200, { data: "success" });
+
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    vi.mocked(createPaymentHeader).mockResolvedValue(paymentHeader);
+    vi.mocked(selectPaymentRequirements).mockImplementation((requirements, _) => requirements[0]);
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, { accepts: validPaymentRequirements, x402Version: 1 }),
+      )
+      .mockResolvedValueOnce(successResponse);
+
+    const originalHeaders = new Headers({
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      "Custom-Header": "custom-value",
+    });
+
+    await wrappedFetch("https://api.example.com", {
+      method: "POST",
+      headers: originalHeaders,
+    });
+
+    // Verify the retry request includes all original headers plus payment headers
+    const retryCall = mockFetch.mock.calls[1];
+    const retryHeaders = retryCall[1].headers;
+    const normalizedHeaders = new Headers(retryHeaders);
+    expect(normalizedHeaders.get("X-PAYMENT")).toBe(paymentHeader);
+    expect(normalizedHeaders.get("Access-Control-Expose-Headers")).toBe("X-PAYMENT-RESPONSE");
+    expect(normalizedHeaders.get("Accept")).toBe("application/json, text/event-stream");
+    expect(normalizedHeaders.get("Content-Type")).toBe("application/json");
+    expect(normalizedHeaders.get("Custom-Header")).toBe("custom-value");
   });
 });

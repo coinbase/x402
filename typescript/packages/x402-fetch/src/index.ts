@@ -81,13 +81,14 @@ export function wrapFetchWithPayment(
       throw new Error("Payment already attempted");
     }
 
+    // retain headers from initial call
+    const headers = new Headers(init.headers);
+    headers.set("X-PAYMENT", paymentHeader);
+    headers.set("Access-Control-Expose-Headers", "X-PAYMENT-RESPONSE");
+
     const newInit = {
       ...init,
-      headers: {
-        ...(init.headers || {}),
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-      },
+      headers,
       __is402Retry: true,
     };
 
