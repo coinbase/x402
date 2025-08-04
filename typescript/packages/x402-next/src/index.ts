@@ -133,18 +133,18 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-        type: "http",
-        method,
-        ...inputSchema,
-      } as RequestStructure)
+          type: "http",
+          method,
+          ...inputSchema,
+        } as RequestStructure)
       : undefined;
 
     const requestStructure =
       input || outputSchema
         ? {
-          input,
-          output: outputSchema,
-        }
+            input,
+            output: outputSchema,
+          }
         : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
@@ -223,7 +223,8 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: error instanceof Error ? error : "Invalid payment",
+          error:
+            errorMessages?.invalidPayment || error instanceof Error ? error : "Invalid payment",
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -238,7 +239,8 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: "Unable to find matching payment requirements",
+          error:
+            errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
           accepts: toJsonSafe(paymentRequirements),
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -251,7 +253,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: verification.invalidReason,
+          error: errorMessages?.verificationFailed || verification.invalidReason,
           accepts: paymentRequirements,
           payer: verification.payer,
         }),
@@ -288,7 +290,9 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: error instanceof Error ? error : "Settlement failed",
+          error:
+            errorMessages?.settlementFailed ||
+            (error instanceof Error ? error.message : "Settlement failed"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },

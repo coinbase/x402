@@ -110,18 +110,18 @@ export function paymentMiddleware(
 
     const input = inputSchema
       ? ({
-        type: "http",
-        method,
-        ...inputSchema,
-      } as RequestStructure)
+          type: "http",
+          method,
+          ...inputSchema,
+        } as RequestStructure)
       : undefined;
 
     const requestStructure =
       input || outputSchema
         ? {
-          input,
-          output: outputSchema,
-        }
+            input,
+            output: outputSchema,
+          }
         : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
@@ -195,7 +195,10 @@ export function paymentMiddleware(
     } catch (error) {
       return c.json(
         {
-          error: error instanceof Error ? error : new Error("Invalid or malformed payment header"),
+          error:
+            errorMessages?.invalidPayment || error instanceof Error
+              ? error
+              : new Error("Invalid or malformed payment header"),
           accepts: paymentRequirements,
           x402Version,
         },
@@ -210,7 +213,8 @@ export function paymentMiddleware(
     if (!selectedPaymentRequirements) {
       return c.json(
         {
-          error: "Unable to find matching payment requirements",
+          error:
+            errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
           accepts: toJsonSafe(paymentRequirements),
           x402Version,
         },
@@ -223,7 +227,7 @@ export function paymentMiddleware(
     if (!verification.isValid) {
       return c.json(
         {
-          error: new Error(verification.invalidReason),
+          error: errorMessages?.verificationFailed || new Error(verification.invalidReason),
           accepts: paymentRequirements,
           payer: verification.payer,
           x402Version,
@@ -256,7 +260,10 @@ export function paymentMiddleware(
     } catch (error) {
       res = c.json(
         {
-          error: error instanceof Error ? error : new Error("Failed to settle payment"),
+          error:
+            errorMessages?.settlementFailed || error instanceof Error
+              ? error
+              : new Error("Failed to settle payment"),
           accepts: paymentRequirements,
           x402Version,
         },
