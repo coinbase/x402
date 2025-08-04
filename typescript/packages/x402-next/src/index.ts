@@ -223,8 +223,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error:
-            errorMessages?.invalidPayment || error instanceof Error ? error : "Invalid payment",
+          error: errorMessages?.invalidPayment || (error instanceof Error ? error : "Invalid payment"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -290,9 +289,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error:
-            errorMessages?.settlementFailed ||
-            (error instanceof Error ? error.message : "Settlement failed"),
+          error: errorMessages?.settlementFailed || (error instanceof Error ? error : "Settlement failed"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
