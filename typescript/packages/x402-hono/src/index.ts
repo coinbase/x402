@@ -195,7 +195,9 @@ export function paymentMiddleware(
     } catch (error) {
       return c.json(
         {
-          error: errorMessages?.invalidPayment || (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
+          error:
+            errorMessages?.invalidPayment ||
+            (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
           accepts: paymentRequirements,
           x402Version,
         },
@@ -257,7 +259,9 @@ export function paymentMiddleware(
     } catch (error) {
       res = c.json(
         {
-          error: errorMessages?.settlementFailed || (error instanceof Error ? error : new Error("Failed to settle payment")),
+          error:
+            errorMessages?.settlementFailed ||
+            (error instanceof Error ? error : new Error("Failed to settle payment")),
           accepts: paymentRequirements,
           x402Version,
         },
