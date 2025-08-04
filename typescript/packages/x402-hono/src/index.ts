@@ -97,6 +97,7 @@ export function paymentMiddleware(
       outputSchema,
       customPaywallHtml,
       resource,
+      errorMessages,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -178,7 +179,7 @@ export function paymentMiddleware(
       }
       return c.json(
         {
-          error: "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
           accepts: paymentRequirements,
           x402Version,
         },
@@ -194,7 +195,9 @@ export function paymentMiddleware(
     } catch (error) {
       return c.json(
         {
-          error: error instanceof Error ? error : new Error("Invalid or malformed payment header"),
+          error:
+            errorMessages?.invalidPayment ||
+            (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
           accepts: paymentRequirements,
           x402Version,
         },
@@ -209,7 +212,8 @@ export function paymentMiddleware(
     if (!selectedPaymentRequirements) {
       return c.json(
         {
-          error: "Unable to find matching payment requirements",
+          error:
+            errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
           accepts: toJsonSafe(paymentRequirements),
           x402Version,
         },
@@ -222,7 +226,7 @@ export function paymentMiddleware(
     if (!verification.isValid) {
       return c.json(
         {
-          error: new Error(verification.invalidReason),
+          error: errorMessages?.verificationFailed || verification.invalidReason,
           accepts: paymentRequirements,
           payer: verification.payer,
           x402Version,
@@ -255,7 +259,9 @@ export function paymentMiddleware(
     } catch (error) {
       res = c.json(
         {
-          error: error instanceof Error ? error : new Error("Failed to settle payment"),
+          error:
+            errorMessages?.settlementFailed ||
+            (error instanceof Error ? error : new Error("Failed to settle payment")),
           accepts: paymentRequirements,
           x402Version,
         },
