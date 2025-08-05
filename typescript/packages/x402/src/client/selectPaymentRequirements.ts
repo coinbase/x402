@@ -44,12 +44,10 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
   if (usdcRequirements.length > 0) {
     return usdcRequirements[0];
   }
-
   // If no USDC requirements are found, return the first broadly accepted requirement.
   if (broadlyAcceptedPaymentRequirements.length > 0) {
     return broadlyAcceptedPaymentRequirements[0];
   }
-
   // If no matching requirements are found, return the first requirement.
   return paymentRequirements[0];
 }
