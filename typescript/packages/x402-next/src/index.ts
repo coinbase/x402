@@ -18,7 +18,6 @@ import {
   Resource,
   RoutesConfig,
   PaywallConfig,
-  RequestStructure,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
@@ -131,22 +130,6 @@ export function paymentMiddleware(
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
 
-    const input = inputSchema
-      ? ({
-          type: "http",
-          method,
-          ...inputSchema,
-        } as RequestStructure)
-      : undefined;
-
-    const requestStructure =
-      input || outputSchema
-        ? {
-            input,
-            output: outputSchema,
-          }
-        : undefined;
-
     const paymentRequirements: PaymentRequirements[] = [
       {
         scheme: "exact",
@@ -159,7 +142,14 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
-        outputSchema: requestStructure,
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: asset.eip712,
       },
     ];

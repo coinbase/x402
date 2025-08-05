@@ -151,23 +151,6 @@ class PaymentMiddleware:
                 # Get resource URL if not explicitly provided
                 resource_url = config["resource"] or request.url
 
-                # Create input structure if input_schema is provided
-                input_structure = None
-                if config["input_schema"]:
-                    input_structure = {
-                        "type": "http",
-                        "method": request.method.upper(),
-                        **config["input_schema"].model_dump(),
-                    }
-
-                # Create request structure if either input or output is provided
-                request_structure = None
-                if input_structure or config["output_schema"]:
-                    request_structure = {
-                        "input": input_structure,
-                        "output": config["output_schema"],
-                    }
-
                 # Construct payment details
                 payment_requirements = [
                     PaymentRequirements(
@@ -181,7 +164,18 @@ class PaymentMiddleware:
                         pay_to=config["pay_to_address"],
                         max_timeout_seconds=config["max_deadline_seconds"],
                         # TODO: Rename output_schema to request_structure
-                        output_schema=request_structure,
+                        output_schema={
+                            "input": {
+                                "type": "http",
+                                "method": request.method.upper(),
+                                **(
+                                    config["input_schema"].model_dump()
+                                    if config["input_schema"]
+                                    else {}
+                                ),
+                            },
+                            "output": config["output_schema"],
+                        },
                         extra=eip712_domain,
                     )
                 ]

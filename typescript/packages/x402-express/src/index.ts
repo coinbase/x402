@@ -15,7 +15,6 @@ import {
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
-  RequestStructure,
   Resource,
   RoutesConfig,
   settleResponseHeader,
@@ -112,22 +111,6 @@ export function paymentMiddleware(
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
-    const input = inputSchema
-      ? ({
-          type: "http",
-          method: req.method.toUpperCase(),
-          ...inputSchema,
-        } as RequestStructure)
-      : undefined;
-
-    const requestStructure =
-      input || outputSchema
-        ? {
-            input,
-            output: outputSchema,
-          }
-        : undefined;
-
     const paymentRequirements: PaymentRequirements[] = [
       {
         scheme: "exact",
@@ -140,7 +123,14 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
-        outputSchema: requestStructure,
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method.toUpperCase(),
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: asset.eip712,
       },
     ];

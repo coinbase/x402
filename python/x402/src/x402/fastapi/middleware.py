@@ -94,20 +94,6 @@ def require_payment(
         # Get resource URL if not explicitly provided
         resource_url = resource or str(request.url)
 
-        # Create input structure if input_schema is provided
-        input_structure = None
-        if input_schema:
-            input_structure = {
-                "type": "http",
-                "method": request.method.upper(),
-                **input_schema.model_dump(),
-            }
-
-        # Create request structure if either input or output is provided
-        request_structure = None
-        if input_structure or output_schema:
-            request_structure = {"input": input_structure, "output": output_schema}
-
         # Construct payment details
         payment_requirements = [
             PaymentRequirements(
@@ -121,7 +107,14 @@ def require_payment(
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,
                 # TODO: Rename output_schema to request_structure
-                output_schema=request_structure,
+                output_schema={
+                    "input": {
+                        "type": "http",
+                        "method": request.method.upper(),
+                        **(input_schema.model_dump() if input_schema else {}),
+                    },
+                    "output": output_schema,
+                },
                 extra=eip712_domain,
             )
         ]
