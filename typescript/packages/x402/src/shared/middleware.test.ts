@@ -218,14 +218,44 @@ describe("findMatchingRoute", () => {
     expect(result).toBeUndefined();
   });
 
-  it("should fail to match when path has extra slashes", () => {
-    const result = findMatchingRoute(routePatterns, "//api/test", "GET");
-    expect(result).toBeUndefined();
+  it("should normalize paths with multiple consecutive slashes", () => {
+    const result = findMatchingRoute(routePatterns, "//api///test", "GET");
+    expect(result).toEqual(routePatterns[0]);
   });
 
-  it("should fail to match when path has trailing slash", () => {
+  it("should match paths with trailing slashes", () => {
     const result = findMatchingRoute(routePatterns, "/api/test/", "GET");
-    expect(result).toBeUndefined();
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple trailing slashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test///", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with trailing backslash", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test\\", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple trailing backslashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test\\\\", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple consecutive slashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api///test", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with query parameters", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test?foo=bar", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with hash fragments", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test#section", "GET");
+    expect(result).toEqual(routePatterns[0]);
   });
 });
 

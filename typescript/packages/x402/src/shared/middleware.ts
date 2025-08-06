@@ -39,10 +39,12 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
     return {
       verb: verb.toUpperCase(),
       pattern: new RegExp(
-        `^${path
-          .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
-          .replace(/\[([^\]]+)\]/g, "[^/]+")
-          .replace(/\//g, "\\/")}$`,
+        `^${
+          path
+            .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
+            .replace(/\[([^\]]+)\]/g, "[^/]+")
+            .replace(/\//g, "\\/") // Keep exact slashes
+        }$`,
         "i",
       ),
       config: routeConfig,
@@ -63,9 +65,20 @@ export function findMatchingRoute(
   path: string,
   method: string,
 ): RoutePattern | undefined {
+  // Normalize the path:
+  // 1. Remove query parameters and hash fragments
+  // 2. Replace backslashes with forward slashes
+  // 3. Replace multiple consecutive slashes with a single slash
+  // 4. Keep trailing slash if path is not root
+  const normalizedPath = path
+    .split(/[?#]/)[0] // Remove query parameters and hash fragments
+    .replace(/\\/g, "/") // Replace backslashes with forward slashes
+    .replace(/\/+/g, "/") // Replace multiple consecutive slashes with a single slash
+    .replace(/(.+?)\/+$/, "$1"); // Remove trailing slashes except for root path
+
   // Find matching route pattern
   const matchingRoutes = routePatterns.filter(({ pattern, verb }) => {
-    const matchesPath = pattern.test(path);
+    const matchesPath = pattern.test(normalizedPath);
     const matchesVerb = verb === "*" || verb === method.toUpperCase();
     return matchesPath && matchesVerb;
   });
