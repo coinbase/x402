@@ -74,6 +74,14 @@ export const middleware = async (req: NextRequest) => {
 
 // Configure which paths the middleware should run on
 export const config = {
-  // Run on all routes for geolocation check, payment middleware handles its own path matching
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (metadata files)
+     */
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/", // Include the root path explicitly
+  ],
 };
