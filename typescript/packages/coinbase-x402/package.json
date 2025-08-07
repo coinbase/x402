@@ -40,7 +40,6 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.29.0",
-    "@coinbase/x402": "workspace:^",
     "viem": "^2.21.26",
     "x402": "workspace:^",
     "zod": "^3.24.2"
