@@ -286,6 +286,32 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Sei Testnet USDC asset details", () => {
+    const result = getDefaultAsset("sei-testnet");
+
+    expect(result).toEqual({
+      address: "0x4fcf1784b31630811181f670aea7a7bef803eaed",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Sei USDC asset details", () => {
+    const result = getDefaultAsset("sei");
+
+    expect(result).toEqual({
+      address: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
