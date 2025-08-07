@@ -26,6 +26,13 @@ export type PaymentMiddlewareConfig = {
   outputSchema?: object;
   customPaywallHtml?: string;
   resource?: Resource;
+  errorMessages?: {
+    paymentRequired?: string;
+    invalidPayment?: string;
+    noMatchingRequirements?: string;
+    verificationFailed?: string;
+    settlementFailed?: string;
+  };
 };
 
 export interface ERC20TokenAmount {

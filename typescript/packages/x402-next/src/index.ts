@@ -18,7 +18,6 @@ import {
   Resource,
   RoutesConfig,
   PaywallConfig,
-  RequestStructure,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
@@ -119,6 +118,7 @@ export function paymentMiddleware(
       outputSchema,
       customPaywallHtml,
       resource,
+      errorMessages,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -129,22 +129,6 @@ export function paymentMiddleware(
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
-
-    const input = inputSchema
-      ? ({
-          type: "http",
-          method,
-          ...inputSchema,
-        } as RequestStructure)
-      : undefined;
-
-    const requestStructure =
-      input || outputSchema
-        ? {
-            input,
-            output: outputSchema,
-          }
-        : undefined;
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -158,7 +142,14 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
-        outputSchema: requestStructure,
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: asset.eip712,
       },
     ];
@@ -206,7 +197,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -222,7 +213,8 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: error instanceof Error ? error : "Invalid payment",
+          error:
+            errorMessages?.invalidPayment || (error instanceof Error ? error : "Invalid payment"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -237,7 +229,8 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: "Unable to find matching payment requirements",
+          error:
+            errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
           accepts: toJsonSafe(paymentRequirements),
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -250,7 +243,7 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: verification.invalidReason,
+          error: errorMessages?.verificationFailed || verification.invalidReason,
           accepts: paymentRequirements,
           payer: verification.payer,
         }),
@@ -287,7 +280,9 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: error instanceof Error ? error : "Settlement failed",
+          error:
+            errorMessages?.settlementFailed ||
+            (error instanceof Error ? error : "Settlement failed"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
