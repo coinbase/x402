@@ -42,6 +42,7 @@ export const PaymentRequirementsSchema = z.object({
   outputSchema: z.record(z.any()).optional(),
   payTo: z.string().regex(MixedAddressRegex),
   maxTimeoutSeconds: z.number().int(),
+  paymentId: z.string(),
   asset: z.string().regex(MixedAddressRegex),
   extra: z.record(z.any()).optional(),
 });
@@ -69,6 +70,7 @@ export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
+  paymentId: z.string(),
   payload: ExactEvmPayloadSchema,
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;

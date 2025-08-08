@@ -30,6 +30,7 @@ export function preparePaymentHeader(
     x402Version,
     scheme: paymentRequirements.scheme,
     network: paymentRequirements.network,
+    paymentId: paymentRequirements.paymentId,
     payload: {
       signature: undefined,
       authorization: {

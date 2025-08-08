@@ -26,6 +26,7 @@ describe("preparePaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
+    paymentId: "payment-id-1234567890",
     maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
@@ -51,6 +52,7 @@ describe("preparePaymentHeader", () => {
       x402Version: 1,
       scheme: "exact",
       network: "base-sepolia",
+      paymentId: "payment-id-1234567890",
       payload: {
         signature: undefined,
         authorization: {
@@ -105,6 +107,7 @@ describe("signPaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
+    paymentId: "payment-id-1234567890",
     maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
@@ -113,6 +116,7 @@ describe("signPaymentHeader", () => {
     x402Version: 1,
     scheme: "exact",
     network: "base-sepolia",
+    paymentId: "payment-id-1234567890",
     payload: {
       signature: undefined,
       authorization: {
@@ -189,6 +193,7 @@ describe("createPaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
+    paymentId: "payment-id-1234567890",
     maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
@@ -197,6 +202,7 @@ describe("createPaymentHeader", () => {
     x402Version: 1,
     scheme: "exact",
     network: "base-sepolia",
+    paymentId: "payment-id-1234567890",
     payload: {
       signature:
         "0x1234567890123456789012345678901234567890123456789012345678901234" as `0x${string}`,
