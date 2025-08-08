@@ -26,7 +26,7 @@ describe("preparePaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
-``    maxTimeoutSeconds: 300,
+    maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
 
