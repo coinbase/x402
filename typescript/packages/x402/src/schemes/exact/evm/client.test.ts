@@ -26,8 +26,7 @@ describe("preparePaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
-    paymentId: "payment-id-1234567890",
-    maxTimeoutSeconds: 300,
+``    maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
 
@@ -52,7 +51,6 @@ describe("preparePaymentHeader", () => {
       x402Version: 1,
       scheme: "exact",
       network: "base-sepolia",
-      paymentId: "payment-id-1234567890",
       payload: {
         signature: undefined,
         authorization: {
@@ -90,6 +88,40 @@ describe("preparePaymentHeader", () => {
     const validBefore = parseInt(result.payload.authorization.validBefore);
 
     expect(validBefore).toBe(currentTime + mockPaymentRequirements.maxTimeoutSeconds);
+  });
+
+  it("should include paymentId if provided", () => {
+    const resultWithoutPaymentId = preparePaymentHeader(
+      mockFromAddress,
+      1,
+      mockPaymentRequirements,
+    );
+    const resultWithPaymentId = preparePaymentHeader(mockFromAddress, 1, {
+      ...mockPaymentRequirements,
+      paymentId: "payment-id-1234567890",
+    });
+
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    expect(resultWithoutPaymentId).not.toHaveProperty("paymentId");
+
+    expect(resultWithPaymentId).toEqual({
+      x402Version: 1,
+      scheme: "exact",
+      network: "base-sepolia",
+      paymentId: "payment-id-1234567890",
+      payload: {
+        signature: undefined,
+        authorization: {
+          from: mockFromAddress,
+          to: mockPaymentRequirements.payTo,
+          value: mockPaymentRequirements.maxAmountRequired,
+          validAfter: (currentTime - 600).toString(),
+          validBefore: (currentTime + mockPaymentRequirements.maxTimeoutSeconds).toString(),
+          nonce: expect.any(String),
+        },
+      },
+    });
   });
 
   it("should handle different x402 versions", () => {
@@ -193,7 +225,6 @@ describe("createPaymentHeader", () => {
     description: "Test resource",
     mimeType: "application/json",
     payTo: "0x1234567890123456789012345678901234567890",
-    paymentId: "payment-id-1234567890",
     maxTimeoutSeconds: 300,
     asset: "0x1234567890123456789012345678901234567890",
   };
@@ -202,7 +233,6 @@ describe("createPaymentHeader", () => {
     x402Version: 1,
     scheme: "exact",
     network: "base-sepolia",
-    paymentId: "payment-id-1234567890",
     payload: {
       signature:
         "0x1234567890123456789012345678901234567890123456789012345678901234" as `0x${string}`,
@@ -241,6 +271,32 @@ describe("createPaymentHeader", () => {
         x402Version: 1,
         scheme: "exact",
         network: "base-sepolia",
+        payload: expect.objectContaining({
+          signature: mockSignedPayment.payload.signature,
+          authorization: expect.objectContaining({
+            from: client.account!.address,
+            to: mockPaymentRequirements.payTo,
+            value: mockPaymentRequirements.maxAmountRequired,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("should create and encode a payment header with paymentId", async () => {
+    const client = createTestClient();
+    const result = await createPaymentHeader(client, 1, {
+      ...mockPaymentRequirements,
+      paymentId: "payment-id-1234",
+    });
+
+    expect(result).toBe("encoded-payment-header");
+    expect(vi.mocked(encodePayment)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x402Version: 1,
+        scheme: "exact",
+        network: "base-sepolia",
+        paymentId: "payment-id-1234",
         payload: expect.objectContaining({
           signature: mockSignedPayment.payload.signature,
           authorization: expect.objectContaining({
