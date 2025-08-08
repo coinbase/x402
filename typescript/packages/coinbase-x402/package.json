@@ -13,7 +13,8 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [],
   "license": "Apache-2.0",
@@ -56,6 +57,7 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts"
   ]
 }
