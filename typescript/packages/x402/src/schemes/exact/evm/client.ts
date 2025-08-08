@@ -26,11 +26,17 @@ export function preparePaymentHeader(
     Math.floor(Date.now() / 1000 + paymentRequirements.maxTimeoutSeconds),
   ).toString();
 
+  const optionalData: { paymentId?: string } = {};
+
+  if (paymentRequirements.paymentId) {
+    optionalData.paymentId = paymentRequirements.paymentId;
+  }
+
   return {
     x402Version,
     scheme: paymentRequirements.scheme,
     network: paymentRequirements.network,
-    paymentId: paymentRequirements.paymentId,
+    ...optionalData,
     payload: {
       signature: undefined,
       authorization: {
