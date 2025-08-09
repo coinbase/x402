@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any, Optional, Union, Dict, Literal, List
 from typing_extensions import (
@@ -230,7 +231,11 @@ class DiscoveredResource(BaseModel):
     type: str = Field(..., pattern="^http$")  # Currently only supports 'http'
     x402_version: int = Field(..., alias="x402Version")
     accepts: List["PaymentRequirements"]
-    last_updated: int = Field(..., alias="lastUpdated", gt=0)
+    last_updated: datetime = Field(
+        ...,
+        alias="lastUpdated",
+        description="ISO 8601 formatted datetime string with UTC timezone (e.g. 2025-08-09T01:07:04.005Z)",
+    )
     metadata: Optional[dict] = None
 
     model_config = ConfigDict(

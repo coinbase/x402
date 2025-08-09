@@ -121,7 +121,7 @@ export const DiscoveredResourceSchema = z.object({
   type: z.enum(["http"]),
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   accepts: z.array(PaymentRequirementsSchema),
-  lastUpdated: z.number().positive(),
+  lastUpdated: z.date(),
   metadata: z.record(z.any()).optional(),
 });
 export type DiscoveredResource = z.infer<typeof DiscoveredResourceSchema>;
