@@ -6,4 +6,5 @@ packages:
   - "dynamic_agent"
   - "agent"
   - "mpc"
+  - "discovery"
   - "../../typescript/packages/*"
