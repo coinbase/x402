@@ -7,8 +7,8 @@ config();
 const { list } = useFacilitator(facilitator);
 
 list().then(response => {
-  console.log('\nDiscovered X402 Resources:');
-  console.log('========================\n');
+  console.log("\nDiscovered X402 Resources:");
+  console.log("========================\n");
 
   response.items.forEach((item, index) => {
     console.log(`Resource ${index + 1}:`);
@@ -20,6 +20,6 @@ list().then(response => {
     if (item.metadata && Object.keys(item.metadata).length > 0) {
       console.log(`  Metadata: ${JSON.stringify(item.metadata, null, 2)}`);
     }
-    console.log('------------------------\n');
+    console.log("------------------------\n");
   });
-})
+});
