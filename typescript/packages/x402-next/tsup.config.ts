@@ -9,6 +9,7 @@ const baseConfig = {
   },
   sourcemap: true,
   target: "node16",
+  external: ["next"],
 };
 
 export default defineConfig([
