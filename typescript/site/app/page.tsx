@@ -100,16 +100,23 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-4 mb-6 justify-center">
               <Link
+                href="/ecosystem"
+                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2 text-lg"
+              >
+                <Squares2X2Icon className="w-5 h-5 mr-1" />
+                View Ecosystem
+              </Link>
+            </div>
+            <div className="flex flex-wrap gap-4 mb-8 justify-center">
+              <Link
                 href="/x402-whitepaper.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors flex items-center gap-2 text-lg"
+                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
               >
                 <DocumentTextIcon className="w-5 h-5 mr-1" />
                 Read the whitepaper
               </Link>
-            </div>
-            <div className="flex flex-wrap gap-4 mb-8 justify-center">
               <Link
                 href="https://x402.gitbook.io/x402"
                 target="_blank"
@@ -127,13 +134,6 @@ export default function Home() {
               >
                 <CodeBracketIcon className="w-5 h-5 mr-1" />
                 Try it out
-              </Link>
-              <Link
-                href="/ecosystem"
-                className="px-4 py-3 border-2 border-transparent hover:border-blue-600 rounded-lg font-mono transition-colors flex items-center gap-2 text-sm"
-              >
-                <Squares2X2Icon className="w-5 h-5 mr-1" />
-                View Ecosystem
               </Link>
             </div>
           </div>

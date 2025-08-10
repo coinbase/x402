@@ -1,6 +1,6 @@
 {
   "name": "x402-next",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",

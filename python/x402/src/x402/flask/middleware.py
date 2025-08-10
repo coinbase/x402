@@ -10,8 +10,13 @@ from x402.types import (
     x402PaymentRequiredResponse,
     PaywallConfig,
     SupportedNetworks,
+    HTTPInputSchema,
 )
-from x402.common import process_price_to_atomic_amount, x402_VERSION
+from x402.common import (
+    process_price_to_atomic_amount,
+    x402_VERSION,
+    find_matching_payment_requirements,
+)
 from x402.encoding import safe_base64_decode
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.paywall import is_browser_request, get_paywall_html
@@ -59,7 +64,8 @@ class PaymentMiddleware:
         description: str = "",
         mime_type: str = "",
         max_deadline_seconds: int = 60,
-        output_schema: Any = None,
+        input_schema: Optional[HTTPInputSchema] = None,
+        output_schema: Optional[Any] = None,
         facilitator_config: Optional[FacilitatorConfig] = None,
         network: str = "base-sepolia",
         resource: Optional[str] = None,
@@ -76,7 +82,8 @@ class PaymentMiddleware:
             description (str, optional): Description of the resource
             mime_type (str, optional): MIME type of the resource
             max_deadline_seconds (int, optional): Max time for payment
-            output_schema (Any, optional): JSON schema for response
+            input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
+            output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
             facilitator_config (dict, optional): Facilitator config
             network (str, optional): Network ID
             resource (str, optional): Resource URL
@@ -90,6 +97,7 @@ class PaymentMiddleware:
             "description": description,
             "mime_type": mime_type,
             "max_deadline_seconds": max_deadline_seconds,
+            "input_schema": input_schema,
             "output_schema": output_schema,
             "facilitator_config": facilitator_config,
             "network": network,
@@ -143,11 +151,6 @@ class PaymentMiddleware:
                 # Get resource URL if not explicitly provided
                 resource_url = config["resource"] or request.url
 
-                # Ensure output_schema and extra are objects, not null
-                output_schema_obj = (
-                    {} if config["output_schema"] is None else config["output_schema"]
-                )
-
                 # Construct payment details
                 payment_requirements = [
                     PaymentRequirements(
@@ -160,7 +163,19 @@ class PaymentMiddleware:
                         mime_type=config["mime_type"],
                         pay_to=config["pay_to_address"],
                         max_timeout_seconds=config["max_deadline_seconds"],
-                        output_schema=output_schema_obj,
+                        # TODO: Rename output_schema to request_structure
+                        output_schema={
+                            "input": {
+                                "type": "http",
+                                "method": request.method.upper(),
+                                **(
+                                    config["input_schema"].model_dump()
+                                    if config["input_schema"]
+                                    else {}
+                                ),
+                            },
+                            "output": config["output_schema"],
+                        },
                         extra=eip712_domain,
                     )
                 ]
@@ -209,14 +224,8 @@ class PaymentMiddleware:
                     return x402_response(f"Invalid payment header format: {str(e)}")
 
                 # Find matching payment requirements
-                selected_payment_requirements = next(
-                    (
-                        req
-                        for req in payment_requirements
-                        if req.scheme == payment.scheme
-                        and req.network == payment.network
-                    ),
-                    None,
+                selected_payment_requirements = find_matching_payment_requirements(
+                    payment_requirements, payment
                 )
 
                 if not selected_payment_requirements:
