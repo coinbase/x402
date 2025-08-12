@@ -1,7 +1,11 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
-import { ConnectedClient, SignerWallet } from "../types/shared/evm";
+import {
+  ConnectedClient as EvmConnectedClient,
+  SignerWallet as EvmSignerWallet,
+} from "../types/shared/evm";
+import { ConnectedClient, Signer } from "../types/shared/wallet";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -26,7 +30,7 @@ export async function verify<
   chain extends Chain,
   account extends Account | undefined,
 >(
-  client: ConnectedClient<transport, chain, account> | KeyPairSigner,
+  client: ConnectedClient | Signer,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
@@ -35,7 +39,7 @@ export async function verify<
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return verifyExactEvm(
-        client as ConnectedClient<transport, chain, account>,
+        client as EvmConnectedClient<transport, chain, account>,
         payload,
         paymentRequirements,
       );
@@ -67,7 +71,7 @@ export async function verify<
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
 export async function settle<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | KeyPairSigner,
+  client: Signer,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
@@ -76,7 +80,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactEvm(
-        client as SignerWallet<chain, transport>,
+        client as EvmSignerWallet<chain, transport>,
         payload,
         paymentRequirements,
       );

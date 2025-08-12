@@ -1,3 +1,3 @@
 export * from "./rpc";
-export * from "./signer";
+export * from "./wallet";
 export * from "./transaction";

@@ -1,13 +1,15 @@
 /* eslint-env node */
 import { config } from "dotenv";
-import express from "express";
+import express, { Request, Response } from "express";
 import { verify, settle } from "x402/facilitator";
 import {
   PaymentRequirementsSchema,
-  PaymentRequirements,
-  evm,
-  PaymentPayload,
+  type PaymentRequirements,
+  type PaymentPayload,
   PaymentPayloadSchema,
+  createConnectedClient,
+  createSigner,
+  // isSvmSignerWallet, // uncomment for solana
 } from "x402/types";
 
 config();
@@ -18,8 +20,6 @@ if (!PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
-
-const { createClientSepolia, createSignerSepolia } = evm;
 
 const app = express();
 
@@ -36,21 +36,10 @@ type SettleRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
-const client = createClientSepolia();
-
-app.get("/verify", (req, res) => {
-  res.json({
-    endpoint: "/verify",
-    description: "POST to verify x402 payments",
-    body: {
-      paymentPayload: "PaymentPayload",
-      paymentRequirements: "PaymentRequirements",
-    },
-  });
-});
-
-app.post("/verify", async (req, res) => {
+app.post("/verify", async (req: Request, res: Response) => {
   try {
+    // const client = await createSigner("solana-devnet", PRIVATE_KEY);  // uncomment for solana
+    const client = createConnectedClient("base-sepolia");
     const body: VerifyRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
@@ -62,7 +51,7 @@ app.post("/verify", async (req, res) => {
   }
 });
 
-app.get("/settle", (req, res) => {
+app.get("/settle", (req: Request, res: Response) => {
   res.json({
     endpoint: "/settle",
     description: "POST to settle x402 payments",
@@ -73,7 +62,11 @@ app.get("/settle", (req, res) => {
   });
 });
 
-app.get("/supported", (req, res) => {
+app.get("/supported", async (req: Request, res: Response) => {
+  //// uncomment for solana
+  // const signer = await createSigner("solana-devnet", PRIVATE_KEY);
+  // const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
+
   res.json({
     kinds: [
       {
@@ -81,13 +74,23 @@ app.get("/supported", (req, res) => {
         scheme: "exact",
         network: "base-sepolia",
       },
+      // uncomment for solana
+      // {
+      //   x402Version: 1,
+      //   scheme: "exact",
+      //   network: "solana-devnet",
+      //   extra: {
+      //     feePayer,
+      //   },
+      // },
     ],
   });
 });
 
-app.post("/settle", async (req, res) => {
+app.post("/settle", async (req: Request, res: Response) => {
   try {
-    const signer = createSignerSepolia(PRIVATE_KEY as `0x${string}`);
+    // const signer = await createSigner("solana-devnet", PRIVATE_KEY);  // uncomment for solana
+    const signer = await createSigner("base-sepolia", PRIVATE_KEY);
     const body: SettleRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);

@@ -2,8 +2,7 @@ import { CreateHeaders } from "../../verify";
 import { Money } from "./money";
 import { Network } from "./network";
 import { Resource } from "./resource";
-import { LocalAccount } from "viem";
-import { SignerWallet } from "./evm";
+import { EvmSigner } from "./evm";
 import { HTTPRequestStructure } from "..";
 
 export type FacilitatorConfig = {
@@ -64,4 +63,4 @@ export interface RoutePattern {
   config: RouteConfig;
 }
 
-export type Wallet = SignerWallet | LocalAccount;
+export type Wallet = EvmSigner;

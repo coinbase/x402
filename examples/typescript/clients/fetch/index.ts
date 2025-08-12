@@ -1,11 +1,11 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { createSigner } from "x402/types";
 import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex;
+const privateKey = process.env.PRIVATE_KEY as Hex | string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
@@ -15,20 +15,28 @@ if (!baseURL || !privateKey || !endpointPath) {
   process.exit(1);
 }
 
-const account = privateKeyToAccount(privateKey);
+/**
+ * This example shows how to use the x402-fetch package to make a request to a resource server that requires a payment.
+ *
+ * To run this example, you need to set the following environment variables:
+ * - PRIVATE_KEY: The private key of the signer
+ * - RESOURCE_SERVER_URL: The URL of the resource server
+ * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
+ */
+async function main(): Promise<void> {
+  // const signer = await createSigner("solana-devnet", privateKey);  // uncomment for solana
+  const signer = await createSigner("base-sepolia", privateKey);
+  const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, account);
+  const response = await fetchWithPayment(url, { method: "GET" });
+  const body = await response.json();
+  console.log(body);
 
-fetchWithPayment(url, {
-  method: "GET",
-})
-  .then(async response => {
-    const body = await response.json();
-    console.log(body);
+  const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
+  console.log(paymentResponse);
+}
 
-    const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
-    console.log(paymentResponse);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+main().catch(error => {
+  console.error(error?.response?.data?.error ?? error);
+  process.exit(1);
+});

@@ -15,6 +15,7 @@
     "bs58": "^6.0.0",
     "dotenv": "^16.4.7",
     "viem": "^2.21.26",
+    "x402": "workspace:*",
     "x402-fetch": "workspace:*"
   },
   "devDependencies": {
