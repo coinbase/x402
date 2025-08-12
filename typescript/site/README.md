@@ -78,7 +78,7 @@ We welcome projects that are building with x402! To add your project to our ecos
   "name": "Your Project Name",
   "description": "A brief description of your project and how it uses x402",
   "logoUrl": "/logos/your-logo.png",
-  "websiteUrl": "https://your-project.com", // ideally pointing to somehwere to learn more about the x402 integration
+  "websiteUrl": "https://your-project.com", // ideally pointing to somewhere to learn more about the x402 integration
   "category": "Client-Side Integrations" // Must match one of our categories: - `Client-Side Integrations`, `Services/Endpoints`, `Ecosystem Infrastructure & Tooling`, `Learning & Community Resources`
 }
 ```

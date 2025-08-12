@@ -12,7 +12,7 @@ This example involves three components running concurrently:
 2.  **VRF Resource Server (`resource.ts`):** A custom HTTP server (using Hono) that:
     - Exposes a `/request-mint` endpoint.
     - Handles initial requests by responding with `402 Payment Required`, providing the necessary `PaymentDetails` (USDC amount, recipient address, etc.).
-    - Receives subsequent requests containing the `X-PAYMENT` header (sent by the client's interceptor, implmented in `x402/axios`).
+    - Receives subsequent requests containing the `X-PAYMENT` header (sent by the client's interceptor, implemented in `x402/axios`).
     - Calls the **Facilitator's** `/verify` endpoint to validate the client's payment.
     - If valid, it extracts the client's address (`from`) from the payment payload.
     - Uses its _own wallet_ (funded with ETH) and `viem` to call `requestNFT(address _recipient)` on the target NFT contract, passing the client's address and the required ETH value.
