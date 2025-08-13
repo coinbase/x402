@@ -9,14 +9,20 @@ import {
   PaymentPayloadSchema,
   createConnectedClient,
   createSigner,
-  // isSvmSignerWallet, // uncomment for solana
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  Signer,
+  ConnectedClient,
+  SupportedPaymentKind,
+  isSvmSignerWallet,
 } from "x402/types";
 
 config();
 
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
+const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
 
-if (!PRIVATE_KEY) {
+if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -38,11 +44,22 @@ type SettleRequest = {
 
 app.post("/verify", async (req: Request, res: Response) => {
   try {
-    // const client = await createSigner("solana-devnet", PRIVATE_KEY);  // uncomment for solana
-    const client = createConnectedClient("base-sepolia");
     const body: VerifyRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+
+    // use the correct client/signer based on the requested network
+    // svm verify requires a Signer because it signs & simulates the txn
+    let client: Signer | ConnectedClient;
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      client = createConnectedClient(paymentRequirements.network);
+    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else {
+      throw new Error("Invalid network");
+    }
+
+    // verify
     const valid = await verify(client, paymentPayload, paymentRequirements);
     res.json(valid);
   } catch (error) {
@@ -63,37 +80,53 @@ app.get("/settle", (req: Request, res: Response) => {
 });
 
 app.get("/supported", async (req: Request, res: Response) => {
-  //// uncomment for solana
-  // const signer = await createSigner("solana-devnet", PRIVATE_KEY);
-  // const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
+  let kinds: SupportedPaymentKind[] = [];
 
-  res.json({
-    kinds: [
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "base-sepolia",
+  // evm
+  if (EVM_PRIVATE_KEY) {
+    kinds.push({
+      x402Version: 1,
+      scheme: "exact",
+      network: "base-sepolia",
+    });
+  }
+
+  // svm
+  if (SVM_PRIVATE_KEY) {
+    const signer = await createSigner("solana-devnet", SVM_PRIVATE_KEY);
+    const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
+
+    kinds.push({
+      x402Version: 1,
+      scheme: "exact",
+      network: "solana-devnet",
+      extra: {
+        feePayer,
       },
-      // uncomment for solana
-      // {
-      //   x402Version: 1,
-      //   scheme: "exact",
-      //   network: "solana-devnet",
-      //   extra: {
-      //     feePayer,
-      //   },
-      // },
-    ],
+    });
+  }
+  res.json({
+    kinds,
   });
 });
 
 app.post("/settle", async (req: Request, res: Response) => {
   try {
-    // const signer = await createSigner("solana-devnet", PRIVATE_KEY);  // uncomment for solana
-    const signer = await createSigner("base-sepolia", PRIVATE_KEY);
     const body: SettleRequest = req.body;
     const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+
+    // use the correct private key based on the requested network
+    let signer: Signer;
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      signer = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
+    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      signer = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else {
+      throw new Error("Invalid network");
+    }
+
+    // settle
     const response = await settle(signer, paymentPayload, paymentRequirements);
     res.json(response);
   } catch (error) {

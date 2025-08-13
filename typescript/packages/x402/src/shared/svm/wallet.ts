@@ -14,6 +14,7 @@ import { Network, SupportedSVMNetworks } from "../../types/shared";
 export type { KeyPairSigner } from "@solana/kit";
 
 export type SvmConnectedClient = RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>;
+export type SvmSigner = KeyPairSigner;
 
 /**
  * Creates a public client configured for the specified SVM network
@@ -56,6 +57,6 @@ export async function createSignerFromBase58(privateKey: string): Promise<KeyPai
  * @param wallet - The object wallet to check.
  * @returns True if the wallet is a solana KeyPairSigner wallet, false otherwise.
  */
-export function isSignerWallet(wallet: KeyPairSigner): wallet is KeyPairSigner {
+export function isSignerWallet(wallet: SvmSigner): wallet is SvmSigner {
   return isKeyPairSigner(wallet);
 }

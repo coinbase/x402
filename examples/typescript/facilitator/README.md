@@ -25,8 +25,8 @@ This example demonstrates how to:
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum private key or Solana private key
-- Base Sepolia testnet ETH or Solana Devnet SOL for transaction fees
+- A valid Ethereum private key and/or Solana private key
+- Base Sepolia testnet ETH and/or Solana Devnet SOL for transaction fees
 
 ## Setup
 
@@ -42,7 +42,8 @@ cd facilitator
 2. Create a `.env` file with the following variables:
 
 ```env
-PRIVATE_KEY=0xYourPrivateKey
+EVM_PRIVATE_KEY=0xYourPrivateKey
+SVM_PRIVATE_KEY=solanaprivatekey
 ```
 
 3. Start the server:

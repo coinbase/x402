@@ -4,7 +4,7 @@ import { SupportedEVMNetworks, SupportedSVMNetworks } from "./network";
 import { Hex } from "viem";
 
 export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient;
-export type Signer = evm.EvmSigner | svm.KeyPairSigner;
+export type Signer = evm.EvmSigner | svm.SvmSigner;
 
 /**
  * Creates a public client configured for the specified network.
@@ -61,6 +61,6 @@ export function isEvmSignerWallet(wallet: Signer): wallet is evm.EvmSigner {
  * @param wallet - The object wallet to check
  * @returns True if the wallet is an SVM signer wallet, false otherwise
  */
-export function isSvmSignerWallet(wallet: Signer): wallet is svm.KeyPairSigner {
-  return svm.isSignerWallet(wallet as svm.KeyPairSigner);
+export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
+  return svm.isSignerWallet(wallet as svm.SvmSigner);
 }
