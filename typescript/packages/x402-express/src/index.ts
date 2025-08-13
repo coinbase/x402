@@ -17,7 +17,6 @@ import {
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
-  RequestStructure,
   Resource,
   RoutesConfig,
   settleResponseHeader,
@@ -116,22 +115,6 @@ export function paymentMiddleware(
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
-    const input = inputSchema
-      ? ({
-          type: "http",
-          method: req.method.toUpperCase(),
-          ...inputSchema,
-        } as RequestStructure)
-      : undefined;
-
-    const requestStructure =
-      input || outputSchema
-        ? {
-            input,
-            output: outputSchema,
-          }
-        : undefined;
-
     let paymentRequirements: PaymentRequirements[] = [];
 
     // TODO: create a shared middleware function to build payment requirements
@@ -148,7 +131,14 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
-        outputSchema: requestStructure,
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method.toUpperCase(),
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: (asset as ERC20TokenAmount["asset"]).eip712,
       });
     }
@@ -183,7 +173,14 @@ export function paymentMiddleware(
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: asset.address,
         // TODO: Rename outputSchema to requestStructure
-        outputSchema: requestStructure,
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method.toUpperCase(),
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: {
           feePayer,
         },

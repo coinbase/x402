@@ -218,14 +218,44 @@ describe("findMatchingRoute", () => {
     expect(result).toBeUndefined();
   });
 
-  it("should fail to match when path has extra slashes", () => {
-    const result = findMatchingRoute(routePatterns, "//api/test", "GET");
-    expect(result).toBeUndefined();
+  it("should normalize paths with multiple consecutive slashes", () => {
+    const result = findMatchingRoute(routePatterns, "//api///test", "GET");
+    expect(result).toEqual(routePatterns[0]);
   });
 
-  it("should fail to match when path has trailing slash", () => {
+  it("should match paths with trailing slashes", () => {
     const result = findMatchingRoute(routePatterns, "/api/test/", "GET");
-    expect(result).toBeUndefined();
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple trailing slashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test///", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with trailing backslash", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test\\", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple trailing backslashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test\\\\", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple consecutive slashes", () => {
+    const result = findMatchingRoute(routePatterns, "/api///test", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with query parameters", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test?foo=bar", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with hash fragments", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test#section", "GET");
+    expect(result).toEqual(routePatterns[0]);
   });
 });
 
@@ -248,6 +278,32 @@ describe("getDefaultAsset", () => {
 
     expect(result).toEqual({
       address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Sei Testnet USDC asset details", () => {
+    const result = getDefaultAsset("sei-testnet");
+
+    expect(result).toEqual({
+      address: "0x4fcf1784b31630811181f670aea7a7bef803eaed",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Sei USDC asset details", () => {
+    const result = getDefaultAsset("sei");
+
+    expect(result).toEqual({
+      address: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
       decimals: 6,
       eip712: {
         name: "USDC",

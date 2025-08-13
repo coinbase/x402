@@ -41,6 +41,10 @@ export const ErrorReasons = [
   "invalid_payload",
   "invalid_payment_requirements",
   "invalid_scheme",
+  "invalid_payment",
+  "payment_expired",
+  "unsupported_scheme",
+  "invalid_x402_version",
   "invalid_transaction_state",
   "invalid_x402_version",
   "settle_exact_svm_block_height_exceeded",
@@ -111,6 +115,15 @@ export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
   payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
 };
 
+// x402 Resource Server Response
+export const x402ResponseSchema = z.object({
+  x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
+  error: z.enum(ErrorReasons).optional(),
+  accepts: z.array(PaymentRequirementsSchema).optional(),
+  payer: z.string().regex(MixedAddressRegex).optional(),
+});
+export type x402Response = z.infer<typeof x402ResponseSchema>;
+
 // x402RequestStructure
 const HTTPVerbsSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]);
 export type HTTPVerbs = z.infer<typeof HTTPVerbsSchema>;
@@ -156,7 +169,7 @@ export const DiscoveredResourceSchema = z.object({
   type: z.enum(["http"]),
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   accepts: z.array(PaymentRequirementsSchema),
-  lastUpdated: z.number().positive(),
+  lastUpdated: z.date(),
   metadata: z.record(z.any()).optional(),
 });
 export type DiscoveredResource = z.infer<typeof DiscoveredResourceSchema>;
