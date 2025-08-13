@@ -16,6 +16,7 @@ export type X402RequestParams = {
   queryParams?: Record<string, string>;
   body?: unknown;
   correlationId?: string;
+  maxAmountPerRequest?: number;
   paymentRequirements?: PaymentRequirements[]; // Can be provided via discovery or directly
 };
 
@@ -30,6 +31,7 @@ export type X402RequestParams = {
  * @param root0.queryParams - Optional query parameters to include in the URL
  * @param root0.body - Optional request body data
  * @param root0.correlationId - Optional ID to correlate operations (auto-generated if not provided)
+ * @param root0.maxAmountPerRequest - Optional max amount per request
  * @param root0.paymentRequirements - Optional pre-discovered payment requirements
  * @returns {Promise<{status: number; statusText: string; data: unknown; headers: Record<string, string>}>} The response data
  * @throws {PaymentInterceptorError} If payment requirements cannot be met
@@ -42,6 +44,7 @@ export async function makeX402Request({
   queryParams,
   body,
   correlationId,
+  maxAmountPerRequest,
   paymentRequirements,
 }: X402RequestParams) {
   const user = await getCurrentUser();
@@ -65,6 +68,7 @@ export async function makeX402Request({
     finalCorrelationId,
     account.address,
     chain,
+    maxAmountPerRequest,
     paymentRequirements, // Pass pre-discovered payment requirements
   );
   // Cast to any to work around axios version mismatch between dependencies
@@ -87,8 +91,10 @@ export async function makeX402Request({
           `${baseURL}${path}`,
           undefined,
           finalCorrelationId,
+          maxAmountPerRequest,
           paymentRequirements,
           paymentRequirements[0],
+          undefined,
         );
     } else {
       console.log(`Making ${method} request to ${baseURL}${path}`);
@@ -244,6 +250,7 @@ async function updateOperationForSuccess(
       `${baseURL}${path}`,
       undefined,
       correlationId,
+      undefined, // maxAmountPerRequest
       undefined, // paymentRequirements
       undefined, // selectedPayment
       settlementInfo, // Include settlement info

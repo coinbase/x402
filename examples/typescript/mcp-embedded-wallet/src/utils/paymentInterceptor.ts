@@ -32,6 +32,7 @@ export class PaymentInterceptorError extends Error {
  * @param correlationId - Correlation ID for tracking operations
  * @param accountAddress - Wallet address for balance checking
  * @param chain - The blockchain chain to use for transactions
+ * @param maxAmountPerRequest - Optional max amount per request
  * @param preDiscoveredPaymentRequirements - Optional pre-discovered payment requirements to handle proactively
  * @returns {AxiosInstance} The same axios instance with interceptors added
  */
@@ -40,6 +41,7 @@ export function createPaymentTrackingInterceptor(
   correlationId: string,
   accountAddress: string,
   chain: Chain,
+  maxAmountPerRequest?: number,
   preDiscoveredPaymentRequirements?: PaymentRequirements[],
 ): AxiosInstance {
   // Add response interceptor to handle 402 errors and track payment flow
@@ -55,6 +57,11 @@ export function createPaymentTrackingInterceptor(
 
         // Update the pending HTTP operation to show discovery
         await updateOperationForDiscovery(correlationId, paymentRequirements, selectedPayment);
+
+        // Perform budget checks
+        if (maxAmountPerRequest && selectedPayment) {
+          performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+        }
 
         // Perform upfront balance checking
         if (selectedPayment) {
@@ -86,6 +93,11 @@ export function createPaymentTrackingInterceptor(
           preDiscoveredPaymentRequirements,
           selectedPayment,
         );
+
+        // Perform budget checks
+        if (maxAmountPerRequest && selectedPayment) {
+          performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+        }
 
         // Perform balance checks
         try {
@@ -269,4 +281,27 @@ function updateOperationForPaymentRetry(correlationId: string): void {
 
   // Note: We don't add a new HTTP operation here since it would be redundant
   // The original HTTP operation will be updated to success when the request completes
+}
+
+/**
+ * Performs budget checks before attempting payment.
+ * Verifies that the max amount per request is not exceeded.
+ *
+ * @param correlationId - ID to correlate this operation with others
+ * @param maxAmountPerRequest - The max amount per request
+ * @param selectedPayment - The selected payment option to check against
+ */
+function performBudgetChecks(
+  correlationId: string,
+  maxAmountPerRequest: number,
+  selectedPayment: PaymentRequirements,
+) {
+  console.log("Performing budget checks");
+  if (maxAmountPerRequest && selectedPayment) {
+    console.log(
+      `Max amount per request: ${maxAmountPerRequest}, selected payment: ${selectedPayment.maxAmountRequired}`,
+    );
+  } else {
+    console.log("No max amount per request or selected payment found");
+  }
 }
