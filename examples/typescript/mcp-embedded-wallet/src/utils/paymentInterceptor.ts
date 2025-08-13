@@ -60,12 +60,24 @@ export function createPaymentTrackingInterceptor(
 
         // Perform budget checks
         if (maxAmountPerRequest && selectedPayment) {
-          performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+          try {
+            await performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+            console.log(`Budget check passed - payment flow will continue`);
+          } catch (error) {
+            // Budget check failed, request will not proceed
+            throw error;
+          }
         }
 
         // Perform upfront balance checking
         if (selectedPayment) {
-          await performBalanceChecks(correlationId, accountAddress, selectedPayment, chain);
+          try {
+            await performBalanceChecks(correlationId, accountAddress, selectedPayment, chain);
+            console.log(`Balance check passed - payment flow will continue`);
+          } catch (error) {
+            // Balance check failed, request will not proceed
+            throw error;
+          }
         }
       }
       return Promise.reject(error);
@@ -96,7 +108,13 @@ export function createPaymentTrackingInterceptor(
 
         // Perform budget checks
         if (maxAmountPerRequest && selectedPayment) {
-          performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+          try {
+            await performBudgetChecks(correlationId, maxAmountPerRequest, selectedPayment);
+            console.log(`Budget check passed - payment flow will continue`);
+          } catch (error) {
+            // Budget check failed, request will not proceed
+            throw error;
+          }
         }
 
         // Perform balance checks
@@ -229,6 +247,7 @@ async function updateOperationsForInsufficientBalance(
   errorMessage: string,
   accountAddress: string,
 ): Promise<void> {
+  const description = `Payment failed - insufficient USDC balance`;
   // Update HTTP operation
   const currentOperations = operationStore.getState().operations;
   const pendingOpIndex = currentOperations.findIndex(
@@ -237,7 +256,7 @@ async function updateOperationsForInsufficientBalance(
 
   if (pendingOpIndex !== -1) {
     operationStore.getState().updateHttpOperation(pendingOpIndex, {
-      description: `Payment failed - insufficient USDC balance`,
+      description,
       status: "error",
       errorMessage: errorMessage,
     });
@@ -247,7 +266,7 @@ async function updateOperationsForInsufficientBalance(
   operationStore
     .getState()
     .addWalletOperation(
-      `Payment failed - insufficient USDC balance`,
+      description,
       "error",
       "sign",
       accountAddress,
@@ -291,17 +310,64 @@ function updateOperationForPaymentRetry(correlationId: string): void {
  * @param maxAmountPerRequest - The max amount per request
  * @param selectedPayment - The selected payment option to check against
  */
-function performBudgetChecks(
+async function performBudgetChecks(
   correlationId: string,
   maxAmountPerRequest: number,
   selectedPayment: PaymentRequirements,
 ) {
   console.log("Performing budget checks");
   if (maxAmountPerRequest && selectedPayment) {
+    const selectedPaymentAmount = Number(selectedPayment.maxAmountRequired);
+
     console.log(
-      `Max amount per request: ${maxAmountPerRequest}, selected payment: ${selectedPayment.maxAmountRequired}`,
+      `Max amount per request: ${maxAmountPerRequest}, selected payment: ${selectedPaymentAmount}`,
     );
+
+    if (selectedPaymentAmount > maxAmountPerRequest) {
+      const errorMessage = `Payment required: $${formatUSDCAmount(
+        selectedPayment.maxAmountRequired,
+      )} is greater than max amount per request: $${formatUSDCAmount(
+        maxAmountPerRequest.toString(),
+      )}`;
+
+      console.error(`Budget check failed: ${errorMessage}`);
+
+      // Update operations to show insufficient budget
+      await updateOperationForBudgetCheckFailure(correlationId, errorMessage);
+
+      throw new PaymentInterceptorError(errorMessage);
+    }
   } else {
     console.log("No max amount per request or selected payment found");
+  }
+}
+
+/**
+ * Updates operations when budget check fails.
+ * Updates both HTTP and wallet operations to reflect the budget error.
+ *
+ * @param correlationId - ID to correlate this operation with others
+ * @param errorMessage - The error message explaining the budget error
+ * @returns {Promise<void>} Resolves when operations are updated
+ */
+async function updateOperationForBudgetCheckFailure(
+  correlationId: string,
+  errorMessage: string,
+): Promise<void> {
+  const description = "Payment failed - insufficient budget";
+  // Update HTTP operation
+  const currentOperations = operationStore.getState().operations;
+  const pendingOpIndex = currentOperations.findIndex(
+    op => op.correlationId === correlationId && op.status === "pending" && op.type === "http",
+  );
+
+  console.log("pendingOpIndex", pendingOpIndex);
+
+  if (pendingOpIndex !== -1) {
+    operationStore.getState().updateHttpOperation(pendingOpIndex, {
+      description,
+      status: "error",
+      errorMessage: errorMessage,
+    });
   }
 }
