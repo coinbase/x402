@@ -119,6 +119,7 @@ export function paymentMiddleware(
       customPaywallHtml,
       resource,
       errorMessages,
+      discoverable,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -146,6 +147,7 @@ export function paymentMiddleware(
           input: {
             type: "http",
             method,
+            discoverable: discoverable ?? true,
             ...inputSchema,
           },
           output: outputSchema,
