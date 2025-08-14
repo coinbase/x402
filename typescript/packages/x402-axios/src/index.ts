@@ -4,6 +4,7 @@ import {
   PaymentRequirements,
   PaymentRequirementsSchema,
   Wallet,
+  SuiWallet,
 } from "x402/types";
 import { evm } from "x402/types";
 import {
@@ -11,6 +12,8 @@ import {
   PaymentRequirementsSelector,
   selectPaymentRequirements,
 } from "x402/client";
+
+export { SuiWallet };
 
 /**
  * Enables the payment of APIs using the x402 payment protocol.
@@ -65,13 +68,17 @@ export function withPaymentInterceptor(
         };
         const parsed = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-        const chainId = evm.isSignerWallet(walletClient) ? walletClient.chain?.id : undefined;
+        const chainId = evm.isSignerWallet(walletClient as typeof evm.EvmSigner)
+          ? (walletClient as typeof evm.EvmSigner).chain?.id
+          : undefined;
 
-        const selectedPaymentRequirements = paymentRequirementsSelector(
-          parsed,
-          chainId ? ChainIdToNetwork[chainId] : undefined,
-          "exact",
-        );
+        const network = chainId
+          ? ChainIdToNetwork[chainId]
+          : walletClient instanceof SuiWallet
+            ? walletClient.network
+            : undefined;
+
+        const selectedPaymentRequirements = paymentRequirementsSelector(parsed, network, "exact");
         const paymentHeader = await createPaymentHeader(
           walletClient,
           x402Version,
@@ -86,6 +93,7 @@ export function withPaymentInterceptor(
         const secondResponse = await axiosClient.request(originalConfig);
         return secondResponse;
       } catch (paymentError) {
+        console.log("paymentError", paymentError);
         return Promise.reject(paymentError);
       }
     },

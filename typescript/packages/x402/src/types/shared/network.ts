@@ -10,6 +10,8 @@ export const NetworkSchema = z.enum([
   "solana",
   "sei",
   "sei-testnet",
+  "sui",
+  "sui-testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -39,6 +41,9 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana-devnet", 103],
   ["solana", 101],
 ]);
+
+// sui
+export const SupportedSuiNetworks: Network[] = ["sui-testnet", "sui"];
 
 export const ChainIdToNetwork = Object.fromEntries(
   [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [

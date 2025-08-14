@@ -15,17 +15,23 @@ import {
   ConnectedClient,
   SupportedPaymentKind,
   isSvmSignerWallet,
+  sui,
 } from "x402/types";
 
 config();
 
 const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
 const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
+const SUI_MAINNET_RPC_URL = process.env.SUI_MAINNET_RPC_URL || "";
+const SUI_TESTNET_RPC_URL =
+  process.env.SUI_TESTNET_RPC_URL || "https://fullnode.testnet.sui.io:443";
 
-if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
-  console.error("Missing required environment variables");
-  process.exit(1);
-}
+// if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY && !SUI_MAINNET_RPC_URL) {
+//   // TODO: should this indicate the missing environment variables, and should they all be required?
+//   // Code below assumes they are all set
+//   console.error("Missing required environment variables");
+//   process.exit(1);
+// }
 
 const app = express();
 
@@ -55,6 +61,10 @@ app.post("/verify", async (req: Request, res: Response) => {
       client = createConnectedClient(paymentRequirements.network);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else if (paymentPayload.network === "sui-testnet") {
+      client = sui.createClient(paymentRequirements.network, SUI_TESTNET_RPC_URL);
+    } else if (paymentPayload.network === "sui") {
+      client = sui.createClient(paymentRequirements.network, SUI_MAINNET_RPC_URL);
     } else {
       throw new Error("Invalid network");
     }
@@ -117,17 +127,21 @@ app.post("/settle", async (req: Request, res: Response) => {
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
 
     // use the correct private key based on the requested network
-    let signer: Signer;
+    let signerOrClient: Signer | ConnectedClient;
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      signer = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
+      signerOrClient = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      signer = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+      signerOrClient = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else if (paymentPayload.network === "sui-testnet") {
+      signerOrClient = sui.createClient(paymentRequirements.network, SUI_TESTNET_RPC_URL);
+    } else if (paymentPayload.network === "sui") {
+      signerOrClient = sui.createClient(paymentRequirements.network, SUI_MAINNET_RPC_URL);
     } else {
       throw new Error("Invalid network");
     }
 
     // settle
-    const response = await settle(signer, paymentPayload, paymentRequirements);
+    const response = await settle(signerOrClient, paymentPayload, paymentRequirements);
     res.json(response);
   } catch (error) {
     console.error("error", error);

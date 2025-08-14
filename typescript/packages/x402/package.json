@@ -50,6 +50,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@mysten/sui": "^1.37.1",
     "@solana-program/compute-budget": "^0.8.0",
     "@solana-program/token": "^0.5.1",
     "@solana-program/token-2022": "^0.4.2",
@@ -79,6 +80,26 @@
       "require": {
         "types": "./dist/cjs/shared/evm/index.d.ts",
         "default": "./dist/cjs/shared/evm/index.js"
+      }
+    },
+    "./shared/svm": {
+      "import": {
+        "types": "./dist/esm/shared/svm/index.d.mts",
+        "default": "./dist/esm/shared/svm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/svm/index.d.ts",
+        "default": "./dist/cjs/shared/svm/index.js"
+      }
+    },
+    "./shared/sui": {
+      "import": {
+        "types": "./dist/esm/shared/sui/index.d.mts",
+        "default": "./dist/esm/shared/sui/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/sui/index.d.ts",
+        "default": "./dist/cjs/shared/sui/index.js"
       }
     },
     "./schemes": {

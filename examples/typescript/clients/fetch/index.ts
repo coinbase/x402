@@ -1,6 +1,14 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { createSigner } from "x402/types";
+import {
+  createSigner,
+  Network,
+  sui,
+  SuiWallet,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  Wallet,
+} from "x402/types";
 import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
@@ -8,6 +16,7 @@ config();
 const privateKey = process.env.PRIVATE_KEY as Hex | string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
+const network = (process.env.NETWORK ?? "base-sepolia") as Network;
 const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
 
 if (!baseURL || !privateKey || !endpointPath) {
@@ -24,8 +33,20 @@ if (!baseURL || !privateKey || !endpointPath) {
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana-devnet", privateKey);  // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
+  let signer: Wallet;
+
+  if (SupportedEVMNetworks.includes(network) || SupportedSVMNetworks.includes(network)) {
+    signer = (await createSigner(network, privateKey as string)) as Wallet;
+  } else if (network === "sui-testnet") {
+    signer = SuiWallet.fromSigner(
+      await sui.createSigner(privateKey as string),
+      sui.createClient(network, "https://fullnode.testnet.sui.io:443"),
+      network,
+    );
+  } else {
+    throw new Error(`Unsupported network: ${network}`);
+  }
+
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
   const response = await fetchWithPayment(url, { method: "GET" });

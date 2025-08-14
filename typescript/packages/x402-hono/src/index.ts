@@ -18,6 +18,7 @@ import {
   RoutesConfig,
   settleResponseHeader,
   PaywallConfig,
+  SupportedEVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -106,6 +107,10 @@ export function paymentMiddleware(
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
     const resourceUrl: Resource = resource || (c.req.url as Resource);
+    const payToAddress = SupportedEVMNetworks.includes(network) ? getAddress(payTo) : payTo;
+    const assetAddress = SupportedEVMNetworks.includes(network)
+      ? getAddress(asset.address)
+      : asset.address;
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -115,9 +120,9 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
+        payTo: payToAddress,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
+        asset: assetAddress,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -185,6 +190,7 @@ export function paymentMiddleware(
     // Verify payment
     let decodedPayment: PaymentPayload;
     try {
+      // TODO: why is this scoped to evm?
       decodedPayment = exact.evm.decodePayment(payment);
       decodedPayment.x402Version = x402Version;
     } catch (error) {

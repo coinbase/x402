@@ -1,10 +1,11 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { SupportedEVMNetworks, SupportedSuiNetworks, SupportedSVMNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
   SignerWallet as EvmSignerWallet,
 } from "../types/shared/evm";
+import { verify as verifyExactSui, settle as settleExactSui } from "../schemes/exact/sui";
 import { ConnectedClient, Signer } from "../types/shared/wallet";
 import {
   PaymentPayload,
@@ -15,7 +16,7 @@ import {
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
-
+import { SuiClient } from "../types/shared/sui";
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
  * this function wraps all verify functions for each specific scheme
@@ -49,6 +50,11 @@ export async function verify<
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements);
     }
+
+    // sui
+    if (SupportedSuiNetworks.includes(paymentRequirements.network)) {
+      return await verifyExactSui(client as SuiClient, payload, paymentRequirements);
+    }
   }
 
   // unsupported scheme
@@ -71,7 +77,7 @@ export async function verify<
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
 export async function settle<transport extends Transport, chain extends Chain>(
-  client: Signer,
+  client: Signer | SuiClient,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
@@ -89,6 +95,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+
+    // sui
+    if (SupportedSuiNetworks.includes(paymentRequirements.network)) {
+      return await settleExactSui(client as SuiClient, payload, paymentRequirements);
     }
   }
 
