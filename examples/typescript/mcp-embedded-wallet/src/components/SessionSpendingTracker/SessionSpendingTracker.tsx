@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
-import { useStore } from "zustand/react";
-import { operationStore } from "../../stores/operations";
 import { Text, Flex, Dialog, Button } from "@radix-ui/themes";
 import { formatUSDCAmount } from "../../utils/chainConfig";
 import { useBudgetStore } from "../../stores/budget";
 import { BudgetModal } from "../BudgetModal";
 
 export const SessionSpendingTracker = () => {
-  const operations = useStore(operationStore, state => state.operations);
   const sessionSpentAtomic = useBudgetStore(state => state.sessionSpentAtomic);
   const sessionBudgetAtomic = useBudgetStore(state => state.sessionBudgetAtomic);
 

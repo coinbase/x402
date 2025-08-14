@@ -2,6 +2,7 @@ import { AxiosInstance } from "axios";
 import { Chain } from "viem";
 import { PaymentRequirements } from "x402/types";
 import { operationStore } from "../stores/operations";
+import { budgetStore } from "../stores/budget";
 import { checkUSDCBalanceForPaymentAtomic } from "./balanceChecker";
 import { formatUSDCAmount } from "./chainConfig";
 
@@ -336,6 +337,22 @@ async function performBudgetChecks(
       await updateOperationForBudgetCheckFailure(correlationId, errorMessage);
 
       throw new PaymentInterceptorError(errorMessage);
+    }
+
+    const { sessionBudgetAtomic, sessionSpentAtomic } = budgetStore.getState();
+    if (sessionBudgetAtomic) {
+      const remaining = Number(sessionBudgetAtomic) - Number(sessionSpentAtomic || "0");
+      if (selectedPaymentAmount > remaining) {
+        const errorMessage = `Payment required: $${formatUSDCAmount(
+          selectedPayment.maxAmountRequired,
+        )} exceeds remaining session budget: $${formatUSDCAmount(remaining.toString())}`;
+
+        console.error(`Budget check failed: ${errorMessage}`);
+
+        await updateOperationForBudgetCheckFailure(correlationId, errorMessage);
+
+        throw new PaymentInterceptorError(errorMessage);
+      }
     }
   } else {
     console.log("No max amount per request or selected payment found");

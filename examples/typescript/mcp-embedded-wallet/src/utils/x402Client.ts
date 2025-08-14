@@ -62,6 +62,15 @@ export async function makeX402Request({
   const finalCorrelationId =
     correlationId || `x402-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+  // Resolve max per-request budget: use explicit param if provided, otherwise pull from store (atomic)
+  const storePerRequestMaxAtomic = budgetStore.getState().perRequestMaxAtomic;
+  const effectiveMaxAmountPerRequest =
+    typeof maxAmountPerRequest === "number"
+      ? maxAmountPerRequest
+      : storePerRequestMaxAtomic
+        ? Number(storePerRequestMaxAtomic)
+        : undefined;
+
   // Create axios instance with payment tracking interceptors
   const axiosInstance = axios.create({ baseURL });
   const trackedInstance = createPaymentTrackingInterceptor(
@@ -69,7 +78,7 @@ export async function makeX402Request({
     finalCorrelationId,
     account.address,
     chain,
-    maxAmountPerRequest,
+    effectiveMaxAmountPerRequest,
     paymentRequirements, // Pass pre-discovered payment requirements
   );
   // Cast to any to work around axios version mismatch between dependencies
