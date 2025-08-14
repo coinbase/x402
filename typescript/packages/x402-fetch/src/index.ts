@@ -1,5 +1,10 @@
-import { ChainIdToNetwork, PaymentRequirementsSchema, Wallet } from "x402/types";
-import { evm } from "x402/types";
+import {
+  ChainIdToNetwork,
+  PaymentRequirementsSchema,
+  Signer,
+  isEvmSignerWallet,
+  evm,
+} from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
@@ -39,7 +44,7 @@ import {
  */
 export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
-  walletClient: Wallet,
+  walletClient: Signer,
   maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
@@ -56,7 +61,9 @@ export function wrapFetchWithPayment(
     };
     const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-    const chainId = evm.isSignerWallet(walletClient) ? walletClient.chain?.id : undefined;
+    const chainId = isEvmSignerWallet(walletClient)
+      ? (walletClient as unknown as typeof evm.EvmSigner).chain?.id
+      : undefined;
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,
       chainId ? ChainIdToNetwork[chainId] : undefined,

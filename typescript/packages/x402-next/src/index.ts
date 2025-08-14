@@ -152,7 +152,12 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: asset.eip712,
+        extra:
+          "eip712" in asset
+            ? asset.eip712
+            : {
+                feePayer: "",
+              },
       },
     ];
 
