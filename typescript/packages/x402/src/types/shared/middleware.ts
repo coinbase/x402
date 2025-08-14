@@ -4,6 +4,7 @@ import { Network } from "./network";
 import { Resource } from "./resource";
 import { LocalAccount } from "viem";
 import { SignerWallet } from "./evm";
+import { HTTPRequestStructure } from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -21,9 +22,17 @@ export type PaymentMiddlewareConfig = {
   description?: string;
   mimeType?: string;
   maxTimeoutSeconds?: number;
+  inputSchema?: Omit<HTTPRequestStructure, "type" | "method">;
   outputSchema?: object;
   customPaywallHtml?: string;
   resource?: Resource;
+  errorMessages?: {
+    paymentRequired?: string;
+    invalidPayment?: string;
+    noMatchingRequirements?: string;
+    verificationFailed?: string;
+    settlementFailed?: string;
+  };
 };
 
 export interface ERC20TokenAmount {

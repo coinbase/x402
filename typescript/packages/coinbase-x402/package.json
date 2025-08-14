@@ -1,6 +1,6 @@
 {
   "name": "@coinbase/x402",
-  "version": "0.4.2",
+  "version": "0.5.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +13,8 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "postinstall": "node scripts/postinstall.js"
   },
   "keywords": [],
   "license": "Apache-2.0",
@@ -38,7 +39,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.1.1",
+    "@coinbase/cdp-sdk": "^1.29.0",
     "viem": "^2.21.26",
     "x402": "workspace:^",
     "zod": "^3.24.2"
@@ -56,6 +57,7 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts"
   ]
 }

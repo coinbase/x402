@@ -81,14 +81,23 @@ export function paymentMiddleware(
   const routePatterns = computeRoutePatterns(routes);
 
   return async function paymentMiddleware(c: Context, next: () => Promise<void>) {
-    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, c.req.method.toUpperCase());
+    const method = c.req.method.toUpperCase();
+    const matchingRoute = findMatchingRoute(routePatterns, c.req.path, method);
     if (!matchingRoute) {
       return next();
     }
 
-    const { price, network } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      matchingRoute.config.config || {};
+    const { price, network, config = {} } = matchingRoute.config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+      errorMessages,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -109,7 +118,15 @@ export function paymentMiddleware(
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
-        outputSchema,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
         extra: asset.eip712,
       },
     ];
@@ -152,7 +169,7 @@ export function paymentMiddleware(
       }
       return c.json(
         {
-          error: "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
           accepts: paymentRequirements,
           x402Version,
         },
@@ -168,7 +185,9 @@ export function paymentMiddleware(
     } catch (error) {
       return c.json(
         {
-          error: error instanceof Error ? error : new Error("Invalid or malformed payment header"),
+          error:
+            errorMessages?.invalidPayment ||
+            (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
           accepts: paymentRequirements,
           x402Version,
         },
@@ -183,7 +202,8 @@ export function paymentMiddleware(
     if (!selectedPaymentRequirements) {
       return c.json(
         {
-          error: "Unable to find matching payment requirements",
+          error:
+            errorMessages?.noMatchingRequirements || "Unable to find matching payment requirements",
           accepts: toJsonSafe(paymentRequirements),
           x402Version,
         },
@@ -196,7 +216,7 @@ export function paymentMiddleware(
     if (!verification.isValid) {
       return c.json(
         {
-          error: new Error(verification.invalidReason),
+          error: errorMessages?.verificationFailed || verification.invalidReason,
           accepts: paymentRequirements,
           payer: verification.payer,
           x402Version,
@@ -229,7 +249,9 @@ export function paymentMiddleware(
     } catch (error) {
       res = c.json(
         {
-          error: error instanceof Error ? error : new Error("Failed to settle payment"),
+          error:
+            errorMessages?.settlementFailed ||
+            (error instanceof Error ? error : new Error("Failed to settle payment")),
           accepts: paymentRequirements,
           x402Version,
         },

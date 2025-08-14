@@ -1,5 +1,9 @@
 import { toJsonSafe } from "../shared";
-import { FacilitatorConfig } from "../types";
+import {
+  ListDiscoveryResourcesRequest,
+  ListDiscoveryResourcesResponse,
+  FacilitatorConfig,
+} from "../types";
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -12,6 +16,7 @@ const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 export type CreateHeaders = () => Promise<{
   verify: Record<string, string>;
   settle: Record<string, string>;
+  list?: Record<string, string>;
 }>;
 
 /**
@@ -96,7 +101,46 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as SettleResponse;
   }
 
-  return { verify, settle };
+  /**
+   * Lists the discovery items with the facilitator service
+   *
+   * @param config - The configuration for the discovery list request
+   * @returns A promise that resolves to the discovery list response
+   */
+  async function list(
+    config: ListDiscoveryResourcesRequest = {},
+  ): Promise<ListDiscoveryResourcesResponse> {
+    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+
+    let headers = { "Content-Type": "application/json" };
+    if (facilitator?.createAuthHeaders) {
+      const authHeaders = await facilitator.createAuthHeaders();
+      if (authHeaders.list) {
+        headers = { ...headers, ...authHeaders.list };
+      }
+    }
+
+    const urlParams = new URLSearchParams(
+      Object.entries(config)
+        .filter(([_, value]) => value !== undefined)
+        .map(([key, value]) => [key, value.toString()]),
+    );
+
+    const res = await fetch(`${url}/discovery/resources?${urlParams.toString()}`, {
+      method: "GET",
+      headers,
+    });
+
+    if (res.status !== 200) {
+      const text = res.statusText;
+      throw new Error(`Failed to list discovery: ${res.status} ${text}`);
+    }
+
+    const data = await res.json();
+    return data as ListDiscoveryResourcesResponse;
+  }
+
+  return { verify, settle, list };
 }
 
-export const { verify, settle } = useFacilitator();
+export const { verify, settle, list } = useFacilitator();
