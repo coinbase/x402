@@ -2,6 +2,7 @@ import axios from "axios";
 import { base, baseSepolia } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
+import { budgetStore } from "../stores/budget";
 import { operationStore, SettlementInfo } from "../stores/operations";
 import { getBlockExplorerUrl, formatUSDCAmount } from "./chainConfig";
 import { createPaymentTrackingInterceptor, PaymentInterceptorError } from "./paymentInterceptor";
@@ -238,6 +239,16 @@ async function updateOperationForSuccess(
         settlementInfo: settlementInfo, // Add settlement info with transaction hash
       });
       httpOperationUpdated = true;
+
+      // Increment session spent using the selected payment's maxAmountRequired (atomic)
+      const amountAtomic = operation.selectedPayment?.maxAmountRequired;
+      if (amountAtomic) {
+        try {
+          budgetStore.getState().addSpentAtomic(amountAtomic);
+        } catch {
+          // ignore budget update failures
+        }
+      }
     }
   });
 

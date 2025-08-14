@@ -1,6 +1,6 @@
 import { AxiosError } from "axios";
 import { operationStore } from "../stores/operations";
-import { x402Response } from "x402/types";
+import { type x402Response } from "x402/types";
 
 export interface ErrorHandlingContext {
   correlationId: string;
