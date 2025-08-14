@@ -2,9 +2,9 @@ import { CreateHeaders } from "../../verify";
 import { Money } from "./money";
 import { Network } from "./network";
 import { Resource } from "./resource";
-import { LocalAccount } from "viem";
-import { SignerWallet } from "./evm";
+import { EvmSigner } from "./evm";
 import { HTTPRequestStructure } from "..";
+import { SuiWallet } from "./sui";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -48,7 +48,27 @@ export interface ERC20TokenAmount {
   };
 }
 
-export type Price = Money | ERC20TokenAmount;
+export interface SPLTokenAmount {
+  amount: string;
+  asset: {
+    address: string;
+    decimals: number;
+  };
+}
+
+export interface SuiTokenAmount {
+  amount: string;
+  asset: {
+    // TODO: address is misleading because we really want coinType,
+    // but using address means we don't need to update all the middleware to set
+    // asset in payment requirements to either address or coinType depending on the network
+    address: string;
+    coinType: string;
+    decimals: number;
+  };
+}
+
+export type Price = Money | ERC20TokenAmount | SPLTokenAmount | SuiTokenAmount;
 
 export interface RouteConfig {
   price: Price;
@@ -64,4 +84,4 @@ export interface RoutePattern {
   config: RouteConfig;
 }
 
-export type Wallet = SignerWallet | LocalAccount;
+export type Wallet = EvmSigner | SuiWallet;

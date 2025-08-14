@@ -1,10 +1,11 @@
 import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware, Resource } from "x402-express";
+import { type Address as SolanaAddress } from "@solana/addresses";
 config();
 
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource;
-const payTo = process.env.ADDRESS as `0x${string}`;
+const payTo = process.env.ADDRESS as `0x${string}` | SolanaAddress;
 
 if (!facilitatorUrl || !payTo) {
   console.error("Missing required environment variables");
@@ -21,6 +22,7 @@ app.use(
         // USDC amount in dollars
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
+        // network: "solana" // uncomment for Solana mainnet
         network: "base-sepolia",
       },
       "/premium/*": {
@@ -30,6 +32,7 @@ app.use(
           asset: {
             address: "0xabc",
             decimals: 18,
+            // omit eip712 for Solana
             eip712: {
               name: "WETH",
               version: "1",
@@ -37,6 +40,7 @@ app.use(
           },
         },
         // network: "base" // uncomment for Base mainnet
+        // network: "solana" // uncomment for Solana mainnet
         network: "base-sepolia",
       },
     },

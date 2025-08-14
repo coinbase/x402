@@ -29,7 +29,7 @@ export function WalletConnect() {
         disabled={isConnecting}
         className="connect-btn"
       >
-        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+        {isConnecting ? 'Connecting...' : 'Connect to Evm Wallet'}
       </button>
       {error && (
         <div className="error-message">
@@ -38,4 +38,4 @@ export function WalletConnect() {
       )}
     </div>
   );
-} 
+}

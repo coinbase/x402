@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
 import type { WalletClient } from "viem";
-import { withPaymentInterceptor } from "x402-axios";
+import { SuiWallet, withPaymentInterceptor } from "x402-axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 
@@ -17,11 +17,11 @@ const baseApiClient = axios.create({
 let apiClient: AxiosInstance = baseApiClient;
 
 // Update the API client with a wallet
-export function updateApiClient(walletClient: WalletClient | null) {
-  if (walletClient && walletClient.account) {
+export function updateApiClient(walletClient: WalletClient | SuiWallet | null) {
+  if (walletClient && (walletClient instanceof SuiWallet || walletClient.account)) {
     // Create axios instance with x402 payment interceptor
-    apiClient = withPaymentInterceptor(baseApiClient, walletClient as any);
-    console.log("💳 API client updated with wallet:", walletClient.account.address);
+    apiClient = withPaymentInterceptor(baseApiClient, walletClient as SuiWallet);
+    console.log("💳 API client updated with wallet:", (walletClient as SuiWallet).address);
   } else {
     // No wallet connected - reset to base client
     apiClient = baseApiClient;
@@ -89,4 +89,4 @@ export interface SessionValidation {
   valid: boolean;
   error?: string;
   session?: Session;
-} 
+}

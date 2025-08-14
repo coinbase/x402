@@ -1,13 +1,22 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import {
+  createSigner,
+  Network,
+  sui,
+  SuiWallet,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  Wallet,
+} from "x402/types";
 import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex;
+const privateKey = process.env.PRIVATE_KEY as Hex | string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
+const network = (process.env.NETWORK ?? "base-sepolia") as Network;
 const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
 
 if (!baseURL || !privateKey || !endpointPath) {
@@ -15,20 +24,40 @@ if (!baseURL || !privateKey || !endpointPath) {
   process.exit(1);
 }
 
-const account = privateKeyToAccount(privateKey);
+/**
+ * This example shows how to use the x402-fetch package to make a request to a resource server that requires a payment.
+ *
+ * To run this example, you need to set the following environment variables:
+ * - PRIVATE_KEY: The private key of the signer
+ * - RESOURCE_SERVER_URL: The URL of the resource server
+ * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
+ */
+async function main(): Promise<void> {
+  let signer: Wallet;
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, account);
+  if (SupportedEVMNetworks.includes(network) || SupportedSVMNetworks.includes(network)) {
+    signer = (await createSigner(network, privateKey as string)) as Wallet;
+  } else if (network === "sui-testnet") {
+    signer = SuiWallet.fromSigner(
+      await sui.createSigner(privateKey as string),
+      sui.createClient(network, "https://fullnode.testnet.sui.io:443"),
+      network,
+    );
+  } else {
+    throw new Error(`Unsupported network: ${network}`);
+  }
 
-fetchWithPayment(url, {
-  method: "GET",
-})
-  .then(async response => {
-    const body = await response.json();
-    console.log(body);
+  const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
-    const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
-    console.log(paymentResponse);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+  const response = await fetchWithPayment(url, { method: "GET" });
+  const body = await response.json();
+  console.log(body);
+
+  const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
+  console.log(paymentResponse);
+}
+
+main().catch(error => {
+  console.error(error?.response?.data?.error ?? error);
+  process.exit(1);
+});
