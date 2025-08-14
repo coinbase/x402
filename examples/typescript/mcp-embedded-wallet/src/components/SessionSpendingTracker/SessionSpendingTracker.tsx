@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Text, Flex, Dialog, Button } from "@radix-ui/themes";
+import { Text, Flex, Dialog } from "@radix-ui/themes";
 import { formatUSDCAmount } from "../../utils/chainConfig";
 import { useBudgetStore } from "../../stores/budget";
 import { BudgetModal } from "../BudgetModal";
+import { Button } from "../Button";
 
 export const SessionSpendingTracker = () => {
   const sessionSpentAtomic = useBudgetStore(state => state.sessionSpentAtomic);
@@ -40,20 +41,14 @@ export const SessionSpendingTracker = () => {
     <Flex align="baseline" gap="2">
       <Dialog.Root>
         <Dialog.Trigger>
-          <Button size="2" radius="large" onClick={() => setIsBudgetOpen(true)}>
+          <Button size="2" variant="soft" radius="large" onClick={() => setIsBudgetOpen(true)}>
             <Text size="2">Budget remaining: ${formattedRemaining} USDC</Text>
           </Button>
         </Dialog.Trigger>
-        <Dialog.Content maxWidth="800px" height="80vh">
+        <Dialog.Content maxWidth="450px">
           <BudgetModal isOpen={isBudgetOpen} onClose={() => setIsBudgetOpen(false)} />
         </Dialog.Content>
       </Dialog.Root>
-
-      {formattedRemaining && (
-        <Text size="1" color="gray">
-          (${formattedTotal} spent)
-        </Text>
-      )}
     </Flex>
   );
 };

@@ -151,8 +151,8 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
                   <Text size="2">USDC</Text>
                 </TextField.Slot>
               </TextField.Root>
-              <Button size="2" onClick={handleSaveBudget} disabled={isSavingBudget}>
-                {isSavingBudget ? "Processing..." : "Save"}
+              <Button size="2" onClick={handleSaveBudget}>
+                Save
               </Button>
             </Flex>
           </Flex>
@@ -191,8 +191,8 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
                   <Text size="2">USDC</Text>
                 </TextField.Slot>
               </TextField.Root>
-              <Button size="2" onClick={handleSaveBudget} disabled={isSavingBudget}>
-                {isSavingBudget ? "Processing..." : "Save"}
+              <Button size="2" onClick={handleSaveBudget}>
+                Save
               </Button>
             </Flex>
           </Flex>
