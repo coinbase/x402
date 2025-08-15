@@ -423,8 +423,8 @@ importers:
         specifier: ^1.22.0
         version: 1.22.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)
       next:
-        specifier: ^15.2.4
-        version: 15.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        specifier: ^15.0.0
+        version: 15.4.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       viem:
         specifier: ^2.21.26
         version: 2.28.3(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.24.3)
@@ -12597,8 +12597,7 @@ snapshots:
 
   '@next/env@15.4.0-canary.107': {}
 
-  '@next/env@15.4.0-canary.57':
-    optional: true
+  '@next/env@15.4.0-canary.57': {}
 
   '@next/eslint-plugin-next@15.1.7':
     dependencies:
@@ -21097,7 +21096,6 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
-    optional: true
 
   next@15.4.0-canary.107(@babel/core@7.26.10)(react-dom@19.1.0(react@19.1.0))(react@19.1.0):
     dependencies:
