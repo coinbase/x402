@@ -12,6 +12,12 @@ interface ReceiveModalProps {
   onClose?: () => void;
 }
 
+/**
+ *
+ * @param root0
+ * @param root0.isOpen
+ * @param root0.onClose
+ */
 export function ReceiveModal({ isOpen, onClose }: ReceiveModalProps) {
   const { evmAddress } = useEvmAddress();
   const [copied, setCopied] = useState(false);

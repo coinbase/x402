@@ -13,6 +13,12 @@ interface BudgetModalProps {
   onClose?: () => void;
 }
 
+/**
+ *
+ * @param root0
+ * @param root0.isOpen
+ * @param root0.onClose
+ */
 export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   const { evmAddress: fromAddress } = useEvmAddress();
   const sessionBudgetAtomic = useBudgetStore(state => state.sessionBudgetAtomic);
@@ -23,8 +29,10 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   // Local display values in USDC (human units)
   const [sessionBudgetDisplay, setSessionBudgetDisplay] = useState<string>("");
   const [perRequestMaxDisplay, setPerRequestMaxDisplay] = useState<string>("");
-  const [isSavingBudget, setIsSavingBudget] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sessionBudgetError, setSessionBudgetError] = useState<string | null>(null);
+  const [perRequestMaxError, setPerRequestMaxError] = useState<string | null>(null);
+  const [sessionBudgetSuccess, setSessionBudgetSuccess] = useState(false);
+  const [perRequestMaxSuccess, setPerRequestMaxSuccess] = useState(false);
 
   // Convert a USDC display string to atomic string (6 decimals)
   const parseUSDCToAtomic = (input: string): string | null => {
@@ -42,6 +50,16 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
     }
   };
 
+  const handleSessionBudgetChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setSessionBudgetDisplay(e.target.value);
+    setSessionBudgetError(null);
+  };
+
+  const handlePerRequestMaxChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setPerRequestMaxDisplay(e.target.value);
+    setPerRequestMaxError(null);
+  };
+
   const resetForm = () => {
     setSessionBudgetDisplay(sessionBudgetAtomic ? formatUSDCAmount(sessionBudgetAtomic) : "");
     setPerRequestMaxDisplay(perRequestMaxAtomic ? formatUSDCAmount(perRequestMaxAtomic) : "");
@@ -52,58 +70,87 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
     onClose?.();
   };
 
-  const validateForm = (): boolean => {
+  const validateSessionBudget = (): boolean => {
     // Validate session budget
     const sessionAtomic = parseUSDCToAtomic(sessionBudgetDisplay);
     if (!sessionAtomic) {
-      setError("Enter a valid session budget (up to 6 decimals)");
+      setSessionBudgetError("Enter a valid session budget");
       return false;
     }
     if (BigInt(sessionAtomic) <= 0n) {
-      setError("Session budget must be greater than 0");
+      setSessionBudgetError("Session budget must be greater than 0");
       return false;
     }
-
-    // Validate per-request max
-    const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
-    if (!perReqAtomic) {
-      setError("Enter a valid max amount per operation (up to 6 decimals)");
-      return false;
-    }
-    if (BigInt(perReqAtomic) <= 0n) {
-      setError("Max amount per operation must be greater than 0");
-      return false;
-    }
-
-    // Optional: per-request must not exceed session budget
-    if (BigInt(perReqAtomic) > BigInt(sessionAtomic)) {
-      setError("Max per operation cannot exceed the session budget");
-      return false;
-    }
-
-    setError(null);
+    setSessionBudgetError(null);
     return true;
   };
 
-  const handleSaveBudget = async () => {
-    if (!validateForm() || !fromAddress) return;
+  const validatePerRequestMax = (): boolean => {
+    // Validate per-request max
+    const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
+    if (!perReqAtomic) {
+      setPerRequestMaxError("Enter a valid max amount per operation");
+      return false;
+    }
+    if (BigInt(perReqAtomic) <= 0n) {
+      setPerRequestMaxError("Max amount per operation must be greater than 0");
+      return false;
+    }
+    if (BigInt(perReqAtomic) > BigInt(sessionBudgetAtomic ?? 0n)) {
+      setPerRequestMaxError("Max per operation cannot exceed the session budget");
+      return false;
+    }
 
-    setIsSavingBudget(true);
-    setError(null);
+    setPerRequestMaxError(null);
+    return true;
+  };
+
+  const handleSaveSessionBudget = async () => {
+    if (!validateSessionBudget() || !fromAddress) return;
+
+    setSessionBudgetError(null);
 
     try {
       const sessionAtomic = parseUSDCToAtomic(sessionBudgetDisplay);
-      const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
-      if (!sessionAtomic || !perReqAtomic) return;
+      if (!sessionAtomic) return;
 
       setSessionBudgetAtomic(sessionAtomic);
-      setPerRequestMaxAtomic(perReqAtomic);
     } catch (err) {
-      console.error("Error saving budget:", err);
+      console.error("Error saving session budget:", err);
     } finally {
-      setIsSavingBudget(false);
+      setSessionBudgetSuccess(true);
     }
   };
+
+  const handleSavePerRequestMax = async () => {
+    if (!validatePerRequestMax() || !fromAddress) return;
+
+    setPerRequestMaxError(null);
+
+    try {
+      const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
+      if (!perReqAtomic) return;
+
+      setPerRequestMaxAtomic(perReqAtomic);
+    } catch (err) {
+      console.error("Error saving per-request max:", err);
+    } finally {
+      setPerRequestMaxSuccess(true);
+    }
+  };
+
+  // Auto-reset success states after 1s so button text returns to "Save"
+  useEffect(() => {
+    if (!sessionBudgetSuccess) return;
+    const timeoutId = setTimeout(() => setSessionBudgetSuccess(false), 1000);
+    return () => clearTimeout(timeoutId);
+  }, [sessionBudgetSuccess]);
+
+  useEffect(() => {
+    if (!perRequestMaxSuccess) return;
+    const timeoutId = setTimeout(() => setPerRequestMaxSuccess(false), 1000);
+    return () => clearTimeout(timeoutId);
+  }, [perRequestMaxSuccess]);
 
   // Initialize display values when modal opens or store values change
   useEffect(() => {
@@ -139,9 +186,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
             <Flex gap="2">
               <TextField.Root
                 value={sessionBudgetDisplay}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setSessionBudgetDisplay(e.target.value)
-                }
+                onChange={handleSessionBudgetChange}
                 placeholder="Enter session budget (in USDC)"
               >
                 <TextField.Slot>
@@ -151,17 +196,16 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
                   <Text size="2">USDC</Text>
                 </TextField.Slot>
               </TextField.Root>
-              <Button size="2" onClick={handleSaveBudget}>
-                Save
+              <Button size="2" onClick={handleSaveSessionBudget}>
+                {sessionBudgetSuccess ? "Saved!" : "Save"}
               </Button>
             </Flex>
+            {sessionBudgetError && (
+              <Text color="red" size="1">
+                {sessionBudgetError}
+              </Text>
+            )}
           </Flex>
-
-          {error && (
-            <Text color="red" size="2">
-              {error}
-            </Text>
-          )}
         </Flex>
       </Card>
 
@@ -179,9 +223,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
             <Flex gap="2">
               <TextField.Root
                 value={perRequestMaxDisplay}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setPerRequestMaxDisplay(e.target.value)
-                }
+                onChange={handlePerRequestMaxChange}
                 placeholder="Enter max amount per operation"
               >
                 <TextField.Slot>
@@ -191,17 +233,16 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
                   <Text size="2">USDC</Text>
                 </TextField.Slot>
               </TextField.Root>
-              <Button size="2" onClick={handleSaveBudget}>
-                Save
+              <Button size="2" onClick={handleSavePerRequestMax}>
+                {perRequestMaxSuccess ? "Saved!" : "Save"}
               </Button>
             </Flex>
+            {perRequestMaxError && (
+              <Text color="red" size="1">
+                {perRequestMaxError}
+              </Text>
+            )}
           </Flex>
-
-          {error && (
-            <Text color="red" size="2">
-              {error}
-            </Text>
-          )}
         </Flex>
       </Card>
     </Flex>

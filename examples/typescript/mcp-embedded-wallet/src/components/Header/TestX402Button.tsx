@@ -1,6 +1,9 @@
 import { Button } from "../Button";
 import { makeX402Request } from "../../utils/x402Client";
 
+/**
+ *
+ */
 export function TestX402Button() {
   const handleTestX402 = async () => {
     try {
