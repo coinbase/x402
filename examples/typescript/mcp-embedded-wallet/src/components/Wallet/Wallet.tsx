@@ -1,6 +1,6 @@
 import { useCurrentUser, useEvmAddress } from "@coinbase/cdp-hooks";
 
-import { Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
+import { Box, Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
 import { Button } from "../Button";
 import {
   CheckIcon,
@@ -30,7 +30,7 @@ export function Wallet() {
 
   const { currentUser } = useCurrentUser();
   const email = currentUser?.authenticationMethods.email?.email;
-  const truncatedAddress = evmAddress ? `${evmAddress.slice(0, 6)}...${evmAddress.slice(-4)}` : "";
+  const truncatedAddress = evmAddress ? `${evmAddress.slice(0, 10)}...${evmAddress.slice(-8)}` : "";
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -57,7 +57,7 @@ export function Wallet() {
       <Popover.Trigger>
         <Button variant="soft">{email}</Button>
       </Popover.Trigger>
-      <Popover.Content minWidth="180px" maxWidth="200px" onOpenAutoFocus={e => e.preventDefault()}>
+      <Popover.Content maxWidth="300px" onOpenAutoFocus={e => e.preventDefault()}>
         <Flex direction="column" gap="3">
           <Flex direction="column" gap="1">
             <Text size="2" color="gray">
@@ -122,11 +122,9 @@ export function Wallet() {
 
           <Separator size="4" orientation="horizontal" />
 
-          <Flex gap="3" justify="between">
-            <Popover.Close>
-              <SignOutButton />
-            </Popover.Close>
-          </Flex>
+          <Popover.Close>
+            <SignOutButton />
+          </Popover.Close>
         </Flex>
       </Popover.Content>
     </Popover.Root>
