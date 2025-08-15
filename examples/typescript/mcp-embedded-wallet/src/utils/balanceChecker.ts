@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect } from "react";
 import { createPublicClient, http, parseUnits, publicActions, Address, Chain } from "viem";
 import { getUSDCBalance } from "x402/shared/evm";
-import { formatUSDCAmount } from "./chainConfig";
+import { formatUSDC } from "./chainConfig";
 
 export interface BalanceCheckResult {
   isSufficient: boolean;
@@ -52,8 +52,8 @@ export async function checkUSDCBalanceForPayment(
 
     const isSufficient = currentBalance >= requiredBigInt;
 
-    const formattedBalance = formatUSDCAmount(currentBalance.toString());
-    const formattedRequiredAmount = formatUSDCAmount(requiredBigInt.toString());
+    const formattedBalance = formatUSDC(currentBalance.toString());
+    const formattedRequiredAmount = formatUSDC(requiredBigInt.toString());
 
     console.log(
       `USDC Balance check: ${formattedBalance} available, ${formattedRequiredAmount} required (sufficient: ${isSufficient})`,
@@ -98,7 +98,7 @@ export async function checkUSDCBalanceForPaymentAtomic(
 
     const isSufficient = currentBalance >= requiredBigInt;
 
-    const formattedBalance = formatUSDCAmount(currentBalance.toString());
+    const formattedBalance = formatUSDC(currentBalance.toString());
 
     console.log(
       `USDC Balance check (atomic): ${currentBalance} available, ${requiredBigInt} required (sufficient: ${isSufficient})`,
@@ -148,7 +148,7 @@ export function useUSDCBalance(address: Address | undefined, paymentChain: Chain
       }).extend(publicActions);
       const balance = await getUSDCBalance(publicClient, address);
       console.log("Balance:", balance);
-      setFormattedBalance(formatUSDCAmount(balance.toString()));
+      setFormattedBalance(formatUSDC(balance.toString()));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to fetch balance";
       setError(errorMessage);
@@ -201,7 +201,7 @@ export async function ensureSufficientUSDCBalance(
 
   const requiredAmount = parseUnits(amount.toString(), 6);
   if (balance < requiredAmount) {
-    const formattedBalance = formatUSDCAmount(balance.toString());
+    const formattedBalance = formatUSDC(balance.toString());
     throw new Error(
       `Insufficient USDC balance. You have ${formattedBalance} but need ${amount} USDC`,
     );

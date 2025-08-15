@@ -52,6 +52,7 @@ export interface HttpOperation extends BaseOperation {
   errorMessage?: string; // Error details if status is "error"
 
   // X402 specific fields
+  maxAmountPerRequest?: number; // Max amount per request
   paymentRequirements?: PaymentRequirements[]; // From 402 response 'accepts'
   selectedPayment?: PaymentRequirements; // Which payment option was chosen
   settlementInfo?: SettlementInfo; // From X-PAYMENT-RESPONSE header
@@ -85,6 +86,7 @@ export interface OperationStore {
     url: string,
     errorMessage?: string,
     correlationId?: string,
+    maxAmountPerRequest?: number,
     paymentRequirements?: PaymentRequirements[],
     selectedPayment?: PaymentRequirements,
     settlementInfo?: SettlementInfo,
@@ -116,6 +118,7 @@ export const operationStore = createStore<OperationStore>(set => ({
     url: string,
     errorMessage?: string,
     correlationId?: string,
+    maxAmountPerRequest?: number,
     paymentRequirements?: PaymentRequirements[],
     selectedPayment?: PaymentRequirements,
     settlementInfo?: SettlementInfo,
@@ -133,6 +136,7 @@ export const operationStore = createStore<OperationStore>(set => ({
           url,
           errorMessage,
           correlationId,
+          maxAmountPerRequest,
           paymentRequirements,
           selectedPayment,
           settlementInfo,

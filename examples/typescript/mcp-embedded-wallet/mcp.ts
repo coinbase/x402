@@ -24,6 +24,7 @@ const x402RequestSchema = z.object({
     .string()
     .optional()
     .describe("Optional correlation ID to group related x402 operations together"),
+  maxAmountPerRequest: z.number().optional().describe("Optional max amount per request"),
   paymentRequirements: z
     .array(z.any())
     .optional()

@@ -1,5 +1,5 @@
 import { Operation, HttpOperation } from "../stores/operations";
-import { formatUSDCAmount } from "./chainConfig";
+import { formatUSDC } from "./chainConfig";
 
 /**
  * Extracts and formats the payment amount from a group of operations.
@@ -18,7 +18,7 @@ export function getPaymentAmount(operations: Operation[]): string {
     return "Unknown";
   }
 
-  return formatUSDCAmount(paymentOp.selectedPayment.maxAmountRequired);
+  return formatUSDC(paymentOp.selectedPayment.maxAmountRequired);
 }
 
 /**
