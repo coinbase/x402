@@ -703,24 +703,9 @@ importers:
 
   clients/fetch:
     dependencies:
-      '@solana/kit':
-        specifier: ^2.1.1
-        version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
-      axios:
-        specifier: ^1.7.9
-        version: 1.11.0
-      bs58:
-        specifier: ^6.0.0
-        version: 6.0.0
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
-      viem:
-        specifier: ^2.21.26
-        version: 2.33.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402
       x402-fetch:
         specifier: workspace:*
         version: link:../../../../typescript/packages/x402-fetch
@@ -739,7 +724,7 @@ importers:
         version: 9.33.0(jiti@1.21.7)
       eslint-plugin-import:
         specifier: ^2.31.0
-        version: 2.32.0(@typescript-eslint/parser@8.39.1(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@1.21.7))
+        version: 2.32.0(@typescript-eslint/parser@8.39.1(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2))(eslint@9.33.0(jiti@1.21.7))
       eslint-plugin-jsdoc:
         specifier: ^50.6.9
         version: 50.8.0(eslint@9.33.0(jiti@1.21.7))

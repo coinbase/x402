@@ -8,7 +8,7 @@ import {
   type SolanaRpcApiMainnet,
   isKeyPairSigner,
 } from "@solana/kit";
-import bs58 from "bs58";
+import { base58 } from "@scure/base";
 import { getRpcClient } from "./rpc";
 import { Network, SupportedSVMNetworks } from "../../types/shared";
 export type { KeyPairSigner } from "@solana/kit";
@@ -37,7 +37,7 @@ export function createSvmConnectedClient(network: string): SvmConnectedClient {
  */
 export async function createSignerFromBase58(privateKey: string): Promise<KeyPairSigner> {
   // decode the base58 encoded private key
-  const bytes = bs58.decode(privateKey);
+  const bytes = base58.decode(privateKey);
 
   // generate a keypair signer from the bytes based on the byte-length
   // 64 bytes represents concatenated private + public key

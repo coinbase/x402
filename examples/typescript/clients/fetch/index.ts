@@ -1,7 +1,5 @@
 import { config } from "dotenv";
-import { Hex } from "viem";
-import { createSigner } from "x402/types";
-import { decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
+import { decodeXPaymentResponse, wrapFetchWithPayment, createSigner, type Hex } from "x402-fetch";
 
 config();
 
@@ -24,7 +22,7 @@ if (!baseURL || !privateKey || !endpointPath) {
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana", privateKey); // uncomment for solana
+  // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
   const signer = await createSigner("base-sepolia", privateKey);
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 

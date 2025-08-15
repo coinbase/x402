@@ -104,3 +104,5 @@ export function wrapFetchWithPayment(
 }
 
 export { decodeXPaymentResponse } from "x402/shared";
+export { createSigner } from "x402/types";
+export type { Hex } from "viem";

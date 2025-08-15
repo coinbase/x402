@@ -10,12 +10,7 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@solana/kit": "^2.1.1",
-    "axios": "^1.7.9",
-    "bs58": "^6.0.0",
     "dotenv": "^16.4.7",
-    "viem": "^2.21.26",
-    "x402": "workspace:*",
     "x402-fetch": "workspace:*"
   },
   "devDependencies": {
