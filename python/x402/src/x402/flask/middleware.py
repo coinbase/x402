@@ -152,7 +152,13 @@ class PaymentMiddleware:
                     return next_app(environ, start_response)
 
                 # Get resource URL if not explicitly provided
-                resource_url = config["resource"] or request.url
+                original_uri = request.headers.get("X-Original-URI")
+                if original_uri:
+                    # Reconstruct the full URL using the original URI from the proxy
+                    resource_url = f"{request.scheme}://{request.host}{original_uri}"
+                else:
+                    # Fallback to request.url if the header is not present
+                    resource_url = config["resource"] or request.url
 
                 # Construct payment details
                 payment_requirements = [
