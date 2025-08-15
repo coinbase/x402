@@ -4,11 +4,13 @@ import { exact } from "x402/schemes";
 import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
 import {
   FacilitatorConfig,
+  Network,
   PaymentMiddlewareConfig,
   PaymentPayload,
   PaymentRequirements,
   RouteConfig,
 } from "x402/types";
+import type { Address as SolanaAddress } from "@solana/kit";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
 
@@ -699,6 +701,163 @@ describe("paymentMiddleware()", () => {
 
     // Restore original NextResponse.next
     mockNext.mockRestore();
+  });
+
+  it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
+    const solanaRoutesConfig = {
+      "/protected/*": {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    } as const;
+
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddress12345";
+
+    const mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "solana-devnet", extra: { feePayer } }],
+    });
+
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareSol = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    const response = await middlewareSol(request);
+
+    expect(response.status).toBe(402);
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        x402Version: 1,
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana-devnet",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("should return 402 with feePayer for solana when no payment header is present", async () => {
+    const solanaRoutesConfig = {
+      "/protected/*": {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    } as const;
+
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddressMainnet";
+
+    const mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "solana", extra: { feePayer } }],
+    });
+
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareSol = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    const response = await middlewareSol(request);
+
+    expect(response.status).toBe(402);
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        x402Version: 1,
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("should throw error for unsupported network", async () => {
+    const unsupportedRoutesConfig = {
+      "/protected/*": {
+        price: "$0.001",
+        network: "unsupported-network" as Network,
+        config: middlewareConfig,
+      },
+    } as const;
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "unsupported-network" as Network,
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareUnsupported = paymentMiddleware(
+      payTo,
+      unsupportedRoutesConfig,
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    await expect(middlewareUnsupported(request)).rejects.toThrow(
+      "Unsupported network: unsupported-network",
+    );
   });
 
   describe("session token integration", () => {

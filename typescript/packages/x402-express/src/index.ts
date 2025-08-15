@@ -351,3 +351,4 @@ export type {
   RouteConfig,
   RoutesConfig,
 } from "x402/types";
+export type { Address as SolanaAddress } from "@solana/kit";

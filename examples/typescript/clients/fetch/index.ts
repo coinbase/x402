@@ -24,7 +24,7 @@ if (!baseURL || !privateKey || !endpointPath) {
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana-devnet", privateKey);  // uncomment for solana
+  // const signer = await createSigner("solana", privateKey); // uncomment for solana
   const signer = await createSigner("base-sepolia", privateKey);
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 

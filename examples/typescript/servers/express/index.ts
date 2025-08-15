@@ -1,7 +1,6 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, Resource } from "x402-express";
-import { type Address as SolanaAddress } from "@solana/addresses";
+import { paymentMiddleware, Resource, type SolanaAddress } from "x402-express";
 config();
 
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource;
