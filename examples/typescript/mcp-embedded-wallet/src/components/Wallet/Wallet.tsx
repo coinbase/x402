@@ -1,14 +1,21 @@
 import { useCurrentUser, useEvmAddress } from "@coinbase/cdp-hooks";
 
-import { Dialog, Flex, Popover, Text, Tooltip } from "@radix-ui/themes";
+import { Box, Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
 import { Button } from "../Button";
-import { CheckIcon, ClipboardCopyIcon, ReloadIcon } from "@radix-ui/react-icons";
+import {
+  CheckIcon,
+  ClipboardCopyIcon,
+  ReloadIcon,
+  ArrowUpIcon,
+  ArrowDownIcon,
+} from "@radix-ui/react-icons";
 import { useChain } from "../../ChainProvider";
 import { useUSDCBalance } from "../../utils/balanceChecker";
 import { useState } from "react";
 import styles from "./Wallet.module.css";
 import { SignOutButton } from "../SignOutButton";
 import { WithdrawModal } from "../WithdrawModal";
+import { ReceiveModal } from "../ReceiveModal/ReceiveModal";
 
 /**
  * A component that displays the user's connected wallet address.
@@ -28,6 +35,7 @@ export function Wallet() {
   const copyIcon = isCopied ? <CheckIcon /> : <ClipboardCopyIcon />;
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
+  const [isReceiveOpen, setIsReceiveOpen] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(evmAddress || "");
@@ -47,7 +55,7 @@ export function Wallet() {
       <Popover.Trigger>
         <Button variant="soft">{email}</Button>
       </Popover.Trigger>
-      <Popover.Content width="300px" onOpenAutoFocus={e => e.preventDefault()}>
+      <Popover.Content minWidth="180px" maxWidth="200px" onOpenAutoFocus={e => e.preventDefault()}>
         <Flex direction="column" gap="3">
           <Flex direction="column" gap="1">
             <Text size="2" color="gray">
@@ -78,18 +86,41 @@ export function Wallet() {
             </Flex>
           </Flex>
 
-          <Dialog.Root>
-            <Dialog.Trigger>
-              <Button size="2" radius="large" onClick={() => setIsWithdrawOpen(true)}>
-                Withdraw
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Content maxWidth="500px">
-              <WithdrawModal isOpen={isWithdrawOpen} onClose={() => setIsWithdrawOpen(false)} />
-            </Dialog.Content>
-          </Dialog.Root>
+          <Separator size="4" orientation="horizontal" />
 
-          <Flex gap="3" mt="3" justify="between">
+          <Grid gap="3" columns="2">
+            <Dialog.Root>
+              <Dialog.Trigger>
+                <Button size="3" radius="full" onClick={() => setIsWithdrawOpen(true)}>
+                  <Flex direction="column" align="center" gap="0">
+                    <ArrowUpIcon />
+                    <Text size="1">Send</Text>
+                  </Flex>
+                </Button>
+              </Dialog.Trigger>
+              <Dialog.Content maxWidth="500px">
+                <WithdrawModal isOpen={isWithdrawOpen} onClose={() => setIsWithdrawOpen(false)} />
+              </Dialog.Content>
+            </Dialog.Root>
+
+            <Dialog.Root>
+              <Dialog.Trigger>
+                <Button size="3" radius="full" onClick={() => setIsReceiveOpen(true)}>
+                  <Flex direction="column" align="center" gap="0">
+                    <ArrowDownIcon />
+                    <Text size="1">Receive</Text>
+                  </Flex>
+                </Button>
+              </Dialog.Trigger>
+              <Dialog.Content maxWidth="500px">
+                <ReceiveModal isOpen={isReceiveOpen} onClose={() => setIsReceiveOpen(false)} />
+              </Dialog.Content>
+            </Dialog.Root>
+          </Grid>
+
+          <Separator size="4" orientation="horizontal" />
+
+          <Flex gap="3" justify="between">
             <Popover.Close>
               <SignOutButton />
             </Popover.Close>
