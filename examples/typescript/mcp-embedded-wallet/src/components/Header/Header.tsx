@@ -33,7 +33,7 @@ export const Header = () => {
               <DiscoveryModal isOpen={isDiscoveryOpen} onClose={() => setIsDiscoveryOpen(false)} />
             </Dialog.Content>
           </Dialog.Root>
-          <TestX402Button />
+          {process.env.NODE_ENV === "development" && <TestX402Button />}
         </Flex>
       </Flex>
     )

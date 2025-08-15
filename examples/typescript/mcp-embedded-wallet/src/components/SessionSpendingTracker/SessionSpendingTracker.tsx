@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Text, Flex, Dialog } from "@radix-ui/themes";
-import { formatUSDCAmount } from "../../utils/chainConfig";
+import { formatUSDC } from "../../utils/chainConfig";
 import { useBudgetStore } from "../../stores/budget";
 import { BudgetModal } from "../BudgetModal";
 import { Button } from "../Button";
@@ -18,20 +18,12 @@ export const SessionSpendingTracker = () => {
     }
   }, [sessionSpentAtomic]);
 
-  const formattedTotal = useMemo(() => {
-    if (totalSpent === 0n) return "0.00";
-
-    // Convert from atomic units (6 decimals for USDC) to display units
-    const displayAmount = formatUSDCAmount(totalSpent.toString());
-    return displayAmount;
-  }, [totalSpent]);
-
   const formattedRemaining = useMemo(() => {
     if (!sessionBudgetAtomic) return null;
     try {
       const remaining = BigInt(sessionBudgetAtomic) - totalSpent;
       if (remaining <= 0n) return "0.00";
-      return formatUSDCAmount(remaining.toString());
+      return formatUSDC(remaining.toString());
     } catch {
       return null;
     }

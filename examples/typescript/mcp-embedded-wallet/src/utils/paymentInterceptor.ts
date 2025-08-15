@@ -4,7 +4,7 @@ import { PaymentRequirements } from "x402/types";
 import { operationStore } from "../stores/operations";
 import { budgetStore } from "../stores/budget";
 import { checkUSDCBalanceForPaymentAtomic } from "./balanceChecker";
-import { formatUSDCAmount } from "./chainConfig";
+import { formatUSDC } from "./chainConfig";
 
 /**
  * Custom error class for payment interceptor failures.
@@ -161,7 +161,7 @@ async function updateOperationForDiscovery(
   );
 
   if (pendingOpIndex !== -1) {
-    const paymentAmountFormatted = formatUSDCAmount(selectedPayment.maxAmountRequired);
+    const paymentAmountFormatted = formatUSDC(selectedPayment.maxAmountRequired);
 
     operationStore.getState().updateHttpOperation(pendingOpIndex, {
       description: `Payment required: $${paymentAmountFormatted} USDC`,
@@ -199,10 +199,10 @@ async function performBalanceChecks(
     chain,
   );
 
-  const formattedPaymentAmount = formatUSDCAmount(selectedPayment.maxAmountRequired);
+  const formattedPaymentAmount = formatUSDC(selectedPayment.maxAmountRequired);
 
   if (!balanceCheck.isSufficient) {
-    const errorMessage = `Insufficient USDC balance (need ${formatUSDCAmount(
+    const errorMessage = `Insufficient USDC balance (need ${formatUSDC(
       selectedPayment.maxAmountRequired,
     )}, have ${balanceCheck.formattedBalance})`;
 
@@ -325,11 +325,9 @@ async function performBudgetChecks(
     );
 
     if (selectedPaymentAmount > maxAmountPerRequest) {
-      const errorMessage = `Payment required: $${formatUSDCAmount(
+      const errorMessage = `Payment required: $${formatUSDC(
         selectedPayment.maxAmountRequired,
-      )} is greater than max amount per request: $${formatUSDCAmount(
-        maxAmountPerRequest.toString(),
-      )}`;
+      )} is greater than max amount per request: $${formatUSDC(maxAmountPerRequest.toString())}`;
 
       console.error(`Budget check failed: ${errorMessage}`);
 
@@ -343,9 +341,9 @@ async function performBudgetChecks(
     if (sessionBudgetAtomic) {
       const remaining = Number(sessionBudgetAtomic) - Number(sessionSpentAtomic || "0");
       if (selectedPaymentAmount > remaining) {
-        const errorMessage = `Payment required: $${formatUSDCAmount(
+        const errorMessage = `Payment required: $${formatUSDC(
           selectedPayment.maxAmountRequired,
-        )} exceeds remaining session budget: $${formatUSDCAmount(remaining.toString())}`;
+        )} exceeds remaining session budget: $${formatUSDC(remaining.toString())}`;
 
         console.error(`Budget check failed: ${errorMessage}`);
 

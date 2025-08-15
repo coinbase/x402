@@ -13,10 +13,12 @@ interface ReceiveModalProps {
 }
 
 /**
+ * Modal that displays a QR code and address for receiving assets.
  *
- * @param root0
- * @param root0.isOpen
- * @param root0.onClose
+ * @param {object} root0 - Props object.
+ * @param {boolean} root0.isOpen - Whether the modal is open.
+ * @param {() => void} [root0.onClose] - Optional close handler.
+ * @returns {JSX.Element | null} Modal content when open, otherwise null.
  */
 export function ReceiveModal({ isOpen, onClose }: ReceiveModalProps) {
   const { evmAddress } = useEvmAddress();
@@ -26,11 +28,6 @@ export function ReceiveModal({ isOpen, onClose }: ReceiveModalProps) {
     if (!evmAddress) return "";
     return `ethereum:${evmAddress}@${chain.id}`;
   }, [evmAddress, chain]);
-
-  const truncatedAddress = useMemo(() => {
-    if (!evmAddress) return "";
-    return `${evmAddress.slice(0, 6)}...${evmAddress.slice(-4)}`;
-  }, [evmAddress]);
 
   const handleCopy = () => {
     if (!evmAddress) return;

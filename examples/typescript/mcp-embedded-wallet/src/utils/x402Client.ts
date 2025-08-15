@@ -4,7 +4,7 @@ import { withPaymentInterceptor } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
 import { budgetStore } from "../stores/budget";
 import { operationStore, SettlementInfo } from "../stores/operations";
-import { getBlockExplorerUrl, formatUSDCAmount } from "./chainConfig";
+import { getBlockExplorerUrl, formatUSDC } from "./chainConfig";
 import { createPaymentTrackingInterceptor, PaymentInterceptorError } from "./paymentInterceptor";
 import { handle402Error, handleNon402Error, type ErrorHandlingContext } from "./x402ErrorHandler";
 import { getCurrentUser, toViemAccount } from "@coinbase/cdp-core";
@@ -240,7 +240,7 @@ async function updateOperationForSuccess(
       operationStore.getState().updateHttpOperation(index, {
         description: `Payment required: ${
           operation.selectedPayment
-            ? formatUSDCAmount(operation.selectedPayment.maxAmountRequired)
+            ? formatUSDC(operation.selectedPayment.maxAmountRequired)
             : "unknown amount"
         }`,
         status: "success",

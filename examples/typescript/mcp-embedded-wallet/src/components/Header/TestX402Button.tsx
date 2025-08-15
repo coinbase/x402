@@ -2,7 +2,9 @@ import { Button } from "../Button";
 import { makeX402Request } from "../../utils/x402Client";
 
 /**
+ * Button to send a test x402 request to the demo endpoint.
  *
+ * @returns {JSX.Element} Rendered test button.
  */
 export function TestX402Button() {
   const handleTestX402 = async () => {

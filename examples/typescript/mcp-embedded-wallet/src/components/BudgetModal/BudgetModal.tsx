@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, ChangeEvent } from "react";
-import { Dialog, Flex, IconButton, Text, Button, Card, TextField } from "@radix-ui/themes";
+import { Dialog, Flex, IconButton, Text, Card, TextField } from "@radix-ui/themes";
 
 import { Cross2Icon } from "@radix-ui/react-icons";
 import { useEvmAddress } from "@coinbase/cdp-hooks";
 import { useBudgetStore } from "../../stores/budget";
-import { formatUSDCAmount } from "../../utils/chainConfig";
+import { formatUSDC, parseUSDC } from "../../utils/chainConfig";
+import { Button } from "../Button";
 
 interface BudgetModalProps {
   isOpen: boolean;
@@ -14,10 +15,12 @@ interface BudgetModalProps {
 }
 
 /**
+ * Budget configuration modal for setting session budget and per-operation limit.
  *
- * @param root0
- * @param root0.isOpen
- * @param root0.onClose
+ * @param {object} root0 - Props object.
+ * @param {boolean} root0.isOpen - Whether the modal is open.
+ * @param {() => void} [root0.onClose] - Optional close handler.
+ * @returns {JSX.Element | null} Modal content when open, otherwise null.
  */
 export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   const { evmAddress: fromAddress } = useEvmAddress();
@@ -34,22 +37,6 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   const [sessionBudgetSuccess, setSessionBudgetSuccess] = useState(false);
   const [perRequestMaxSuccess, setPerRequestMaxSuccess] = useState(false);
 
-  // Convert a USDC display string to atomic string (6 decimals)
-  const parseUSDCToAtomic = (input: string): string | null => {
-    const sanitized = input.replace(/,/g, "").trim();
-    if (sanitized === "") return null;
-    if (!/^\d*(\.\d{0,6})?$/.test(sanitized)) return null;
-    const [whole, fracRaw] = sanitized.split(".");
-    const frac = (fracRaw || "").padEnd(6, "0").slice(0, 6);
-    try {
-      const wholePart = BigInt(whole || "0") * 1000000n;
-      const fracPart = BigInt(frac || "0");
-      return (wholePart + fracPart).toString();
-    } catch {
-      return null;
-    }
-  };
-
   const handleSessionBudgetChange = (e: ChangeEvent<HTMLInputElement>) => {
     setSessionBudgetDisplay(e.target.value);
     setSessionBudgetError(null);
@@ -61,8 +48,8 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   };
 
   const resetForm = () => {
-    setSessionBudgetDisplay(sessionBudgetAtomic ? formatUSDCAmount(sessionBudgetAtomic) : "");
-    setPerRequestMaxDisplay(perRequestMaxAtomic ? formatUSDCAmount(perRequestMaxAtomic) : "");
+    setSessionBudgetDisplay(sessionBudgetAtomic ? formatUSDC(sessionBudgetAtomic) : "");
+    setPerRequestMaxDisplay(perRequestMaxAtomic ? formatUSDC(perRequestMaxAtomic) : "");
   };
 
   const handleClose = () => {
@@ -72,7 +59,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
 
   const validateSessionBudget = (): boolean => {
     // Validate session budget
-    const sessionAtomic = parseUSDCToAtomic(sessionBudgetDisplay);
+    const sessionAtomic = parseUSDC(sessionBudgetDisplay);
     if (!sessionAtomic) {
       setSessionBudgetError("Enter a valid session budget");
       return false;
@@ -87,7 +74,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
 
   const validatePerRequestMax = (): boolean => {
     // Validate per-request max
-    const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
+    const perReqAtomic = parseUSDC(perRequestMaxDisplay);
     if (!perReqAtomic) {
       setPerRequestMaxError("Enter a valid max amount per operation");
       return false;
@@ -111,7 +98,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
     setSessionBudgetError(null);
 
     try {
-      const sessionAtomic = parseUSDCToAtomic(sessionBudgetDisplay);
+      const sessionAtomic = parseUSDC(sessionBudgetDisplay);
       if (!sessionAtomic) return;
 
       setSessionBudgetAtomic(sessionAtomic);
@@ -128,7 +115,7 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
     setPerRequestMaxError(null);
 
     try {
-      const perReqAtomic = parseUSDCToAtomic(perRequestMaxDisplay);
+      const perReqAtomic = parseUSDC(perRequestMaxDisplay);
       if (!perReqAtomic) return;
 
       setPerRequestMaxAtomic(perReqAtomic);
@@ -155,8 +142,8 @@ export function BudgetModal({ isOpen, onClose }: BudgetModalProps) {
   // Initialize display values when modal opens or store values change
   useEffect(() => {
     if (!isOpen) return;
-    setSessionBudgetDisplay(sessionBudgetAtomic ? formatUSDCAmount(sessionBudgetAtomic) : "");
-    setPerRequestMaxDisplay(perRequestMaxAtomic ? formatUSDCAmount(perRequestMaxAtomic) : "");
+    setSessionBudgetDisplay(sessionBudgetAtomic ? formatUSDC(sessionBudgetAtomic) : "");
+    setPerRequestMaxDisplay(perRequestMaxAtomic ? formatUSDC(perRequestMaxAtomic) : "");
   }, [isOpen, sessionBudgetAtomic, perRequestMaxAtomic]);
 
   if (!isOpen) return null;

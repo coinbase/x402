@@ -1,6 +1,6 @@
 import { useCurrentUser, useEvmAddress } from "@coinbase/cdp-hooks";
 
-import { Box, Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
+import { Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
 import { Button } from "../Button";
 import {
   CheckIcon,
@@ -20,6 +20,8 @@ import { ReceiveModal } from "../ReceiveModal/ReceiveModal";
 /**
  * A component that displays the user's connected wallet address.
  * Uses CDP hooks to access the EVM address and displays it in a formatted layout.
+ *
+ * @returns {JSX.Element} Wallet popover with address, balance, and actions.
  */
 export function Wallet() {
   const { evmAddress } = useEvmAddress();

@@ -96,13 +96,70 @@ export function getTokenDecimals(network: string, tokenAddress: string): number 
  * @param atomicAmount - The amount in USDC atomic units (6 decimal places)
  * @returns {string} The formatted amount with appropriate decimal places
  */
-export function formatUSDCAmount(atomicAmount: string): string {
-  const amount = parseInt(atomicAmount) / Math.pow(10, 6);
+export function formatUSDC(atomicAmount: string | bigint): string {
+  try {
+    const rawString =
+      typeof atomicAmount === "bigint" ? atomicAmount.toString() : String(atomicAmount).trim();
+    if (!rawString) return "0.00";
 
-  // Show at least 2 decimal places, up to 4 (since 0.001 is the minimum x402 amount)
-  // Remove trailing zeros beyond 2 decimal places
-  return amount.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
+    // If safely representable as Number, use toLocaleString for consistent formatting
+    // Max safe integer is ~9e15, our amounts are expected to be small (a few thousand USD => <= 2e9 atomic)
+    if (/^-?\d+$/.test(rawString)) {
+      const asInt = Number(rawString);
+      if (Number.isSafeInteger(asInt)) {
+        const amount = asInt / 1e6;
+        return amount.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4,
+        });
+      }
+    }
+
+    // Fallback: BigInt-safe manual formatting for very large inputs
+    let s = rawString;
+    let negative = false;
+    if (s.startsWith("-")) {
+      negative = true;
+      s = s.slice(1);
+    }
+    if (!/^\d+$/.test(s)) return "0.00";
+
+    s = s.replace(/^0+/, "");
+    if (s === "") s = "0";
+
+    const hasFraction = s.length > 6;
+    const integerPart = hasFraction ? s.slice(0, -6) : "0";
+    const fracPart = hasFraction ? s.slice(-6) : s.padStart(6, "0");
+
+    const trimmed = fracPart.replace(/0+$/, "");
+    const targetLen = Math.min(4, Math.max(2, trimmed.length));
+    const displayFrac = fracPart.slice(0, targetLen);
+
+    const withCommas = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return `${negative ? "-" : ""}${withCommas}.${displayFrac}`;
+  } catch {
+    return "0.00";
+  }
+}
+
+/**
+ * Parses a USDC amount in human-readable form to atomic units (6 decimals).
+ * Accepts up to 6 decimal places; returns null for invalid input.
+ *
+ * @param input - The human-readable USDC amount (e.g., "1", "1.23", "0.001")
+ * @returns {string | null} The atomic units as a string, or null if invalid
+ */
+export function parseUSDC(input: string): string | null {
+  const sanitized = input.replace(/,/g, "").trim();
+  if (sanitized === "") return null;
+  if (!/^\d*(\.\d{0,6})?$/.test(sanitized)) return null;
+  const [whole, fracRaw] = sanitized.split(".");
+  const frac = (fracRaw || "").padEnd(6, "0").slice(0, 6);
+  try {
+    const wholePart = BigInt(whole || "0") * 1000000n;
+    const fracPart = BigInt(frac || "0");
+    return (wholePart + fracPart).toString();
+  } catch {
+    return null;
+  }
 }
