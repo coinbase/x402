@@ -1,6 +1,6 @@
 import { useCurrentUser, useEvmAddress } from "@coinbase/cdp-hooks";
 
-import { Box, Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
+import { Dialog, Flex, Grid, Popover, Separator, Text, Tooltip } from "@radix-ui/themes";
 import { Button } from "../Button";
 import {
   CheckIcon,
