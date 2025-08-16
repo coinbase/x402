@@ -7,4 +7,4 @@ export default defineConfig(({ mode }) => ({
     env: loadEnv(mode, process.cwd(), ""),
   },
   plugins: [tsconfigPaths({ projects: ["."] })],
-})); 
+}));

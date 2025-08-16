@@ -24,4 +24,4 @@ export default defineConfig([
     outDir: "dist/cjs",
     clean: false,
   },
-]); 
+]);
