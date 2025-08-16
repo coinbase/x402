@@ -1,5 +1,5 @@
 import type { Request, Response } from "@tinyhttp/app";
-import { Address } from "viem";
+import { Address, getAddress } from "viem";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -88,8 +88,16 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const { description, mimeType, maxTimeoutSeconds, outputSchema, customPaywallHtml, resource } =
-      config;
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+      discoverable,
+    } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -108,14 +116,19 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "",
-        payTo,
+        payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
-        outputSchema: outputSchema ?? undefined,
-        extra: {
-          name: asset.eip712.name,
-          version: asset.eip712.version,
+        asset: getAddress(asset.address),
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method?.toUpperCase() || "GET",
+            discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
         },
+        extra: asset.eip712,
       },
     ];
 

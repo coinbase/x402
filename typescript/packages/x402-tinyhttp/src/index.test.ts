@@ -100,7 +100,17 @@ describe("paymentMiddleware()", () => {
     mimeType: "application/json",
     maxTimeoutSeconds: 300,
     outputSchema: { type: "object" },
+    inputSchema: { queryParams: { type: "string" } },
     resource: "https://api.example.com/resource",
+  };
+  const outputSchema = {
+    input: {
+      method: "GET",
+      type: "http",
+      discoverable: true,
+      ...middlewareConfig.inputSchema,
+    },
+    output: middlewareConfig.outputSchema,
   };
 
   const facilitatorConfig: FacilitatorConfig = {
@@ -258,7 +268,7 @@ describe("paymentMiddleware()", () => {
           payTo,
           maxTimeoutSeconds: 300,
           asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-          outputSchema: { type: "object" },
+          outputSchema,
           extra: {
             name: "USDC",
             version: "2",
@@ -360,7 +370,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
 
     // Mock console.error to avoid test output pollution
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => { });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
