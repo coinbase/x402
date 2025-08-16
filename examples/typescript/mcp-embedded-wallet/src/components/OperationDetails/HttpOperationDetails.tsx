@@ -2,7 +2,7 @@ import { Flex, Text, Link } from "@radix-ui/themes";
 import { ExternalLinkIcon } from "@radix-ui/react-icons";
 import { HttpOperation, Operation } from "../../stores/operations";
 import { OperationBadge, isInitial402Discovery } from "../OperationBadge";
-import { getBlockExplorerUrl, formatUSDCAmount } from "../../utils/chainConfig";
+import { getBlockExplorerUrl, formatUSDC } from "../../utils/chainConfig";
 
 type HttpOperationDetailsProps = {
   operation: HttpOperation;
@@ -33,8 +33,7 @@ export function HttpOperationDetails({ operation, allOperations }: HttpOperation
       </Text>
       {operation.paymentRequirements && (
         <Text size="2" color="blue">
-          Payment required: ${formatUSDCAmount(operation.paymentRequirements[0].maxAmountRequired)}{" "}
-          USDC
+          Payment required: ${formatUSDC(operation.paymentRequirements[0].maxAmountRequired)} USDC
         </Text>
       )}
       {operation.settlementInfo && (

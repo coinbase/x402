@@ -41,9 +41,12 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
       pattern: new RegExp(
         `^${
           path
+            // First escape all special regex characters except * and []
+            .replace(/[$()+.?^{|}]/g, "\\$&")
+            // Then handle our special pattern characters
             .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
-            .replace(/\[([^\]]+)\]/g, "[^/]+")
-            .replace(/\//g, "\\/") // Keep exact slashes
+            .replace(/\[([^\]]+)\]/g, "[^/]+") // Convert [param] to regex capture
+            .replace(/\//g, "\\/") // Escape slashes
         }$`,
         "i",
       ),
@@ -70,17 +73,33 @@ export function findMatchingRoute(
   // 2. Replace backslashes with forward slashes
   // 3. Replace multiple consecutive slashes with a single slash
   // 4. Keep trailing slash if path is not root
-  const normalizedPath = path
-    .split(/[?#]/)[0] // Remove query parameters and hash fragments
-    .replace(/\\/g, "/") // Replace backslashes with forward slashes
-    .replace(/\/+/g, "/") // Replace multiple consecutive slashes with a single slash
-    .replace(/(.+?)\/+$/, "$1"); // Remove trailing slashes except for root path
+  let normalizedPath: string;
+  try {
+    // First split off query parameters and hash fragments
+    const pathWithoutQuery = path.split(/[?#]/)[0];
+
+    // Then decode the path - this needs to happen before any normalization
+    // so encoded characters are properly handled
+    const decodedPath = decodeURIComponent(pathWithoutQuery);
+
+    // Normalize the path (just clean up slashes)
+    normalizedPath = decodedPath
+      .replace(/\\/g, "/") // replace backslashes
+      .replace(/\/+/g, "/") // collapse slashes
+      .replace(/(.+?)\/+$/, "$1"); // trim trailing slashes
+  } catch {
+    // If decoding fails (e.g., invalid % encoding), return undefined
+    return undefined;
+  }
 
   // Find matching route pattern
   const matchingRoutes = routePatterns.filter(({ pattern, verb }) => {
     const matchesPath = pattern.test(normalizedPath);
-    const matchesVerb = verb === "*" || verb === method.toUpperCase();
-    return matchesPath && matchesVerb;
+    const upperMethod = method.toUpperCase();
+    const matchesVerb = verb === "*" || upperMethod === verb;
+
+    const result = matchesPath && matchesVerb;
+    return result;
   });
 
   if (matchingRoutes.length === 0) {

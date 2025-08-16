@@ -39,6 +39,7 @@ def require_payment(
     max_deadline_seconds: int = 60,
     input_schema: Optional[HTTPInputSchema] = None,
     output_schema: Optional[Any] = None,
+    discoverable: Optional[bool] = True,
     facilitator_config: Optional[FacilitatorConfig] = None,
     network: str = "base-sepolia",
     resource: Optional[str] = None,
@@ -58,6 +59,7 @@ def require_payment(
         max_deadline_seconds (int, optional): Maximum time allowed for payment. Defaults to 60.
         input_schema (Optional[HTTPInputSchema], optional): Schema for the request structure. Defaults to None.
         output_schema (Optional[Any], optional): Schema for the response. Defaults to None.
+        discoverable (bool, optional): Whether the route is discoverable. Defaults to True.
         facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
         network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
@@ -111,6 +113,9 @@ def require_payment(
                     "input": {
                         "type": "http",
                         "method": request.method.upper(),
+                        "discoverable": discoverable
+                        if discoverable is not None
+                        else True,
                         **(input_schema.model_dump() if input_schema else {}),
                     },
                     "output": output_schema,

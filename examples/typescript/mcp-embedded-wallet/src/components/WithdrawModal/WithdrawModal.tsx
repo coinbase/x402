@@ -133,7 +133,7 @@ export function WithdrawModal({ isOpen, onClose }: WithdrawModalProps) {
   return (
     <>
       <Flex justify="between" align="center" mb="4">
-        <Dialog.Title mb="0">Withdraw Assets</Dialog.Title>
+        <Dialog.Title mb="0">Send Assets</Dialog.Title>
         <Dialog.Close onClick={handleClose}>
           <IconButton size="2">
             <Cross2Icon />
@@ -235,7 +235,7 @@ export function WithdrawModal({ isOpen, onClose }: WithdrawModalProps) {
           )}
 
           <Button size="3" onClick={handleWithdraw} disabled={loading}>
-            {loading ? "Processing..." : "Withdraw"}
+            {loading ? "Processing..." : "Send"}
           </Button>
         </Flex>
       </Card>
