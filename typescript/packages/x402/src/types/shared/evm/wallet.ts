@@ -10,9 +10,19 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet, polygon } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
+
+// Define Polygon Amoy chain (custom) if not available from viem/chains
+const polygonAmoy = {
+  id: 80002,
+  name: "Polygon Amoy",
+  nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc-amoy.polygon.technology"] } },
+  blockExplorers: { default: { name: "PolygonScan", url: "https://amoy.polygonscan.com" } },
+  testnet: true,
+} as unknown as Chain;
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -185,6 +195,10 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return sei;
     case "sei-testnet":
       return seiTestnet;
+    case "polygon":
+      return polygon;
+    case "polygon-amoy":
+      return polygonAmoy;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
