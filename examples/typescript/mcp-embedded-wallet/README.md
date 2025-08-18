@@ -29,7 +29,7 @@ Add as an MCP server for Claude, in `claude_desktop_config.json` (`cmd + ,` -> D
       "args": [
         "--silent",
         "-C",
-        "/Users/erik/dev/electron/examples/electron",  <- full path on your machine
+        "<absolute path to this repo>/examples/typescript/mcp-embedded-wallet",
         "run",
         "mcp"
       ],
@@ -40,6 +40,8 @@ Add as an MCP server for Claude, in `claude_desktop_config.json` (`cmd + ,` -> D
 ```
 
 Then restart Claude.
+
+Note that Claude will run an instance of the MCP server on startup, so you don't need to have it running in the background. You will need to rebuild the assets and restart Claude in order to see changes.
 
 ## How does this work?
 
@@ -90,7 +92,7 @@ contextBridge.exposeInMainWorld("electron", {
 
 If you want bi-dreictional communication you need something like `ipcRenderer.send("sign-message-response", signature);`
 
-2. implement the callback in `src/ipc.ts`, then register it in `src/main.tsx`. the function in `ipc.ts` can
+2. implement the callback in `src/ipc.ts`, then register it in `src/main.tsx`. The function in `ipc.ts` can
    be a full TS async function, but it is executed outside to context of the react render tree (using zustand stores for state syncing to react is recommended)
 
 ```typescript
@@ -108,7 +110,7 @@ We now have everything we need on the renderer side.
 
 3. Set up call from electron
 
-Call from electrong live in `operations` in `electron.ts` just for convinience.
+Call from electron live in `operations` in `electron.ts` just for convinience.
 You might add something like this
 
 ```typescript

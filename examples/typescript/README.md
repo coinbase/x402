@@ -20,26 +20,46 @@ The examples are organized into several categories:
 
 Examples of different client implementations for interacting with X402 services:
 
-- `agent/` - Example using an Anthropic agent implementation using `x402-fetch`
-- `axios/` - Example using the Axios interceptor from `x402-axios`
-- `fetch/` - Example using the fetch wrapper from `x402-fetch`
-- `mcp/` - Example using MCP (Model Context Protocol) as a client using `x402-axios`
-- `vrfnft/` - Example using [Chainlink](docs.chain.link) to mint a randomized NFT (See them on [Opensea](https://testnets.opensea.io/collection/vrfnft-1)) which uses `x402-axios`.
+- `clients/axios/` - Axios client with x402 payment interceptor from `x402-axios`.
+- `clients/fetch/` - Client using the `x402-fetch` wrapper around the native fetch API.
+- `clients/cdp-sdk/` - Client that uses CDP Server Wallets as the signer with `x402-axios`.
+- `clients/chainlink-vrf-nft/` - Example using [Chainlink](docs.chain.link) to mint a randomized NFT (see them on [Opensea](https://testnets.opensea.io/collection/vrfnft-1)). Demonstrates verify/settle flow with `x402-axios`.
+
+### Agents
+
+- `agent/` - Anthropic agent that pays via a Go proxy using `x402-fetch`.
+- `dynamic_agent/` - Agent that discovers tools dynamically and pays per-request using x402.
+
+### Discovery
+
+- `discovery/` - Uses the facilitator to list available x402-protected resources (Bazaar).
+
+### MCP
+
+- `mcp/` - MCP server that makes paid API requests via `x402-axios` (Claude Desktop compatible).
+- `mcp-embedded-wallet/` - Electron-based MCP server with an embedded wallet that signs requests via IPC.
 
 ### Facilitator
 
-- `facilitator/` - Example implementation of an X402 payment facilitator
+- `facilitator/` - Example implementation of an x402 payment facilitator exposing `/verify` and `/settle`.
 
 ### Fullstack
 
-- `next/` - Example Next.js application demonstrating full-stack X402 integration using `x402-next`
+- `fullstack/next/` - Next.js app demonstrating route protection with `x402-next` middleware.
+- `fullstack/mainnet/` - Next.js app configured for Base mainnet using the Coinbase hosted facilitator.
+- `fullstack/next-advanced/` - [WIP] Deep Next.js integration using a paywall + session cookie after verify/settle.
+- `fullstack/browser-wallet-example/` - Browser wallet template: Hono server + React client with session and one-time payments.
+- `fullstack/farcaster-miniapp/` - Farcaster Mini App template with x402-protected APIs using [MiniKit](https://www.base.org/build/mini-apps).
+- `fullstack/auth_based_pricing/` - SIWE + JWT with conditional pricing ($0.01 with JWT vs $0.10 without) using x402.
 
 ### Servers
 
 Examples of different server implementations:
 
-- `express/` - Example using Express.js with `x402-express`
-- `hono/` - Example using Hono framework with `x402-hono`
+- `servers/express/` - Express.js server using `x402-express` middleware.
+- `servers/hono/` - Hono server using `x402-hono` middleware.
+- `servers/advanced/` - Express server without middleware: delayed settlement, dynamic pricing, multiple requirements.
+- `servers/mainnet/` - Server example for accepting real USDC on Base mainnet using the Coinbase hosted facilitator.
 
 ## Running Examples
 

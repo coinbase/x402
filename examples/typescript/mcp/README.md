@@ -34,7 +34,7 @@ cp .env-local .env
       "args": [
         "--silent",
         "-C",
-        "<absolute path to this repo>/examples/typescript/clients/mcp",
+        "<absolute path to this repo>/examples/typescript/mcp",
         "dev"
       ],
       "env": {

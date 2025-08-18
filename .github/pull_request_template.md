@@ -27,7 +27,7 @@ For Go: Run `go test ./...` from the `/go` directory
 
 - [ ] I have formatted and linted my code
 - [ ] All new and existing tests pass
-- [ ] My commits are signed (required for merge) 
+- [ ] My commits are signed (required for merge) -- you may need to rebase if you initially pushed unsigned commits
 
 <!--
 For TypeScript: Run `pnpm format && pnpm lint` from `/typescript` and/or `/examples/typescript`
