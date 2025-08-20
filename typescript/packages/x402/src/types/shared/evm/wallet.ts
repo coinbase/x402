@@ -10,7 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet, scroll, scrollSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -187,6 +187,10 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return sei;
     case "sei-testnet":
       return seiTestnet;
+    case "scroll":
+      return scroll;
+    case "scroll-sepolia":
+      return scrollSepolia;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
