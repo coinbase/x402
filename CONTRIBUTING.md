@@ -6,6 +6,8 @@ Merging contributions is at the discretion of the CDP Engineering team, based on
 
 If you update the core x402 Typescript package, you'll need to rebuild the paywall via `pnpm build:paywall` and commit the resulting generated files as part of your PR.
 
+You will also need to sign all of your commits for any contributions to be merged.
+
 ## Middleware and language libraries
 
 Language libraries should implement best practices of the language they target, have tests, linting, and follow best practices for x402 client development.
