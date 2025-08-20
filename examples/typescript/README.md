@@ -60,6 +60,7 @@ Examples of different server implementations:
 - `servers/hono/` - Hono server using `x402-hono` middleware.
 - `servers/advanced/` - Express server without middleware: delayed settlement, dynamic pricing, multiple requirements.
 - `servers/mainnet/` - Server example for accepting real USDC on Base mainnet using the Coinbase hosted facilitator.
+- `servers/tinyhttp` - Tinyhttp server using `x402-tinyhttp`
 
 ## Running Examples
 
