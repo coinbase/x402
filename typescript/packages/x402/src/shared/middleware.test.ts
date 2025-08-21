@@ -5,7 +5,7 @@ import {
   getDefaultAsset,
   processPriceToAtomicAmount,
 } from "x402/shared";
-import { RoutePattern, RoutesConfig } from "./middleware";
+import { RoutesConfig } from "./middleware";
 import { Network } from "./network";
 
 describe("computeRoutePatterns", () => {
@@ -156,32 +156,12 @@ describe("computeRoutePatterns", () => {
 });
 
 describe("findMatchingRoute", () => {
-  const routePatterns: RoutePattern[] = [
-    {
-      verb: "GET",
-      pattern: /^\/api\/test$/i,
-      config: {
-        price: "$0.01",
-        network: "base-sepolia",
-      },
-    },
-    {
-      verb: "POST",
-      pattern: /^\/api\/test$/i,
-      config: {
-        price: "$0.02",
-        network: "base-sepolia",
-      },
-    },
-    {
-      verb: "*",
-      pattern: /^\/api\/wildcard$/i,
-      config: {
-        price: "$0.03",
-        network: "base-sepolia",
-      },
-    },
-  ];
+  const routes = {
+    "GET /api/test": "$0.01",
+    "POST /api/test": "$0.02",
+    "/api/wildcard": "$0.03",
+  };
+  const routePatterns = computeRoutePatterns(routes);
 
   it("should return undefined when no routes match", () => {
     const result = findMatchingRoute(routePatterns, "/not/api", "GET");
@@ -256,6 +236,58 @@ describe("findMatchingRoute", () => {
   it("should match paths with hash fragments", () => {
     const result = findMatchingRoute(routePatterns, "/api/test#section", "GET");
     expect(result).toEqual(routePatterns[0]);
+  });
+
+  // URL-encoded path tests
+  it("should match basic URL-encoded paths", () => {
+    const result = findMatchingRoute(routePatterns, "/api/%74est", "GET");
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with multiple URL-encoded characters", () => {
+    const result = findMatchingRoute(routePatterns, "/api/%74%65%73%74", "GET"); // /api/test encoded
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with URL-encoded slashes and backslashes", () => {
+    // Test various combinations of encoded slashes and backslashes
+    const tests = [
+      "%2Fapi%2Ftest", // /api/test (all slashes encoded)
+      "%5Capi%5Ctest", // \api\test (all backslashes encoded)
+      "%2Fapi/test", // /api/test (mixed encoded and raw slashes)
+      "%5Capi\\test", // \api\test (mixed encoded and raw backslashes)
+      "/api%2Ftest", // /api/test (mixed raw and encoded slashes)
+      "\\api%5Ctest", // \api\test (mixed raw and encoded backslashes)
+      "%2Fapi%5Ctest", // /api\test (mixed encoded slash and backslash)
+      "/api%2F%2Ftest", // /api//test (multiple encoded slashes)
+      "\\api%5C%5Ctest", // \api\\test (multiple encoded backslashes)
+    ];
+
+    // All should match the same route
+    tests.forEach(path => {
+      const result = findMatchingRoute(routePatterns, path, "GET");
+      expect(result).toEqual(routePatterns[0]);
+    });
+  });
+
+  it("should match partially URL-encoded paths", () => {
+    const result = findMatchingRoute(routePatterns, "/api/t%65st", "GET"); // /api/test with just 'e' encoded
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with URL-encoded query parameters", () => {
+    const result = findMatchingRoute(routePatterns, "/api/test?foo%3Dbar", "GET"); // foo=bar with = encoded
+    expect(result).toEqual(routePatterns[0]);
+  });
+
+  it("should match paths with mixed URL-encoded and special characters", () => {
+    const result = findMatchingRoute(routePatterns, "/api/%74est%20with%20spaces", "GET");
+    expect(result).toBeUndefined(); // Should not match as the pattern doesn't include spaces
+  });
+
+  it("should handle malformed URL-encoded sequences", () => {
+    const result = findMatchingRoute(routePatterns, "/api/%XX", "GET");
+    expect(result).toBeUndefined(); // Should not match as %XX is not a valid encoding
   });
 });
 

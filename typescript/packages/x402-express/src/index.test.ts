@@ -112,6 +112,7 @@ describe("paymentMiddleware()", () => {
     input: {
       method: "GET",
       type: "http",
+      discoverable: true,
       ...middlewareConfig.inputSchema,
     },
     output: middlewareConfig.outputSchema,

@@ -23,6 +23,7 @@ export type PaymentMiddlewareConfig = {
   maxTimeoutSeconds?: number;
   inputSchema?: Omit<HTTPRequestStructure, "type" | "method">;
   outputSchema?: object;
+  discoverable?: boolean;
   customPaywallHtml?: string;
   resource?: Resource;
   errorMessages?: {
