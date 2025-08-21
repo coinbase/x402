@@ -1,10 +1,7 @@
-import { LocalAccount } from "viem";
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
-import { SignerWallet } from "../types/shared/evm";
+import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { PaymentRequirements } from "../types/verify";
-import { KeyPairSigner } from "@solana/kit";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -15,7 +12,7 @@ import { KeyPairSigner } from "@solana/kit";
  * @returns A promise that resolves to the created payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet | LocalAccount | KeyPairSigner,
+  client: Signer | MultiNetworkSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {
@@ -23,16 +20,28 @@ export async function createPaymentHeader(
   if (paymentRequirements.scheme === "exact") {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
+      
+      if (!isEvmSignerWallet(evmClient)) {
+        throw new Error("Invalid evm wallet client provided");
+      }
+      
       return await createPaymentHeaderExactEVM(
-        client as SignerWallet | LocalAccount,
+        evmClient,
         x402Version,
         paymentRequirements,
       );
     }
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
+      const svmClient = isMultiNetworkSigner(client) ? client.svm : client;
+      
+      if (!isSvmSignerWallet(svmClient)) {
+        throw new Error("Invalid svm wallet client provided");
+      }
+      
       return await createPaymentHeaderExactSVM(
-        client as KeyPairSigner,
+        svmClient,
         x402Version,
         paymentRequirements,
       );

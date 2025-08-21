@@ -5,6 +5,7 @@ import { Hex } from "viem";
 
 export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner;
+export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
 
 /**
  * Creates a public client configured for the specified network.
@@ -63,4 +64,14 @@ export function isEvmSignerWallet(wallet: Signer): wallet is evm.EvmSigner {
  */
 export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
   return svm.isSignerWallet(wallet as svm.SvmSigner);
+}
+
+/**
+ * Checks if the given wallet is a multi network signer wallet
+ *
+ * @param wallet - The object wallet to check
+ * @returns True if the wallet is a multi network signer wallet, false otherwise
+ */
+export function isMultiNetworkSigner(wallet: object): wallet is MultiNetworkSigner {
+  return "evm" in wallet && "svm" in wallet;
 }
