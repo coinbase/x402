@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx index.ts",
+    "dev:multi-network-signer": "tsx multi-network-signer.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
@@ -12,7 +13,6 @@
   "dependencies": {
     "axios": "^1.7.9",
     "dotenv": "^16.5.0",
-    "viem": "^2.21.26",
     "x402-axios": "workspace:*"
   },
   "devDependencies": {

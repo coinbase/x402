@@ -33,6 +33,8 @@ export type ConnectedClient<
   account extends Account | undefined = undefined,
 > = PublicClient<transport, chain, account>;
 
+export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount;
+
 /**
  * Creates a public client configured for the specified network
  *
