@@ -1,11 +1,16 @@
 import * as evm from "./evm/wallet";
 import * as svm from "../../shared/svm/wallet";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "./network";
+import * as starknet from "../../shared/starknet/wallet";
+import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedStarknetNetworks } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient;
-export type Signer = evm.EvmSigner | svm.SvmSigner;
-export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
+export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | starknet.StarknetConnectedClient;
+export type Signer = evm.EvmSigner | svm.SvmSigner | starknet.StarknetSigner;
+export type MultiNetworkSigner = { 
+  evm: evm.EvmSigner; 
+  svm: svm.SvmSigner; 
+  starknet: starknet.StarknetSigner; 
+};
 
 /**
  * Creates a public client configured for the specified network.
@@ -20,6 +25,10 @@ export function createConnectedClient(network: string): ConnectedClient {
 
   if (SupportedSVMNetworks.find(n => n === network)) {
     return svm.createSvmConnectedClient(network);
+  }
+
+  if (SupportedStarknetNetworks.find(n => n === network)) {
+    return starknet.createStarknetConnectedClient(network);
   }
 
   throw new Error(`Unsupported network: ${network}`);
@@ -41,6 +50,11 @@ export function createSigner(network: string, privateKey: Hex | string): Promise
   // svm
   if (SupportedSVMNetworks.find(n => n === network)) {
     return svm.createSignerFromBase58(privateKey as string);
+  }
+
+  // starknet
+  if (SupportedStarknetNetworks.find(n => n === network)) {
+    return starknet.createStarknetSigner(network, privateKey as string);
   }
 
   throw new Error(`Unsupported network: ${network}`);
@@ -67,11 +81,21 @@ export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
 }
 
 /**
+ * Checks if the given wallet is a Starknet signer wallet.
+ *
+ * @param wallet - The object wallet to check.
+ * @returns True if the wallet is a Starknet signer wallet, false otherwise.
+ */
+export function isStarknetSignerWallet(wallet: Signer): wallet is starknet.StarknetSigner {
+  return starknet.isStarknetSigner(wallet as starknet.StarknetSigner);
+}
+
+/**
  * Checks if the given wallet is a multi network signer wallet
  *
  * @param wallet - The object wallet to check
  * @returns True if the wallet is a multi network signer wallet, false otherwise
  */
 export function isMultiNetworkSigner(wallet: object): wallet is MultiNetworkSigner {
-  return "evm" in wallet && "svm" in wallet;
+  return "evm" in wallet && "svm" in wallet && "starknet" in wallet;
 }
