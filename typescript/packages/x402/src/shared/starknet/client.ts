@@ -8,7 +8,7 @@ import {
   type GetTransactionReceiptResponse,
   type BlockIdentifier,
 } from "starknet";
-import { Network } from "../../types/shared";
+import { Network } from "../../types/shared/network";
 
 /**
  * Starknet connected client for read-only operations
