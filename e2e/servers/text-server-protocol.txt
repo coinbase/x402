@@ -5,6 +5,60 @@
 2. Must output specific logs
 3. Must error code 0 or 1, with a JSON response payload
 
+## Protocol Family Support
+Servers must declare which protocol family each payment endpoint requires in their test.config.json:
+- **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
+- **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
+
+Example configuration:
+```json
+{
+  "name": "my-server",
+  "type": "server",
+  "language": "typescript",
+  "endpoints": [
+    {
+      "path": "/protected",
+      "method": "GET",
+      "description": "Protected endpoint requiring EVM payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm"
+    },
+    {
+      "path": "/health",
+      "method": "GET",
+      "description": "Health check endpoint",
+      "health": true
+    }
+  ]
+}
+```
+
+Multi-protocol server example:
+```json
+{
+  "name": "universal-server",
+  "type": "server",
+  "language": "typescript", 
+  "endpoints": [
+    {
+      "path": "/evm-protected",
+      "method": "GET",
+      "description": "Protected endpoint requiring EVM payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm"
+    },
+    {
+      "path": "/svm-protected", 
+      "method": "GET",
+      "description": "Protected endpoint requiring SVM payment",
+      "requiresPayment": true,
+      "protocolFamily": "svm"
+    }
+  ]
+}
+```
+
 ## Environment Variables / CLI Arguments
 The following parameters must be configurable:
 - `USE_CDP_FACILITATOR`: Flag to switch facilitators from default

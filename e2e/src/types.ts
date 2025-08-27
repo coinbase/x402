@@ -1,3 +1,5 @@
+export type ProtocolFamily = 'evm' | 'svm';
+
 export interface ClientResult {
   success: boolean;
   data?: any;
@@ -37,6 +39,8 @@ export interface TestEndpoint {
   method: string;
   description: string;
   requiresPayment?: boolean;
+  protocolFamily?: ProtocolFamily;
+  networks?: string[];
   health?: boolean;
   close?: boolean;
 }
@@ -45,6 +49,7 @@ export interface TestConfig {
   name: string;
   type: 'server' | 'client';
   language: string;
+  protocolFamilies?: ProtocolFamily[];
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {
@@ -75,6 +80,7 @@ export interface TestScenario {
   client: DiscoveredClient;
   server: DiscoveredServer;
   endpoint: TestEndpoint;
+  protocolFamily: ProtocolFamily;
   facilitatorNetworkCombo: {
     useCdpFacilitator: boolean;
     network: string;
