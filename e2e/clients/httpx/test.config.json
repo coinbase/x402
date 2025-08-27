@@ -2,6 +2,7 @@
   "name": "httpx",
   "type": "client",
   "language": "python",
+  "protocolFamilies": ["evm"],
   "description": "Python httpx client with x402 payment hooks",
   "environment": {
     "required": [
