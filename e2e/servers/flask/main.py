@@ -5,6 +5,14 @@ import logging
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 from x402.flask.middleware import PaymentMiddleware
+from x402.types import EIP712Domain, TokenAmount, TokenAsset
+from x402.chains import (
+    get_chain_id,
+    get_token_decimals,
+    get_token_name,
+    get_token_version,
+    get_default_token_address,
+)
 
 # Configure logging to reduce verbosity
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -34,6 +42,10 @@ if USE_CDP_FACILITATOR and (not CDP_API_KEY_ID or not CDP_API_KEY_SECRET):
     )
     sys.exit(1)
 
+# Get chain and token information
+chain_id = get_chain_id(NETWORK)
+address = get_default_token_address(chain_id)
+
 app = Flask(__name__)
 
 # Create facilitator config if using CDP
@@ -46,10 +58,29 @@ if USE_CDP_FACILITATOR:
 # Initialize payment middleware
 payment_middleware = PaymentMiddleware(app)
 
-# Apply payment middleware to protected endpoint
+# Apply payment middleware to protected endpoints
 payment_middleware.add(
     path="/protected",
     price="$0.001",
+    pay_to_address=ADDRESS,
+    network=NETWORK,
+    facilitator_config=facilitator_config,
+)
+
+# Add second protected endpoint with ERC20 token pricing
+payment_middleware.add(
+    path="/protected-2",
+    price=TokenAmount(
+        amount="1000",  # 1000 USDC units (0.001 USDC)
+        asset=TokenAsset(
+            address=address,
+            decimals=get_token_decimals(chain_id, address),
+            eip712=EIP712Domain(
+                name=get_token_name(chain_id, address),
+                version=get_token_version(chain_id, address),
+            ),
+        ),
+    ),
     pay_to_address=ADDRESS,
     network=NETWORK,
     facilitator_config=facilitator_config,
@@ -70,6 +101,20 @@ def protected_endpoint():
             "message": "Access granted to protected resource",
             "timestamp": "2024-01-01T00:00:00Z",
             "data": {"resource": "premium_content", "access_level": "paid"},
+        }
+    )
+
+
+@app.route("/protected-2")
+def protected_endpoint_2():
+    """Protected endpoint that requires ERC20 payment"""
+    if shutdown_requested:
+        return jsonify({"error": "Server shutting down"}), 503
+
+    return jsonify(
+        {
+            "message": "Access granted to protected resource #2",
+            "timestamp": "2024-01-01T00:00:00Z",
         }
     )
 

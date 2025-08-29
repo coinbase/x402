@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union
 from httpx import Request, Response, AsyncClient
 from eth_account import Account
 from x402.clients.base import (
@@ -7,7 +7,7 @@ from x402.clients.base import (
     PaymentError,
     PaymentSelectorCallable,
 )
-from x402.types import x402PaymentRequiredResponse
+from x402.types import x402PaymentRequiredResponse, WalletPolicy
 
 
 class HttpxHooks:
@@ -78,14 +78,14 @@ class HttpxHooks:
 
 def x402_payment_hooks(
     account: Account,
-    max_value: Optional[int] = None,
+    policy_or_max_value: Optional[Union[WalletPolicy, int]] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
 ) -> Dict[str, List]:
     """Create httpx event hooks dictionary for handling 402 Payment Required responses.
 
     Args:
         account: eth_account.Account instance for signing payments
-        max_value: Optional maximum allowed payment amount in base units
+        policy_or_max_value: Either a WalletPolicy for flexible configuration or an int for legacy max value
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
             and returns a PaymentRequirements object.
@@ -96,7 +96,7 @@ def x402_payment_hooks(
     # Create x402Client
     client = x402Client(
         account,
-        max_value=max_value,
+        policy_or_max_value=policy_or_max_value,
         payment_requirements_selector=payment_requirements_selector,
     )
 
@@ -116,7 +116,7 @@ class x402HttpxClient(AsyncClient):
     def __init__(
         self,
         account: Account,
-        max_value: Optional[int] = None,
+        policy_or_max_value: Optional[Union[WalletPolicy, int]] = None,
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
         **kwargs,
     ):
@@ -124,7 +124,7 @@ class x402HttpxClient(AsyncClient):
 
         Args:
             account: eth_account.Account instance for signing payments
-            max_value: Optional maximum allowed payment amount in base units
+            policy_or_max_value: Either a WalletPolicy for flexible configuration or an int for legacy max value
             payment_requirements_selector: Optional custom selector for payment requirements.
                 Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
                 and returns a PaymentRequirements object.
@@ -132,5 +132,5 @@ class x402HttpxClient(AsyncClient):
         """
         super().__init__(**kwargs)
         self.event_hooks = x402_payment_hooks(
-            account, max_value, payment_requirements_selector
+            account, policy_or_max_value, payment_requirements_selector
         )

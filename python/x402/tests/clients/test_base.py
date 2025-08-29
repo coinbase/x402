@@ -8,7 +8,7 @@ from x402.clients.base import (
     UnsupportedSchemeException,
     decode_x_payment_response,
 )
-from x402.types import PaymentRequirements
+from x402.types import PaymentRequirements, WalletPolicy, PaymentPolicy
 from x402.exact import decode_payment
 
 
@@ -70,21 +70,33 @@ def test_decode_x_payment_response():
 
 
 def test_client_initialization(account):
-    # Test basic initialization
+    # Test basic initialization (default policy)
     client = x402Client(account)
     assert client.account == account
-    assert client.max_value is None
+    assert client.policy_or_max_value is None
+    assert client.effective_policy.payments.networks["base-sepolia"] == "$0.10"
 
-    # Test initialization with max_value
-    client = x402Client(account, max_value=1000)
-    assert client.max_value == 1000
+    # Test initialization with legacy max_value (backwards compatibility)
+    client = x402Client(account, policy_or_max_value=100000)  # 0.1 USDC in atomic units
+    assert client.policy_or_max_value == 100000
+    # Should convert to policy with both base and base-sepolia
+    assert "base" in client.effective_policy.payments.networks
+    assert "base-sepolia" in client.effective_policy.payments.networks
+
+    # Test initialization with WalletPolicy
+    policy = WalletPolicy(payments=PaymentPolicy(networks={"base-sepolia": "$0.05"}))
+    client = x402Client(account, policy_or_max_value=policy)
+    assert client.policy_or_max_value == policy
+    assert client.effective_policy == policy
 
     # Test initialization with custom selector
-    def custom_selector(accepts, network_filter=None, scheme_filter=None):
+    def custom_selector(
+        accepts, network_filter=None, scheme_filter=None, max_value=None
+    ):
         return accepts[0]  # Just return first requirement
 
     client = x402Client(account, payment_requirements_selector=custom_selector)
-    assert client.select_payment_requirements != x402Client.select_payment_requirements
+    assert client._payment_requirements_selector == custom_selector
 
 
 def test_generate_nonce(client):
@@ -125,16 +137,45 @@ def test_select_payment_requirements(client, payment_requirements):
     # Test no matching requirements
     with pytest.raises(UnsupportedSchemeException):
         client.select_payment_requirements(
-            [payment_requirements], network_filter="ethereum"
+            [payment_requirements], network_filter="avalanche"
         )
 
 
-def test_select_payment_requirements_amount_exceeded(client, payment_requirements):
-    # Set max_value lower than required amount
-    client.max_value = 1000
+def test_select_payment_requirements_amount_exceeded_legacy(
+    account, payment_requirements
+):
+    # Test legacy max_value behavior
+    client = x402Client(account, policy_or_max_value=1000)  # Very low limit
 
     with pytest.raises(PaymentAmountExceededError):
         client.select_payment_requirements([payment_requirements])
+
+
+def test_select_payment_requirements_policy_exceeded(account, payment_requirements):
+    # Test policy-based limits
+    policy = WalletPolicy(
+        payments=PaymentPolicy(
+            networks={"base-sepolia": "$0.001"}  # Very low limit
+        )
+    )
+    client = x402Client(account, policy_or_max_value=policy)
+
+    with pytest.raises(PaymentAmountExceededError):
+        client.select_payment_requirements([payment_requirements])
+
+
+def test_select_payment_requirements_policy_allows(account, payment_requirements):
+    # Test policy that allows the payment
+    policy = WalletPolicy(
+        payments=PaymentPolicy(
+            networks={"base-sepolia": "$1.00"}  # High limit
+        )
+    )
+    client = x402Client(account, policy_or_max_value=policy)
+
+    # Should not raise an exception
+    selected = client.select_payment_requirements([payment_requirements])
+    assert selected == payment_requirements
 
 
 def test_create_payment_header(client, payment_requirements):
@@ -192,3 +233,39 @@ def test_payment_requirements_sorting(client):
     # Test both networks are equal
     selected = client.select_payment_requirements([other_req, base_req])
     assert selected.network == "base-sepolia"
+
+
+def test_money_shorthand_expansion(account, payment_requirements):
+    # Test that Money shorthand gets expanded properly
+    policy = WalletPolicy(
+        payments=PaymentPolicy(
+            networks={"base-sepolia": "$0.50"}  # Money shorthand
+        )
+    )
+    client = x402Client(account, policy_or_max_value=policy)
+
+    # Should allow payment since it's within the $0.50 limit
+    selected = client.select_payment_requirements([payment_requirements])
+    assert selected == payment_requirements
+
+
+def test_network_not_in_policy(account, payment_requirements):
+    # Test payment to network not in policy
+    policy = WalletPolicy(
+        payments=PaymentPolicy(
+            networks={"avalanche": "$1.00"}  # Different network
+        )
+    )
+    client = x402Client(account, policy_or_max_value=policy)
+
+    with pytest.raises(PaymentAmountExceededError, match="exceeds policy limits"):
+        client.select_payment_requirements([payment_requirements])
+
+
+def test_legacy_conversion_warning(account, capsys):
+    # Test that legacy parameter shows warning
+    client = x402Client(account, policy_or_max_value=100000)
+
+    # Check that warning was printed
+    captured = capsys.readouterr()
+    assert "Warning: Passing int directly is deprecated" in captured.out

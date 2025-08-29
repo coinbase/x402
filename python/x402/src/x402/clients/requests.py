@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 import requests
 import json
 from requests.adapters import HTTPAdapter
@@ -8,7 +8,7 @@ from x402.clients.base import (
     PaymentError,
     PaymentSelectorCallable,
 )
-from x402.types import x402PaymentRequiredResponse
+from x402.types import x402PaymentRequiredResponse, WalletPolicy
 import copy
 
 
@@ -86,7 +86,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
 def x402_http_adapter(
     account: Account,
-    max_value: Optional[int] = None,
+    policy_or_max_value: Optional[Union[WalletPolicy, int]] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
 ) -> x402HTTPAdapter:
@@ -94,7 +94,7 @@ def x402_http_adapter(
 
     Args:
         account: eth_account.Account instance for signing payments
-        max_value: Optional maximum allowed payment amount in base units
+        policy_or_max_value: Either a WalletPolicy for flexible configuration or an int for legacy max value
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
             and returns a PaymentRequirements object.
@@ -105,7 +105,7 @@ def x402_http_adapter(
     """
     client = x402Client(
         account,
-        max_value=max_value,
+        policy_or_max_value=policy_or_max_value,
         payment_requirements_selector=payment_requirements_selector,
     )
     return x402HTTPAdapter(client, **kwargs)
@@ -113,7 +113,7 @@ def x402_http_adapter(
 
 def x402_requests(
     account: Account,
-    max_value: Optional[int] = None,
+    policy_or_max_value: Optional[Union[WalletPolicy, int]] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
 ) -> requests.Session:
@@ -121,7 +121,7 @@ def x402_requests(
 
     Args:
         account: eth_account.Account instance for signing payments
-        max_value: Optional maximum allowed payment amount in base units
+        policy_or_max_value: Either a WalletPolicy for flexible configuration or an int for legacy max value
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
             and returns a PaymentRequirements object.
@@ -133,7 +133,7 @@ def x402_requests(
     session = requests.Session()
     adapter = x402_http_adapter(
         account,
-        max_value=max_value,
+        policy_or_max_value=policy_or_max_value,
         payment_requirements_selector=payment_requirements_selector,
         **kwargs,
     )
