@@ -24,6 +24,13 @@ dependencies = [
 
 [project.scripts]
 
+[tool.uv]
+dev-dependencies = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=1.0.0", 
+    "ruff>=0.11.9",
+]
+
 
 [build-system]
 requires = ["hatchling"]

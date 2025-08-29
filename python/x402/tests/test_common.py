@@ -164,7 +164,7 @@ def test_find_matching_payment_requirements():
     assert match.max_amount_required == "1000000"
 
     # Test no match found
-    payment.network = "ethereum"  # No matching network
+    payment.network = "avalanche"  # No matching network
     match = find_matching_payment_requirements(requirements, payment)
     assert match is None
 

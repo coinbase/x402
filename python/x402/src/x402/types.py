@@ -285,3 +285,61 @@ class ListDiscoveryResourcesResponse(BaseModel):
         populate_by_name=True,
         from_attributes=True,
     )
+
+
+# =============================================================================
+# Wallet Policy Types
+# =============================================================================
+
+class AssetPolicy(BaseModel):
+    """Asset-specific policy configuration"""
+    limit: Optional[Price] = None  # Leverages existing Money | TokenAmount union
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class PaymentPolicy(BaseModel):
+    """Payment policy configuration"""
+    # Network configurations - key is network name, value is NetworkPolicy or Money shorthand
+    networks: Dict[str, Union[Dict[str, AssetPolicy], Money]]
+    max_total_spend: Optional[Money] = None
+    require_confirmation: Optional[bool] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class WalletPolicy(BaseModel):
+    """Comprehensive wallet policy configuration"""
+    payments: Optional[PaymentPolicy] = None
+    
+    # Future extensibility for other policy types:
+    # subscriptions: Optional[SubscriptionPolicy] = None
+    # permissions: Optional[PermissionPolicy] = None
+    # gas_preferences: Optional[GasPolicy] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+# USDC addresses for shorthand expansion
+USDC_ADDRESSES = {
+    "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "base-sepolia": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "ethereum": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "polygon": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "arbitrum": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+    "optimism": "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+    "avalanche": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "bsc": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+}

@@ -63,7 +63,7 @@ class PaymentMiddleware:
         path: Union[str, list[str]] = "*",
         description: str = "",
         mime_type: str = "",
-        max_deadline_seconds: int = 60,
+        max_deadline_seconds: int = 300,
         input_schema: Optional[HTTPInputSchema] = None,
         output_schema: Optional[Any] = None,
         discoverable: Optional[bool] = True,
@@ -245,13 +245,38 @@ class PaymentMiddleware:
                 import asyncio
 
                 try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    verify_response = loop.run_until_complete(
+                    # Use asyncio.run() which properly handles event loop creation/cleanup
+                    verify_response = asyncio.run(
                         facilitator.verify(payment, selected_payment_requirements)
                     )
-                finally:
-                    loop.close()
+                except RuntimeError as e:
+                    if (
+                        "asyncio.run() cannot be called from a running event loop"
+                        in str(e)
+                    ):
+                        # If we're in an async context, we need to use the current loop
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # Create a new thread to run the async operation
+                            import concurrent.futures
+
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(
+                                    asyncio.run,
+                                    facilitator.verify(
+                                        payment, selected_payment_requirements
+                                    ),
+                                )
+                                verify_response = future.result()
+                        except RuntimeError:
+                            # Fallback: no running loop, create one properly
+                            verify_response = asyncio.run(
+                                facilitator.verify(
+                                    payment, selected_payment_requirements
+                                )
+                            )
+                    else:
+                        raise
 
                 if not verify_response.is_valid:
                     error_reason = verify_response.invalid_reason or "Unknown error"
@@ -275,12 +300,44 @@ class PaymentMiddleware:
                 ):
                     # Settle the payment for successful responses
                     try:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        settle_response = loop.run_until_complete(
+                        # Use asyncio.run() which properly handles event loop creation/cleanup
+                        settle_response = asyncio.run(
                             facilitator.settle(payment, selected_payment_requirements)
                         )
+                    except RuntimeError as e:
+                        if (
+                            "asyncio.run() cannot be called from a running event loop"
+                            in str(e)
+                        ):
+                            # If we're in an async context, we need to use the current loop
+                            try:
+                                loop = asyncio.get_running_loop()
+                                # Create a new thread to run the async operation
+                                import concurrent.futures
 
+                                with (
+                                    concurrent.futures.ThreadPoolExecutor() as executor
+                                ):
+                                    future = executor.submit(
+                                        asyncio.run,
+                                        facilitator.settle(
+                                            payment, selected_payment_requirements
+                                        ),
+                                    )
+                                    settle_response = future.result()
+                            except RuntimeError:
+                                # Fallback: no running loop, create one properly
+                                settle_response = asyncio.run(
+                                    facilitator.settle(
+                                        payment, selected_payment_requirements
+                                    )
+                                )
+                        else:
+                            raise
+                    except Exception as e:
+                        # Settlement failed
+                        print(f"Settle failed: {str(e)}")
+                    else:
                         if settle_response.success:
                             # Add settlement response header
                             settlement_header = base64.b64encode(
@@ -295,11 +352,6 @@ class PaymentMiddleware:
                             # If settlement fails, we can't return a new response since headers are already sent
                             # Just log the error and continue with the original response
                             print(f"Settle failed: {settle_response.error_reason}")
-                    except Exception as e:
-                        # Log the error but don't try to return a new response
-                        print(f"Settle failed: {str(e)}")
-                    finally:
-                        loop.close()
 
                 return response
 

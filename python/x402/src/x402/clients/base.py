@@ -1,10 +1,15 @@
 import time
-from typing import Optional, Callable, Dict, Any, List
+from typing import Optional, Callable, Dict, Any, List, Union
 from eth_account import Account
 from x402.exact import sign_payment_header
 from x402.types import (
     PaymentRequirements,
     UnsupportedSchemeException,
+    WalletPolicy,
+)
+from x402.wallet_policy_utils import (
+    process_unified_parameter,
+    validate_payment_against_policy,
 )
 from x402.common import x402_VERSION
 import secrets
@@ -66,18 +71,19 @@ class x402Client:
     def __init__(
         self,
         account: Account,
-        max_value: Optional[int] = None,
+        policy_or_max_value: Optional[Union[WalletPolicy, int]] = None,
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     ):
         """Initialize the x402 client.
 
         Args:
             account: eth_account.Account instance for signing payments
-            max_value: Optional maximum allowed payment amount in base units
+            policy_or_max_value: Either a WalletPolicy for flexible configuration or an int for legacy max value
             payment_requirements_selector: Optional custom selector for payment requirements
         """
         self.account = account
-        self.max_value = max_value
+        self.policy_or_max_value = policy_or_max_value
+        self.effective_policy = process_unified_parameter(policy_or_max_value)
         self._payment_requirements_selector = (
             payment_requirements_selector or self.default_payment_requirements_selector
         )
@@ -87,7 +93,7 @@ class x402Client:
         accepts: List[PaymentRequirements],
         network_filter: Optional[str] = None,
         scheme_filter: Optional[str] = None,
-        max_value: Optional[int] = None,
+        max_value: Optional[int] = None,  # Legacy parameter, kept for backwards compatibility
     ) -> PaymentRequirements:
         """Select payment requirements from the list of accepted requirements.
 
@@ -95,14 +101,14 @@ class x402Client:
             accepts: List of accepted payment requirements
             network_filter: Optional network to filter by
             scheme_filter: Optional scheme to filter by
-            max_value: Optional maximum allowed payment amount
+            max_value: Optional maximum allowed payment amount (legacy, for backwards compatibility)
 
         Returns:
             Selected payment requirements (PaymentRequirements instance from x402.types)
 
         Raises:
             UnsupportedSchemeException: If no supported scheme is found
-            PaymentAmountExceededError: If payment amount exceeds max_value
+            PaymentAmountExceededError: If payment amount exceeds max_value (legacy mode only)
         """
         for paymentRequirements in accepts:
             scheme = paymentRequirements.scheme
@@ -117,7 +123,7 @@ class x402Client:
                 continue
 
             if scheme == "exact":
-                # Check max value if set
+                # Legacy max value check for backwards compatibility
                 if max_value is not None:
                     max_amount = int(paymentRequirements.max_amount_required)
                     if max_amount > max_value:
@@ -135,7 +141,7 @@ class x402Client:
         network_filter: Optional[str] = None,
         scheme_filter: Optional[str] = None,
     ) -> PaymentRequirements:
-        """Select payment requirements using the configured selector.
+        """Select payment requirements using the configured selector and validate against policy.
 
         Args:
             accepts: List of accepted payment requirements (PaymentRequirements models)
@@ -147,11 +153,25 @@ class x402Client:
 
         Raises:
             UnsupportedSchemeException: If no supported scheme is found
-            PaymentAmountExceededError: If payment amount exceeds max_value
+            PaymentAmountExceededError: If payment amount exceeds policy limits
         """
-        return self._payment_requirements_selector(
-            accepts, network_filter, scheme_filter, self.max_value
+        # Use the legacy selector for initial filtering
+        legacy_max_value = self.policy_or_max_value if isinstance(self.policy_or_max_value, int) else None
+        selected_requirements = self._payment_requirements_selector(
+            accepts, network_filter, scheme_filter, legacy_max_value
         )
+        
+        # Additionally validate against the effective policy
+        network = selected_requirements.network
+        asset = selected_requirements.asset
+        amount = int(selected_requirements.max_amount_required)
+        
+        if not validate_payment_against_policy(network, asset, amount, self.effective_policy):
+            raise PaymentAmountExceededError(
+                f"Payment amount {amount} exceeds policy limits for {asset} on {network}"
+            )
+        
+        return selected_requirements
 
     def create_payment_header(
         self,

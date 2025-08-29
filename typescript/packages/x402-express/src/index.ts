@@ -121,7 +121,7 @@ export function paymentMiddleware(
         description: description ?? "",
         mimeType: mimeType ?? "",
         payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {

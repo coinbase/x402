@@ -36,7 +36,7 @@ def require_payment(
     path: str | list[str] = "*",
     description: str = "",
     mime_type: str = "",
-    max_deadline_seconds: int = 60,
+    max_deadline_seconds: int = 300,
     input_schema: Optional[HTTPInputSchema] = None,
     output_schema: Optional[Any] = None,
     discoverable: Optional[bool] = True,
