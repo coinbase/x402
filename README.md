@@ -57,12 +57,12 @@ The `x402` protocol is a chain agnostic standard for payments on top of HTTP, le
 
 It specifies:
 
-1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentRequirements`)
-2. A standard header `X-PAYMENT` that is set by clients paying for resources
-3. A standard schema and encoding method for data in the `X-PAYMENT` header
-4. A recommended flow for how payments should be verified and settled by a resource server
-5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`)
-6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response
+1. A schema for how servers can respond to clients to facilitate payment for a resource (`PaymentRequirements`).
+2. A standard header `X-PAYMENT` that is set by clients paying for resources.
+3. A standard schema and encoding method for data in the `X-PAYMENT` header.
+4. A recommended flow for how payments should be verified and settled by a resource server.
+5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`).
+6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response.
 
 ### V1 Protocol Sequencing
 
