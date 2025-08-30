@@ -344,6 +344,32 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Scroll USDC asset details", () => {
+    const result = getDefaultAsset("scroll");
+
+    expect(result).toEqual({
+      address: "0x06efdbff2a14a7c8e15944d1f4a48f9f95f663a4",
+      decimals: 6,
+      eip712: {
+        name: "Bridged USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Scroll Sepolia USDC Test Tokenasset details", () => {
+    const result = getDefaultAsset("scroll-sepolia");
+
+    expect(result).toEqual({
+      address: "0xB1933d0330F117e137cd00852A3c8E6f7254C566",
+      decimals: 6,
+      eip712: {
+        name: "USDC Test Token",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
