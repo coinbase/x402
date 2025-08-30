@@ -2,6 +2,7 @@
   "name": "requests",
   "type": "client",
   "language": "python",
+  "protocolFamilies": ["evm"],
   "description": "Python requests client with x402 HTTP adapter",
   "environment": {
     "required": [
