@@ -85,7 +85,7 @@ export async function getUSDCBalance<
     return 0n;
   }
   const balance = await client.readContract({
-    address: usdc.usdcAddress,
+    address: usdc.usdcAddress as `0x${string}`,
     abi,
     functionName: "balanceOf",
     args: [address],
