@@ -1,10 +1,11 @@
 import * as evm from "./evm/wallet";
 import * as svm from "../../shared/svm/wallet";
 import * as starknet from "../../shared/starknet/wallet";
+import * as starknetClient from "../../shared/starknet/client";
 import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedStarknetNetworks } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | starknet.StarknetConnectedClient;
+export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | starknetClient.StarknetConnectedClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner | starknet.StarknetSigner;
 export type MultiNetworkSigner = { 
   evm: evm.EvmSigner; 
@@ -28,7 +29,7 @@ export function createConnectedClient(network: string): ConnectedClient {
   }
 
   if (SupportedStarknetNetworks.find(n => n === network)) {
-    return starknet.createStarknetConnectedClient(network);
+    return starknetClient.createStarknetConnectedClient(network);
   }
 
   throw new Error(`Unsupported network: ${network}`);

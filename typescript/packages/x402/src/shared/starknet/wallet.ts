@@ -5,12 +5,14 @@ import {
   constants,
   ec,
   CallData,
+  hash,
   type AccountInterface,
   type ProviderInterface,
   type Call,
   type InvocationsDetails,
   type EstimateFeeDetails,
   type Signature,
+  type TypedData,
 } from "starknet";
 import { Network } from "../../types/shared/network";
 
@@ -58,11 +60,11 @@ export async function createStarknetSigner(
   // Calculate account address (using OpenZeppelin account contract class hash)
   const OZAccountClassHash = "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f";
   const constructorCalldata = CallData.compile({ publicKey });
-  const contractAddress = ec.starkCurve.getContractAddress(
-    keyPair,
+  const contractAddress = hash.calculateContractAddressFromHash(
+    0, // salt
     OZAccountClassHash,
     constructorCalldata,
-    0,
+    0, // deployer address
   );
 
   // Create account instance
@@ -126,7 +128,7 @@ export async function estimateStarknetFee(
   calls: Call[],
   details?: EstimateFeeDetails,
 ) {
-  return await signer.account.estimateFee(calls, details);
+  return await signer.account.estimateInvokeFee(calls, details);
 }
 
 /**
@@ -156,11 +158,35 @@ export async function signStarknetMessage(
   signer: StarknetSigner,
   message: string | object,
 ): Promise<Signature> {
+  // Starknet requires TypedData format for message signing
   if (typeof message === "string") {
-    return await signer.account.signMessage(message);
+    // Convert string to TypedData format
+    const typedData: TypedData = {
+      domain: {
+        name: "x402",
+        version: "1",
+        chainId: signer.network === "starknet" ? "0x534e5f4d41494e" : "0x534e5f5345504f4c4941", // SN_MAIN or SN_SEPOLIA
+        revision: "1",
+      },
+      message: {
+        content: message,
+      },
+      primaryType: "Message",
+      types: {
+        Message: [
+          { name: "content", type: "string" },
+        ],
+        StarknetDomain: [
+          { name: "name", type: "felt" },
+          { name: "version", type: "felt" },
+          { name: "chainId", type: "felt" },
+          { name: "revision", type: "felt" },
+        ],
+      },
+    };
+    return await signer.account.signMessage(typedData);
   } else {
-    // For typed data, we need to implement proper EIP-712 style signing
-    // This is a simplified version - production code would need proper typed data handling
-    return await signer.account.signMessage(JSON.stringify(message));
+    // Assume it's already TypedData format
+    return await signer.account.signMessage(message as TypedData);
   }
 }
