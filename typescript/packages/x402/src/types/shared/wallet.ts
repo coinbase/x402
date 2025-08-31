@@ -5,12 +5,15 @@ import * as starknetClient from "../../shared/starknet/client";
 import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedStarknetNetworks } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | starknetClient.StarknetConnectedClient;
+export type ConnectedClient =
+  | evm.ConnectedClient
+  | svm.SvmConnectedClient
+  | starknetClient.StarknetConnectedClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner | starknet.StarknetSigner;
-export type MultiNetworkSigner = { 
-  evm: evm.EvmSigner; 
-  svm: svm.SvmSigner; 
-  starknet: starknet.StarknetSigner; 
+export type MultiNetworkSigner = {
+  evm: evm.EvmSigner;
+  svm: svm.SvmSigner;
+  starknet: starknet.StarknetSigner;
 };
 
 /**

@@ -6,7 +6,7 @@ import { StarknetConnectedClient, createContractInstance, callContract } from ".
  * USDC contract addresses on different Starknet networks
  */
 export const STARKNET_USDC_CONTRACTS = {
-  "starknet": "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8", // USDC on mainnet
+  starknet: "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8", // USDC on mainnet
   "starknet-sepolia": "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8", // USDC on sepolia testnet
 } as const;
 
@@ -126,23 +126,21 @@ export function createUsdcContract(client: StarknetConnectedClient): Contract {
  * @param address - The address to check balance for
  * @returns The USDC balance as a string (in wei, 6 decimals for USDC)
  */
-export async function getUsdcBalance(client: StarknetConnectedClient, address: string): Promise<string> {
+export async function getUsdcBalance(
+  client: StarknetConnectedClient,
+  address: string,
+): Promise<string> {
   const contractAddress = getUsdcContractAddress(client.network);
-  
+
   try {
-    const result = await callContract(
-      client,
-      contractAddress,
-      "balanceOf",
-      [address],
-    );
-    
+    const result = await callContract(client, contractAddress, "balanceOf", [address]);
+
     // Convert the result to a proper uint256 value
     const balance = uint256.uint256ToBN({
       low: result[0],
       high: result[1],
     });
-    
+
     return balance.toString();
   } catch (error) {
     throw new Error(`Failed to get USDC balance: ${error}`);
@@ -163,20 +161,15 @@ export async function getUsdcAllowance(
   spender: string,
 ): Promise<string> {
   const contractAddress = getUsdcContractAddress(client.network);
-  
+
   try {
-    const result = await callContract(
-      client,
-      contractAddress,
-      "allowance",
-      [owner, spender],
-    );
-    
+    const result = await callContract(client, contractAddress, "allowance", [owner, spender]);
+
     const allowance = uint256.uint256ToBN({
       low: result[0],
       high: result[1],
     });
-    
+
     return allowance.toString();
   } catch (error) {
     throw new Error(`Failed to get USDC allowance: ${error}`);
@@ -191,14 +184,10 @@ export async function getUsdcAllowance(
  * @param amount - The amount to transfer (in wei, 6 decimals for USDC)
  * @returns The transaction response
  */
-export async function transferUsdc(
-  signer: StarknetSigner,
-  recipient: string,
-  amount: string,
-) {
+export async function transferUsdc(signer: StarknetSigner, recipient: string, amount: string) {
   const contractAddress = getUsdcContractAddress(signer.network);
   const amountUint256 = uint256.bnToUint256(amount);
-  
+
   const call: Call = {
     contractAddress,
     entrypoint: "transfer",
@@ -207,7 +196,7 @@ export async function transferUsdc(
       amount: amountUint256,
     }),
   };
-  
+
   return await signer.account.execute(call);
 }
 
@@ -228,7 +217,7 @@ export async function transferUsdcFrom(
 ) {
   const contractAddress = getUsdcContractAddress(signer.network);
   const amountUint256 = uint256.bnToUint256(amount);
-  
+
   const call: Call = {
     contractAddress,
     entrypoint: "transferFrom",
@@ -238,7 +227,7 @@ export async function transferUsdcFrom(
       amount: amountUint256,
     }),
   };
-  
+
   return await signer.account.execute(call);
 }
 
@@ -250,14 +239,10 @@ export async function transferUsdcFrom(
  * @param amount - The amount to approve (in wei, 6 decimals for USDC)
  * @returns The transaction response
  */
-export async function approveUsdc(
-  signer: StarknetSigner,
-  spender: string,
-  amount: string,
-) {
+export async function approveUsdc(signer: StarknetSigner, spender: string, amount: string) {
   const contractAddress = getUsdcContractAddress(signer.network);
   const amountUint256 = uint256.bnToUint256(amount);
-  
+
   const call: Call = {
     contractAddress,
     entrypoint: "approve",
@@ -266,7 +251,7 @@ export async function approveUsdc(
       amount: amountUint256,
     }),
   };
-  
+
   return await signer.account.execute(call);
 }
 
@@ -282,14 +267,14 @@ export async function getUsdcTokenInfo(client: StarknetConnectedClient): Promise
   decimals: number;
 }> {
   const contractAddress = getUsdcContractAddress(client.network);
-  
+
   try {
     const [nameResult, symbolResult, decimalsResult] = await Promise.all([
       callContract(client, contractAddress, "name"),
       callContract(client, contractAddress, "symbol"),
       callContract(client, contractAddress, "decimals"),
     ]);
-    
+
     return {
       name: nameResult[0], // Convert felt252 to string in production
       symbol: symbolResult[0], // Convert felt252 to string in production
@@ -323,14 +308,14 @@ export function formatUsdcAmount(amount: string): string {
   const decimals = 6; // USDC has 6 decimals
   const divisor = BigInt(10 ** decimals);
   const bigIntAmount = BigInt(amount);
-  
+
   const integer = bigIntAmount / divisor;
   const remainder = bigIntAmount % divisor;
-  
+
   if (remainder === BigInt(0)) {
     return integer.toString();
   }
-  
+
   const decimalStr = remainder.toString().padStart(decimals, "0").replace(/0+$/, "");
   return `${integer}.${decimalStr}`;
 }

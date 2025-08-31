@@ -1,6 +1,5 @@
 import {
   Account,
-  Provider,
   RpcProvider,
   constants,
   ec,
@@ -54,7 +53,7 @@ export async function createStarknetSigner(
   const provider = getStarknetProvider(network);
 
   // Derive public key and address from private key
-  const keyPair = ec.starkCurve.getStarkKey(normalizedPrivateKey);
+  ec.starkCurve.getStarkKey(normalizedPrivateKey); // Validate key
   const publicKey = ec.starkCurve.getPublicKey(normalizedPrivateKey);
 
   // Calculate account address (using OpenZeppelin account contract class hash)
