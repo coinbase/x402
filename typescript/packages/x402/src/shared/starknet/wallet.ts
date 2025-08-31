@@ -143,7 +143,7 @@ export async function executeStarknetTransaction(
   calls: Call[],
   details?: InvocationsDetails,
 ) {
-  return await signer.account.execute(calls, undefined, details);
+  return await signer.account.execute(calls, details);
 }
 
 /**
