@@ -12,7 +12,7 @@ import {
   type EstimateFeeDetails,
   type Signature,
 } from "starknet";
-import { Network } from "../../types/shared";
+import { Network } from "../../types/shared/network";
 
 /**
  * Starknet signer interface that wraps Account functionality

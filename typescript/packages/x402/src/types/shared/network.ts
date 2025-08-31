@@ -10,6 +10,8 @@ export const NetworkSchema = z.enum([
   "solana",
   "sei",
   "sei-testnet",
+  "starknet",
+  "starknet-sepolia",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -40,9 +42,23 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
+// starknet
+export const SupportedStarknetNetworks: Network[] = ["starknet", "starknet-sepolia"];
+export const StarknetNetworkToChainId = new Map<Network, string>([
+  ["starknet", "0x534e5f4d41494e"], // SN_MAIN
+  ["starknet-sepolia", "0x534e5f5345504f4c4941"], // SN_SEPOLIA
+]);
+
 export const ChainIdToNetwork = Object.fromEntries(
   [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
+    EvmNetworkToChainId.get(network) || SvmNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;
+
+export const StarknetChainIdToNetwork = Object.fromEntries(
+  SupportedStarknetNetworks.map(network => [
+    StarknetNetworkToChainId.get(network),
+    network,
+  ]),
+) as Record<string, Network>;
