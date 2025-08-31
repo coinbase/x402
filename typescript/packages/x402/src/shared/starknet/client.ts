@@ -1,5 +1,4 @@
 import {
-  Provider,
   RpcProvider,
   Contract,
   constants,
@@ -50,12 +49,12 @@ export function createStarknetConnectedClient(network: string): StarknetConnecte
 export function createStarknetProvider(network: string): ProviderInterface {
   switch (network) {
     case "starknet":
-      return new RpcProvider({ 
+      return new RpcProvider({
         nodeUrl: constants.NetworkName.SN_MAIN,
         chainId: constants.StarknetChainId.SN_MAIN,
       });
     case "starknet-sepolia":
-      return new RpcProvider({ 
+      return new RpcProvider({
         nodeUrl: constants.NetworkName.SN_SEPOLIA,
         chainId: constants.StarknetChainId.SN_SEPOLIA,
       });
@@ -131,7 +130,7 @@ export async function getTransactionReceipt(
 export function createContractInstance(
   client: StarknetConnectedClient,
   contractAddress: string,
-  abi: any[],
+  abi: unknown[],
 ): Contract {
   return new Contract(abi, contractAddress, client.provider);
 }
@@ -164,14 +163,17 @@ export async function callContract(
   client: StarknetConnectedClient,
   contractAddress: string,
   functionName: string,
-  calldata: any[] = [],
+  calldata: string[] = [],
   blockIdentifier?: BlockIdentifier,
 ) {
-  return await client.provider.callContract({
-    contractAddress,
-    entrypoint: functionName,
-    calldata,
-  }, blockIdentifier);
+  return await client.provider.callContract(
+    {
+      contractAddress,
+      entrypoint: functionName,
+      calldata,
+    },
+    blockIdentifier,
+  );
 }
 
 /**

@@ -1,8 +1,8 @@
-import { 
-  EvmNetworkToChainId, 
-  Network, 
-  SvmNetworkToChainId, 
-  StarknetNetworkToChainId 
+import {
+  EvmNetworkToChainId,
+  Network,
+  SvmNetworkToChainId,
+  StarknetNetworkToChainId,
 } from "../types/shared";
 
 /**

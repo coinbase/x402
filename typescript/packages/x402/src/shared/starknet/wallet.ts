@@ -44,7 +44,7 @@ export async function createStarknetSigner(
 ): Promise<StarknetSigner> {
   // Normalize private key format
   const normalizedPrivateKey = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
-  
+
   // Validate private key
   if (!/^0x[0-9a-fA-F]{64}$/.test(normalizedPrivateKey)) {
     throw new Error("Invalid private key format. Expected 64-character hex string.");
@@ -52,11 +52,11 @@ export async function createStarknetSigner(
 
   // Get provider for the network
   const provider = getStarknetProvider(network);
-  
+
   // Derive public key and address from private key
   const keyPair = ec.starkCurve.getStarkKey(normalizedPrivateKey);
   const publicKey = ec.starkCurve.getPublicKey(normalizedPrivateKey);
-  
+
   // Calculate account address (using OpenZeppelin account contract class hash)
   const OZAccountClassHash = "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f";
   const constructorCalldata = CallData.compile({ publicKey });
@@ -173,9 +173,7 @@ export async function signStarknetMessage(
       },
       primaryType: "Message",
       types: {
-        Message: [
-          { name: "content", type: "string" },
-        ],
+        Message: [{ name: "content", type: "string" }],
         StarknetDomain: [
           { name: "name", type: "felt" },
           { name: "version", type: "felt" },

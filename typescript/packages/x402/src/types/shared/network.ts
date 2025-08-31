@@ -57,8 +57,5 @@ export const ChainIdToNetwork = Object.fromEntries(
 ) as Record<number, Network>;
 
 export const StarknetChainIdToNetwork = Object.fromEntries(
-  SupportedStarknetNetworks.map(network => [
-    StarknetNetworkToChainId.get(network),
-    network,
-  ]),
+  SupportedStarknetNetworks.map(network => [StarknetNetworkToChainId.get(network), network]),
 ) as Record<string, Network>;
