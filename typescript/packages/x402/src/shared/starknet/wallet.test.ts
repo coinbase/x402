@@ -35,6 +35,9 @@ vi.mock("starknet", () => ({
   CallData: {
     compile: vi.fn(),
   },
+  hash: {
+    calculateContractAddressFromHash: vi.fn(),
+  },
 }));
 
 describe("wallet", () => {
@@ -59,6 +62,7 @@ describe("wallet", () => {
     // Setup mock account
     mockAccount = {
       estimateFee: vi.fn(),
+      estimateInvokeFee: vi.fn(),
       execute: vi.fn(),
       signMessage: vi.fn(),
       address: mockAddress,
@@ -68,8 +72,12 @@ describe("wallet", () => {
     (starknet.RpcProvider as ReturnType<typeof vi.fn>).mockImplementation(() => mockProvider);
     (starknet.Account as ReturnType<typeof vi.fn>).mockImplementation(() => mockAccount);
     (starknet.ec.starkCurve.getStarkKey as ReturnType<typeof vi.fn>).mockReturnValue(mockKeyPair);
-    (starknet.ec.starkCurve.getPublicKey as ReturnType<typeof vi.fn>).mockReturnValue(mockPublicKey);
-    (starknet.ec.starkCurve.getContractAddress as ReturnType<typeof vi.fn>).mockReturnValue(mockAddress);
+    (starknet.ec.starkCurve.getPublicKey as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockPublicKey,
+    );
+    (starknet.hash.calculateContractAddressFromHash as ReturnType<typeof vi.fn>).mockReturnValue(
+      mockAddress,
+    );
     (starknet.CallData.compile as ReturnType<typeof vi.fn>).mockReturnValue([mockPublicKey]);
   });
 
@@ -154,11 +162,11 @@ describe("wallet", () => {
     it("should calculate contract address correctly", async () => {
       await createStarknetSigner("starknet", mockPrivateKey);
 
-      expect(starknet.ec.starkCurve.getContractAddress).toHaveBeenCalledWith(
-        mockKeyPair,
+      expect(starknet.hash.calculateContractAddressFromHash).toHaveBeenCalledWith(
+        0, // salt
         "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f", // OZ Account class hash
         [mockPublicKey],
-        0,
+        0, // deployer address
       );
     });
   });
@@ -230,13 +238,13 @@ describe("wallet", () => {
         network: "starknet" as Network,
       };
 
-      mockAccount.estimateFee.mockResolvedValue(mockFeeEstimate);
+      mockAccount.estimateInvokeFee.mockResolvedValue(mockFeeEstimate);
     });
 
     it("should estimate fee for transaction calls", async () => {
       const result = await estimateStarknetFee(mockSigner, mockCalls);
 
-      expect(mockAccount.estimateFee).toHaveBeenCalledWith(mockCalls, undefined);
+      expect(mockAccount.estimateInvokeFee).toHaveBeenCalledWith(mockCalls, undefined);
       expect(result).toEqual(mockFeeEstimate);
     });
 
@@ -244,13 +252,13 @@ describe("wallet", () => {
       const details = { blockIdentifier: "latest" };
       const result = await estimateStarknetFee(mockSigner, mockCalls, details);
 
-      expect(mockAccount.estimateFee).toHaveBeenCalledWith(mockCalls, details);
+      expect(mockAccount.estimateInvokeFee).toHaveBeenCalledWith(mockCalls, details);
       expect(result).toEqual(mockFeeEstimate);
     });
 
     it("should handle estimation errors", async () => {
       const error = new Error("Fee estimation failed");
-      mockAccount.estimateFee.mockRejectedValue(error);
+      mockAccount.estimateInvokeFee.mockRejectedValue(error);
 
       await expect(estimateStarknetFee(mockSigner, mockCalls)).rejects.toThrow(
         "Fee estimation failed",
@@ -285,7 +293,7 @@ describe("wallet", () => {
     it("should execute transaction calls", async () => {
       const result = await executeStarknetTransaction(mockSigner, mockCalls);
 
-      expect(mockAccount.execute).toHaveBeenCalledWith(mockCalls, undefined, undefined);
+      expect(mockAccount.execute).toHaveBeenCalledWith(mockCalls, undefined);
       expect(result).toEqual(mockTxResponse);
     });
 
@@ -293,7 +301,7 @@ describe("wallet", () => {
       const details = { maxFee: "1000000" };
       const result = await executeStarknetTransaction(mockSigner, mockCalls, details);
 
-      expect(mockAccount.execute).toHaveBeenCalledWith(mockCalls, undefined, details);
+      expect(mockAccount.execute).toHaveBeenCalledWith(mockCalls, details);
       expect(result).toEqual(mockTxResponse);
     });
 
@@ -326,15 +334,37 @@ describe("wallet", () => {
       const message = "Hello, Starknet!";
       const result = await signStarknetMessage(mockSigner, message);
 
-      expect(mockAccount.signMessage).toHaveBeenCalledWith(message);
+      const expectedTypedData = {
+        domain: {
+          name: "x402",
+          version: "1",
+          chainId: "0x534e5f4d41494e", // SN_MAIN
+          revision: "1",
+        },
+        message: {
+          content: message,
+        },
+        primaryType: "Message",
+        types: {
+          Message: [{ name: "content", type: "string" }],
+          StarknetDomain: [
+            { name: "name", type: "felt" },
+            { name: "version", type: "felt" },
+            { name: "chainId", type: "felt" },
+            { name: "revision", type: "felt" },
+          ],
+        },
+      };
+
+      expect(mockAccount.signMessage).toHaveBeenCalledWith(expectedTypedData);
       expect(result).toEqual(mockSignature);
     });
 
-    it("should sign object message as JSON", async () => {
+    it("should sign object message as TypedData", async () => {
       const message = { type: "payment", amount: "1000" };
       const result = await signStarknetMessage(mockSigner, message);
 
-      expect(mockAccount.signMessage).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(mockAccount.signMessage).toHaveBeenCalledWith(message);
       expect(result).toEqual(mockSignature);
     });
 
@@ -351,7 +381,29 @@ describe("wallet", () => {
       const message = "";
       const result = await signStarknetMessage(mockSigner, message);
 
-      expect(mockAccount.signMessage).toHaveBeenCalledWith(message);
+      const expectedTypedData = {
+        domain: {
+          name: "x402",
+          version: "1",
+          chainId: "0x534e5f4d41494e", // SN_MAIN
+          revision: "1",
+        },
+        message: {
+          content: message,
+        },
+        primaryType: "Message",
+        types: {
+          Message: [{ name: "content", type: "string" }],
+          StarknetDomain: [
+            { name: "name", type: "felt" },
+            { name: "version", type: "felt" },
+            { name: "chainId", type: "felt" },
+            { name: "revision", type: "felt" },
+          ],
+        },
+      };
+
+      expect(mockAccount.signMessage).toHaveBeenCalledWith(expectedTypedData);
       expect(result).toEqual(mockSignature);
     });
 
@@ -369,7 +421,7 @@ describe("wallet", () => {
 
       const result = await signStarknetMessage(mockSigner, message);
 
-      expect(mockAccount.signMessage).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(mockAccount.signMessage).toHaveBeenCalledWith(message);
       expect(result).toEqual(mockSignature);
     });
   });

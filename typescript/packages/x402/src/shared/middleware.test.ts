@@ -345,7 +345,9 @@ describe("getDefaultAsset", () => {
   });
 
   it("should handle unknown networks", () => {
-    expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
+    expect(() => getDefaultAsset("unknown" as Network)).toThrow(
+      "Network unknown does not have a numeric chain ID",
+    );
   });
 });
 
