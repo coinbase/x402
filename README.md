@@ -181,7 +181,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
   ```json5
   {
     x402Version: number;
-    paymentHeader: string;
+    paymentPayload: string;
     paymentRequirements: paymentRequirements;
   }
   ```
@@ -200,7 +200,7 @@ A `facilitator server` is a 3rd party service that can be used by a `resource se
   ```json5
   {
     x402Version: number;
-    paymentHeader: string;
+    paymentPayload: string;
     paymentRequirements: paymentRequirements;
   }
   ```

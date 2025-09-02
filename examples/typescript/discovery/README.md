@@ -11,7 +11,7 @@ This example demonstrates how to use the x402 discovery feature to find and list
 
 1. Install and build all packages from the typescript examples root:
 ```bash
-cd ../../
+cd ../
 pnpm install
 pnpm build
 cd examples/typescript/discovery
