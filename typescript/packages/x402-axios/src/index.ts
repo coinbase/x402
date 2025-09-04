@@ -5,7 +5,6 @@ import {
   PaymentRequirementsSchema,
   Signer,
   MultiNetworkSigner,
-  isEvmSignerWallet,
   isMultiNetworkSigner,
   isSvmSignerWallet,
   Network,
@@ -72,8 +71,8 @@ export function withPaymentInterceptor(
 
         const network = isMultiNetworkSigner(walletClient)
           ? undefined
-          : isEvmSignerWallet(walletClient as Signer)
-            ? ChainIdToNetwork[(walletClient as unknown as typeof evm.EvmSigner).chain?.id]
+          : evm.isSignerWallet(walletClient as typeof evm.EvmSigner)
+            ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
             : isSvmSignerWallet(walletClient as Signer)
               ? (["solana", "solana-devnet"] as Network[])
               : undefined;

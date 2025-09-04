@@ -7,7 +7,8 @@
       "path": "/protected",
       "method": "GET",
       "description": "Protected endpoint requiring payment",
-      "requiresPayment": true
+      "requiresPayment": true,
+      "protocolFamily": "evm"
     },
     {
       "path": "/health",

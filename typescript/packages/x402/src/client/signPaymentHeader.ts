@@ -25,7 +25,6 @@ export async function signPaymentHeader(
     if (!isEvmSignerWallet(evmClient)) {
       throw new Error("Invalid evm wallet client provided");
     }
-    
     const signedPaymentHeader = await signPaymentHeaderExactEVM(evmClient, paymentRequirements, unsignedPaymentHeader);
     return encodePayment(signedPaymentHeader);
   }
