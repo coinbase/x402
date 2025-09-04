@@ -5,7 +5,6 @@ import {
   PaymentRequirementsSchema,
   Signer,
   MultiNetworkSigner,
-  isEvmSignerWallet,
   isMultiNetworkSigner,
   isSvmSignerWallet,
   Network,

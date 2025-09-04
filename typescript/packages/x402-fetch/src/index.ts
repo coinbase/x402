@@ -2,7 +2,6 @@ import {
   ChainIdToNetwork,
   PaymentRequirementsSchema,
   Signer,
-  isEvmSignerWallet,
   evm,
   MultiNetworkSigner,
   isMultiNetworkSigner,
