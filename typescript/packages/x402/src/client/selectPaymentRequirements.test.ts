@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { selectPaymentRequirements } from "./selectPaymentRequirements";
 import { PaymentRequirements, Network } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
-import { getNetworkId } from "../shared/network";
+import { getNumericNetworkId } from "../shared/network";
 
 /**
  * Test helper to create a payment requirement with the given network, asset, and overrides.
@@ -33,7 +33,7 @@ function makeRequirement(
 
 describe("selectPaymentRequirements", () => {
   it("prioritizes a USDC requirement over non-USDC, regardless of order", () => {
-    const avalancheUsdc = getUsdcChainConfigForChain(getNetworkId("avalanche"))!.usdcAddress as string;
+    const avalancheUsdc = getUsdcChainConfigForChain(getNumericNetworkId("avalanche"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("avalanche", avalancheUsdc),
       makeRequirement("base", "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
@@ -55,8 +55,8 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("returns the first USDC requirement when multiple are available, respecting Base priority", () => {
-    const baseUsdc = getUsdcChainConfigForChain(getNetworkId("base"))!.usdcAddress as string;
-    const avalancheUsdc = getUsdcChainConfigForChain(getNetworkId("avalanche"))!.usdcAddress as string;
+    const baseUsdc = getUsdcChainConfigForChain(getNumericNetworkId("base"))!.usdcAddress as string;
+    const avalancheUsdc = getUsdcChainConfigForChain(getNumericNetworkId("avalanche"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("avalanche", avalancheUsdc),
       makeRequirement("base", baseUsdc),
@@ -69,7 +69,7 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("filters by a specific network and selects USDC within that network", () => {
-    const avalancheUsdc = getUsdcChainConfigForChain(getNetworkId("avalanche"))!.usdcAddress as string;
+    const avalancheUsdc = getUsdcChainConfigForChain(getNumericNetworkId("avalanche"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("base", "0x3333333333333333333333333333333333333333"),
       makeRequirement("avalanche", avalancheUsdc),
@@ -81,8 +81,8 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("filters by a list of networks and prefers Base USDC if present", () => {
-    const baseUsdc = getUsdcChainConfigForChain(getNetworkId("base"))!.usdcAddress as string;
-    const avalancheUsdc = getUsdcChainConfigForChain(getNetworkId("avalanche"))!.usdcAddress as string;
+    const baseUsdc = getUsdcChainConfigForChain(getNumericNetworkId("base"))!.usdcAddress as string;
+    const avalancheUsdc = getUsdcChainConfigForChain(getNumericNetworkId("avalanche"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("avalanche", avalancheUsdc),
       makeRequirement("base", baseUsdc),
@@ -94,7 +94,7 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("filters by ['solana', 'solana-devnet'] and selects the USDC requirement among them", () => {
-    const solanaUsdc = getUsdcChainConfigForChain(getNetworkId("solana"))!.usdcAddress as string;
+    const solanaUsdc = getUsdcChainConfigForChain(getNumericNetworkId("solana"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       // Non-matching network should be ignored
       makeRequirement("base", "0x9999999999999999999999999999999999999999"),
@@ -108,8 +108,8 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("filters by ['solana', 'solana-devnet'] and when both are USDC, returns the first in input order", () => {
-    const solanaUsdc = getUsdcChainConfigForChain(getNetworkId("solana"))!.usdcAddress as string;
-    const solanaDevnetUsdc = getUsdcChainConfigForChain(getNetworkId("solana-devnet"))!.usdcAddress as string;
+    const solanaUsdc = getUsdcChainConfigForChain(getNumericNetworkId("solana"))!.usdcAddress as string;
+    const solanaDevnetUsdc = getUsdcChainConfigForChain(getNumericNetworkId("solana-devnet"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("solana-devnet", solanaDevnetUsdc),
       makeRequirement("solana", solanaUsdc),
@@ -154,7 +154,7 @@ describe("selectPaymentRequirements", () => {
   });
 
   it("supports SVM networks by matching their USDC asset", () => {
-    const solanaUsdc = getUsdcChainConfigForChain(getNetworkId("solana"))!.usdcAddress as string;
+    const solanaUsdc = getUsdcChainConfigForChain(getNumericNetworkId("solana"))!.usdcAddress as string;
     const reqs: PaymentRequirements[] = [
       makeRequirement("solana", solanaUsdc),
       makeRequirement("base", "0x8888888888888888888888888888888888888888"),
