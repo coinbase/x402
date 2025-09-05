@@ -8,6 +8,7 @@ import {
   ERC20TokenAmount,
   PaymentRequirements,
   PaymentPayload,
+  SPLTokenAmount,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -146,10 +147,12 @@ export function getDefaultAsset(network: Network) {
 export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
-): { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] } | { error: string } {
+):
+  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] }
+  | { error: string } {
   // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
-  let asset: ERC20TokenAmount["asset"];
+  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
     // USDC amount in dollars

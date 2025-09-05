@@ -1,5 +1,13 @@
-import { ChainIdToNetwork, PaymentRequirementsSchema, Wallet } from "x402/types";
-import { evm } from "x402/types";
+import {
+  ChainIdToNetwork,
+  PaymentRequirementsSchema,
+  Signer,
+  evm,
+  MultiNetworkSigner,
+  isMultiNetworkSigner,
+  isSvmSignerWallet,
+  Network,
+} from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
@@ -39,7 +47,7 @@ import {
  */
 export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
-  walletClient: Wallet,
+  walletClient: Signer | MultiNetworkSigner,
   maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
@@ -56,10 +64,17 @@ export function wrapFetchWithPayment(
     };
     const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-    const chainId = evm.isSignerWallet(walletClient) ? walletClient.chain?.id : undefined;
+    const network = isMultiNetworkSigner(walletClient)
+      ? undefined
+      : evm.isSignerWallet(walletClient as typeof evm.EvmSigner)
+        ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
+        : isSvmSignerWallet(walletClient)
+          ? (["solana", "solana-devnet"] as Network[])
+          : undefined;
+
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,
-      chainId ? ChainIdToNetwork[chainId] : undefined,
+      network,
       "exact",
     );
 
@@ -97,3 +112,5 @@ export function wrapFetchWithPayment(
 }
 
 export { decodeXPaymentResponse } from "x402/shared";
+export { createSigner, type Signer, type MultiNetworkSigner } from "x402/types";
+export type { Hex } from "viem";

@@ -1,9 +1,10 @@
 import { Context } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
-import { findMatchingRoute, getPaywallHtml } from "x402/shared";
+import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
 import {
   FacilitatorConfig,
+  Network,
   PaymentMiddlewareConfig,
   PaymentPayload,
   RouteConfig,
@@ -11,6 +12,7 @@ import {
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
+import { Address as SolanaAddress } from "@solana/kit";
 
 // Mock dependencies
 vi.mock("x402/verify", () => ({
@@ -24,6 +26,7 @@ vi.mock("x402/shared", async importOriginal => {
     getPaywallHtml: vi.fn(),
     getNetworkId: vi.fn().mockReturnValue("base-sepolia"),
     toJsonSafe: vi.fn(x => x),
+    findMatchingPaymentRequirements: vi.fn(),
     computeRoutePatterns: vi.fn().mockImplementation(routes => {
       const normalizedRoutes = Object.fromEntries(
         Object.entries(routes).map(([pattern, value]) => [
@@ -86,6 +89,7 @@ describe("paymentMiddleware()", () => {
   let middleware: ReturnType<typeof paymentMiddleware>;
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
+  let mockSupported: ReturnType<typeof useFacilitator>["supported"];
 
   const middlewareConfig: PaymentMiddlewareConfig = {
     description: "Test payment",
@@ -226,6 +230,577 @@ describe("paymentMiddleware()", () => {
     );
   });
 
+  it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddress12345";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana-devnet",
+          extra: { feePayer },
+        },
+      ],
+    };
+
+    mockSupported = vi.fn().mockResolvedValue(supportedResponse);
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareSol = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+    await middlewareSol(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana-devnet",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should return 402 with feePayer for solana when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddressMainnet";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana",
+          extra: { feePayer },
+        },
+      ],
+    };
+
+    mockSupported = vi.fn().mockResolvedValue(supportedResponse);
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareSol = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+    await middlewareSol(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should throw error for unsupported network", async () => {
+    const unsupportedRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "unsupported-network" as Network,
+        config: middlewareConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "unsupported-network",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareUnsupported = paymentMiddleware(
+      payTo,
+      unsupportedRoutesConfig,
+      facilitatorConfig,
+    );
+
+    await expect(middlewareUnsupported(mockContext, mockNext)).rejects.toThrow(
+      "Unsupported network: unsupported-network",
+    );
+  });
+
+  it("should throw error when SVM facilitator does not provide fee payer", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana-devnet",
+          extra: {}, // No feePayer
+        },
+      ],
+    };
+
+    mockSupported = vi.fn().mockResolvedValue(supportedResponse);
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareSol = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    await expect(middlewareSol(mockContext, mockNext)).rejects.toThrow(
+      "The facilitator did not provide a fee payer for network: solana-devnet.",
+    );
+  });
+
+  it("should handle custom error messages for payment required", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        paymentRequired: "Custom payment required message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "Accept") return "application/json";
+      return undefined;
+    });
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom payment required message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should handle custom error messages for invalid payment", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        invalidPayment: "Custom invalid payment message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    const invalidPayment = "invalid-payment-header";
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return invalidPayment;
+      return undefined;
+    });
+
+    (exact.evm.decodePayment as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("Invalid payment");
+    });
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom invalid payment message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should handle custom error messages for no matching requirements", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        noMatchingRequirements: "Custom no matching requirements message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return undefined
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue(undefined);
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom no matching requirements message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should handle custom error messages for verification failed", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        verificationFailed: "Custom verification failed message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({
+      isValid: false,
+      invalidReason: "insufficient_funds",
+    });
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom verification failed message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should handle custom error messages for settlement failed", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        settlementFailed: "Custom settlement failed message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom settlement failed message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should handle settlement response failure with custom error message", async () => {
+    const customErrorConfig: PaymentMiddlewareConfig = {
+      ...middlewareConfig,
+      errorMessages: {
+        settlementFailed: "Custom settlement response failed message",
+      },
+    };
+
+    const customRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    };
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "base-sepolia",
+        config: customErrorConfig,
+      },
+    });
+
+    const middlewareCustom = paymentMiddleware(payTo, customRoutesConfig, facilitatorConfig);
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      errorReason: "insufficient_balance",
+      transaction: "0x123",
+      network: "base-sepolia",
+      payer: "0x123",
+    });
+
+    await middlewareCustom(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Custom settlement response failed message",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
   it("should return HTML paywall for browser requests", async () => {
     (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
       if (name === "Accept") return "text/html";
@@ -242,6 +817,31 @@ describe("paymentMiddleware()", () => {
     (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
       if (name === "X-PAYMENT") return encodedValidPayment;
       return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
     });
 
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
@@ -304,6 +904,31 @@ describe("paymentMiddleware()", () => {
       return undefined;
     });
 
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
@@ -336,6 +961,31 @@ describe("paymentMiddleware()", () => {
     (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
       if (name === "X-PAYMENT") return encodedValidPayment;
       return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
     });
 
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
