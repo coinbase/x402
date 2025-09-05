@@ -3,6 +3,7 @@ import {
   ListDiscoveryResourcesRequest,
   ListDiscoveryResourcesResponse,
   FacilitatorConfig,
+  SupportedPaymentKindsResponse,
 } from "../types";
 import {
   PaymentPayload,
@@ -102,6 +103,24 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   }
 
   /**
+   * Gets the supported payment kinds from the facilitator service.
+   *
+   * @returns A promise that resolves to the supported payment kinds
+   */
+  async function supported(): Promise<SupportedPaymentKindsResponse> {
+    const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+
+    const res = await fetch(`${url}/supported`);
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to get supported payment kinds: ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    return data as SupportedPaymentKindsResponse;
+  }
+
+  /**
    * Lists the discovery items with the facilitator service
    *
    * @param config - The configuration for the discovery list request
@@ -140,7 +159,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as ListDiscoveryResourcesResponse;
   }
 
-  return { verify, settle, list };
+  return { verify, settle, supported, list };
 }
 
-export const { verify, settle, list } = useFacilitator();
+export const { verify, settle, supported, list } = useFacilitator();

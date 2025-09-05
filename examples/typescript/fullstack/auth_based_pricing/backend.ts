@@ -5,10 +5,10 @@ import { config } from 'dotenv';
 import { Hex } from 'viem';
 import { SiweMessage, generateNonce } from 'siwe';
 
-import { 
-  PaymentRequirements, 
+import {
+  PaymentRequirements,
   Price as X402Price,
-  Network as X402Network, 
+  Network as X402Network,
   Resource as X402Resource,
   PaymentPayload,
   settleResponseHeader
@@ -71,10 +71,10 @@ function createExactPaymentRequirements(
   }
   const { maxAmountRequired, asset } = atomicAmountForAsset;
   return {
-    scheme: "exact", 
-    network, 
-    maxAmountRequired, 
-    resource, 
+    scheme: "exact",
+    network,
+    maxAmountRequired,
+    resource,
     description,
     mimeType: "application/json", // Content type of the protected resource
     payTo: BUSINESS_WALLET_ADDRESS,
@@ -109,10 +109,10 @@ async function handleX402PaymentVerification(
     console.log('[X402Svc] No X-PAYMENT header. Responding with 402 challenge.');
     return {
       success: false,
-      response: c.json({ 
-        x402Version: X402_VERSION, 
-        error: "X-PAYMENT header is required", 
-        accepts: paymentRequirements 
+      response: c.json({
+        x402Version: X402_VERSION,
+        error: "X-PAYMENT header is required",
+        accepts: paymentRequirements
       }, 402)
     };
   }
@@ -125,10 +125,10 @@ async function handleX402PaymentVerification(
     console.error('[X402Svc] Error decoding X-PAYMENT header:', error.message);
     return {
       success: false,
-      response: c.json({ 
-        x402Version: X402_VERSION, 
-        error: error.message || "Invalid or malformed X-PAYMENT header", 
-        accepts: paymentRequirements 
+      response: c.json({
+        x402Version: X402_VERSION,
+        error: error.message || "Invalid or malformed X-PAYMENT header",
+        accepts: paymentRequirements
       }, 402)
     };
   }
@@ -140,11 +140,11 @@ async function handleX402PaymentVerification(
       console.warn('[X402Svc] Payment verification failed by facilitator:', verificationResponse.invalidReason);
       return {
         success: false,
-        response: c.json({ 
-          x402Version: X402_VERSION, 
-          error: verificationResponse.invalidReason, 
-          accepts: paymentRequirements, 
-          payer: verificationResponse.payer 
+        response: c.json({
+          x402Version: X402_VERSION,
+          error: verificationResponse.invalidReason,
+          accepts: paymentRequirements,
+          payer: verificationResponse.payer
         }, 402)
       };
     }
@@ -158,10 +158,10 @@ async function handleX402PaymentVerification(
     console.error('[X402Svc] Critical error during facilitator payment verification process:', error.message);
     return {
       success: false,
-      response: c.json({ 
-        x402Version: X402_VERSION, 
-        error: error.message || "Facilitator verification process failed", 
-        accepts: paymentRequirements 
+      response: c.json({
+        x402Version: X402_VERSION,
+        error: error.message || "Facilitator verification process failed",
+        accepts: paymentRequirements
       }, 500) // Use 500 for server-side errors with facilitator
     };
   }
@@ -172,7 +172,7 @@ async function handleX402PaymentVerification(
 // Endpoint for clients to request a unique nonce for SIWE message construction
 app.get('/auth/nonce', async (c) => {
   const nonce = generateNonce(); // Generate a cryptographically secure nonce
-  issuedNonces.add(nonce); 
+  issuedNonces.add(nonce);
   // Schedule nonce removal to prevent store bloat and enforce expiration
   setTimeout(() => issuedNonces.delete(nonce), NONCE_EXPIRATION_TIME_MS);
   console.log(`[AuthSvc] SIWE Nonce issued: ${nonce}`);
@@ -186,7 +186,7 @@ app.post('/auth/verify-siwe', async (c) => {
 
   try {
     const siweMessage = new SiweMessage(message); // Parse the client-provided EIP-4361 message
-    
+
     // Validate nonce: ensure it was issued by this server and hasn't expired/been used
     if (!issuedNonces.has(siweMessage.nonce)) {
       console.warn(`[AuthSvc] Attempt to use invalid, expired, or already used SIWE nonce: ${siweMessage.nonce}`);
@@ -195,12 +195,12 @@ app.post('/auth/verify-siwe', async (c) => {
 
     // Verify the SIWE message (checks signature, nonce against message, domain, time constraints, etc.)
     const { success: verificationSuccess, error: verificationError, data: verifiedSiweMessage } = await siweMessage.verify({
-       signature, 
-       nonce: siweMessage.nonce, // Crucial: ensure nonce being verified is the one from the message body
+      signature,
+      nonce: siweMessage.nonce, // Crucial: ensure nonce being verified is the one from the message body
       // domain: 'expected.domain.com', // Optional: verify against expected domain
       // time: new Date() // Optional: verify against current time for issuedAt, expirationTime, notBefore
     });
-    
+
     if (!verificationSuccess) {
       console.warn(`[AuthSvc] SIWE message verification failed for address ${siweMessage.address}:`, verificationError);
       return c.json({ error: 'SIWE message verification failed.', details: verificationError?.type || 'Unknown SIWE error' }, 401);
@@ -210,15 +210,15 @@ app.post('/auth/verify-siwe', async (c) => {
     issuedNonces.delete(siweMessage.nonce);
     const walletAddress = verifiedSiweMessage.address as Hex; // Use address from verified data
     console.log(`[AuthSvc] Successful SIWE verification for ${walletAddress}`);
-    
+
     // Issue JWT for session management
-    const payload = { 
+    const payload = {
       sub: walletAddress.toLowerCase(), // Subject: user's wallet address
       iat: Math.floor(Date.now() / 1000), // Issued At: current time
       exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // Expiration Time: 24 hours
     };
     const token = await sign(payload, JWT_SECRET);
-    
+
     return c.json({ success: true, message: 'Login successful via SIWE', token });
 
   } catch (error: any) {
@@ -261,7 +261,7 @@ app.get('/demo-weather', async (c: HonoContext) => {
     console.error('[X402Svc] Error creating payment requirements for /demo-weather:', error.message);
     return c.json({ error: 'Server error: Could not create payment requirements.' }, 500);
   }
-  
+
   // 3. Handle x402 Payment Flow (Verification/Challenge)
   const x402Result = await handleX402PaymentVerification(c, paymentRequirements);
 
@@ -284,8 +284,8 @@ app.get('/demo-weather', async (c: HonoContext) => {
   // 5. Return Resource (Weather Data)
   console.log('[DemoSvc] /demo-weather: Access granted. Payment successful.');
   const weatherReport = {
-    location: 'Demo City', 
-    temperature: '72°F', 
+    location: 'Demo City',
+    temperature: '72°F',
     condition: 'Sunny with x402 skies!',
     message: 'This is a mock weather report. Payment was successful!',
     pricePaid: priceString, // Reflect the price that was required for this access

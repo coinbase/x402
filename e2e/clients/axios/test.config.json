@@ -2,6 +2,7 @@
   "name": "axios",
   "type": "client",
   "language": "typescript",
+  "protocolFamilies": ["evm"],
   "environment": {
     "required": [
       "PRIVATE_KEY",

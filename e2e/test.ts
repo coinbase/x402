@@ -21,10 +21,23 @@ if (args.includes('-ts') || args.includes('--typescript')) languageFilters.push(
 if (args.includes('-py') || args.includes('--python')) languageFilters.push('python');
 if (args.includes('-go') || args.includes('--go')) languageFilters.push('go');
 
+// Parse protocol family flags
+const protocolFamilyFilters: string[] = [];
+args.forEach((arg, index) => {
+  if ((arg === '--family' || arg === '-f') && index + 1 < args.length) {
+    protocolFamilyFilters.push(args[index + 1]);
+  } else if (arg.startsWith('--family=')) {
+    protocolFamilyFilters.push(arg.split('=')[1]);
+  }
+});
+
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = isDevMode ? 'base-sepolia' : args.find(arg => arg.startsWith('--network='))?.split('=')[1];
+const networkFilter = isDevMode ? ['base-sepolia'] : 
+  args.find(arg => arg.startsWith('--network='))?.split('=')[1] ? 
+  [args.find(arg => arg.startsWith('--network='))?.split('=')[1]!] : 
+  undefined;
 const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
 
 // Parse log file argument
@@ -120,6 +133,7 @@ async function runTest() {
     console.log('  --server=<n>               Filter by server name (e.g., express, fastapi)');
     console.log('  --network=<n>              Filter by network (base, base-sepolia)');
     console.log('  --prod=<true|false>        Filter by production vs testnet scenarios');
+    console.log('  -f, --family=<protocol>    Filter by protocol family (evm, svm) - can be used multiple times');
     console.log('  -h, --help                 Show this help message');
     console.log('');
     console.log('Examples:');
@@ -129,6 +143,8 @@ async function runTest() {
     console.log('  pnpm test -ts --client=axios      # Test TypeScript axios client');
     console.log('  pnpm test -d -py                  # Dev mode, Python implementations only');
     console.log('  pnpm test --network=base --prod=true # Base mainnet only');
+    console.log('  pnpm test -f evm                  # Test EVM protocol family only');
+    console.log('  pnpm test -f evm -f svm           # Test both EVM and SVM protocol families');
     console.log('');
     return;
   }
@@ -168,8 +184,9 @@ async function runTest() {
     languageFilters.length > 0 && { name: 'Languages', value: languageFilters.join(', ') },
     clientFilter && { name: 'Client', value: clientFilter },
     serverFilter && { name: 'Server', value: serverFilter },
-    networkFilter && { name: 'Network', value: networkFilter },
-    prodFilter && { name: 'Production', value: prodFilter }
+    networkFilter && { name: 'Network', value: networkFilter.join(', ') },
+    prodFilter && { name: 'Production', value: prodFilter },
+    protocolFamilyFilters.length > 0 && { name: 'Protocol Families', value: protocolFamilyFilters.join(', ') }
   ].filter((f): f is FilterInfo => f !== null && f !== undefined);
 
   log('📊 Test Scenarios');
@@ -201,8 +218,11 @@ async function runTest() {
     // Server filter - if set, only run tests for this server
     if (serverFilter && scenario.server.name !== serverFilter) return false;
 
-    // Network filter - if set, only run tests for this network
-    if (networkFilter && scenario.facilitatorNetworkCombo.network !== networkFilter) return false;
+    // Network filter - if set, only run tests for these networks
+    if (networkFilter && !networkFilter.includes(scenario.facilitatorNetworkCombo.network)) return false;
+
+    // Protocol family filter - if set, only run tests for these protocol families
+    if (protocolFamilyFilters.length > 0 && !protocolFamilyFilters.includes(scenario.protocolFamily)) return false;
 
     // Production filter - if set, filter by production vs testnet scenarios
     if (prodFilter !== undefined) {
@@ -278,6 +298,22 @@ async function runTest() {
   log(`✅ Passed: ${passed}`);
   log(`❌ Failed: ${failed}`);
   log(`📈 Total: ${passed + failed}`);
+  
+  // Protocol family breakdown
+  const protocolBreakdown = filteredScenarios.reduce((acc, scenario) => {
+    const key = scenario.protocolFamily;
+    if (!acc[key]) acc[key] = { passed: 0, failed: 0, total: 0 };
+    acc[key].total++;
+    return acc;
+  }, {} as Record<string, { passed: number; failed: number; total: number }>);
+  
+  if (Object.keys(protocolBreakdown).length > 1) {
+    log('');
+    log('📊 Protocol Family Breakdown:');
+    Object.entries(protocolBreakdown).forEach(([protocol, stats]) => {
+      log(`   ${protocol.toUpperCase()}: ${stats.total} scenarios tested`);
+    });
+  }
 
   // Close logger
   closeLogger();

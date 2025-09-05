@@ -3,9 +3,13 @@ import {
   ChainIdToNetwork,
   PaymentRequirements,
   PaymentRequirementsSchema,
-  Wallet,
+  Signer,
+  MultiNetworkSigner,
+  isMultiNetworkSigner,
+  isSvmSignerWallet,
+  Network,
+  evm,
 } from "x402/types";
-import { evm } from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
@@ -39,7 +43,7 @@ import {
  */
 export function withPaymentInterceptor(
   axiosClient: AxiosInstance,
-  walletClient: Wallet,
+  walletClient: Signer | MultiNetworkSigner,
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
   axiosClient.interceptors.response.use(
@@ -65,13 +69,15 @@ export function withPaymentInterceptor(
         };
         const parsed = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-        const chainId = evm.isSignerWallet(walletClient) ? walletClient.chain?.id : undefined;
+        const network = isMultiNetworkSigner(walletClient)
+          ? undefined
+          : evm.isSignerWallet(walletClient as typeof evm.EvmSigner)
+            ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
+            : isSvmSignerWallet(walletClient as Signer)
+              ? (["solana", "solana-devnet"] as Network[])
+              : undefined;
 
-        const selectedPaymentRequirements = paymentRequirementsSelector(
-          parsed,
-          chainId ? ChainIdToNetwork[chainId] : undefined,
-          "exact",
-        );
+        const selectedPaymentRequirements = paymentRequirementsSelector(parsed, network, "exact");
         const paymentHeader = await createPaymentHeader(
           walletClient,
           x402Version,
@@ -95,3 +101,5 @@ export function withPaymentInterceptor(
 }
 
 export { decodeXPaymentResponse } from "x402/shared";
+export { createSigner, type Signer, type MultiNetworkSigner } from "x402/types";
+export type { Hex } from "viem";

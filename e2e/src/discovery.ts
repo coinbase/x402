@@ -7,13 +7,14 @@ import {
   TestConfig,
   DiscoveredServer,
   DiscoveredClient,
-  TestScenario
+  TestScenario,
+  ProtocolFamily
 } from './types';
 
 const facilitatorNetworkCombos = [
-  { useCdpFacilitator: false, network: 'base-sepolia' },
-  { useCdpFacilitator: true, network: 'base-sepolia' },
-  { useCdpFacilitator: true, network: 'base' }
+  { useCdpFacilitator: false, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
+  { useCdpFacilitator: true, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
+  { useCdpFacilitator: true, network: 'base', protocolFamily: 'evm' as ProtocolFamily }
 ];
 
 export class TestDiscovery {
@@ -25,6 +26,27 @@ export class TestDiscovery {
 
   getFacilitatorNetworkCombos(): typeof facilitatorNetworkCombos {
     return facilitatorNetworkCombos;
+  }
+
+  /**
+   * Get default networks for a protocol family
+   */
+  getDefaultNetworksForProtocolFamily(protocolFamily: ProtocolFamily): string[] {
+    switch (protocolFamily) {
+      case 'evm':
+        return ['base-sepolia'];
+      case 'svm':
+        return ['solana-devnet'];
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Get facilitator network combos for a specific protocol family
+   */
+  getFacilitatorNetworkCombosForProtocol(protocolFamily: ProtocolFamily): typeof facilitatorNetworkCombos {
+    return facilitatorNetworkCombos.filter(combo => combo.protocolFamily === protocolFamily);
   }
 
   /**
@@ -113,10 +135,12 @@ export class TestDiscovery {
   generateTestScenarios(): TestScenario[] {
     const servers = this.discoverServers();
     const clients = this.discoverClients();
-    const facilitatorNetworkCombos = this.getFacilitatorNetworkCombos();
     const scenarios: TestScenario[] = [];
 
     for (const client of clients) {
+      // Default to EVM if no protocol families specified for backward compatibility
+      const clientProtocolFamilies = client.config.protocolFamilies || ['evm'];
+
       for (const server of servers) {
         // Only test endpoints that require payment
         const testableEndpoints = server.config.endpoints?.filter(endpoint => {
@@ -125,13 +149,26 @@ export class TestDiscovery {
         }) || [];
 
         for (const endpoint of testableEndpoints) {
-          for (const combo of facilitatorNetworkCombos) {
-            scenarios.push({
-              client,
-              server,
-              endpoint,
-              facilitatorNetworkCombo: combo
-            });
+          // Default to EVM if no protocol family specified for backward compatibility
+          const endpointProtocolFamily = endpoint.protocolFamily || 'evm';
+
+          // Only create scenarios where client supports endpoint's protocol family
+          if (clientProtocolFamilies.includes(endpointProtocolFamily)) {
+            // Get facilitator/network combos for this protocol family
+            const combosForProtocol = this.getFacilitatorNetworkCombosForProtocol(endpointProtocolFamily);
+
+            for (const combo of combosForProtocol) {
+              scenarios.push({
+                client,
+                server,
+                endpoint,
+                protocolFamily: endpointProtocolFamily,
+                facilitatorNetworkCombo: {
+                  useCdpFacilitator: combo.useCdpFacilitator,
+                  network: combo.network
+                }
+              });
+            }
           }
         }
       }
@@ -153,16 +190,30 @@ export class TestDiscovery {
     log(`📡 Servers found: ${servers.length}`);
     servers.forEach(server => {
       const paidEndpoints = server.config.endpoints?.filter(e => e.requiresPayment).length || 0;
-      log(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints`);
+      const protocolFamilies = new Set(
+        server.config.endpoints?.filter(e => e.requiresPayment).map(e => e.protocolFamily || 'evm') || ['evm']
+      );
+      log(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
     });
 
     log(`📱 Clients found: ${clients.length}`);
     clients.forEach(client => {
-      log(`   - ${client.name} (${client.config.language})`);
+      const protocolFamilies = client.config.protocolFamilies || ['evm'];
+      log(`   - ${client.name} (${client.config.language}) [${protocolFamilies.join(', ')}]`);
     });
 
     log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
+    
+    // Show protocol family breakdown
+    const protocolBreakdown = scenarios.reduce((acc, scenario) => {
+      acc[scenario.protocolFamily] = (acc[scenario.protocolFamily] || 0) + 1;
+      return acc;
+    }, {} as Record<ProtocolFamily, number>);
+    
     log(`📊 Test scenarios: ${scenarios.length}`);
+    Object.entries(protocolBreakdown).forEach(([protocol, count]) => {
+      log(`   - ${protocol.toUpperCase()}: ${count} scenarios`);
+    });
     log('');
   }
 } 
