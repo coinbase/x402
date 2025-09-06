@@ -1,6 +1,7 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { verify as verifyExactHedera, settle as settleExactHedera } from "../schemes/exact/hedera";
+import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedHederaNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
   SignerWallet as EvmSignerWallet,
@@ -15,6 +16,7 @@ import {
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
+import { HederaSigner } from "../shared/hedera";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -48,6 +50,11 @@ export async function verify<
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+
+    // hedera
+    if (SupportedHederaNetworks.includes(paymentRequirements.network)) {
+      return await verifyExactHedera(client as HederaSigner, payload, paymentRequirements);
     }
   }
 
@@ -89,6 +96,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+
+    // hedera
+    if (SupportedHederaNetworks.includes(paymentRequirements.network)) {
+      return await settleExactHedera(client as HederaSigner, payload, paymentRequirements);
     }
   }
 
