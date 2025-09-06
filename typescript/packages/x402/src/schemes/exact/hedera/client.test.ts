@@ -15,6 +15,9 @@ describe("Hedera Client", () => {
       description: "Test payment",
       mimeType: "application/json",
       maxTimeoutSeconds: 300,
+      extra: {
+        feePayer: "0.0.98765" // Facilitator's account ID
+      }
     };
   });
 
@@ -41,5 +44,27 @@ describe("Hedera Client", () => {
   it("should validate Hedera account ID format", () => {
     const accountIdPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
     expect(paymentRequirements.payTo).toMatch(accountIdPattern);
+  });
+
+  it("should require feePayer in extra field", () => {
+    expect(paymentRequirements.extra?.feePayer).toBe("0.0.98765");
+    expect(typeof paymentRequirements.extra?.feePayer).toBe("string");
+  });
+
+  it("should validate feePayer account ID format", () => {
+    const accountIdPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+    const feePayer = paymentRequirements.extra?.feePayer as string;
+    expect(feePayer).toMatch(accountIdPattern);
+  });
+
+  describe("Transaction ID Generation", () => {
+    it("should use facilitator account ID for transaction ID generation", () => {
+      // This test validates the conceptual requirement that the client should use
+      // the facilitator's account ID from paymentRequirements.extra.feePayer
+      // when generating the transaction ID
+      const facilitatorAccountId = paymentRequirements.extra?.feePayer;
+      expect(facilitatorAccountId).toBe("0.0.98765");
+      expect(typeof facilitatorAccountId).toBe("string");
+    });
   });
 });

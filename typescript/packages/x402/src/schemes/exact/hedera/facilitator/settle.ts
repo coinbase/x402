@@ -5,11 +5,7 @@ import {
   ExactHederaPayload,
   ErrorReasons,
 } from "../../../../types/verify";
-import {
-  Transaction,
-  TransactionResponse,
-  Status,
-} from "@hashgraph/sdk";
+import { Transaction, TransactionResponse, Status } from "@hashgraph/sdk";
 import {
   HederaSigner,
   deserializeTransaction,
@@ -46,10 +42,7 @@ export async function settle(
   const payer = signer.accountId.toString();
 
   try {
-    const { success, errorReason, transactionId } = await executeTransaction(
-      transaction,
-      signer
-    );
+    const { success, errorReason, transactionId } = await executeTransaction(transaction, signer);
 
     return {
       success,
@@ -79,21 +72,21 @@ export async function settle(
 export async function executeTransaction(
   transaction: Transaction,
   signer: HederaSigner,
-): Promise<{ 
-  success: boolean; 
-  errorReason?: (typeof ErrorReasons)[number]; 
-  transactionId: string 
+): Promise<{
+  success: boolean;
+  errorReason?: (typeof ErrorReasons)[number];
+  transactionId: string;
 }> {
   try {
     // Add facilitator signature to the transaction
-    const signedTransaction = addSignatureToTransaction(transaction, signer);
-    
+    const signedTransaction = await addSignatureToTransaction(transaction, signer);
+
     // Submit the transaction to the Hedera network
     const transactionResponse = await signedTransaction.execute(signer.client);
-    
+
     // Wait for the transaction to be processed
     const receipt = await transactionResponse.getReceipt(signer.client);
-    
+
     // Check if the transaction was successful
     if (receipt.status === Status.Success) {
       return {
@@ -109,7 +102,7 @@ export async function executeTransaction(
     }
   } catch (error) {
     console.error("Transaction execution failed:", error);
-    
+
     // Check for specific Hedera errors
     if (error instanceof Error) {
       if (error.message.includes("INSUFFICIENT_ACCOUNT_BALANCE")) {
@@ -119,7 +112,7 @@ export async function executeTransaction(
           transactionId: "",
         };
       }
-      
+
       if (error.message.includes("timeout") || error.message.includes("TIMEOUT")) {
         return {
           success: false,
@@ -148,12 +141,13 @@ export async function executeTransaction(
 export async function waitForTransactionWithTimeout(
   transactionResponse: TransactionResponse,
   client: any,
-  timeoutMs: number = 30000
+  timeoutMs: number = 30000,
 ): Promise<any> {
   return Promise.race([
     transactionResponse.getReceipt(client),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Transaction confirmation timeout")), timeoutMs)
+      setTimeout(() => reject(new Error("Transaction confirmation timeout")), timeoutMs),
     ),
   ]);
 }
+

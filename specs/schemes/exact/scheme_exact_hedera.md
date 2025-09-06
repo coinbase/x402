@@ -14,8 +14,8 @@ The protocol flow for `exact` on Hedera is client-driven, similar to Solana impl
 
 1. **Client** makes an HTTP request to a **Resource Server**.
 2. **Resource Server** responds with a `402 Payment Required` status. The response body contains the `paymentRequirements` for the `exact` scheme. The `extra` field in the requirements contains a **feePayer** which is the account ID of the identity that will pay the transaction fees. This will typically be the facilitator.
-3. **Client** creates a transaction that contains a transfer of HBAR or HTS tokens to the resource server's account ID for a specified amount.
-4. **Client** partially signs the transaction with their private key. The facilitator signature is still missing.
+3. **Client** creates a transaction that contains a transfer of HBAR or HTS tokens to the resource server's account ID for a specified amount. **Critically**, the client generates the transaction ID using the facilitator's account ID (from `extra.feePayer`) to ensure the facilitator can submit the transaction.
+4. **Client** signs the transaction with their private key as an additional signer. The facilitator's signature is still required.
 5. **Client** serializes the partially signed transaction and encodes it as a Base64 string.
 6. **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing the Base64-encoded partially-signed transaction payload.
 7. **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
@@ -99,8 +99,11 @@ Hedera uses the format `shard.realm.account` (e.g., `0.0.12345`) for account ide
 ### Transaction Serialization
 Hedera transactions are serialized using the SDK's `toBytes()` method and encoded as Base64 for transmission.
 
-### Fee Sponsorship
-The facilitator acts as an additional signer to sponsor transaction fees, similar to how Solana's fee payer works.
+### Transaction ID and Fee Sponsorship
+- **Transaction ID Generation**: The client generates the transaction ID using the facilitator's account ID (from `paymentRequirements.extra.feePayer`)
+- **Dual Signing**: The client signs as an additional signer to authorize the transfer, the facilitator signs as the transaction submitter
+- **Hedera Constraint**: Only the account in the transaction ID can submit the transaction to the Hedera network
+- **Fee Payment**: The facilitator (transaction ID account) pays all transaction fees
 
 ### Network Support
 - `hedera-testnet`: Hedera Testnet

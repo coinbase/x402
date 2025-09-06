@@ -4,7 +4,6 @@ import {
   TokenId, 
   Transaction,
   TransferTransaction,
-  TokenTransferTransaction,
   Hbar,
   TransactionId
 } from "@hashgraph/sdk";
@@ -42,7 +41,7 @@ export async function createAndSignPayment(
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayload> {
   const transaction = await createTransferTransaction(client, paymentRequirements);
-  const signedTransaction = transaction.sign(client.privateKey);
+  const signedTransaction = await transaction.sign(client.privateKey);
   const base64EncodedTransaction = serializeTransaction(signedTransaction);
 
   // return payment payload
@@ -71,8 +70,15 @@ async function createTransferTransaction(
   const toAccount = AccountId.fromString(paymentRequirements.payTo);
   const amount = paymentRequirements.maxAmountRequired;
   
-  // Generate a transaction ID for this transfer
-  const transactionId = TransactionId.generate(fromAccount);
+  // Get facilitator's account ID from payment requirements
+  const facilitatorAccountIdStr = paymentRequirements.extra?.feePayer as string;
+  if (!facilitatorAccountIdStr) {
+    throw new Error("feePayer is required in paymentRequirements.extra");
+  }
+  const facilitatorAccountId = AccountId.fromString(facilitatorAccountIdStr);
+  
+  // Generate transaction ID using facilitator's account ID (they will submit the transaction)
+  const transactionId = TransactionId.generate(facilitatorAccountId);
   
   // Check if this is a token transfer or HBAR transfer
   if (isHbarAddress(paymentRequirements.asset)) {
@@ -87,10 +93,10 @@ async function createTransferTransaction(
   } else {
     // Token transfer
     const tokenId = TokenId.fromString(paymentRequirements.asset);
-    const transaction = new TokenTransferTransaction()
+    const transaction = new TransferTransaction()
       .setTransactionId(transactionId)
-      .addTokenTransfer(tokenId, fromAccount, -amount)
-      .addTokenTransfer(tokenId, toAccount, amount);
+      .addTokenTransfer(tokenId, fromAccount, -parseInt(amount))
+      .addTokenTransfer(tokenId, toAccount, parseInt(amount));
     
     await transaction.freezeWith(client.client);
     return transaction;
