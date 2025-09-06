@@ -9,6 +9,9 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  SupportedHederaNetworks,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -127,14 +130,25 @@ export function getDefaultAsset(network: Network) {
   if (!usdc) {
     throw new Error(`Unable to get default asset on ${network}`);
   }
-  return {
-    address: usdc.usdcAddress,
-    decimals: 6,
-    eip712: {
-      name: usdc.usdcName,
-      version: "2",
-    },
-  };
+
+  // Hedera and Solana don't use eip712, only EVM networks do
+  if (SupportedEVMNetworks.includes(network)) {
+    return {
+      address: usdc.usdcAddress,
+      decimals: 6,
+      eip712: {
+        name: usdc.usdcName,
+        version: "2",
+      },
+    };
+  } else if (SupportedSVMNetworks.includes(network) || SupportedHederaNetworks.includes(network)) {
+    return {
+      address: usdc.usdcAddress,
+      decimals: 6,
+    };
+  }
+
+  throw new Error(`Unsupported network type: ${network}`);
 }
 
 /**

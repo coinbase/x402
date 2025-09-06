@@ -40,9 +40,19 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
     usdcName: "USDC",
   },
+  // Hedera testnet
+  "296": {
+    usdcAddress: "0.0.429274",
+    usdcName: "USDC",
+  },
+  // Hedera mainnet  
+  "295": {
+    usdcAddress: "0.0.456858",
+    usdcName: "USDC",
+  },
 };
 
 export type ChainConfig = {
-  usdcAddress: Address | SolanaAddress;
+  usdcAddress: Address | SolanaAddress | string; // Added string for Hedera token IDs (e.g., "0.0.429274")
   usdcName: string;
 };

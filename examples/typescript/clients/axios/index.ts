@@ -18,13 +18,17 @@ if (!baseURL || !privateKey || !endpointPath) {
  *
  * To run this example, you need to set the following environment variables:
  * - PRIVATE_KEY: The private key of the signer
+ *   - For EVM: hex private key (0x...)
+ *   - For Solana: base58 private key
+ *   - For Hedera: ECDSA private key + account ID in format "privateKey|accountId"
  * - RESOURCE_SERVER_URL: The URL of the resource server
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  *
  */
 async function main(): Promise<void> {
   // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
+  const signer = await createSigner("hedera-testnet", privateKey); // uncomment for hedera (privateKey|accountId format)
+  // const signer = await createSigner("base-sepolia", privateKey);
 
   const api = withPaymentInterceptor(
     axios.create({

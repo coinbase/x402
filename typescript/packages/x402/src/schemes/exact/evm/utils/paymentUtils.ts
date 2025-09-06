@@ -1,10 +1,11 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedHederaNetworks } from "../../../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
   ExactEvmPayload,
   ExactSvmPayload,
+  ExactHederaPayload,
 } from "../../../../types/verify";
 
 /**
@@ -40,6 +41,12 @@ export function encodePayment(payment: PaymentPayload): string {
     return safeBase64Encode(JSON.stringify(safe));
   }
 
+  // hedera
+  if (SupportedHederaNetworks.includes(payment.network)) {
+    safe = { ...payment, payload: payment.payload as ExactHederaPayload };
+    return safeBase64Encode(JSON.stringify(safe));
+  }
+
   throw new Error("Invalid network");
 }
 
@@ -68,6 +75,14 @@ export function decodePayment(payment: string): PaymentPayload {
     obj = {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
+    };
+  }
+
+  // hedera
+  else if (SupportedHederaNetworks.includes(parsed.network)) {
+    obj = {
+      ...parsed,
+      payload: parsed.payload as ExactHederaPayload,
     };
   } else {
     throw new Error("Invalid network");

@@ -37,7 +37,7 @@ export function createHederaSigner(
   accountId: string
 ): HederaSigner {
   const client = createHederaConnectedClient(network);
-  const privateKey = PrivateKey.fromStringED25519(privateKeyString);
+  const privateKey = PrivateKey.fromStringECDSA(privateKeyString);
   const hederaAccountId = AccountId.fromString(accountId);
   
   client.setOperator(hederaAccountId, privateKey);

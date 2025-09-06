@@ -1,4 +1,4 @@
-import { EvmNetworkToChainId, Network, SvmNetworkToChainId } from "../types/shared";
+import { EvmNetworkToChainId, Network, SvmNetworkToChainId, HederaNetworkToChainId } from "../types/shared";
 
 /**
  * Converts a network name to its corresponding chain ID
@@ -13,6 +13,9 @@ export function getNetworkId(network: Network): number {
   }
   if (SvmNetworkToChainId.has(network)) {
     return SvmNetworkToChainId.get(network)!;
+  }
+  if (HederaNetworkToChainId.has(network)) {
+    return HederaNetworkToChainId.get(network)!;
   }
   throw new Error(`Unsupported network: ${network}`);
 }

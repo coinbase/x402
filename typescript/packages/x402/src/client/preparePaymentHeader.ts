@@ -1,6 +1,7 @@
 import { Address } from "viem";
+import { Address as SolanaAddress } from "@solana/kit";
 import { preparePaymentHeader as preparePaymentHeaderExactEVM } from "../schemes/exact/evm/client";
-import { SupportedEVMNetworks } from "../types/shared";
+import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedHederaNetworks } from "../types/shared";
 import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
 
 /**
@@ -12,16 +13,23 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
  * @returns An unsigned payment payload that can be used to create a payment header
  */
 export function preparePaymentHeader(
-  from: Address,
+  from: Address | SolanaAddress | string,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): UnsignedPaymentPayload {
-  if (
-    paymentRequirements.scheme === "exact" &&
-    SupportedEVMNetworks.includes(paymentRequirements.network)
-  ) {
-    return preparePaymentHeaderExactEVM(from, x402Version, paymentRequirements);
+  if (paymentRequirements.scheme === "exact") {
+    // evm
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      return preparePaymentHeaderExactEVM(from as Address, x402Version, paymentRequirements);
+    }
+
+    // svm and hedera don't currently have prepare functions
+    // they handle payment creation directly in their createPaymentHeader functions
+    if (SupportedSVMNetworks.includes(paymentRequirements.network) || 
+        SupportedHederaNetworks.includes(paymentRequirements.network)) {
+      throw new Error("Use createPaymentHeader directly for SVM and Hedera networks");
+    }
   }
 
-  throw new Error("Unsupported scheme");
+  throw new Error("Unsupported scheme or network");
 }

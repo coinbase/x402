@@ -4,9 +4,16 @@ import * as hedera from "../../shared/hedera/wallet";
 import { SupportedEVMNetworks, SupportedSVMNetworks, SupportedHederaNetworks } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | hedera.HederaConnectedClient;
+export type ConnectedClient =
+  | evm.ConnectedClient
+  | svm.SvmConnectedClient
+  | hedera.HederaConnectedClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner | hedera.HederaSigner;
-export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner; hedera: hedera.HederaSigner };
+export type MultiNetworkSigner = {
+  evm: evm.EvmSigner;
+  svm: svm.SvmSigner;
+  hedera: hedera.HederaSigner;
+};
 
 /**
  * Creates a public client configured for the specified network.
@@ -51,9 +58,9 @@ export function createSigner(network: string, privateKey: Hex | string): Promise
   // hedera
   if (SupportedHederaNetworks.find(n => n === network)) {
     const privateKeyStr = privateKey as string;
-    const [hederaPrivateKey, accountId] = privateKeyStr.split('|');
+    const [hederaPrivateKey, accountId] = privateKeyStr.split("|");
     if (!hederaPrivateKey || !accountId) {
-      throw new Error('Hedera signer requires privateKey|accountId format');
+      throw new Error("Hedera signer requires privateKey|accountId format");
     }
     return Promise.resolve(hedera.createHederaSigner(network, hederaPrivateKey, accountId));
   }
