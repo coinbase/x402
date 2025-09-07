@@ -17,6 +17,69 @@ import {
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
 
+// TODO: This is a temporary implementation to handle Scroll mainnet limitations.
+// The logic should be removed once Scroll upgrades their USDC contract to support bytes signatures.
+
+// Scroll mainnet chain ID
+const SCROLL_MAINNET_CHAIN_ID = 534352;
+
+/**
+ * Checks if the given network is Scroll mainnet
+ * @param network - The network string to check
+ * @returns True if the network is Scroll mainnet, false otherwise
+ */
+function isScrollMainnet(network: string): boolean {
+  try {
+    const chainId = getNetworkId(network as any);
+    return chainId === SCROLL_MAINNET_CHAIN_ID;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Checks if an address is a Smart Contract Wallet by checking if it has contract code
+ * @param client - The client to use for blockchain interactions
+ * @param address - The address to check
+ * @returns True if the address has contract code (is a SCW), false otherwise
+ */
+async function isSmartContractWallet<transport extends Transport, chain extends Chain, account extends Account | undefined>(
+  client: ConnectedClient<transport, chain, account>,
+  address: Address,
+): Promise<boolean> {
+  try {
+    const code = await client.getCode({ address });
+    // Handle undefined case - if getCode returns undefined, treat as EOA
+    if (code === undefined || code === null) {
+      return false;
+    }
+    // Check if code exists and is not empty (EOAs have "0x" as their code)
+    return code !== "0x" && code.length > 2;
+  } catch {
+    // If there's any error (network issues, invalid address, etc.), treat as EOA
+    return false;
+  }
+}
+
+/**
+ * Converts a bytes signature to v, r, s components for Scroll mainnet
+ * @param signature - The bytes signature to convert
+ * @returns Object containing v, r, s components
+ */
+function convertSignatureToVrs(signature: Hex): { v: number; r: Hex; s: Hex } {
+  // Remove the 0x prefix and ensure we have 65 bytes (130 hex characters)
+  const sig = signature.slice(2);
+  if (sig.length !== 130) {
+    throw new Error("Invalid signature length");
+  }
+  
+  const r = `0x${sig.slice(0, 64)}` as Hex;
+  const s = `0x${sig.slice(64, 128)}` as Hex;
+  const v = parseInt(sig.slice(128, 130), 16);
+  
+  return { v, r, s };
+}
+
 /**
  * Verifies a payment payload against the required payment details
  *
@@ -64,6 +127,19 @@ export async function verify<
       invalidReason: `unsupported_scheme`,
       payer: exactEvmPayload.authorization.from,
     };
+  }
+
+  // Check for Smart Contract Wallets on Scroll mainnet
+  // This is a temporary restriction until Scroll upgrades their USDC contract
+  if (isScrollMainnet(payload.network)) {
+    const isSCW = await isSmartContractWallet(client, exactEvmPayload.authorization.from as Address);
+    if (isSCW) {
+      return {
+        isValid: false,
+        invalidReason: "smart_contract_wallet_not_supported_on_scroll",
+        payer: exactEvmPayload.authorization.from,
+      };
+    }
   }
 
   let name: string;
@@ -204,21 +280,49 @@ export async function settle<transport extends Transport, chain extends Chain>(
   // Returns the original signature (no-op) if the signature is not a 6492 signature
   const { signature } = parseErc6492Signature(payload.signature as Hex);
 
-  const tx = await wallet.writeContract({
-    address: paymentRequirements.asset as Address,
-    abi,
-    functionName: "transferWithAuthorization" as const,
-    args: [
-      payload.authorization.from as Address,
-      payload.authorization.to as Address,
-      BigInt(payload.authorization.value),
-      BigInt(payload.authorization.validAfter),
-      BigInt(payload.authorization.validBefore),
-      payload.authorization.nonce as Hex,
-      signature,
-    ],
-    chain: wallet.chain as Chain,
-  });
+  let tx: Hex;
+  
+  // Handle Scroll mainnet signature format conversion
+  // This is a temporary workaround until Scroll upgrades their USDC contract
+  if (isScrollMainnet(paymentPayload.network)) {
+    // Convert signature to v, r, s components for Scroll mainnet
+    const { v, r, s } = convertSignatureToVrs(signature);
+    
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        v,
+        r,
+        s,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  } else {
+    // Use bytes signature format for other networks
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        signature,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  }
 
   const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
 
