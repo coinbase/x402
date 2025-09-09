@@ -1,8 +1,5 @@
-import { config } from "dotenv";
 import { useFacilitator } from "x402/verify";
 import { facilitator } from "@coinbase/x402";
-
-config();
 
 const { list } = useFacilitator(facilitator);
 

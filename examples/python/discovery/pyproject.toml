@@ -5,10 +5,9 @@ description = "Example of using the x402 discovery layer"
 requires-python = ">=3.10"
 dependencies = [
     "x402",
-    "cdp-sdk>=1.15.0",
+    "cdp-sdk>=1.31.2",
     "Flask>=3.1.1",
-    "uvicorn>=0.27.0",
-    "python-dotenv>=1.0.0"
+    "uvicorn>=0.27.0"
 ]
 
 [build-system]

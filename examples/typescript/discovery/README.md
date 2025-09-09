@@ -37,12 +37,10 @@ The example demonstrates how to:
 ## Example Code
 
 ```typescript
-import { config } from "dotenv";
 import { useFacilitator } from "x402/verify";
 import { facilitator } from "@coinbase/x402";
 
-config();
-
+// No API keys required for discovery
 const { list } = useFacilitator(facilitator);
 
 list().then(response => {

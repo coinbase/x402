@@ -746,9 +746,6 @@ importers:
       axios:
         specifier: ^1.7.9
         version: 1.11.0
-      dotenv:
-        specifier: ^16.5.0
-        version: 16.6.1
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)

@@ -59,19 +59,10 @@ export function createCorrelationHeader(): string {
  * @param apiKeySecret - The CDP API key secret
  * @returns A function that returns the auth headers
  */
-export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): CreateHeaders {
+export function createCdpAuthHeaders(apiKeyId: string, apiKeySecret: string): CreateHeaders {
   const requestHost = COINBASE_FACILITATOR_BASE_URL.replace("https://", "");
 
   return async () => {
-    apiKeyId = apiKeyId ?? process.env.CDP_API_KEY_ID;
-    apiKeySecret = apiKeySecret ?? process.env.CDP_API_KEY_SECRET;
-
-    if (!apiKeyId || !apiKeySecret) {
-      throw new Error(
-        "Missing environment variables: CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set when using default facilitator",
-      );
-    }
-
     return {
       verify: {
         Authorization: await createAuthHeader(
@@ -94,15 +85,25 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
         "Correlation-Context": createCorrelationHeader(),
       },
       list: {
-        Authorization: await createAuthHeader(
-          apiKeyId,
-          apiKeySecret,
-          "GET",
-          requestHost,
-          `${COINBASE_FACILITATOR_V2_ROUTE}/discovery/resources`,
-        ),
         "Correlation-Context": createCorrelationHeader(),
       },
+    };
+  };
+}
+
+/**
+ * Creates a CDP headers for the facilitator service
+ *
+ * @returns A function that returns the auth headers
+ */
+export function createCdpUnauthHeaders(): CreateHeaders {
+  return async () => {
+    return {
+      list: {
+        "Correlation-Context": createCorrelationHeader(),
+      },
+      verify: {},
+      settle: {},
     };
   };
 }
@@ -118,9 +119,19 @@ export function createFacilitatorConfig(
   apiKeyId?: string,
   apiKeySecret?: string,
 ): FacilitatorConfig {
+  apiKeyId = apiKeyId ?? process.env.CDP_API_KEY_ID;
+  apiKeySecret = apiKeySecret ?? process.env.CDP_API_KEY_SECRET;
+
+  if (apiKeyId && apiKeySecret) {
+    return {
+      url: `${COINBASE_FACILITATOR_BASE_URL}${COINBASE_FACILITATOR_V2_ROUTE}`,
+      createAuthHeaders: createCdpAuthHeaders(apiKeyId, apiKeySecret),
+    };
+  }
+
   return {
     url: `${COINBASE_FACILITATOR_BASE_URL}${COINBASE_FACILITATOR_V2_ROUTE}`,
-    createAuthHeaders: createCdpAuthHeaders(apiKeyId, apiKeySecret),
+    createAuthHeaders: createCdpUnauthHeaders(),
   };
 }
 

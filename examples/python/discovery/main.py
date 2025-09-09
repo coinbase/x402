@@ -1,26 +1,11 @@
-import os
 import json
 import asyncio
 from datetime import datetime
-from dotenv import load_dotenv
-from x402.facilitator import FacilitatorClient, FacilitatorConfig
+from x402.facilitator import FacilitatorClient
 from cdp.x402 import create_facilitator_config
 
-# Load environment variables
-load_dotenv()
-
-# Get configuration from environment
-CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
-CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
-
-if not CDP_API_KEY_ID or not CDP_API_KEY_SECRET:
-    raise ValueError(
-        "Missing required environment variables: CDP_API_KEY_ID and CDP_API_KEY_SECRET"
-    )
-
 # Initialize facilitator client
-facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
-facilitator = FacilitatorClient(facilitator_config)
+facilitator = FacilitatorClient(create_facilitator_config())
 
 
 async def main():

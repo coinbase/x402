@@ -6,7 +6,6 @@ This example demonstrates how to use the x402 discovery feature to find and list
 
 - Python 3.10+
 - uv package manager (install via [uv.dev](https://uv.dev))
-- CDP API credentials (Key ID and Secret)
 
 ## Setup
 
@@ -17,12 +16,7 @@ uv sync
 cd examples/python/discovery
 ```
 
-2. Copy `.env-local` to `.env` and add your CDP API credentials:
-```bash
-cp .env-local .env
-```
-
-3. Start the discovery example:
+2. Start the discovery example:
 ```bash
 uv run python main.py
 ```
@@ -42,32 +36,24 @@ The example demonstrates how to:
 ## Example Code
 
 ```python
-import os
 import json
 import asyncio
 from datetime import datetime
-from dotenv import load_dotenv
-from x402.facilitator import FacilitatorClient, FacilitatorConfig
+from x402.facilitator import FacilitatorClient
 from cdp.x402 import create_facilitator_config
 
-load_dotenv()
-
-CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
-CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
-
-if not CDP_API_KEY_ID or not CDP_API_KEY_SECRET:
-    raise ValueError("Missing required environment variables: CDP_API_KEY_ID and CDP_API_KEY_SECRET")
-
-facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
-facilitator = FacilitatorClient(facilitator_config)
+# Initialize facilitator client (no API keys required for discovery)
+facilitator = FacilitatorClient(create_facilitator_config())
 
 async def main():
     try:
+        # Get the list of resources
         response = await facilitator.list()
         
         print("\nDiscovered X402 Resources:")
         print("========================\n")
         
+        # Print each resource in a formatted way
         for index, item in enumerate(response.items, 1):
             print(f"Resource {index}:")
             # Convert the item to JSON with proper formatting
