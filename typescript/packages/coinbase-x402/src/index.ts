@@ -59,52 +59,43 @@ export function createCorrelationHeader(): string {
  * @param apiKeySecret - The CDP API key secret
  * @returns A function that returns the auth headers
  */
-export function createCdpAuthHeaders(apiKeyId: string, apiKeySecret: string): CreateHeaders {
+export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): CreateHeaders {
   const requestHost = COINBASE_FACILITATOR_BASE_URL.replace("https://", "");
 
   return async () => {
-    return {
-      verify: {
-        Authorization: await createAuthHeader(
-          apiKeyId,
-          apiKeySecret,
-          "POST",
-          requestHost,
-          `${COINBASE_FACILITATOR_V2_ROUTE}/verify`,
-        ),
-        "Correlation-Context": createCorrelationHeader(),
-      },
-      settle: {
-        Authorization: await createAuthHeader(
-          apiKeyId,
-          apiKeySecret,
-          "POST",
-          requestHost,
-          `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
-        ),
-        "Correlation-Context": createCorrelationHeader(),
-      },
-      list: {
-        "Correlation-Context": createCorrelationHeader(),
-      },
-    };
-  };
-}
+    apiKeyId = apiKeyId ?? process.env.CDP_API_KEY_ID;
+    apiKeySecret = apiKeySecret ?? process.env.CDP_API_KEY_SECRET;
 
-/**
- * Creates a CDP headers for the facilitator service
- *
- * @returns A function that returns the auth headers
- */
-export function createCdpUnauthHeaders(): CreateHeaders {
-  return async () => {
-    return {
+    const headers = {
+      verify: {
+        "Correlation-Context": createCorrelationHeader(),
+      } as Record<string, string>,
+      settle: {
+        "Correlation-Context": createCorrelationHeader(),
+      } as Record<string, string>,
       list: {
         "Correlation-Context": createCorrelationHeader(),
       },
-      verify: {},
-      settle: {},
     };
+
+    if (apiKeyId && apiKeySecret) {
+      headers.verify.Authorization = await createAuthHeader(
+        apiKeyId,
+        apiKeySecret,
+        "POST",
+        requestHost,
+        `${COINBASE_FACILITATOR_V2_ROUTE}/verify`,
+      );
+      headers.settle.Authorization = await createAuthHeader(
+        apiKeyId,
+        apiKeySecret,
+        "POST",
+        requestHost,
+        `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
+      );
+    }
+
+    return headers;
   };
 }
 
@@ -119,19 +110,9 @@ export function createFacilitatorConfig(
   apiKeyId?: string,
   apiKeySecret?: string,
 ): FacilitatorConfig {
-  apiKeyId = apiKeyId ?? process.env.CDP_API_KEY_ID;
-  apiKeySecret = apiKeySecret ?? process.env.CDP_API_KEY_SECRET;
-
-  if (apiKeyId && apiKeySecret) {
-    return {
-      url: `${COINBASE_FACILITATOR_BASE_URL}${COINBASE_FACILITATOR_V2_ROUTE}`,
-      createAuthHeaders: createCdpAuthHeaders(apiKeyId, apiKeySecret),
-    };
-  }
-
   return {
     url: `${COINBASE_FACILITATOR_BASE_URL}${COINBASE_FACILITATOR_V2_ROUTE}`,
-    createAuthHeaders: createCdpUnauthHeaders(),
+    createAuthHeaders: createCdpAuthHeaders(apiKeyId, apiKeySecret),
   };
 }
 
