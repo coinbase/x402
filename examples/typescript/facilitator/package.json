@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "tsx index.ts",
     "solana": "tsx solana.ts",
+    "build": "esbuild index.ts --bundle --platform=node --target=node18 --outfile=dist/index.cjs --format=cjs",
+    "build:vercel": "npm run build && cp vercel.json dist/",
+    "deploy": "npm run build && vercel --prod",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
@@ -17,12 +20,15 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
-    "eslint": "^9.24.0",
-    "eslint-plugin-jsdoc": "^50.6.9",
-    "eslint-plugin-prettier": "^5.2.6",
+    "@types/express": "^5.0.1",
+    "@types/node": "^24.2.1",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "esbuild": "^0.19.12",
+    "eslint": "^9.24.0",
     "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsdoc": "^50.6.9",
+    "eslint-plugin-prettier": "^5.2.6",
     "prettier": "3.5.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"

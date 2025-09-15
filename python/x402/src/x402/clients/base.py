@@ -1,15 +1,17 @@
-import time
-from typing import Optional, Callable, Dict, Any, List
-from eth_account import Account
-from x402.exact import sign_payment_header
-from x402.types import (
-    PaymentRequirements,
-    UnsupportedSchemeException,
-)
-from x402.common import x402_VERSION
-import secrets
-from x402.encoding import safe_base64_decode
 import json
+import secrets
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+
+from eth_account import Account
+
+from x402.common import x402_VERSION
+from x402.encoding import safe_base64_decode
+from x402.exact import prepare_payment_header, sign_payment_header
+from x402.types import PaymentRequirements, UnsupportedSchemeException
+
+if TYPE_CHECKING:
+    from pysui import SyncClient
+
 
 # Define type for the payment requirements selector
 PaymentSelectorCallable = Callable[
@@ -65,14 +67,14 @@ class x402Client:
 
     def __init__(
         self,
-        account: Account,
+        account: Union[Account, "SyncClient"],
         max_value: Optional[int] = None,
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     ):
         """Initialize the x402 client.
 
         Args:
-            account: eth_account.Account instance for signing payments
+            account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
             max_value: Optional maximum allowed payment amount in base units
             payment_requirements_selector: Optional custom selector for payment requirements
         """
@@ -167,30 +169,19 @@ class x402Client:
         Returns:
             Signed payment header
         """
-        unsigned_header = {
-            "x402Version": x402_version,
-            "scheme": payment_requirements.scheme,
-            "network": payment_requirements.network,
-            "payload": {
-                "signature": None,
-                "authorization": {
-                    "from": self.account.address,
-                    "to": payment_requirements.pay_to,
-                    "value": payment_requirements.max_amount_required,
-                    "validAfter": str(int(time.time()) - 60),  # 60 seconds before
-                    "validBefore": str(
-                        int(time.time()) + payment_requirements.max_timeout_seconds
-                    ),
-                    "nonce": self.generate_nonce(),
-                },
-            },
-        }
+        # Always prepare header first (with transaction bytes), then sign
+        unsigned_header = prepare_payment_header(
+            self.account,
+            x402_version,
+            payment_requirements
+        )
 
         signed_header = sign_payment_header(
             self.account,
             payment_requirements,
-            unsigned_header,
+            unsigned_header
         )
+
         return signed_header
 
     def generate_nonce(self):

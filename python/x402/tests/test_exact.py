@@ -38,20 +38,20 @@ def payment_requirements():
     )
 
 
-def test_create_nonce():
+def test_create_hex_encoded_nonce():
     nonce1 = create_nonce()
     nonce2 = create_nonce()
 
     # Test nonce length (32 bytes)
-    assert len(nonce1) == 32
-    assert isinstance(nonce1, bytes)
+    assert len(nonce1) == 64
+    assert isinstance(nonce1, str)
 
     # Test nonces are random
     assert nonce1 != nonce2
 
 
 def test_prepare_payment_header(account, payment_requirements):
-    header = prepare_payment_header(account.address, 1, payment_requirements)
+    header = prepare_payment_header(account, 1, payment_requirements)
 
     # Test header structure
     assert header["x402Version"] == 1
@@ -67,16 +67,12 @@ def test_prepare_payment_header(account, payment_requirements):
     assert auth["from"] == account.address
     assert auth["to"] == payment_requirements.pay_to
     assert auth["value"] == payment_requirements.max_amount_required
-    assert isinstance(auth["nonce"], bytes)
-    assert len(auth["nonce"]) == 32
+    assert isinstance(auth["nonce"], str)
+    assert len(auth["nonce"]) == 64
 
 
 def test_sign_payment_header(account, payment_requirements):
-    unsigned_header = prepare_payment_header(account.address, 1, payment_requirements)
-
-    # Convert nonce to hex string for signing
-    nonce = unsigned_header["payload"]["authorization"]["nonce"]
-    unsigned_header["payload"]["authorization"]["nonce"] = nonce.hex()
+    unsigned_header = prepare_payment_header(account, 1, payment_requirements)
 
     signed_message = sign_payment_header(account, payment_requirements, unsigned_header)
 
@@ -108,10 +104,6 @@ def test_sign_payment_header_no_account(payment_requirements):
     unsigned_header = prepare_payment_header(
         "0x0000000000000000000000000000000000000000", 1, payment_requirements
     )
-
-    # Convert nonce to hex string for signing
-    nonce = unsigned_header["payload"]["authorization"]["nonce"]
-    unsigned_header["payload"]["authorization"]["nonce"] = nonce.hex()
 
     with pytest.raises(Exception):
         sign_payment_header(None, payment_requirements, unsigned_header)

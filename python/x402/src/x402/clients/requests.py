@@ -1,8 +1,11 @@
-from typing import Optional
+from typing import Optional, Union, TYPE_CHECKING
 import requests
 import json
 from requests.adapters import HTTPAdapter
 from eth_account import Account
+
+if TYPE_CHECKING:
+    from pysui import SyncClient
 from x402.clients.base import (
     x402Client,
     PaymentError,
@@ -85,7 +88,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
 
 def x402_http_adapter(
-    account: Account,
+    account: Union[Account, "SyncClient"],
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
@@ -93,7 +96,7 @@ def x402_http_adapter(
     """Create an HTTP adapter that handles 402 Payment Required responses.
 
     Args:
-        account: eth_account.Account instance for signing payments
+        account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
         max_value: Optional maximum allowed payment amount in base units
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
@@ -112,7 +115,7 @@ def x402_http_adapter(
 
 
 def x402_requests(
-    account: Account,
+    account: Union[Account, "SyncClient"],
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
@@ -120,7 +123,7 @@ def x402_requests(
     """Create a requests session with x402 payment handling.
 
     Args:
-        account: eth_account.Account instance for signing payments
+        account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
         max_value: Optional maximum allowed payment amount in base units
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)

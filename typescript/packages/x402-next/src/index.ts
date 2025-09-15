@@ -18,6 +18,7 @@ import {
   Resource,
   RoutesConfig,
   PaywallConfig,
+  SupportedEVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
@@ -129,6 +130,10 @@ export function paymentMiddleware(
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
+    const payToAddress = SupportedEVMNetworks.includes(network) ? getAddress(payTo) : payTo;
+    const assetAddress = SupportedEVMNetworks.includes(network)
+      ? getAddress(asset.address)
+      : asset.address;
 
     const paymentRequirements: PaymentRequirements[] = [
       {
@@ -138,9 +143,9 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
+        payTo: payToAddress,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
+        asset: assetAddress,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {

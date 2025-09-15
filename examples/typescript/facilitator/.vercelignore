@@ -1,0 +1,5 @@
+node_modules
+tsconfig.json
+.git
+.turbo/
+.vercel/

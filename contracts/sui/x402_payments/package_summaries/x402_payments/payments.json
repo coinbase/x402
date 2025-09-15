@@ -1,0 +1,129 @@
+{
+  "id": {
+    "address": "x402_payments",
+    "name": "payments"
+  },
+  "doc": " X402 Payments Contract\n A simple contract for processing x402 payments with exact amount\n verification",
+  "immediate_dependencies": [
+    {
+      "address": "sui",
+      "name": "coin"
+    },
+    {
+      "address": "sui",
+      "name": "event"
+    },
+    {
+      "address": "sui",
+      "name": "transfer"
+    }
+  ],
+  "attributes": [],
+  "functions": {
+    "make_payment": {
+      "source_index": 0,
+      "index": 0,
+      "doc": " Make a payment with exact amount verification\n @param payment_coin The coin to use for payment\n @param expected_amount The exact amount expected (must match coin value)\n @param recipient The address to send the payment to\n @param invoice_id An opaque identifier for the payment/invoice",
+      "attributes": [],
+      "visibility": "Public",
+      "entry": false,
+      "type_parameters": [
+        {
+          "name": "T",
+          "constraints": []
+        }
+      ],
+      "parameters": [
+        {
+          "name": "payment_coin",
+          "type_": {
+            "Datatype": {
+              "module": {
+                "address": "sui",
+                "name": "coin"
+              },
+              "name": "Coin",
+              "type_arguments": [
+                {
+                  "phantom": true,
+                  "argument": {
+                    "NamedTypeParameter": "T"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "expected_amount",
+          "type_": "u64"
+        },
+        {
+          "name": "recipient",
+          "type_": "address"
+        },
+        {
+          "name": "invoice_id",
+          "type_": {
+            "vector": "u8"
+          }
+        }
+      ],
+      "return_": []
+    },
+    "version": {
+      "source_index": 1,
+      "index": 1,
+      "doc": " Get the module version (for debugging/verification)",
+      "attributes": [],
+      "visibility": "Public",
+      "entry": false,
+      "type_parameters": [],
+      "parameters": [],
+      "return_": [
+        "u64"
+      ]
+    }
+  },
+  "structs": {
+    "PaymentMade": {
+      "index": 0,
+      "doc": " Event emitted when a payment is made",
+      "attributes": [],
+      "abilities": [
+        "Copy",
+        "Drop"
+      ],
+      "type_parameters": [
+        {
+          "phantom": true,
+          "name": "T",
+          "constraints": []
+        }
+      ],
+      "fields": {
+        "positional_fields": false,
+        "fields": {
+          "amount": {
+            "index": 0,
+            "doc": null,
+            "type_": "u64"
+          },
+          "recipient": {
+            "index": 1,
+            "doc": null,
+            "type_": "address"
+          },
+          "invoice_id": {
+            "index": 2,
+            "doc": null,
+            "type_": {
+              "vector": "u8"
+            }
+          }
+        }
+      }
+    }
+  },
+  "enums": {}
+}

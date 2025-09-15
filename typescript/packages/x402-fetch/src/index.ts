@@ -1,15 +1,16 @@
 import {
   ChainIdToNetwork,
   PaymentRequirementsSchema,
-  Signer,
   isEvmSignerWallet,
   evm,
+  Wallet,
 } from "x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
 } from "x402/client";
+import { LocalAccount } from "viem";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol.
@@ -44,7 +45,7 @@ import {
  */
 export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
-  walletClient: Signer,
+  walletClient: Wallet,
   maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
 ) {
@@ -61,7 +62,7 @@ export function wrapFetchWithPayment(
     };
     const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
 
-    const chainId = isEvmSignerWallet(walletClient)
+    const chainId = isEvmSignerWallet(walletClient as LocalAccount)
       ? (walletClient as unknown as typeof evm.EvmSigner).chain?.id
       : undefined;
     const selectedPaymentRequirements = paymentRequirementsSelector(

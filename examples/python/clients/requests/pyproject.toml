@@ -6,7 +6,8 @@ requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31.0",
     "eth-account>=0.8.0",
-    "x402"
+    "x402",
+    "pysui>=0.90",
 ]
 
 [build-system]

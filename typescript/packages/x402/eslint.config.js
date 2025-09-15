@@ -7,7 +7,13 @@ import importPlugin from "eslint-plugin-import";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", "src/paywall/dist/**", "src/paywall/gen/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "src/paywall/dist/**",
+      "src/paywall/gen/**",
+      "src/schemes/exact/sui/codegen/**",
+    ],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

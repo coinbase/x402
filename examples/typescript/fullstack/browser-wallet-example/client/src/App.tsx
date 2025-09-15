@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { WalletConnect } from './components/WalletConnect';
 import { useWallet } from './contexts/WalletContext';
+import { ConnectButton, useCurrentAccount, useSignTransaction } from '@mysten/dapp-kit';
+import { SuiWallet } from 'x402-axios';
 import { api, updateApiClient, type PaymentOption, type Session } from './services/api';
 import './App.css';
 
+
 function App() {
+  const [network, setNetwork] = useState<string>();
   const { walletClient } = useWallet();
+  const currentAccount = useCurrentAccount();
+  const { mutateAsync: signTransaction } = useSignTransaction();
   const [serverStatus, setServerStatus] = useState<string>('checking...');
   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -13,10 +19,24 @@ function App() {
   const [sessionInput, setSessionInput] = useState<string>('');
   const [validationResult, setValidationResult] = useState<any>(null);
 
+  const isSuiNetwork = network === "sui-testnet" || network === "sui";
+
   // Update API client when wallet changes
   useEffect(() => {
     updateApiClient(walletClient);
   }, [walletClient]);
+
+  useEffect(() => {
+    if (!network) {
+      updateApiClient(null);
+    } else if (isSuiNetwork) {
+      updateApiClient(currentAccount ? new SuiWallet(currentAccount.address, network, (tx) => signTransaction({
+        transaction: tx,
+      })) : null);
+    } else {
+      updateApiClient(walletClient);
+    }
+  }, [currentAccount, signTransaction, walletClient, network, isSuiNetwork]);
 
   // Check server health on mount
   useEffect(() => {
@@ -29,7 +49,9 @@ function App() {
     try {
       const health = await api.getHealth();
       setServerStatus(`✅ Connected to ${health.config.network}`);
+      setNetwork(health.config.network);
     } catch (error) {
+      setNetwork(undefined);
       setServerStatus('❌ Server offline');
     }
   };
@@ -127,7 +149,12 @@ function App() {
       <main>
         <section className="wallet-section">
           <h2>1. Connect Your Wallet</h2>
-          <WalletConnect />
+
+          { isSuiNetwork ? (
+            <ConnectButton connectText="Connect to Sui Wallet" />
+          ) : (
+            <WalletConnect />
+          )}
         </section>
 
         <section className="payment-section">
@@ -138,9 +165,9 @@ function App() {
                 <h3>{option.name}</h3>
                 <p className="price">{option.price}</p>
                 <p className="description">{option.description}</p>
-                
+
                 {option.endpoint === '/api/pay/session' && (
-                  <button 
+                  <button
                     onClick={handle24HourSession}
                     disabled={loading === 'session'}
                     className="action-btn"
@@ -148,9 +175,9 @@ function App() {
                     {loading === 'session' ? 'Processing...' : 'Purchase 24-Hour Session'}
                   </button>
                 )}
-                
+
                 {option.endpoint === '/api/pay/onetime' && (
-                  <button 
+                  <button
                     onClick={handleOneTimeAccess}
                     disabled={loading === 'onetime'}
                     className="action-btn"
@@ -178,7 +205,7 @@ function App() {
               Check Session
             </button>
           </div>
-          
+
           {validationResult && (
             <div className={`validation-result ${validationResult.type || (validationResult.valid ? 'success' : 'error')}`}>
               {validationResult.message && <p>{validationResult.message}</p>}
@@ -258,4 +285,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;

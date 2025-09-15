@@ -10,6 +10,21 @@ from x402.chains import (
 )
 from x402.types import Price, TokenAmount, PaymentRequirements, PaymentPayload
 
+# Supported Sui networks
+SUPPORTED_SUI_NETWORKS = ["sui-testnet", "sui"]
+
+# Sui USDC token configurations
+SUI_USDC_CONFIG = {
+    "sui-testnet": {
+        "address": "0xa1ec7fc00a6f40db9693ad1415d0c193ad3906494428cf252621037bd7117e29::usdc::USDC",
+        "decimals": 6,
+    },
+    "sui": {
+        "address": "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC",
+        "decimals": 6,
+    },
+}
+
 
 def parse_money(amount: str | int, address: str, network: str) -> int:
     """Parse money string or int into int
@@ -51,21 +66,38 @@ def process_price_to_atomic_amount(
                 price = price[1:]
             amount = Decimal(str(price))
 
-            # Get USDC address for the network
-            chain_id = get_chain_id(network)
-            asset_address = get_usdc_address(chain_id)
-            decimals = get_token_decimals(chain_id, asset_address)
+            # Handle Sui networks differently
+            if network in SUPPORTED_SUI_NETWORKS:
+                if network not in SUI_USDC_CONFIG:
+                    raise ValueError(f"Unsupported Sui network: {network}")
 
-            # Convert to atomic units
-            atomic_amount = int(amount * Decimal(10**decimals))
+                sui_config = SUI_USDC_CONFIG[network]
+                asset_address = sui_config["address"]
+                decimals = sui_config["decimals"]
 
-            # Get EIP-712 domain info
-            eip712_domain = {
-                "name": get_token_name(chain_id, asset_address),
-                "version": get_token_version(chain_id, asset_address),
-            }
+                # Convert to atomic units
+                atomic_amount = int(amount * Decimal(10**decimals))
 
-            return str(atomic_amount), asset_address, eip712_domain
+                # Sui doesn't use EIP-712, return empty domain
+                eip712_domain = {}
+
+                return str(atomic_amount), asset_address, eip712_domain
+            else:
+                # EVM networks - use existing logic
+                chain_id = get_chain_id(network)
+                asset_address = get_usdc_address(chain_id)
+                decimals = get_token_decimals(chain_id, asset_address)
+
+                # Convert to atomic units
+                atomic_amount = int(amount * Decimal(10**decimals))
+
+                # Get EIP-712 domain info
+                eip712_domain = {
+                    "name": get_token_name(chain_id, asset_address),
+                    "version": get_token_version(chain_id, asset_address),
+                }
+
+                return str(atomic_amount), asset_address, eip712_domain
 
         except (ValueError, KeyError) as e:
             raise ValueError(f"Invalid price format: {price}. Error: {e}")

@@ -1,6 +1,9 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Union, TYPE_CHECKING
 from httpx import Request, Response, AsyncClient
 from eth_account import Account
+
+if TYPE_CHECKING:
+    from pysui import SyncClient
 from x402.clients.base import (
     x402Client,
     MissingRequestConfigError,
@@ -77,14 +80,14 @@ class HttpxHooks:
 
 
 def x402_payment_hooks(
-    account: Account,
+    account: Union[Account, "SyncClient"],
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
 ) -> Dict[str, List]:
     """Create httpx event hooks dictionary for handling 402 Payment Required responses.
 
     Args:
-        account: eth_account.Account instance for signing payments
+        account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
         max_value: Optional maximum allowed payment amount in base units
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
@@ -115,7 +118,7 @@ class x402HttpxClient(AsyncClient):
 
     def __init__(
         self,
-        account: Account,
+        account: Union[Account, "SyncClient"],
         max_value: Optional[int] = None,
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
         **kwargs,
@@ -123,7 +126,7 @@ class x402HttpxClient(AsyncClient):
         """Initialize an AsyncClient with x402 payment handling.
 
         Args:
-            account: eth_account.Account instance for signing payments
+            account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
             max_value: Optional maximum allowed payment amount in base units
             payment_requirements_selector: Optional custom selector for payment requirements.
                 Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)

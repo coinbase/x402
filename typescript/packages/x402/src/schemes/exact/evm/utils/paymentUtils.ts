@@ -1,5 +1,10 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import {
+  ExactSuiPayload,
+  SupportedEVMNetworks,
+  SupportedSuiNetworks,
+  SupportedSVMNetworks,
+} from "../../../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
@@ -34,13 +39,16 @@ export function encodePayment(payment: PaymentPayload): string {
     return safeBase64Encode(JSON.stringify(safe));
   }
 
-  // svm
-  if (SupportedSVMNetworks.includes(payment.network)) {
+  // svm and sui
+  if (
+    SupportedSVMNetworks.includes(payment.network) ||
+    SupportedSuiNetworks.includes(payment.network)
+  ) {
     safe = { ...payment, payload: payment.payload as ExactSvmPayload };
     return safeBase64Encode(JSON.stringify(safe));
   }
 
-  throw new Error("Invalid network");
+  throw new Error(`Invalid network: ${payment.network}`);
 }
 
 /**
@@ -69,8 +77,16 @@ export function decodePayment(payment: string): PaymentPayload {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
     };
+  }
+
+  // sui
+  else if (SupportedSuiNetworks.includes(parsed.network)) {
+    obj = {
+      ...parsed,
+      payload: parsed.payload as ExactSuiPayload,
+    };
   } else {
-    throw new Error("Invalid network");
+    throw new Error(`Invalid network: ${parsed.network}`);
   }
 
   const validated = PaymentPayloadSchema.parse(obj);

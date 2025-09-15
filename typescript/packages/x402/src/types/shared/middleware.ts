@@ -4,6 +4,7 @@ import { Network } from "./network";
 import { Resource } from "./resource";
 import { EvmSigner } from "./evm";
 import { HTTPRequestStructure } from "..";
+import { SuiWallet } from "./sui";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -54,7 +55,19 @@ export interface SPLTokenAmount {
   };
 }
 
-export type Price = Money | ERC20TokenAmount | SPLTokenAmount;
+export interface SuiTokenAmount {
+  amount: string;
+  asset: {
+    // TODO: address is misleading because we really want coinType,
+    // but using address means we don't need to update all the middleware to set
+    // asset in payment requirements to either address or coinType depending on the network
+    address: string;
+    coinType: string;
+    decimals: number;
+  };
+}
+
+export type Price = Money | ERC20TokenAmount | SPLTokenAmount | SuiTokenAmount;
 
 export interface RouteConfig {
   price: Price;
@@ -70,4 +83,4 @@ export interface RoutePattern {
   config: RouteConfig;
 }
 
-export type Wallet = EvmSigner;
+export type Wallet = EvmSigner | SuiWallet;

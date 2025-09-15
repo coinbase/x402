@@ -4,6 +4,8 @@ on: [pull_request]
 jobs:
   test-x402-typescript:
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
     strategy:
       matrix:
         node-version: ["20", "22"]

@@ -9,11 +9,14 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  SuiTokenAmount,
+  SupportedSuiNetworks,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
 import { getUsdcChainConfigForChain } from "./evm";
 import { getNetworkId } from "./network";
+import { getSuiUsdcAsset } from "../types/shared/sui";
 
 /**
  * Computes the route patterns for the given routes config
@@ -103,6 +106,10 @@ export function findMatchingRoute(
  * @returns The default asset
  */
 export function getDefaultAsset(network: Network) {
+  if (SupportedSuiNetworks.includes(network)) {
+    return getSuiUsdcAsset(network);
+  }
+
   const chainId = getNetworkId(network);
   const usdc = getUsdcChainConfigForChain(chainId);
   if (!usdc) {
@@ -129,11 +136,14 @@ export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
 ):
-  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] }
+  | {
+      maxAmountRequired: string;
+      asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | SuiTokenAmount["asset"];
+    }
   | { error: string } {
   // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
-  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
+  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | SuiTokenAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
     // USDC amount in dollars

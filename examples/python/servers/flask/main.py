@@ -9,6 +9,8 @@ load_dotenv()
 
 # Get configuration from environment
 ADDRESS = os.getenv("ADDRESS")
+NETWORK = os.getenv("NETWORK", "base-sepolia")
+FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
 if not ADDRESS:
     raise ValueError("Missing required environment variables")
@@ -23,7 +25,8 @@ payment_middleware.add(
     path="/weather",
     price="$0.001",
     pay_to_address=ADDRESS,
-    network="base-sepolia",
+    network=NETWORK,
+    facilitator_config={"url": FACILITATOR_URL},
 )
 
 # Apply payment middleware to premium routes

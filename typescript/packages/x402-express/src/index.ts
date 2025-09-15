@@ -22,6 +22,8 @@ import {
   settleResponseHeader,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
+  SupportedSuiNetworks,
+  SuiTokenAmount,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -110,6 +112,7 @@ export function paymentMiddleware(
     if ("error" in atomicAmountForAsset) {
       throw new Error(atomicAmountForAsset.error);
     }
+
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
     const resourceUrl: Resource =
@@ -183,6 +186,27 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+        },
+      });
+    } else if (SupportedSuiNetworks.includes(network)) {
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "",
+        payTo,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: (asset as SuiTokenAmount["asset"]).coinType,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method: req.method.toUpperCase(),
+            ...inputSchema,
+          },
+          output: outputSchema,
         },
       });
     } else {
