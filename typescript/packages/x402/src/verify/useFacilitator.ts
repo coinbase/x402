@@ -57,6 +57,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error(res);
       throw new Error(`Failed to verify payment: ${res.statusText}`);
     }
 
@@ -95,6 +96,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
 
     if (res.status !== 200) {
       const text = res.statusText;
+      console.error(res);
       throw new Error(`Failed to settle payment: ${res.status} ${text}`);
     }
 

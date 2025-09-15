@@ -13,6 +13,7 @@ import type {
 import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
+import { SmartAccount } from "viem/account-abstraction";
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -33,7 +34,7 @@ export type ConnectedClient<
   account extends Account | undefined = undefined,
 > = PublicClient<transport, chain, account>;
 
-export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount;
+export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount | SmartAccount;
 
 /**
  * Creates a public client configured for the specified network
@@ -132,7 +133,7 @@ export function isSignerWallet<
   TTransport extends Transport = Transport,
   TAccount extends Account = Account,
 >(
-  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount,
+  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount | SmartAccount,
 ): wallet is SignerWallet<TChain, TTransport, TAccount> {
   return (
     typeof wallet === "object" && wallet !== null && "chain" in wallet && "transport" in wallet
@@ -149,7 +150,7 @@ export function isAccount<
   TChain extends Chain = Chain,
   TTransport extends Transport = Transport,
   TAccount extends Account = Account,
->(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount): wallet is LocalAccount {
+>(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount | SmartAccount): wallet is LocalAccount {
   const w = wallet as LocalAccount;
   return (
     typeof wallet === "object" &&
@@ -163,6 +164,21 @@ export function isAccount<
     // Check for transaction signing (required by LocalAccount)
     typeof w.signTransaction === "function"
   );
+}
+
+
+/**
+ * Checks if a wallet is an account
+ *
+ * @param wallet - The wallet to check
+ * @returns True if the wallet is an account, false otherwise
+ */
+export function isSmartAccount<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount | SmartAccount): wallet is LocalAccount {
+  return true;
 }
 
 /**

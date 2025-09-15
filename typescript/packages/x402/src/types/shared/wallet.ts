@@ -53,7 +53,7 @@ export function createSigner(network: string, privateKey: Hex | string): Promise
  * @returns True if the wallet is an EVM signer wallet, false otherwise.
  */
 export function isEvmSignerWallet(wallet: Signer): wallet is evm.EvmSigner {
-  return evm.isSignerWallet(wallet as evm.EvmSigner) || evm.isAccount(wallet as evm.EvmSigner);
+  return evm.isSignerWallet(wallet as evm.EvmSigner) || evm.isAccount(wallet as evm.EvmSigner) || evm.isSmartAccount(wallet as evm.EvmSigner);
 }
 
 /**

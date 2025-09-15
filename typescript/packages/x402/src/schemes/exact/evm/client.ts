@@ -3,6 +3,7 @@ import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
+import { SmartAccount } from "viem/account-abstraction";
 
 /**
  * Prepares an unsigned payment header with the given sender address and payment requirements.
@@ -53,7 +54,7 @@ export function preparePaymentHeader(
  * @returns A promise that resolves to the signed payment payload
  */
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | LocalAccount,
+  client: SignerWallet<chain, transport> | LocalAccount | SmartAccount,
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<PaymentPayload> {
@@ -81,7 +82,7 @@ export async function signPaymentHeader<transport extends Transport, chain exten
  * @returns A promise that resolves to the complete signed payment payload
  */
 export async function createPayment<transport extends Transport, chain extends Chain>(
-  client: SignerWallet<chain, transport> | LocalAccount,
+  client: SignerWallet<chain, transport> | LocalAccount | SmartAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayload> {
@@ -99,7 +100,7 @@ export async function createPayment<transport extends Transport, chain extends C
  * @returns A promise that resolves to the encoded payment header string
  */
 export async function createPaymentHeader(
-  client: SignerWallet | LocalAccount,
+  client: SignerWallet | LocalAccount | SmartAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {
