@@ -136,9 +136,14 @@ class x402PaymentRequiredResponse(BaseModel):
     )
 
 
-class ExactPaymentPayload(BaseModel):
+class ExactEvmPaymentPayload(BaseModel):
     signature: str
     authorization: EIP3009Authorization
+
+
+class ExactSuiPaymentPayload(BaseModel):
+    transaction: str  # Base64 encoded transaction bytes
+    signature: str    # Base64 encoded signature
 
 
 class EIP3009Authorization(BaseModel):
@@ -191,7 +196,7 @@ class SettleResponse(BaseModel):
 
 
 # Union of payloads for each scheme
-SchemePayloads = ExactPaymentPayload
+SchemePayloads = Union[ExactEvmPaymentPayload, ExactSuiPaymentPayload]
 
 
 class PaymentPayload(BaseModel):

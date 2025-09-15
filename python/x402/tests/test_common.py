@@ -1,18 +1,8 @@
-from x402.common import (
-    parse_money,
-    process_price_to_atomic_amount,
-    get_usdc_address,
-    find_matching_payment_requirements,
-)
-from x402.types import (
-    TokenAmount,
-    TokenAsset,
-    EIP712Domain,
-    PaymentRequirements,
-    PaymentPayload,
-    ExactPaymentPayload,
-    EIP3009Authorization,
-)
+from x402.common import (find_matching_payment_requirements, get_usdc_address,
+                         parse_money, process_price_to_atomic_amount)
+from x402.types import (EIP712Domain, EIP3009Authorization,
+                        ExactEvmPaymentPayload, PaymentPayload,
+                        PaymentRequirements, TokenAmount, TokenAsset)
 
 
 def test_parse_money():
@@ -148,7 +138,7 @@ def test_find_matching_payment_requirements():
         }
     )
 
-    exact_payload = ExactPaymentPayload(
+    exact_payload = ExactEvmPaymentPayload(
         signature="0x123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678",
         authorization=authorization,
     )

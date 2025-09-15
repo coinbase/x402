@@ -29,6 +29,11 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[project.optional-dependencies]
+sui = [
+  "pysui>=0.90",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
