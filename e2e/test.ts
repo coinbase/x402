@@ -34,7 +34,7 @@ args.forEach((arg, index) => {
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = isDevMode ? ['base-sepolia'] :
+const networkFilter = isDevMode ? ['base-sepolia', 'solana-devnet'] :
   args.find(arg => arg.startsWith('--network='))?.split('=')[1] ?
     [args.find(arg => arg.startsWith('--network='))?.split('=')[1]!] :
     undefined;
@@ -153,14 +153,15 @@ async function runTest() {
   log('===============================');
 
   // Load configuration from environment
-  const serverAddress = process.env.SERVER_ADDRESS;
+  const serverEvmAddress = process.env.SERVER_EVM_ADDRESS;
+  const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
   const serverPort = parseInt(process.env.SERVER_PORT || '4021');
 
-  if (!serverAddress || !clientEvmPrivateKey || !clientSvmPrivateKey) {
+  if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
-    errorLog('   SERVER_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set');
+    errorLog('   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set');
     process.exit(1);
   }
 
@@ -202,6 +203,8 @@ async function runTest() {
     log('No active filters');
   }
 
+  console.info(scenarios);
+
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
     // Language filter - if languages specified, both client and server must match one of them
@@ -219,8 +222,13 @@ async function runTest() {
     // Server filter - if set, only run tests for this server
     if (serverFilter && scenario.server.name !== serverFilter) return false;
 
+    console.info(networkFilter, scenario.facilitatorNetworkCombo.network);
+
     // Network filter - if set, only run tests for these networks
-    if (networkFilter && !networkFilter.includes(scenario.facilitatorNetworkCombo.network)) return false;
+    if (networkFilter && !(networkFilter.includes(scenario.facilitatorNetworkCombo.network))) return false;
+
+
+    console.info(protocolFamilyFilters, scenario.protocolFamily);
 
     // Protocol family filter - if set, only run tests for these protocol families
     if (protocolFamilyFilters.length > 0 && !protocolFamilyFilters.includes(scenario.protocolFamily)) return false;
@@ -228,7 +236,7 @@ async function runTest() {
     // Production filter - if set, filter by production vs testnet scenarios
     if (prodFilter !== undefined) {
       const isProd = prodFilter.toLowerCase() === 'true';
-      const isTestnetOnly = !scenario.facilitatorNetworkCombo.useCdpFacilitator && scenario.facilitatorNetworkCombo.network === 'base-sepolia';
+      const isTestnetOnly = !scenario.facilitatorNetworkCombo.useCdpFacilitator && (scenario.facilitatorNetworkCombo.network === 'base-sepolia' || scenario.facilitatorNetworkCombo.network === 'solana-devnet');
       if (isProd && isTestnetOnly) return false;
       if (!isProd && !isTestnetOnly) return false;
     }
@@ -252,14 +260,16 @@ async function runTest() {
     const scenario = filteredScenarios[i];
     const testNumber = i + 1;
     const combo = scenario.facilitatorNetworkCombo;
-    const comboLabel = `useCdpFacilitator=${combo.useCdpFacilitator}, network=${combo.network}`;
+    const comboLabel = `useCdpFacilitator=${combo.useCdpFacilitator}, networks=[${combo.network}]`;
     const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path} [${comboLabel}]`;
 
     const serverConfig: ServerConfig = {
       port: serverPort,
       useCdpFacilitator: combo.useCdpFacilitator,
-      payTo: serverAddress,
-      network: combo.network
+      evmPayTo: serverEvmAddress,
+      svmPayTo: serverSvmAddress,
+      evmNetwork: scenario.protocolFamily === 'evm' ? combo.network : 'base-sepolia',
+      svmNetwork: scenario.protocolFamily === 'svm' ? combo.network : 'solana-devnet',
     };
 
     const callConfig: ClientConfig = {

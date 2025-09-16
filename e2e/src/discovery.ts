@@ -14,7 +14,10 @@ import {
 const facilitatorNetworkCombos = [
   { useCdpFacilitator: false, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
   { useCdpFacilitator: true, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
-  { useCdpFacilitator: true, network: 'base', protocolFamily: 'evm' as ProtocolFamily }
+  { useCdpFacilitator: true, network: 'base', protocolFamily: 'evm' as ProtocolFamily },
+  { useCdpFacilitator: false, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
+  { useCdpFacilitator: true, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
+  { useCdpFacilitator: true, network: 'solana', protocolFamily: 'svm' as ProtocolFamily }
 ];
 
 export class TestDiscovery {
@@ -203,13 +206,13 @@ export class TestDiscovery {
     });
 
     log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
-    
+
     // Show protocol family breakdown
     const protocolBreakdown = scenarios.reduce((acc, scenario) => {
       acc[scenario.protocolFamily] = (acc[scenario.protocolFamily] || 0) + 1;
       return acc;
     }, {} as Record<ProtocolFamily, number>);
-    
+
     log(`📊 Test scenarios: ${scenarios.length}`);
     Object.entries(protocolBreakdown).forEach(([protocol, count]) => {
       log(`   - ${protocol.toUpperCase()}: ${count} scenarios`);
