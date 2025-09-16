@@ -4,7 +4,7 @@ import {
   PaymentRequirements,
   PaymentRequirementsSchema,
   VerifyResponse,
-  evm,
+  createConnectedClient
 } from "x402/types";
 import { verify } from "x402/facilitator";
 
@@ -12,9 +12,6 @@ type VerifyRequest = {
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };
-
-const network = process.env.NETWORK ?? "base-sepolia";
-const client = evm.createConnectedClient(network);
 
 /**
  * Handles POST requests to verify x402 payments
@@ -24,6 +21,8 @@ const client = evm.createConnectedClient(network);
  */
 export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
+
+  const client = createConnectedClient(body.paymentRequirements.network);
 
   let paymentPayload: PaymentPayload;
   try {

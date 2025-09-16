@@ -203,8 +203,6 @@ async function runTest() {
     log('No active filters');
   }
 
-  console.info(scenarios);
-
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
     // Language filter - if languages specified, both client and server must match one of them
@@ -222,13 +220,8 @@ async function runTest() {
     // Server filter - if set, only run tests for this server
     if (serverFilter && scenario.server.name !== serverFilter) return false;
 
-    console.info(networkFilter, scenario.facilitatorNetworkCombo.network);
-
     // Network filter - if set, only run tests for these networks
     if (networkFilter && !(networkFilter.includes(scenario.facilitatorNetworkCombo.network))) return false;
-
-
-    console.info(protocolFamilyFilters, scenario.protocolFamily);
 
     // Protocol family filter - if set, only run tests for these protocol families
     if (protocolFamilyFilters.length > 0 && !protocolFamilyFilters.includes(scenario.protocolFamily)) return false;
