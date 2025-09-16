@@ -16,7 +16,8 @@ export interface ServerConfig {
 }
 
 export interface ClientConfig {
-  privateKey: string;
+  evmPrivateKey: string;
+  svmPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
 }

@@ -34,10 +34,10 @@ args.forEach((arg, index) => {
 // Parse filter arguments
 const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
 const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = isDevMode ? ['base-sepolia'] : 
-  args.find(arg => arg.startsWith('--network='))?.split('=')[1] ? 
-  [args.find(arg => arg.startsWith('--network='))?.split('=')[1]!] : 
-  undefined;
+const networkFilter = isDevMode ? ['base-sepolia'] :
+  args.find(arg => arg.startsWith('--network='))?.split('=')[1] ?
+    [args.find(arg => arg.startsWith('--network='))?.split('=')[1]!] :
+    undefined;
 const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
 
 // Parse log file argument
@@ -154,12 +154,13 @@ async function runTest() {
 
   // Load configuration from environment
   const serverAddress = process.env.SERVER_ADDRESS;
-  const clientPrivateKey = process.env.CLIENT_PRIVATE_KEY;
+  const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
+  const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
   const serverPort = parseInt(process.env.SERVER_PORT || '4021');
 
-  if (!serverAddress || !clientPrivateKey) {
+  if (!serverAddress || !clientEvmPrivateKey || !clientSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
-    errorLog('   SERVER_ADDRESS and CLIENT_PRIVATE_KEY must be set');
+    errorLog('   SERVER_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set');
     process.exit(1);
   }
 
@@ -262,7 +263,8 @@ async function runTest() {
     };
 
     const callConfig: ClientConfig = {
-      privateKey: clientPrivateKey,
+      evmPrivateKey: clientEvmPrivateKey,
+      svmPrivateKey: clientSvmPrivateKey,
       serverUrl: scenario.server.proxy.getUrl(),
       endpointPath: scenario.endpoint.path
     };
@@ -298,7 +300,7 @@ async function runTest() {
   log(`✅ Passed: ${passed}`);
   log(`❌ Failed: ${failed}`);
   log(`📈 Total: ${passed + failed}`);
-  
+
   // Protocol family breakdown
   const protocolBreakdown = filteredScenarios.reduce((acc, scenario) => {
     const key = scenario.protocolFamily;
@@ -306,7 +308,7 @@ async function runTest() {
     acc[key].total++;
     return acc;
   }, {} as Record<string, { passed: number; failed: number; total: number }>);
-  
+
   if (Object.keys(protocolBreakdown).length > 1) {
     log('');
     log('📊 Protocol Family Breakdown:');
