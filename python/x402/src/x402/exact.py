@@ -7,6 +7,12 @@ from typing_extensions import (
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 
 from eth_account import Account
+from x402.encoding import safe_base64_encode, safe_base64_decode
+from x402.types import (
+    PaymentRequirements,
+)
+from x402.chains import get_chain_id, get_sui_package_id
+
 try:
     from pysui import SyncClient
     from pysui.sui.sui_builders.get_builders import GetCoins
@@ -15,13 +21,6 @@ try:
 except ImportError:
     _has_pysui = False
     SyncClient = Any
-
-from x402.encoding import safe_base64_encode, safe_base64_decode
-from x402.types import (
-    PaymentRequirements,
-)
-from x402.chains import get_chain_id, get_sui_package_id
-
 
 class PaymentHeader(TypedDict):
     x402Version: int
@@ -45,7 +44,7 @@ def prepare_payment_header(
     network = payment_requirements.network.lower()
 
     if network in ['sui', 'sui-testnet']:
-        return _prepare_payment_header_sui(account, x402_version, payment_requirements)
+        return prepare_batch_sui_payment_header(account, x402_version, [payment_requirements])
     else:
         return _prepare_payment_header_evm(account, x402_version, payment_requirements)
 
@@ -75,112 +74,6 @@ def _prepare_payment_header_evm(
                 "validBefore": valid_before,
                 "nonce": nonce,
             },
-        },
-    }
-
-
-def _prepare_payment_header_sui(
-    client: "SyncClient", x402_version: int, payment_requirements: PaymentRequirements
-) -> PaymentHeader:
-    """Prepare an unsigned payment header for Sui networks.
-
-    Builds a transaction that calls the x402 payments contract.
-    """
-    if not _has_pysui:
-        raise ImportError(
-            "pysui library is required for Sui networks. Please install it via 'pip install pysui'."
-        )
-
-    # Get sender address from the client's active address
-    sender = client.config.active_address
-
-    # Create a transaction with initial sender
-    txn = client.transaction(initial_sender=sender)
-
-    # Get contract package ID for this network
-    package_id = get_sui_package_id(payment_requirements.network)
-
-    # Get payment parameters
-    coin_type = payment_requirements.asset
-    amount_required = int(payment_requirements.max_amount_required)
-    recipient = payment_requirements.pay_to
-    nonce = payment_requirements.extra.get('nonce', '') if payment_requirements.extra else ''
-
-    # Prepare nonce bytes (encode as UTF-8)
-    nonce_bytes = list(nonce.encode('utf-8'))
-
-    # Get coins of the specified type for the payment
-    coin_data = []
-    q_res = client.execute(GetCoins(owner=sender, coin_type=coin_type))
-    while q_res.is_ok() and q_res.result_data.data:
-        coin_data.extend(q_res.result_data.data)
-        if q_res.result_data.next_cursor:
-            q_res = client.execute(
-                GetCoins(
-                    owner=sender,
-                    coin_type=coin_type,
-                    cursor=q_res.result_data.next_cursor,
-                )
-            )
-        else:
-            break
-
-    if not coin_data:
-        raise Exception(f"No coins of type {coin_type} found for address {sender}")
-
-    # Check if total balance meets requirement
-    total_balance = sum(int(coin.balance) for coin in coin_data)
-    if total_balance < amount_required:
-        raise Exception(
-            f"Insufficient balance. Required: {amount_required}, Available: {total_balance}"
-        )
-
-    # Get a coin with sufficient balance or merge coins
-    sufficient_coin = next(
-        (coin for coin in coin_data if int(coin.balance) >= amount_required),
-        None,
-    )
-
-    if sufficient_coin:
-        # Use the coin that has enough balance
-        if int(sufficient_coin.balance) == amount_required:
-            # Use the coin directly if it has the exact amount
-            payment_coin = ObjectID(sufficient_coin.object_id)
-        else:
-            # Split the coin to get the exact amount needed
-            split_coin = txn.split_coin(coin=ObjectID(sufficient_coin.object_id), amounts=[amount_required])
-            payment_coin = split_coin
-    else:
-        # Need to merge coins first
-        target_coin = coin_data[0]
-        # Merge other coins into the target
-        txn.merge_coins(merge_to=ObjectID(target_coin.object_id), merge_from=[ObjectID(c.object_id) for c in coin_data[1:]])
-        # Split the exact amount from the merged coin
-        split_coin = txn.split_coin(coin=ObjectID(target_coin.object_id), amounts=[amount_required])
-        payment_coin = split_coin
-
-    # Call the contract's make_payment function
-    txn.move_call(
-        target=f"{package_id}::payments::make_payment",
-        arguments=[
-            payment_coin,                    # paymentCoin (Coin object)
-            SuiU64(amount_required),        # expectedAmount (u64)
-            SuiAddress(recipient),          # recipient (address)
-            nonce_bytes,                    # invoiceId (vector<u8> as list of bytes)
-        ],
-        type_arguments=[coin_type]          # Coin type parameter
-    )
-
-    # Build the transaction to get the bytes (but don't sign yet)
-    base64_tx_bytes = txn.deferred_execution()
-
-    return {
-        "x402Version": x402_version,
-        "scheme": payment_requirements.scheme,
-        "network": payment_requirements.network,
-        "payload": {
-            "transaction": base64_tx_bytes,  # Base64 encoded transaction bytes
-            "signature": None,  # Will be added during signing
         },
     }
 
@@ -310,7 +203,7 @@ def decode_payment(encoded_payment: str) -> Dict[str, Any]:
     return json.loads(safe_base64_decode(encoded_payment))
 
 
-def prepare_batch_payment_header(
+def prepare_batch_sui_payment_header(
     client: "SyncClient", x402_version: int, payment_requirements_list: list[PaymentRequirements]
 ) -> Dict[str, Any]:
     """Prepare a batch payment header for multiple payments in a single SUI transaction.
