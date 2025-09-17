@@ -256,13 +256,15 @@ Clients and facilitators must explicitly support different `(scheme, network)` p
 
 ## Running example
 
+**Requirements:** Node v24 or higher
+
 1. From `examples/typescript` run `pnpm install` and `pnpm build` to ensure all dependent packages and examples are setup.
 
 2. Select a server, i.e. express, and `cd` into that example. Add your server's ethereum address to get paid to into the `.env` file, and then run `pnpm dev` in that directory.
 
 3. Select a client, i.e. axios, and `cd` into that example. Add your private key for the account making payments into the `.env` file, and then run `pnpm dev` in that directory.
 
-You should see activity across both terminals, and the client terminal will display a weather report.
+You should see activities in the client terminal, which will display a weather report.
 
 ## Running tests
 
