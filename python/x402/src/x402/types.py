@@ -7,7 +7,7 @@ from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, ValidationInfo
 from pydantic.alias_generators import to_camel
 
 from x402.networks import SupportedNetworks
@@ -94,7 +94,7 @@ Price = Union[Money, TokenAmount]
 
 
 class PaymentRequirements(BaseModel):
-    scheme: str
+    scheme: Literal["exact", "cashu-token"]
     network: SupportedNetworks
     max_amount_required: str
     resource: str
@@ -103,7 +103,7 @@ class PaymentRequirements(BaseModel):
     output_schema: Optional[Any] = None
     pay_to: str
     max_timeout_seconds: int
-    asset: str
+    asset: Optional[str] = None
     extra: Optional[dict[str, Any]] = None
 
     model_config = ConfigDict(
@@ -120,6 +120,27 @@ class PaymentRequirements(BaseModel):
             raise ValueError(
                 "max_amount_required must be an integer encoded as a string"
             )
+        return v
+
+    @field_validator("pay_to")
+    def validate_pay_to(cls, v, info: ValidationInfo):
+        scheme = info.data.get("scheme") if info.data else None
+        if scheme == "cashu-token":
+            if not v:
+                raise ValueError("pay_to must be provided for cashu-token payments")
+            return v
+        if not v.startswith("0x"):
+            raise ValueError("pay_to must be an EVM address starting with 0x")
+        return v
+
+    @field_validator("extra")
+    def validate_extra(cls, v, info: ValidationInfo):
+        scheme = info.data.get("scheme") if info.data else None
+        if scheme == "cashu-token":
+            if not v or "mintUrl" not in v:
+                raise ValueError(
+                    "extra must include 'mintUrl' for cashu-token payment requirements"
+                )
         return v
 
 
@@ -190,8 +211,36 @@ class SettleResponse(BaseModel):
     )
 
 
+class CashuProof(BaseModel):
+    amount: int
+    secret: str
+    C: str
+    id: str
+
+
+class CashuPaymentPayload(BaseModel):
+    mint: str
+    proofs: List[CashuProof]
+    memo: Optional[str] = None
+    keyset_id: Optional[str] = Field(default=None, alias="keysetId")
+    payer: Optional[str] = None
+    expiry: Optional[int] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+    @field_validator("proofs")
+    def validate_proofs(cls, v):
+        if not v:
+            raise ValueError("cashu-token payments require at least one proof")
+        return v
+
+
 # Union of payloads for each scheme
-SchemePayloads = ExactPaymentPayload
+SchemePayloads = Union[ExactPaymentPayload, CashuPaymentPayload]
 
 
 class PaymentPayload(BaseModel):

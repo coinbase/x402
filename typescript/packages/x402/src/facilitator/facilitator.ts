@@ -1,6 +1,7 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { verify as verifyCashu, settle as settleCashu } from "../schemes/cashu";
+import { SupportedCashuNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
   SignerWallet as EvmSignerWallet,
@@ -12,6 +13,7 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  CashuPayload,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
@@ -51,13 +53,25 @@ export async function verify<
     }
   }
 
+  if (paymentRequirements.scheme === "cashu-token") {
+    if (SupportedCashuNetworks.includes(paymentRequirements.network)) {
+      return verifyCashu(client, payload, paymentRequirements);
+    }
+  }
+
   // unsupported scheme
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
-      ? (payload.payload as ExactEvmPayload).authorization.from
-      : "",
+    payer: (() => {
+      if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+        return (payload.payload as ExactEvmPayload).authorization.from;
+      }
+      if (paymentRequirements.scheme === "cashu-token") {
+        return (payload.payload as CashuPayload).payer ?? "";
+      }
+      return "";
+    })(),
   };
 }
 
@@ -92,14 +106,26 @@ export async function settle<transport extends Transport, chain extends Chain>(
     }
   }
 
+  if (paymentRequirements.scheme === "cashu-token") {
+    if (SupportedCashuNetworks.includes(paymentRequirements.network)) {
+      return settleCashu(client, payload, paymentRequirements);
+    }
+  }
+
   return {
     success: false,
     errorReason: "invalid_scheme",
     transaction: "",
     network: paymentRequirements.network,
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
-      ? (payload.payload as ExactEvmPayload).authorization.from
-      : "",
+    payer: (() => {
+      if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+        return (payload.payload as ExactEvmPayload).authorization.from;
+      }
+      if (paymentRequirements.scheme === "cashu-token") {
+        return (payload.payload as CashuPayload).payer ?? "";
+      }
+      return "";
+    })(),
   };
 }
 

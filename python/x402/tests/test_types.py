@@ -1,4 +1,5 @@
 from x402.types import (
+    CashuPaymentPayload,
     PaymentRequirements,
     x402PaymentRequiredResponse,
     ExactPaymentPayload,
@@ -160,3 +161,37 @@ def test_x402_headers_serde():
     expected = {"x_payment": "test-payment"}
     assert original.model_dump(by_alias=True) == expected
     assert X402Headers(**expected) == original
+
+
+def test_cashu_payment_requirements_and_payload():
+    requirements = PaymentRequirements(
+        scheme="cashu-token",
+        network="bitcoin-testnet",
+        max_amount_required="5000",
+        resource="https://api.example.com/resource",
+        description="Test resource",
+        mime_type="application/json",
+        pay_to="cashu:merchant",
+        max_timeout_seconds=120,
+        extra={"mintUrl": "https://nofees.testnut.cashu.space/"},
+    )
+
+    assert requirements.extra["mintUrl"] == "https://nofees.testnut.cashu.space/"
+
+    payload = CashuPaymentPayload(
+        mint="https://nofees.testnut.cashu.space/",
+        proofs=[{"amount": 3000, "secret": "secret", "C": "C", "id": "keyset"}],
+        memo="optional",
+        payer="payer-id",
+    )
+
+    payment_payload = PaymentPayload(
+        x402_version=1,
+        scheme="cashu-token",
+        network="bitcoin-testnet",
+        payload=payload,
+    )
+
+    serialized = payment_payload.model_dump(by_alias=True)
+    assert serialized["payload"]["mint"] == "https://nofees.testnut.cashu.space/"
+    assert serialized["scheme"] == "cashu-token"
