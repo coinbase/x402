@@ -41,7 +41,7 @@ app.use(
         network: svmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : { url: "http://localhost:3000/facilitator" }
+    useCdpFacilitator ? facilitator : undefined
   ),
 );
 
