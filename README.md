@@ -256,7 +256,7 @@ Clients and facilitators must explicitly support different `(scheme, network)` p
 
 ## Running example
 
-**Requirements:** Node v24 or higher
+**Requirements:** Node.js v24 or higher
 
 1. From `examples/typescript` run `pnpm install` and `pnpm build` to ensure all dependent packages and examples are setup.
 
