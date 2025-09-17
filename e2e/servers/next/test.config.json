@@ -27,8 +27,8 @@
     "required": [
       "PORT",
       "USE_CDP_FACILITATOR",
-      "NETWORK",
-      "ADDRESS"
+      "EVM_NETWORK",
+      "EVM_ADDRESS"
     ],
     "optional": [
       "CDP_API_KEY_ID",

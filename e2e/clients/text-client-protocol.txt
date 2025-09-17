@@ -19,7 +19,7 @@ Example configuration:
   "language": "typescript",
   "protocolFamilies": ["evm"],
   "environment": {
-    "required": ["PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
+    "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
   }
 }
@@ -33,7 +33,7 @@ Multi-protocol client example:
   "language": "typescript",
   "protocolFamilies": ["evm", "svm"],
   "environment": {
-    "required": ["PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
+    "required": ["EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
   }
 }
@@ -41,7 +41,8 @@ Multi-protocol client example:
 
 ## Environment Variables / CLI Arguments
 The following parameters must be configurable:
-- `PRIVATE_KEY`: Private key for signing requests
+- `EVM_PRIVATE_KEY`: Private key for signing requests (EVM networks)
+- `SVM_PRIVATE_KEY`: Private key for signing requests (Solana networks)
 - `RESOURCE_SERVER_URL`: URL of the server to call
 - `ENDPOINT_PATH`: Path to the protected endpoint (default: "/protected")
 

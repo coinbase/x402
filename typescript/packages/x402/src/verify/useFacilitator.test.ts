@@ -176,14 +176,20 @@ describe("useFacilitator", () => {
       const { supported } = useFacilitator();
       await supported();
 
-      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/supported");
+      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/supported", {
+        headers: { "Content-Type": "application/json" },
+        method: "GET",
+      });
     });
 
     it("should call fetch with the correct custom URL", async () => {
       const { supported } = useFacilitator({ url: "https://custom-facilitator.org" });
       await supported();
 
-      expect(fetch).toHaveBeenCalledWith("https://custom-facilitator.org/supported");
+      expect(fetch).toHaveBeenCalledWith("https://custom-facilitator.org/supported", {
+        headers: { "Content-Type": "application/json" },
+        method: "GET",
+      });
     });
 
     it("should throw error on non-200 response", async () => {

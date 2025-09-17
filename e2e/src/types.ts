@@ -11,12 +11,15 @@ export interface ClientResult {
 export interface ServerConfig {
   port: number;
   useCdpFacilitator: boolean;
-  payTo: string;
-  network: string;
+  evmPayTo: string;
+  svmPayTo: string;
+  evmNetwork: string;
+  svmNetwork: string;
 }
 
 export interface ClientConfig {
-  privateKey: string;
+  evmPrivateKey: string;
+  svmPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
 }

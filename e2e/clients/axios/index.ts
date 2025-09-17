@@ -1,21 +1,23 @@
 import axios from "axios";
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
+import { withPaymentInterceptor, decodeXPaymentResponse, createSigner, MultiNetworkSigner } from "x402-axios";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex;
+const evmPrivateKey = process.env.EVM_PRIVATE_KEY as Hex;
+const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 
-if (!baseURL || !privateKey || !endpointPath) {
+if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
-const account = privateKeyToAccount(privateKey);
+const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
+const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
+const account = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
 
 const api = withPaymentInterceptor(
   axios.create({

@@ -73,8 +73,10 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         USE_CDP_FACILITATOR: config.useCdpFacilitator.toString(),
         CDP_API_KEY_ID: process.env.CDP_API_KEY_ID || '',
         CDP_API_KEY_SECRET: process.env.CDP_API_KEY_SECRET || '',
-        NETWORK: config.network,
-        ADDRESS: config.payTo,
+        EVM_NETWORK: config.evmNetwork,
+        EVM_ADDRESS: config.evmPayTo,
+        SVM_NETWORK: config.svmNetwork,
+        SVM_ADDRESS: config.svmPayTo,
         PORT: config.port.toString()
       }
     };

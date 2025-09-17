@@ -13,6 +13,14 @@ export async function GET() {
         scheme: "exact",
         network: "base-sepolia",
       },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "solana-devnet",
+        extra: {
+          feePayer: process.env.SOLANA_ADDRESS,
+        },
+      },
     ],
   };
 

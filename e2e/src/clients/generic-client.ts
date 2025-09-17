@@ -20,7 +20,8 @@ export class GenericClientProxy extends BaseProxy implements ClientProxy {
     try {
       const runConfig: RunConfig = {
         env: {
-          PRIVATE_KEY: config.privateKey,
+          EVM_PRIVATE_KEY: config.evmPrivateKey,
+          SVM_PRIVATE_KEY: config.svmPrivateKey,
           RESOURCE_SERVER_URL: config.serverUrl,
           ENDPOINT_PATH: config.endpointPath
         }
