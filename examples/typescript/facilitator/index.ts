@@ -42,6 +42,17 @@ type SettleRequest = {
   paymentRequirements: PaymentRequirements;
 };
 
+app.get("/verify", (req: Request, res: Response) => {
+  res.json({
+    endpoint: "/verify",
+    description: "POST to verify x402 payments",
+    body: {
+      paymentPayload: "PaymentPayload",
+      paymentRequirements: "PaymentRequirements",
+    },
+  });
+});
+
 app.post("/verify", async (req: Request, res: Response) => {
   try {
     const body: VerifyRequest = req.body;
