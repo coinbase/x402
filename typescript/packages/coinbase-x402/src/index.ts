@@ -73,6 +73,9 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
       settle: {
         "Correlation-Context": createCorrelationHeader(),
       } as Record<string, string>,
+      supported: {
+        "Correlation-Context": createCorrelationHeader(),
+      } as Record<string, string>,
       list: {
         "Correlation-Context": createCorrelationHeader(),
       },
@@ -92,6 +95,13 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
         "POST",
         requestHost,
         `${COINBASE_FACILITATOR_V2_ROUTE}/settle`,
+      );
+      headers.supported.Authorization = await createAuthHeader(
+        apiKeyId,
+        apiKeySecret,
+        "GET",
+        requestHost,
+        `${COINBASE_FACILITATOR_V2_ROUTE}/supported`,
       );
     }
 

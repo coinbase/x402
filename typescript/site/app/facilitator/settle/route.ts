@@ -1,7 +1,5 @@
-import { Hex } from "viem";
 import { settle } from "x402/facilitator";
 import {
-  Network,
   PaymentPayload,
   PaymentPayloadSchema,
   PaymentRequirements,
@@ -9,7 +7,7 @@ import {
   SettleResponse,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
-  createSigner
+  createSigner,
 } from "x402/types";
 
 type SettleRequest = {
@@ -24,10 +22,14 @@ type SettleRequest = {
  * @returns A JSON response with the settlement result
  */
 export async function POST(req: Request) {
-  const network = (process.env.NETWORK ?? "base-sepolia") as Network;
+  const body: SettleRequest = await req.json();
+
+  const network = body.paymentRequirements.network;
   const privateKey = SupportedEVMNetworks.includes(network)
-    ? process.env.PRIVATE_KEY : SupportedSVMNetworks.includes(network) ?
-      process.env.SOLANA_PRIVATE_KEY : undefined
+    ? process.env.PRIVATE_KEY
+    : SupportedSVMNetworks.includes(network)
+      ? process.env.SOLANA_PRIVATE_KEY
+      : undefined;
 
   if (!privateKey) {
     return Response.json(
@@ -40,8 +42,6 @@ export async function POST(req: Request) {
   }
 
   const wallet = await createSigner(network, privateKey);
-
-  const body: SettleRequest = await req.json();
 
   let paymentPayload: PaymentPayload;
   try {

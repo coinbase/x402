@@ -3,8 +3,11 @@ import {
   PaymentPayloadSchema,
   PaymentRequirements,
   PaymentRequirementsSchema,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
   VerifyResponse,
-  createConnectedClient
+  createConnectedClient,
+  createSigner,
 } from "x402/types";
 import { verify } from "x402/facilitator";
 
@@ -22,7 +25,22 @@ type VerifyRequest = {
 export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
 
-  const client = createConnectedClient(body.paymentRequirements.network);
+  const network = body.paymentRequirements.network;
+  const client = SupportedEVMNetworks.includes(network)
+    ? createConnectedClient(body.paymentRequirements.network)
+    : SupportedSVMNetworks.includes(network)
+      ? await createSigner(network, process.env.SOLANA_PRIVATE_KEY)
+      : undefined;
+
+  if (!client) {
+    return Response.json(
+      {
+        isValid: false,
+        invalidReason: "invalid_network",
+      } as VerifyResponse,
+      { status: 400 },
+    );
+  }
 
   let paymentPayload: PaymentPayload;
   try {

@@ -1,4 +1,3 @@
-import { SolanaAddress } from "x402-next";
 import { SupportedPaymentKindsResponse } from "x402/types";
 
 /**
@@ -19,9 +18,9 @@ export async function GET() {
         scheme: "exact",
         network: "solana-devnet",
         extra: {
-          feePayer: process.env.SOLANA_ADDRESS as SolanaAddress,
+          feePayer: process.env.SOLANA_ADDRESS,
         },
-      }
+      },
     ],
   };
 

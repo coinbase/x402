@@ -12,8 +12,8 @@ declare module "x402/facilitator" {
 
   // Define a minimal client type that works for both EVM and Solana signers
   type SimpleClient = {
-    address?: string; // Optional to handle both EVM and Solana address formats
     [key: string]: unknown; // Allow any additional properties to avoid deep type instantiation issues
+    address?: string; // Optional to handle both EVM and Solana address formats
   };
 
   export function verify(
