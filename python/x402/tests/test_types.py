@@ -173,14 +173,29 @@ def test_cashu_payment_requirements_and_payload():
         mime_type="application/json",
         pay_to="cashu:merchant",
         max_timeout_seconds=120,
-        extra={"mintUrl": "https://nofees.testnut.cashu.space/"},
+        extra={
+            "mints": ["https://nofees.testnut.cashu.space/"],
+            "unit": "sat",
+        },
     )
 
-    assert requirements.extra["mintUrl"] == "https://nofees.testnut.cashu.space/"
+    assert requirements.extra["mints"] == ["https://nofees.testnut.cashu.space/"]
 
     payload = CashuPaymentPayload(
-        mint="https://nofees.testnut.cashu.space/",
-        proofs=[{"amount": 3000, "secret": "secret", "C": "C", "id": "keyset"}],
+        tokens=[
+            {
+                "mint": "https://nofees.testnut.cashu.space/",
+                "proofs": [
+                    {
+                        "amount": 3000,
+                        "secret": "secret",
+                        "C": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+                        "id": "001122aabbccdd",
+                    }
+                ],
+            }
+        ],
+        encoded=["cashuBexample"],
         memo="optional",
         payer="payer-id",
     )
@@ -193,5 +208,5 @@ def test_cashu_payment_requirements_and_payload():
     )
 
     serialized = payment_payload.model_dump(by_alias=True)
-    assert serialized["payload"]["mint"] == "https://nofees.testnut.cashu.space/"
+    assert serialized["payload"]["tokens"][0]["mint"] == "https://nofees.testnut.cashu.space/"
     assert serialized["scheme"] == "cashu-token"

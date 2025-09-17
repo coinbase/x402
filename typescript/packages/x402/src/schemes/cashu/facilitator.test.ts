@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPaymentPayload } from "./client";
 import { verify, settle } from "./facilitator";
 import { CashuPaymentRequirements } from "../../types/verify";
+import { CashuMint, CashuWallet } from "@cashu/cashu-ts";
 
 const requirements: CashuPaymentRequirements = {
   scheme: "cashu-token",
@@ -12,7 +13,8 @@ const requirements: CashuPaymentRequirements = {
   maxAmountRequired: "5000",
   maxTimeoutSeconds: 300,
   extra: {
-    mintUrl: "https://nofees.testnut.cashu.space/",
+    mints: ["https://nofees.testnut.cashu.space/"],
+    unit: "sat",
   },
   payTo: "cashu:merchant-pubkey",
 };
@@ -20,11 +22,59 @@ const requirements: CashuPaymentRequirements = {
 const paymentPayload = createPaymentPayload({
   x402Version: 1,
   paymentRequirements: requirements,
-  proofs: [
-    { amount: 3000, secret: "secret-1", C: "C-1", id: "keyset-1" },
-    { amount: 3000, secret: "secret-2", C: "C-2", id: "keyset-1" },
+  tokens: [
+    {
+      mint: "https://nofees.testnut.cashu.space/",
+      proofs: [
+        {
+          amount: 3000,
+          secret: "secret-1",
+          C: "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          id: "001122aabbccdd",
+        },
+        {
+          amount: 3000,
+          secret: "secret-2",
+          C: "fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
+          id: "001122aabbccdd",
+        },
+      ],
+    },
   ],
   payer: "payer-id",
+});
+
+const smallPayment = createPaymentPayload({
+  x402Version: 1,
+  paymentRequirements: {
+    ...requirements,
+    maxAmountRequired: "1000",
+  },
+  tokens: [
+    {
+      mint: "https://nofees.testnut.cashu.space/",
+      proofs: [
+        {
+          amount: 1000,
+          secret: "secret",
+          C: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          id: "001122aabbccdd",
+        },
+      ],
+    },
+  ],
+});
+
+beforeEach(() => {
+  vi.spyOn(CashuMint, "check").mockImplementation(async (_mintUrl, payload) => ({
+    states: payload.Ys.map(Y => ({ Y, state: "UNSPENT", witness: null })),
+  }));
+
+  vi.spyOn(CashuWallet.prototype, "receive").mockResolvedValue([]);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("cashu facilitator", () => {
@@ -35,14 +85,6 @@ describe("cashu facilitator", () => {
   });
 
   it("rejects payments below the required amount", async () => {
-    const smallPayment = {
-      ...paymentPayload,
-      payload: {
-        ...paymentPayload.payload,
-        proofs: [{ amount: 1000, secret: "secret", C: "C", id: "keyset-1" }],
-      },
-    };
-
     const result = await verify(undefined, smallPayment, requirements);
     expect(result.isValid).toBe(false);
     expect(result.invalidReason).toBe("invalid_cashu_payload_amount_mismatch");

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+import re
 from typing import Any, Optional, Union, Dict, Literal, List
 from typing_extensions import (
     TypedDict,
@@ -93,6 +94,10 @@ Money = Union[str, int]  # e.g., "$0.01", 0.01, "0.001"
 Price = Union[Money, TokenAmount]
 
 
+_CASHU_TOKEN_PATTERN = re.compile(r"^cashu[AB][A-Za-z0-9_-]+$")
+_CASHU_REQUEST_PATTERN = re.compile(r"^creq[a-z][A-Za-z0-9_-]+$", re.IGNORECASE)
+
+
 class PaymentRequirements(BaseModel):
     scheme: Literal["exact", "cashu-token"]
     network: SupportedNetworks
@@ -128,6 +133,16 @@ class PaymentRequirements(BaseModel):
         if scheme == "cashu-token":
             if not v:
                 raise ValueError("pay_to must be provided for cashu-token payments")
+            if not (
+                _CASHU_TOKEN_PATTERN.match(v)
+                or _CASHU_REQUEST_PATTERN.match(v)
+                or v.startswith("cashu:")
+                or v.startswith("http://")
+                or v.startswith("https://")
+            ):
+                raise ValueError(
+                    "pay_to must be an encoded Cashu token, request, or URL for cashu-token payments"
+                )
             return v
         if not v.startswith("0x"):
             raise ValueError("pay_to must be an EVM address starting with 0x")
@@ -137,10 +152,12 @@ class PaymentRequirements(BaseModel):
     def validate_extra(cls, v, info: ValidationInfo):
         scheme = info.data.get("scheme") if info.data else None
         if scheme == "cashu-token":
-            if not v or "mintUrl" not in v:
+            if not v or "mints" not in v:
                 raise ValueError(
-                    "extra must include 'mintUrl' for cashu-token payment requirements"
+                    "extra must include 'mints' for cashu-token payment requirements"
                 )
+            if not isinstance(v["mints"], list) or not v["mints"]:
+                raise ValueError("mints must be a non-empty list for cashu-token payments")
         return v
 
 
@@ -211,18 +228,40 @@ class SettleResponse(BaseModel):
     )
 
 
+class CashuDleq(BaseModel):
+    s: str
+    e: str
+    r: Optional[str] = None
+
+
 class CashuProof(BaseModel):
     amount: int
     secret: str
     C: str
     id: str
+    dleq: Optional[CashuDleq] = None
+    witness: Optional[Any] = None
 
 
-class CashuPaymentPayload(BaseModel):
+class CashuTokenEntry(BaseModel):
     mint: str
     proofs: List[CashuProof]
     memo: Optional[str] = None
-    keyset_id: Optional[str] = Field(default=None, alias="keysetId")
+    unit: Optional[str] = None
+
+    @field_validator("proofs")
+    def validate_proofs(cls, v):
+        if not v:
+            raise ValueError("cashu-token tokens require at least one proof")
+        return v
+
+
+class CashuPaymentPayload(BaseModel):
+    tokens: List[CashuTokenEntry]
+    encoded: List[str]
+    memo: Optional[str] = None
+    unit: Optional[str] = None
+    locks: Optional[Any] = None
     payer: Optional[str] = None
     expiry: Optional[int] = None
 
@@ -232,10 +271,21 @@ class CashuPaymentPayload(BaseModel):
         from_attributes=True,
     )
 
-    @field_validator("proofs")
-    def validate_proofs(cls, v):
+    @field_validator("tokens")
+    def validate_tokens(cls, v):
         if not v:
-            raise ValueError("cashu-token payments require at least one proof")
+            raise ValueError("cashu-token payments require at least one token")
+        return v
+
+    @field_validator("encoded")
+    def validate_encoded(cls, v, info: ValidationInfo):
+        tokens = info.data.get("tokens") if info.data else None
+        if not v:
+            raise ValueError("cashu-token payments require encoded token values")
+        if tokens and len(v) != len(tokens):
+            raise ValueError(
+                "encoded tokens list must be the same length as tokens for cashu-token payments"
+            )
         return v
 
 

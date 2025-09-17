@@ -9,7 +9,8 @@ const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
 const EvmSignatureRegex = /^0x[0-9a-fA-F]+$/; // Flexible hex signature validation
-const CashuTokenRegex = /^cashu[a-z0-9:]+$/i;
+const CashuTokenRegex = /^cashu[AB][A-Za-z0-9_-]+$/;
+const CashuRequestRegex = /^creq[a-z][A-Za-z0-9_-]+$/i;
 // Enums
 export const schemes = ["exact", "cashu-token"] as const;
 export const x402Versions = [1] as const;
@@ -90,16 +91,26 @@ export type ExactPaymentRequirements = z.infer<typeof ExactPaymentRequirementsSc
 
 const CashuRequirementsExtraSchema = z
   .object({
-    mintUrl: z.string().url(),
+    mints: z.array(z.string().url()).min(1),
     facilitatorUrl: z.string().url().optional(),
-    keysetId: z.string().optional(),
-    unit: z.enum(["sat", "msat"]).optional(),
+    keysetIds: z.array(z.string()).optional(),
+    unit: z.string().min(1).optional(),
+    nut10: z.any().optional(),
   })
   .passthrough();
 
 export const CashuPaymentRequirementsSchema = BasePaymentRequirementsSchema.extend({
   scheme: z.literal("cashu-token"),
-  payTo: z.string().regex(CashuTokenRegex).or(z.string().url()),
+  payTo: z
+    .string()
+    .refine(
+      value =>
+        CashuTokenRegex.test(value) ||
+        CashuRequestRegex.test(value) ||
+        value.startsWith("cashu:") ||
+        z.string().url().safeParse(value).success,
+      value => ({ message: `Invalid Cashu payTo value: ${value}` }),
+    ),
   asset: z.string().optional(),
   extra: CashuRequirementsExtraSchema,
 });
@@ -134,19 +145,52 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
+const CashuDleqSchema = z
+  .object({
+    s: z.string(),
+    e: z.string(),
+    r: z.string().optional(),
+  })
+  .strict();
+
+const CashuWitnessSchema = z.union([
+  z.string(),
+  z
+    .object({
+      signatures: z.array(z.string()).optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      preimage: z.string(),
+      signatures: z.array(z.string()).optional(),
+    })
+    .passthrough(),
+]);
+
 export const CashuProofSchema = z.object({
-  amount: z.number().int().nonnegative(),
+  amount: z.number().int().positive(),
   secret: z.string(),
   C: z.string(),
   id: z.string(),
+  dleq: CashuDleqSchema.optional(),
+  witness: CashuWitnessSchema.optional(),
 });
 export type CashuProof = z.infer<typeof CashuProofSchema>;
 
-export const CashuPayloadSchema = z.object({
+export const CashuTokenEntrySchema = z.object({
   mint: z.string().url(),
   proofs: z.array(CashuProofSchema).min(1),
   memo: z.string().optional(),
-  keysetId: z.string().optional(),
+  unit: z.string().min(1).optional(),
+});
+
+export const CashuPayloadSchema = z.object({
+  tokens: z.array(CashuTokenEntrySchema).min(1),
+  encoded: z.array(z.string().regex(CashuTokenRegex)).min(1),
+  memo: z.string().optional(),
+  unit: z.string().min(1).optional(),
+  locks: z.any().optional(),
   payer: z.string().optional(),
   expiry: z.number().int().optional(),
 });

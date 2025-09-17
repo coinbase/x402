@@ -1,3 +1,4 @@
+import { getEncodedToken } from "@cashu/cashu-ts";
 import {
   CashuPaymentRequirements,
   CashuPaymentRequirementsSchema,
@@ -5,20 +6,28 @@ import {
   CashuPayloadSchema,
   CashuProof,
   CashuProofSchema,
+  CashuTokenEntrySchema,
   PaymentPayload,
 } from "../../types/verify";
 import { encodePayment } from "../utils";
 
 export type CashuProofInput = CashuProof;
 
+export interface CashuTokenInput {
+  mint: string;
+  proofs: CashuProofInput[];
+  memo?: string;
+  unit?: string;
+}
+
 export interface CashuPaymentArgs {
   x402Version: number;
   paymentRequirements: CashuPaymentRequirements;
-  proofs: CashuProofInput[];
+  tokens: CashuTokenInput[];
   memo?: string;
-  keysetId?: string;
   payer?: string;
   expiry?: number;
+  locks?: unknown;
 }
 
 function assertCashuRequirements(requirements: CashuPaymentRequirements): void {
@@ -26,8 +35,8 @@ function assertCashuRequirements(requirements: CashuPaymentRequirements): void {
   if (!result.success) {
     throw new Error(`Invalid Cashu payment requirements: ${result.error.message}`);
   }
-  if (!requirements.extra?.mintUrl) {
-    throw new Error("Cashu payment requirements must include extra.mintUrl");
+  if (!requirements.extra?.mints?.length) {
+    throw new Error("Cashu payment requirements must include extra.mints");
   }
 }
 
@@ -40,28 +49,93 @@ function normalizeProofs(proofs: CashuProofInput[]): CashuProof[] {
       id: proof.id,
     };
 
+    if (proof.dleq) {
+      normalized.dleq = proof.dleq;
+    }
+    if (proof.witness) {
+      normalized.witness = proof.witness;
+    }
+
     const result = CashuProofSchema.safeParse(normalized);
     if (!result.success) {
       throw new Error(`Invalid Cashu proof: ${result.error.message}`);
     }
 
-    return normalized;
+    return result.data;
   });
 }
 
-function buildPayload(args: CashuPaymentArgs): CashuPayload {
-  const { paymentRequirements, proofs, memo, keysetId, payer, expiry } = args;
-  const normalizedProofs = normalizeProofs(proofs);
-  const payload: CashuPayload = {
-    mint: paymentRequirements.extra.mintUrl,
+function normalizeToken(
+  token: CashuTokenInput,
+  requirements: CashuPaymentRequirements,
+): CashuPayload["tokens"][number] {
+  if (!requirements.extra.mints.includes(token.mint)) {
+    throw new Error(`Cashu mint ${token.mint} is not accepted by the payment requirements`);
+  }
+
+  const normalizedProofs = normalizeProofs(token.proofs);
+  const normalizedToken: CashuPayload["tokens"][number] = {
+    mint: token.mint,
     proofs: normalizedProofs,
+  };
+
+  if (token.memo) {
+    normalizedToken.memo = token.memo;
+  }
+  if (token.unit) {
+    normalizedToken.unit = token.unit;
+  }
+
+  const parsedToken = CashuTokenEntrySchema.safeParse(normalizedToken);
+  if (!parsedToken.success) {
+    throw new Error(`Invalid Cashu token: ${parsedToken.error.message}`);
+  }
+
+  return parsedToken.data;
+}
+
+function buildPayload(args: CashuPaymentArgs): CashuPayload {
+  const { paymentRequirements, tokens, memo, payer, expiry, locks } = args;
+
+  if (!tokens.length) {
+    throw new Error("Cashu payment requires at least one token");
+  }
+
+  const normalizedTokens = tokens.map(token => normalizeToken(token, paymentRequirements));
+  const encodedTokens = normalizedTokens.map(token =>
+    getEncodedToken({
+      mint: token.mint,
+      proofs: token.proofs.map(proof => ({
+        ...proof,
+        ...(proof.dleq ? { dleq: { ...proof.dleq } } : {}),
+        ...(proof.witness
+          ? {
+              witness: typeof proof.witness === "string"
+                ? proof.witness
+                : JSON.parse(JSON.stringify(proof.witness)),
+            }
+          : {}),
+      })),
+      memo: token.memo,
+      unit: token.unit ?? paymentRequirements.extra.unit,
+    }),
+  );
+
+  const payload: CashuPayload = {
+    tokens: normalizedTokens,
+    encoded: encodedTokens,
   };
 
   if (memo) {
     payload.memo = memo;
   }
-  if (keysetId ?? paymentRequirements.extra?.keysetId) {
-    payload.keysetId = keysetId ?? paymentRequirements.extra?.keysetId;
+  if (paymentRequirements.extra.unit) {
+    payload.unit = paymentRequirements.extra.unit;
+  } else if (normalizedTokens[0]?.unit) {
+    payload.unit = normalizedTokens[0].unit;
+  }
+  if (locks ?? paymentRequirements.extra.nut10) {
+    payload.locks = locks ?? paymentRequirements.extra.nut10;
   }
   if (payer) {
     payload.payer = payer;
@@ -84,7 +158,9 @@ export function createPaymentPayload(args: CashuPaymentArgs): PaymentPayload {
   assertCashuRequirements(paymentRequirements);
   const payload = buildPayload(args);
 
-  const totalAmount = payload.proofs.reduce((sum, proof) => sum + proof.amount, 0);
+  const totalAmount = payload.tokens.reduce((sum, token) => {
+    return sum + token.proofs.reduce((tokenSum, proof) => tokenSum + proof.amount, 0);
+  }, 0);
   const required = Number(paymentRequirements.maxAmountRequired);
 
   if (Number.isNaN(required)) {
