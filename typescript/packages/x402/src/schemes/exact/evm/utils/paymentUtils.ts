@@ -1,10 +1,11 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import { SupportedCashuNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
   ExactEvmPayload,
   ExactSvmPayload,
+  CashuPayload,
 } from "../../../../types/verify";
 
 /**
@@ -40,6 +41,11 @@ export function encodePayment(payment: PaymentPayload): string {
     return safeBase64Encode(JSON.stringify(safe));
   }
 
+  if (SupportedCashuNetworks.includes(payment.network)) {
+    safe = { ...payment, payload: payment.payload as CashuPayload };
+    return safeBase64Encode(JSON.stringify(safe));
+  }
+
   throw new Error("Invalid network");
 }
 
@@ -68,6 +74,14 @@ export function decodePayment(payment: string): PaymentPayload {
     obj = {
       ...parsed,
       payload: parsed.payload as ExactSvmPayload,
+    };
+  }
+
+  // cashu
+  else if (SupportedCashuNetworks.includes(parsed.network)) {
+    obj = {
+      ...parsed,
+      payload: parsed.payload as CashuPayload,
     };
   } else {
     throw new Error("Invalid network");

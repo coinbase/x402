@@ -1,6 +1,11 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import {
+  ExactPaymentRequirements,
+  PaymentPayload,
+  PaymentRequirements,
+  UnsignedPaymentPayload,
+} from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
 
@@ -12,11 +17,20 @@ import { encodePayment } from "./utils/paymentUtils";
  * @param paymentRequirements - The payment requirements containing scheme and network information
  * @returns An unsigned payment payload containing authorization details
  */
+function assertExactPaymentRequirements(
+  paymentRequirements: PaymentRequirements,
+): asserts paymentRequirements is ExactPaymentRequirements {
+  if (paymentRequirements.scheme !== "exact") {
+    throw new Error("preparePaymentHeader only supports the exact scheme");
+  }
+}
+
 export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): UnsignedPaymentPayload {
+  assertExactPaymentRequirements(paymentRequirements);
   const nonce = createNonce();
 
   const validAfter = BigInt(
@@ -57,6 +71,7 @@ export async function signPaymentHeader<transport extends Transport, chain exten
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<PaymentPayload> {
+  assertExactPaymentRequirements(paymentRequirements);
   const { signature } = await signAuthorization(
     client,
     unsignedPaymentHeader.payload.authorization,
@@ -85,6 +100,7 @@ export async function createPayment<transport extends Transport, chain extends C
   x402Version: number,
   paymentRequirements: PaymentRequirements,
 ): Promise<PaymentPayload> {
+  assertExactPaymentRequirements(paymentRequirements);
   const from = isSignerWallet(client) ? client.account!.address : client.address;
   const unsignedPaymentHeader = preparePaymentHeader(from, x402Version, paymentRequirements);
   return signPaymentHeader(client, paymentRequirements, unsignedPaymentHeader);
