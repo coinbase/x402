@@ -6,6 +6,8 @@
 go get github.com/coinbase/x402/go
 ```
 
+> **Note:** The Go middleware currently only supports testnet operations.
+
 ## Usage
 
 ### Accepting x402 Payments with a [Gin](https://github.com/gin-gonic/gin) Resource Server
