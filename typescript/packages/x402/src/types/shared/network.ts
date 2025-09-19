@@ -8,7 +8,7 @@ export type DeferredNetwork = z.infer<typeof DeferredNetworkSchema>;
 
 export const isDeferredNetwork = (network: Network): network is DeferredNetwork => {
   return DeferredNetworkSchema.safeParse(network).success;
-}
+};
 
 export const ExactNetworkSchema = z.enum([
   "base-sepolia",
@@ -19,7 +19,7 @@ export const ExactNetworkSchema = z.enum([
   "solana-devnet",
   "solana",
   "sei",
-  "sei-testnet"
+  "sei-testnet",
 ]);
 
 export type ExactNetwork = z.infer<typeof ExactNetworkSchema>;

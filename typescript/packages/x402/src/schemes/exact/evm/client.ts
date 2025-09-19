@@ -5,7 +5,8 @@ import {
   ExactScheme,
   PaymentPayload,
   PaymentRequirements,
-  UnsignedPaymentPayload, isDeferredNetwork,
+  UnsignedPaymentPayload,
+  isDeferredNetwork,
 } from "../../../types";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";

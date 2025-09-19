@@ -90,11 +90,7 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const {
-      customPaywallHtml,
-      resource,
-      errorMessages,
-    } = config;
+    const { customPaywallHtml, resource, errorMessages } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -112,7 +108,7 @@ export function paymentMiddleware(
       supported,
       maxAmountRequired,
       asset,
-    })
+    });
 
     const payment = c.req.header("X-PAYMENT");
     const userAgent = c.req.header("User-Agent") || "";

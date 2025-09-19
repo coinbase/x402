@@ -9,7 +9,7 @@ import {
   getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
-  buildPaymentRequirementsMiddleware
+  buildPaymentRequirementsMiddleware,
 } from "x402/shared";
 import {
   FacilitatorConfig,
@@ -94,10 +94,7 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const {
-      customPaywallHtml,
-      resource,
-    } = config;
+    const { customPaywallHtml, resource } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -116,7 +113,7 @@ export function paymentMiddleware(
       supported,
       maxAmountRequired,
       asset,
-    })
+    });
 
     const payment = req.header("X-PAYMENT");
     const userAgent = req.header("User-Agent") || "";

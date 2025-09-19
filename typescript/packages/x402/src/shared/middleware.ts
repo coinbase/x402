@@ -231,7 +231,7 @@ export function decodeXPaymentResponse(header: string) {
  * @param asset - The asset returned by priceToAtomicAmount
  */
 export const buildPaymentRequirementsMiddleware = async ({
-  routeConfig: {network, scheme = ExactScheme, config = {}},
+  routeConfig: { network, scheme = ExactScheme, config = {} },
   resourceUrl,
   payTo,
   method,
@@ -239,20 +239,14 @@ export const buildPaymentRequirementsMiddleware = async ({
   maxAmountRequired,
   asset,
 }: PaymentRequirementsMiddleware): Promise<PaymentRequirements[]> => {
-  const {
-    description,
-    mimeType,
-    maxTimeoutSeconds,
-    inputSchema,
-    outputSchema,
-    discoverable,
-  } = config ;
+  const { description, mimeType, maxTimeoutSeconds, inputSchema, outputSchema, discoverable } =
+    config;
 
   if (scheme === DeferredScheme) {
     if (!isDeferredNetwork(network)) {
-      throw new Error(`The network supplied is not a deferred network. Supplied: ${network}`)
+      throw new Error(`The network supplied is not a deferred network. Supplied: ${network}`);
     }
-    return []
+    return [];
   }
 
   // This is a requirement to build, we know that everything is for exact schema because of the statement above
@@ -260,28 +254,30 @@ export const buildPaymentRequirementsMiddleware = async ({
   const exactNetwork = network as ExactNetwork;
 
   if (SupportedEVMNetworks.includes(exactNetwork)) {
-    return [{
-      scheme: exactSchema,
-      network: exactNetwork,
-      maxAmountRequired,
-      resource: resourceUrl,
-      description: description ?? "",
-      mimeType: mimeType ?? "application/json",
-      payTo: getAddress(payTo),
-      maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-      asset: getAddress(asset.address),
-      // TODO: Rename outputSchema to requestStructure
-      outputSchema: {
-        input: {
-          type: "http",
-          method,
-          discoverable: discoverable ?? true,
-          ...inputSchema,
+    return [
+      {
+        scheme: exactSchema,
+        network: exactNetwork,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "application/json",
+        payTo: getAddress(payTo),
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
+        asset: getAddress(asset.address),
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
         },
-        output: outputSchema,
+        extra: (asset as ERC20TokenAmount["asset"]).eip712,
       },
-      extra: (asset as ERC20TokenAmount["asset"]).eip712,
-    }]
+    ];
   }
   // svm networks
   if (SupportedSVMNetworks.includes(network as ExactNetwork)) {
@@ -303,31 +299,32 @@ export const buildPaymentRequirementsMiddleware = async ({
     }
 
     // build the payment requirements for svm
-    return [{
-      scheme: exactSchema,
-      network: exactNetwork,
-      maxAmountRequired,
-      resource: resourceUrl,
-      description: description ?? "",
-      mimeType: mimeType ?? "",
-      payTo: payTo,
-      maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-      asset: asset.address,
-      // TODO: Rename outputSchema to requestStructure
-      outputSchema: {
-        input: {
-          type: "http",
-          method,
-          ...inputSchema,
+    return [
+      {
+        scheme: exactSchema,
+        network: exactNetwork,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "",
+        payTo: payTo,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: asset.address,
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            ...inputSchema,
+          },
+          output: outputSchema,
         },
-        output: outputSchema,
+        extra: {
+          feePayer,
+        },
       },
-      extra: {
-        feePayer,
-      },
-    }];
+    ];
   }
 
   throw new Error(`Unsupported network: ${network}`);
-}
-
+};

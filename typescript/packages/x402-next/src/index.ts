@@ -11,7 +11,7 @@ import {
   processPriceToAtomicAmount,
   safeBase64Encode,
   toJsonSafe,
-  buildPaymentRequirementsMiddleware
+  buildPaymentRequirementsMiddleware,
 } from "x402/shared";
 import {
   FacilitatorConfig,
@@ -112,11 +112,7 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const {
-      customPaywallHtml,
-      resource,
-      errorMessages,
-    } = config;
+    const { customPaywallHtml, resource, errorMessages } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -135,7 +131,7 @@ export function paymentMiddleware(
       supported,
       maxAmountRequired,
       asset,
-    })
+    });
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");

@@ -3,10 +3,7 @@ import { Money } from "./money";
 import { CloudflareNetwork, Network } from "./network";
 import { Resource } from "./resource";
 import { EvmSigner } from "./evm";
-import {
-  HTTPRequestStructure,
-  SupportedPaymentKindsResponse,
-} from "..";
+import { HTTPRequestStructure, SupportedPaymentKindsResponse } from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -71,7 +68,7 @@ export interface ExactRouteConfig extends BaseRouteConfig {
 }
 
 export interface DeferredRouteConfig extends BaseRouteConfig {
-  scheme?: 'deferred';
+  scheme?: "deferred";
   network: typeof CloudflareNetwork;
 }
 
@@ -88,11 +85,11 @@ export interface RoutePattern {
 export type Wallet = EvmSigner;
 
 export type PaymentRequirementsMiddleware = {
-  routeConfig: RouteConfig,
-  resourceUrl: string,
-  payTo: string,
-  method: string,
-  supported: () => Promise<SupportedPaymentKindsResponse>,
-  maxAmountRequired: string,
-  asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"]
-}
+  routeConfig: RouteConfig;
+  resourceUrl: string;
+  payTo: string;
+  method: string;
+  supported: () => Promise<SupportedPaymentKindsResponse>;
+  maxAmountRequired: string;
+  asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
+};
