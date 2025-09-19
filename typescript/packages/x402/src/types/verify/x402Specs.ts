@@ -47,16 +47,13 @@ export const ErrorReasons = [
   "unsupported_scheme",
   "invalid_x402_version",
   "invalid_transaction_state",
-  "invalid_x402_version",
   "settle_exact_svm_block_height_exceeded",
   "settle_exact_svm_transaction_confirmation_timed_out",
-  "unsupported_scheme",
   "unexpected_settle_error",
   "unexpected_verify_error",
   "invalid_literal",
   "invalid_union_discriminator",
   "invalid_signature",
-  "invalid_cloudflare_account",
   "invalid_rule_id",
   "deferred_payment_network_unauthorized",
   "deferred_payment_account_suspended",
@@ -162,7 +159,7 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
-// cloudflareDeferredPaymentPayload
+// DeferredPaymentPayload
 export const DeferredPaymentPayloadSchema = z.object({
   amount: z.string().refine(isInteger),
   asset: z.string(),
@@ -185,11 +182,11 @@ export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
   payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
 };
 
-// cloudflarePaymentAgreementSignature
+// PaymentAgreementSignature
 export const PaymentAgreementSignatureSchema = z.string();
 export type PaymentAgreementSignature = z.infer<typeof PaymentAgreementSignatureSchema>;
 
-// cloudflarePaymentAgreement
+// PaymentAgreement
 export const PaymentAgreementSchema = withSchemeNetworkConstraint(
   z.object({
     payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, DeferredPaymentPayloadSchema]),
