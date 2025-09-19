@@ -1,9 +1,12 @@
 import { CreateHeaders } from "../../verify";
 import { Money } from "./money";
-import { Network } from "./network";
+import { CloudflareNetwork, Network } from "./network";
 import { Resource } from "./resource";
 import { EvmSigner } from "./evm";
-import { HTTPRequestStructure } from "..";
+import {
+  HTTPRequestStructure,
+  SupportedPaymentKindsResponse,
+} from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -57,11 +60,22 @@ export interface SPLTokenAmount {
 
 export type Price = Money | ERC20TokenAmount | SPLTokenAmount;
 
-export interface RouteConfig {
+export interface BaseRouteConfig {
   price: Price;
-  network: Network;
   config?: PaymentMiddlewareConfig;
 }
+
+export interface ExactRouteConfig extends BaseRouteConfig {
+  scheme?: "exact" | undefined;
+  network: Exclude<Network, typeof CloudflareNetwork>;
+}
+
+export interface DeferredRouteConfig extends BaseRouteConfig {
+  scheme?: 'deferred';
+  network: typeof CloudflareNetwork;
+}
+
+export type RouteConfig = ExactRouteConfig | DeferredRouteConfig;
 
 export type RoutesConfig = Record<string, Price | RouteConfig>;
 
@@ -72,3 +86,13 @@ export interface RoutePattern {
 }
 
 export type Wallet = EvmSigner;
+
+export type PaymentRequirementsMiddleware = {
+  routeConfig: RouteConfig,
+  resourceUrl: string,
+  payTo: string,
+  method: string,
+  supported: () => Promise<SupportedPaymentKindsResponse>,
+  maxAmountRequired: string,
+  asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"]
+}

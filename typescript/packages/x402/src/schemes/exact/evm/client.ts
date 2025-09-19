@@ -1,6 +1,12 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import {
+  DeferredScheme,
+  ExactScheme,
+  PaymentPayload,
+  PaymentRequirements,
+  UnsignedPaymentPayload, isDeferredNetwork,
+} from "../../../types";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
 
@@ -63,8 +69,23 @@ export async function signPaymentHeader<transport extends Transport, chain exten
     paymentRequirements,
   );
 
+  // This is required because the linter assumes all combinations are possible otherwise
+  if (isDeferredNetwork(unsignedPaymentHeader.network)) {
+    return {
+      ...unsignedPaymentHeader,
+      scheme: DeferredScheme,
+      network: unsignedPaymentHeader.network,
+      payload: {
+        ...unsignedPaymentHeader.payload,
+        signature,
+      },
+    };
+  }
+
   return {
     ...unsignedPaymentHeader,
+    scheme: ExactScheme,
+    network: unsignedPaymentHeader.network,
     payload: {
       ...unsignedPaymentHeader.payload,
       signature,

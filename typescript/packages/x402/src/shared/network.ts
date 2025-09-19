@@ -1,4 +1,4 @@
-import { EvmNetworkToChainId, Network, SvmNetworkToChainId } from "../types/shared";
+import { EvmNetworkToChainId, ExactNetwork, Network, SvmNetworkToChainId } from "../types/shared";
 
 /**
  * Converts a network name to its corresponding chain ID
@@ -8,11 +8,11 @@ import { EvmNetworkToChainId, Network, SvmNetworkToChainId } from "../types/shar
  * @throws Error if the network is not supported
  */
 export function getNetworkId(network: Network): number {
-  if (EvmNetworkToChainId.has(network)) {
-    return EvmNetworkToChainId.get(network)!;
+  if (EvmNetworkToChainId.has(network as ExactNetwork)) {
+    return EvmNetworkToChainId.get(network as ExactNetwork)!;
   }
-  if (SvmNetworkToChainId.has(network)) {
-    return SvmNetworkToChainId.get(network)!;
+  if (SvmNetworkToChainId.has(network as ExactNetwork)) {
+    return SvmNetworkToChainId.get(network as ExactNetwork)!;
   }
   throw new Error(`Unsupported network: ${network}`);
 }

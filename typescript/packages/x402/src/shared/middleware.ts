@@ -1,16 +1,23 @@
-import { Address, Hex } from "viem";
+import { Address, getAddress, Hex } from "viem";
 import {
+  DeferredScheme,
+  ERC20TokenAmount,
+  ExactNetwork,
+  ExactScheme,
+  isDeferredNetwork,
   moneySchema,
   Network,
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequirementsMiddleware,
   Price,
   RouteConfig,
   RoutePattern,
-  ERC20TokenAmount,
-  PaymentRequirements,
-  PaymentPayload,
+  RoutesConfig,
   SPLTokenAmount,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
 } from "../types";
-import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
 import { getUsdcChainConfigForChain } from "./evm";
 import { getNetworkId } from "./network";
@@ -208,3 +215,119 @@ export function decodeXPaymentResponse(header: string) {
     payer: Address;
   };
 }
+
+/**
+ * Builds a framework and scheme agnostic payment requirement list.
+ * Used as a util in the middleware for the different x402 frameworks
+ *
+ * @param network - The network to get the payment requirements for
+ * @param scheme - The scheme defined in the route config to get the requirements for
+ * @param config - The config for the RouteConfig
+ * @param resourceUrl - The URL of the requested route
+ * @param payTo - The route defined payment destination
+ * @param method - The METHOD for the request
+ * @param supported - Async function from the facilitator to get the PaymentKind
+ * @param maxAmountRequired - The max amount returned by priceToAtomicAmount
+ * @param asset - The asset returned by priceToAtomicAmount
+ */
+export const buildPaymentRequirementsMiddleware = async ({
+  routeConfig: {network, scheme = ExactScheme, config = {}},
+  resourceUrl,
+  payTo,
+  method,
+  supported,
+  maxAmountRequired,
+  asset,
+}: PaymentRequirementsMiddleware): Promise<PaymentRequirements[]> => {
+  const {
+    description,
+    mimeType,
+    maxTimeoutSeconds,
+    inputSchema,
+    outputSchema,
+    discoverable,
+  } = config ;
+
+  if (scheme === DeferredScheme) {
+    if (!isDeferredNetwork(network)) {
+      throw new Error(`The network supplied is not a deferred network. Supplied: ${network}`)
+    }
+    return []
+  }
+
+  // This is a requirement to build, we know that everything is for exact schema because of the statement above
+  const exactSchema = scheme as typeof ExactScheme;
+  const exactNetwork = network as ExactNetwork;
+
+  if (SupportedEVMNetworks.includes(exactNetwork)) {
+    return [{
+      scheme: exactSchema,
+      network: exactNetwork,
+      maxAmountRequired,
+      resource: resourceUrl,
+      description: description ?? "",
+      mimeType: mimeType ?? "application/json",
+      payTo: getAddress(payTo),
+      maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
+      asset: getAddress(asset.address),
+      // TODO: Rename outputSchema to requestStructure
+      outputSchema: {
+        input: {
+          type: "http",
+          method,
+          discoverable: discoverable ?? true,
+          ...inputSchema,
+        },
+        output: outputSchema,
+      },
+      extra: (asset as ERC20TokenAmount["asset"]).eip712,
+    }]
+  }
+  // svm networks
+  if (SupportedSVMNetworks.includes(network as ExactNetwork)) {
+    // network call to get the supported payments from the facilitator
+    const paymentKinds = await supported();
+
+    // find the payment kind that matches the network and scheme
+    let feePayer: string | undefined;
+    for (const kind of paymentKinds.kinds) {
+      if (kind.network === network && kind.scheme === scheme) {
+        feePayer = kind?.extra?.feePayer;
+        break;
+      }
+    }
+
+    // svm networks require a fee payer
+    if (!feePayer) {
+      throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
+    }
+
+    // build the payment requirements for svm
+    return [{
+      scheme: exactSchema,
+      network: exactNetwork,
+      maxAmountRequired,
+      resource: resourceUrl,
+      description: description ?? "",
+      mimeType: mimeType ?? "",
+      payTo: payTo,
+      maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+      asset: asset.address,
+      // TODO: Rename outputSchema to requestStructure
+      outputSchema: {
+        input: {
+          type: "http",
+          method,
+          ...inputSchema,
+        },
+        output: outputSchema,
+      },
+      extra: {
+        feePayer,
+      },
+    }];
+  }
+
+  throw new Error(`Unsupported network: ${network}`);
+}
+

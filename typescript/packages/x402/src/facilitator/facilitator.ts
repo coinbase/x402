@@ -1,19 +1,20 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { ExactNetwork, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
   SignerWallet as EvmSignerWallet,
 } from "../types/shared/evm";
 import { ConnectedClient, Signer } from "../types/shared/wallet";
 import {
+  ExactEvmPayload,
+  ExactScheme,
   PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
-  ExactEvmPayload,
 } from "../types/verify";
-import { Chain, Transport, Account } from "viem";
+import { Account, Chain, Transport } from "viem";
 import { KeyPairSigner } from "@solana/kit";
 
 /**
@@ -35,7 +36,7 @@ export async function verify<
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme === ExactScheme) {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return verifyExactEvm(
@@ -55,7 +56,7 @@ export async function verify<
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
+    payer: SupportedEVMNetworks.includes(paymentRequirements.network as ExactNetwork)
       ? (payload.payload as ExactEvmPayload).authorization.from
       : "",
   };
@@ -76,7 +77,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme === ExactScheme) {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactEvm(
@@ -97,7 +98,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
     errorReason: "invalid_scheme",
     transaction: "",
     network: paymentRequirements.network,
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
+    payer: SupportedEVMNetworks.includes(paymentRequirements.network as ExactNetwork)
       ? (payload.payload as ExactEvmPayload).authorization.from
       : "",
   };

@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { Address, getAddress } from "viem";
+import { Address } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
@@ -9,10 +9,10 @@ import {
   getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaymentRequirementsMiddleware
 } from "x402/shared";
 import {
   FacilitatorConfig,
-  ERC20TokenAmount,
   moneySchema,
   PaymentPayload,
   PaymentRequirements,
@@ -20,8 +20,6 @@ import {
   Resource,
   RoutesConfig,
   settleResponseHeader,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -97,14 +95,8 @@ export function paymentMiddleware(
 
     const { price, network, config = {} } = matchingRoute.config;
     const {
-      description,
-      mimeType,
-      maxTimeoutSeconds,
-      inputSchema,
-      outputSchema,
       customPaywallHtml,
       resource,
-      discoverable,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -116,80 +108,15 @@ export function paymentMiddleware(
     const resourceUrl: Resource =
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
-    let paymentRequirements: PaymentRequirements[] = [];
-
-    // TODO: create a shared middleware function to build payment requirements
-    // evm networks
-    if (SupportedEVMNetworks.includes(network)) {
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: getAddress(asset.address),
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method: req.method.toUpperCase(),
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
-      });
-    }
-
-    // svm networks
-    else if (SupportedSVMNetworks.includes(network)) {
-      // get the supported payments from the facilitator
-      const paymentKinds = await supported();
-
-      // find the payment kind that matches the network and scheme
-      let feePayer: string | undefined;
-      for (const kind of paymentKinds.kinds) {
-        if (kind.network === network && kind.scheme === "exact") {
-          feePayer = kind?.extra?.feePayer;
-          break;
-        }
-      }
-
-      // if no fee payer is found, throw an error
-      if (!feePayer) {
-        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
-      }
-
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method: req.method.toUpperCase(),
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: {
-          feePayer,
-        },
-      });
-    } else {
-      throw new Error(`Unsupported network: ${network}`);
-    }
+    let paymentRequirements: PaymentRequirements[] = await buildPaymentRequirementsMiddleware({
+      routeConfig: matchingRoute.config,
+      resourceUrl,
+      payTo,
+      method: req.method.toUpperCase(),
+      supported,
+      maxAmountRequired,
+      asset,
+    })
 
     const payment = req.header("X-PAYMENT");
     const userAgent = req.header("User-Agent") || "";

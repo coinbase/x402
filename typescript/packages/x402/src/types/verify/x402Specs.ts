@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NetworkSchema } from "../shared";
+import { DeferredNetworkSchema, ExactNetworkSchema, NetworkSchema } from "../shared";
 import { SvmAddressRegex } from "../shared/svm";
 import { Base64EncodedRegex } from "../../shared/base64";
 
@@ -10,7 +10,8 @@ const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
 const EvmSignatureRegex = /^0x[0-9a-fA-F]+$/; // Flexible hex signature validation
 // Enums
-export const schemes = ["exact"] as const;
+export const DeferredScheme = "deferred";
+export const ExactScheme = "exact";
 export const x402Versions = [1] as const;
 export const ErrorReasons = [
   "insufficient_funds",
@@ -52,6 +53,13 @@ export const ErrorReasons = [
   "unsupported_scheme",
   "unexpected_settle_error",
   "unexpected_verify_error",
+  "invalid_literal",
+  "invalid_union_discriminator",
+  "invalid_signature",
+  "invalid_cloudflare_account",
+  "invalid_rule_id",
+  "deferred_payment_network_unauthorized",
+  "deferred_payment_account_suspended",
 ] as const;
 
 // Refiners
@@ -59,15 +67,47 @@ const isInteger: (value: string) => boolean = value =>
   Number.isInteger(Number(value)) && Number(value) >= 0;
 const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
 
+export const ExactSchemeSchema = z.object({
+  scheme: z.literal(ExactScheme),
+  network: ExactNetworkSchema,
+});
+
+
+export const DeferredSchemeSchema = z.object({
+  scheme: z.literal(DeferredScheme),
+  network: DeferredNetworkSchema,
+});
+
+
+export function withSchemeNetworkConstraint<T extends z.ZodRawShape>(baseSchema: z.ZodObject<T>) {
+  return {
+    asUnion: () => z.discriminatedUnion("scheme", [
+      baseSchema.merge(ExactSchemeSchema),
+      baseSchema.merge(DeferredSchemeSchema)
+    ]),
+    asDeferred: () => baseSchema.merge(DeferredSchemeSchema),
+    asExact: () => baseSchema.merge(ExactSchemeSchema),
+  };
+}
+
+export const DeferredPaymentExtrasSchema = z
+    .object({
+      id: z.string(),
+    })
+    .passthrough()
+    .partial()
+    .optional();
+
+export type DeferredPaymentExtras = z.infer<typeof DeferredPaymentExtrasSchema>;
+
 // x402PaymentRequirements
 const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
 const mixedAddressOrSvmAddress = z
   .string()
   .regex(MixedAddressRegex)
   .or(z.string().regex(SvmAddressRegex));
-export const PaymentRequirementsSchema = z.object({
-  scheme: z.enum(schemes),
-  network: NetworkSchema,
+
+const BasePaymentRequirementsSchema = z.object({
   maxAmountRequired: z.string().refine(isInteger),
   resource: z.string().url(),
   description: z.string(),
@@ -78,6 +118,27 @@ export const PaymentRequirementsSchema = z.object({
   asset: mixedAddressOrSvmAddress,
   extra: z.record(z.any()).optional(),
 });
+
+// Apply the scheme-network constraints to the base schema
+const ExactSchemeRequirementsSchema = withSchemeNetworkConstraint(BasePaymentRequirementsSchema).asExact();
+
+// For deferred, we need to extend with additional fields after applying the constraint
+const DeferredSchemeRequirementsSchema = withSchemeNetworkConstraint(BasePaymentRequirementsSchema)
+  .asDeferred()
+  .extend({
+    extra: z.union([
+      DeferredPaymentExtrasSchema.optional(),
+      z.record(z.any()),
+    ]),
+    payTo: EvmOrSvmAddress.optional(),
+    mimeType: z.string().optional(),
+    asset: mixedAddressOrSvmAddress.optional(),
+  });
+
+export const PaymentRequirementsSchema = z.discriminatedUnion("scheme", [
+  ExactSchemeRequirementsSchema,
+  DeferredSchemeRequirementsSchema,
+]);
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;
 
 // x402ExactEvmPayload
@@ -103,17 +164,41 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
-// x402PaymentPayload
-export const PaymentPayloadSchema = z.object({
-  x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
-  scheme: z.enum(schemes),
-  network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
+// cloudflareDeferredPaymentPayload
+export const DeferredPaymentPayloadSchema = z.object({
+  amount: z.string().refine(isInteger),
+  asset: z.string(),
+  amountType: z.enum(["exact", "max"]),
+  signatureAgent: z.string(), // Required for identity verification
+  extras: DeferredPaymentExtrasSchema.optional(),
 });
+
+export type DeferredPaymentPayload = z.infer<typeof DeferredPaymentPayloadSchema>;
+
+// x402PaymentPayload
+export const PaymentPayloadSchema = withSchemeNetworkConstraint(z.object({
+  x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
+  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, DeferredPaymentPayloadSchema]),
+})).asUnion();
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
   payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
 };
+
+// cloudflarePaymentAgreementSignature
+export const PaymentAgreementSignatureSchema = z.string();
+export type PaymentAgreementSignature = z.infer<typeof PaymentAgreementSignatureSchema>;
+
+// cloudflarePaymentAgreement
+export const PaymentAgreementSchema = withSchemeNetworkConstraint(z.object({
+  payload: z.union([
+    ExactEvmPayloadSchema,
+    ExactSvmPayloadSchema,
+    DeferredPaymentPayloadSchema,
+  ]),
+})).asUnion();
+
+export type PaymentAgreement = z.infer<typeof PaymentAgreementSchema>;
 
 // x402 Resource Server Response
 export const x402ResponseSchema = z.object({
@@ -227,12 +312,10 @@ export const ListDiscoveryResourcesResponseSchema = z.object({
 export type ListDiscoveryResourcesResponse = z.infer<typeof ListDiscoveryResourcesResponseSchema>;
 
 // x402SupportedPaymentKind
-export const SupportedPaymentKindSchema = z.object({
+export const SupportedPaymentKindSchema = withSchemeNetworkConstraint(z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
-  scheme: z.enum(schemes),
-  network: NetworkSchema,
   extra: z.record(z.any()).optional(),
-});
+})).asUnion();
 export type SupportedPaymentKind = z.infer<typeof SupportedPaymentKindSchema>;
 
 // x402SupportedPaymentKindsResponse

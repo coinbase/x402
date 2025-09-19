@@ -1,5 +1,5 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import { ExactNetwork, SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
@@ -17,7 +17,7 @@ export function encodePayment(payment: PaymentPayload): string {
   let safe: PaymentPayload;
 
   // evm
-  if (SupportedEVMNetworks.includes(payment.network)) {
+  if (SupportedEVMNetworks.includes(payment.network as ExactNetwork)) {
     const evmPayload = payment.payload as ExactEvmPayload;
     safe = {
       ...payment,
@@ -35,7 +35,7 @@ export function encodePayment(payment: PaymentPayload): string {
   }
 
   // svm
-  if (SupportedSVMNetworks.includes(payment.network)) {
+  if (SupportedSVMNetworks.includes(payment.network as ExactNetwork)) {
     safe = { ...payment, payload: payment.payload as ExactSvmPayload };
     return safeBase64Encode(JSON.stringify(safe));
   }

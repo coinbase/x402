@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export const NetworkSchema = z.enum([
+export const CloudflareNetwork = "cloudflare" as const;
+
+export const DeferredNetworkSchema = z.enum([CloudflareNetwork]);
+
+export type DeferredNetwork = z.infer<typeof DeferredNetworkSchema>;
+
+export const isDeferredNetwork = (network: Network): network is DeferredNetwork => {
+  return DeferredNetworkSchema.safeParse(network).success;
+}
+
+export const ExactNetworkSchema = z.enum([
   "base-sepolia",
   "base",
   "avalanche-fuji",
@@ -9,12 +19,16 @@ export const NetworkSchema = z.enum([
   "solana-devnet",
   "solana",
   "sei",
-  "sei-testnet",
+  "sei-testnet"
 ]);
+
+export type ExactNetwork = z.infer<typeof ExactNetworkSchema>;
+
+export const NetworkSchema = z.union([ExactNetworkSchema, DeferredNetworkSchema]);
 export type Network = z.infer<typeof NetworkSchema>;
 
 // evm
-export const SupportedEVMNetworks: Network[] = [
+export const SupportedEVMNetworks: ExactNetwork[] = [
   "base-sepolia",
   "base",
   "avalanche-fuji",
@@ -23,7 +37,8 @@ export const SupportedEVMNetworks: Network[] = [
   "sei",
   "sei-testnet",
 ];
-export const EvmNetworkToChainId = new Map<Network, number>([
+
+export const EvmNetworkToChainId = new Map<ExactNetwork, number>([
   ["base-sepolia", 84532],
   ["base", 8453],
   ["avalanche-fuji", 43113],
@@ -34,8 +49,8 @@ export const EvmNetworkToChainId = new Map<Network, number>([
 ]);
 
 // svm
-export const SupportedSVMNetworks: Network[] = ["solana-devnet", "solana"];
-export const SvmNetworkToChainId = new Map<Network, number>([
+export const SupportedSVMNetworks: ExactNetwork[] = ["solana-devnet", "solana"];
+export const SvmNetworkToChainId = new Map<ExactNetwork, number>([
   ["solana-devnet", 103],
   ["solana", 101],
 ]);
@@ -45,4 +60,4 @@ export const ChainIdToNetwork = Object.fromEntries(
     EvmNetworkToChainId.get(network),
     network,
   ]),
-) as Record<number, Network>;
+) as Record<number, ExactNetwork>;
