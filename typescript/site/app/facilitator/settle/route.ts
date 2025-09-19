@@ -8,6 +8,7 @@ import {
   SupportedEVMNetworks,
   SupportedSVMNetworks,
   createSigner,
+  ExactNetwork,
 } from "x402/types";
 
 type SettleRequest = {
@@ -25,9 +26,9 @@ export async function POST(req: Request) {
   const body: SettleRequest = await req.json();
 
   const network = body.paymentRequirements.network;
-  const privateKey = SupportedEVMNetworks.includes(network)
+  const privateKey = SupportedEVMNetworks.includes(network as ExactNetwork)
     ? process.env.PRIVATE_KEY
-    : SupportedSVMNetworks.includes(network)
+    : SupportedSVMNetworks.includes(network as ExactNetwork)
       ? process.env.SOLANA_PRIVATE_KEY
       : undefined;
 

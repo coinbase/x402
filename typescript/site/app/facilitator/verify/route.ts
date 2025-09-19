@@ -8,6 +8,7 @@ import {
   VerifyResponse,
   createConnectedClient,
   createSigner,
+  ExactNetwork,
 } from "x402/types";
 import { verify } from "x402/facilitator";
 
@@ -26,9 +27,9 @@ export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
 
   const network = body.paymentRequirements.network;
-  const client = SupportedEVMNetworks.includes(network)
+  const client = SupportedEVMNetworks.includes(network as ExactNetwork)
     ? createConnectedClient(body.paymentRequirements.network)
-    : SupportedSVMNetworks.includes(network)
+    : SupportedSVMNetworks.includes(network as ExactNetwork)
       ? await createSigner(network, process.env.SOLANA_PRIVATE_KEY)
       : undefined;
 
