@@ -10,7 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet, peaq } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -52,6 +52,22 @@ export function createConnectedClient(
 }
 
 /**
+ * Creates a wallet client configured for the specified chain with a private key
+ *
+ * @param network - The network to connect to
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to the specified chain with the provided private key
+ */
+export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+  const chain = getChainFromNetwork(network);
+  return createWalletClient({
+    chain,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
+}
+
+/**
  * Creates a public client configured for the Base Sepolia testnet
  *
  * @deprecated Use `createConnectedClient("base-sepolia")` instead
@@ -81,22 +97,6 @@ export function createClientAvalancheFuji(): ConnectedClient<
     typeof avalancheFuji,
     undefined
   >;
-}
-
-/**
- * Creates a wallet client configured for the specified chain with a private key
- *
- * @param network - The network to connect to
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to the specified chain with the provided private key
- */
-export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
-  const chain = getChainFromNetwork(network);
-  return createWalletClient({
-    chain,
-    transport: http(),
-    account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
 }
 
 /**
@@ -187,6 +187,8 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return sei;
     case "sei-testnet":
       return seiTestnet;
+    case "peaq":
+      return peaq;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
