@@ -10,9 +10,24 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet, defineChain } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
+
+// peaq chain via defineChain if not available in viem by default
+export const peaq = defineChain({
+  id: 3338,
+  name: "peaq",
+  network: "peaq",
+  nativeCurrency: { name: "peaq", symbol: "PEAQ", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://quicknode1.peaq.xyz"] },
+    public: { http: ["https://quicknode1.peaq.xyz"] },
+  },
+  blockExplorers: {
+    default: { name: "peaqscan", url: "https://peaqscan.xyz" },
+  },
+});
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -52,38 +67,6 @@ export function createConnectedClient(
 }
 
 /**
- * Creates a public client configured for the Base Sepolia testnet
- *
- * @deprecated Use `createConnectedClient("base-sepolia")` instead
- * @returns A public client instance connected to Base Sepolia
- */
-export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
-  return createConnectedClient("base-sepolia") as ConnectedClient<
-    Transport,
-    typeof baseSepolia,
-    undefined
-  >;
-}
-
-/**
- * Creates a public client configured for the Avalanche Fuji testnet
- *
- * @deprecated Use `createConnectedClient("avalanche-fuji")` instead
- * @returns A public client instance connected to Avalanche Fuji
- */
-export function createClientAvalancheFuji(): ConnectedClient<
-  Transport,
-  typeof avalancheFuji,
-  undefined
-> {
-  return createConnectedClient("avalanche-fuji") as ConnectedClient<
-    Transport,
-    typeof avalancheFuji,
-    undefined
-  >;
-}
-
-/**
  * Creates a wallet client configured for the specified chain with a private key
  *
  * @param network - The network to connect to
@@ -99,83 +82,22 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
   }).extend(publicActions);
 }
 
-/**
- * Creates a wallet client configured for the Base Sepolia testnet with a private key
- *
- * @deprecated Use `createSigner("base-sepolia", privateKey)` instead
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Base Sepolia with the provided private key
- */
+// Back-compat helpers (deprecated)
+export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
+  return createConnectedClient("base-sepolia") as ConnectedClient<Transport, typeof baseSepolia, undefined>;
+}
+export function createClientAvalancheFuji(): ConnectedClient<Transport, typeof avalancheFuji, undefined> {
+  return createConnectedClient("avalanche-fuji") as ConnectedClient<Transport, typeof avalancheFuji, undefined>;
+}
 export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
   return createSigner("base-sepolia", privateKey) as SignerWallet<typeof baseSepolia>;
 }
-
-/**
- * Creates a wallet client configured for the Avalanche Fuji testnet with a private key
- *
- * @deprecated Use `createSigner("avalanche-fuji", privateKey)` instead
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to Avalanche Fuji with the provided private key
- */
 export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
   return createSigner("avalanche-fuji", privateKey) as SignerWallet<typeof avalancheFuji>;
 }
 
-/**
- * Checks if a wallet is a signer wallet
- *
- * @param wallet - The wallet to check
- * @returns True if the wallet is a signer wallet, false otherwise
- */
-export function isSignerWallet<
-  TChain extends Chain = Chain,
-  TTransport extends Transport = Transport,
-  TAccount extends Account = Account,
->(
-  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount,
-): wallet is SignerWallet<TChain, TTransport, TAccount> {
-  return (
-    typeof wallet === "object" && wallet !== null && "chain" in wallet && "transport" in wallet
-  );
-}
-
-/**
- * Checks if a wallet is an account
- *
- * @param wallet - The wallet to check
- * @returns True if the wallet is an account, false otherwise
- */
-export function isAccount<
-  TChain extends Chain = Chain,
-  TTransport extends Transport = Transport,
-  TAccount extends Account = Account,
->(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount): wallet is LocalAccount {
-  const w = wallet as LocalAccount;
-  return (
-    typeof wallet === "object" &&
-    wallet !== null &&
-    typeof w.address === "string" &&
-    typeof w.type === "string" &&
-    // Check for essential signing capabilities
-    typeof w.sign === "function" &&
-    typeof w.signMessage === "function" &&
-    typeof w.signTypedData === "function" &&
-    // Check for transaction signing (required by LocalAccount)
-    typeof w.signTransaction === "function"
-  );
-}
-
-/**
- * Maps network strings to Chain objects
- *
- * @param network - The network string to convert to a Chain object
- * @returns The corresponding Chain object
- */
-function getChainFromNetwork(network: string | undefined): Chain {
-  if (!network) {
-    throw new Error("NETWORK environment variable is not set");
-  }
-
+export function getChainFromNetwork(network: string | undefined): Chain {
+  if (!network) throw new Error("NETWORK environment variable is not set");
   switch (network) {
     case "base":
       return base;
@@ -187,6 +109,8 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return sei;
     case "sei-testnet":
       return seiTestnet;
+    case "peaq":
+      return peaq;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
