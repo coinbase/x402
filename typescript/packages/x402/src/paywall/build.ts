@@ -53,7 +53,13 @@ const options: esbuild.BuildOptions = {
   ],
   inject: ["./src/paywall/buffer-polyfill.ts"],
   // Mark problematic dependencies as external
-  external: ["crypto"],
+  external: [
+    "crypto",
+    "@walletconnect/modal",
+    "@blockshake/defly-connect",
+    "@agoralabs-sh/avm-web-provider",
+    "lute-connect",
+  ],
 };
 
 // Run the build and then create the template.ts file

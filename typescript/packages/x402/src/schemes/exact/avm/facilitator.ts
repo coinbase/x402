@@ -64,9 +64,9 @@ export async function verify(
     const signedTxn = decodeTransaction(exactAvmPayload.transaction);
     const transaction = signedTxn.txn;
 
-    const from = algosdk.encodeAddress(transaction.from);
-    const firstRound = Number(transaction.firstRound);
-    const lastRound = Number(transaction.lastRound);
+    const from = transaction.sender.toString();
+    const firstRound = Number(transaction.firstValid);
+    const lastRound = Number(transaction.lastValid);
     const lease = transaction.lease;
 
     let to: string | undefined;
@@ -74,13 +74,28 @@ export async function verify(
     let assetIndex: number | undefined;
 
     if (transaction.type === algosdk.TransactionType.pay) {
-      to = transaction.to ? algosdk.encodeAddress(transaction.to) : undefined;
-      amount = Number(transaction.amount ?? 0);
+      const paymentFields = transaction.payment;
+      if (!paymentFields) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_avm_payload_transaction",
+          payer: from,
+        };
+      }
+      to = paymentFields.receiver.toString();
+      amount = Number(paymentFields.amount ?? 0n);
     } else if (transaction.type === algosdk.TransactionType.axfer) {
-      const receiver = transaction.assetReceiver ?? transaction.to;
-      to = receiver ? algosdk.encodeAddress(receiver) : undefined;
-      amount = Number(transaction.assetAmount ?? 0);
-      assetIndex = transaction.assetIndex ? Number(transaction.assetIndex) : undefined;
+      const assetFields = transaction.assetTransfer;
+      if (!assetFields) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_avm_payload_transaction",
+          payer: from,
+        };
+      }
+      to = assetFields.receiver.toString();
+      amount = Number(assetFields.amount ?? 0n);
+      assetIndex = assetFields.assetIndex ? Number(assetFields.assetIndex) : undefined;
     } else {
       return {
         isValid: false,
@@ -211,9 +226,9 @@ export async function settle(
     const exactAvmPayload = paymentPayload.payload as ExactAvmPayload;
     const signedTxn = decodeTransaction(exactAvmPayload.transaction);
     const userTransaction = signedTxn.txn;
-    const from = algosdk.encodeAddress(userTransaction.from);
-    const firstValid = BigInt(userTransaction.firstRound ?? 0);
-    const lastValid = BigInt(userTransaction.lastRound ?? 0);
+    const from = userTransaction.sender.toString();
+    const firstValid = BigInt(userTransaction.firstValid ?? 0n);
+    const lastValid = BigInt(userTransaction.lastValid ?? 0n);
     const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
 
     // 2. Verify the payment is still valid
