@@ -56,6 +56,8 @@
     "@solana-program/token-2022": "^0.4.2",
     "@solana/kit": "^2.1.1",
     "@solana/transaction-confirmation": "^2.1.1",
+    "@txnlab/use-wallet": "^4.3.1",
+    "@perawallet/connect": "^1.4.2",
     "algosdk": "^3.5.0",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",

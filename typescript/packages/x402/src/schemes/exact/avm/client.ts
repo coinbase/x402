@@ -41,7 +41,7 @@ interface ExtendedUnsignedPaymentPayload extends UnsignedPaymentPayload {
  */
 async function getCurrentRound(client: AlgorandClient): Promise<number> {
   const status = await client.client.status().do();
-  return status["last-round"];
+  return Number(status["lastRound"]);
 }
 
 /**
