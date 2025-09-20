@@ -52,22 +52,6 @@ export function createConnectedClient(
 }
 
 /**
- * Creates a wallet client configured for the specified chain with a private key
- *
- * @param network - The network to connect to
- * @param privateKey - The private key to use for signing transactions
- * @returns A wallet client instance connected to the specified chain with the provided private key
- */
-export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
-  const chain = getChainFromNetwork(network);
-  return createWalletClient({
-    chain,
-    transport: http(),
-    account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
-}
-
-/**
  * Creates a public client configured for the Base Sepolia testnet
  *
  * @deprecated Use `createConnectedClient("base-sepolia")` instead
@@ -97,6 +81,22 @@ export function createClientAvalancheFuji(): ConnectedClient<
     typeof avalancheFuji,
     undefined
   >;
+}
+
+/**
+ * Creates a wallet client configured for the specified chain with a private key
+ *
+ * @param network - The network to connect to
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to the specified chain with the provided private key
+ */
+export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+  const chain = getChainFromNetwork(network);
+  return createWalletClient({
+    chain,
+    transport: http(),
+    account: privateKeyToAccount(privateKey),
+  }).extend(publicActions);
 }
 
 /**
