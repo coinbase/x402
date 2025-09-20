@@ -67,22 +67,115 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
   }).extend(publicActions);
 }
 
-// Back-compat helpers (deprecated)
+/**
+ * Creates a public client configured for the Base Sepolia testnet
+ *
+ * @deprecated Use `createConnectedClient("base-sepolia")` instead
+ * @returns A public client instance connected to Base Sepolia
+ */
 export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
-  return createConnectedClient("base-sepolia") as ConnectedClient<Transport, typeof baseSepolia, undefined>;
+  return createConnectedClient("base-sepolia") as ConnectedClient<
+    Transport,
+    typeof baseSepolia,
+    undefined
+  >;
 }
-export function createClientAvalancheFuji(): ConnectedClient<Transport, typeof avalancheFuji, undefined> {
-  return createConnectedClient("avalanche-fuji") as ConnectedClient<Transport, typeof avalancheFuji, undefined>;
+
+/**
+ * Creates a public client configured for the Avalanche Fuji testnet
+ *
+ * @deprecated Use `createConnectedClient("avalanche-fuji")` instead
+ * @returns A public client instance connected to Avalanche Fuji
+ */
+export function createClientAvalancheFuji(): ConnectedClient<
+  Transport,
+  typeof avalancheFuji,
+  undefined
+> {
+  return createConnectedClient("avalanche-fuji") as ConnectedClient<
+    Transport,
+    typeof avalancheFuji,
+    undefined
+  >;
 }
+
+/**
+ * Creates a wallet client configured for the Base Sepolia testnet with a private key
+ *
+ * @deprecated Use `createSigner("base-sepolia", privateKey)` instead
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Base Sepolia with the provided private key
+ */
 export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
   return createSigner("base-sepolia", privateKey) as SignerWallet<typeof baseSepolia>;
 }
+
+/**
+ * Creates a wallet client configured for the Avalanche Fuji testnet with a private key
+ *
+ * @deprecated Use `createSigner("avalanche-fuji", privateKey)` instead
+ * @param privateKey - The private key to use for signing transactions
+ * @returns A wallet client instance connected to Avalanche Fuji with the provided private key
+ */
 export function createSignerAvalancheFuji(privateKey: Hex): SignerWallet<typeof avalancheFuji> {
   return createSigner("avalanche-fuji", privateKey) as SignerWallet<typeof avalancheFuji>;
 }
 
-export function getChainFromNetwork(network: string | undefined): Chain {
-  if (!network) throw new Error("NETWORK environment variable is not set");
+/**
+ * Checks if a wallet is a signer wallet
+ *
+ * @param wallet - The wallet to check
+ * @returns True if the wallet is a signer wallet, false otherwise
+ */
+export function isSignerWallet<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(
+  wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount,
+): wallet is SignerWallet<TChain, TTransport, TAccount> {
+  return (
+    typeof wallet === "object" && wallet !== null && "chain" in wallet && "transport" in wallet
+  );
+}
+
+/**
+ * Checks if a wallet is an account
+ *
+ * @param wallet - The wallet to check
+ * @returns True if the wallet is an account, false otherwise
+ */
+export function isAccount<
+  TChain extends Chain = Chain,
+  TTransport extends Transport = Transport,
+  TAccount extends Account = Account,
+>(wallet: SignerWallet<TChain, TTransport, TAccount> | LocalAccount): wallet is LocalAccount {
+  const w = wallet as LocalAccount;
+  return (
+    typeof wallet === "object" &&
+    wallet !== null &&
+    typeof w.address === "string" &&
+    typeof w.type === "string" &&
+    // Check for essential signing capabilities
+    typeof w.sign === "function" &&
+    typeof w.signMessage === "function" &&
+    typeof w.signTypedData === "function" &&
+    // Check for transaction signing (required by LocalAccount)
+    typeof w.signTransaction === "function"
+  );
+}
+
+/**
+ * Maps network strings to Chain objects
+ *
+ * @param network - The network string to convert to a Chain object
+ * @returns The corresponding Chain object
+ */
+function getChainFromNetwork(network: string | undefined): Chain {
+  if (!network) {
+    throw new Error("NETWORK environment variable is not set");
+  }
+
   switch (network) {
     case "base":
       return base;
