@@ -10,24 +10,9 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet, defineChain } from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet, peaq } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
-
-// peaq chain via defineChain if not available in viem by default
-export const peaq = defineChain({
-  id: 3338,
-  name: "peaq",
-  network: "peaq",
-  nativeCurrency: { name: "peaq", symbol: "PEAQ", decimals: 18 },
-  rpcUrls: {
-    default: { http: ["https://quicknode1.peaq.xyz"] },
-    public: { http: ["https://quicknode1.peaq.xyz"] },
-  },
-  blockExplorers: {
-    default: { name: "peaqscan", url: "https://peaqscan.xyz" },
-  },
-});
 
 // Create a public client for reading data
 export type SignerWallet<
