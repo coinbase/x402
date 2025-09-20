@@ -82,3 +82,33 @@ def get_token_decimals(chain_id: str, address: str) -> int:
         if token["address"] == address:
             return token["decimals"]
     raise ValueError(f"Token not found for chain {chain_id} and address {address}")
+
+
+# XRP Ledger network configurations
+XRP_NETWORKS = {
+    "xrp-testnet": {
+        "name": "XRP Testnet",
+        "rpc_url": "https://s.altnet.rippletest.net:51234",
+        "explorer": "https://testnet.xrpl.org",
+        "network_id": "xrp-testnet"
+    },
+    "xrp-devnet": {
+        "name": "XRP Devnet",
+        "rpc_url": "https://s.devnet.rippletest.net:51234",
+        "explorer": "https://devnet.xrpl.org",
+        "network_id": "xrp-devnet"
+    },
+    "xrp-mainnet": {
+        "name": "XRP Mainnet",
+        "rpc_url": "https://s1.ripple.com:51234",
+        "explorer": "https://xrpl.org",
+        "network_id": "xrp-mainnet"
+    }
+}
+
+
+def get_xrp_network_config(network: str) -> dict:
+    """Get XRP network configuration for a given network"""
+    if network not in XRP_NETWORKS:
+        raise ValueError(f"Unsupported XRP network: {network}")
+    return XRP_NETWORKS[network]
