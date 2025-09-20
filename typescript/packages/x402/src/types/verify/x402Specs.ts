@@ -3,6 +3,9 @@ import { NetworkSchema } from "../shared";
 import { SvmAddressRegex } from "../shared/svm";
 import { Base64EncodedRegex } from "../../shared/base64";
 
+// Algorand address regex (base32 encoded with checksum)
+const AvmAddressRegex = /^[A-Z2-7]{58}$/;
+
 // Constants
 const EvmMaxAtomicUnits = 18;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
@@ -37,6 +40,19 @@ export const ErrorReasons = [
   "invalid_exact_svm_payload_transaction_sender_ata_not_found",
   "invalid_exact_svm_payload_transaction_simulation_failed",
   "invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata",
+  // Algorand-specific error reasons
+  "invalid_exact_avm_payload_transaction",
+  "invalid_exact_avm_payload_signature",
+  "invalid_exact_avm_payload_lease",
+  "invalid_exact_avm_payload_amount",
+  "invalid_exact_avm_payload_recipient",
+  "invalid_exact_avm_payload_asset_id",
+  "invalid_exact_avm_payload_round_validity",
+  "invalid_exact_avm_payload_atomic_group",
+  "invalid_exact_avm_payload_fee_structure",
+  "invalid_exact_avm_payload_asa_opt_in_required",
+  "settle_exact_avm_transaction_failed",
+  // General error reasons
   "invalid_network",
   "invalid_payload",
   "invalid_payment_requirements",
@@ -60,11 +76,16 @@ const isInteger: (value: string) => boolean = value =>
 const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
 
 // x402PaymentRequirements
-const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
-const mixedAddressOrSvmAddress = z
+const EvmOrSvmOrAvmAddress = z
+  .string()
+  .regex(EvmAddressRegex)
+  .or(z.string().regex(SvmAddressRegex))
+  .or(z.string().regex(AvmAddressRegex));
+const mixedAddressOrSvmOrAvmAddress = z
   .string()
   .regex(MixedAddressRegex)
-  .or(z.string().regex(SvmAddressRegex));
+  .or(z.string().regex(SvmAddressRegex))
+  .or(z.string().regex(AvmAddressRegex));
 export const PaymentRequirementsSchema = z.object({
   scheme: z.enum(schemes),
   network: NetworkSchema,
@@ -73,9 +94,9 @@ export const PaymentRequirementsSchema = z.object({
   description: z.string(),
   mimeType: z.string(),
   outputSchema: z.record(z.any()).optional(),
-  payTo: EvmOrSvmAddress,
+  payTo: EvmOrSvmOrAvmAddress,
   maxTimeoutSeconds: z.number().int(),
-  asset: mixedAddressOrSvmAddress,
+  asset: mixedAddressOrSvmOrAvmAddress,
   extra: z.record(z.any()).optional(),
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;
@@ -103,12 +124,18 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
+// x402ExactAvmPayload
+export const ExactAvmPayloadSchema = z.object({
+  transaction: z.string().regex(Base64EncodedRegex),
+});
+export type ExactAvmPayload = z.infer<typeof ExactAvmPayloadSchema>;
+
 // x402PaymentPayload
 export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
+  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, ExactAvmPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
@@ -192,7 +219,7 @@ export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
 export const VerifyResponseSchema = z.object({
   isValid: z.boolean(),
   invalidReason: z.enum(ErrorReasons).optional(),
-  payer: EvmOrSvmAddress.optional(),
+  payer: EvmOrSvmOrAvmAddress.optional(),
 });
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
@@ -200,7 +227,7 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 export const SettleResponseSchema = z.object({
   success: z.boolean(),
   errorReason: z.enum(ErrorReasons).optional(),
-  payer: EvmOrSvmAddress.optional(),
+  payer: EvmOrSvmOrAvmAddress.optional(),
   transaction: z.string().regex(MixedAddressRegex),
   network: NetworkSchema,
 });

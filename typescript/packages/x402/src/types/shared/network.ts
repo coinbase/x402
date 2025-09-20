@@ -10,6 +10,8 @@ export const NetworkSchema = z.enum([
   "solana",
   "sei",
   "sei-testnet",
+  "algorand-testnet",
+  "algorand",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -40,9 +42,18 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
+// avm
+export const SupportedAVMNetworks: Network[] = ["algorand-testnet", "algorand"];
+export const AvmNetworkToChainId = new Map<Network, number>([
+  ["algorand-testnet", 416001],
+  ["algorand", 416002],
+]);
+
 export const ChainIdToNetwork = Object.fromEntries(
-  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
+  [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedAVMNetworks].map(network => [
+    EvmNetworkToChainId.get(network) ||
+      SvmNetworkToChainId.get(network) ||
+      AvmNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;
