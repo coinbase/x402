@@ -1,5 +1,5 @@
 import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
+import { getNumericNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
   usdcABI as abi,
@@ -71,7 +71,7 @@ export async function verify<
   let erc20Address: Address;
   let version: string;
   try {
-    chainId = getNetworkId(payload.network);
+    chainId = getNumericNetworkId(payload.network);
     name = paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName;
     erc20Address = paymentRequirements.asset as Address;
     version = paymentRequirements.extra?.version ?? (await getVersion(client));
