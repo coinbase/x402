@@ -1,5 +1,6 @@
 import { Address, Hex } from "viem";
 import {
+  ASAAmount,
   moneySchema,
   Network,
   Price,
@@ -9,6 +10,9 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  SupportedAVMNetworks,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -148,27 +152,59 @@ export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
 ):
-  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] }
+  | {
+      maxAmountRequired: string;
+      asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | ASAAmount["asset"];
+    }
   | { error: string } {
-  // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
-  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
+  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | ASAAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
-    // USDC amount in dollars
     const parsedAmount = moneySchema.safeParse(price);
     if (!parsedAmount.success) {
       return {
         error: `Invalid price (price: ${price}). Must be in the form "$3.10", 0.10, "0.001", ${parsedAmount.error}`,
       };
     }
-    const parsedUsdAmount = parsedAmount.data;
-    asset = getDefaultAsset(network);
-    maxAmountRequired = (parsedUsdAmount * 10 ** asset.decimals).toString();
-  } else {
-    // Token amount in atomic units
+
+    const normalized = parsedAmount.data;
+
+    if (SupportedEVMNetworks.includes(network)) {
+      const defaultAsset = getDefaultAsset(network);
+      asset = defaultAsset;
+      maxAmountRequired = (normalized * 10 ** defaultAsset.decimals).toString();
+    } else if (SupportedAVMNetworks.includes(network)) {
+      const decimals = 6;
+      const defaultAsset: ASAAmount["asset"] = {
+        id: "0",
+        decimals,
+      };
+      asset = defaultAsset;
+      maxAmountRequired = Math.round(normalized * 10 ** decimals).toString();
+    } else {
+      return {
+        error: `Unsupported network for price conversion: ${network}`,
+      };
+    }
+  } else if (typeof price === "object" && "asset" in price && "amount" in price) {
     maxAmountRequired = price.amount;
-    asset = price.asset;
+
+    if ((price as ERC20TokenAmount).asset && "address" in price.asset && price.asset.address.startsWith("0x")) {
+      asset = (price as ERC20TokenAmount).asset;
+    } else if ((price as SPLTokenAmount).asset && "address" in price.asset && !price.asset.address.startsWith("0x")) {
+      asset = (price as SPLTokenAmount).asset;
+    } else if ((price as ASAAmount).asset && "id" in price.asset) {
+      asset = (price as ASAAmount).asset;
+    } else {
+      return {
+        error: "Invalid price asset configuration",
+      };
+    }
+  } else {
+    return {
+      error: "Unsupported price format",
+    };
   }
 
   return {

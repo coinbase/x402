@@ -63,7 +63,7 @@ describe("AVM client preparePaymentHeader", () => {
     resource: "https://example.com/resource",
     description: "Test Algorand resource",
     mimeType: "application/json",
-    payTo: algosdk.generateAccount().addr,
+    payTo: String(algosdk.generateAccount().addr),
     maxTimeoutSeconds: 600,
     asset: "1",
     extra: {
@@ -81,12 +81,12 @@ describe("AVM client preparePaymentHeader", () => {
   });
 
   it("creates an unsigned payment header with Algorand metadata", async () => {
-    const result = await preparePaymentHeader(client, senderAccount.addr, 1, baseRequirements);
+    const result = await preparePaymentHeader(client, `${senderAccount.addr}`, 1, baseRequirements);
 
     expect(result.x402Version).toBe(1);
     expect(result.scheme).toBe("exact");
     expect(result.network).toBe("algorand-testnet");
-    expect(result.payload.authorization.from).toBe(senderAccount.addr);
+    expect(result.payload.authorization.from).toBe(`${senderAccount.addr}`);
     expect(result.payload.authorization.to).toBe(baseRequirements.payTo);
     expect(result.payload.authorization.value).toBe(baseRequirements.maxAmountRequired);
     expect(result.payload.authorization.validAfter).toBe("5000");
@@ -102,7 +102,7 @@ describe("AVM client preparePaymentHeader", () => {
 
     const { userTransaction, feePayerTransaction } = result.transactionGroup!;
     expect(userTransaction.group).toBeDefined();
-    expect(feePayerTransaction.group).toBeDefined();
+    expect(feePayerTransaction?.group).toBeDefined();
     expect(Buffer.from(userTransaction.group!)).toEqual(Buffer.from(feePayerTransaction.group!));
     expect(result.algorand?.txnDetails.feePayer).toBe(feePayerAccount.addr);
   });
@@ -115,7 +115,7 @@ describe("AVM client preparePaymentHeader", () => {
 
     const result = await preparePaymentHeader(
       client,
-      senderAccount.addr,
+      String(senderAccount.addr),
       1,
       requirementsWithoutFeePayer,
     );
@@ -134,7 +134,7 @@ describe("AVM client signPaymentHeader", () => {
     resource: "https://example.com/resource",
     description: "Sign header test",
     mimeType: "application/json",
-    payTo: algosdk.generateAccount().addr,
+    payTo: String(algosdk.generateAccount().addr),
     maxTimeoutSeconds: 600,
     asset: "1",
     extra: {
@@ -149,13 +149,13 @@ describe("AVM client signPaymentHeader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = createMockAlgodClient(7000);
-    wallet = createMockWallet(senderAccount.addr, client);
+    wallet = createMockWallet(String(senderAccount.addr), client);
   });
 
   it("signs the user transaction and returns a payment payload", async () => {
     const unsignedHeader = await preparePaymentHeader(
       client,
-      senderAccount.addr,
+      String(senderAccount.addr),
       1,
       paymentRequirements,
     );
@@ -170,7 +170,7 @@ describe("AVM client signPaymentHeader", () => {
   it("propagates signing errors", async () => {
     const unsignedHeader = await preparePaymentHeader(
       client,
-      senderAccount.addr,
+      `${senderAccount.addr}`,
       1,
       paymentRequirements,
     );
@@ -192,7 +192,7 @@ describe("AVM client createPaymentHeader", () => {
     resource: "https://example.com/resource",
     description: "Create payment header test",
     mimeType: "application/json",
-    payTo: algosdk.generateAccount().addr,
+    payTo: String(algosdk.generateAccount().addr),
     maxTimeoutSeconds: 600,
     asset: "1",
     extra: {
@@ -207,7 +207,7 @@ describe("AVM client createPaymentHeader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = createMockAlgodClient(9000);
-    wallet = createMockWallet(senderAccount.addr, client);
+    wallet = createMockWallet(`${senderAccount.addr}`, client);
   });
 
   it("creates, signs and encodes a payment header", async () => {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { encodePayment, decodePayment } from "./paymentUtils";
-import { PaymentPayload, ExactEvmPayload, ExactSvmPayload } from "../../../../types/verify";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import { PaymentPayload, ExactEvmPayload, ExactSvmPayload, ExactAvmPayload } from "../../../../types/verify";
+import { SupportedAVMNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
 
 // valid exact EVM payload
 const validEvmPayload: ExactEvmPayload = {
@@ -37,6 +37,17 @@ const validSvmPayment: PaymentPayload = {
   payload: validSvmPayload,
 };
 
+const validAvmPayload: ExactAvmPayload = {
+  transaction: "QUJDREVGR0g=",
+};
+
+const validAvmPayment: PaymentPayload = {
+  x402Version: 1,
+  scheme: "exact",
+  network: SupportedAVMNetworks[0],
+  payload: validAvmPayload,
+};
+
 describe("paymentUtils", () => {
   it("encodes and decodes EVM payment payloads (roundtrip)", () => {
     const encoded = encodePayment(validEvmPayment);
@@ -48,6 +59,12 @@ describe("paymentUtils", () => {
     const encoded = encodePayment(validSvmPayment);
     const decoded = decodePayment(encoded);
     expect(decoded).toEqual(validSvmPayment);
+  });
+
+  it("encodes and decodes AVM payment payloads (roundtrip)", () => {
+    const encoded = encodePayment(validAvmPayment);
+    const decoded = decodePayment(encoded);
+    expect(decoded).toEqual(validAvmPayment);
   });
 
   it("throws on invalid network in encodePayment", () => {

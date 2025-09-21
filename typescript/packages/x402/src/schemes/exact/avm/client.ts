@@ -41,7 +41,20 @@ interface ExtendedUnsignedPaymentPayload extends UnsignedPaymentPayload {
  */
 async function getCurrentRound(client: AlgorandClient): Promise<number> {
   const status = await client.client.status().do();
-  return Number(status["lastRound"]);
+  // Algod may return either camelCase or hyphenated keys depending on the transport.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const statusAny = status as any;
+  const lastRound = statusAny.lastRound ?? statusAny["last-round"];
+  if (typeof lastRound === "undefined") {
+    throw new Error("Unable to determine current round from algod status response");
+  }
+
+  const round = typeof lastRound === "bigint" ? Number(lastRound) : Number(lastRound);
+  if (Number.isNaN(round)) {
+    throw new Error("Algod status did not contain a numeric round value");
+  }
+
+  return round;
 }
 
 /**

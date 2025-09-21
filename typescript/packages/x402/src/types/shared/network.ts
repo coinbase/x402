@@ -49,6 +49,18 @@ export const AvmNetworkToChainId = new Map<Network, number>([
   ["algorand", 416002],
 ]);
 
+export function isEvmNetwork(network: Network): network is (typeof SupportedEVMNetworks)[number] {
+  return SupportedEVMNetworks.includes(network);
+}
+
+export function isSvmNetwork(network: Network): network is (typeof SupportedSVMNetworks)[number] {
+  return SupportedSVMNetworks.includes(network);
+}
+
+export function isAvmNetwork(network: Network): network is (typeof SupportedAVMNetworks)[number] {
+  return SupportedAVMNetworks.includes(network);
+}
+
 export const ChainIdToNetwork = Object.fromEntries(
   [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedAVMNetworks].map(network => [
     EvmNetworkToChainId.get(network) ||

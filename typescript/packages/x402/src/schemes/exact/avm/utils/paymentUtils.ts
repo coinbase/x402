@@ -1,3 +1,4 @@
+import { safeBase64Decode, safeBase64Encode } from "../../../../shared";
 import { PaymentPayload } from "../../../../types/verify";
 
 /**
@@ -11,7 +12,7 @@ export function encodePayment(payment: PaymentPayload): string {
   const paymentString = JSON.stringify(payment);
 
   // Encode the string as base64
-  return Buffer.from(paymentString).toString("base64");
+  return safeBase64Encode(paymentString);
 }
 
 /**
@@ -22,7 +23,7 @@ export function encodePayment(payment: PaymentPayload): string {
  */
 export function decodePayment(encodedPayment: string): PaymentPayload {
   // Decode the base64 string to a JSON string
-  const paymentString = Buffer.from(encodedPayment, "base64").toString();
+  const paymentString = safeBase64Decode(encodedPayment);
 
   // Parse the JSON string to a payment payload
   return JSON.parse(paymentString) as PaymentPayload;

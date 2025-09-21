@@ -1,8 +1,7 @@
-import { Address } from "viem";
 import { paymentMiddleware, Resource, Network } from "x402-next";
 import { NextRequest, NextResponse } from "next/server";
 
-const address = process.env.RESOURCE_WALLET_ADDRESS as Address;
+const address = process.env.RESOURCE_WALLET_ADDRESS as string;
 const network = process.env.NETWORK as Network;
 const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
 const cdpClientKey = process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY;

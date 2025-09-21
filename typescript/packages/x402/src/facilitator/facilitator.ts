@@ -1,6 +1,7 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { verify as verifyExactAvm, settle as settleExactAvm } from "../schemes/exact/avm";
+import { SupportedAVMNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
   SignerWallet as EvmSignerWallet,
@@ -15,6 +16,7 @@ import {
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
+import { AlgorandClient, WalletAccount as AvmWalletAccount } from "../schemes/exact/avm/types";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -48,6 +50,11 @@ export async function verify<
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+
+    // avm
+    if (SupportedAVMNetworks.includes(paymentRequirements.network)) {
+      return await verifyExactAvm(client as AlgorandClient, payload, paymentRequirements);
     }
   }
 
@@ -89,6 +96,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+
+    // avm
+    if (SupportedAVMNetworks.includes(paymentRequirements.network)) {
+      return await settleExactAvm(client as AvmWalletAccount, payload, paymentRequirements);
     }
   }
 

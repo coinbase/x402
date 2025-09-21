@@ -12,6 +12,7 @@ import {
   toJsonSafe,
 } from "x402/shared";
 import {
+  ASAAmount,
   FacilitatorConfig,
   moneySchema,
   PaymentPayload,
@@ -20,6 +21,8 @@ import {
   RoutesConfig,
   PaywallConfig,
   ERC20TokenAmount,
+  SPLTokenAmount,
+  SupportedAVMNetworks,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
 } from "x402/types";
@@ -90,8 +93,10 @@ import { POST } from "./api/session-token";
  * );
  * ```
  */
+type AlgorandAddress = string;
+
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress,
+  payTo: Address | SolanaAddress | AlgorandAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
@@ -140,6 +145,7 @@ export function paymentMiddleware(
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
     if (SupportedEVMNetworks.includes(network)) {
+      const evmAsset = asset as ERC20TokenAmount["asset"];
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -149,7 +155,7 @@ export function paymentMiddleware(
         mimeType: mimeType ?? "application/json",
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
+        asset: getAddress(evmAsset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -160,7 +166,7 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: evmAsset.eip712,
       });
     }
     // svm networks
@@ -183,6 +189,8 @@ export function paymentMiddleware(
       }
 
       // build the payment requirements for svm
+      const splAsset = asset as SPLTokenAmount["asset"];
+
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -192,7 +200,7 @@ export function paymentMiddleware(
         mimeType: mimeType ?? "",
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
+        asset: splAsset.address,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -206,6 +214,45 @@ export function paymentMiddleware(
           feePayer,
         },
       });
+    }
+    // avm networks
+    else if (SupportedAVMNetworks.includes(network)) {
+      const paymentKinds = await supported();
+
+      let feePayer: string | undefined;
+      for (const kind of paymentKinds.kinds) {
+        if (kind.network === network && kind.scheme === "exact") {
+          feePayer = kind?.extra?.feePayer;
+          break;
+        }
+      }
+
+      const asaAsset = asset as ASAAmount["asset"];
+
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "application/json",
+        payTo: payTo as string,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: asaAsset.id,
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
+        extra: {
+          decimals: asaAsset.decimals,
+          ...(feePayer ? { feePayer } : {}),
+        },
+      });
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -214,7 +261,14 @@ export function paymentMiddleware(
     const paymentHeader = request.headers.get("X-PAYMENT");
     if (!paymentHeader) {
       const accept = request.headers.get("Accept");
-      if (accept?.includes("text/html")) {
+      const secFetchDest = request.headers.get("sec-fetch-dest");
+      const secFetchMode = request.headers.get("sec-fetch-mode");
+      const isNextDataRequest = request.headers.has("x-nextjs-data");
+      const isNavigationRequest =
+        (secFetchDest !== null && secFetchDest.toLowerCase() === "document") ||
+        (secFetchMode !== null && secFetchMode.toLowerCase() === "navigate");
+
+      if (isNavigationRequest && !isNextDataRequest) {
         const userAgent = request.headers.get("User-Agent");
         if (userAgent?.includes("Mozilla")) {
           let displayAmount: number;
@@ -238,7 +292,48 @@ export function paymentMiddleware(
                 typeof getPaywallHtml
               >[0]["paymentRequirements"],
               currentUrl: request.url,
-              testnet: network === "base-sepolia",
+              testnet:
+                network === "base-sepolia" ||
+                network === "algorand-testnet" ||
+                network === "solana-devnet",
+              cdpClientKey: paywall?.cdpClientKey,
+              appLogo: paywall?.appLogo,
+              appName: paywall?.appName,
+              sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
+            });
+          return new NextResponse(html, {
+            status: 402,
+            headers: { "Content-Type": "text/html" },
+          });
+        }
+      } else if (accept?.includes("text/html")) {
+        const userAgent = request.headers.get("User-Agent");
+        if (userAgent?.includes("Mozilla")) {
+          let displayAmount: number;
+          if (typeof price === "string" || typeof price === "number") {
+            const parsed = moneySchema.safeParse(price);
+            if (parsed.success) {
+              displayAmount = parsed.data;
+            } else {
+              displayAmount = Number.NaN;
+            }
+          } else {
+            displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
+          }
+
+          // TODO: handle paywall html for solana
+          const html =
+            customPaywallHtml ??
+            getPaywallHtml({
+              amount: displayAmount,
+              paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
+                typeof getPaywallHtml
+              >[0]["paymentRequirements"],
+              currentUrl: request.url,
+              testnet:
+                network === "base-sepolia" ||
+                network === "algorand-testnet" ||
+                network === "solana-devnet",
               cdpClientKey: paywall?.cdpClientKey,
               appLogo: paywall?.appLogo,
               appName: paywall?.appName,
