@@ -96,7 +96,7 @@ export const PaymentRequirementsSchema = z.object({
   outputSchema: z.record(z.any()).optional(),
   payTo: EvmOrSvmOrAvmAddress,
   maxTimeoutSeconds: z.number().int(),
-  asset: mixedAddressOrSvmOrAvmAddress,
+  asset: mixedAddressOrSvmOrAvmAddress.or(z.string().regex(/^\d+$/)),
   extra: z.record(z.any()).optional(),
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;
