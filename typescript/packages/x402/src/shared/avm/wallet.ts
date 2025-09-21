@@ -77,8 +77,11 @@ export function createSigner(
   return {
     address,
     client: algorandClient.client,
-    async signTransactions(transactions: Uint8Array[]) {
-      return transactions.map(txnBytes => {
+    async signTransactions(transactions: Uint8Array[], indexesToSign?: number[]) {
+      return transactions.map((txnBytes, idx) => {
+        if (indexesToSign && !indexesToSign.includes(idx)) {
+          return null;
+        }
         const txn = algosdk.decodeUnsignedTransaction(txnBytes);
         const { blob } = algosdk.signTransaction(txn, account.sk);
         return blob;
