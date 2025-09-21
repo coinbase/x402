@@ -66,11 +66,15 @@ export function useAlgorandWallet(
   const [error, setError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    const unsubscribe = manager.subscribe(state => {
-      const walletAccounts = state.activeWalletAccounts ?? [];
+    const handleUpdate = () => {
+      const walletAccounts = manager.activeWallet?.accounts ?? [];
       setAccounts(walletAccounts);
-      setActiveAddress(state.activeAddress ?? undefined);
-    });
+      setActiveAddress(manager.activeAddress ?? undefined);
+    };
+
+    handleUpdate();
+
+    const unsubscribe = manager.subscribe(handleUpdate);
 
     manager.resumeSessions().catch(err => {
       console.error("Failed to resume Algorand wallet session", err);
