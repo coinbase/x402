@@ -215,7 +215,7 @@ export function paymentMiddleware(
     }
     // avm networks
     else if (SupportedAVMNetworks.includes(network)) {
-      console.log("Handling Algorand network settlment")
+      console.log("Handling Algorand network settlment");
       const paymentKinds = await supported();
 
       let feePayer: string | undefined;
