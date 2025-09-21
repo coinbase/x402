@@ -19,7 +19,10 @@ export interface UseAlgorandWalletResult {
   error?: string;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
-  signTransactions: (transactions: Uint8Array[]) => Promise<Uint8Array[]>;
+  signTransactions: (
+    transactions: Uint8Array[],
+    indexesToSign?: number[],
+  ) => Promise<(Uint8Array | null)[]>;
   setActiveAccount: (account?: WalletAccount) => void;
 }
 
@@ -74,7 +77,7 @@ export function useAlgorandWallet(
 
     handleUpdate();
 
-    const unsubscribe = manager.subscribe(handleUpdate);
+    const unsubscribe = manager.subscribe(() => handleUpdate());
 
     manager.resumeSessions().catch(err => {
       console.error("Failed to resume Algorand wallet session", err);
@@ -123,10 +126,10 @@ export function useAlgorandWallet(
   }, [manager]);
 
   const signTransactions = useCallback(
-    async (transactions: Uint8Array[]) => {
+    async (transactions: Uint8Array[], indexesToSign?: number[]) => {
       try {
-        const result = await manager.signTransactions(transactions);
-        return result as Uint8Array[];
+        const result = await manager.signTransactions(transactions, indexesToSign);
+        return result;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Failed to sign transactions";
         setError(message);

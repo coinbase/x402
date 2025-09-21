@@ -9,7 +9,10 @@ export interface WalletAccount {
   /** The name of the account */
   name?: string;
   /** Sign transactions with the wallet */
-  signTransactions: (txns: Uint8Array[]) => Promise<Uint8Array[]>;
+  signTransactions: (
+    txns: Uint8Array[],
+    indexesToSign?: number[],
+  ) => Promise<(Uint8Array | null)[]>;
   /** The Algorand client instance */
   client: algosdk.Algodv2;
 }
@@ -29,7 +32,10 @@ export interface WalletProvider {
   /** Disconnect from the wallet */
   disconnect: () => Promise<void>;
   /** Sign transactions with the wallet */
-  signTransactions: (txns: Uint8Array[]) => Promise<Uint8Array[]>;
+  signTransactions: (
+    txns: Uint8Array[],
+    indexesToSign?: number[],
+  ) => Promise<(Uint8Array | null)[]>;
 }
 
 /**

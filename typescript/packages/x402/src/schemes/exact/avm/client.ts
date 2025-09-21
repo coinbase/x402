@@ -233,9 +233,19 @@ export async function signPaymentHeader(
 
   const { userTransaction } = transactionGroup;
 
-  const signedTxn = await wallet.signTransactions([userTransaction.toByte()]);
+  const txnGroupBytes: Uint8Array[] = [userTransaction.toByte()];
+  if (transactionGroup.feePayerTransaction) {
+    txnGroupBytes.push(transactionGroup.feePayerTransaction.toByte());
+  }
 
-  const signedTransaction = Buffer.from(signedTxn[0]).toString("base64");
+  const indexesToSign = transactionGroup.feePayerTransaction ? [0] : undefined;
+  const signedTxnGroup = await wallet.signTransactions(txnGroupBytes, indexesToSign);
+  const signedUserTxn = signedTxnGroup[0];
+  if (!signedUserTxn) {
+    throw new Error("Wallet did not return a signed user transaction");
+  }
+
+  const signedTransaction = Buffer.from(signedUserTxn).toString("base64");
 
   /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   const { transactionGroup: _transactionGroup, ...payloadWithoutGroup } = unsignedPaymentHeader;

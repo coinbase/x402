@@ -278,7 +278,9 @@ export async function settle(
       });
 
       const signedFeePayerTxn = await wallet.signTransactions([feePayerTransaction.toByte()]);
-      const txnGroup = [userTxnBytes, signedFeePayerTxn[0]];
+      const txnGroup = [userTxnBytes, signedFeePayerTxn[0]].filter(
+        (tx): tx is Uint8Array => tx !== null && tx !== undefined,
+      );
       txId = await wallet.client.sendRawTransaction(txnGroup).do();
     } else {
       txId = await wallet.client.sendRawTransaction([userTxnBytes]).do();

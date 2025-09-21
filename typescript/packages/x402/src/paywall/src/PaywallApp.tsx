@@ -509,8 +509,11 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
   );
 
   const signWithActiveWallet = useCallback(
-    async (transactions: Uint8Array[]): Promise<Uint8Array[]> => {
-      return signTransactions(transactions);
+    async (
+      transactions: Uint8Array[],
+      indexesToSign?: number[],
+    ): Promise<(Uint8Array | null)[]> => {
+      return signTransactions(transactions, indexesToSign);
     },
     [signTransactions],
   );
