@@ -3,12 +3,14 @@ import {
   PaymentPayloadSchema,
   PaymentRequirements,
   PaymentRequirementsSchema,
+  SupportedAVMNetworks,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
   VerifyResponse,
   createConnectedClient,
   createSigner,
 } from "x402/types";
+import { AlgodClientOptions, createAlgorandClient } from "x402/shared/avm";
 import { verify } from "x402/facilitator";
 
 type VerifyRequest = {
@@ -26,13 +28,43 @@ export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
 
   const network = body.paymentRequirements.network;
+  const algodOptions = (() => {
+    const server = process.env.ALGOD_SERVER || "https://testnet-api.algonode.cloud";
+    const token = process.env.ALGOD_TOKEN || "";
+    const port = process.env.ALGOD_PORT || "";
+    if (!server && !token && !port) {
+      return undefined;
+    }
+
+    const options: AlgodClientOptions = {};
+    if (server) {
+      options.algodServer = server;
+    }
+    if (token) {
+      options.algodToken = token;
+    }
+    if (port) {
+      options.algodPort = port;
+    }
+    return options;
+  })();
+
   const client = SupportedEVMNetworks.includes(network)
-    ? createConnectedClient(body.paymentRequirements.network)
+    ? createConnectedClient(network)
     : SupportedSVMNetworks.includes(network)
       ? await createSigner(network, process.env.SOLANA_PRIVATE_KEY)
-      : undefined;
+      : SupportedAVMNetworks.includes(network)
+        ? createAlgorandClient(network, algodOptions)
+        : undefined;
 
-  if (!client) {
+  type SimpleClient = Record<string, unknown> & { address?: string };
+  const verifyClient: SimpleClient | undefined = client
+    ? SupportedAVMNetworks.includes(network)
+      ? ({ ...client } as unknown as SimpleClient)
+      : (client as unknown as SimpleClient)
+    : undefined;
+
+  if (!verifyClient) {
     return Response.json(
       {
         isValid: false,
@@ -79,7 +111,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const valid = await verify(client, paymentPayload, paymentRequirements);
+    const valid = await verify(verifyClient, paymentPayload, paymentRequirements);
     return Response.json(valid);
   } catch (error) {
     console.error("Error verifying payment:", error);

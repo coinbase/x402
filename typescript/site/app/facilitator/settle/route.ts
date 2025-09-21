@@ -5,10 +5,12 @@ import {
   PaymentRequirements,
   PaymentRequirementsSchema,
   SettleResponse,
+  SupportedAVMNetworks,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
   createSigner,
 } from "x402/types";
+import { AlgodClientOptions, createSigner as createAlgorandSigner } from "x402/shared/avm";
 
 type SettleRequest = {
   paymentPayload: PaymentPayload;
@@ -29,7 +31,9 @@ export async function POST(req: Request) {
     ? process.env.PRIVATE_KEY
     : SupportedSVMNetworks.includes(network)
       ? process.env.SOLANA_PRIVATE_KEY
-      : undefined;
+      : SupportedAVMNetworks.includes(network)
+        ? process.env.PRIVATE_KEY
+        : undefined;
 
   if (!privateKey) {
     return Response.json(
@@ -41,7 +45,35 @@ export async function POST(req: Request) {
     );
   }
 
-  const wallet = await createSigner(network, privateKey);
+  const algodOptions = (() => {
+    const server = process.env.ALGOD_SERVER;
+    const token = process.env.ALGOD_TOKEN;
+    const port = process.env.ALGOD_PORT;
+    if (!server && !token && !port) {
+      return undefined;
+    }
+
+    const options: AlgodClientOptions = {};
+    if (server) {
+      options.algodServer = server;
+    }
+    if (token) {
+      options.algodToken = token;
+    }
+    if (port) {
+      options.algodPort = port;
+    }
+    return options;
+  })();
+
+  const wallet = SupportedAVMNetworks.includes(network)
+    ? createAlgorandSigner(network, privateKey, algodOptions)
+    : await createSigner(network, privateKey);
+
+  type SimpleClient = Record<string, unknown> & { address?: string };
+  const settleClient: SimpleClient = SupportedAVMNetworks.includes(network)
+    ? ({ ...wallet } as unknown as SimpleClient)
+    : (wallet as unknown as SimpleClient);
 
   let paymentPayload: PaymentPayload;
   try {
@@ -76,7 +108,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const response = await settle(wallet, paymentPayload, paymentRequirements);
+    const response = await settle(settleClient, paymentPayload, paymentRequirements);
     return Response.json(response);
   } catch (error) {
     console.error("Error settling payment:", error);

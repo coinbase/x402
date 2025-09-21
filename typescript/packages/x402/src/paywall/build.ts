@@ -51,8 +51,6 @@ const options: esbuild.BuildOptions = {
       ],
     }),
   ],
-  inject: ["./src/paywall/buffer-polyfill.ts"],
-  // Mark problematic dependencies as external
   external: [
     "crypto",
     "@walletconnect/modal",

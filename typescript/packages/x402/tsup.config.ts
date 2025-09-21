@@ -5,6 +5,7 @@ const baseConfig = {
     index: "src/index.ts",
     "shared/index": "src/shared/index.ts",
     "shared/evm/index": "src/shared/evm/index.ts",
+    "shared/avm/index": "src/shared/avm/index.ts",
     "schemes/index": "src/schemes/index.ts",
     "client/index": "src/client/index.ts",
     "verify/index": "src/verify/index.ts",

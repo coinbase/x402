@@ -1,5 +1,6 @@
 import { PaymentRequirements } from "../../../../types/verify";
-import { createHash, timingSafeEqual } from "crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { utf8ToBytes } from "@noble/hashes/utils";
 
 /**
  * Creates a lease field from payment requirements to prevent replay attacks
@@ -22,10 +23,10 @@ export function createLeaseFromPaymentRequirements(
   });
 
   // Hash the string using SHA-256
-  const hash = createHash("sha256").update(requirementsString).digest();
+  const hashBuffer = sha256(utf8ToBytes(requirementsString));
 
   // Return the hash as a Uint8Array
-  return new Uint8Array(hash);
+  return new Uint8Array(hashBuffer);
 }
 
 /**
@@ -41,16 +42,17 @@ export function verifyLease(
 ): boolean {
   const expectedLease = createLeaseFromPaymentRequirements(paymentRequirements);
 
-  const leaseBuffer = Buffer.isBuffer(lease) ? lease : Buffer.from(lease);
-  const expectedBuffer = Buffer.from(expectedLease);
+  const leaseArray = lease instanceof Uint8Array ? lease : new Uint8Array(lease);
 
-  if (leaseBuffer.length !== expectedBuffer.length) {
+  if (leaseArray.length !== expectedLease.length) {
     return false;
   }
 
-  try {
-    return timingSafeEqual(leaseBuffer, expectedBuffer);
-  } catch {
-    return false;
+  for (let i = 0; i < leaseArray.length; i += 1) {
+    if (leaseArray[i] !== expectedLease[i]) {
+      return false;
+    }
   }
+
+  return true;
 }

@@ -116,6 +116,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.supported };
     }
+    console.log("Fetching supported payment kinds from", url);
 
     const res = await fetch(`${url}/supported`, {
       method: "GET",

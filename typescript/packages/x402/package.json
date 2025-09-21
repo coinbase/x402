@@ -59,6 +59,7 @@
     "@txnlab/use-wallet": "^4.3.1",
     "@perawallet/connect": "^1.4.2",
     "algosdk": "^3.5.0",
+    "@noble/hashes": "^2.0.0",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
     "zod": "^3.24.2"
@@ -82,6 +83,16 @@
       "require": {
         "types": "./dist/cjs/shared/evm/index.d.ts",
         "default": "./dist/cjs/shared/evm/index.js"
+      }
+    },
+    "./shared/avm": {
+      "import": {
+        "types": "./dist/esm/shared/avm/index.d.mts",
+        "default": "./dist/esm/shared/avm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/avm/index.d.ts",
+        "default": "./dist/cjs/shared/avm/index.js"
       }
     },
     "./schemes": {

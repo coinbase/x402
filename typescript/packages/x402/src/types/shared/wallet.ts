@@ -1,10 +1,14 @@
 import * as evm from "./evm/wallet";
 import * as svm from "../../shared/svm/wallet";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "./network";
+import type * as avm from "./avm";
+import { Network, isEvmNetwork, isSvmNetwork } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient;
-export type Signer = evm.EvmSigner | svm.SvmSigner;
+export type ConnectedClient =
+  | evm.ConnectedClient
+  | svm.SvmConnectedClient
+  | avm.AlgorandClient;
+export type Signer = evm.EvmSigner | svm.SvmSigner | avm.WalletAccount;
 export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
 
 /**
@@ -13,12 +17,12 @@ export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
  * @param network - The network to connect to.
  * @returns A public client instance connected to the specified chain.
  */
-export function createConnectedClient(network: string): ConnectedClient {
-  if (SupportedEVMNetworks.find(n => n === network)) {
+export function createConnectedClient(network: Network): ConnectedClient {
+  if (isEvmNetwork(network)) {
     return evm.createConnectedClient(network);
   }
 
-  if (SupportedSVMNetworks.find(n => n === network)) {
+  if (isSvmNetwork(network)) {
     return svm.createSvmConnectedClient(network);
   }
 
@@ -32,14 +36,14 @@ export function createConnectedClient(network: string): ConnectedClient {
  * @param privateKey - The private key to use for signing transactions.
  * @returns A wallet client instance connected to the specified chain with the provided private key.
  */
-export function createSigner(network: string, privateKey: Hex | string): Promise<Signer> {
+export function createSigner(network: Network, privateKey: Hex | string): Promise<Signer> {
   // evm
-  if (SupportedEVMNetworks.find(n => n === network)) {
+  if (isEvmNetwork(network)) {
     return Promise.resolve(evm.createSigner(network, privateKey as Hex));
   }
 
   // svm
-  if (SupportedSVMNetworks.find(n => n === network)) {
+  if (isSvmNetwork(network)) {
     return svm.createSignerFromBase58(privateKey as string);
   }
 
@@ -64,6 +68,13 @@ export function isEvmSignerWallet(wallet: Signer): wallet is evm.EvmSigner {
  */
 export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
   return svm.isSignerWallet(wallet as svm.SvmSigner);
+}
+
+export function isAvmSignerWallet(wallet: Signer): wallet is avm.WalletAccount {
+  return (
+    typeof (wallet as avm.WalletAccount)?.address === "string" &&
+    typeof (wallet as avm.WalletAccount)?.signTransactions === "function"
+  );
 }
 
 /**
