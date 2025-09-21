@@ -448,15 +448,17 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
     async (address: string) => {
       try {
         const info = await algodClient.accountInformation(address).do();
-        if (assetId === "0") {
-          const microBalance = info.amount ?? 0;
+        if (!assetId || assetId === "0") {
+          const microBalance = Number(info?.amount?.toString()) ?? 0;
+          console.log("microBalance: ", microBalance);
           const display = (microBalance / 10 ** decimals).toFixed(decimals);
           setFormattedBalance(display);
         } else {
+          console.log("Asset ID: ", assetId);
           const parsedId = parseInt(assetId, 10);
           const assets = (info.assets ?? []) as Array<{ "asset-id": number; amount?: number }>;
           const holding = assets.find(asset => asset["asset-id"] === parsedId);
-          const amountRaw = holding?.amount ?? 0;
+          const amountRaw = Number(holding?.amount?.toString()) ?? 0;
           const display = (amountRaw / 10 ** decimals).toFixed(decimals);
           setFormattedBalance(display);
         }
@@ -572,7 +574,15 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
     } finally {
       setIsPaying(false);
     }
-  }, [activeAddress, accounts, algorandClient, algodClient, validPaymentRequirements, config.currentUrl, signWithActiveWallet]);
+  }, [
+    activeAddress,
+    accounts,
+    algorandClient,
+    algodClient,
+    validPaymentRequirements,
+    config.currentUrl,
+    signWithActiveWallet,
+  ]);
 
   const displayAmount =
     amount || Number(validPaymentRequirements.maxAmountRequired) / 10 ** decimals;
@@ -607,11 +617,7 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
       <div className="content w-full">
         {!activeAddress ? (
           <div className="payment-details">
-            <button
-              className="button button-primary"
-              onClick={handleConnect}
-              disabled={connecting}
-            >
+            <button className="button button-primary" onClick={handleConnect} disabled={connecting}>
               {connecting ? <Spinner /> : "Connect Pera Wallet"}
             </button>
             {status && !connecting && <div className="status">{status}</div>}
@@ -627,7 +633,11 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
                 <div className="payment-row">
                   <span className="payment-label">Account:</span>
                   <span className="payment-value">
-                    <select value={activeAddress} onChange={handleAccountSelect} className="account-select">
+                    <select
+                      value={activeAddress}
+                      onChange={handleAccountSelect}
+                      className="account-select"
+                    >
                       {accounts.map(account => {
                         const short = `${account.address.slice(0, 5)}...${account.address.slice(-5)}`;
                         const label = account.name ? `${account.name} (${short})` : short;
