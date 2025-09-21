@@ -93,10 +93,8 @@ import { POST } from "./api/session-token";
  * );
  * ```
  */
-type AlgorandAddress = string;
-
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress | AlgorandAddress,
+  payTo: Address | SolanaAddress | string,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
@@ -153,7 +151,7 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
+        payTo: getAddress(payTo as Address),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
         asset: getAddress(evmAsset.address),
         // TODO: Rename outputSchema to requestStructure
@@ -217,6 +215,7 @@ export function paymentMiddleware(
     }
     // avm networks
     else if (SupportedAVMNetworks.includes(network)) {
+      console.log("Handling Algorand network settlment")
       const paymentKinds = await supported();
 
       let feePayer: string | undefined;
@@ -359,7 +358,11 @@ export function paymentMiddleware(
     // Verify payment
     let decodedPayment: PaymentPayload;
     try {
-      decodedPayment = exact.evm.decodePayment(paymentHeader);
+      if (SupportedAVMNetworks.includes(network)) {
+        decodedPayment = exact.avm.decodePayment(paymentHeader);
+      } else {
+        decodedPayment = exact.evm.decodePayment(paymentHeader);
+      }
       decodedPayment.x402Version = x402Version;
     } catch (error) {
       return new NextResponse(

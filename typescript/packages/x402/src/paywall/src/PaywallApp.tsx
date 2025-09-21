@@ -450,11 +450,9 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
         const info = await algodClient.accountInformation(address).do();
         if (!assetId || assetId === "0") {
           const microBalance = Number(info?.amount?.toString()) ?? 0;
-          console.log("microBalance: ", microBalance);
           const display = (microBalance / 10 ** decimals).toFixed(decimals);
           setFormattedBalance(display);
         } else {
-          console.log("Asset ID: ", assetId);
           const parsedId = parseInt(assetId, 10);
           const assets = (info.assets ?? []) as Array<{ "asset-id": number; amount?: number }>;
           const holding = assets.find(asset => asset["asset-id"] === parsedId);
