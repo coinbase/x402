@@ -77,8 +77,9 @@ export async function POST(req: Request) {
   let paymentPayload: PaymentPayload;
   try {
     paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+    console.log("[X402 Verify] Payment payload:", paymentPayload);
   } catch (error) {
-    console.error("Invalid payment payload:", error);
+    console.error("[X402 Verify] Invalid payment payload:", error);
     return Response.json(
       {
         isValid: false,

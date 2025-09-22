@@ -82,6 +82,7 @@ export async function verify(
     const from = transaction.sender.toString();
     console.log("[AVM Facilitator Verify] Transaction from address:", from);
     const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
+    console.log("[AVM Facilitator Verify] Fee payer address:", feePayer);
     if (feePayer && !exactAvmPayload.feeTransaction) {
       console.error("[AVM Facilitator Verify] Missing fee transaction for fee payer");
       return {
