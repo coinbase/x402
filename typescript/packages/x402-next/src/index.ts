@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address, getAddress } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
+import type { Address as AlgorandAddress } from "algosdk";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -94,18 +95,20 @@ import { POST } from "./api/session-token";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress | string,
+  payTo: Address | SolanaAddress | AlgorandAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
 ) {
   const { verify, settle, supported } = useFacilitator(facilitator);
   const x402Version = 1;
+  console.log("[X402 Payment MiddleWare] Payment middleware starting...");
 
   // Pre-compile route patterns to regex and extract verbs
   const routePatterns = computeRoutePatterns(routes);
 
   return async function middleware(request: NextRequest) {
+    console.log("[X402 Payment MiddleWare] Middleware started...");
     const pathname = request.nextUrl.pathname;
     const method = request.method.toUpperCase();
 
@@ -196,7 +199,7 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "",
-        payTo: payTo,
+        payTo: payTo.toString(),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: splAsset.address,
         // TODO: Rename outputSchema to requestStructure
@@ -215,7 +218,7 @@ export function paymentMiddleware(
     }
     // avm networks
     else if (SupportedAVMNetworks.includes(network)) {
-      console.log("Handling Algorand network settlment");
+      console.log("[X402 Payment MiddleWare] Handling Algorand network settlment");
       const paymentKinds = await supported();
 
       let feePayer: string | undefined;
@@ -252,13 +255,16 @@ export function paymentMiddleware(
           ...(feePayer ? { feePayer } : {}),
         },
       });
+      console.log("[X402 Payment MiddleWare]", paymentRequirements);
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");
+    console.log("[X402 Payment MiddleWare] X-PAYMENT:", paymentHeader);
     if (!paymentHeader) {
+      console.log("[X402 Payment MiddleWare] No X-PAYMENT header found, returning 402");
       const accept = request.headers.get("Accept");
       const secFetchDest = request.headers.get("sec-fetch-dest");
       const secFetchMode = request.headers.get("sec-fetch-mode");
@@ -268,8 +274,10 @@ export function paymentMiddleware(
         (secFetchMode !== null && secFetchMode.toLowerCase() === "navigate");
 
       if (isNavigationRequest && !isNextDataRequest) {
+        console.log("[X402 Payment MiddleWare] Detected navigation request");
         const userAgent = request.headers.get("User-Agent");
         if (userAgent?.includes("Mozilla")) {
+          console.log("[X402 Payment MiddleWare] Detected browser request");
           let displayAmount: number;
           if (typeof price === "string" || typeof price === "number") {
             const parsed = moneySchema.safeParse(price);
@@ -281,6 +289,7 @@ export function paymentMiddleware(
           } else {
             displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
           }
+          console.log("[X402 Payment MiddleWare] Display amount:", displayAmount);
 
           // TODO: handle paywall html for solana
           const html =
@@ -300,16 +309,24 @@ export function paymentMiddleware(
               appName: paywall?.appName,
               sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
             });
+          console.log(
+            "[X402 Payment MiddleWare] Returning paywall HTML! Is custom?: ",
+            customPaywallHtml,
+          );
+          console.log("[X402 Payment MiddleWare] Sending 402 response with HTML");
           return new NextResponse(html, {
             status: 402,
             headers: { "Content-Type": "text/html" },
           });
         }
       } else if (accept?.includes("text/html")) {
+        console.log("[X402 Payment MiddleWare] Detected Accept: text/html header");
         const userAgent = request.headers.get("User-Agent");
         if (userAgent?.includes("Mozilla")) {
+          console.log("[X402 Payment MiddleWare] Detected browser request");
           let displayAmount: number;
           if (typeof price === "string" || typeof price === "number") {
+            console.log("[X402 Payment MiddleWare] Parsing price:", price);
             const parsed = moneySchema.safeParse(price);
             if (parsed.success) {
               displayAmount = parsed.data;
@@ -319,6 +336,7 @@ export function paymentMiddleware(
           } else {
             displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
           }
+          console.log("[X402 Payment MiddleWare] Parsed display amount:", displayAmount);
 
           // TODO: handle paywall html for solana
           const html =
@@ -338,6 +356,7 @@ export function paymentMiddleware(
               appName: paywall?.appName,
               sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
             });
+          console.log("[X402 Payment MiddleWare] Sending 402 response with HTML");
           return new NextResponse(html, {
             status: 402,
             headers: { "Content-Type": "text/html" },
@@ -354,17 +373,22 @@ export function paymentMiddleware(
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
+    console.log("[X402 Payment MiddleWare] X-PAYMENT header found, verifying...");
 
     // Verify payment
     let decodedPayment: PaymentPayload;
     try {
       if (SupportedAVMNetworks.includes(network)) {
+        console.log("[X402 Payment MiddleWare] Decoding AVM payment");
         decodedPayment = exact.avm.decodePayment(paymentHeader);
       } else {
+        console.log("[X402 Payment MiddleWare] Decoding EVM/SVM payment");
         decodedPayment = exact.evm.decodePayment(paymentHeader);
       }
       decodedPayment.x402Version = x402Version;
+      console.log("[X402 Payment MiddleWare] Decoded payment:", decodedPayment);
     } catch (error) {
+      console.error("[X402 Payment MiddleWare] Failed to decode payment:", error);
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -380,7 +404,14 @@ export function paymentMiddleware(
       paymentRequirements,
       decodedPayment,
     );
+    console.log(
+      "[X402 Payment MiddleWare] Selected payment requirements:",
+      selectedPaymentRequirements,
+    );
     if (!selectedPaymentRequirements) {
+      console.error(
+        "[X402 Payment MiddleWare] No matching payment requirements found! Returning 402",
+      );
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -393,8 +424,12 @@ export function paymentMiddleware(
     }
 
     const verification = await verify(decodedPayment, selectedPaymentRequirements);
-
+    console.log("[X402 Payment MiddleWare] Verification result:", verification);
     if (!verification.isValid) {
+      console.error(
+        "[X402 Payment MiddleWare] Payment verification failed (returning 402):",
+        verification,
+      );
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -407,18 +442,25 @@ export function paymentMiddleware(
     }
 
     // Proceed with request
+    console.log("[X402 Payment MiddleWare] Payment verified, proceeding to route handler");
     const response = await NextResponse.next();
 
     // if the response from the protected route is >= 400, do not settle the payment
     if (response.status >= 400) {
+      console.log(
+        "[X402 Payment MiddleWare] Response status >= 400, not settling payment",
+        response.status,
+      );
       return response;
     }
 
     // Settle payment after response
+    console.log("[X402 Payment MiddleWare] Settling payment...");
     try {
       const settlement = await settle(decodedPayment, selectedPaymentRequirements);
 
       if (settlement.success) {
+        console.log("[X402 Payment MiddleWare] Payment settled:", settlement);
         response.headers.set(
           "X-PAYMENT-RESPONSE",
           safeBase64Encode(
@@ -432,6 +474,7 @@ export function paymentMiddleware(
         );
       }
     } catch (error) {
+      console.error("[X402 Payment MiddleWare] Payment settlement failed (Return 402):", error);
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -457,6 +500,7 @@ export type {
   RoutesConfig,
 } from "x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
+export type { Address as AlgorandAddress } from "algosdk";
 
 // Export session token API handlers for Onramp
 export { POST };

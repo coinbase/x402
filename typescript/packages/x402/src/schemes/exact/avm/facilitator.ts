@@ -59,23 +59,34 @@ export async function verify(
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   try {
+    console.log("[AVM Facilitator Verify] Started...");
     const exactAvmPayload = payload.payload as ExactAvmPayload;
+    console.log("[AVM Facilitator Verify] exactAvmPayload:", exactAvmPayload);
 
     const signedTxn = decodeTransaction(exactAvmPayload.transaction);
+    console.log("[AVM Facilitator Verify] Decoded signed transaction:", signedTxn);
     const transaction = signedTxn.txn;
+    console.log("[AVM Facilitator Verify] Decoded signed transaction:", transaction);
 
     const from = transaction.sender.toString();
+    console.log("[AVM Facilitator Verify] Transaction from address:", from);
     const firstRound = Number(transaction.firstValid);
+    console.log("[AVM Facilitator Verify] Transaction first valid round:", firstRound);
     const lastRound = Number(transaction.lastValid);
+    console.log("[AVM Facilitator Verify] Transaction last valid round:", lastRound);
     const lease = transaction.lease;
+    console.log("[AVM Facilitator Verify] Transaction lease:", lease);
 
     let to: string | undefined;
     let amount = 0;
     let assetIndex: number | undefined;
 
     if (transaction.type === algosdk.TransactionType.pay) {
+      console.log("[AVM Facilitator Verify] Processing payment transaction");
       const paymentFields = transaction.payment;
+      console.log("[AVM Facilitator Verify] Payment fields:", paymentFields);
       if (!paymentFields) {
+        console.error("[AVM Facilitator Verify] Missing payment fields in transaction");
         return {
           isValid: false,
           invalidReason: "invalid_exact_avm_payload_transaction",
@@ -83,10 +94,15 @@ export async function verify(
         };
       }
       to = paymentFields.receiver.toString();
+      console.log("[AVM Facilitator Verify] Payment to address:", to);
       amount = Number(paymentFields.amount ?? 0n);
+      console.log("[AVM Facilitator Verify] Payment amount:", amount);
     } else if (transaction.type === algosdk.TransactionType.axfer) {
+      console.log("[AVM Facilitator Verify] Processing asset transfer transaction");
       const assetFields = transaction.assetTransfer;
+      console.log("[AVM Facilitator Verify] Asset transfer fields:", assetFields);
       if (!assetFields) {
+        console.error("[AVM Facilitator Verify] Missing asset transfer fields in transaction");
         return {
           isValid: false,
           invalidReason: "invalid_exact_avm_payload_transaction",
@@ -94,9 +110,13 @@ export async function verify(
         };
       }
       to = assetFields.receiver.toString();
+      console.log("[AVM Facilitator Verify] Asset transfer to address:", to);
       amount = Number(assetFields.amount ?? 0n);
+      console.log("[AVM Facilitator Verify] Asset transfer amount:", amount);
       assetIndex = assetFields.assetIndex ? Number(assetFields.assetIndex) : undefined;
+      console.log("[AVM Facilitator Verify] Asset index:", assetIndex);
     } else {
+      console.error("[AVM Facilitator Verify] Unsupported transaction type:", transaction.type);
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_transaction",
@@ -105,6 +125,11 @@ export async function verify(
     }
 
     if (to !== paymentRequirements.payTo) {
+      console.error(
+        "[AVM Facilitator Verify] Recipient address does not match payment requirements:",
+        to,
+        paymentRequirements.payTo,
+      );
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_recipient",
@@ -113,7 +138,13 @@ export async function verify(
     }
 
     const requiredAmount = parseInt(paymentRequirements.maxAmountRequired, 10);
+    console.log("[AVM Facilitator Verify] Required amount:", requiredAmount);
     if (amount < requiredAmount) {
+      console.error(
+        "[AVM Facilitator Verify] Transaction amount is less than required:",
+        amount,
+        requiredAmount,
+      );
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_amount",
@@ -122,7 +153,14 @@ export async function verify(
     }
 
     const currentRound = await getCurrentRound(client);
+    console.log("[AVM Facilitator Verify] Current round:", currentRound);
     if (firstRound > currentRound || lastRound < currentRound) {
+      console.error(
+        "[AVM Facilitator Verify] Transaction not valid in current round:",
+        currentRound,
+        firstRound,
+        lastRound,
+      );
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_round_validity",
@@ -131,6 +169,7 @@ export async function verify(
     }
 
     if (!lease) {
+      console.error("[AVM Facilitator Verify] Missing lease in transaction");
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_lease",
@@ -139,7 +178,9 @@ export async function verify(
     }
 
     const isLeaseValid = verifyLease(lease, paymentRequirements);
+    console.log("[AVM Facilitator Verify] Lease validity:", isLeaseValid);
     if (!isLeaseValid) {
+      console.error("[AVM Facilitator Verify] Lease does not match payment requirements");
       return {
         isValid: false,
         invalidReason: "invalid_exact_avm_payload_lease",
@@ -148,8 +189,15 @@ export async function verify(
     }
 
     if (paymentRequirements.asset) {
+      console.log("[AVM Facilitator Verify] Verifying asset ID:", paymentRequirements.asset);
       const requiredAssetId = parseInt(paymentRequirements.asset as string, 10);
+      console.log("[AVM Facilitator Verify] Required asset ID:", requiredAssetId);
       if (assetIndex !== requiredAssetId) {
+        console.error(
+          "[AVM Facilitator Verify] Asset ID does not match payment requirements:",
+          assetIndex,
+          requiredAssetId,
+        );
         return {
           isValid: false,
           invalidReason: "invalid_exact_avm_payload_asset_id",
@@ -159,7 +207,13 @@ export async function verify(
     }
 
     const accountInfo = await client.client.accountInformation(from).do();
+    console.log("[AVM Facilitator Verify] Fetched account information:", accountInfo);
     if (accountInfo.amount < amount) {
+      console.error(
+        "[AVM Facilitator Verify] Insufficient funds in account:",
+        accountInfo.amount,
+        amount,
+      );
       return {
         isValid: false,
         invalidReason: "insufficient_funds",
@@ -168,9 +222,12 @@ export async function verify(
     }
 
     if (assetIndex) {
+      console.log("[AVM Facilitator Verify] Verifying ASA opt-in for asset ID:", assetIndex);
       try {
         const assetInfo = await client.client.accountAssetInformation(from, assetIndex).do();
+        console.log("[AVM Facilitator Verify] Fetched asset information:", assetInfo);
         if (!assetInfo.assetHolding) {
+          console.error("[AVM Facilitator Verify] Account has not opted in to the ASA");
           return {
             isValid: false,
             invalidReason: "invalid_exact_avm_payload_asa_opt_in_required",
@@ -181,12 +238,14 @@ export async function verify(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const status = (assetError as any)?.response?.statusCode ?? (assetError as any)?.statusCode;
         if (status === 404) {
+          console.error("[AVM Facilitator Verify] Account has not opted in to the ASA");
           return {
             isValid: false,
             invalidReason: "invalid_exact_avm_payload_asa_opt_in_required",
             payer: from,
           };
         }
+        console.error("[AVM Facilitator Verify] Error fetching asset information:", assetError);
         throw assetError;
       }
     }
@@ -223,13 +282,20 @@ export async function settle(
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   try {
+    console.log("[AVM Facilitator Settle] Started...");
     const exactAvmPayload = paymentPayload.payload as ExactAvmPayload;
     const signedTxn = decodeTransaction(exactAvmPayload.transaction);
+    console.log("[AVM Facilitator Settle] Decoded signed transaction:", signedTxn);
     const userTransaction = signedTxn.txn;
+    console.log("[AVM Facilitator Settle] User transaction:", userTransaction);
     const from = userTransaction.sender.toString();
+    console.log("[AVM Facilitator Settle] Transaction from address:", from);
     const firstValid = BigInt(userTransaction.firstValid ?? 0n);
+    console.log("[AVM Facilitator Settle] Transaction first valid round:", firstValid);
     const lastValid = BigInt(userTransaction.lastValid ?? 0n);
+    console.log("[AVM Facilitator Settle] Transaction last valid round:", lastValid);
     const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
+    console.log("[AVM Facilitator Settle] Fee payer address:", feePayer);
 
     // 2. Verify the payment is still valid
     const validationResult = await verify(
@@ -239,6 +305,7 @@ export async function settle(
     );
 
     if (!validationResult.isValid) {
+      console.error("[AVM Facilitator Settle] Payment validation failed:", validationResult);
       return {
         success: false,
         errorReason: validationResult.invalidReason,
@@ -247,11 +314,13 @@ export async function settle(
         payer: from,
       };
     }
+    console.log("[AVM Facilitator Settle] Validation result:", validationResult);
 
     const userTxnBytes = Buffer.from(exactAvmPayload.transaction, "base64");
     let txId;
 
     if (feePayer) {
+      console.log("[AVM Facilitator Settle] Creating atomic transaction group with fee payer");
       const standardFee = 1000;
       const feePayerTransaction = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
         sender: feePayer,
@@ -267,9 +336,11 @@ export async function settle(
           minFee: 0,
         },
       });
+      console.log("[AVM Facilitator Settle] Fee payer transaction:", feePayerTransaction);
 
       const decodedUserTxn = algosdk.decodeSignedTransaction(userTxnBytes);
       const groupID = decodedUserTxn.txn.group;
+      console.log("[AVM Facilitator Settle] User transaction group ID:", groupID);
 
       Object.defineProperty(feePayerTransaction, "group", {
         value: groupID,

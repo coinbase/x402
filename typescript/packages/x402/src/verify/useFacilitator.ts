@@ -39,13 +39,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     payload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
+    console.log("[X402 Core Facilitator Verify] Facilitator verifier starting...");
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+    console.log("[X402 Core Facilitator Verify] Using facilitator URL:", url);
 
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.verify };
     }
+    console.log("[X402 Core Facilitator Verify] Sending verify request with headers:", headers);
 
     const res = await fetch(`${url}/verify`, {
       method: "POST",
@@ -58,10 +61,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error(
+        "[X402 Core Facilitator Verify] Verify request failed:",
+        res.status,
+        res.statusText,
+      );
       throw new Error(`Failed to verify payment: ${res.statusText}`);
     }
 
     const data = await res.json();
+    console.log("[X402 Core Facilitator Verify] Verify response received:", data);
     return data as VerifyResponse;
   }
 
@@ -77,12 +86,14 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     paymentRequirements: PaymentRequirements,
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+    console.log("[X402 Core Facilitator Settle] Using facilitator URL:", url);
 
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.settle };
     }
+    console.log("[X402 Core Facilitator Settle] Sending settle request with headers:", headers);
 
     const res = await fetch(`${url}/settle`, {
       method: "POST",
@@ -95,11 +106,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error(
+        "[X402 Core Facilitator Settle] Settle request failed:",
+        res.status,
+        res.statusText,
+      );
       const text = res.statusText;
       throw new Error(`Failed to settle payment: ${res.status} ${text}`);
     }
 
     const data = await res.json();
+    console.log("[X402 Core Facilitator Settle] Settle response received:", data);
     return data as SettleResponse;
   }
 
@@ -110,13 +127,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
    */
   async function supported(): Promise<SupportedPaymentKindsResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+    console.log("[X402 Core Facilitator supported] Using facilitator URL:", url);
 
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.supported };
     }
-    console.log("Fetching supported payment kinds from", url);
+    console.log(
+      "[X402 Core Facilitator supported] Sending supported request with headers:",
+      headers,
+    );
 
     const res = await fetch(`${url}/supported`, {
       method: "GET",
@@ -124,10 +145,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error(
+        "[X402 Core Facilitator supported] Supported request failed:",
+        res.status,
+        res.statusText,
+      );
       throw new Error(`Failed to get supported payment kinds: ${res.statusText}`);
     }
 
     const data = await res.json();
+    console.log("[X402 Core Facilitator supported] Supported payment kinds received:", data);
     return data as SupportedPaymentKindsResponse;
   }
 
@@ -141,14 +168,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     config: ListDiscoveryResourcesRequest = {},
   ): Promise<ListDiscoveryResourcesResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
+    console.log("[X402 Core Facilitator List] Using facilitator URL:", url);
 
     let headers = { "Content-Type": "application/json" };
+    console.log("[X402 Core Facilitator List] Sending list request with headers:", headers);
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       if (authHeaders.list) {
         headers = { ...headers, ...authHeaders.list };
       }
     }
+    console.log("[X402 Core Facilitator List] Sending list request with headers:", headers);
 
     const urlParams = new URLSearchParams(
       Object.entries(config)
@@ -162,11 +192,17 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error(
+        "[X402 Core Facilitator List] List request failed:",
+        res.status,
+        res.statusText,
+      );
       const text = res.statusText;
       throw new Error(`Failed to list discovery: ${res.status} ${text}`);
     }
 
     const data = await res.json();
+    console.log("[X402 Core Facilitator List] List response received:", data);
     return data as ListDiscoveryResourcesResponse;
   }
 
