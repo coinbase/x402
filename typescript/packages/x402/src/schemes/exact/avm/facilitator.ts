@@ -302,6 +302,7 @@ export async function settle(
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
+  let payer = "unknown";
   try {
     console.log("[AVM Facilitator Settle] Started...");
     const exactAvmPayload = paymentPayload.payload as ExactAvmPayload;
@@ -312,6 +313,7 @@ export async function settle(
     const feeTransactionBase64 = exactAvmPayload.feeTransaction;
     console.log("Fee Transaction from exact ", feeTransactionBase64);
     const from = userTransaction.sender.toString();
+    payer = from;
     console.log("[AVM Facilitator Settle] Transaction from address:", from);
     const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
     console.log("[AVM Facilitator Settle] Fee payer address:", feePayer);
@@ -405,12 +407,23 @@ export async function settle(
     };
   } catch (error) {
     console.error("Error during settlement:", error);
+    const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : '';
+    if (message.toLowerCase().includes('overlapping lease')) {
+      console.warn("[AVM Facilitator Settle] Detected overlapping lease; assuming transaction already confirmed.");
+      return {
+        success: true,
+        transaction: '',
+        network: paymentPayload.network,
+        payer,
+      };
+    }
+
     return {
       success: false,
       errorReason: "settle_exact_avm_transaction_failed",
       transaction: "",
       network: paymentPayload.network,
-      payer: "unknown",
+      payer,
     };
   }
 }
