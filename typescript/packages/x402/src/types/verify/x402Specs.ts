@@ -127,6 +127,7 @@ export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 // x402ExactAvmPayload
 export const ExactAvmPayloadSchema = z.object({
   transaction: z.string().regex(Base64EncodedRegex),
+  feeTransaction: z.string().regex(Base64EncodedRegex),
 });
 export type ExactAvmPayload = z.infer<typeof ExactAvmPayloadSchema>;
 

@@ -15,9 +15,14 @@ import algosdk from "algosdk";
  * @param encodedTxn - The base64-encoded transaction string
  * @returns The decoded Algorand transaction
  */
-function decodeTransaction(encodedTxn: string): algosdk.SignedTransaction {
+function decodeSignedTransaction(encodedTxn: string): algosdk.SignedTransaction {
   const txnBytes = Buffer.from(encodedTxn, "base64");
   return algosdk.decodeSignedTransaction(txnBytes);
+}
+
+function decodeTransaction(encodedTxn: string): algosdk.Transaction {
+  const txnBytes = Buffer.from(encodedTxn, "base64");
+  return algosdk.decodeUnsignedTransaction(txnBytes);
 }
 
 /**
@@ -63,7 +68,7 @@ export async function verify(
     const exactAvmPayload = payload.payload as ExactAvmPayload;
     console.log("[AVM Facilitator Verify] exactAvmPayload:", exactAvmPayload);
 
-    const signedTxn = decodeTransaction(exactAvmPayload.transaction);
+    const signedTxn = decodeSignedTransaction(exactAvmPayload.transaction);
     console.log("[AVM Facilitator Verify] Decoded signed transaction:", signedTxn);
     const transaction = signedTxn.txn;
     console.log("[AVM Facilitator Verify] Decoded signed transaction:", transaction);
@@ -263,6 +268,24 @@ export async function verify(
     };
   }
 }
+/**
+ * Concatenates an array of Uint8Array into a single Uint8Array.
+ *
+ * @param array - Array of Uint8Array to concatenate
+ * @returns A single Uint8Array containing all elements
+ */
+function concatArrays(array: Uint8Array[]): Uint8Array {
+  const size = array.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
+  const c = new Uint8Array(size);
+
+  let offset = 0;
+  for (let i = 0; i < array.length; i++) {
+    c.set(array[i], offset);
+    offset += array[i].length;
+  }
+
+  return c;
+}
 
 /**
  * Settles a payment by executing an Algorand transaction
@@ -284,10 +307,14 @@ export async function settle(
   try {
     console.log("[AVM Facilitator Settle] Started...");
     const exactAvmPayload = paymentPayload.payload as ExactAvmPayload;
-    const signedTxn = decodeTransaction(exactAvmPayload.transaction);
+    const signedTxn = decodeSignedTransaction(exactAvmPayload.transaction);
     console.log("[AVM Facilitator Settle] Decoded signed transaction:", signedTxn);
     const userTransaction = signedTxn.txn;
     console.log("[AVM Facilitator Settle] User transaction:", userTransaction);
+    const feeTransactionBase64 = exactAvmPayload.feeTransaction;
+    console.log("Fee Transaction from exact ", exactAvmPayload.feeTransaction)
+    const feeTransaction = decodeTransaction(feeTransactionBase64);
+    console.log("[AVM Facilitator Settle] Fee transaction:", feeTransaction);
     const from = userTransaction.sender.toString();
     console.log("[AVM Facilitator Settle] Transaction from address:", from);
     const firstValid = BigInt(userTransaction.firstValid ?? 0n);
@@ -317,43 +344,50 @@ export async function settle(
     console.log("[AVM Facilitator Settle] Validation result:", validationResult);
 
     const userTxnBytes = Buffer.from(exactAvmPayload.transaction, "base64");
+    console.log("[AVM Facilitator Settle] User transaction bytes:", userTxnBytes);
     let txId;
 
     if (feePayer) {
       console.log("[AVM Facilitator Settle] Creating atomic transaction group with fee payer");
-      const standardFee = 1000;
-      const feePayerTransaction = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        sender: feePayer,
-        receiver: feePayer,
-        amount: 0,
-        suggestedParams: {
-          flatFee: true,
-          fee: standardFee * 2,
-          firstValid,
-          lastValid,
-          genesisHash: userTransaction.genesisHash,
-          genesisID: userTransaction.genesisID,
-          minFee: 0,
-        },
-      });
-      console.log("[AVM Facilitator Settle] Fee payer transaction:", feePayerTransaction);
+      // const standardFee = 1000;
+      // const feePayerTransaction = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+      //   sender: feePayer,
+      //   receiver: feePayer,
+      //   amount: 0,
+      //   suggestedParams: {
+      //     flatFee: true,
+      //     fee: standardFee * 2,
+      //     firstValid,
+      //     lastValid,
+      //     genesisHash: userTransaction.genesisHash,
+      //     genesisID: userTransaction.genesisID,
+      //     minFee: 0,
+      //   },
+      // });
+      // console.log("[AVM Facilitator Settle] Fee payer transaction:", feePayerTransaction);
 
-      const decodedUserTxn = algosdk.decodeSignedTransaction(userTxnBytes);
-      const groupID = decodedUserTxn.txn.group;
-      console.log("[AVM Facilitator Settle] User transaction group ID:", groupID);
+      // const decodedUserTxn = algosdk.decodeSignedTransaction(userTxnBytes);
+      // const groupID = decodedUserTxn.txn.group;
+      // console.log("[AVM Facilitator Settle] User transaction group ID:", groupID);
 
-      Object.defineProperty(feePayerTransaction, "group", {
-        value: groupID,
-        writable: true,
-        configurable: true,
-      });
+      // Object.defineProperty(feePayerTransaction, "group", {
+      //   value: groupID,
+      //   writable: true,
+      //   configurable: true,
+      // });
 
-      const signedFeePayerTxn = await wallet.signTransactions([feePayerTransaction.toByte()]);
-      const txnGroup = [userTxnBytes, signedFeePayerTxn[0]].filter(
-        (tx): tx is Uint8Array => tx !== null && tx !== undefined,
-      );
-      txId = await wallet.client.sendRawTransaction(txnGroup).do();
+      // const signedFeePayerTxn = await wallet.signTransactions([feePayerTransaction.toByte()]);
+      const signedFeePayerTxn = await wallet.signTransactions([feeTransaction.toByte()]);
+      // const txnGroup = [userTxnBytes, signedFeePayerTxn[0]].filter(
+      //   (tx): tx is Uint8Array => tx !== null && tx !== undefined,
+      // );
+      if (signedFeePayerTxn && signedFeePayerTxn[0]) {
+        const txnGroup = concatArrays([userTxnBytes, signedFeePayerTxn[0]]);
+        txId = await wallet.client.sendRawTransaction(txnGroup).do();
+      }
+      throw new Error("Fee payer transaction signing failed");
     } else {
+      console.log("Sending single All-In user transction");
       txId = await wallet.client.sendRawTransaction([userTxnBytes]).do();
     }
 
