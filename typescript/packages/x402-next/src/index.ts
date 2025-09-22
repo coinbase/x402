@@ -137,6 +137,7 @@ export function paymentMiddleware(
       return new NextResponse(atomicAmountForAsset.error, { status: 500 });
     }
     const { maxAmountRequired, asset } = atomicAmountForAsset;
+    console.log("[X402 Payment MiddleWare] Price processed to atomic amount:", maxAmountRequired);
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
