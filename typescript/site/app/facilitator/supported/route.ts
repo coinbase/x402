@@ -16,6 +16,14 @@ export async function GET() {
       {
         x402Version: 1,
         scheme: "exact",
+        network: "solana-devnet",
+        extra: {
+          feePayer: process.env.SOLANA_ADDRESS,
+        },
+      },
+      {
+        x402Version: 1,
+        scheme: "exact",
         network: "polygon-amoy",
       },
       {

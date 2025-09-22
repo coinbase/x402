@@ -1,6 +1,6 @@
 {
   "name": "x402",
-  "version": "0.5.2",
+  "version": "0.6.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -50,6 +50,12 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@scure/base": "^1.2.6",
+    "@solana-program/compute-budget": "^0.8.0",
+    "@solana-program/token": "^0.5.1",
+    "@solana-program/token-2022": "^0.4.2",
+    "@solana/kit": "^2.1.1",
+    "@solana/transaction-confirmation": "^2.1.1",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
     "zod": "^3.24.2"

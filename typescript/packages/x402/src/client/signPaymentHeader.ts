@@ -1,7 +1,6 @@
 import { signPaymentHeader as signPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
-import { SupportedEVMNetworks } from "../types/shared";
-import { SignerWallet } from "../types/shared/evm";
+import { isEvmSignerWallet, isMultiNetworkSigner, MultiNetworkSigner, Signer, SupportedEVMNetworks } from "../types/shared";
 import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
 
 /**
@@ -13,7 +12,7 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
  * @returns A promise that resolves to the encoded signed payment header string
  */
 export async function signPaymentHeader(
-  client: SignerWallet,
+  client: Signer | MultiNetworkSigner,
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<string> {
@@ -21,7 +20,12 @@ export async function signPaymentHeader(
     paymentRequirements.scheme === "exact" &&
     SupportedEVMNetworks.includes(paymentRequirements.network)
   ) {
-    const signedPaymentHeader = await signPaymentHeaderExactEVM(client, paymentRequirements, unsignedPaymentHeader);
+    const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
+
+    if (!isEvmSignerWallet(evmClient)) {
+      throw new Error("Invalid evm wallet client provided");
+    }
+    const signedPaymentHeader = await signPaymentHeaderExactEVM(evmClient, paymentRequirements, unsignedPaymentHeader);
     return encodePayment(signedPaymentHeader);
   }
 

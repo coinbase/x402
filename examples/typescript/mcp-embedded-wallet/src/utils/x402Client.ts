@@ -2,8 +2,9 @@ import axios from "axios";
 import { base, baseSepolia } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
+import { budgetStore } from "../stores/budget";
 import { operationStore, SettlementInfo } from "../stores/operations";
-import { getBlockExplorerUrl, formatUSDCAmount } from "./chainConfig";
+import { getBlockExplorerUrl, formatUSDC } from "./chainConfig";
 import { createPaymentTrackingInterceptor, PaymentInterceptorError } from "./paymentInterceptor";
 import { handle402Error, handleNon402Error, type ErrorHandlingContext } from "./x402ErrorHandler";
 import { getCurrentUser, toViemAccount } from "@coinbase/cdp-core";
@@ -16,6 +17,7 @@ export type X402RequestParams = {
   queryParams?: Record<string, string>;
   body?: unknown;
   correlationId?: string;
+  maxAmountPerRequest?: number;
   paymentRequirements?: PaymentRequirements[]; // Can be provided via discovery or directly
 };
 
@@ -30,6 +32,7 @@ export type X402RequestParams = {
  * @param root0.queryParams - Optional query parameters to include in the URL
  * @param root0.body - Optional request body data
  * @param root0.correlationId - Optional ID to correlate operations (auto-generated if not provided)
+ * @param root0.maxAmountPerRequest - Optional max amount per request
  * @param root0.paymentRequirements - Optional pre-discovered payment requirements
  * @returns {Promise<{status: number; statusText: string; data: unknown; headers: Record<string, string>}>} The response data
  * @throws {PaymentInterceptorError} If payment requirements cannot be met
@@ -42,6 +45,7 @@ export async function makeX402Request({
   queryParams,
   body,
   correlationId,
+  maxAmountPerRequest,
   paymentRequirements,
 }: X402RequestParams) {
   const user = await getCurrentUser();
@@ -58,6 +62,15 @@ export async function makeX402Request({
   const finalCorrelationId =
     correlationId || `x402-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+  // Resolve max per-request budget: use explicit param if provided, otherwise pull from store (atomic)
+  const storePerRequestMaxAtomic = budgetStore.getState().perRequestMaxAtomic;
+  const effectiveMaxAmountPerRequest =
+    typeof maxAmountPerRequest === "number"
+      ? maxAmountPerRequest
+      : storePerRequestMaxAtomic
+        ? Number(storePerRequestMaxAtomic)
+        : undefined;
+
   // Create axios instance with payment tracking interceptors
   const axiosInstance = axios.create({ baseURL });
   const trackedInstance = createPaymentTrackingInterceptor(
@@ -65,6 +78,7 @@ export async function makeX402Request({
     finalCorrelationId,
     account.address,
     chain,
+    effectiveMaxAmountPerRequest,
     paymentRequirements, // Pass pre-discovered payment requirements
   );
   // Cast to any to work around axios version mismatch between dependencies
@@ -87,8 +101,10 @@ export async function makeX402Request({
           `${baseURL}${path}`,
           undefined,
           finalCorrelationId,
+          maxAmountPerRequest,
           paymentRequirements,
           paymentRequirements[0],
+          undefined,
         );
     } else {
       console.log(`Making ${method} request to ${baseURL}${path}`);
@@ -224,7 +240,7 @@ async function updateOperationForSuccess(
       operationStore.getState().updateHttpOperation(index, {
         description: `Payment required: ${
           operation.selectedPayment
-            ? formatUSDCAmount(operation.selectedPayment.maxAmountRequired)
+            ? formatUSDC(operation.selectedPayment.maxAmountRequired)
             : "unknown amount"
         }`,
         status: "success",
@@ -232,6 +248,16 @@ async function updateOperationForSuccess(
         settlementInfo: settlementInfo, // Add settlement info with transaction hash
       });
       httpOperationUpdated = true;
+
+      // Increment session spent using the selected payment's maxAmountRequired (atomic)
+      const amountAtomic = operation.selectedPayment?.maxAmountRequired;
+      if (amountAtomic) {
+        try {
+          budgetStore.getState().addSpentAtomic(amountAtomic);
+        } catch {
+          // ignore budget update failures
+        }
+      }
     }
   });
 
@@ -244,6 +270,7 @@ async function updateOperationForSuccess(
       `${baseURL}${path}`,
       undefined,
       correlationId,
+      undefined, // maxAmountPerRequest
       undefined, // paymentRequirements
       undefined, // selectedPayment
       settlementInfo, // Include settlement info

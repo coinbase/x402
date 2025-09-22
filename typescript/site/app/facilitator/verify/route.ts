@@ -3,8 +3,11 @@ import {
   PaymentPayloadSchema,
   PaymentRequirements,
   PaymentRequirementsSchema,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
   VerifyResponse,
-  evm,
+  createConnectedClient,
+  createSigner,
 } from "x402/types";
 import { verify } from "x402/facilitator";
 
@@ -12,9 +15,6 @@ type VerifyRequest = {
   paymentPayload: PaymentPayload;
   paymentRequirements: PaymentRequirements;
 };
-
-const network = process.env.NETWORK ?? "base-sepolia";
-const client = evm.createConnectedClient(network);
 
 /**
  * Handles POST requests to verify x402 payments
@@ -25,6 +25,23 @@ const client = evm.createConnectedClient(network);
 export async function POST(req: Request) {
   const body: VerifyRequest = await req.json();
 
+  const network = body.paymentRequirements.network;
+  const client = SupportedEVMNetworks.includes(network)
+    ? createConnectedClient(body.paymentRequirements.network)
+    : SupportedSVMNetworks.includes(network)
+      ? await createSigner(network, process.env.SOLANA_PRIVATE_KEY)
+      : undefined;
+
+  if (!client) {
+    return Response.json(
+      {
+        isValid: false,
+        invalidReason: "invalid_network",
+      } as VerifyResponse,
+      { status: 400 },
+    );
+  }
+
   let paymentPayload: PaymentPayload;
   try {
     paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
@@ -34,7 +51,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "invalid_payload",
-        payer: body.paymentPayload?.payload?.authorization?.from ?? "",
+        payer:
+          body.paymentPayload?.payload && "authorization" in body.paymentPayload.payload
+            ? body.paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 400 },
     );
@@ -49,7 +69,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "invalid_payment_requirements",
-        payer: paymentPayload.payload.authorization.from,
+        payer:
+          "authorization" in paymentPayload.payload
+            ? paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 400 },
     );
@@ -64,7 +87,10 @@ export async function POST(req: Request) {
       {
         isValid: false,
         invalidReason: "unexpected_verify_error",
-        payer: paymentPayload.payload.authorization.from,
+        payer:
+          "authorization" in paymentPayload.payload
+            ? paymentPayload.payload.authorization.from
+            : "",
       } as VerifyResponse,
       { status: 500 },
     );

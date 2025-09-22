@@ -10,20 +10,20 @@ declare module "x402/facilitator" {
     SettleResponse,
   } from "x402/types/verify";
 
-  // Define a simpler client type that won't cause deep type instantiation
+  // Define a minimal client type that works for both EVM and Solana signers
   type SimpleClient = {
-    chain: { id: number };
-    request: (...args: unknown[]) => Promise<unknown>;
+    [key: string]: unknown; // Allow any additional properties to avoid deep type instantiation issues
+    address?: string; // Optional to handle both EVM and Solana address formats
   };
 
   export function verify(
-    client: SimpleClient, // Using a simpler client type to avoid deep type instantiation
+    client: SimpleClient, // Using simpler client types to avoid deep type instantiation
     payload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse>;
 
   export function settle(
-    client: SimpleClient, // Using a simpler client type to avoid deep type instantiation
+    client: SimpleClient, // Using simpler client types to avoid deep type instantiation
     payload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
   ): Promise<SettleResponse>;

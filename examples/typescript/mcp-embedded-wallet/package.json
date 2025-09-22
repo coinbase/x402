@@ -38,6 +38,7 @@
     "electron-builder": "^26.0.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-qr-code": "^2.0.15",
     "turbo": "^2.5.5",
     "viem": "^2.21.26",
     "winston": "^3.17.0",

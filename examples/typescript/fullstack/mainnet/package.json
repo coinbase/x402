@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "next": "canary",
+    "next": "^15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "viem": "^2.21.26",

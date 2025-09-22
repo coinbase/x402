@@ -22,8 +22,8 @@ load_dotenv()
 
 # Get configuration from environment
 USE_CDP_FACILITATOR = os.getenv("USE_CDP_FACILITATOR", "false").lower() == "true"
-NETWORK = os.getenv("NETWORK", "base-sepolia")
-ADDRESS = os.getenv("ADDRESS")
+NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
+ADDRESS = os.getenv("EVM_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
 
 # CDP facilitator configuration

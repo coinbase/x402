@@ -1,48 +1,44 @@
 import express from "express";
-import { Network, paymentMiddleware } from "x402-express";
+import { Network, paymentMiddleware, SolanaAddress } from "x402-express";
 import { facilitator } from "@coinbase/x402";
 import dotenv from "dotenv";
-import { getDefaultAsset } from "x402/shared";
 
 dotenv.config();
 
 const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
-const network = process.env.NETWORK as Network;
-const payTo = process.env.ADDRESS as `0x${string}`;
+const evmNetwork = process.env.EVM_NETWORK as Network;
+const svmNetwork = process.env.SVM_NETWORK as Network;
+const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
+const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
 const port = process.env.PORT || "4021";
 
-if (!payTo || !network) {
+if (!payToEvm || !evmNetwork) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
-
-const asset = getDefaultAsset(network)
 
 const app = express();
 
 app.use(
   paymentMiddleware(
-    payTo,
+    payToEvm,
     {
-      // Price defined as Money
       "GET /protected": {
         price: "$0.001",
-        network,
+        network: evmNetwork,
       },
-      // Price defined as ERC20TokenAmount
-      "GET /protected-2": {
-        price: {
-          amount: "1000",
-          asset: {
-            address: asset.address,
-            decimals: asset.decimals,
-            eip712: {
-              name: asset.eip712.name,
-              version: asset.eip712.version,
-            },
-          }
-        },
-        network,
+    },
+    useCdpFacilitator ? facilitator : undefined
+  ),
+);
+
+app.use(
+  paymentMiddleware(
+    payToSvm,
+    {
+      "GET /protected-svm": {
+        price: "$0.001",
+        network: svmNetwork,
       },
     },
     useCdpFacilitator ? facilitator : undefined
@@ -56,7 +52,7 @@ app.get("/protected", (req, res) => {
   });
 });
 
-app.get("/protected-2", (req, res) => {
+app.get("/protected-svm", (req, res) => {
   res.json({
     message: "Protected endpoint #2 accessed successfully",
     timestamp: new Date().toISOString(),

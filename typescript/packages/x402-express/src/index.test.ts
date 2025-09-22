@@ -11,12 +11,15 @@ import {
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { paymentMiddleware } from "./index";
+import { Address as SolanaAddress } from "@solana/kit";
 
 // Mock dependencies
 vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn().mockReturnValue({
     verify: vi.fn(),
     settle: vi.fn(),
+    supported: vi.fn(),
+    list: vi.fn(),
   }),
 }));
 
@@ -94,6 +97,8 @@ describe("paymentMiddleware()", () => {
   let middleware: ReturnType<typeof paymentMiddleware>;
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
+  let mockSupported: ReturnType<typeof useFacilitator>["supported"];
+  let mockList: ReturnType<typeof useFacilitator>["list"];
 
   const middlewareConfig: PaymentMiddlewareConfig = {
     description: "Test payment",
@@ -166,10 +171,14 @@ describe("paymentMiddleware()", () => {
     mockNext = vi.fn();
     mockVerify = vi.fn();
     mockSettle = vi.fn();
+    mockSupported = vi.fn();
+    mockList = vi.fn();
 
     vi.mocked(useFacilitator).mockReturnValue({
       verify: mockVerify,
       settle: mockSettle,
+      supported: mockSupported,
+      list: mockList,
     });
 
     // Setup paywall HTML mock
@@ -276,6 +285,39 @@ describe("paymentMiddleware()", () => {
     });
   });
 
+  it("should return 402 if payment verification throws an error", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Unexpected error"));
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: new Error("Unexpected error"),
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
   it("should handle settlement after response", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
@@ -302,7 +344,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.setHeader).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
   });
 
-  it("should handle settlement failure before response is sent", async () => {
+  it("should handle settle throwing an error before response is sent", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
     };
@@ -315,6 +357,46 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
       error: new Error("Settlement failed"),
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
+  it("should handle unsuccessful settle before resource response is sent", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      errorReason: "invalid_transaction_state",
+      transaction: "0x123",
+      network: "base-sepolia",
+      payer: "0x123",
+    });
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: "invalid_transaction_state",
       accepts: [
         {
           scheme: "exact",
@@ -387,6 +469,126 @@ describe("paymentMiddleware()", () => {
     // make assertions
     expect(mockSettle).not.toHaveBeenCalled();
     expect(mockRes.statusCode).toBe(500);
+  });
+
+  it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddress12345";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana-devnet",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "solana-devnet",
+        config: middlewareConfig,
+      },
+    });
+
+    middleware = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana-devnet",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({
+              feePayer: feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+  });
+
+  it("should return 402 with feePayer for solana mainnet when no payment header is present", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const feePayer = "FeePayerAddressMainnet";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    });
+
+    middleware = paymentMiddleware(
+      solanaPayTo as SolanaAddress,
+      solanaRoutesConfig,
+      facilitatorConfig,
+    );
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({
+              feePayer: feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
   });
 
   describe("session token integration", () => {
