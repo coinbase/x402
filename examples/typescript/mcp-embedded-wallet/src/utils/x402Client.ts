@@ -139,9 +139,8 @@ export async function makeX402Request({
     if (paymentResponseHeader) {
       try {
         settlementInfo = JSON.parse(atob(paymentResponseHeader));
-        console.log(`Settlement info captured:`, settlementInfo);
       } catch (error) {
-        console.warn("Failed to parse X-PAYMENT-RESPONSE header:", error);
+        console.error("Failed to parse X-PAYMENT-RESPONSE header:", error);
       }
     }
 
@@ -158,7 +157,7 @@ export async function makeX402Request({
     // Check if this error was already handled by the payment interceptor
     if (error instanceof PaymentInterceptorError) {
       // Operations have already been updated by the interceptor, just re-throw
-      console.log(`Payment interceptor already handled error: ${error.message}`);
+      console.error(`Payment interceptor already handled error: ${error.message}`);
       throw error;
     }
 

@@ -38,7 +38,6 @@ async function resolveAlgorandPrice(): Promise<Price> {
 
   const assetId = Number(assetEnv);
   if (!Number.isFinite(assetId) || assetId < 0) {
-    console.warn("[x402 site] Invalid ASSET env value. Falling back to default price.");
     return fallback;
   }
 
@@ -46,7 +45,6 @@ async function resolveAlgorandPrice(): Promise<Price> {
     // Native ALGO pricing
     const priceValue = Number(priceEnv);
     if (!Number.isFinite(priceValue)) {
-      console.warn("[x402 site] Invalid PRICE env value. Falling back to default.");
       return fallback;
     }
     const decimals = 6;
@@ -65,7 +63,6 @@ async function resolveAlgorandPrice(): Promise<Price> {
     const priceValue = Number(priceEnv);
 
     if (!Number.isFinite(priceValue)) {
-      console.warn("[x402 site] Invalid PRICE env value. Falling back to default.");
       return fallback;
     }
     return {
@@ -73,7 +70,7 @@ async function resolveAlgorandPrice(): Promise<Price> {
       asset: { id: `${assetId}`, decimals, name: assetInfo?.params?.name ?? `${assetId}` },
     };
   } catch (error) {
-    console.error("[x402 site] Failed to fetch Algorand ASA info.", error);
+    console.error("Failed to fetch Algorand ASA info.", error);
     return fallback;
   }
 }

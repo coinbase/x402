@@ -541,9 +541,7 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
           version,
           validPaymentRequirements,
         );
-        console.log("[AVM Paywall] Created payment:", payment);
         const header = exact.avm.encodePayment(payment);
-        console.log("[AVM Paywall] Created header:", header);
         setStatus("Submitting payment...");
         const response = await fetch(config.currentUrl, {
           headers: {
