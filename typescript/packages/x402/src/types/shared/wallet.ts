@@ -9,7 +9,7 @@ export type ConnectedClient =
   | svm.SvmConnectedClient
   | avm.AlgorandClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner | avm.WalletAccount;
-export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
+export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner; avm?: avm.WalletAccount };
 
 /**
  * Creates a public client configured for the specified network.
@@ -75,6 +75,18 @@ export function isAvmSignerWallet(wallet: Signer): wallet is avm.WalletAccount {
     typeof (wallet as avm.WalletAccount)?.address === "string" &&
     typeof (wallet as avm.WalletAccount)?.signTransactions === "function"
   );
+}
+
+export function resolveAvmWallet(wallet: Signer | MultiNetworkSigner): avm.WalletAccount | undefined {
+  if (isMultiNetworkSigner(wallet)) {
+    return wallet.avm;
+  }
+
+  if (isAvmSignerWallet(wallet)) {
+    return wallet;
+  }
+
+  return undefined;
 }
 
 /**

@@ -162,7 +162,10 @@ describe("AVM client signPaymentHeader", () => {
 
     const signed = await signPaymentHeader(wallet, paymentRequirements, unsignedHeader);
 
-    expect(wallet.signTransactions).toHaveBeenCalledWith([expect.any(Uint8Array)]);
+    expect(wallet.signTransactions).toHaveBeenCalledWith(
+      [expect.any(Uint8Array), expect.any(Uint8Array)],
+      [0],
+    );
     expect(signed.payload.transaction).toBe(Buffer.from([1, 2, 3]).toString("base64"));
     expect("transactionGroup" in signed).toBe(false);
   });

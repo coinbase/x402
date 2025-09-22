@@ -7,6 +7,7 @@ import {
   MultiNetworkSigner,
   isMultiNetworkSigner,
   isSvmSignerWallet,
+  isAvmSignerWallet,
   Network,
   evm,
 } from "x402/types";
@@ -75,7 +76,9 @@ export function withPaymentInterceptor(
             ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
             : isSvmSignerWallet(walletClient as Signer)
               ? (["solana", "solana-devnet"] as Network[])
-              : undefined;
+              : isAvmSignerWallet(walletClient as Signer)
+                ? (["algorand", "algorand-testnet"] as Network[])
+                : undefined;
 
         const selectedPaymentRequirements = paymentRequirementsSelector(parsed, network, "exact");
         const paymentHeader = await createPaymentHeader(
