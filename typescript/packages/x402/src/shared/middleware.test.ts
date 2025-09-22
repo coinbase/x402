@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { computeRoutePatterns, findMatchingRoute, getDefaultAsset, processPriceToAtomicAmount } from "./middleware";
+import {
+  computeRoutePatterns,
+  findMatchingRoute,
+  getDefaultAsset,
+  processPriceToAtomicAmount,
+} from "./middleware";
 import type { RoutesConfig } from "./middleware";
 import type { Network } from "./network";
 
