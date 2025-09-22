@@ -6,7 +6,6 @@ import { SupportedPaymentKindsResponse } from "x402/types";
  * @returns A JSON response containing the list of supported payment kinds
  */
 export async function GET() {
-  const algorandFeePayer = process.env.ALGORAND_FEE_PAYER;
   const kinds: SupportedPaymentKindsResponse["kinds"] = [
     {
       x402Version: 1,
@@ -24,6 +23,7 @@ export async function GET() {
   ];
 
   if (process.env.NETWORK === "algorand" || process.env.NETWORK === "algorand-testnet") {
+    const algorandFeePayer = process.env.ALGORAND_FEE_PAYER;
     kinds.push({
       x402Version: 1,
       scheme: "exact",
