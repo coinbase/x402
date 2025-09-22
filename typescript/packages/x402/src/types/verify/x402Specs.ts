@@ -136,7 +136,7 @@ export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, ExactAvmPayloadSchema]),
+  payload: z.union([ExactAvmPayloadSchema, ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {

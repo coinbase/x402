@@ -42,6 +42,8 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     console.log("[X402 Core Facilitator Verify] Facilitator verifier starting...");
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
     console.log("[X402 Core Facilitator Verify] Using facilitator URL:", url);
+    console.log("[X402 Core Facilitator Verify] Verifying payload:", payload);
+    console.log("[X402 Core Facilitator Verify] With payment requirements:", paymentRequirements);
 
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
@@ -49,14 +51,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       headers = { ...headers, ...authHeaders.verify };
     }
     console.log("[X402 Core Facilitator Verify] Sending verify request with headers:", headers);
-
+    const paymentPayload = toJsonSafe(payload);
+    console.log("[X402 Core Facilitator Verify] Payment payload (JSON safe):", paymentPayload);
+    const paymentRequirementsSafe = toJsonSafe(paymentRequirements);
     const res = await fetch(`${url}/verify`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         x402Version: payload.x402Version,
-        paymentPayload: toJsonSafe(payload),
-        paymentRequirements: toJsonSafe(paymentRequirements),
+        paymentPayload,
+        paymentRequirements: paymentRequirementsSafe,
       }),
     });
 
