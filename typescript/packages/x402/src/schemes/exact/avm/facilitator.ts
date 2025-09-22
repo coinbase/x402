@@ -192,7 +192,7 @@ export async function verify(
       console.log("[AVM Facilitator Verify] Verifying asset ID:", paymentRequirements.asset);
       const requiredAssetId = parseInt(paymentRequirements.asset as string, 10);
       console.log("[AVM Facilitator Verify] Required asset ID:", requiredAssetId);
-      if (assetIndex !== requiredAssetId) {
+      if (Number(requiredAssetId) !== 0 && assetIndex !== requiredAssetId) {
         console.error(
           "[AVM Facilitator Verify] Asset ID does not match payment requirements:",
           assetIndex,
