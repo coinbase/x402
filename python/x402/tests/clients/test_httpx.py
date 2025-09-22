@@ -1,6 +1,7 @@
 import pytest
 import json
 import base64
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import Request, Response
 from eth_account import Account
@@ -57,9 +58,10 @@ async def test_on_response_non_402(hooks):
 
 
 async def test_on_response_retry(hooks):
-    # Test retry response
+    # Test retry response using request extensions
     response = Response(402)
-    hooks._is_retry = True
+    response.request = Request("GET", "https://example.com")
+    response.request.extensions["x402_is_retry"] = True
     result = await hooks.on_response(response)
     assert result == response
 
@@ -156,9 +158,6 @@ async def test_on_response_payment_error(hooks, payment_requirements):
     with pytest.raises(PaymentError):
         await hooks.on_response(response)
 
-    # Verify retry flag is reset
-    assert not hooks._is_retry
-
 
 async def test_on_response_general_error(hooks):
     # Create initial 402 response with invalid JSON
@@ -170,8 +169,59 @@ async def test_on_response_general_error(hooks):
     with pytest.raises(PaymentError):
         await hooks.on_response(response)
 
-    # Verify retry flag is reset
-    assert not hooks._is_retry
+
+async def test_concurrent_payment_requests(hooks, payment_requirements):
+    """Test that concurrent payment requests are handled properly without shared state conflicts."""
+    # Mock the payment required response
+    payment_response = x402PaymentRequiredResponse(
+        x402_version=1,
+        accepts=[payment_requirements],
+        error="Payment Required",
+    )
+
+    # Create multiple 402 responses for concurrent requests
+    responses = []
+    for i in range(5):
+        response = Response(402)
+        response.request = Request("GET", f"https://example.com/request-{i}")
+        response._content = json.dumps(payment_response.model_dump(by_alias=True)).encode()
+        responses.append(response)
+
+    # Mock successful retry responses
+    retry_response = Response(200)
+    retry_response.headers = {"X-Payment-Response": "success"}
+
+    # Mock the AsyncClient
+    mock_client = AsyncMock()
+    mock_client.send.return_value = retry_response
+    mock_client.__aenter__.return_value = mock_client
+
+    # Mock the client methods
+    hooks.client.select_payment_requirements = MagicMock(
+        return_value=payment_requirements
+    )
+    hooks.client.create_payment_header = MagicMock(return_value="mock_payment_header")
+
+    # Process all requests concurrently
+    with patch("x402.clients.httpx.AsyncClient", return_value=mock_client):
+        tasks = [hooks.on_response(response) for response in responses]
+        results = await asyncio.gather(*tasks)
+
+        # Verify all requests succeeded
+        for i, result in enumerate(results):
+            assert result.status_code == 200, f"Request {i} failed with status {result.status_code}"
+
+        # Verify each request was marked as retry independently
+        for i, response in enumerate(responses):
+            assert response.request.extensions.get("x402_is_retry") is True, f"Request {i} was not marked as retry"
+
+        # Verify all retry requests were made
+        assert mock_client.send.call_count == 5
+
+        # Verify payment headers were added to all requests
+        for call_args in mock_client.send.call_args_list:
+            retry_request = call_args[0][0]
+            assert retry_request.headers["X-Payment"] == "mock_payment_header"
 
 
 def test_x402_payment_hooks(account):
