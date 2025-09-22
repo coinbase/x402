@@ -179,11 +179,6 @@ export async function preparePaymentHeader(
     paymentRequirements.asset ? parseInt(paymentRequirements.asset as string, 10) : undefined,
     feePayer,
   );
-  console.log("[AVM Client Prepare] Fee payer:", feePayer);
-  console.log(
-    "[AVM Client Prepare] Created transaction group has fee payer txn:",
-    Boolean(atomicGroup.feePayerTransaction),
-  );
 
   return {
     x402Version,
@@ -251,7 +246,6 @@ export async function signPaymentHeader(
   }
 
   const signedTransaction = Buffer.from(signedUserTxn).toString("base64");
-  console.log("[AVM Client Sign] Fee payer transaction present:", Boolean(feePayerTransaction));
   const payload: ExactAvmPayload = feePayerTransaction
     ? {
         transaction: signedTransaction,
@@ -260,7 +254,6 @@ export async function signPaymentHeader(
     : {
         transaction: signedTransaction,
       };
-  console.log("[AVM Client Sign] Built payload:", payload);
 
   const { transactionGroup: _ignoredTransactionGroup, ...unsignedWithoutGroup } = unsignedPaymentHeader;
 
