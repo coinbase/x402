@@ -472,7 +472,9 @@ export function paymentMiddleware(
             }),
           ),
         );
+        return response;
       }
+      throw new Error(settlement.errorReason || "Settlement faild!");
     } catch (error) {
       console.error("[X402 Payment MiddleWare] Payment settlement failed (Return 402):", error);
       return new NextResponse(
@@ -486,8 +488,6 @@ export function paymentMiddleware(
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
-
-    return response;
   };
 }
 
