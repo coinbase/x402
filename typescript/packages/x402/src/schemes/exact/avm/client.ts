@@ -231,14 +231,12 @@ export async function signPaymentHeader(
     throw new Error("Transaction group is missing from unsigned payment header");
   }
 
-  const { userTransaction } = transactionGroup;
+  const { userTransaction, feePayerTransaction } = transactionGroup;
 
-  const txnGroupBytes: Uint8Array[] = [userTransaction.toByte()];
-  if (transactionGroup.feePayerTransaction) {
-    txnGroupBytes.push(transactionGroup.feePayerTransaction.toByte());
-  }
+  const txnGroupBytes: Uint8Array[] = feePayerTransaction ? [userTransaction.toByte(), feePayerTransaction?.toByte()] : [userTransaction.toByte()];
+  
 
-  const indexesToSign = transactionGroup.feePayerTransaction ? [0] : undefined;
+  const indexesToSign = [0];
   const signedTxnGroup = await wallet.signTransactions(txnGroupBytes, indexesToSign);
   const signedUserTxn = signedTxnGroup[0];
   if (!signedUserTxn) {
@@ -246,14 +244,15 @@ export async function signPaymentHeader(
   }
 
   const signedTransaction = Buffer.from(signedUserTxn).toString("base64");
+  const feeTransaction = feePayerTransaction ? Buffer.from(feePayerTransaction.toByte()).toString("base64"): null
 
-  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-  const { transactionGroup: _transactionGroup, ...payloadWithoutGroup } = unsignedPaymentHeader;
+
 
   return {
-    ...payloadWithoutGroup,
+    ...unsignedPaymentHeader,
     payload: {
       transaction: signedTransaction,
+      feeTransaction: feeTransaction
     } as ExactAvmPayload,
   };
 }
