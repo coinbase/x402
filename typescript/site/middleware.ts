@@ -68,10 +68,9 @@ async function resolveAlgorandPrice(): Promise<Price> {
       console.warn("[x402 site] Invalid PRICE env value. Falling back to default.");
       return fallback;
     }
-
     return {
       amount: Math.round(priceValue * 10 ** decimals).toString(),
-      asset: { id: `${assetId}`, decimals, name:  assetInfo?.params?.decimals ?? `${assetId}`},
+      asset: { id: `${assetId}`, decimals, name: assetInfo?.params?.name ?? `${assetId}` },
     };
   } catch (error) {
     console.error("[x402 site] Failed to fetch Algorand ASA info.", error);
