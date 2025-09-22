@@ -179,6 +179,11 @@ export async function preparePaymentHeader(
     paymentRequirements.asset ? parseInt(paymentRequirements.asset as string, 10) : undefined,
     feePayer,
   );
+  console.log("[AVM Client Prepare] Fee payer:", feePayer);
+  console.log(
+    "[AVM Client Prepare] Created transaction group has fee payer txn:",
+    Boolean(atomicGroup.feePayerTransaction),
+  );
 
   return {
     x402Version,
@@ -233,10 +238,12 @@ export async function signPaymentHeader(
 
   const { userTransaction, feePayerTransaction } = transactionGroup;
 
-  const txnGroupBytes: Uint8Array[] = feePayerTransaction ? [userTransaction.toByte(), feePayerTransaction?.toByte()] : [userTransaction.toByte()];
-  
+  const txnGroupBytes: Uint8Array[] = [userTransaction.toByte()];
+  if (feePayerTransaction) {
+    txnGroupBytes.push(feePayerTransaction.toByte());
+  }
 
-  const indexesToSign = [0];
+  const indexesToSign = feePayerTransaction ? [0] : undefined;
   const signedTxnGroup = await wallet.signTransactions(txnGroupBytes, indexesToSign);
   const signedUserTxn = signedTxnGroup[0];
   if (!signedUserTxn) {
@@ -244,16 +251,22 @@ export async function signPaymentHeader(
   }
 
   const signedTransaction = Buffer.from(signedUserTxn).toString("base64");
-  const feeTransaction = feePayerTransaction ? Buffer.from(feePayerTransaction.toByte()).toString("base64"): null
+  console.log("[AVM Client Sign] Fee payer transaction present:", Boolean(feePayerTransaction));
+  const payload: ExactAvmPayload = feePayerTransaction
+    ? {
+        transaction: signedTransaction,
+        feeTransaction: Buffer.from(feePayerTransaction.toByte()).toString("base64"),
+      }
+    : {
+        transaction: signedTransaction,
+      };
+  console.log("[AVM Client Sign] Built payload:", payload);
 
-
+  const { transactionGroup: _ignoredTransactionGroup, ...unsignedWithoutGroup } = unsignedPaymentHeader;
 
   return {
-    ...unsignedPaymentHeader,
-    payload: {
-      transaction: signedTransaction,
-      feeTransaction: feeTransaction
-    } as ExactAvmPayload,
+    ...unsignedWithoutGroup,
+    payload,
   };
 }
 

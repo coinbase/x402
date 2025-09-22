@@ -10,16 +10,22 @@ import { ExactAvmPayload } from "../../../types/verify/x402Specs";
 import algosdk from "algosdk";
 
 /**
- * Decodes a base64-encoded transaction string into an Algorand transaction object
+ * Decodes a base64-encoded signed transaction string into an Algorand transaction object
  *
- * @param encodedTxn - The base64-encoded transaction string
- * @returns The decoded Algorand transaction
+ * @param encodedTxn - The base64-encoded signed transaction string
+ * @returns The decoded Algorand signed transaction
  */
 function decodeSignedTransaction(encodedTxn: string): algosdk.SignedTransaction {
   const txnBytes = Buffer.from(encodedTxn, "base64");
   return algosdk.decodeSignedTransaction(txnBytes);
 }
 
+/**
+ * Decodes a base64-encoded unsigned transaction string into an Algorand transaction object
+ *
+ * @param encodedTxn - The base64-encoded unsigned transaction string
+ * @returns The decoded Algorand transaction
+ */
 function decodeTransaction(encodedTxn: string): algosdk.Transaction {
   const txnBytes = Buffer.from(encodedTxn, "base64");
   return algosdk.decodeUnsignedTransaction(txnBytes);
@@ -75,6 +81,15 @@ export async function verify(
 
     const from = transaction.sender.toString();
     console.log("[AVM Facilitator Verify] Transaction from address:", from);
+    const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
+    if (feePayer && !exactAvmPayload.feeTransaction) {
+      console.error("[AVM Facilitator Verify] Missing fee transaction for fee payer");
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_avm_payload_atomic_group",
+        payer: from,
+      };
+    }
     const firstRound = Number(transaction.firstValid);
     console.log("[AVM Facilitator Verify] Transaction first valid round:", firstRound);
     const lastRound = Number(transaction.lastValid);
@@ -268,24 +283,6 @@ export async function verify(
     };
   }
 }
-/**
- * Concatenates an array of Uint8Array into a single Uint8Array.
- *
- * @param array - Array of Uint8Array to concatenate
- * @returns A single Uint8Array containing all elements
- */
-function concatArrays(array: Uint8Array[]): Uint8Array {
-  const size = array.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
-  const c = new Uint8Array(size);
-
-  let offset = 0;
-  for (let i = 0; i < array.length; i++) {
-    c.set(array[i], offset);
-    offset += array[i].length;
-  }
-
-  return c;
-}
 
 /**
  * Settles a payment by executing an Algorand transaction
@@ -312,17 +309,31 @@ export async function settle(
     const userTransaction = signedTxn.txn;
     console.log("[AVM Facilitator Settle] User transaction:", userTransaction);
     const feeTransactionBase64 = exactAvmPayload.feeTransaction;
-    console.log("Fee Transaction from exact ", exactAvmPayload.feeTransaction)
-    const feeTransaction = decodeTransaction(feeTransactionBase64);
-    console.log("[AVM Facilitator Settle] Fee transaction:", feeTransaction);
+    console.log("Fee Transaction from exact ", feeTransactionBase64);
     const from = userTransaction.sender.toString();
     console.log("[AVM Facilitator Settle] Transaction from address:", from);
+    const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
+    console.log("[AVM Facilitator Settle] Fee payer address:", feePayer);
+
+    if (feePayer && !feeTransactionBase64) {
+      console.error("[AVM Facilitator Settle] Missing fee transaction for fee payer execution");
+      return {
+        success: false,
+        errorReason: "invalid_exact_avm_payload_atomic_group",
+        transaction: "",
+        network: paymentPayload.network,
+        payer: from,
+      };
+    }
+
+    const feeTransaction = feeTransactionBase64
+      ? decodeTransaction(feeTransactionBase64)
+      : undefined;
+    console.log("[AVM Facilitator Settle] Fee transaction:", feeTransaction);
     const firstValid = BigInt(userTransaction.firstValid ?? 0n);
     console.log("[AVM Facilitator Settle] Transaction first valid round:", firstValid);
     const lastValid = BigInt(userTransaction.lastValid ?? 0n);
     console.log("[AVM Facilitator Settle] Transaction last valid round:", lastValid);
-    const feePayer = (paymentRequirements.extra as { feePayer?: string } | undefined)?.feePayer;
-    console.log("[AVM Facilitator Settle] Fee payer address:", feePayer);
 
     // 2. Verify the payment is still valid
     const validationResult = await verify(
@@ -345,47 +356,40 @@ export async function settle(
 
     const userTxnBytes = Buffer.from(exactAvmPayload.transaction, "base64");
     console.log("[AVM Facilitator Settle] User transaction bytes:", userTxnBytes);
+
     let txId;
 
     if (feePayer) {
-      console.log("[AVM Facilitator Settle] Creating atomic transaction group with fee payer");
-      // const standardFee = 1000;
-      // const feePayerTransaction = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-      //   sender: feePayer,
-      //   receiver: feePayer,
-      //   amount: 0,
-      //   suggestedParams: {
-      //     flatFee: true,
-      //     fee: standardFee * 2,
-      //     firstValid,
-      //     lastValid,
-      //     genesisHash: userTransaction.genesisHash,
-      //     genesisID: userTransaction.genesisID,
-      //     minFee: 0,
-      //   },
-      // });
-      // console.log("[AVM Facilitator Settle] Fee payer transaction:", feePayerTransaction);
-
-      // const decodedUserTxn = algosdk.decodeSignedTransaction(userTxnBytes);
-      // const groupID = decodedUserTxn.txn.group;
-      // console.log("[AVM Facilitator Settle] User transaction group ID:", groupID);
-
-      // Object.defineProperty(feePayerTransaction, "group", {
-      //   value: groupID,
-      //   writable: true,
-      //   configurable: true,
-      // });
-
-      // const signedFeePayerTxn = await wallet.signTransactions([feePayerTransaction.toByte()]);
-      const signedFeePayerTxn = await wallet.signTransactions([feeTransaction.toByte()]);
-      // const txnGroup = [userTxnBytes, signedFeePayerTxn[0]].filter(
-      //   (tx): tx is Uint8Array => tx !== null && tx !== undefined,
-      // );
-      if (signedFeePayerTxn && signedFeePayerTxn[0]) {
-        const txnGroup = concatArrays([userTxnBytes, signedFeePayerTxn[0]]);
-        txId = await wallet.client.sendRawTransaction(txnGroup).do();
+      if (!feeTransaction) {
+        console.error(
+          "[AVM Facilitator Settle] Fee transaction missing despite fee payer requirement",
+        );
+        return {
+          success: false,
+          errorReason: "invalid_exact_avm_payload_atomic_group",
+          transaction: "",
+          network: paymentPayload.network,
+          payer: from,
+        };
       }
-      throw new Error("Fee payer transaction signing failed");
+
+      console.log("[AVM Facilitator Settle] Signing fee payer transaction");
+      const signedFeePayerTxnGroup = await wallet.signTransactions([feeTransaction.toByte()]);
+      const signedFeeTxn = signedFeePayerTxnGroup[0];
+
+      if (!signedFeeTxn) {
+        console.error("[AVM Facilitator Settle] Fee payer transaction signing failed");
+        return {
+          success: false,
+          errorReason: "settle_exact_avm_transaction_failed",
+          transaction: "",
+          network: paymentPayload.network,
+          payer: from,
+        };
+      }
+
+      const txnGroup: Uint8Array[] = [userTxnBytes, signedFeeTxn];
+      txId = await wallet.client.sendRawTransaction(txnGroup).do();
     } else {
       console.log("Sending single All-In user transction");
       txId = await wallet.client.sendRawTransaction([userTxnBytes]).do();
