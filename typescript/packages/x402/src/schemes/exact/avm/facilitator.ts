@@ -280,7 +280,6 @@ export async function settle(
     const feeTransaction = feeTransactionBase64
       ? decodeTransaction(feeTransactionBase64)
       : undefined;
-    const lastValid = BigInt(userTransaction.lastValid ?? 0n);
     const validationResult = await verify(
       { client: wallet.client, network: paymentPayload.network },
       paymentPayload,
@@ -339,7 +338,8 @@ export async function settle(
     };
   } catch (error) {
     console.error("Error during settlement:", error);
-    const message = typeof error === "object" && error && "message" in error ? String(error.message) : "";
+    const message =
+      typeof error === "object" && error && "message" in error ? String(error.message) : "";
     if (message.toLowerCase().includes("overlapping lease")) {
       return {
         success: true,

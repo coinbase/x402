@@ -26,6 +26,13 @@ export interface UseAlgorandWalletResult {
   setActiveAccount: (account?: WalletAccount) => void;
 }
 
+/**
+ * React hook for managing Algorand wallet connections, accounts, and transaction signing.
+ *
+ * @param network - The Algorand network to connect to ("algorand" for mainnet or "algorand-testnet" for testnet).
+ * @param algodClient - An instance of algosdk.Algodv2 used for interacting with the Algorand blockchain.
+ * @returns An object containing wallet state, connection methods, and transaction signing utilities.
+ */
 export function useAlgorandWallet(
   network: AlgorandNetwork,
   algodClient: algosdk.Algodv2,
