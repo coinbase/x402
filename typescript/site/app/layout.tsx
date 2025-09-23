@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'x402.org',
-  description: 'A chain-agnostic protocol for web payments',
+  title: "x402.org",
+  description: "An open standard for internet-native payments",
 };
 
 export default function RootLayout({
@@ -26,18 +26,11 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" type="image/png" href="/x402-icon-black.png" />
-        <link
-          rel="apple-touch-icon"
-          href="/x402-icon-black.png"
-        />
+        <link rel="apple-touch-icon" href="/x402-icon-black.png" />
         <meta name="apple-mobile-web-app-title" content="x402" />
         <link rel="manifest" href="/site.webmanifest" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }

@@ -1,24 +1,24 @@
-import Link from 'next/link';
+import Link from "next/link";
 import {
   QuestionMarkCircleIcon,
   ArrowDownTrayIcon,
   BriefcaseIcon,
-} from '@heroicons/react/24/outline';
-import GithubIcon from '../assets/github.svg';
-import DiscordIcon from '../assets/discord.svg';
+} from "@heroicons/react/24/outline";
+import GithubIcon from "../assets/github.svg";
+import DiscordIcon from "../assets/discord.svg";
 
 const NavBar = () => {
   return (
     <section className="max-w-6xl mx-auto px-4 pt-4 relative z-20">
       <div className="flex gap-4 md:gap-8 justify-between sm:justify-end">
         <Link
-          href="https://docs.google.com/forms/d/e/1FAIpQLSeESQAfvSlmjzl8JTcAOdzYjcWZ2O2GZjhuSeb8vTPpNys7FQ/viewform"
+          href="https://forms.gle/VZKvX93ifiew1ksW9"
           target="_blank"
           rel="noopener noreferrer"
           className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
         >
           <QuestionMarkCircleIcon className="w-4 h-4 mr-1" />
-          Learn more
+          Get In Touch
         </Link>
         <Link
           href="/x402.pdf"
@@ -61,4 +61,4 @@ const NavBar = () => {
   );
 };
 
-export default NavBar; 
+export default NavBar;

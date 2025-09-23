@@ -344,6 +344,30 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Polygon Amoy USDC asset details", () => {
+    const result = getDefaultAsset("polygon-amoy");
+    expect(result).toEqual({
+      address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return Polygon mainnet USDC asset details", () => {
+    const result = getDefaultAsset("polygon");
+    expect(result).toEqual({
+      address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+      decimals: 6,
+      eip712: {
+        name: "USD Coin",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
