@@ -20,16 +20,26 @@ export interface AlgodClientOptions {
   algodPort?: number | string;
 }
 
+/**
+ * Asserts that the provided network is a supported Algorand network.
+ *
+ * @param network - The network to check
+ * @throws Error if the network is not a supported Algorand network
+ */
 function assertAvmNetwork(network: Network): asserts network is SupportedAvmNetwork {
   if (!SupportedAVMNetworks.includes(network)) {
     throw new Error(`Unsupported Algorand network: ${network}`);
   }
 }
 
-function resolveAlgodClient(
-  network: SupportedAvmNetwork,
-  options?: AlgodClientOptions,
-): Algodv2 {
+/**
+ * Creates an Algorand client instance for the specified network.
+ *
+ * @param network - The Algorand network to connect to
+ * @param options - Optional configuration for the Algorand client
+ * @returns An Algodv2 client instance configured for the specified network
+ */
+function resolveAlgodClient(network: SupportedAvmNetwork, options?: AlgodClientOptions): Algodv2 {
   const server = options?.algodServer ?? DEFAULT_ALGOD_ENDPOINTS[network];
   if (!server) {
     throw new Error(`No algod endpoint configured for network: ${network}`);
@@ -41,6 +51,12 @@ function resolveAlgodClient(
   return new algosdk.Algodv2(token, server, port);
 }
 
+/**
+ * Derives an Algorand account from a secret key or mnemonic.
+ *
+ * @param secret - The secret key (hex string) or mnemonic phrase
+ * @returns The derived Algorand account with address and secret key
+ */
 function deriveAccount(secret: string) {
   const trimmed = secret.trim();
   if (trimmed.split(/\s+/).length === 25) {
@@ -53,6 +69,13 @@ function deriveAccount(secret: string) {
   return algosdk.mnemonicToSecretKey(mnemonic);
 }
 
+/**
+ * Creates an Algorand client for the specified network.
+ *
+ * @param network - The Algorand network to connect to
+ * @param options - Optional configuration for the Algorand client
+ * @returns An AlgorandClient object containing the client and network information
+ */
 export function createAlgorandClient(
   network: Network,
   options?: AlgodClientOptions,
@@ -65,6 +88,14 @@ export function createAlgorandClient(
   };
 }
 
+/**
+ * Creates a wallet account that can sign Algorand transactions.
+ *
+ * @param network - The Algorand network to connect to
+ * @param secret - The secret key (hex string) or mnemonic phrase for the account
+ * @param options - Optional configuration for the Algorand client
+ * @returns A WalletAccount object that can sign transactions
+ */
 export function createSigner(
   network: Network,
   secret: string,

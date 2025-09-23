@@ -1,7 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { encodePayment, decodePayment } from "./paymentUtils";
-import { PaymentPayload, ExactEvmPayload, ExactSvmPayload, ExactAvmPayload } from "../../../../types/verify";
-import { SupportedAVMNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import {
+  PaymentPayload,
+  ExactEvmPayload,
+  ExactSvmPayload,
+  ExactAvmPayload,
+} from "../../../../types/verify";
+import {
+  SupportedAVMNetworks,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+} from "../../../../types";
 
 // valid exact EVM payload
 const validEvmPayload: ExactEvmPayload = {

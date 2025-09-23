@@ -4,12 +4,13 @@ import type * as avm from "./avm";
 import { Network, isEvmNetwork, isSvmNetwork } from "./network";
 import { Hex } from "viem";
 
-export type ConnectedClient =
-  | evm.ConnectedClient
-  | svm.SvmConnectedClient
-  | avm.AlgorandClient;
+export type ConnectedClient = evm.ConnectedClient | svm.SvmConnectedClient | avm.AlgorandClient;
 export type Signer = evm.EvmSigner | svm.SvmSigner | avm.WalletAccount;
-export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner; avm?: avm.WalletAccount };
+export type MultiNetworkSigner = {
+  evm: evm.EvmSigner;
+  svm: svm.SvmSigner;
+  avm?: avm.WalletAccount;
+};
 
 /**
  * Creates a public client configured for the specified network.
@@ -70,6 +71,12 @@ export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
   return svm.isSignerWallet(wallet as svm.SvmSigner);
 }
 
+/**
+ * Checks if the given wallet is an Algorand wallet account.
+ *
+ * @param wallet - The object wallet to check
+ * @returns True if the wallet is an Algorand wallet account, false otherwise
+ */
 export function isAvmSignerWallet(wallet: Signer): wallet is avm.WalletAccount {
   return (
     typeof (wallet as avm.WalletAccount)?.address === "string" &&
@@ -77,7 +84,15 @@ export function isAvmSignerWallet(wallet: Signer): wallet is avm.WalletAccount {
   );
 }
 
-export function resolveAvmWallet(wallet: Signer | MultiNetworkSigner): avm.WalletAccount | undefined {
+/**
+ * Resolves an Algorand wallet from a signer or multi-network signer.
+ *
+ * @param wallet - The wallet to resolve
+ * @returns The Algorand wallet account if available, undefined otherwise
+ */
+export function resolveAvmWallet(
+  wallet: Signer | MultiNetworkSigner,
+): avm.WalletAccount | undefined {
   if (isMultiNetworkSigner(wallet)) {
     return wallet.avm;
   }

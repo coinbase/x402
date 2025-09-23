@@ -49,14 +49,32 @@ export const AvmNetworkToChainId = new Map<Network, number>([
   ["algorand", 416002],
 ]);
 
+/**
+ * Checks if the provided network is an EVM-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is an EVM-compatible network, false otherwise
+ */
 export function isEvmNetwork(network: Network): network is (typeof SupportedEVMNetworks)[number] {
   return SupportedEVMNetworks.includes(network);
 }
 
+/**
+ * Checks if the provided network is a Solana-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is a Solana-compatible network, false otherwise
+ */
 export function isSvmNetwork(network: Network): network is (typeof SupportedSVMNetworks)[number] {
   return SupportedSVMNetworks.includes(network);
 }
 
+/**
+ * Checks if the provided network is an Algorand-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is an Algorand-compatible network, false otherwise
+ */
 export function isAvmNetwork(network: Network): network is (typeof SupportedAVMNetworks)[number] {
   return SupportedAVMNetworks.includes(network);
 }

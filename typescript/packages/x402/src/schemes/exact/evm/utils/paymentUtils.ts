@@ -1,5 +1,9 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedAVMNetworks, SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import {
+  SupportedAVMNetworks,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+} from "../../../../types";
 import {
   PaymentPayload,
   PaymentPayloadSchema,

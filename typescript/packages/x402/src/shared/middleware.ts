@@ -12,7 +12,7 @@ import {
   SPLTokenAmount,
   SupportedAVMNetworks,
   SupportedEVMNetworks,
-  SupportedSVMNetworks,
+  // SupportedSVMNetworks,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -190,9 +190,17 @@ export function processPriceToAtomicAmount(
   } else if (typeof price === "object" && "asset" in price && "amount" in price) {
     maxAmountRequired = price.amount;
 
-    if ((price as ERC20TokenAmount).asset && "address" in price.asset && price.asset.address.startsWith("0x")) {
+    if (
+      (price as ERC20TokenAmount).asset &&
+      "address" in price.asset &&
+      price.asset.address.startsWith("0x")
+    ) {
       asset = (price as ERC20TokenAmount).asset;
-    } else if ((price as SPLTokenAmount).asset && "address" in price.asset && !price.asset.address.startsWith("0x")) {
+    } else if (
+      (price as SPLTokenAmount).asset &&
+      "address" in price.asset &&
+      !price.asset.address.startsWith("0x")
+    ) {
       asset = (price as SPLTokenAmount).asset;
     } else if ((price as ASAAmount).asset && "id" in price.asset) {
       asset = (price as ASAAmount).asset;

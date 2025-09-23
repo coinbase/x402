@@ -254,8 +254,9 @@ export async function signPaymentHeader(
     : {
         transaction: signedTransaction,
       };
-
-  const { transactionGroup: _ignoredTransactionGroup, ...unsignedWithoutGroup } = unsignedPaymentHeader;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { transactionGroup: _ignoredTransactionGroup, ...unsignedWithoutGroup } =
+    unsignedPaymentHeader;
 
   return {
     ...unsignedWithoutGroup,
