@@ -10,7 +10,15 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import { baseSepolia, avalancheFuji, base, sei, seiTestnet, polygon, polygonAmoy } from "viem/chains";
+import {
+  baseSepolia,
+  avalancheFuji,
+  base,
+  sei,
+  seiTestnet,
+  polygon,
+  polygonAmoy,
+} from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
