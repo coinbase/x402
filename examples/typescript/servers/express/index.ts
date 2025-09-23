@@ -22,6 +22,7 @@ app.use(
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
         // network: "solana" // uncomment for Solana mainnet
+        // network: "algorand" // uncomment for Algorand mainnet
         network: "base-sepolia",
       },
       "/premium/*": {
