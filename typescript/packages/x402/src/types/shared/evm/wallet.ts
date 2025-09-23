@@ -10,19 +10,7 @@ import type {
   PublicClient,
   LocalAccount,
 } from "viem";
-import {
-  baseSepolia,
-  avalancheFuji,
-  base,
-  sei,
-  seiTestnet,
-  skaleNebula,
-  skaleNebulaTestnet,
-  skaleCalypso,
-  skaleCalypsoTestnet,
-  skaleEuropa,
-  skaleEuropaTestnet,
-} from "viem/chains";
+import { baseSepolia, avalancheFuji, base, sei, seiTestnet } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 
@@ -199,18 +187,6 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return sei;
     case "sei-testnet":
       return seiTestnet;
-    case "skale-nebula":
-      return skaleNebula;
-    case "skale-nebula-testnet":
-      return skaleNebulaTestnet;
-    case "skale-europa":
-      return skaleEuropa;
-    case "skale-europa-testnet":
-      return skaleEuropaTestnet;
-    case "skale-calypso":
-      return skaleCalypso;
-    case "skale-calypso-testnet":
-      return skaleCalypsoTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

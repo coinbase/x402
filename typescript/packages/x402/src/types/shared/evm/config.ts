@@ -40,36 +40,6 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
     usdcName: "USDC",
   },
-  // SKALE Nebula
-  "1482601649": {
-    usdcAddress: "0xCC205196288B7A26f6D43bBD68AaA98dde97276d",
-    usdcName: "Europa USDC",
-  },
-  // SKALE Nebula Testnet
-  "37084624": {
-    usdcAddress: "0x6ab391237A6A207BBFa3648743260B02622303D2",
-    usdcName: "USDC",
-  },
-  // SKALE Europa
-  "2046399126": {
-    usdcAddress: "0x5F795bb52dAC3085f578f4877D450e2929D2F13d",
-    usdcName: "USD Coin",
-  },
-  // SKALE Europa Testnet
-  "1444673419": {
-    usdcAddress: "0x9eAb55199f4481eCD7659540A17Af618766b07C4",
-    usdcName: "USDC",
-  },
-  // SKALE Calypso
-  "1564830818": {
-    usdcAddress: "0x7Cf76E740Cb23b99337b21F392F22c47Ad910c67",
-    usdcName: "Europa USDC",
-  },
-  // SKALE Calypso Testnet
-  "974399131": {
-    usdcAddress: "0xbA9E8905F3c3C576f048eEbB3431ede0d5D27682",
-    usdcName: "USDC",
-  },
 };
 
 export type ChainConfig = {
