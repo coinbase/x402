@@ -10,6 +10,12 @@ export const NetworkSchema = z.enum([
   "solana",
   "sei",
   "sei-testnet",
+  "skale-nebula",
+  "skale-europa",
+  "skale-calypso",
+  "skale-nebula-testnet",
+  "skale-europa-testnet",
+  "skale-calypso-testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -22,6 +28,12 @@ export const SupportedEVMNetworks: Network[] = [
   "iotex",
   "sei",
   "sei-testnet",
+  "skale-nebula",
+  "skale-europa",
+  "skale-calypso",
+  "skale-nebula-testnet",
+  "skale-europa-testnet",
+  "skale-calypso-testnet",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
   ["base-sepolia", 84532],
@@ -31,6 +43,12 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["iotex", 4689],
   ["sei", 1329],
   ["sei-testnet", 1328],
+  ["skale-nebula", 1482601649],
+  ["skale-europa", 2046399126],
+  ["skale-calypso", 1564830818],
+  ["skale-nebula-testnet", 37084624],
+  ["skale-europa-testnet", 1444673419],
+  ["skale-calypso-testnet", 974399131],
 ]);
 
 // svm
