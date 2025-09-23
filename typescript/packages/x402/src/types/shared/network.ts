@@ -10,6 +10,8 @@ export const NetworkSchema = z.enum([
   "solana",
   "sei",
   "sei-testnet",
+  "algorand-testnet",
+  "algorand",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -40,9 +42,48 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
+// avm
+export const SupportedAVMNetworks: Network[] = ["algorand-testnet", "algorand"];
+export const AvmNetworkToChainId = new Map<Network, number>([
+  ["algorand-testnet", 416001],
+  ["algorand", 416002],
+]);
+
+/**
+ * Checks if the provided network is an EVM-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is an EVM-compatible network, false otherwise
+ */
+export function isEvmNetwork(network: Network): network is (typeof SupportedEVMNetworks)[number] {
+  return SupportedEVMNetworks.includes(network);
+}
+
+/**
+ * Checks if the provided network is a Solana-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is a Solana-compatible network, false otherwise
+ */
+export function isSvmNetwork(network: Network): network is (typeof SupportedSVMNetworks)[number] {
+  return SupportedSVMNetworks.includes(network);
+}
+
+/**
+ * Checks if the provided network is an Algorand-compatible network.
+ *
+ * @param network - The network to check
+ * @returns True if the network is an Algorand-compatible network, false otherwise
+ */
+export function isAvmNetwork(network: Network): network is (typeof SupportedAVMNetworks)[number] {
+  return SupportedAVMNetworks.includes(network);
+}
+
 export const ChainIdToNetwork = Object.fromEntries(
-  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
+  [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedAVMNetworks].map(network => [
+    EvmNetworkToChainId.get(network) ||
+      SvmNetworkToChainId.get(network) ||
+      AvmNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;

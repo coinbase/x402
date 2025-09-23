@@ -25,8 +25,8 @@ This example demonstrates how to:
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum private key and/or Solana private key
-- Base Sepolia testnet ETH and/or Solana Devnet SOL for transaction fees
+- A valid Ethereum private key and/or Solana private key or Algorand private key
+- Base Sepolia testnet ETH and/or Solana Devnet SOL or Algorand Testnet Algos for transaction fees
 
 ## Setup
 
@@ -44,6 +44,7 @@ cd facilitator
 ```env
 EVM_PRIVATE_KEY=0xYourPrivateKey
 SVM_PRIVATE_KEY=solanaprivatekey
+AVM_PRIVATE_KEY=algorandprivatekey
 ```
 
 3. Start the server:
@@ -78,6 +79,14 @@ Sample Response
       "feePayer": "SolanaAddress"
     }
   },
+  {
+    "x402Version": 1,
+    "scheme": "exact",
+    "network": "algorand-testnet"
+    "extra": {
+      "feePayer": "AlgorandAddress"
+    }
+  }
 ]
 ```
 

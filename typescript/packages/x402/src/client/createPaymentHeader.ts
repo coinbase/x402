@@ -1,6 +1,8 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { createPaymentHeader as createPaymentHeaderExactAVM } from "../schemes/exact/avm/client";
+import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, resolveAvmWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks, SupportedAVMNetworks } from "../types/shared";
+import type { AlgorandClient } from "../types/shared/avm";
 import { PaymentRequirements } from "../types/verify";
 
 /**
@@ -41,6 +43,24 @@ export async function createPaymentHeader(
 
       return await createPaymentHeaderExactSVM(
         svmClient,
+        x402Version,
+        paymentRequirements,
+      );
+    }
+    if (SupportedAVMNetworks.includes(paymentRequirements.network)) {
+      const avmWallet = resolveAvmWallet(client);
+      if (!avmWallet) {
+        throw new Error("Invalid Algorand wallet client provided");
+      }
+
+      const algorandClient: AlgorandClient = {
+        client: avmWallet.client,
+        network: paymentRequirements.network,
+      };
+
+      return await createPaymentHeaderExactAVM(
+        algorandClient,
+        avmWallet,
         x402Version,
         paymentRequirements,
       );

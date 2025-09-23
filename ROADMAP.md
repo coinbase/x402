@@ -131,7 +131,7 @@ This roadmap shares what the x402 team is building now, what's next, and where t
 
 If you want to contribute, these items are especially well‑scoped for community ownership. Open an issue and we'll co‑design with you:
 
-* **Arbitrary Token Support** (spec + reference impl across EVM/SVM; Permit/Permit2/EIP‑712 variants).
+* **Arbitrary Token Support** (spec + reference impl across EVM/SVM/AVM; Permit/Permit2/EIP‑712/ASA variants).
 * **XMTP Support in x402** (spec & packages; adapters, examples).
 * **Identity Solution Proposals** (guides/PRs using existing identity providers; no new identity protocol).
 * **Solution Guides & Demos for Docs** (neutral, vendor‑agnostic how‑tos for building with x402; add to GitBook).

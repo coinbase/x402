@@ -4,9 +4,9 @@ import {
   findMatchingRoute,
   getDefaultAsset,
   processPriceToAtomicAmount,
-} from "x402/shared";
-import { RoutesConfig } from "./middleware";
-import { Network } from "./network";
+} from "../shared";
+import { RoutesConfig } from "../types";
+import { Network } from "../types";
 
 describe("computeRoutePatterns", () => {
   it("should handle simple string price routes", () => {
@@ -396,6 +396,33 @@ describe("processPriceToAtomicAmount", () => {
     expect(result).toEqual({
       maxAmountRequired: "1000000",
       asset: tokenAmount.asset,
+    });
+  });
+
+  it("should handle Algorand price in dollars", () => {
+    const result = processPriceToAtomicAmount("$0.50", "algorand-testnet");
+    expect(result).toEqual({
+      maxAmountRequired: (0.5 * 10 ** 6).toString(),
+      asset: {
+        id: "0",
+        decimals: 6,
+      },
+    });
+  });
+
+  it("should handle ASA price object", () => {
+    const asaPrice = {
+      amount: "250000",
+      asset: {
+        id: "31566704",
+        decimals: 6,
+      },
+    };
+
+    const result = processPriceToAtomicAmount(asaPrice, "algorand");
+    expect(result).toEqual({
+      maxAmountRequired: "250000",
+      asset: asaPrice.asset,
     });
   });
 

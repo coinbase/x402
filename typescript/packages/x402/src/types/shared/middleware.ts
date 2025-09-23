@@ -55,7 +55,15 @@ export interface SPLTokenAmount {
   };
 }
 
-export type Price = Money | ERC20TokenAmount | SPLTokenAmount;
+export interface ASAAmount {
+  amount: string;
+  asset: {
+    id: string;
+    decimals: number;
+  };
+}
+
+export type Price = Money | ERC20TokenAmount | SPLTokenAmount | ASAAmount;
 
 export interface RouteConfig {
   price: Price;

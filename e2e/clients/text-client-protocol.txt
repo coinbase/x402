@@ -10,6 +10,7 @@
 Clients must declare which protocol families they support in their test.config.json:
 - **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
 - **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
+- **AVM**: Algorand Virtual Machine compatible networks (Algorand, Voi, etc.)
 
 Example configuration:
 ```json
@@ -43,6 +44,7 @@ Multi-protocol client example:
 The following parameters must be configurable:
 - `EVM_PRIVATE_KEY`: Private key for signing requests (EVM networks)
 - `SVM_PRIVATE_KEY`: Private key for signing requests (Solana networks)
+- `AVM_PRIVATE_KEY`: Private key for signing requests (Algorand networks)
 - `RESOURCE_SERVER_URL`: URL of the server to call
 - `ENDPOINT_PATH`: Path to the protected endpoint (default: "/protected")
 

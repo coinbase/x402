@@ -40,24 +40,25 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
-
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.verify };
     }
-
+    const paymentPayload = toJsonSafe(payload);
+    const paymentRequirementsSafe = toJsonSafe(paymentRequirements);
     const res = await fetch(`${url}/verify`, {
       method: "POST",
       headers,
       body: JSON.stringify({
         x402Version: payload.x402Version,
-        paymentPayload: toJsonSafe(payload),
-        paymentRequirements: toJsonSafe(paymentRequirements),
+        paymentPayload,
+        paymentRequirements: paymentRequirementsSafe,
       }),
     });
 
     if (res.status !== 200) {
+      console.error("Verify request failed:", res.status, res.statusText);
       throw new Error(`Failed to verify payment: ${res.statusText}`);
     }
 
@@ -77,13 +78,11 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     paymentRequirements: PaymentRequirements,
   ): Promise<SettleResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
-
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.settle };
     }
-
     const res = await fetch(`${url}/settle`, {
       method: "POST",
       headers,
@@ -95,6 +94,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error("Settle request failed:", res.status, res.statusText);
       const text = res.statusText;
       throw new Error(`Failed to settle payment: ${res.status} ${text}`);
     }
@@ -110,7 +110,6 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
    */
   async function supported(): Promise<SupportedPaymentKindsResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
-
     let headers = { "Content-Type": "application/json" };
     if (facilitator?.createAuthHeaders) {
       const authHeaders = await facilitator.createAuthHeaders();
@@ -123,6 +122,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error("Supported request failed:", res.status, res.statusText);
       throw new Error(`Failed to get supported payment kinds: ${res.statusText}`);
     }
 
@@ -148,7 +148,6 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
         headers = { ...headers, ...authHeaders.list };
       }
     }
-
     const urlParams = new URLSearchParams(
       Object.entries(config)
         .filter(([_, value]) => value !== undefined)
@@ -161,6 +160,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
+      console.error("List request failed:", res.status, res.statusText);
       const text = res.statusText;
       throw new Error(`Failed to list discovery: ${res.status} ${text}`);
     }

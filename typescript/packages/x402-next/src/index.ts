@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address, getAddress } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
+import type { Address as AlgorandAddress } from "algosdk";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -12,6 +13,7 @@ import {
   toJsonSafe,
 } from "x402/shared";
 import {
+  ASAAmount,
   FacilitatorConfig,
   moneySchema,
   PaymentPayload,
@@ -20,6 +22,8 @@ import {
   RoutesConfig,
   PaywallConfig,
   ERC20TokenAmount,
+  SPLTokenAmount,
+  SupportedAVMNetworks,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
 } from "x402/types";
@@ -91,7 +95,7 @@ import { POST } from "./api/session-token";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress,
+  payTo: Address | SolanaAddress | AlgorandAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
@@ -99,7 +103,7 @@ export function paymentMiddleware(
   const { verify, settle, supported } = useFacilitator(facilitator);
   const x402Version = 1;
 
-  // Pre-compile route patterns to regex and extract verbs
+  // Pre-compile route patterns to regex and extact verbs
   const routePatterns = computeRoutePatterns(routes);
 
   return async function middleware(request: NextRequest) {
@@ -140,6 +144,7 @@ export function paymentMiddleware(
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
     if (SupportedEVMNetworks.includes(network)) {
+      const evmAsset = asset as ERC20TokenAmount["asset"];
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -147,9 +152,9 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
+        payTo: getAddress(payTo as Address),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
+        asset: getAddress(evmAsset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -160,7 +165,7 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: evmAsset.eip712,
       });
     }
     // svm networks
@@ -183,6 +188,8 @@ export function paymentMiddleware(
       }
 
       // build the payment requirements for svm
+      const splAsset = asset as SPLTokenAmount["asset"];
+
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -190,9 +197,9 @@ export function paymentMiddleware(
         resource: resourceUrl,
         description: description ?? "",
         mimeType: mimeType ?? "",
-        payTo: payTo,
+        payTo: payTo.toString(),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
+        asset: splAsset.address,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -206,6 +213,45 @@ export function paymentMiddleware(
           feePayer,
         },
       });
+    }
+    // avm networks
+    else if (SupportedAVMNetworks.includes(network)) {
+      const paymentKinds = await supported();
+
+      let feePayer: string | undefined;
+      for (const kind of paymentKinds.kinds) {
+        if (kind.network === network && kind.scheme === "exact") {
+          feePayer = kind?.extra?.feePayer;
+          break;
+        }
+      }
+
+      const asaAsset = asset as ASAAmount["asset"];
+
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "application/json",
+        payTo: payTo as string,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: asaAsset.id,
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
+        extra: {
+          decimals: asaAsset.decimals,
+          ...(feePayer ? { feePayer } : {}),
+        },
+      });
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -214,7 +260,14 @@ export function paymentMiddleware(
     const paymentHeader = request.headers.get("X-PAYMENT");
     if (!paymentHeader) {
       const accept = request.headers.get("Accept");
-      if (accept?.includes("text/html")) {
+      const secFetchDest = request.headers.get("sec-fetch-dest");
+      const secFetchMode = request.headers.get("sec-fetch-mode");
+      const isNextDataRequest = request.headers.has("x-nextjs-data");
+      const isNavigationRequest =
+        (secFetchDest !== null && secFetchDest.toLowerCase() === "document") ||
+        (secFetchMode !== null && secFetchMode.toLowerCase() === "navigate");
+
+      if (isNavigationRequest && !isNextDataRequest) {
         const userAgent = request.headers.get("User-Agent");
         if (userAgent?.includes("Mozilla")) {
           let displayAmount: number;
@@ -238,7 +291,48 @@ export function paymentMiddleware(
                 typeof getPaywallHtml
               >[0]["paymentRequirements"],
               currentUrl: request.url,
-              testnet: network === "base-sepolia",
+              testnet:
+                network === "base-sepolia" ||
+                network === "algorand-testnet" ||
+                network === "solana-devnet",
+              cdpClientKey: paywall?.cdpClientKey,
+              appLogo: paywall?.appLogo,
+              appName: paywall?.appName,
+              sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
+            });
+          return new NextResponse(html, {
+            status: 402,
+            headers: { "Content-Type": "text/html" },
+          });
+        }
+      } else if (accept?.includes("text/html")) {
+        const userAgent = request.headers.get("User-Agent");
+        if (userAgent?.includes("Mozilla")) {
+          let displayAmount: number;
+          if (typeof price === "string" || typeof price === "number") {
+            const parsed = moneySchema.safeParse(price);
+            if (parsed.success) {
+              displayAmount = parsed.data;
+            } else {
+              displayAmount = Number.NaN;
+            }
+          } else {
+            displayAmount = Number(price.amount) / 10 ** price.asset.decimals;
+          }
+
+          // TODO: handle paywall html for solana
+          const html =
+            customPaywallHtml ??
+            getPaywallHtml({
+              amount: displayAmount,
+              paymentRequirements: toJsonSafe(paymentRequirements) as Parameters<
+                typeof getPaywallHtml
+              >[0]["paymentRequirements"],
+              currentUrl: request.url,
+              testnet:
+                network === "base-sepolia" ||
+                network === "algorand-testnet" ||
+                network === "solana-devnet",
               cdpClientKey: paywall?.cdpClientKey,
               appLogo: paywall?.appLogo,
               appName: paywall?.appName,
@@ -264,9 +358,14 @@ export function paymentMiddleware(
     // Verify payment
     let decodedPayment: PaymentPayload;
     try {
-      decodedPayment = exact.evm.decodePayment(paymentHeader);
+      if (SupportedAVMNetworks.includes(network)) {
+        decodedPayment = exact.avm.decodePayment(paymentHeader);
+      } else {
+        decodedPayment = exact.evm.decodePayment(paymentHeader);
+      }
       decodedPayment.x402Version = x402Version;
     } catch (error) {
+      console.error("Failed to decode payment:", error);
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -283,6 +382,7 @@ export function paymentMiddleware(
       decodedPayment,
     );
     if (!selectedPaymentRequirements) {
+      console.error("No matching payment requirements found! Returning 402");
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -295,8 +395,8 @@ export function paymentMiddleware(
     }
 
     const verification = await verify(decodedPayment, selectedPaymentRequirements);
-
     if (!verification.isValid) {
+      console.error("Payment verification failed (returning 402):", verification);
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -313,6 +413,7 @@ export function paymentMiddleware(
 
     // if the response from the protected route is >= 400, do not settle the payment
     if (response.status >= 400) {
+      console.error("Response status >= 400, not settling payment", response.status);
       return response;
     }
 
@@ -332,8 +433,11 @@ export function paymentMiddleware(
             }),
           ),
         );
+        return response;
       }
+      throw new Error(settlement.errorReason || "Settlement faild!");
     } catch (error) {
+      console.error("Payment settlement failed (Return 402):", error);
       return new NextResponse(
         JSON.stringify({
           x402Version,
@@ -345,8 +449,6 @@ export function paymentMiddleware(
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
-
-    return response;
   };
 }
 
@@ -359,6 +461,7 @@ export type {
   RoutesConfig,
 } from "x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
+export type { Address as AlgorandAddress } from "algosdk";
 
 // Export session token API handlers for Onramp
 export { POST };

@@ -23,5 +23,9 @@ export async function POST(req: Request) {
     return Response.json({ price: 125 });
   }
 
+  if (body.symbol.toLowerCase() === "algo") {
+    return Response.json({ price: 10000 });
+  }
+
   return Response.json({ price: -1 });
 }
