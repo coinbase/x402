@@ -40,6 +40,8 @@ secp256k1 = { version = "0.28", features = ["recovery", "global-context"] }
 ethereum-types = "0.14"
 rlp = "0.5"
 hex = "0.4"
+rustc-hex = "2.1"
+sha2 = "0.10"
 sha3 = "0.10"
 rand = "0.8"
 

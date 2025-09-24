@@ -190,7 +190,7 @@ fn get_network_config(network: &str) -> Result<NetworkConfig> {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 

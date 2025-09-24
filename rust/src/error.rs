@@ -106,6 +106,18 @@ pub enum X402Error {
     /// IO error
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// Parse integer error
+    #[error("Parse integer error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
+
+    /// From hex error
+    #[error("From hex error: {0}")]
+    FromHex(#[from] rustc_hex::FromHexError),
+
+    /// From str radix error
+    #[error("From str radix error: {0}")]
+    FromStrRadix(#[from] ethereum_types::FromStrRadixErr),
 }
 
 impl X402Error {
@@ -213,6 +225,9 @@ impl X402Error {
             Self::Base64(_) => 400,
             Self::Crypto(_) => 500,
             Self::Io(_) => 500,
+            Self::ParseInt(_) => 400,
+            Self::FromHex(_) => 400,
+            Self::FromStrRadix(_) => 400,
         }
     }
 
@@ -243,6 +258,9 @@ impl X402Error {
             Self::Base64(_) => "base64_error",
             Self::Crypto(_) => "crypto_error",
             Self::Io(_) => "io_error",
+            Self::ParseInt(_) => "parse_int_error",
+            Self::FromHex(_) => "from_hex_error",
+            Self::FromStrRadix(_) => "from_str_radix_error",
         }
     }
 }

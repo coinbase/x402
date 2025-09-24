@@ -5,7 +5,7 @@
 
 use x402::{
     blockchain::BlockchainClientFactory,
-    real_facilitator::{RealFacilitatorFactory, FacilitatorConfig},
+    real_facilitator::{FacilitatorConfig, RealFacilitatorFactory},
     types::PaymentRequirements,
     wallet::WalletFactory,
 };
@@ -18,7 +18,7 @@ async fn test_real_wallet_creation_and_config() {
         "base-sepolia",
     );
     assert!(wallet.is_ok());
-    
+
     let wallet = wallet.unwrap();
     assert_eq!(wallet.network(), "base-sepolia");
 
@@ -32,11 +32,11 @@ async fn test_wallet_factory_error_handling() {
     // Test invalid private key format
     let wallet = WalletFactory::from_private_key("invalid_key", "base-sepolia");
     assert!(wallet.is_err());
-    
+
     // Test invalid hex in private key
     let wallet = WalletFactory::from_private_key("0xinvalid_hex", "base-sepolia");
     assert!(wallet.is_err());
-    
+
     // Test too short private key
     let wallet = WalletFactory::from_private_key("0x123", "base-sepolia");
     assert!(wallet.is_err());
@@ -47,19 +47,19 @@ async fn test_blockchain_client_factory() {
     // Test Base Sepolia client
     let client = BlockchainClientFactory::base_sepolia();
     assert_eq!(client.network, "base-sepolia");
-    
+
     // Test Base mainnet client
     let client = BlockchainClientFactory::base();
     assert_eq!(client.network, "base");
-    
+
     // Test Avalanche Fuji client
     let client = BlockchainClientFactory::avalanche_fuji();
     assert_eq!(client.network, "avalanche-fuji");
-    
+
     // Test Avalanche mainnet client
     let client = BlockchainClientFactory::avalanche();
     assert_eq!(client.network, "avalanche");
-    
+
     // Test custom client
     let client = BlockchainClientFactory::custom("https://custom.rpc.com", "custom");
     assert_eq!(client.network, "custom");
@@ -71,17 +71,17 @@ async fn test_blockchain_usdc_contract_addresses() {
     let client = BlockchainClientFactory::base_sepolia();
     let address = client.get_usdc_contract_address().unwrap();
     assert_eq!(address, "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-    
+
     // Test Base mainnet USDC contract
     let client = BlockchainClientFactory::base();
     let address = client.get_usdc_contract_address().unwrap();
     assert_eq!(address, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
-    
+
     // Test Avalanche Fuji USDC contract
     let client = BlockchainClientFactory::avalanche_fuji();
     let address = client.get_usdc_contract_address().unwrap();
     assert_eq!(address, "0x5425890298aed601595a70AB815c96711a31Bc65");
-    
+
     // Test Avalanche mainnet USDC contract
     let client = BlockchainClientFactory::avalanche();
     let address = client.get_usdc_contract_address().unwrap();
@@ -93,19 +93,19 @@ async fn test_real_facilitator_factory() {
     // Test Base Sepolia facilitator
     let facilitator = RealFacilitatorFactory::base_sepolia();
     assert!(facilitator.is_ok());
-    
+
     // Test Base mainnet facilitator
     let facilitator = RealFacilitatorFactory::base();
     assert!(facilitator.is_ok());
-    
+
     // Test Avalanche Fuji facilitator
     let facilitator = RealFacilitatorFactory::avalanche_fuji();
     assert!(facilitator.is_ok());
-    
+
     // Test Avalanche mainnet facilitator
     let facilitator = RealFacilitatorFactory::avalanche();
     assert!(facilitator.is_ok());
-    
+
     // Test custom facilitator configuration
     let config = FacilitatorConfig {
         rpc_url: Some("https://custom.facilitator.com".to_string()),
@@ -115,7 +115,7 @@ async fn test_real_facilitator_factory() {
         max_retries: 5,
         retry_delay: std::time::Duration::from_secs(2),
     };
-    
+
     let facilitator = RealFacilitatorFactory::custom(config);
     assert!(facilitator.is_ok());
 }
@@ -135,18 +135,24 @@ async fn test_payment_requirements_validation() {
     let requirements = PaymentRequirements::new(
         "exact",
         "base-sepolia",
-        "1000000", // 1 USDC
+        "1000000",                                    // 1 USDC
         "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
         "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", // Pay to address
         "https://api.example.com/premium",
         "Premium API access",
     );
-    
+
     assert_eq!(requirements.scheme, "exact");
     assert_eq!(requirements.network, "base-sepolia");
     assert_eq!(requirements.max_amount_required, "1000000");
-    assert_eq!(requirements.asset, "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-    assert_eq!(requirements.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+    assert_eq!(
+        requirements.asset,
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    );
+    assert_eq!(
+        requirements.pay_to,
+        "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+    );
 }
 
 #[tokio::test]
@@ -155,17 +161,18 @@ async fn test_network_configuration_compatibility() {
     let wallet = WalletFactory::from_private_key(
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     let blockchain_client = BlockchainClientFactory::base_sepolia();
-    
+
     // Both should use the same network
     assert_eq!(wallet.network(), blockchain_client.network);
-    
+
     // Both should have the same USDC contract address
     let wallet_config = wallet.get_network_config().unwrap();
     let blockchain_address = blockchain_client.get_usdc_contract_address().unwrap();
-    
+
     // Convert wallet config address to string for comparison (normalize case)
     let wallet_address = format!("{:?}", wallet_config.usdc_contract).to_lowercase();
     assert_eq!(wallet_address, blockchain_address.to_lowercase());
@@ -174,19 +181,19 @@ async fn test_network_configuration_compatibility() {
 #[tokio::test]
 async fn test_error_handling_integration() {
     // Test that error handling works across modules
-    
+
     // Invalid private key should fail in wallet
     let wallet = WalletFactory::from_private_key("invalid_key", "base-sepolia");
     assert!(wallet.is_err());
-    
+
     // Too short private key should fail
     let wallet = WalletFactory::from_private_key("0x123", "base-sepolia");
     assert!(wallet.is_err());
-    
+
     // Invalid hex in private key should fail
     let wallet = WalletFactory::from_private_key("0xinvalid_hex", "base-sepolia");
     assert!(wallet.is_err());
-    
+
     // Valid private key with valid network should succeed
     let wallet = WalletFactory::from_private_key(
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
@@ -198,19 +205,20 @@ async fn test_error_handling_integration() {
 #[tokio::test]
 async fn test_real_implementation_workflow() {
     // Test the complete workflow of real implementation
-    
+
     // Step 1: Create wallet
     let wallet = WalletFactory::from_private_key(
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
-    ).unwrap();
-    
+    )
+    .unwrap();
+
     // Step 2: Create blockchain client
     let blockchain_client = BlockchainClientFactory::base_sepolia();
-    
+
     // Step 3: Create facilitator
     let _facilitator = RealFacilitatorFactory::base_sepolia().unwrap();
-    
+
     // Step 4: Create payment requirements
     let requirements = PaymentRequirements::new(
         "exact",
@@ -221,22 +229,22 @@ async fn test_real_implementation_workflow() {
         "https://api.example.com/premium",
         "Premium API access",
     );
-    
+
     // Step 5: Create payment payload (this would normally require a real signature)
     // For testing, we'll just verify the wallet can create the authorization structure
     let _payer_address = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
-    
+
     // Verify network compatibility
     assert_eq!(wallet.network(), requirements.network);
     assert_eq!(blockchain_client.network, requirements.network);
-    
+
     // Verify USDC contract addresses match (normalize case)
     let wallet_config = wallet.get_network_config().unwrap();
     let blockchain_address = blockchain_client.get_usdc_contract_address().unwrap();
     let wallet_address = format!("{:?}", wallet_config.usdc_contract).to_lowercase();
     assert_eq!(wallet_address, blockchain_address.to_lowercase());
     assert_eq!(wallet_address, requirements.asset.to_lowercase());
-    
+
     println!("✅ Real implementation workflow test passed");
     println!("   Wallet network: {}", wallet.network());
     println!("   Blockchain network: {}", blockchain_client.network);

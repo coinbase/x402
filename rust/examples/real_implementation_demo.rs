@@ -6,14 +6,15 @@
 use x402::{
     blockchain::{BlockchainClientFactory, TransactionStatus},
     client::X402Client,
-    real_facilitator::{FacilitatorConfig, RealFacilitatorClient, RealFacilitatorFactory},
+    error::X402Error,
+    real_facilitator::{RealFacilitatorClient, RealFacilitatorFactory},
     types::{PaymentPayload, PaymentRequirements},
     wallet::{RealWallet, WalletFactory},
     Result,
 };
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
@@ -74,7 +75,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     if let Some(token_balance) = balance_info.token_balance {
         let balance: u128 = u128::from_str_radix(token_balance.trim_start_matches("0x"), 16)
-            .map_err(|_| "Invalid balance format")?;
+            .map_err(|_| X402Error::InvalidAmount {
+                expected: "hex string".to_string(),
+                got: "invalid format".to_string(),
+            })?;
         println!(
             "✅ Payer USDC balance: {} ({} wei)",
             balance / 1_000_000,
@@ -179,7 +183,10 @@ async fn monitor_transaction_confirmation(
                 }
                 TransactionStatus::Failed => {
                     println!("❌ Transaction failed on blockchain");
-                    return Err("Transaction failed".into());
+                    return Err(X402Error::PaymentSettlementFailed {
+                        reason: "Transaction failed".to_string(),
+                    }
+                    .into());
                 }
                 TransactionStatus::Pending => {
                     println!(

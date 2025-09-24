@@ -39,7 +39,7 @@ impl SimpleFacilitator {
         // Check if nonce has been used before (replay protection)
         let nonce = &payload.payload.authorization.nonce;
         {
-            let nonces = self.processed_nonces.write().await;
+            let mut nonces = self.processed_nonces.write().await;
             if nonces.contains_key(nonce) {
                 return Ok(VerifyResponse {
                     is_valid: false,
@@ -110,22 +110,9 @@ impl SimpleFacilitator {
         // 1. Call the blockchain to execute the transfer
         // 2. Wait for transaction confirmation
         // 3. Return the transaction hash
-        // 4. Handle gas estimation and transaction fees
-        // 5. Implement retry logic for failed transactions
 
-        // For this example, we'll simulate a realistic settlement process
-        use x402::crypto::signature;
-
-        // Generate a more realistic transaction hash (64 hex characters)
-        let mut rng = rand::thread_rng();
-        let tx_hash_bytes: [u8; 32] = rng.gen();
-        let mock_transaction_hash = format!("0x{}", hex::encode(tx_hash_bytes));
-
-        // Simulate network delay (in real implementation, this would be blockchain confirmation time)
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        // In production, you would verify the transaction was actually mined
-        // and check its status on the blockchain
+        // For this example, we'll simulate a successful settlement
+        let mock_transaction_hash = format!("0x{:064x}", rand::thread_rng().gen::<u128>());
 
         Ok(SettleResponse {
             success: true,
@@ -156,7 +143,7 @@ struct SettleRequest {
 #[derive(Debug, Deserialize)]
 struct SupportedQuery {
     #[serde(default)]
-    _format: Option<String>,
+    format: Option<String>,
 }
 
 #[tokio::main]
