@@ -9,6 +9,7 @@ pub mod crypto;
 pub mod error;
 pub mod facilitator;
 pub mod middleware;
+pub mod proxy;
 pub mod template;
 pub mod types;
 

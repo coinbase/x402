@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
     .with_description("Premium API access".to_string());
 
     // Create x402 middleware
-    let x402_middleware = create_x402_middleware(payment_middleware);
+    let _x402_middleware = create_x402_middleware(payment_middleware);
 
     // Start server
     HttpServer::new(move || {
@@ -128,10 +128,10 @@ async fn download_handler(req: HttpRequest) -> Result<HttpResponse> {
             // Simulate file download
             Ok(HttpResponse::Ok()
                 .content_type("application/octet-stream")
-                .header(
+                .append_header((
                     "Content-Disposition",
                     "attachment; filename=\"premium_file.txt\"",
-                )
+                ))
                 .body("This is premium file content that requires payment!"))
         }
     }

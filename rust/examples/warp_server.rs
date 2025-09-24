@@ -13,7 +13,7 @@ use x402::{
     types::{FacilitatorConfig, PaymentRequirements},
 };
 
-use x402::warp::{create_x402_middleware, payment_handler, require_payment};
+use x402::warp::{create_x402_middleware, payment_handler};
 
 #[tokio::main]
 async fn main() {
@@ -31,7 +31,7 @@ async fn main() {
     .with_description("Premium API access".to_string());
 
     // Define payment requirements
-    let payment_requirements = vec![PaymentRequirements {
+    let _payment_requirements = vec![PaymentRequirements {
         scheme: "exact".to_string(),
         network: "base-sepolia".to_string(),
         max_amount_required: "1000000".to_string(),

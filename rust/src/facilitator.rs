@@ -176,12 +176,12 @@ impl FacilitatorClient {
         payment_payload: &PaymentPayload,
         payment_requirements: &PaymentRequirements,
     ) -> Result<VerifyResponse> {
-        // Validate that the payment network matches requirements
+        // Validate that the payment network matches requirements - should panic on mismatch
         if payment_payload.network != payment_requirements.network {
-            return Err(X402Error::payment_verification_failed(format!(
-                "Network mismatch: payment network {} != requirements network {}",
+            panic!(
+                "CRITICAL ERROR: Network mismatch detected! Payment network '{}' does not match requirements network '{}'. This is a security violation.",
                 payment_payload.network, payment_requirements.network
-            )));
+            );
         }
 
         // Validate that the payment scheme matches requirements
@@ -214,11 +214,14 @@ impl Default for FacilitatorClient {
 pub mod coinbase {
     use super::*;
     use crate::crypto::jwt;
+    use std::env;
 
     /// Coinbase facilitator base URL
     pub const COINBASE_FACILITATOR_BASE_URL: &str = "https://api.cdp.coinbase.com";
     /// Coinbase facilitator v2 route
     pub const COINBASE_FACILITATOR_V2_ROUTE: &str = "/platform/v2/x402";
+    /// SDK version
+    pub const SDK_VERSION: &str = "0.1.0";
 
     /// Create authentication headers for Coinbase facilitator
     pub fn create_auth_headers(
@@ -229,16 +232,37 @@ pub mod coinbase {
         let api_key_secret = api_key_secret.to_string();
 
         move || {
-            let verify_token = jwt::create_auth_header(
-                &api_key_id,
-                &api_key_secret,
+            // Use provided credentials or fall back to environment variables
+            let id = if api_key_id.is_empty() {
+                env::var("CDP_API_KEY_ID").unwrap_or_default()
+            } else {
+                api_key_id.clone()
+            };
+
+            let secret = if api_key_secret.is_empty() {
+                env::var("CDP_API_KEY_SECRET").unwrap_or_default()
+            } else {
+                api_key_secret.clone()
+            };
+
+            if id.is_empty() || secret.is_empty() {
+                return Err(X402Error::config(
+                    "Missing credentials: CDP_API_KEY_ID and CDP_API_KEY_SECRET must be set",
+                ));
+            }
+
+            let verify_token = jwt::create_auth_header_with_method(
+                &id,
+                &secret,
+                "POST",
                 COINBASE_FACILITATOR_BASE_URL,
                 &format!("{}/verify", COINBASE_FACILITATOR_V2_ROUTE),
             )?;
 
-            let settle_token = jwt::create_auth_header(
-                &api_key_id,
-                &api_key_secret,
+            let settle_token = jwt::create_auth_header_with_method(
+                &id,
+                &secret,
+                "POST",
                 COINBASE_FACILITATOR_BASE_URL,
                 &format!("{}/settle", COINBASE_FACILITATOR_V2_ROUTE),
             )?;
@@ -275,8 +299,10 @@ pub mod coinbase {
 
     /// Create correlation header for requests
     fn create_correlation_header() -> String {
+        use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
         let data = [
-            ("sdk_version", "0.1.0"),
+            ("sdk_version", SDK_VERSION),
             ("sdk_language", "rust"),
             ("source", "x402"),
             ("source_version", crate::VERSION),
@@ -284,16 +310,7 @@ pub mod coinbase {
 
         let pairs: Vec<String> = data
             .iter()
-            .map(|(key, value)| {
-                format!(
-                    "{}={}",
-                    key,
-                    percent_encoding::utf8_percent_encode(
-                        value,
-                        percent_encoding::NON_ALPHANUMERIC
-                    )
-                )
-            })
+            .map(|(key, value)| format!("{}={}", key, utf8_percent_encode(value, NON_ALPHANUMERIC)))
             .collect();
 
         pairs.join(",")
@@ -612,6 +629,62 @@ mod tests {
             "Expected timeout/connection error, got: {}",
             error_msg
         );
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "CRITICAL ERROR: Network mismatch detected!")]
+    async fn test_network_mismatch_panics() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("POST", "/verify")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "isValid": true,
+                    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+                })
+                .to_string(),
+            )
+            .create();
+
+        let config = FacilitatorConfig::new(&server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        // Create payment payload with different network than requirements
+        let authorization = ExactEvmPayloadAuthorization::new(
+            "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            "1000000",
+            "1745323800",
+            "1745323985",
+            "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
+        );
+
+        let payload = ExactEvmPayload {
+            signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c".to_string(),
+            authorization,
+        };
+
+        // Payment with "base" network
+        let payment_payload = PaymentPayload::new("exact", "base", payload);
+
+        // Requirements with "base-sepolia" network - should cause panic
+        let payment_requirements = PaymentRequirements::new(
+            "exact",
+            "base-sepolia", // Different network - should panic
+            "1000000",
+            "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            "https://example.com/test",
+            "Test payment",
+        );
+
+        // This should panic due to network mismatch
+        let _response = client
+            .verify_with_network_validation(&payment_payload, &payment_requirements)
+            .await;
     }
 
     // Helper functions for creating test data

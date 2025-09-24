@@ -87,3 +87,11 @@ path = "examples/client.rs"
 [[example]]
 name = "facilitator"
 path = "examples/facilitator.rs"
+
+[[example]]
+name = "proxy_server"
+path = "examples/proxy_server.rs"
+
+[[example]]
+name = "mainnet_server"
+path = "examples/mainnet_server.rs"

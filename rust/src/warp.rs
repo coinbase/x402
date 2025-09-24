@@ -3,7 +3,7 @@
 //! This module provides integration with the Warp framework.
 
 use crate::middleware::PaymentMiddleware;
-use crate::types::{PaymentRequirements, PaymentRequirementsResponse};
+use crate::types::{PaymentPayload, PaymentRequirements, PaymentRequirementsResponse};
 use warp::{
     http::StatusCode,
     reject::{Reject, Rejection},
@@ -30,11 +30,100 @@ impl Reply for PaymentRequired {
 
 /// Create a Warp filter for x402 payment verification
 pub fn x402_payment_filter(
-    _payment_middleware: PaymentMiddleware,
+    payment_middleware: PaymentMiddleware,
 ) -> impl Filter<Extract = (), Error = Rejection> + Clone {
+    let middleware = std::sync::Arc::new(payment_middleware);
     warp::any()
-        .and_then(|| async { Ok::<(), Rejection>(()) })
+        .and(warp::header::optional::<String>("X-PAYMENT"))
+        .and_then(move |payment_header: Option<String>| {
+            let _middleware = middleware.clone();
+            async move {
+                match payment_header {
+                    Some(payment_b64) => {
+                        // Decode and verify payment
+                        match PaymentPayload::from_base64(&payment_b64) {
+                            Ok(payload) => {
+                                // Create payment requirements
+                                let requirements = match create_payment_requirements_for_warp() {
+                                    Ok(req) => req,
+                                    Err(e) => {
+                                        return Err(warp::reject::custom(PaymentRequired {
+                                            requirements: vec![],
+                                            error: format!(
+                                                "Failed to create payment requirements: {}",
+                                                e
+                                            ),
+                                        }));
+                                    }
+                                };
+
+                                // Verify payment with facilitator
+                                match verify_payment_with_facilitator_warp(&payload, &requirements)
+                                    .await
+                                {
+                                    Ok(true) => {
+                                        // Payment is valid, continue
+                                        Ok(())
+                                    }
+                                    Ok(false) => Err(warp::reject::custom(PaymentRequired {
+                                        requirements: vec![requirements],
+                                        error: "Payment verification failed".to_string(),
+                                    })),
+                                    Err(e) => Err(warp::reject::custom(PaymentRequired {
+                                        requirements: vec![requirements],
+                                        error: format!("Payment verification error: {}", e),
+                                    })),
+                                }
+                            }
+                            Err(e) => Err(warp::reject::custom(PaymentRequired {
+                                requirements: vec![],
+                                error: format!("Failed to decode payment payload: {}", e),
+                            })),
+                        }
+                    }
+                    None => {
+                        // No payment header provided
+                        let requirements = match create_payment_requirements_for_warp() {
+                            Ok(req) => vec![req],
+                            Err(_) => vec![],
+                        };
+                        Err(warp::reject::custom(PaymentRequired {
+                            requirements,
+                            error: "Payment required".to_string(),
+                        }))
+                    }
+                }
+            }
+        })
         .untuple_one()
+}
+
+/// Create payment requirements for Warp
+fn create_payment_requirements_for_warp() -> crate::Result<PaymentRequirements> {
+    let mut requirements = PaymentRequirements::new(
+        "exact",
+        "base-sepolia",
+        "1000000",
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "/",
+        "Payment required for this resource",
+    );
+
+    requirements.set_usdc_info(crate::types::Network::Testnet)?;
+    Ok(requirements)
+}
+
+/// Verify payment with facilitator for Warp
+async fn verify_payment_with_facilitator_warp(
+    payment_payload: &PaymentPayload,
+    requirements: &PaymentRequirements,
+) -> crate::Result<bool> {
+    let facilitator =
+        crate::facilitator::FacilitatorClient::new(crate::types::FacilitatorConfig::default())?;
+
+    let response = facilitator.verify(payment_payload, requirements).await?;
+    Ok(response.is_valid)
 }
 
 /// Create a Warp filter that requires payment
@@ -105,7 +194,6 @@ pub async fn handle_payment_verification(
 mod tests {
     use super::*;
     use crate::types::PaymentRequirements;
-    use std::str::FromStr;
 
     #[test]
     fn test_payment_required_rejection() {

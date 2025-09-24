@@ -39,7 +39,7 @@ impl SimpleFacilitator {
         // Check if nonce has been used before (replay protection)
         let nonce = &payload.payload.authorization.nonce;
         {
-            let mut nonces = self.processed_nonces.write().await;
+            let nonces = self.processed_nonces.write().await;
             if nonces.contains_key(nonce) {
                 return Ok(VerifyResponse {
                     is_valid: false,
@@ -143,7 +143,7 @@ struct SettleRequest {
 #[derive(Debug, Deserialize)]
 struct SupportedQuery {
     #[serde(default)]
-    format: Option<String>,
+    _format: Option<String>,
 }
 
 #[tokio::main]

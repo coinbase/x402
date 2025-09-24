@@ -56,6 +56,10 @@ impl PaywallConfigBuilder {
             app_logo: self.app_logo,
             cdp_client_key: self.cdp_client_key,
             session_token_endpoint: self.session_token_endpoint,
+            custom_css: None,
+            custom_js: None,
+            theme: None,
+            branding: None,
         }
     }
 }

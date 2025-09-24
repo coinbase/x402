@@ -118,50 +118,89 @@ pub async fn payment_middleware_handler(
     };
 
     // Create payment requirements
-    let requirements = config
-        .create_payment_requirements(&resource)
-        .unwrap_or_else(|_| {
-            crate::types::PaymentRequirements::new(
-                "exact",
-                if config.testnet {
-                    "base-sepolia"
-                } else {
-                    "base"
-                },
-                "1000000",
-                if config.testnet {
-                    "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
-                } else {
-                    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-                },
-                &config.pay_to,
-                &resource,
-                config.description.as_deref().unwrap_or("Payment required"),
+    let requirements = match config.create_payment_requirements(&resource) {
+        Ok(req) => req,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "Failed to create payment requirements",
+                    "x402Version": 1
+                })),
             )
-        });
+                .into_response();
+        }
+    };
 
     // Check for payment header
     if let Some(payment_header) = headers.get("X-PAYMENT") {
         if let Ok(payment_str) = payment_header.to_str() {
             // Parse the payment payload
-            if let Ok(payment_payload) = crate::types::PaymentPayload::from_base64(payment_str) {
-                // Verify the payment using the middleware's verify method
-                if middleware.verify(&payment_payload).await {
-                    // Payment is valid, proceed to next handler
-                    let mut response = next.run(request).await;
+            match crate::types::PaymentPayload::from_base64(payment_str) {
+                Ok(payment_payload) => {
+                    // Verify the payment using the middleware's verify method
+                    match middleware
+                        .verify_with_requirements(&payment_payload, &requirements)
+                        .await
+                    {
+                        Ok(true) => {
+                            // Payment is valid, proceed to next handler
+                            let mut response = next.run(request).await;
 
-                    // After successful response, settle the payment
-                    if let Ok(settlement_response) = middleware.settle(&payment_payload).await {
-                        if let Ok(settlement_header) = settlement_response.to_base64() {
-                            if let Ok(header_value) = HeaderValue::from_str(&settlement_header) {
-                                response
-                                    .headers_mut()
-                                    .insert("X-PAYMENT-RESPONSE", header_value);
+                            // After successful response, settle the payment
+                            match middleware
+                                .settle_with_requirements(&payment_payload, &requirements)
+                                .await
+                            {
+                                Ok(settlement_response) => {
+                                    if let Ok(settlement_header) = settlement_response.to_base64() {
+                                        if let Ok(header_value) =
+                                            HeaderValue::from_str(&settlement_header)
+                                        {
+                                            response
+                                                .headers_mut()
+                                                .insert("X-PAYMENT-RESPONSE", header_value);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    // Log settlement error but don't fail the request
+                                    tracing::warn!("Payment settlement failed: {}", e);
+                                }
                             }
+
+                            return response;
+                        }
+                        Ok(false) => {
+                            // Payment verification failed
+                            let response_body = serde_json::json!({
+                                "x402Version": 1,
+                                "error": "Payment verification failed",
+                                "accepts": vec![requirements],
+                            });
+                            return (StatusCode::PAYMENT_REQUIRED, Json(response_body))
+                                .into_response();
+                        }
+                        Err(e) => {
+                            // Error during verification
+                            let response_body = serde_json::json!({
+                                "x402Version": 1,
+                                "error": format!("Payment verification error: {}", e),
+                                "accepts": vec![requirements],
+                            });
+                            return (StatusCode::PAYMENT_REQUIRED, Json(response_body))
+                                .into_response();
                         }
                     }
-
-                    return response;
+                }
+                Err(e) => {
+                    // Invalid payment payload
+                    let response_body = serde_json::json!({
+                        "x402Version": 1,
+                        "error": format!("Invalid payment payload: {}", e),
+                        "accepts": vec![requirements],
+                    });
+                    return (StatusCode::PAYMENT_REQUIRED, Json(response_body)).into_response();
                 }
             }
         }
@@ -319,6 +358,7 @@ impl AxumPaymentConfig {
         PaymentMiddleware {
             config: Arc::new(self.base_config),
             facilitator: None,
+            template_config: None,
         }
     }
 
