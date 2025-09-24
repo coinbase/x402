@@ -38,21 +38,42 @@ async fn test_client_with_payment_required() {
         )
         .create();
 
-    let client = X402Client::new().unwrap();
+    let client = X402Client::new().expect("Client creation MUST succeed");
     let response = client
         .get(&format!("{}/protected", server.url()))
         .send()
         .await
-        .unwrap();
+        .expect("HTTP request MUST succeed");
 
-    assert_eq!(response.status(), 402);
+    assert_eq!(
+        response.status(),
+        402,
+        "Response status MUST be exactly 402 Payment Required"
+    );
 
-    let payment_req: PaymentRequirementsResponse = response.json().await.unwrap();
-    assert_eq!(payment_req.x402_version, 1);
-    assert_eq!(payment_req.error, "X-PAYMENT header is required");
-    assert_eq!(payment_req.accepts.len(), 1);
-    assert_eq!(payment_req.accepts[0].scheme, "exact");
-    assert_eq!(payment_req.accepts[0].network, "base-sepolia");
+    let payment_req: PaymentRequirementsResponse =
+        response.json().await.expect("JSON parsing MUST succeed");
+    assert_eq!(
+        payment_req.x402_version, 1,
+        "X402 version MUST be exactly 1"
+    );
+    assert_eq!(
+        payment_req.error, "X-PAYMENT header is required",
+        "Error message MUST be exactly 'X-PAYMENT header is required'"
+    );
+    assert_eq!(
+        payment_req.accepts.len(),
+        1,
+        "Must accept exactly 1 payment scheme"
+    );
+    assert_eq!(
+        payment_req.accepts[0].scheme, "exact",
+        "Payment scheme MUST be exactly 'exact'"
+    );
+    assert_eq!(
+        payment_req.accepts[0].network, "base-sepolia",
+        "Network MUST be exactly 'base-sepolia'"
+    );
 }
 
 #[tokio::test]
@@ -69,36 +90,50 @@ async fn test_client_with_successful_payment() {
         }).to_string())
         .create();
 
-    let client = X402Client::new().unwrap();
+    let client = X402Client::new().expect("Client creation MUST succeed");
     let payment_payload = create_test_payment_payload();
 
     let response = client
         .get(&format!("{}/protected", server.url()))
         .payment(&payment_payload)
-        .unwrap()
+        .expect("Payment header creation MUST succeed")
         .send()
         .await
-        .unwrap();
+        .expect("HTTP request with payment MUST succeed");
 
-    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.status(),
+        200,
+        "Response status MUST be exactly 200 OK after payment"
+    );
 
     // Check settlement response header first (before consuming response)
     let settlement_header = response
         .headers()
         .get("X-PAYMENT-RESPONSE")
-        .unwrap()
+        .expect("X-PAYMENT-RESPONSE header MUST be present")
         .clone();
-    let data: serde_json::Value = response.json().await.unwrap();
-    assert_eq!(data["data"], "This is protected content");
+    let data: serde_json::Value = response.json().await.expect("JSON parsing MUST succeed");
+    assert_eq!(
+        data["data"], "This is protected content",
+        "Response data MUST be exactly 'This is protected content'"
+    );
 
     let settlement: SettleResponse = serde_json::from_slice(
         &base64::engine::general_purpose::STANDARD
-            .decode(settlement_header.to_str().unwrap())
-            .unwrap(),
+            .decode(
+                settlement_header
+                    .to_str()
+                    .expect("Header value MUST be valid UTF-8"),
+            )
+            .expect("Header value MUST be valid base64"),
     )
-    .unwrap();
-    assert!(settlement.success);
-    assert_eq!(settlement.network, "base-sepolia");
+    .expect("Settlement response MUST be valid JSON");
+    assert!(settlement.success, "Settlement MUST be successful");
+    assert_eq!(
+        settlement.network, "base-sepolia",
+        "Settlement network MUST be exactly 'base-sepolia'"
+    );
 }
 
 #[tokio::test]
@@ -144,17 +179,33 @@ async fn test_discovery_client() {
         )
         .create();
 
-    let discovery = DiscoveryClient::new(&server.url());
-    let response = discovery.get_all_resources().await.unwrap();
+    let discovery = DiscoveryClient::new(server.url());
+    let response = discovery
+        .get_all_resources()
+        .await
+        .expect("Discovery request MUST succeed");
 
-    assert_eq!(response.x402_version, 1);
-    assert_eq!(response.items.len(), 1);
     assert_eq!(
-        response.items[0].resource,
-        "https://api.example.com/premium-data"
+        response.x402_version, 1,
+        "Discovery response X402 version MUST be exactly 1"
     );
-    assert_eq!(response.items[0].r#type, "http");
-    assert_eq!(response.pagination.total, 1);
+    assert_eq!(
+        response.items.len(),
+        1,
+        "Discovery response MUST contain exactly 1 item"
+    );
+    assert_eq!(
+        response.items[0].resource, "https://api.example.com/premium-data",
+        "Resource URL MUST be exactly 'https://api.example.com/premium-data'"
+    );
+    assert_eq!(
+        response.items[0].r#type, "http",
+        "Resource type MUST be exactly 'http'"
+    );
+    assert_eq!(
+        response.pagination.total, 1,
+        "Pagination total MUST be exactly 1"
+    );
 }
 
 #[tokio::test]
@@ -183,16 +234,26 @@ async fn test_discovery_with_filters() {
         )
         .create();
 
-    let discovery = DiscoveryClient::new(&server.url());
+    let discovery = DiscoveryClient::new(server.url());
     let filters = DiscoveryFilters::new()
         .with_resource_type("http")
         .with_limit(10)
         .with_offset(0);
 
-    let response = discovery.discover_resources(Some(filters)).await.unwrap();
+    let response = discovery
+        .discover_resources(Some(filters))
+        .await
+        .expect("Filtered discovery request MUST succeed");
 
-    assert_eq!(response.items.len(), 0);
-    assert_eq!(response.pagination.limit, 10);
+    assert_eq!(
+        response.items.len(),
+        0,
+        "Filtered discovery MUST return exactly 0 items"
+    );
+    assert_eq!(
+        response.pagination.limit, 10,
+        "Pagination limit MUST be exactly 10"
+    );
 }
 
 #[tokio::test]
@@ -208,21 +269,38 @@ async fn test_payment_requirements_creation() {
     );
 
     // Test USDC info setting
-    requirements.set_usdc_info(Network::Testnet).unwrap();
-    assert!(requirements.extra.is_some());
+    requirements
+        .set_usdc_info(Network::Testnet)
+        .expect("USDC info setting MUST succeed for testnet");
+    assert!(
+        requirements.extra.is_some(),
+        "Extra field MUST be populated after setting USDC info"
+    );
 
-    let extra = requirements.extra.as_ref().unwrap();
-    assert_eq!(extra["name"], "USDC");
-    assert_eq!(extra["version"], "2");
+    let extra = requirements
+        .extra
+        .as_ref()
+        .expect("Extra field MUST be available");
+    assert_eq!(extra["name"], "USDC", "USDC name MUST be exactly 'USDC'");
+    assert_eq!(extra["version"], "2", "USDC version MUST be exactly '2'");
 
     // Test amount conversion
-    let amount_decimal = requirements.amount_as_decimal().unwrap();
-    assert_eq!(amount_decimal, rust_decimal::Decimal::from(1000000u64));
+    let amount_decimal = requirements
+        .amount_as_decimal()
+        .expect("Amount conversion to decimal MUST succeed");
+    assert_eq!(
+        amount_decimal,
+        rust_decimal::Decimal::from(1000000u64),
+        "Amount as decimal MUST be exactly 1000000"
+    );
 
-    let amount_in_units = requirements.amount_in_decimal_units(6).unwrap();
+    let amount_in_units = requirements
+        .amount_in_decimal_units(6)
+        .expect("Amount conversion to decimal units MUST succeed");
     assert_eq!(
         amount_in_units,
-        rust_decimal::Decimal::from_str("1.0").unwrap()
+        rust_decimal::Decimal::from_str("1.0").expect("Decimal parsing MUST succeed"),
+        "Amount in decimal units MUST be exactly 1.0"
     );
 }
 
@@ -245,19 +323,30 @@ async fn test_payment_payload_serialization() {
     let payment_payload = PaymentPayload::new("exact", "base-sepolia", payload);
 
     // Test base64 encoding/decoding
-    let encoded = payment_payload.to_base64().unwrap();
-    let decoded = PaymentPayload::from_base64(&encoded).unwrap();
+    let encoded = payment_payload
+        .to_base64()
+        .expect("Base64 encoding MUST succeed");
+    let decoded = PaymentPayload::from_base64(&encoded).expect("Base64 decoding MUST succeed");
 
-    assert_eq!(payment_payload.x402_version, decoded.x402_version);
-    assert_eq!(payment_payload.scheme, decoded.scheme);
-    assert_eq!(payment_payload.network, decoded.network);
     assert_eq!(
-        payment_payload.payload.authorization.from,
-        decoded.payload.authorization.from
+        payment_payload.x402_version, decoded.x402_version,
+        "X402 version MUST be preserved after encoding/decoding"
     );
     assert_eq!(
-        payment_payload.payload.authorization.to,
-        decoded.payload.authorization.to
+        payment_payload.scheme, decoded.scheme,
+        "Scheme MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        payment_payload.network, decoded.network,
+        "Network MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        payment_payload.payload.authorization.from, decoded.payload.authorization.from,
+        "Authorization 'from' field MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        payment_payload.payload.authorization.to, decoded.payload.authorization.to,
+        "Authorization 'to' field MUST be preserved after encoding/decoding"
     );
 }
 
@@ -275,7 +364,12 @@ async fn test_authorization_validity() {
         "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
     );
 
-    assert!(valid_auth.is_valid_now().unwrap());
+    assert!(
+        valid_auth
+            .is_valid_now()
+            .expect("Authorization validity check MUST succeed"),
+        "Valid authorization MUST be valid now"
+    );
 
     // Test expired authorization
     let expired_auth = ExactEvmPayloadAuthorization::new(
@@ -287,7 +381,12 @@ async fn test_authorization_validity() {
         "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
     );
 
-    assert!(!expired_auth.is_valid_now().unwrap());
+    assert!(
+        !expired_auth
+            .is_valid_now()
+            .expect("Authorization validity check MUST succeed"),
+        "Expired authorization MUST NOT be valid now"
+    );
 
     // Test not yet valid authorization
     let future_auth = ExactEvmPayloadAuthorization::new(
@@ -299,7 +398,12 @@ async fn test_authorization_validity() {
         "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
     );
 
-    assert!(!future_auth.is_valid_now().unwrap());
+    assert!(
+        !future_auth
+            .is_valid_now()
+            .expect("Authorization validity check MUST succeed"),
+        "Future authorization MUST NOT be valid now"
+    );
 }
 
 #[tokio::test]
@@ -313,16 +417,31 @@ async fn test_settle_response_serialization() {
         payer: Some("0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string()),
     };
 
-    let encoded = settle_response.to_base64().unwrap();
+    let encoded = settle_response
+        .to_base64()
+        .expect("Settle response base64 encoding MUST succeed");
     let decoded_bytes = base64::engine::general_purpose::STANDARD
         .decode(&encoded)
-        .unwrap();
-    let decoded: SettleResponse = serde_json::from_slice(&decoded_bytes).unwrap();
+        .expect("Base64 decoding MUST succeed");
+    let decoded: SettleResponse =
+        serde_json::from_slice(&decoded_bytes).expect("JSON deserialization MUST succeed");
 
-    assert_eq!(settle_response.success, decoded.success);
-    assert_eq!(settle_response.transaction, decoded.transaction);
-    assert_eq!(settle_response.network, decoded.network);
-    assert_eq!(settle_response.payer, decoded.payer);
+    assert_eq!(
+        settle_response.success, decoded.success,
+        "Success field MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        settle_response.transaction, decoded.transaction,
+        "Transaction field MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        settle_response.network, decoded.network,
+        "Network field MUST be preserved after encoding/decoding"
+    );
+    assert_eq!(
+        settle_response.payer, decoded.payer,
+        "Payer field MUST be preserved after encoding/decoding"
+    );
 }
 
 #[tokio::test]
@@ -331,51 +450,90 @@ async fn test_error_handling() {
     let error = X402Error::NetworkNotSupported {
         network: "unsupported-network".to_string(),
     };
-    assert!(error.to_string().contains("Network not supported"));
+    assert!(
+        error.to_string().contains("Network not supported"),
+        "Network not supported error message MUST contain 'Network not supported'"
+    );
 
     // Test invalid payment payload error
     let error = X402Error::invalid_payment_payload("Invalid signature");
-    assert!(error.to_string().contains("Invalid payment payload"));
+    assert!(
+        error.to_string().contains("Invalid payment payload"),
+        "Invalid payment payload error message MUST contain 'Invalid payment payload'"
+    );
 
     // Test insufficient funds error
     let error = X402Error::InsufficientFunds;
-    assert!(error.to_string().contains("Insufficient funds"));
+    assert!(
+        error.to_string().contains("Insufficient funds"),
+        "Insufficient funds error message MUST contain 'Insufficient funds'"
+    );
 
     // Test authorization expired error
     let error = X402Error::AuthorizationExpired;
-    assert!(error.to_string().contains("Authorization expired"));
+    assert!(
+        error.to_string().contains("Authorization expired"),
+        "Authorization expired error message MUST contain 'Authorization expired'"
+    );
 }
 
 #[tokio::test]
 async fn test_network_configurations() {
     // Test supported networks
-    assert!(networks::is_supported("base-sepolia"));
-    assert!(networks::is_supported("base"));
-    assert!(networks::is_supported("avalanche-fuji"));
-    assert!(networks::is_supported("avalanche"));
-    assert!(!networks::is_supported("unsupported-network"));
+    assert!(
+        networks::is_supported("base-sepolia"),
+        "base-sepolia MUST be supported"
+    );
+    assert!(networks::is_supported("base"), "base MUST be supported");
+    assert!(
+        networks::is_supported("avalanche-fuji"),
+        "avalanche-fuji MUST be supported"
+    );
+    assert!(
+        networks::is_supported("avalanche"),
+        "avalanche MUST be supported"
+    );
+    assert!(
+        !networks::is_supported("unsupported-network"),
+        "unsupported-network MUST NOT be supported"
+    );
 
     // Test USDC addresses
     assert_eq!(
         networks::get_usdc_address("base-sepolia"),
-        Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+        Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
+        "base-sepolia USDC address MUST be exactly 0x036CbD53842c5426634e7929541eC2318f3dCF7e"
     );
     assert_eq!(
         networks::get_usdc_address("base"),
-        Some("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+        Some("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+        "base USDC address MUST be exactly 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
     );
     assert_eq!(
         networks::get_usdc_address("avalanche-fuji"),
-        Some("0x5425890298aed601595a70AB815c96711a31Bc65")
+        Some("0x5425890298aed601595a70AB815c96711a31Bc65"),
+        "avalanche-fuji USDC address MUST be exactly 0x5425890298aed601595a70AB815c96711a31Bc65"
     );
 
     // Test all supported networks
     let all_networks = networks::all_supported();
-    assert_eq!(all_networks.len(), 4);
-    assert!(all_networks.contains(&"base-sepolia"));
-    assert!(all_networks.contains(&"base"));
-    assert!(all_networks.contains(&"avalanche-fuji"));
-    assert!(all_networks.contains(&"avalanche"));
+    assert_eq!(all_networks.len(), 4, "Must support exactly 4 networks");
+    assert!(
+        all_networks.contains(&"base-sepolia"),
+        "Supported networks MUST include base-sepolia"
+    );
+    assert!(
+        all_networks.contains(&"base"),
+        "Supported networks MUST include base"
+    );
+    assert!(
+        all_networks.contains(&"avalanche-fuji"),
+        "Supported networks MUST include avalanche-fuji"
+    );
+    assert!(
+        all_networks.contains(&"avalanche"),
+        "Supported networks MUST include avalanche"
+    );
 }
 
 // Helper function for creating test payment payload

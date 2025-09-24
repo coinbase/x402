@@ -373,7 +373,7 @@ mod tests {
             )
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -408,7 +408,7 @@ mod tests {
             )
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -440,7 +440,7 @@ mod tests {
             }).to_string())
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -478,7 +478,7 @@ mod tests {
             )
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -501,7 +501,7 @@ mod tests {
         let mut server = Server::new_async().await;
         let _m = server.mock("POST", "/verify").with_status(500).create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -542,7 +542,7 @@ mod tests {
             )
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         let supported = client.supported().await.unwrap();
@@ -584,7 +584,7 @@ mod tests {
         };
 
         let config =
-            FacilitatorConfig::new(&server.url()).with_auth_headers(Box::new(create_auth_headers));
+            FacilitatorConfig::new(server.url()).with_auth_headers(Box::new(create_auth_headers));
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
@@ -648,7 +648,7 @@ mod tests {
             )
             .create();
 
-        let config = FacilitatorConfig::new(&server.url());
+        let config = FacilitatorConfig::new(server.url());
         let client = FacilitatorClient::new(config).unwrap();
 
         // Create payment payload with different network than requirements

@@ -185,8 +185,7 @@ async fn monitor_transaction_confirmation(
                     println!("❌ Transaction failed on blockchain");
                     return Err(X402Error::PaymentSettlementFailed {
                         reason: "Transaction failed".to_string(),
-                    }
-                    .into());
+                    });
                 }
                 TransactionStatus::Pending => {
                     println!(

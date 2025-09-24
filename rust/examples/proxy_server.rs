@@ -4,7 +4,6 @@
 //! x402 payment protection to any existing HTTP service.
 
 use std::env;
-use tracing_subscriber;
 use x402::proxy::{run_proxy_server, ProxyConfig};
 
 #[tokio::main]

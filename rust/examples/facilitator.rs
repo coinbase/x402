@@ -11,7 +11,6 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing_subscriber;
 
 use rand::Rng;
 use x402::{types::*, Result, X402Error};
@@ -39,7 +38,7 @@ impl SimpleFacilitator {
         // Check if nonce has been used before (replay protection)
         let nonce = &payload.payload.authorization.nonce;
         {
-            let mut nonces = self.processed_nonces.write().await;
+            let nonces = self.processed_nonces.read().await;
             if nonces.contains_key(nonce) {
                 return Ok(VerifyResponse {
                     is_valid: false,
@@ -143,6 +142,7 @@ struct SettleRequest {
 #[derive(Debug, Deserialize)]
 struct SupportedQuery {
     #[serde(default)]
+    #[allow(dead_code)]
     format: Option<String>,
 }
 

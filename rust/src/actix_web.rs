@@ -39,47 +39,6 @@ pub fn create_x402_middleware(payment_middleware: PaymentMiddleware) -> X402Midd
     X402Middleware::new(payment_middleware)
 }
 
-/// Extract payment requirements from request
-///
-/// This function can be extended to extract payment requirements from:
-/// - Route metadata/attributes
-/// - Configuration files
-/// - Database lookups
-/// - Environment variables
-fn extract_payment_requirements(req: &ServiceRequest) -> Result<Option<Vec<PaymentRequirements>>> {
-    let path = req.uri().path();
-
-    // Example: Extract payment requirements based on route patterns
-    // In a real application, this could come from route metadata, configuration, or database
-    match path {
-        "/premium" | "/api/v1/premium" => {
-            // Premium endpoints require payment
-            let requirements = PaymentRequirements::new(
-                "exact",
-                "base-sepolia",
-                "1000000", // 1 USDC
-                "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-                "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-                path,
-                "Premium API access",
-            );
-
-            let mut req = requirements;
-            req.set_usdc_info(crate::types::Network::Testnet)?;
-            Ok(Some(vec![req]))
-        }
-        "/health" | "/metrics" | "/status" => {
-            // Health and monitoring endpoints are free
-            Ok(None)
-        }
-        _ => {
-            // Default: no payment required for other endpoints
-            // This can be overridden by route-specific configuration
-            Ok(None)
-        }
-    }
-}
-
 /// Create payment required response
 fn create_payment_required_response(requirements: &[PaymentRequirements]) -> HttpResponse {
     let response = PaymentRequirementsResponse::new(

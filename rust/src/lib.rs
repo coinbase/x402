@@ -47,7 +47,8 @@ mod tests {
     #[test]
     fn test_version_constants() {
         assert_eq!(X402_VERSION, 1);
-        assert!(!VERSION.is_empty());
+        // VERSION is a const string, so it's never empty
+        assert_eq!(VERSION, "0.1.0");
     }
 
     #[test]

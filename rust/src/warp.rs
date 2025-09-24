@@ -249,6 +249,6 @@ mod tests {
     fn test_payment_handler() {
         let _handler = payment_handler();
         // This is a basic test to ensure the handler compiles
-        assert!(true);
+        // The handler creation itself validates the compilation
     }
 }

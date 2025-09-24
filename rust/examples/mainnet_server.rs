@@ -3,15 +3,13 @@
 //! This example demonstrates how to create a production-ready server
 //! using mainnet configuration with proper CDP authentication.
 
-use axum::{response::Json, routing::get, Router};
+use axum::{response::Json, routing::get};
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
-use tracing_subscriber;
 use x402::{
     axum::{create_payment_app, examples, AxumPaymentConfig},
     facilitator::coinbase,
-    types::FacilitatorConfig,
 };
 
 #[tokio::main]

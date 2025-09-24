@@ -28,7 +28,11 @@ async fn test_payment_payload_creation_performance() {
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("Payment payload creation: {}ns per operation", avg_time);
-    assert!(avg_time < 10000); // Should be under 10μs per operation
+    assert!(
+        avg_time < 10000,
+        "Payment payload creation MUST be under 10μs per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -55,7 +59,11 @@ async fn test_payment_requirements_creation_performance() {
         "Payment requirements creation: {}ns per operation",
         avg_time
     );
-    assert!(avg_time < 10000); // Should be under 10μs per operation
+    assert!(
+        avg_time < 10000,
+        "Payment requirements creation MUST be under 10μs per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -72,7 +80,11 @@ async fn test_base64_encoding_performance() {
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("Base64 encoding: {}ns per operation", avg_time);
-    assert!(avg_time < 1000000); // Should be under 1ms per operation
+    assert!(
+        avg_time < 1000000,
+        "Base64 encoding MUST be under 1ms per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -90,7 +102,11 @@ async fn test_base64_decoding_performance() {
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("Base64 decoding: {}ns per operation", avg_time);
-    assert!(avg_time < 1000000); // Should be under 1ms per operation
+    assert!(
+        avg_time < 1000000,
+        "Base64 decoding MUST be under 1ms per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -99,14 +115,18 @@ async fn test_client_creation_performance() {
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _client = X402Client::new().unwrap();
+        let _client = X402Client::new().expect("Client creation MUST succeed");
     }
 
     let duration = start.elapsed();
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("Client creation: {}ns per operation", avg_time);
-    assert!(avg_time < 10000000); // Should be under 10ms per operation
+    assert!(
+        avg_time < 10000000,
+        "Client creation MUST be under 10ms per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -116,14 +136,19 @@ async fn test_facilitator_client_creation_performance() {
 
     for _ in 0..iterations {
         let config = x402::types::FacilitatorConfig::new("https://api.example.com");
-        let _facilitator = FacilitatorClient::new(config).unwrap();
+        let _facilitator =
+            FacilitatorClient::new(config).expect("Facilitator client creation MUST succeed");
     }
 
     let duration = start.elapsed();
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("Facilitator client creation: {}ns per operation", avg_time);
-    assert!(avg_time < 10000000); // Should be under 10ms per operation
+    assert!(
+        avg_time < 10000000,
+        "Facilitator client creation MUST be under 10ms per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -133,32 +158,41 @@ async fn test_serialization_performance() {
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _json = serde_json::to_string(&payload).unwrap();
+        let _json = serde_json::to_string(&payload).expect("JSON serialization MUST succeed");
     }
 
     let duration = start.elapsed();
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("JSON serialization: {}ns per operation", avg_time);
-    assert!(avg_time < 100000); // Should be under 100μs per operation
+    assert!(
+        avg_time < 100000,
+        "JSON serialization MUST be under 100μs per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
 async fn test_deserialization_performance() {
     let iterations = 1000;
     let payload = create_test_payment_payload();
-    let json = serde_json::to_string(&payload).unwrap();
+    let json = serde_json::to_string(&payload).expect("JSON serialization MUST succeed");
     let start = Instant::now();
 
     for _ in 0..iterations {
-        let _decoded: PaymentPayload = serde_json::from_str(&json).unwrap();
+        let _decoded: PaymentPayload =
+            serde_json::from_str(&json).expect("JSON deserialization MUST succeed");
     }
 
     let duration = start.elapsed();
     let avg_time = duration.as_nanos() / iterations as u128;
 
     println!("JSON deserialization: {}ns per operation", avg_time);
-    assert!(avg_time < 100000); // Should be under 100μs per operation
+    assert!(
+        avg_time < 100000,
+        "JSON deserialization MUST be under 100μs per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 #[tokio::test]
@@ -175,15 +209,18 @@ async fn test_concurrent_operations() {
             task::spawn(async move {
                 for _ in 0..iterations {
                     let payload = create_test_payment_payload();
-                    let _encoded = payload.to_base64().unwrap();
-                    let _decoded = PaymentPayload::from_base64(&_encoded).unwrap();
+                    let _encoded = payload.to_base64().expect("Base64 encoding MUST succeed");
+                    let _decoded = PaymentPayload::from_base64(&_encoded)
+                        .expect("Base64 decoding MUST succeed");
                 }
             })
         })
         .collect();
 
     for handle in handles {
-        handle.await.unwrap();
+        handle
+            .await
+            .expect("Concurrent task MUST complete successfully");
     }
 
     let duration = start.elapsed();
@@ -191,7 +228,11 @@ async fn test_concurrent_operations() {
     let avg_time = duration.as_nanos() / total_operations as u128;
 
     println!("Concurrent operations: {}ns per operation", avg_time);
-    assert!(avg_time < 1000000); // Should be under 1ms per operation
+    assert!(
+        avg_time < 1000000,
+        "Concurrent operations MUST be under 1ms per operation - actual: {}ns",
+        avg_time
+    );
 }
 
 fn create_test_payment_payload() -> PaymentPayload {

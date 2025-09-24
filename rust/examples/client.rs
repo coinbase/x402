@@ -1,11 +1,10 @@
 //! Example client making x402 payments
 
 // Note: FromStr import removed as it's not used in this example
-use tracing_subscriber;
 use x402::{
     client::{DiscoveryClient, X402Client},
     types::{PaymentPayload, PaymentRequirements},
-    wallet::{RealWallet, WalletFactory},
+    wallet::WalletFactory,
     Result,
 };
 

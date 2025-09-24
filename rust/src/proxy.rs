@@ -427,9 +427,11 @@ mod tests {
 
     #[test]
     fn test_proxy_config_validation() {
-        let mut config = ProxyConfig::default();
-        config.target_url = "https://example.com".to_string();
-        config.pay_to = "0x1234567890123456789012345678901234567890".to_string();
+        let config = ProxyConfig {
+            target_url: "https://example.com".to_string(),
+            pay_to: "0x1234567890123456789012345678901234567890".to_string(),
+            ..Default::default()
+        };
 
         assert!(config.validate().is_ok());
     }
@@ -442,26 +444,30 @@ mod tests {
 
     #[test]
     fn test_proxy_config_validation_invalid_url() {
-        let mut config = ProxyConfig::default();
-        config.target_url = "not-a-url".to_string();
-        config.pay_to = "0x1234567890123456789012345678901234567890".to_string();
+        let config = ProxyConfig {
+            target_url: "not-a-url".to_string(),
+            pay_to: "0x1234567890123456789012345678901234567890".to_string(),
+            ..Default::default()
+        };
 
         assert!(config.validate().is_err());
     }
 
     #[test]
     fn test_proxy_config_to_payment_config() {
-        let mut config = ProxyConfig::default();
-        config.target_url = "https://example.com".to_string();
-        config.pay_to = "0x1234567890123456789012345678901234567890".to_string();
-        config.amount = 0.01;
-        config.description = Some("Test payment".to_string());
+        let config = ProxyConfig {
+            target_url: "https://example.com".to_string(),
+            pay_to: "0x1234567890123456789012345678901234567890".to_string(),
+            amount: 0.01,
+            description: Some("Test payment".to_string()),
+            ..Default::default()
+        };
 
         let payment_config = config.to_payment_config().unwrap();
         assert_eq!(
             payment_config.pay_to,
             "0x1234567890123456789012345678901234567890"
         );
-        assert_eq!(payment_config.testnet, true);
+        assert!(payment_config.testnet);
     }
 }

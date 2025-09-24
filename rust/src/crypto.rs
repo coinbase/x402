@@ -650,13 +650,12 @@ mod tests {
         );
 
         // The result should be handled gracefully without panicking
-        let is_ok = result.is_ok();
         match result {
             Ok(_) => println!("Verification succeeded"),
             Err(e) => println!("Verification failed with error: {}", e),
         }
 
         // Test that the function doesn't panic even with invalid data
-        assert!(true); // Should return a result, not panic
+        // This test verifies that invalid data is handled gracefully
     }
 }

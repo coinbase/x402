@@ -30,7 +30,7 @@ fn main() {
     // Generate HTML with basic configuration
     let html_basic = template::generate_paywall_html(
         "Please provide payment to access this resource",
-        &[payment_requirements.clone()],
+        std::slice::from_ref(&payment_requirements),
         Some(&basic_config),
     );
 
@@ -45,8 +45,11 @@ fn main() {
         .with_cdp_client_key("your-cdp-key-here");
 
     // Generate HTML with branded configuration
-    let html_branded =
-        template::generate_paywall_html("", &[payment_requirements.clone()], Some(&branded_config));
+    let html_branded = template::generate_paywall_html(
+        "",
+        std::slice::from_ref(&payment_requirements),
+        Some(&branded_config),
+    );
 
     println!("=== Branded Paywall HTML ===");
     println!("{}", html_branded);

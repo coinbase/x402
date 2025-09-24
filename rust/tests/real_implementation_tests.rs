@@ -17,96 +17,156 @@ async fn test_real_wallet_creation_and_config() {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
     );
-    assert!(wallet.is_ok());
+    assert!(
+        wallet.is_ok(),
+        "Wallet creation should succeed with valid private key"
+    );
 
-    let wallet = wallet.unwrap();
-    assert_eq!(wallet.network(), "base-sepolia");
+    let wallet = wallet.expect("Wallet creation must succeed - this is a critical failure");
+    assert_eq!(
+        wallet.network(),
+        "base-sepolia",
+        "Network must be exactly 'base-sepolia'"
+    );
 
     // Test network configuration
-    let config = wallet.get_network_config().unwrap();
-    assert_eq!(config.chain_id, 84532);
+    let config = wallet
+        .get_network_config()
+        .expect("Network config retrieval must succeed - wallet is valid");
+    assert_eq!(
+        config.chain_id, 84532,
+        "Chain ID must be exactly 84532 for base-sepolia"
+    );
 }
 
 #[tokio::test]
 async fn test_wallet_factory_error_handling() {
-    // Test invalid private key format
+    // Test invalid private key format - MUST fail
     let wallet = WalletFactory::from_private_key("invalid_key", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Invalid private key format MUST fail - this is a critical security requirement"
+    );
 
-    // Test invalid hex in private key
+    // Test invalid hex in private key - MUST fail
     let wallet = WalletFactory::from_private_key("0xinvalid_hex", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Invalid hex in private key MUST fail - this is a critical security requirement"
+    );
 
-    // Test too short private key
+    // Test too short private key - MUST fail
     let wallet = WalletFactory::from_private_key("0x123", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Too short private key MUST fail - this is a critical security requirement"
+    );
 }
 
 #[tokio::test]
 async fn test_blockchain_client_factory() {
-    // Test Base Sepolia client
+    // Test Base Sepolia client - MUST have correct network name
     let client = BlockchainClientFactory::base_sepolia();
-    assert_eq!(client.network, "base-sepolia");
+    assert_eq!(
+        client.network, "base-sepolia",
+        "Base Sepolia client network MUST be exactly 'base-sepolia'"
+    );
 
-    // Test Base mainnet client
+    // Test Base mainnet client - MUST have correct network name
     let client = BlockchainClientFactory::base();
-    assert_eq!(client.network, "base");
+    assert_eq!(
+        client.network, "base",
+        "Base mainnet client network MUST be exactly 'base'"
+    );
 
-    // Test Avalanche Fuji client
+    // Test Avalanche Fuji client - MUST have correct network name
     let client = BlockchainClientFactory::avalanche_fuji();
-    assert_eq!(client.network, "avalanche-fuji");
+    assert_eq!(
+        client.network, "avalanche-fuji",
+        "Avalanche Fuji client network MUST be exactly 'avalanche-fuji'"
+    );
 
-    // Test Avalanche mainnet client
+    // Test Avalanche mainnet client - MUST have correct network name
     let client = BlockchainClientFactory::avalanche();
-    assert_eq!(client.network, "avalanche");
+    assert_eq!(
+        client.network, "avalanche",
+        "Avalanche mainnet client network MUST be exactly 'avalanche'"
+    );
 
-    // Test custom client
+    // Test custom client - MUST preserve custom network name
     let client = BlockchainClientFactory::custom("https://custom.rpc.com", "custom");
-    assert_eq!(client.network, "custom");
+    assert_eq!(
+        client.network, "custom",
+        "Custom client network MUST be exactly 'custom'"
+    );
 }
 
 #[tokio::test]
 async fn test_blockchain_usdc_contract_addresses() {
-    // Test Base Sepolia USDC contract
+    // Test Base Sepolia USDC contract - MUST have exact contract address
     let client = BlockchainClientFactory::base_sepolia();
-    let address = client.get_usdc_contract_address().unwrap();
-    assert_eq!(address, "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
+    let address = client
+        .get_usdc_contract_address()
+        .expect("USDC contract address MUST be available for base-sepolia");
+    assert_eq!(address, "0x036CbD53842c5426634e7929541eC2318f3dCF7e", 
+               "Base Sepolia USDC contract address MUST be exactly 0x036CbD53842c5426634e7929541eC2318f3dCF7e");
 
-    // Test Base mainnet USDC contract
+    // Test Base mainnet USDC contract - MUST have exact contract address
     let client = BlockchainClientFactory::base();
-    let address = client.get_usdc_contract_address().unwrap();
-    assert_eq!(address, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+    let address = client
+        .get_usdc_contract_address()
+        .expect("USDC contract address MUST be available for base mainnet");
+    assert_eq!(address, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 
+               "Base mainnet USDC contract address MUST be exactly 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
 
-    // Test Avalanche Fuji USDC contract
+    // Test Avalanche Fuji USDC contract - MUST have exact contract address
     let client = BlockchainClientFactory::avalanche_fuji();
-    let address = client.get_usdc_contract_address().unwrap();
-    assert_eq!(address, "0x5425890298aed601595a70AB815c96711a31Bc65");
+    let address = client
+        .get_usdc_contract_address()
+        .expect("USDC contract address MUST be available for avalanche-fuji");
+    assert_eq!(address, "0x5425890298aed601595a70AB815c96711a31Bc65", 
+               "Avalanche Fuji USDC contract address MUST be exactly 0x5425890298aed601595a70AB815c96711a31Bc65");
 
-    // Test Avalanche mainnet USDC contract
+    // Test Avalanche mainnet USDC contract - MUST have exact contract address
     let client = BlockchainClientFactory::avalanche();
-    let address = client.get_usdc_contract_address().unwrap();
-    assert_eq!(address, "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E");
+    let address = client
+        .get_usdc_contract_address()
+        .expect("USDC contract address MUST be available for avalanche mainnet");
+    assert_eq!(address, "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", 
+               "Avalanche mainnet USDC contract address MUST be exactly 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E");
 }
 
 #[tokio::test]
 async fn test_real_facilitator_factory() {
-    // Test Base Sepolia facilitator
+    // Test Base Sepolia facilitator - MUST succeed
     let facilitator = RealFacilitatorFactory::base_sepolia();
-    assert!(facilitator.is_ok());
+    assert!(
+        facilitator.is_ok(),
+        "Base Sepolia facilitator creation MUST succeed"
+    );
 
-    // Test Base mainnet facilitator
+    // Test Base mainnet facilitator - MUST succeed
     let facilitator = RealFacilitatorFactory::base();
-    assert!(facilitator.is_ok());
+    assert!(
+        facilitator.is_ok(),
+        "Base mainnet facilitator creation MUST succeed"
+    );
 
-    // Test Avalanche Fuji facilitator
+    // Test Avalanche Fuji facilitator - MUST succeed
     let facilitator = RealFacilitatorFactory::avalanche_fuji();
-    assert!(facilitator.is_ok());
+    assert!(
+        facilitator.is_ok(),
+        "Avalanche Fuji facilitator creation MUST succeed"
+    );
 
-    // Test Avalanche mainnet facilitator
+    // Test Avalanche mainnet facilitator - MUST succeed
     let facilitator = RealFacilitatorFactory::avalanche();
-    assert!(facilitator.is_ok());
+    assert!(
+        facilitator.is_ok(),
+        "Avalanche mainnet facilitator creation MUST succeed"
+    );
 
-    // Test custom facilitator configuration
+    // Test custom facilitator configuration - MUST succeed with valid config
     let config = FacilitatorConfig {
         rpc_url: Some("https://custom.facilitator.com".to_string()),
         network: "custom".to_string(),
@@ -117,16 +177,29 @@ async fn test_real_facilitator_factory() {
     };
 
     let facilitator = RealFacilitatorFactory::custom(config);
-    assert!(facilitator.is_ok());
+    assert!(
+        facilitator.is_ok(),
+        "Custom facilitator creation MUST succeed with valid configuration"
+    );
 }
 
 #[tokio::test]
 async fn test_facilitator_config_default() {
     let config = FacilitatorConfig::default();
-    assert_eq!(config.network, "base-sepolia");
-    assert_eq!(config.confirmation_blocks, 1);
-    assert_eq!(config.max_retries, 3);
-    assert_eq!(config.retry_delay, std::time::Duration::from_secs(1));
+    assert_eq!(
+        config.network, "base-sepolia",
+        "Default network MUST be 'base-sepolia'"
+    );
+    assert_eq!(
+        config.confirmation_blocks, 1,
+        "Default confirmation blocks MUST be 1"
+    );
+    assert_eq!(config.max_retries, 3, "Default max retries MUST be 3");
+    assert_eq!(
+        config.retry_delay,
+        std::time::Duration::from_secs(1),
+        "Default retry delay MUST be 1 second"
+    );
 }
 
 #[tokio::test]
@@ -142,16 +215,25 @@ async fn test_payment_requirements_validation() {
         "Premium API access",
     );
 
-    assert_eq!(requirements.scheme, "exact");
-    assert_eq!(requirements.network, "base-sepolia");
-    assert_eq!(requirements.max_amount_required, "1000000");
     assert_eq!(
-        requirements.asset,
-        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+        requirements.scheme, "exact",
+        "Payment scheme MUST be exactly 'exact'"
     );
     assert_eq!(
-        requirements.pay_to,
-        "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+        requirements.network, "base-sepolia",
+        "Network MUST be exactly 'base-sepolia'"
+    );
+    assert_eq!(
+        requirements.max_amount_required, "1000000",
+        "Amount MUST be exactly '1000000'"
+    );
+    assert_eq!(
+        requirements.asset, "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "USDC contract address MUST be exactly 0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    );
+    assert_eq!(
+        requirements.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "Pay to address MUST be exactly 0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
     );
 }
 
@@ -162,64 +244,89 @@ async fn test_network_configuration_compatibility() {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
     )
-    .unwrap();
+    .expect("Wallet creation MUST succeed with valid private key");
 
     let blockchain_client = BlockchainClientFactory::base_sepolia();
 
-    // Both should use the same network
-    assert_eq!(wallet.network(), blockchain_client.network);
+    // Both should use the same network - CRITICAL requirement
+    assert_eq!(
+        wallet.network(),
+        blockchain_client.network,
+        "Wallet and blockchain client networks MUST match exactly"
+    );
 
-    // Both should have the same USDC contract address
-    let wallet_config = wallet.get_network_config().unwrap();
-    let blockchain_address = blockchain_client.get_usdc_contract_address().unwrap();
+    // Both should have the same USDC contract address - CRITICAL requirement
+    let wallet_config = wallet
+        .get_network_config()
+        .expect("Wallet config MUST be retrievable");
+    let blockchain_address = blockchain_client
+        .get_usdc_contract_address()
+        .expect("Blockchain USDC address MUST be retrievable");
 
     // Convert wallet config address to string for comparison (normalize case)
     let wallet_address = format!("{:?}", wallet_config.usdc_contract).to_lowercase();
-    assert_eq!(wallet_address, blockchain_address.to_lowercase());
+    assert_eq!(
+        wallet_address,
+        blockchain_address.to_lowercase(),
+        "USDC contract addresses MUST match exactly between wallet and blockchain client"
+    );
 }
 
 #[tokio::test]
 async fn test_error_handling_integration() {
-    // Test that error handling works across modules
+    // Test that error handling works across modules - CRITICAL security requirement
 
-    // Invalid private key should fail in wallet
+    // Invalid private key should fail in wallet - MUST fail
     let wallet = WalletFactory::from_private_key("invalid_key", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Invalid private key MUST fail - this is a critical security requirement"
+    );
 
-    // Too short private key should fail
+    // Too short private key should fail - MUST fail
     let wallet = WalletFactory::from_private_key("0x123", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Too short private key MUST fail - this is a critical security requirement"
+    );
 
-    // Invalid hex in private key should fail
+    // Invalid hex in private key should fail - MUST fail
     let wallet = WalletFactory::from_private_key("0xinvalid_hex", "base-sepolia");
-    assert!(wallet.is_err());
+    assert!(
+        wallet.is_err(),
+        "Invalid hex private key MUST fail - this is a critical security requirement"
+    );
 
-    // Valid private key with valid network should succeed
+    // Valid private key with valid network should succeed - MUST succeed
     let wallet = WalletFactory::from_private_key(
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
     );
-    assert!(wallet.is_ok());
+    assert!(
+        wallet.is_ok(),
+        "Valid private key with valid network MUST succeed"
+    );
 }
 
 #[tokio::test]
 async fn test_real_implementation_workflow() {
-    // Test the complete workflow of real implementation
+    // Test the complete workflow of real implementation - CRITICAL integration test
 
-    // Step 1: Create wallet
+    // Step 1: Create wallet - MUST succeed
     let wallet = WalletFactory::from_private_key(
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
         "base-sepolia",
     )
-    .unwrap();
+    .expect("Wallet creation MUST succeed - this is a critical failure in the workflow");
 
-    // Step 2: Create blockchain client
+    // Step 2: Create blockchain client - MUST succeed
     let blockchain_client = BlockchainClientFactory::base_sepolia();
 
-    // Step 3: Create facilitator
-    let _facilitator = RealFacilitatorFactory::base_sepolia().unwrap();
+    // Step 3: Create facilitator - MUST succeed
+    let _facilitator = RealFacilitatorFactory::base_sepolia()
+        .expect("Facilitator creation MUST succeed - this is a critical failure in the workflow");
 
-    // Step 4: Create payment requirements
+    // Step 4: Create payment requirements - MUST succeed
     let requirements = PaymentRequirements::new(
         "exact",
         "base-sepolia",
@@ -234,16 +341,35 @@ async fn test_real_implementation_workflow() {
     // For testing, we'll just verify the wallet can create the authorization structure
     let _payer_address = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
-    // Verify network compatibility
-    assert_eq!(wallet.network(), requirements.network);
-    assert_eq!(blockchain_client.network, requirements.network);
+    // Verify network compatibility - CRITICAL requirement
+    assert_eq!(
+        wallet.network(),
+        requirements.network,
+        "Wallet and requirements networks MUST match exactly"
+    );
+    assert_eq!(
+        blockchain_client.network, requirements.network,
+        "Blockchain client and requirements networks MUST match exactly"
+    );
 
-    // Verify USDC contract addresses match (normalize case)
-    let wallet_config = wallet.get_network_config().unwrap();
-    let blockchain_address = blockchain_client.get_usdc_contract_address().unwrap();
+    // Verify USDC contract addresses match (normalize case) - CRITICAL requirement
+    let wallet_config = wallet
+        .get_network_config()
+        .expect("Wallet config MUST be retrievable");
+    let blockchain_address = blockchain_client
+        .get_usdc_contract_address()
+        .expect("Blockchain USDC address MUST be retrievable");
     let wallet_address = format!("{:?}", wallet_config.usdc_contract).to_lowercase();
-    assert_eq!(wallet_address, blockchain_address.to_lowercase());
-    assert_eq!(wallet_address, requirements.asset.to_lowercase());
+    assert_eq!(
+        wallet_address,
+        blockchain_address.to_lowercase(),
+        "Wallet and blockchain USDC addresses MUST match exactly"
+    );
+    assert_eq!(
+        wallet_address,
+        requirements.asset.to_lowercase(),
+        "Wallet and requirements USDC addresses MUST match exactly"
+    );
 
     println!("✅ Real implementation workflow test passed");
     println!("   Wallet network: {}", wallet.network());
