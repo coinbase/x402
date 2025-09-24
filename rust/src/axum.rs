@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use rust_decimal::Decimal;
@@ -15,7 +15,7 @@ use std::sync::Arc;
 use tower::ServiceBuilder;
 
 /// Re-export the payment middleware for convenience
-pub use crate::middleware::{payment_middleware, create_payment_service};
+pub use crate::middleware::{create_payment_service, payment_middleware};
 
 /// Create a new Axum router with x402 payment middleware
 pub fn create_payment_router(
@@ -24,18 +24,21 @@ pub fn create_payment_router(
 ) -> Router {
     let mut router = Router::new();
     routes(&mut router);
-    
+
     // Apply payment middleware to all routes
-    router.layer(
-        axum::middleware::from_fn_with_state(
-            middleware,
-            payment_middleware_handler,
-        )
-    )
+    router.layer(axum::middleware::from_fn_with_state(
+        middleware,
+        payment_middleware_handler,
+    ))
 }
 
 /// Helper function to create a payment-protected route
-pub fn payment_route<H>(method: &str, path: &str, handler: H, middleware: PaymentMiddleware) -> Router
+pub fn payment_route<H>(
+    method: &str,
+    path: &str,
+    handler: H,
+    middleware: PaymentMiddleware,
+) -> Router
 where
     H: axum::handler::Handler<(), ()> + Clone + Send + 'static,
 {
@@ -48,19 +51,14 @@ where
     };
 
     // Apply payment middleware
-    router.layer(
-        axum::middleware::from_fn_with_state(
-            middleware,
-            payment_middleware_handler,
-        )
-    )
+    router.layer(axum::middleware::from_fn_with_state(
+        middleware,
+        payment_middleware_handler,
+    ))
 }
 
 /// Create a payment middleware for Axum
-pub fn create_payment_middleware(
-    amount: Decimal,
-    pay_to: impl Into<String>,
-) -> PaymentMiddleware {
+pub fn create_payment_middleware(amount: Decimal, pay_to: impl Into<String>) -> PaymentMiddleware {
     PaymentMiddleware::new(amount, pay_to)
 }
 
@@ -70,12 +68,12 @@ fn is_web_browser(headers: &HeaderMap) -> bool {
         .get("User-Agent")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("");
-    
+
     let accept = headers
         .get("Accept")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("");
-    
+
     accept.contains("text/html") && user_agent.contains("Mozilla")
 }
 
@@ -109,7 +107,7 @@ pub async fn payment_middleware_handler(
 ) -> impl IntoResponse {
     let config = middleware.config().clone();
     let headers = request.headers().clone();
-    
+
     // Determine the resource URL
     let resource = if let Some(ref resource_url) = config.resource {
         resource_url.clone()
@@ -118,24 +116,30 @@ pub async fn payment_middleware_handler(
     } else {
         request.uri().path().to_string()
     };
-    
+
     // Create payment requirements
-    let requirements = config.create_payment_requirements(&resource).unwrap_or_else(|_| {
-        crate::types::PaymentRequirements::new(
-            "exact",
-            if config.testnet { "base-sepolia" } else { "base" },
-            "1000000",
-            if config.testnet { 
-                "0x036CbD53842c5426634e7929541eC2318f3dCF7e" 
-            } else { 
-                "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" 
-            },
-            &config.pay_to,
-            &resource,
-            config.description.as_deref().unwrap_or("Payment required"),
-        )
-    });
-    
+    let requirements = config
+        .create_payment_requirements(&resource)
+        .unwrap_or_else(|_| {
+            crate::types::PaymentRequirements::new(
+                "exact",
+                if config.testnet {
+                    "base-sepolia"
+                } else {
+                    "base"
+                },
+                "1000000",
+                if config.testnet {
+                    "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+                } else {
+                    "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+                },
+                &config.pay_to,
+                &resource,
+                config.description.as_deref().unwrap_or("Payment required"),
+            )
+        });
+
     // Check for payment header
     if let Some(payment_header) = headers.get("X-PAYMENT") {
         if let Ok(payment_str) = payment_header.to_str() {
@@ -145,36 +149,40 @@ pub async fn payment_middleware_handler(
                 if middleware.verify(&payment_payload).await {
                     // Payment is valid, proceed to next handler
                     let mut response = next.run(request).await;
-                    
+
                     // After successful response, settle the payment
                     if let Ok(settlement_response) = middleware.settle(&payment_payload).await {
                         if let Ok(settlement_header) = settlement_response.to_base64() {
                             if let Ok(header_value) = HeaderValue::from_str(&settlement_header) {
-                                response.headers_mut().insert("X-PAYMENT-RESPONSE", header_value);
+                                response
+                                    .headers_mut()
+                                    .insert("X-PAYMENT-RESPONSE", header_value);
                             }
                         }
                     }
-                    
+
                     return response;
                 }
             }
         }
     }
-    
+
     // No valid payment found, check if this is a web browser request
     if is_web_browser(&headers) {
-        let html = config.custom_paywall_html.clone().unwrap_or_else(|| get_default_paywall_html().to_string());
-        
+        let html = config
+            .custom_paywall_html
+            .clone()
+            .unwrap_or_else(|| get_default_paywall_html().to_string());
+
         let mut response = Response::new(axum::body::Body::from(html));
         *response.status_mut() = StatusCode::PAYMENT_REQUIRED;
-        response.headers_mut().insert(
-            "Content-Type",
-            HeaderValue::from_static("text/html"),
-        );
-        
+        response
+            .headers_mut()
+            .insert("Content-Type", HeaderValue::from_static("text/html"));
+
         return response.into_response();
     }
-    
+
     // Return JSON response for API clients
     let response_body = serde_json::json!({
         "x402Version": 1,
@@ -252,7 +260,10 @@ impl AxumPaymentConfig {
     }
 
     /// Set the facilitator configuration
-    pub fn with_facilitator_config(mut self, facilitator_config: crate::types::FacilitatorConfig) -> Self {
+    pub fn with_facilitator_config(
+        mut self,
+        facilitator_config: crate::types::FacilitatorConfig,
+    ) -> Self {
         self.base_config.facilitator_config = facilitator_config;
         self
     }
@@ -313,22 +324,20 @@ impl AxumPaymentConfig {
 
     /// Create a service builder with this configuration
     pub fn create_service(&self) -> ServiceBuilder<tower::layer::util::Identity> {
-        let service_builder = ServiceBuilder::new();
-
         // Note: Service layer integration is simplified for now
         // In a full implementation, you would conditionally add layers based on options
-        service_builder
+        ServiceBuilder::new()
     }
 }
 
 /// Create a complete Axum application with x402 payment support
 pub fn create_payment_app(
     config: AxumPaymentConfig,
-    routes: impl FnOnce(&mut Router) -> &mut Router,
+    routes: impl FnOnce(Router) -> Router,
 ) -> Router {
-    let mut router = Router::new();
-    routes(&mut router);
-    
+    let router = Router::new();
+    let router = routes(router);
+
     // Apply service layers
     router.layer(config.create_service())
 }
@@ -350,7 +359,10 @@ pub mod handlers {
 
     /// Create an error response handler
     pub fn error_response(error: impl Into<String>) -> impl IntoResponse {
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": error.into()})))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": error.into()})),
+        )
     }
 
     /// Create a success response handler

@@ -5,7 +5,6 @@ use crate::{Result, X402Error};
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Default facilitator URL
 pub const DEFAULT_FACILITATOR_URL: &str = "https://x402.org/facilitator";
@@ -18,7 +17,7 @@ pub struct FacilitatorClient {
     /// HTTP client
     client: Client,
     /// Configuration for authentication headers
-    auth_config: Option<Arc<dyn Fn() -> Result<HashMap<String, HashMap<String, String>>> + Send + Sync>>,
+    auth_config: Option<crate::types::AuthHeadersFnArc>,
 }
 
 impl std::fmt::Debug for FacilitatorClient {
@@ -34,12 +33,13 @@ impl FacilitatorClient {
     /// Create a new facilitator client
     pub fn new(config: FacilitatorConfig) -> Result<Self> {
         let mut client_builder = Client::builder();
-        
+
         if let Some(timeout) = config.timeout {
             client_builder = client_builder.timeout(timeout);
         }
 
-        let client = client_builder.build()
+        let client = client_builder
+            .build()
             .map_err(|e| X402Error::config(format!("Failed to create HTTP client: {}", e)))?;
 
         Ok(Self {
@@ -63,7 +63,7 @@ impl FacilitatorClient {
 
         let mut request = self
             .client
-            .post(&format!("{}/verify", self.url))
+            .post(format!("{}/verify", self.url))
             .json(&request_body);
 
         // Add authentication headers if available
@@ -103,7 +103,7 @@ impl FacilitatorClient {
 
         let mut request = self
             .client
-            .post(&format!("{}/settle", self.url))
+            .post(format!("{}/settle", self.url))
             .json(&request_body);
 
         // Add authentication headers if available
@@ -133,7 +133,7 @@ impl FacilitatorClient {
     pub async fn supported(&self) -> Result<SupportedKinds> {
         let response = self
             .client
-            .get(&format!("{}/supported", self.url))
+            .get(format!("{}/supported", self.url))
             .send()
             .await?;
 
@@ -246,10 +246,13 @@ pub mod coinbase {
             let correlation_header = create_correlation_header();
 
             let mut headers = HashMap::new();
-            
+
             let mut verify_headers = HashMap::new();
             verify_headers.insert("Authorization".to_string(), verify_token);
-            verify_headers.insert("Correlation-Context".to_string(), correlation_header.clone());
+            verify_headers.insert(
+                "Correlation-Context".to_string(),
+                correlation_header.clone(),
+            );
             headers.insert("verify".to_string(), verify_headers);
 
             let mut settle_headers = HashMap::new();
@@ -262,14 +265,10 @@ pub mod coinbase {
     }
 
     /// Create a facilitator config for Coinbase
-    pub fn create_facilitator_config(
-        api_key_id: &str,
-        api_key_secret: &str,
-    ) -> FacilitatorConfig {
-        FacilitatorConfig::new(&format!(
+    pub fn create_facilitator_config(api_key_id: &str, api_key_secret: &str) -> FacilitatorConfig {
+        FacilitatorConfig::new(format!(
             "{}{}",
-            COINBASE_FACILITATOR_BASE_URL,
-            COINBASE_FACILITATOR_V2_ROUTE
+            COINBASE_FACILITATOR_BASE_URL, COINBASE_FACILITATOR_V2_ROUTE
         ))
         .with_auth_headers(Box::new(create_auth_headers(api_key_id, api_key_secret)))
     }
@@ -285,7 +284,16 @@ pub mod coinbase {
 
         let pairs: Vec<String> = data
             .iter()
-            .map(|(key, value)| format!("{}={}", key, percent_encoding::utf8_percent_encode(value, percent_encoding::NON_ALPHANUMERIC)))
+            .map(|(key, value)| {
+                format!(
+                    "{}={}",
+                    key,
+                    percent_encoding::utf8_percent_encode(
+                        value,
+                        percent_encoding::NON_ALPHANUMERIC
+                    )
+                )
+            })
             .collect();
 
         pairs.join(",")
@@ -309,10 +317,10 @@ pub mod coinbase {
     /// Create a Coinbase facilitator config from environment variables
     pub fn coinbase_config_from_env() -> FacilitatorConfig {
         use std::env;
-        
+
         let api_key_id = env::var("CDP_API_KEY_ID").unwrap_or_default();
         let api_key_secret = env::var("CDP_API_KEY_SECRET").unwrap_or_default();
-        
+
         create_facilitator_config(&api_key_id, &api_key_secret)
     }
 }
@@ -320,9 +328,9 @@ pub mod coinbase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito::{Server, Matcher};
-    use std::time::Duration;
+    use mockito::{Matcher, Server};
     use serde_json::json;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_facilitator_client_creation() {
@@ -338,11 +346,14 @@ mod tests {
             .mock("POST", "/verify")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(json!({
-                "x402Version": 1,
-                "isValid": true,
-                "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
-            }).to_string())
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "isValid": true,
+                    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+                })
+                .to_string(),
+            )
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
@@ -351,9 +362,15 @@ mod tests {
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
 
-        let response = client.verify(&payment_payload, &payment_requirements).await.unwrap();
+        let response = client
+            .verify(&payment_payload, &payment_requirements)
+            .await
+            .unwrap();
         assert!(response.is_valid);
-        assert_eq!(response.payer, Some("0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string()));
+        assert_eq!(
+            response.payer,
+            Some("0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string())
+        );
     }
 
     #[tokio::test]
@@ -363,12 +380,15 @@ mod tests {
             .mock("POST", "/verify")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(json!({
-                "x402Version": 1,
-                "isValid": false,
-                "invalidReason": "insufficient_funds",
-                "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
-            }).to_string())
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "isValid": false,
+                    "invalidReason": "insufficient_funds",
+                    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+                })
+                .to_string(),
+            )
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
@@ -377,9 +397,15 @@ mod tests {
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
 
-        let response = client.verify(&payment_payload, &payment_requirements).await.unwrap();
+        let response = client
+            .verify(&payment_payload, &payment_requirements)
+            .await
+            .unwrap();
         assert!(!response.is_valid);
-        assert_eq!(response.invalid_reason, Some("insufficient_funds".to_string()));
+        assert_eq!(
+            response.invalid_reason,
+            Some("insufficient_funds".to_string())
+        );
     }
 
     #[tokio::test]
@@ -403,9 +429,15 @@ mod tests {
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
 
-        let response = client.settle(&payment_payload, &payment_requirements).await.unwrap();
+        let response = client
+            .settle(&payment_payload, &payment_requirements)
+            .await
+            .unwrap();
         assert!(response.success);
-        assert_eq!(response.transaction, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef");
+        assert_eq!(
+            response.transaction,
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        );
         assert_eq!(response.network, "base-sepolia");
     }
 
@@ -416,14 +448,17 @@ mod tests {
             .mock("POST", "/settle")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(json!({
-                "x402Version": 1,
-                "success": false,
-                "errorReason": "transaction_failed",
-                "transaction": "",
-                "network": "base-sepolia",
-                "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
-            }).to_string())
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "success": false,
+                    "errorReason": "transaction_failed",
+                    "transaction": "",
+                    "network": "base-sepolia",
+                    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+                })
+                .to_string(),
+            )
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
@@ -432,18 +467,22 @@ mod tests {
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
 
-        let response = client.settle(&payment_payload, &payment_requirements).await.unwrap();
+        let response = client
+            .settle(&payment_payload, &payment_requirements)
+            .await
+            .unwrap();
         assert!(!response.success);
-        assert_eq!(response.error_reason, Some("transaction_failed".to_string()));
+        assert_eq!(
+            response.error_reason,
+            Some("transaction_failed".to_string())
+        );
         assert_eq!(response.transaction, "");
     }
 
     #[tokio::test]
     async fn test_facilitator_server_error() {
         let mut server = Server::new_async().await;
-        let _m = server.mock("POST", "/verify")
-            .with_status(500)
-            .create();
+        let _m = server.mock("POST", "/verify").with_status(500).create();
 
         let config = FacilitatorConfig::new(&server.url());
         let client = FacilitatorClient::new(config).unwrap();
@@ -453,30 +492,37 @@ mod tests {
 
         let result = client.verify(&payment_payload, &payment_requirements).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Verification failed with status: 500"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Verification failed with status: 500"));
     }
 
     #[tokio::test]
     async fn test_facilitator_supported() {
         let mut server = Server::new_async().await;
-        let _m = server.mock("GET", "/supported")
+        let _m = server
+            .mock("GET", "/supported")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(json!({
-                "x402Version": 1,
-                "kinds": [
-                    {
-                        "x402Version": 1,
-                        "scheme": "exact",
-                        "network": "base-sepolia"
-                    },
-                    {
-                        "x402Version": 1,
-                        "scheme": "exact",
-                        "network": "base"
-                    }
-                ]
-            }).to_string())
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "kinds": [
+                        {
+                            "x402Version": 1,
+                            "scheme": "exact",
+                            "network": "base-sepolia"
+                        },
+                        {
+                            "x402Version": 1,
+                            "scheme": "exact",
+                            "network": "base"
+                        }
+                    ]
+                })
+                .to_string(),
+            )
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
@@ -492,35 +538,45 @@ mod tests {
     #[tokio::test]
     async fn test_facilitator_with_auth_headers() {
         let mut server = Server::new_async().await;
-        let _m = server.mock("POST", "/verify")
+        let _m = server
+            .mock("POST", "/verify")
             .with_status(200)
             .with_header("content-type", "application/json")
             .match_header("Authorization", "Bearer test-token")
             .match_header("Correlation-Context", Matcher::Regex(r".*".to_string()))
-            .with_body(json!({
-                "x402Version": 1,
-                "isValid": true,
-                "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
-            }).to_string())
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "isValid": true,
+                    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+                })
+                .to_string(),
+            )
             .create();
 
         let create_auth_headers = || {
             let mut headers = HashMap::new();
             let mut verify_headers = HashMap::new();
             verify_headers.insert("Authorization".to_string(), "Bearer test-token".to_string());
-            verify_headers.insert("Correlation-Context".to_string(), "test=correlation".to_string());
+            verify_headers.insert(
+                "Correlation-Context".to_string(),
+                "test=correlation".to_string(),
+            );
             headers.insert("verify".to_string(), verify_headers);
             Ok(headers)
         };
 
-        let config = FacilitatorConfig::new(&server.url())
-            .with_auth_headers(Box::new(create_auth_headers));
+        let config =
+            FacilitatorConfig::new(&server.url()).with_auth_headers(Box::new(create_auth_headers));
         let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
 
-        let response = client.verify(&payment_payload, &payment_requirements).await.unwrap();
+        let response = client
+            .verify(&payment_payload, &payment_requirements)
+            .await
+            .unwrap();
         assert!(response.is_valid);
     }
 
@@ -538,21 +594,24 @@ mod tests {
         assert!(result.is_err());
         // Check for timeout-related error - be more flexible with error messages
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("timeout") || 
-                error_msg.contains("connection") || 
-                error_msg.contains("network") ||
-                error_msg.contains("unreachable") ||
-                error_msg.contains("refused") ||
-                error_msg.contains("No route to host") ||
-                error_msg.contains("failed to connect") ||
-                error_msg.contains("Connection refused") ||
-                error_msg.contains("Network is unreachable") ||
-                error_msg.contains("Name or service not known") ||
-                error_msg.contains("Temporary failure in name resolution") ||
-                error_msg.contains("error sending request") ||
-                error_msg.contains("HTTP error") ||
-                error_msg.contains("Facilitator error"), 
-                "Expected timeout/connection error, got: {}", error_msg);
+        assert!(
+            error_msg.contains("timeout")
+                || error_msg.contains("connection")
+                || error_msg.contains("network")
+                || error_msg.contains("unreachable")
+                || error_msg.contains("refused")
+                || error_msg.contains("No route to host")
+                || error_msg.contains("failed to connect")
+                || error_msg.contains("Connection refused")
+                || error_msg.contains("Network is unreachable")
+                || error_msg.contains("Name or service not known")
+                || error_msg.contains("Temporary failure in name resolution")
+                || error_msg.contains("error sending request")
+                || error_msg.contains("HTTP error")
+                || error_msg.contains("Facilitator error"),
+            "Expected timeout/connection error, got: {}",
+            error_msg
+        );
     }
 
     // Helper functions for creating test data

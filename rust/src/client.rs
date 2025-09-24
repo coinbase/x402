@@ -2,8 +2,8 @@
 
 use crate::types::*;
 use crate::{Result, X402Error};
-use reqwest::{Client, Response};
 use axum::http;
+use reqwest::{Client, Response};
 use std::time::Duration;
 
 /// HTTP client with x402 payment support
@@ -78,20 +78,25 @@ impl X402Client {
 
         let original_url = response.url().to_string();
         let payment_requirements: PaymentRequirementsResponse = response.json().await?;
-        
+
         // Verify the payment with the facilitator
-        let facilitator = super::facilitator::FacilitatorClient::new(self.facilitator_config.clone())
-            .map_err(|e| X402Error::facilitator_error(format!("Failed to create facilitator client: {}", e)))?;
-        
+        let facilitator = super::facilitator::FacilitatorClient::new(
+            self.facilitator_config.clone(),
+        )
+        .map_err(|e| {
+            X402Error::facilitator_error(format!("Failed to create facilitator client: {}", e))
+        })?;
+
         for requirements in &payment_requirements.accepts {
             let verify_response = facilitator.verify(payment_payload, requirements).await?;
-            
+
             if verify_response.is_valid {
                 // Retry the original request with payment
                 let payment_header = payment_payload.to_base64()?;
-                
+
                 // Create a new request with payment header
-                let new_response = self.client
+                let new_response = self
+                    .client
                     .get(&original_url)
                     .header("X-PAYMENT", payment_header)
                     .send()
@@ -118,7 +123,12 @@ impl X402Client {
             "POST" => self.post(url),
             "PUT" => self.put(url),
             "DELETE" => self.delete(url),
-            _ => return Err(X402Error::unexpected(format!("Unsupported HTTP method: {}", method))),
+            _ => {
+                return Err(X402Error::unexpected(format!(
+                    "Unsupported HTTP method: {}",
+                    method
+                )))
+            }
         };
 
         // Add payment header if provided
@@ -179,8 +189,8 @@ pub struct X402RequestBuilder<'a> {
 
 impl<'a> X402RequestBuilder<'a> {
     fn new(client: &'a X402Client, request: reqwest::RequestBuilder) -> Self {
-        Self { 
-            client, 
+        Self {
+            client,
             request,
             method: String::new(),
             url: String::new(),
@@ -259,10 +269,7 @@ impl<'a> X402RequestBuilder<'a> {
 
     /// Send the request
     pub async fn send(self) -> Result<Response> {
-        self.request
-            .send()
-            .await
-            .map_err(X402Error::from)
+        self.request.send().await.map_err(X402Error::from)
     }
 
     /// Send the request and handle x402 payments automatically
@@ -270,23 +277,24 @@ impl<'a> X402RequestBuilder<'a> {
         // Save values before consuming self
         let original_url = self.url.clone();
         let client = self.client.clone();
-        
+
         let response = self.send().await?;
-        
+
         if response.status() == 402 {
             // Parse payment requirements from 402 response
             let _payment_requirements: PaymentRequirementsResponse = response.json().await?;
-            
+
             // Create a new request with payment header
             let payment_header = payment_payload.to_base64()?;
-            
+
             // Create a new request with payment header
-            let new_response = client.client
+            let new_response = client
+                .client
                 .get(&original_url)
                 .header("X-PAYMENT", &payment_header)
                 .send()
                 .await?;
-            
+
             Ok(new_response)
         } else {
             Ok(response)
@@ -329,7 +337,7 @@ impl DiscoveryClient {
     }
 
     /// Get the default discovery client
-    pub fn default() -> Self {
+    pub fn default_client() -> Self {
         Self::new("https://x402.org/discovery")
     }
 
@@ -338,7 +346,7 @@ impl DiscoveryClient {
         &self,
         filters: Option<DiscoveryFilters>,
     ) -> Result<DiscoveryResponse> {
-        let mut request = self.client.get(&format!("{}/resources", self.url));
+        let mut request = self.client.get(format!("{}/resources", self.url));
 
         if let Some(filters) = filters {
             if let Some(resource_type) = filters.resource_type {
@@ -439,14 +447,20 @@ mod tests {
     #[test]
     fn test_client_creation() {
         let client = X402Client::new().unwrap();
-        assert_eq!(client.facilitator_config().url, "https://x402.org/facilitator");
+        assert_eq!(
+            client.facilitator_config().url,
+            "https://x402.org/facilitator"
+        );
     }
 
     #[test]
     fn test_client_with_config() {
         let config = FacilitatorConfig::new("https://custom-facilitator.com");
         let client = X402Client::with_config(config).unwrap();
-        assert_eq!(client.facilitator_config().url, "https://custom-facilitator.com");
+        assert_eq!(
+            client.facilitator_config().url,
+            "https://custom-facilitator.com"
+        );
     }
 
     #[test]
@@ -470,13 +484,13 @@ mod tests {
     #[test]
     fn test_client_with_payment_request() {
         let client = X402Client::new().unwrap();
-        
+
         // Test that we can create requests with different methods
         let get_request = client.get("https://example.com");
         let post_request = client.post("https://example.com");
         let put_request = client.put("https://example.com");
         let delete_request = client.delete("https://example.com");
-        
+
         // These should not panic
         assert_eq!(get_request.method, "GET");
         assert_eq!(post_request.method, "POST");

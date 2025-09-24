@@ -1,0 +1,60 @@
+---
+description: x402 project development rules and best practices
+globs:
+  - 'src/**/*.rs'
+  - 'tests/**/*.rs'
+  - 'examples/**/*.rs'
+  - '**/*.toml'
+  - '**/*.md'
+alwaysApply: true
+---
+
+# x402 Project Rules
+
+You are an expert Rust developer working on the x402 project, an HTTP-native micropayments protocol implementation.
+
+## Core Behaviors
+- After completing any significant task (bug fixes, feature implementation, template work, etc.), use `osascript` to notify the user
+- Use meaningful notification messages that summarize what was accomplished
+- Include relevant status indicators (✅ for success, ❌ for failures, etc.)
+- Always provide clear summaries of work completed
+
+## Code Quality Standards
+- Always run `cargo fmt` and `cargo clippy` before committing code
+- Ensure all tests pass before considering a task complete
+- Use descriptive commit messages that explain the changes made
+- Follow Rust naming conventions and best practices
+- Use proper error handling and logging throughout the codebase
+
+## Project-Specific Guidelines
+- This is a Rust library implementing the x402 HTTP micropayments protocol
+- Focus on type safety and performance
+- Template system should be modular and configurable
+- Tests should be comprehensive and cover edge cases
+- Prefer editing existing files over creating new ones
+- Add all necessary import statements and dependencies
+
+## Import Guidelines
+- Follow strict import guidelines similar to Python's import standards
+- ❌ **NEVER** use wildcard imports: `use xxx::*;`
+- ✅ **ALWAYS** use explicit imports: `use xxx::{Item1, Item2, Item3};`
+- ✅ **ONE import per line** for better readability and maintenance
+
+## Template System Guidelines
+- HTML templates should be embedded using `include_str!` macro
+- Configuration injection should be type-safe
+- Support both basic and branded configurations
+- Ensure templates are responsive and accessible
+- Follow modern web design principles
+
+## Communication Style
+- Explain technical decisions and their rationale
+- Use emojis appropriately to make output more readable
+- Always verify fixes work as expected before marking tasks complete
+- Provide actionable feedback and next steps when relevant
+
+## Error Handling
+- When tests fail, investigate the root cause before proposing fixes
+- Use proper error types from the `error` module
+- Provide meaningful error messages for users
+- Handle network errors gracefully in client code

@@ -9,11 +9,12 @@ pub mod crypto;
 pub mod error;
 pub mod facilitator;
 pub mod middleware;
+pub mod template;
 pub mod types;
 
 // Re-exports for convenience
 pub use client::X402Client;
-pub use error::{X402Error, Result};
+pub use error::{Result, X402Error};
 pub use types::*;
 
 // Feature-gated framework support
@@ -23,8 +24,9 @@ pub mod axum;
 #[cfg(feature = "actix-web")]
 pub mod actix_web;
 
-#[cfg(feature = "warp")]
-pub mod warp;
+// Temporarily disabled due to complex type issues
+// #[cfg(feature = "warp")]
+// pub mod warp;
 
 /// Current version of the x402 library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -57,8 +59,14 @@ mod tests {
         assert_eq!(requirements.scheme, "exact");
         assert_eq!(requirements.network, "base-sepolia");
         assert_eq!(requirements.max_amount_required, "1000000");
-        assert_eq!(requirements.asset, "0x036CbD53842c5426634e7929541eC2318f3dCF7e");
-        assert_eq!(requirements.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+        assert_eq!(
+            requirements.asset,
+            "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+        );
+        assert_eq!(
+            requirements.pay_to,
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+        );
         assert_eq!(requirements.resource, "https://example.com/test");
         assert_eq!(requirements.description, "Test payment");
     }
@@ -75,7 +83,9 @@ mod tests {
             "Test payment",
         );
 
-        requirements.set_usdc_info(crate::types::Network::Testnet).unwrap();
+        requirements
+            .set_usdc_info(crate::types::Network::Testnet)
+            .unwrap();
         assert!(requirements.extra.is_some());
 
         let extra = requirements.extra.as_ref().unwrap();
@@ -187,8 +197,14 @@ mod tests {
         assert!(networks::is_supported("base"));
         assert!(!networks::is_supported("unsupported-network"));
 
-        assert_eq!(networks::get_usdc_address("base-sepolia"), Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e"));
-        assert_eq!(networks::get_usdc_address("base"), Some("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"));
+        assert_eq!(
+            networks::get_usdc_address("base-sepolia"),
+            Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e")
+        );
+        assert_eq!(
+            networks::get_usdc_address("base"),
+            Some("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+        );
     }
 
     #[test]

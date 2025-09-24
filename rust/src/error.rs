@@ -2,6 +2,9 @@
 
 use thiserror::Error;
 
+#[cfg(feature = "actix-web")]
+use actix_web::{HttpResponse, ResponseError};
+
 /// Result type alias for x402 operations
 pub type Result<T> = std::result::Result<T, X402Error>;
 
@@ -159,5 +162,15 @@ impl X402Error {
         Self::Config {
             message: message.into(),
         }
+    }
+}
+
+#[cfg(feature = "actix-web")]
+impl ResponseError for X402Error {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": self.to_string(),
+            "type": "x402_error"
+        }))
     }
 }

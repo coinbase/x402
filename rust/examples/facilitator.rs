@@ -7,18 +7,14 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing_subscriber;
 
-use x402::{
-    types::*,
-    facilitator::FacilitatorClient,
-    Result, X402Error,
-};
 use rand::Rng;
+use x402::{types::*, Result, X402Error};
 
 /// Simple in-memory facilitator for demonstration
 #[derive(Debug, Clone)]
@@ -63,9 +59,15 @@ impl SimpleFacilitator {
         }
 
         // Verify amount meets requirements
-        let payment_amount: u128 = payload.payload.authorization.value.parse()
+        let payment_amount: u128 = payload
+            .payload
+            .authorization
+            .value
+            .parse()
             .map_err(|_| X402Error::invalid_payment_requirements("Invalid payment amount"))?;
-        let required_amount: u128 = requirements.max_amount_required.parse()
+        let required_amount: u128 = requirements
+            .max_amount_required
+            .parse()
             .map_err(|_| X402Error::invalid_payment_requirements("Invalid required amount"))?;
 
         if payment_amount < required_amount {
@@ -181,7 +183,10 @@ async fn verify_handler(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    match facilitator.verify_payment(&request.payment_payload, &request.payment_requirements).await {
+    match facilitator
+        .verify_payment(&request.payment_payload, &request.payment_requirements)
+        .await
+    {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             eprintln!("Verification error: {}", e);
@@ -199,7 +204,10 @@ async fn settle_handler(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    match facilitator.settle_payment(&request.payment_payload, &request.payment_requirements).await {
+    match facilitator
+        .settle_payment(&request.payment_payload, &request.payment_requirements)
+        .await
+    {
         Ok(response) => Ok(Json(response)),
         Err(e) => {
             eprintln!("Settlement error: {}", e);
@@ -209,9 +217,7 @@ async fn settle_handler(
 }
 
 /// Handle supported payment schemes requests
-async fn supported_handler(
-    Query(_query): Query<SupportedQuery>,
-) -> Json<SupportedKinds> {
+async fn supported_handler(Query(_query): Query<SupportedQuery>) -> Json<SupportedKinds> {
     Json(SupportedKinds {
         kinds: vec![
             SupportedKind {
@@ -251,7 +257,7 @@ mod tests {
     #[tokio::test]
     async fn test_verify_payment() {
         let facilitator = SimpleFacilitator::new();
-        
+
         let authorization = ExactEvmPayloadAuthorization::new(
             "0x857b06519E91e3A54538791bDbb0E22373e36b66",
             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -280,8 +286,14 @@ mod tests {
             "Test payment",
         );
 
-        let response = facilitator.verify_payment(&payload, &requirements).await.unwrap();
+        let response = facilitator
+            .verify_payment(&payload, &requirements)
+            .await
+            .unwrap();
         assert!(response.is_valid);
-        assert_eq!(response.payer, Some("0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string()));
+        assert_eq!(
+            response.payer,
+            Some("0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string())
+        );
     }
 }

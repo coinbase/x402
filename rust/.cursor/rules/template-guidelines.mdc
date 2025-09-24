@@ -1,0 +1,56 @@
+---
+description: Template system guidelines for x402 HTML templates
+globs:
+  - 'src/template/**/*.rs'
+  - 'src/template/**/*.html'
+  - 'examples/template_*.rs'
+alwaysApply: false
+---
+
+# Template System Guidelines
+
+## HTML Template Design
+- Use modern, responsive CSS design
+- Ensure accessibility with proper ARIA labels
+- Support both light and dark themes (future enhancement)
+- Use semantic HTML elements
+- Follow mobile-first design principles
+
+## Configuration Injection
+- Use `window.x402` global variable for configuration
+- Validate configuration data before injection
+- Provide sensible defaults for missing configuration
+- Use type-safe configuration structs
+
+## Template Structure
+- Keep HTML templates in separate `.html` files
+- Use `include_str!` macro to embed templates
+- Separate CSS into logical sections
+- Use meaningful CSS class names
+- Follow BEM naming convention for CSS classes
+
+## JavaScript Integration
+- Keep JavaScript minimal and focused
+- Use modern ES6+ features
+- Handle errors gracefully
+- Provide user feedback for actions
+- Support keyboard navigation
+
+## Branding Support
+- Support custom app names and logos
+- Allow CDP client key configuration
+- Support session token endpoints
+- Make branding elements easily customizable
+
+## Error Handling
+- Display error messages clearly
+- Provide helpful instructions for users
+- Show testnet-specific information when appropriate
+- Handle missing configuration gracefully
+
+## Testing
+- Test template generation with various configurations
+- Test error message display
+- Test responsive design on different screen sizes
+- Test JavaScript functionality
+- Validate generated HTML structure

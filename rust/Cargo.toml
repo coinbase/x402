@@ -25,9 +25,12 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 percent-encoding = "2.0"
 tokio = { version = "1.0", features = ["full"] }
+http = "1.0"
 
 # Web framework support (optional)
 axum = { version = "0.7", features = ["json"], optional = true }
+actix-web = { version = "4.0", optional = true }
+warp = { version = "0.3", optional = true }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"], optional = true }
 
@@ -54,17 +57,28 @@ rust_decimal = { version = "1.0", features = ["serde"] }
 tokio-test = "0.4"
 tempfile = "3.0"
 mockito = "1.0"
+env_logger = "0.11"
 
 [features]
 default = ["axum"]
 axum = ["dep:axum", "dep:tower-http"]
-actix-web = []
-warp = []
+actix-web = ["dep:actix-web"]
+warp = ["dep:warp"]
 
 [[example]]
 name = "axum_server"
 path = "examples/axum_server.rs"
 required-features = ["axum"]
+
+[[example]]
+name = "actix_server"
+path = "examples/actix_server.rs"
+required-features = ["actix-web"]
+
+[[example]]
+name = "warp_server"
+path = "examples/warp_server.rs"
+required-features = ["warp"]
 
 [[example]]
 name = "client"

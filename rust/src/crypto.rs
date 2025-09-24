@@ -128,27 +128,33 @@ pub mod eip712 {
     /// Hash EIP-712 typed data
     pub fn hash_typed_data(typed_data: &TypedData) -> Result<H256> {
         // Full EIP-712 implementation following the specification
-        
+
         let domain_separator = hash_domain(&typed_data.domain)?;
-        let struct_hash = hash_struct(&typed_data.primary_type, &typed_data.types, &typed_data.message)?;
+        let struct_hash = hash_struct(
+            &typed_data.primary_type,
+            &typed_data.types,
+            &typed_data.message,
+        )?;
 
         // EIP-712: hash(0x1901 || domain_separator || struct_hash)
         let mut data = Vec::new();
         data.extend_from_slice(&[0x19, 0x01]); // EIP-712 prefix
-        data.extend_from_slice(&domain_separator.as_bytes());
-        data.extend_from_slice(&struct_hash.as_bytes());
+        data.extend_from_slice(domain_separator.as_bytes());
+        data.extend_from_slice(struct_hash.as_bytes());
 
         Ok(H256::from_slice(&keccak256(&data)))
     }
 
     /// Hash the domain separator
     fn hash_domain(domain: &Domain) -> Result<H256> {
-        let domain_type_hash = keccak256(b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+        let domain_type_hash = keccak256(
+            b"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+        );
 
         let name_hash = keccak256(domain.name.as_bytes());
         let version_hash = keccak256(domain.version.as_bytes());
         let chain_id_hash = keccak256(&domain.chain_id.to_be_bytes());
-        let verifying_contract_hash = keccak256(&domain.verifying_contract.as_bytes());
+        let verifying_contract_hash = keccak256(domain.verifying_contract.as_bytes());
 
         let mut data = Vec::new();
         data.extend_from_slice(&domain_type_hash);
@@ -161,9 +167,13 @@ pub mod eip712 {
     }
 
     /// Hash a struct according to EIP-712
-    fn hash_struct(primary_type: &str, _types: &serde_json::Value, message: &serde_json::Value) -> Result<H256> {
+    fn hash_struct(
+        primary_type: &str,
+        _types: &serde_json::Value,
+        message: &serde_json::Value,
+    ) -> Result<H256> {
         // Full EIP-712 struct hashing implementation
-        
+
         // For TransferWithAuthorization, create the proper type hash
         let type_hash = keccak256(
             format!("{}(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)", primary_type)
@@ -184,10 +194,9 @@ pub mod eip712 {
 
     /// Encode message fields for hashing
     fn encode_message_fields(message: &serde_json::Value) -> Result<Vec<u8>> {
-        
         // For TransferWithAuthorization, encode fields in the correct order
         let mut encoded = Vec::new();
-        
+
         // Encode 'from' address (32 bytes, padded)
         if let Some(from) = message.get("from") {
             if let Some(addr_str) = from.as_str() {
@@ -198,7 +207,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&padded);
             }
         }
-        
+
         // Encode 'to' address (32 bytes, padded)
         if let Some(to) = message.get("to") {
             if let Some(addr_str) = to.as_str() {
@@ -209,7 +218,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&padded);
             }
         }
-        
+
         // Encode 'value' (32 bytes, big-endian)
         if let Some(value) = message.get("value") {
             if let Some(value_str) = value.as_str() {
@@ -222,7 +231,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&padded);
             }
         }
-        
+
         // Encode 'validAfter' (32 bytes, big-endian)
         if let Some(valid_after) = message.get("validAfter") {
             if let Some(valid_after_str) = valid_after.as_str() {
@@ -235,7 +244,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&padded);
             }
         }
-        
+
         // Encode 'validBefore' (32 bytes, big-endian)
         if let Some(valid_before) = message.get("validBefore") {
             if let Some(valid_before_str) = valid_before.as_str() {
@@ -248,7 +257,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&padded);
             }
         }
-        
+
         // Encode 'nonce' (32 bytes)
         if let Some(nonce) = message.get("nonce") {
             if let Some(nonce_str) = nonce.as_str() {
@@ -261,7 +270,7 @@ pub mod eip712 {
                 encoded.extend_from_slice(&nonce_bytes);
             }
         }
-        
+
         Ok(encoded)
     }
 
@@ -308,13 +317,14 @@ pub mod signature {
         let mut sig_bytes = [0u8; 64];
         sig_bytes[0..32].copy_from_slice(r.as_bytes());
         sig_bytes[32..64].copy_from_slice(s.as_bytes());
-        
+
         let k256_sig = K256Signature::try_from(&sig_bytes[..])
             .map_err(|_| X402Error::invalid_signature("Invalid signature format"))?;
 
         // Recover the public key
-        let verifying_key = VerifyingKey::recover_from_prehash(message_hash.as_bytes(), &k256_sig, recovery_id)
-            .map_err(|_| X402Error::invalid_signature("Failed to recover public key"))?;
+        let verifying_key =
+            VerifyingKey::recover_from_prehash(message_hash.as_bytes(), &k256_sig, recovery_id)
+                .map_err(|_| X402Error::invalid_signature("Failed to recover public key"))?;
 
         // Convert to Ethereum address
         let recovered_address = ethereum_address_from_pubkey(&verifying_key)?;
@@ -323,10 +333,7 @@ pub mod signature {
     }
 
     /// Sign a message hash with a private key
-    pub fn sign_message_hash(
-        message_hash: H256,
-        private_key: &str,
-    ) -> Result<String> {
+    pub fn sign_message_hash(message_hash: H256, private_key: &str) -> Result<String> {
         let private_key_bytes = hex::decode(private_key.trim_start_matches("0x"))
             .map_err(|_| X402Error::invalid_signature("Invalid hex private key"))?;
 
@@ -339,11 +346,11 @@ pub mod signature {
 
         let signature = secp.sign_ecdsa(&message, &secret_key);
         let serialized = signature.serialize_compact();
-        
+
         // Compute the recovery ID properly
         // The recovery ID is used to recover the public key from the signature
         let recovery_id = compute_recovery_id(&signature, &message, &secret_key)?;
-        
+
         // Convert to k256 signature for consistency
         let _k256_sig = K256Signature::try_from(&serialized[..])
             .map_err(|_| X402Error::invalid_signature("Failed to convert signature"))?;
@@ -366,11 +373,11 @@ pub mod signature {
 
         // Remove the first byte (0x04) and hash the remaining 64 bytes
         let pubkey_hash = keccak256(&pubkey_bytes[1..]);
-        
+
         // Take the last 20 bytes as the address
         let mut address_bytes = [0u8; 20];
         address_bytes.copy_from_slice(&pubkey_hash[12..]);
-        
+
         Ok(Address::from(address_bytes))
     }
 
@@ -381,16 +388,15 @@ pub mod signature {
         private_key: &SecretKey,
     ) -> Result<u8> {
         let secp = Secp256k1::new();
-        
+
         // Get the public key from the private key
         let public_key = private_key.public_key(&secp);
-        
+
         // Try both possible recovery IDs (0 and 1)
         for recovery_id in 0..2 {
             // Create RecoveryId from i32 (secp256k1 uses i32, not u8)
             let recovery_id_enum = secp256k1::ecdsa::RecoveryId::from_i32(recovery_id as i32);
-            if recovery_id_enum.is_ok() {
-                let recovery_id_enum = recovery_id_enum.unwrap();
+            if let Ok(recovery_id_enum) = recovery_id_enum {
                 // Create a recoverable signature with this recovery ID
                 if let Ok(recoverable_sig) = secp256k1::ecdsa::RecoverableSignature::from_compact(
                     &signature.serialize_compact(),
@@ -406,8 +412,10 @@ pub mod signature {
                 }
             }
         }
-        
-        Err(X402Error::invalid_signature("Could not determine recovery ID"))
+
+        Err(X402Error::invalid_signature(
+            "Could not determine recovery ID",
+        ))
     }
 
     /// Keccak-256 hash function
@@ -435,11 +443,11 @@ pub mod signature {
 
         // Create the message hash from authorization
         let auth = &payload.authorization;
-        
+
         // Get network configuration based on the payment network
         let network_config = crate::types::NetworkConfig::from_name(network)
             .ok_or_else(|| X402Error::invalid_signature("Unsupported network"))?;
-            
+
         let message_hash = eip712::create_transfer_with_authorization_hash(
             &eip712::Domain {
                 name: "USD Coin".to_string(),
@@ -489,7 +497,8 @@ mod tests {
             name: "USD Coin".to_string(),
             version: "2".to_string(),
             chain_id: 8453,
-            verifying_contract: Address::from_str("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913").unwrap(),
+            verifying_contract: Address::from_str("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
+                .unwrap(),
         };
 
         assert_eq!(domain.name, "USD Coin");
@@ -501,10 +510,10 @@ mod tests {
     fn test_nonce_generation() {
         let nonce1 = signature::generate_nonce();
         let nonce2 = signature::generate_nonce();
-        
+
         // Nonces should be different
         assert_ne!(nonce1, nonce2);
-        
+
         // Nonces should be valid H256 values
         assert_eq!(nonce1.as_bytes().len(), 32);
         assert_eq!(nonce2.as_bytes().len(), 32);
@@ -517,8 +526,8 @@ mod tests {
             "0x857b06519E91e3A54538791bDbb0E22373e36b66",
             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
             "1000000000000000000", // 1 USDC in wei (18 decimals)
-            "1745323800", // Valid timestamp
-            "1745323985", // Valid timestamp
+            "1745323800",          // Valid timestamp
+            "1745323985",          // Valid timestamp
             "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480", // Nonce with 0x prefix
         );
 
@@ -528,7 +537,11 @@ mod tests {
         };
 
         // This should not panic, even if verification fails
-        let result = signature::verify_payment_payload(&payload, "0x857b06519E91e3A54538791bDbb0E22373e36b66", "base-sepolia");
+        let result = signature::verify_payment_payload(
+            &payload,
+            "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            "base-sepolia",
+        );
         match result {
             Ok(_) => println!("Verification succeeded"),
             Err(e) => println!("Verification failed with error: {}", e),

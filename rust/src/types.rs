@@ -8,6 +8,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Type alias for authentication headers function
+pub type AuthHeadersFn =
+    dyn Fn() -> crate::Result<HashMap<String, HashMap<String, String>>> + Send + Sync;
+
+/// Type alias for authentication headers function wrapped in Arc
+pub type AuthHeadersFnArc = Arc<AuthHeadersFn>;
+
+/// Type alias for authentication headers function wrapped in Box
+pub type AuthHeadersFnBox = Box<AuthHeadersFn>;
+
 /// x402 protocol version
 pub const X402_VERSION: u32 = 1;
 
@@ -203,7 +213,7 @@ impl PaymentPayload {
 
     /// Decode a base64-encoded payment payload
     pub fn from_base64(encoded: &str) -> crate::Result<Self> {
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let decoded = general_purpose::STANDARD.decode(encoded)?;
         let payload: PaymentPayload = serde_json::from_slice(&decoded)?;
         Ok(payload)
@@ -211,7 +221,7 @@ impl PaymentPayload {
 
     /// Encode the payment payload to base64
     pub fn to_base64(&self) -> crate::Result<String> {
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let json = serde_json::to_string(self)?;
         Ok(general_purpose::STANDARD.encode(json))
     }
@@ -268,20 +278,24 @@ impl ExactEvmPayloadAuthorization {
     /// Check if the authorization is currently valid
     pub fn is_valid_now(&self) -> crate::Result<bool> {
         let now = Utc::now().timestamp();
-        let valid_after: i64 = self.valid_after.parse()
-            .map_err(|_| crate::X402Error::invalid_authorization("Invalid valid_after timestamp"))?;
-        let valid_before: i64 = self.valid_before.parse()
-            .map_err(|_| crate::X402Error::invalid_authorization("Invalid valid_before timestamp"))?;
+        let valid_after: i64 = self.valid_after.parse().map_err(|_| {
+            crate::X402Error::invalid_authorization("Invalid valid_after timestamp")
+        })?;
+        let valid_before: i64 = self.valid_before.parse().map_err(|_| {
+            crate::X402Error::invalid_authorization("Invalid valid_before timestamp")
+        })?;
 
         Ok(now >= valid_after && now <= valid_before)
     }
 
     /// Get the validity duration
     pub fn validity_duration(&self) -> crate::Result<Duration> {
-        let valid_after: i64 = self.valid_after.parse()
-            .map_err(|_| crate::X402Error::invalid_authorization("Invalid valid_after timestamp"))?;
-        let valid_before: i64 = self.valid_before.parse()
-            .map_err(|_| crate::X402Error::invalid_authorization("Invalid valid_before timestamp"))?;
+        let valid_after: i64 = self.valid_after.parse().map_err(|_| {
+            crate::X402Error::invalid_authorization("Invalid valid_after timestamp")
+        })?;
+        let valid_before: i64 = self.valid_before.parse().map_err(|_| {
+            crate::X402Error::invalid_authorization("Invalid valid_before timestamp")
+        })?;
 
         Ok(Duration::from_secs((valid_before - valid_after) as u64))
     }
@@ -321,12 +335,11 @@ pub struct SettleResponse {
 impl SettleResponse {
     /// Encode the settle response to base64
     pub fn to_base64(&self) -> crate::Result<String> {
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let json = serde_json::to_string(self)?;
         Ok(general_purpose::STANDARD.encode(json))
     }
 }
-
 
 /// Facilitator configuration
 #[derive(Clone)]
@@ -336,7 +349,7 @@ pub struct FacilitatorConfig {
     /// Request timeout
     pub timeout: Option<Duration>,
     /// Function to create authentication headers
-    pub create_auth_headers: Option<Arc<dyn Fn() -> crate::Result<HashMap<String, HashMap<String, String>>> + Send + Sync>>,
+    pub create_auth_headers: Option<AuthHeadersFnArc>,
 }
 
 impl std::fmt::Debug for FacilitatorConfig {
@@ -364,11 +377,13 @@ impl FacilitatorConfig {
         if self.url.is_empty() {
             return Err(crate::X402Error::config("Facilitator URL cannot be empty"));
         }
-        
+
         if !self.url.starts_with("http://") && !self.url.starts_with("https://") {
-            return Err(crate::X402Error::config("Facilitator URL must start with http:// or https://"));
+            return Err(crate::X402Error::config(
+                "Facilitator URL must start with http:// or https://",
+            ));
         }
-        
+
         Ok(())
     }
 
@@ -379,10 +394,7 @@ impl FacilitatorConfig {
     }
 
     /// Set the auth headers creator
-    pub fn with_auth_headers(
-        mut self,
-        creator: Box<dyn Fn() -> crate::Result<HashMap<String, HashMap<String, String>>> + Send + Sync>,
-    ) -> Self {
+    pub fn with_auth_headers(mut self, creator: AuthHeadersFnBox) -> Self {
         self.create_auth_headers = Some(Arc::from(creator));
         self
     }
@@ -511,7 +523,12 @@ pub mod networks {
 
     /// Get all supported networks
     pub fn all_supported() -> Vec<&'static str> {
-        vec![BASE_MAINNET, BASE_SEPOLIA, AVALANCHE_MAINNET, AVALANCHE_FUJI]
+        vec![
+            BASE_MAINNET,
+            BASE_SEPOLIA,
+            AVALANCHE_MAINNET,
+            AVALANCHE_FUJI,
+        ]
     }
 }
 

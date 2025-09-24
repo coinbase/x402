@@ -1,17 +1,149 @@
 # Rust build artifacts
 /target/
 **/*.rs.bk
-Cargo.lock
+*.pdb
 
-# IDE files
+# Cargo lock file (uncomment if this is a library)
+# Cargo.lock
+
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS files
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Logs
+# Temporary files
+*.tmp
+*.temp
 *.log
+
+# Documentation
+/doc/
+
+# Generated documentation
+/target/doc/
+
+# Coverage reports
+tarpaulin-report.html
+coverage/
+
+# Profiling data
+perf.data*
+
+# Example output files
+examples/output/
+examples/*.html
+examples/*.json
+
+# Template demo output
+template_demo_output/
+
+# Test artifacts
+test-results/
+test-output/
+
+# Backup files
+*.bak
+*.backup
+
+# Local configuration
+.env
+.env.local
+.env.*.local
+
+# Node modules (if any frontend tools are used)
+node_modules/
+
+# Python cache (if any Python tools are used)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Debug files
+*.pdb
+*.ilk
+*.exp
+
+# IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Vim
+*.swp
+*.swo
+*~
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# Temporary files created by editors
+*~
+.#*
+\#*#
+.*.swp
+.*.swo
+
+# Rust specific
+Cargo.lock
+target/
+**/*.rs.bk
+
+# Generated files from our template system
+# (if we generate any temporary files)
+generated_templates/
+temp_html/
+
+# Any files created by our examples
+example_output/
+demo_output/

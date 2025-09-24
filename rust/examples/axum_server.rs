@@ -1,19 +1,14 @@
 //! Example Axum server with x402 payment middleware
 
-use axum::{
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{response::Json, routing::get};
 use rust_decimal::Decimal;
 use serde_json::json;
 use std::str::FromStr;
-use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
+// Note: ServiceBuilder and TraceLayer imports removed as they're not used in this example
 use tracing_subscriber;
 
 use x402::{
-    axum::{AxumPaymentConfig, create_payment_app, examples},
+    axum::{create_payment_app, examples, AxumPaymentConfig},
     types::FacilitatorConfig,
 };
 
@@ -27,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create payment configuration
     let payment_config = AxumPaymentConfig::new(
-        Decimal::from_str("0.0001")?, // 1/10th of a cent
+        Decimal::from_str("0.0001")?,                 // 1/10th of a cent
         "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", // Recipient address
     )
     .with_description("Premium API access")

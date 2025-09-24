@@ -1,5 +1,6 @@
 //! Middleware implementations for web frameworks
 
+use crate::template::{self, PaywallConfig};
 use crate::types::{Network, *};
 use crate::{Result, X402Error};
 use axum::{
@@ -114,18 +115,17 @@ impl PaymentMiddlewareConfig {
     }
 
     /// Create payment requirements from this config
-    pub fn create_payment_requirements(
-        &self,
-        request_uri: &str,
-    ) -> Result<PaymentRequirements> {
+    pub fn create_payment_requirements(&self, request_uri: &str) -> Result<PaymentRequirements> {
         let network = if self.testnet {
             networks::BASE_SEPOLIA
         } else {
             networks::BASE_MAINNET
         };
 
-        let usdc_address = networks::get_usdc_address(network)
-            .ok_or_else(|| X402Error::NetworkNotSupported { network: network.to_string() })?;
+        let usdc_address =
+            networks::get_usdc_address(network).ok_or_else(|| X402Error::NetworkNotSupported {
+                network: network.to_string(),
+            })?;
 
         let resource = if let Some(ref resource_url) = self.resource {
             resource_url.clone()
@@ -135,7 +135,9 @@ impl PaymentMiddlewareConfig {
             request_uri.to_string()
         };
 
-        let max_amount_required = (self.amount * Decimal::from(1_000_000u64)).normalize().to_string();
+        let max_amount_required = (self.amount * Decimal::from(1_000_000u64))
+            .normalize()
+            .to_string();
 
         let mut requirements = PaymentRequirements::new(
             schemes::EXACT,
@@ -151,7 +153,11 @@ impl PaymentMiddlewareConfig {
         requirements.output_schema = self.output_schema.clone();
         requirements.max_timeout_seconds = self.max_timeout_seconds;
 
-        let network = if self.testnet { Network::Testnet } else { Network::Mainnet };
+        let network = if self.testnet {
+            Network::Testnet
+        } else {
+            Network::Mainnet
+        };
         requirements.set_usdc_info(network)?;
 
         Ok(requirements)
@@ -258,7 +264,9 @@ impl PaymentMiddleware {
                 return facilitator.settle(payment_payload, &requirements).await;
             }
         }
-        Err(crate::X402Error::facilitator_error("No facilitator configured"))
+        Err(crate::X402Error::facilitator_error(
+            "No facilitator configured",
+        ))
     }
 }
 
@@ -280,35 +288,50 @@ pub async fn payment_middleware(
         .get("Accept")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    
+
     let is_web_browser = accept.contains("text/html") && user_agent.contains("Mozilla");
 
     // Create payment requirements
-    let payment_requirements = config
-        .create_payment_requirements(&uri)
-        .map_err(|e| crate::X402Error::config(format!("Failed to create payment requirements: {}", e)))?;
+    let payment_requirements = config.create_payment_requirements(&uri).map_err(|e| {
+        crate::X402Error::config(format!("Failed to create payment requirements: {}", e))
+    })?;
 
     // Check for payment header
-    let payment_header = headers
-        .get("X-PAYMENT")
-        .and_then(|v| v.to_str().ok());
+    let payment_header = headers.get("X-PAYMENT").and_then(|v| v.to_str().ok());
 
     match payment_header {
         Some(payment_b64) => {
             // Decode and verify payment
-            let payment_payload = PaymentPayload::from_base64(payment_b64)
-                .map_err(|e| crate::X402Error::invalid_payment_payload(format!("Failed to decode payment: {}", e)))?;
+            let payment_payload = PaymentPayload::from_base64(payment_b64).map_err(|e| {
+                crate::X402Error::invalid_payment_payload(format!(
+                    "Failed to decode payment: {}",
+                    e
+                ))
+            })?;
 
             // Verify payment with facilitator
-            let facilitator = super::facilitator::FacilitatorClient::new(config.facilitator_config.clone())
-                .map_err(|e| crate::X402Error::facilitator_error(format!("Failed to create facilitator client: {}", e)))?;
+            let facilitator =
+                super::facilitator::FacilitatorClient::new(config.facilitator_config.clone())
+                    .map_err(|e| {
+                        crate::X402Error::facilitator_error(format!(
+                            "Failed to create facilitator client: {}",
+                            e
+                        ))
+                    })?;
             let verify_response = facilitator
                 .verify(&payment_payload, &payment_requirements)
                 .await
-                .map_err(|e| crate::X402Error::facilitator_error(format!("Payment verification failed: {}", e)))?;
+                .map_err(|e| {
+                    crate::X402Error::facilitator_error(format!(
+                        "Payment verification failed: {}",
+                        e
+                    ))
+                })?;
 
             if !verify_response.is_valid {
-                return Err(crate::X402Error::payment_verification_failed("Payment verification failed"));
+                return Err(crate::X402Error::payment_verification_failed(
+                    "Payment verification failed",
+                ));
             }
 
             // Execute the handler
@@ -318,15 +341,19 @@ pub async fn payment_middleware(
             let settle_response = facilitator
                 .settle(&payment_payload, &payment_requirements)
                 .await
-                .map_err(|e| crate::X402Error::facilitator_error(format!("Payment settlement failed: {}", e)))?;
+                .map_err(|e| {
+                    crate::X402Error::facilitator_error(format!("Payment settlement failed: {}", e))
+                })?;
 
             // Add settlement header
-            let settlement_header = settle_response
-                .to_base64()
-                .map_err(|e| crate::X402Error::config(format!("Failed to encode settlement response: {}", e)))?;
-            
+            let settlement_header = settle_response.to_base64().map_err(|e| {
+                crate::X402Error::config(format!("Failed to encode settlement response: {}", e))
+            })?;
+
             if let Ok(header_value) = HeaderValue::from_str(&settlement_header) {
-                response.headers_mut().insert("X-PAYMENT-RESPONSE", header_value);
+                response
+                    .headers_mut()
+                    .insert("X-PAYMENT-RESPONSE", header_value);
             }
 
             Ok(response)
@@ -334,15 +361,27 @@ pub async fn payment_middleware(
         None => {
             // No payment provided, return 402 with requirements
             if is_web_browser {
-                let html = config.custom_paywall_html.clone()
-                    .unwrap_or_else(|| "<html><body><h1>Payment Required</h1><p>This resource requires payment to access.</p></body></html>".to_string());
-                
+                let html = if let Some(custom_html) = &config.custom_paywall_html {
+                    custom_html.clone()
+                } else {
+                    // Use the new template system
+                    let paywall_config = PaywallConfig::new()
+                        .with_app_name("x402 Service")
+                        .with_app_logo("💰");
+
+                    template::generate_paywall_html(
+                        "X-PAYMENT header is required",
+                        std::slice::from_ref(&payment_requirements),
+                        Some(&paywall_config),
+                    )
+                };
+
                 let response = Response::builder()
                     .status(StatusCode::PAYMENT_REQUIRED)
                     .header("Content-Type", "text/html")
                     .body(html.into())
                     .unwrap();
-                
+
                 Ok(response)
             } else {
                 let payment_response = PaymentRequirementsResponse::new(
@@ -358,15 +397,71 @@ pub async fn payment_middleware(
 
 /// Create a service builder with x402 payment middleware
 pub fn create_payment_service(
-    _middleware: PaymentMiddleware,
+    middleware: PaymentMiddleware,
 ) -> impl tower::Layer<tower::ServiceBuilder<tower::layer::util::Identity>> + Clone {
-    // TODO: Fix middleware integration - temporarily simplified
     ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
-    // .layer(axum::middleware::from_fn_with_state(
-    //     middleware.config().clone(),
-    //     payment_middleware,
-    // ))
+        .layer(tower::layer::util::Stack::new(
+            tower::layer::util::Identity::new(),
+            PaymentServiceLayer::new(middleware),
+        ))
+}
+
+/// Tower service layer for x402 payment middleware
+#[derive(Clone)]
+pub struct PaymentServiceLayer {
+    middleware: PaymentMiddleware,
+}
+
+impl PaymentServiceLayer {
+    pub fn new(middleware: PaymentMiddleware) -> Self {
+        Self { middleware }
+    }
+}
+
+impl<S> tower::Layer<S> for PaymentServiceLayer {
+    type Service = PaymentService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        PaymentService {
+            inner,
+            middleware: self.middleware.clone(),
+        }
+    }
+}
+
+/// Tower service for x402 payment middleware
+#[derive(Clone)]
+pub struct PaymentService<S> {
+    inner: S,
+    middleware: PaymentMiddleware,
+}
+
+impl<S, ReqBody, ResBody> tower::Service<http::Request<ReqBody>> for PaymentService<S>
+where
+    S: tower::Service<http::Request<ReqBody>, Response = http::Response<ResBody>> + Send + 'static,
+    S::Future: Send + 'static,
+    ReqBody: Send + 'static,
+    ResBody: Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::result::Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
+        let future = self.inner.call(req);
+        let _middleware = self.middleware.clone();
+        
+        Box::pin(async move {
+            // For now, just pass through the request
+            // TODO: Implement actual payment verification logic
+            future.await
+        })
+    }
 }
 
 #[cfg(test)]
@@ -420,7 +515,10 @@ mod tests {
         assert_eq!(requirements.scheme, "exact");
         assert_eq!(requirements.network, "base-sepolia");
         assert_eq!(requirements.max_amount_required, "100");
-        assert_eq!(requirements.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+        assert_eq!(
+            requirements.pay_to,
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C"
+        );
     }
 
     #[test]
@@ -441,7 +539,10 @@ mod tests {
         assert_eq!(config.mime_type, Some("application/json".to_string()));
         assert_eq!(config.max_timeout_seconds, 120);
         assert!(!config.testnet);
-        assert_eq!(config.resource, Some("https://example.com/test".to_string()));
+        assert_eq!(
+            config.resource,
+            Some("https://example.com/test".to_string())
+        );
     }
 
     #[test]
