@@ -1,7 +1,7 @@
 //! Axum integration for x402 payments
 
 use crate::middleware::{PaymentMiddleware, PaymentMiddlewareConfig};
-use crate::{Result, X402Error};
+use crate::X402Error;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, HeaderValue, StatusCode},
@@ -10,11 +10,9 @@ use axum::{
     routing::{get, post, put, delete},
     Json, Router,
 };
-use std::str::FromStr;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::trace::TraceLayer;
 
 /// Re-export the payment middleware for convenience
 pub use crate::middleware::{payment_middleware, create_payment_service};
@@ -27,14 +25,13 @@ pub fn create_payment_router(
     let mut router = Router::new();
     routes(&mut router);
     
-    // TODO: Fix axum middleware integration
-    // router.layer(
-    //     axum::middleware::from_fn_with_state(
-    //         middleware.config().clone(),
-    //         payment_middleware,
-    //     )
-    // )
-    router
+    // Apply payment middleware to all routes
+    router.layer(
+        axum::middleware::from_fn_with_state(
+            middleware,
+            payment_middleware_handler,
+        )
+    )
 }
 
 /// Helper function to create a payment-protected route
@@ -50,16 +47,13 @@ where
         _ => panic!("Unsupported HTTP method: {}", method),
     };
 
-    // TODO: Fix axum middleware integration
-    // router.layer(
-    //     ServiceBuilder::new()
-    //         .layer(TraceLayer::new_for_http())
-    //         .layer(axum::middleware::from_fn_with_state(
-    //             middleware.config().clone(),
-    //             payment_middleware,
-    //         ))
-    // )
-    router
+    // Apply payment middleware
+    router.layer(
+        axum::middleware::from_fn_with_state(
+            middleware,
+            payment_middleware_handler,
+        )
+    )
 }
 
 /// Create a payment middleware for Axum
@@ -68,6 +62,127 @@ pub fn create_payment_middleware(
     pay_to: impl Into<String>,
 ) -> PaymentMiddleware {
     PaymentMiddleware::new(amount, pay_to)
+}
+
+/// Check if the request is from a web browser
+fn is_web_browser(headers: &HeaderMap) -> bool {
+    let user_agent = headers
+        .get("User-Agent")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    
+    let accept = headers
+        .get("Accept")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    
+    accept.contains("text/html") && user_agent.contains("Mozilla")
+}
+
+/// Get default paywall HTML
+fn get_default_paywall_html() -> &'static str {
+    r#"<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Required</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        h1 { color: #333; }
+        p { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Payment Required</h1>
+        <p>This resource requires payment to access. Please provide a valid X-PAYMENT header.</p>
+    </div>
+</body>
+</html>"#
+}
+
+/// Axum middleware handler for payment processing with settlement
+pub async fn payment_middleware_handler(
+    State(middleware): State<PaymentMiddleware>,
+    request: Request,
+    next: Next,
+) -> impl IntoResponse {
+    let config = middleware.config().clone();
+    let headers = request.headers().clone();
+    
+    // Determine the resource URL
+    let resource = if let Some(ref resource_url) = config.resource {
+        resource_url.clone()
+    } else if let Some(ref root_url) = config.resource_root_url {
+        format!("{}{}", root_url, request.uri().path())
+    } else {
+        request.uri().path().to_string()
+    };
+    
+    // Create payment requirements
+    let requirements = config.create_payment_requirements(&resource).unwrap_or_else(|_| {
+        crate::types::PaymentRequirements::new(
+            "exact",
+            if config.testnet { "base-sepolia" } else { "base" },
+            "1000000",
+            if config.testnet { 
+                "0x036CbD53842c5426634e7929541eC2318f3dCF7e" 
+            } else { 
+                "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" 
+            },
+            &config.pay_to,
+            &resource,
+            config.description.as_deref().unwrap_or("Payment required"),
+        )
+    });
+    
+    // Check for payment header
+    if let Some(payment_header) = headers.get("X-PAYMENT") {
+        if let Ok(payment_str) = payment_header.to_str() {
+            // Parse the payment payload
+            if let Ok(payment_payload) = crate::types::PaymentPayload::from_base64(payment_str) {
+                // Verify the payment using the middleware's verify method
+                if middleware.verify(&payment_payload).await {
+                    // Payment is valid, proceed to next handler
+                    let mut response = next.run(request).await;
+                    
+                    // After successful response, settle the payment
+                    if let Ok(settlement_response) = middleware.settle(&payment_payload).await {
+                        if let Ok(settlement_header) = settlement_response.to_base64() {
+                            if let Ok(header_value) = HeaderValue::from_str(&settlement_header) {
+                                response.headers_mut().insert("X-PAYMENT-RESPONSE", header_value);
+                            }
+                        }
+                    }
+                    
+                    return response;
+                }
+            }
+        }
+    }
+    
+    // No valid payment found, check if this is a web browser request
+    if is_web_browser(&headers) {
+        let html = config.custom_paywall_html.clone().unwrap_or_else(|| get_default_paywall_html().to_string());
+        
+        let mut response = Response::new(axum::body::Body::from(html));
+        *response.status_mut() = StatusCode::PAYMENT_REQUIRED;
+        response.headers_mut().insert(
+            "Content-Type",
+            HeaderValue::from_static("text/html"),
+        );
+        
+        return response.into_response();
+    }
+    
+    // Return JSON response for API clients
+    let response_body = serde_json::json!({
+        "x402Version": 1,
+        "error": "X-PAYMENT header is required",
+        "accepts": vec![requirements],
+    });
+
+    (StatusCode::PAYMENT_REQUIRED, Json(response_body)).into_response()
 }
 
 /// Axum-specific payment middleware configuration
@@ -192,31 +307,17 @@ impl AxumPaymentConfig {
     pub fn into_middleware(self) -> PaymentMiddleware {
         PaymentMiddleware {
             config: Arc::new(self.base_config),
+            facilitator: None,
         }
     }
 
     /// Create a service builder with this configuration
-    pub fn create_service(&self) -> impl tower::Layer<tower::ServiceBuilder<tower::layer::util::Identity>> + Clone {
-        // TODO: Fix service builder integration
-        ServiceBuilder::new()
-        // let mut service_builder = ServiceBuilder::new();
+    pub fn create_service(&self) -> ServiceBuilder<tower::layer::util::Identity> {
+        let service_builder = ServiceBuilder::new();
 
-        // if self.axum_options.enable_tracing {
-        //     service_builder = service_builder.layer(TraceLayer::new_for_http());
-        // }
-
-        // if self.axum_options.enable_cors {
-        //     let cors_layer = tower_http::cors::CorsLayer::new()
-        //         .allow_origin(tower_http::cors::Any)
-        //         .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PUT, axum::http::Method::DELETE])
-        //         .allow_headers(tower_http::cors::Any);
-        //     service_builder = service_builder.layer(cors_layer);
-        // }
-
-        // service_builder.layer(axum::middleware::from_fn_with_state(
-        //     self.base_config.clone(),
-        //     payment_middleware,
-        // ))
+        // Note: Service layer integration is simplified for now
+        // In a full implementation, you would conditionally add layers based on options
+        service_builder
     }
 }
 
@@ -228,9 +329,8 @@ pub fn create_payment_app(
     let mut router = Router::new();
     routes(&mut router);
     
-    // TODO: Fix axum middleware integration
-    // router.layer(config.create_service())
-    router
+    // Apply service layers
+    router.layer(config.create_service())
 }
 
 /// Helper for creating payment-protected handlers
@@ -290,6 +390,7 @@ pub mod examples {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_axum_payment_config() {

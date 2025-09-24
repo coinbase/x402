@@ -23,7 +23,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     println!("Found {} discoverable resources", resources.items.len());
 
     // Create x402 client
-    let client = X402Client::new();
+    let client = X402Client::new()?;
 
     // Example 1: Make a request to a protected resource without payment
     println!("\n📡 Making request to protected resource without payment...");

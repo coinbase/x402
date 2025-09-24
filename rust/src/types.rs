@@ -1,6 +1,6 @@
 //! Core types for the x402 protocol
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -11,6 +11,83 @@ use std::time::Duration;
 /// x402 protocol version
 pub const X402_VERSION: u32 = 1;
 
+/// Network configuration for x402 payments
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Network {
+    Mainnet,
+    Testnet,
+}
+
+/// Network configuration with chain-specific details
+#[derive(Debug, Clone)]
+pub struct NetworkConfig {
+    /// Chain ID for the network
+    pub chain_id: u64,
+    /// USDC contract address
+    pub usdc_contract: String,
+    /// Network name
+    pub name: String,
+    /// Whether this is a testnet
+    pub is_testnet: bool,
+}
+
+impl NetworkConfig {
+    /// Base mainnet configuration
+    pub fn base_mainnet() -> Self {
+        Self {
+            chain_id: 8453,
+            usdc_contract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".to_string(),
+            name: "base".to_string(),
+            is_testnet: false,
+        }
+    }
+
+    /// Base Sepolia testnet configuration
+    pub fn base_sepolia() -> Self {
+        Self {
+            chain_id: 84532,
+            usdc_contract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_string(),
+            name: "base-sepolia".to_string(),
+            is_testnet: true,
+        }
+    }
+
+    /// Get network config by name
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "base" => Some(Self::base_mainnet()),
+            "base-sepolia" => Some(Self::base_sepolia()),
+            _ => None,
+        }
+    }
+}
+
+impl Network {
+    /// Get the network identifier string
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Network::Mainnet => "base",
+            Network::Testnet => "base-sepolia",
+        }
+    }
+
+    /// Get the USDC contract address for this network
+    pub fn usdc_address(&self) -> &'static str {
+        match self {
+            Network::Mainnet => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            Network::Testnet => "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        }
+    }
+
+    /// Get the USDC token name for this network
+    pub fn usdc_name(&self) -> &'static str {
+        match self {
+            Network::Mainnet => "USD Coin",
+            Network::Testnet => "USDC",
+        }
+    }
+}
+
 /// Payment requirements for a resource
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentRequirements {
@@ -19,22 +96,25 @@ pub struct PaymentRequirements {
     /// Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet")
     pub network: String,
     /// Required payment amount in atomic token units
+    #[serde(rename = "maxAmountRequired")]
     pub max_amount_required: String,
     /// Token contract address
     pub asset: String,
     /// Recipient wallet address for the payment
+    #[serde(rename = "payTo")]
     pub pay_to: String,
     /// URL of the protected resource
     pub resource: String,
     /// Human-readable description of the resource
     pub description: String,
     /// MIME type of the expected response
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "mimeType", skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
     /// JSON schema describing the response format
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "outputSchema", skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<Value>,
     /// Maximum time allowed for payment completion in seconds
+    #[serde(rename = "maxTimeoutSeconds")]
     pub max_timeout_seconds: u32,
     /// Scheme-specific additional information
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,14 +148,10 @@ impl PaymentRequirements {
     }
 
     /// Set USDC token information in the extra field
-    pub fn set_usdc_info(&mut self, is_testnet: bool) -> crate::Result<()> {
+    pub fn set_usdc_info(&mut self, network: Network) -> crate::Result<()> {
         let mut usdc_info = HashMap::new();
-        usdc_info.insert("name".to_string(), "USDC".to_string());
+        usdc_info.insert("name".to_string(), network.usdc_name().to_string());
         usdc_info.insert("version".to_string(), "2".to_string());
-
-        if !is_testnet {
-            usdc_info.insert("name".to_string(), "USD Coin".to_string());
-        }
 
         self.extra = Some(serde_json::to_value(usdc_info)?);
         Ok(())
@@ -100,6 +176,7 @@ impl PaymentRequirements {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentPayload {
     /// Protocol version identifier
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// Payment scheme identifier
     pub scheme: String,
@@ -159,8 +236,10 @@ pub struct ExactEvmPayloadAuthorization {
     /// Payment amount in atomic units
     pub value: String,
     /// Unix timestamp when authorization becomes valid
+    #[serde(rename = "validAfter")]
     pub valid_after: String,
     /// Unix timestamp when authorization expires
+    #[serde(rename = "validBefore")]
     pub valid_before: String,
     /// 32-byte random nonce to prevent replay attacks
     pub nonce: String,
@@ -212,9 +291,10 @@ impl ExactEvmPayloadAuthorization {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerifyResponse {
     /// Whether the payment is valid
+    #[serde(rename = "isValid")]
     pub is_valid: bool,
     /// Reason for invalidity (if applicable)
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "invalidReason", skip_serializing_if = "Option::is_none")]
     pub invalid_reason: Option<String>,
     /// Payer's address
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -227,25 +307,26 @@ pub struct SettleResponse {
     /// Whether the settlement was successful
     pub success: bool,
     /// Error reason if settlement failed
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "errorReason", skip_serializing_if = "Option::is_none")]
     pub error_reason: Option<String>,
-    /// Blockchain transaction hash
+    /// Transaction hash or identifier
     pub transaction: String,
-    /// Blockchain network identifier
+    /// Network where the transaction was executed
     pub network: String,
-    /// Payer's address
+    /// Payer address if applicable
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payer: Option<String>,
 }
 
 impl SettleResponse {
-    /// Encode the settlement response to base64
+    /// Encode the settle response to base64
     pub fn to_base64(&self) -> crate::Result<String> {
         use base64::{Engine as _, engine::general_purpose};
         let json = serde_json::to_string(self)?;
         Ok(general_purpose::STANDARD.encode(json))
     }
 }
+
 
 /// Facilitator configuration
 #[derive(Clone)]
@@ -278,6 +359,19 @@ impl FacilitatorConfig {
         }
     }
 
+    /// Validate the facilitator configuration
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.url.is_empty() {
+            return Err(crate::X402Error::config("Facilitator URL cannot be empty"));
+        }
+        
+        if !self.url.starts_with("http://") && !self.url.starts_with("https://") {
+            return Err(crate::X402Error::config("Facilitator URL must start with http:// or https://"));
+        }
+        
+        Ok(())
+    }
+
     /// Set the request timeout
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
@@ -304,6 +398,7 @@ impl Default for FacilitatorConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentRequirementsResponse {
     /// Protocol version
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// Human-readable error message
     pub error: String,
@@ -333,6 +428,7 @@ pub struct SupportedKinds {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SupportedKind {
     /// Protocol version
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// Payment scheme identifier
     pub scheme: String,
@@ -348,10 +444,12 @@ pub struct DiscoveryResource {
     /// Resource type (e.g., "http")
     pub r#type: String,
     /// Protocol version supported by the resource
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// Payment requirements for this resource
     pub accepts: Vec<PaymentRequirements>,
     /// Unix timestamp of when the resource was last updated
+    #[serde(rename = "lastUpdated")]
     pub last_updated: u64,
     /// Additional metadata
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -362,6 +460,7 @@ pub struct DiscoveryResource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveryResponse {
     /// Protocol version
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// List of discoverable resources
     pub items: Vec<DiscoveryResource>,

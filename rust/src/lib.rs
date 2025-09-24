@@ -35,8 +35,6 @@ pub const X402_VERSION: u32 = 1;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal::Decimal;
-    use std::str::FromStr;
 
     #[test]
     fn test_version_constants() {
@@ -77,7 +75,7 @@ mod tests {
             "Test payment",
         );
 
-        requirements.set_usdc_info(true).unwrap();
+        requirements.set_usdc_info(crate::types::Network::Testnet).unwrap();
         assert!(requirements.extra.is_some());
 
         let extra = requirements.extra.as_ref().unwrap();

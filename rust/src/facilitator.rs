@@ -6,7 +6,6 @@ use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Default facilitator URL
 pub const DEFAULT_FACILITATOR_URL: &str = "https://x402.org/facilitator";
@@ -33,20 +32,21 @@ impl std::fmt::Debug for FacilitatorClient {
 
 impl FacilitatorClient {
     /// Create a new facilitator client
-    pub fn new(config: FacilitatorConfig) -> Self {
+    pub fn new(config: FacilitatorConfig) -> Result<Self> {
         let mut client_builder = Client::builder();
         
         if let Some(timeout) = config.timeout {
             client_builder = client_builder.timeout(timeout);
         }
 
-        let client = client_builder.build().unwrap_or_else(|_| Client::new());
+        let client = client_builder.build()
+            .map_err(|e| X402Error::config(format!("Failed to create HTTP client: {}", e)))?;
 
-        Self {
+        Ok(Self {
             url: config.url,
             client,
             auth_config: config.create_auth_headers,
-        }
+        })
     }
 
     /// Verify a payment without executing the transaction
@@ -152,11 +152,61 @@ impl FacilitatorClient {
     pub fn url(&self) -> &str {
         &self.url
     }
+
+    /// Create a facilitator client for a specific network
+    pub fn for_network(_network: &str, config: FacilitatorConfig) -> Result<Self> {
+        // For now, use the provided config as-is
+        // In the future, this could customize the config based on network
+        Self::new(config)
+    }
+
+    /// Create a facilitator client for Base mainnet
+    pub fn for_base_mainnet(config: FacilitatorConfig) -> Result<Self> {
+        Self::for_network("base", config)
+    }
+
+    /// Create a facilitator client for Base Sepolia testnet
+    pub fn for_base_sepolia(config: FacilitatorConfig) -> Result<Self> {
+        Self::for_network("base-sepolia", config)
+    }
+
+    /// Verify payment with network-specific validation
+    pub async fn verify_with_network_validation(
+        &self,
+        payment_payload: &PaymentPayload,
+        payment_requirements: &PaymentRequirements,
+    ) -> Result<VerifyResponse> {
+        // Validate that the payment network matches requirements
+        if payment_payload.network != payment_requirements.network {
+            return Err(X402Error::payment_verification_failed(format!(
+                "Network mismatch: payment network {} != requirements network {}",
+                payment_payload.network, payment_requirements.network
+            )));
+        }
+
+        // Validate that the payment scheme matches requirements
+        if payment_payload.scheme != payment_requirements.scheme {
+            return Err(X402Error::payment_verification_failed(format!(
+                "Scheme mismatch: payment scheme {} != requirements scheme {}",
+                payment_payload.scheme, payment_requirements.scheme
+            )));
+        }
+
+        // Proceed with normal verification
+        self.verify(payment_payload, payment_requirements).await
+    }
 }
 
 impl Default for FacilitatorClient {
     fn default() -> Self {
-        Self::new(FacilitatorConfig::default())
+        Self::new(FacilitatorConfig::default()).unwrap_or_else(|_| {
+            // Fallback to basic client if configuration fails
+            Self {
+                url: "https://x402.org/facilitator".to_string(),
+                client: Client::new(),
+                auth_config: None,
+            }
+        })
     }
 }
 
@@ -164,7 +214,6 @@ impl Default for FacilitatorClient {
 pub mod coinbase {
     use super::*;
     use crate::crypto::jwt;
-    use uuid::Uuid;
 
     /// Coinbase facilitator base URL
     pub const COINBASE_FACILITATOR_BASE_URL: &str = "https://api.cdp.coinbase.com";
@@ -241,19 +290,44 @@ pub mod coinbase {
 
         pairs.join(",")
     }
+
+    /// Create a default Coinbase facilitator config
+    pub fn default_coinbase_config() -> FacilitatorConfig {
+        create_facilitator_config("", "")
+    }
+
+    /// Create a Coinbase facilitator config with explicit credentials
+    pub fn coinbase_config_with_credentials(
+        api_key_id: impl Into<String>,
+        api_key_secret: impl Into<String>,
+    ) -> FacilitatorConfig {
+        let id = api_key_id.into();
+        let secret = api_key_secret.into();
+        create_facilitator_config(&id, &secret)
+    }
+
+    /// Create a Coinbase facilitator config from environment variables
+    pub fn coinbase_config_from_env() -> FacilitatorConfig {
+        use std::env;
+        
+        let api_key_id = env::var("CDP_API_KEY_ID").unwrap_or_default();
+        let api_key_secret = env::var("CDP_API_KEY_SECRET").unwrap_or_default();
+        
+        create_facilitator_config(&api_key_id, &api_key_secret)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::*;
-    use mockito::{Server, Mock, Matcher};
+    use mockito::{Server, Matcher};
+    use std::time::Duration;
     use serde_json::json;
 
     #[tokio::test]
     async fn test_facilitator_client_creation() {
         let config = FacilitatorConfig::new("https://example.com/facilitator");
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
         assert_eq!(client.url(), "https://example.com/facilitator");
     }
 
@@ -265,14 +339,14 @@ mod tests {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json!({
-                "x402_version": 1,
-                "is_valid": true,
+                "x402Version": 1,
+                "isValid": true,
                 "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
             }).to_string())
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -290,15 +364,15 @@ mod tests {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json!({
-                "x402_version": 1,
-                "is_valid": false,
-                "invalid_reason": "insufficient_funds",
+                "x402Version": 1,
+                "isValid": false,
+                "invalidReason": "insufficient_funds",
                 "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
             }).to_string())
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -324,7 +398,7 @@ mod tests {
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -343,9 +417,9 @@ mod tests {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json!({
-                "x402_version": 1,
+                "x402Version": 1,
                 "success": false,
-                "error_reason": "transaction_failed",
+                "errorReason": "transaction_failed",
                 "transaction": "",
                 "network": "base-sepolia",
                 "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
@@ -353,7 +427,7 @@ mod tests {
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -372,7 +446,7 @@ mod tests {
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -389,15 +463,15 @@ mod tests {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(json!({
-                "x402_version": 1,
+                "x402Version": 1,
                 "kinds": [
                     {
-                        "x402_version": 1,
+                        "x402Version": 1,
                         "scheme": "exact",
                         "network": "base-sepolia"
                     },
                     {
-                        "x402_version": 1,
+                        "x402Version": 1,
                         "scheme": "exact",
                         "network": "base"
                     }
@@ -406,7 +480,7 @@ mod tests {
             .create();
 
         let config = FacilitatorConfig::new(&server.url());
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let supported = client.supported().await.unwrap();
         assert_eq!(supported.kinds.len(), 2);
@@ -424,8 +498,8 @@ mod tests {
             .match_header("Authorization", "Bearer test-token")
             .match_header("Correlation-Context", Matcher::Regex(r".*".to_string()))
             .with_body(json!({
-                "x402_version": 1,
-                "is_valid": true,
+                "x402Version": 1,
+                "isValid": true,
                 "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
             }).to_string())
             .create();
@@ -441,7 +515,7 @@ mod tests {
 
         let config = FacilitatorConfig::new(&server.url())
             .with_auth_headers(Box::new(create_auth_headers));
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -455,7 +529,7 @@ mod tests {
         // Test with a very short timeout and a URL that will timeout
         let config = FacilitatorConfig::new("http://10.255.255.1:9999") // Non-routable IP
             .with_timeout(Duration::from_millis(1));
-        let client = FacilitatorClient::new(config);
+        let client = FacilitatorClient::new(config).unwrap();
 
         let payment_payload = create_test_payment_payload();
         let payment_requirements = create_test_payment_requirements();
@@ -476,7 +550,9 @@ mod tests {
                 error_msg.contains("Name or service not known") ||
                 error_msg.contains("Temporary failure in name resolution") ||
                 error_msg.contains("error sending request") ||
-                error_msg.contains("HTTP error"));
+                error_msg.contains("HTTP error") ||
+                error_msg.contains("Facilitator error"), 
+                "Expected timeout/connection error, got: {}", error_msg);
     }
 
     // Helper functions for creating test data

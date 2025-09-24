@@ -1,15 +1,14 @@
 //! Middleware implementations for web frameworks
 
-use crate::types::*;
+use crate::types::{Network, *};
 use crate::{Result, X402Error};
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
-use std::str::FromStr;
 use rust_decimal::Decimal;
 use std::sync::Arc;
 use tower::ServiceBuilder;
@@ -152,7 +151,8 @@ impl PaymentMiddlewareConfig {
         requirements.output_schema = self.output_schema.clone();
         requirements.max_timeout_seconds = self.max_timeout_seconds;
 
-        requirements.set_usdc_info(self.testnet)?;
+        let network = if self.testnet { Network::Testnet } else { Network::Mainnet };
+        requirements.set_usdc_info(network)?;
 
         Ok(requirements)
     }
@@ -162,6 +162,7 @@ impl PaymentMiddlewareConfig {
 #[derive(Debug, Clone)]
 pub struct PaymentMiddleware {
     pub config: Arc<PaymentMiddlewareConfig>,
+    pub facilitator: Option<crate::facilitator::FacilitatorClient>,
 }
 
 impl PaymentMiddleware {
@@ -169,6 +170,7 @@ impl PaymentMiddleware {
     pub fn new(amount: Decimal, pay_to: impl Into<String>) -> Self {
         Self {
             config: Arc::new(PaymentMiddlewareConfig::new(amount, pay_to)),
+            facilitator: None,
         }
     }
 
@@ -230,6 +232,34 @@ impl PaymentMiddleware {
     pub fn config(&self) -> &PaymentMiddlewareConfig {
         &self.config
     }
+
+    /// Set the facilitator client
+    pub fn with_facilitator(mut self, facilitator: crate::facilitator::FacilitatorClient) -> Self {
+        self.facilitator = Some(facilitator);
+        self
+    }
+
+    /// Verify a payment payload
+    pub async fn verify(&self, payment_payload: &PaymentPayload) -> bool {
+        if let Some(facilitator) = &self.facilitator {
+            if let Ok(requirements) = self.config.create_payment_requirements("/") {
+                if let Ok(response) = facilitator.verify(payment_payload, &requirements).await {
+                    return response.is_valid;
+                }
+            }
+        }
+        false
+    }
+
+    /// Settle a payment
+    pub async fn settle(&self, payment_payload: &PaymentPayload) -> crate::Result<SettleResponse> {
+        if let Some(facilitator) = &self.facilitator {
+            if let Ok(requirements) = self.config.create_payment_requirements("/") {
+                return facilitator.settle(payment_payload, &requirements).await;
+            }
+        }
+        Err(crate::X402Error::facilitator_error("No facilitator configured"))
+    }
 }
 
 /// Axum middleware function for handling x402 payments
@@ -270,7 +300,8 @@ pub async fn payment_middleware(
                 .map_err(|e| crate::X402Error::invalid_payment_payload(format!("Failed to decode payment: {}", e)))?;
 
             // Verify payment with facilitator
-            let facilitator = super::facilitator::FacilitatorClient::new(config.facilitator_config.clone());
+            let facilitator = super::facilitator::FacilitatorClient::new(config.facilitator_config.clone())
+                .map_err(|e| crate::X402Error::facilitator_error(format!("Failed to create facilitator client: {}", e)))?;
             let verify_response = facilitator
                 .verify(&payment_payload, &payment_requirements)
                 .await
@@ -294,10 +325,9 @@ pub async fn payment_middleware(
                 .to_base64()
                 .map_err(|e| crate::X402Error::config(format!("Failed to encode settlement response: {}", e)))?;
             
-            response.headers_mut().insert(
-                "X-PAYMENT-RESPONSE",
-                HeaderValue::from_str(&settlement_header).unwrap(),
-            );
+            if let Ok(header_value) = HeaderValue::from_str(&settlement_header) {
+                response.headers_mut().insert("X-PAYMENT-RESPONSE", header_value);
+            }
 
             Ok(response)
         }
@@ -330,10 +360,10 @@ pub async fn payment_middleware(
 pub fn create_payment_service(
     _middleware: PaymentMiddleware,
 ) -> impl tower::Layer<tower::ServiceBuilder<tower::layer::util::Identity>> + Clone {
-    // TODO: Fix middleware integration
+    // TODO: Fix middleware integration - temporarily simplified
     ServiceBuilder::new()
         .layer(TraceLayer::new_for_http())
-    // .layer(axum::middleware::from_fn_with_state::<_, PaymentMiddlewareConfig, _>(
+    // .layer(axum::middleware::from_fn_with_state(
     //     middleware.config().clone(),
     //     payment_middleware,
     // ))
@@ -342,6 +372,7 @@ pub fn create_payment_service(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_payment_middleware_config() {
@@ -390,5 +421,44 @@ mod tests {
         assert_eq!(requirements.network, "base-sepolia");
         assert_eq!(requirements.max_amount_required, "100");
         assert_eq!(requirements.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+    }
+
+    #[test]
+    fn test_payment_middleware_config_builder() {
+        let config = PaymentMiddlewareConfig::new(
+            Decimal::from_str("0.01").unwrap(),
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        )
+        .with_description("Test payment")
+        .with_mime_type("application/json")
+        .with_max_timeout_seconds(120)
+        .with_testnet(false)
+        .with_resource("https://example.com/test");
+
+        assert_eq!(config.amount, Decimal::from_str("0.01").unwrap());
+        assert_eq!(config.pay_to, "0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+        assert_eq!(config.description, Some("Test payment".to_string()));
+        assert_eq!(config.mime_type, Some("application/json".to_string()));
+        assert_eq!(config.max_timeout_seconds, 120);
+        assert!(!config.testnet);
+        assert_eq!(config.resource, Some("https://example.com/test".to_string()));
+    }
+
+    #[test]
+    fn test_payment_middleware_creation_with_description() {
+        let middleware = PaymentMiddleware::new(
+            Decimal::from_str("0.001").unwrap(),
+            "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        )
+        .with_description("Test middleware");
+
+        assert_eq!(
+            middleware.config().amount,
+            Decimal::from_str("0.001").unwrap()
+        );
+        assert_eq!(
+            middleware.config().description,
+            Some("Test middleware".to_string())
+        );
     }
 }

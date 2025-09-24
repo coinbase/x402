@@ -8,11 +8,13 @@ use x402::{
 use mockito::{Server, Mock, Matcher};
 use serde_json::json;
 use std::str::FromStr;
+use base64::Engine;
 
 #[tokio::test]
 async fn test_client_with_payment_required() {
     // Mock a 402 response
-    let _m = mock("GET", "/protected")
+    let mut server = Server::new_async().await;
+    let _m = server.mock("GET", "/protected")
         .with_status(402)
         .with_header("content-type", "application/json")
         .with_body(json!({
@@ -32,8 +34,8 @@ async fn test_client_with_payment_required() {
         }).to_string())
         .create();
 
-    let client = X402Client::new();
-    let response = client.get(&format!("{}/protected", server_url())).send().await.unwrap();
+    let client = X402Client::new().unwrap();
+    let response = client.get(&format!("{}/protected", server.url())).send().await.unwrap();
 
     assert_eq!(response.status(), 402);
     
@@ -48,7 +50,8 @@ async fn test_client_with_payment_required() {
 #[tokio::test]
 async fn test_client_with_successful_payment() {
     // Mock successful response after payment
-    let _m = mock("GET", "/protected")
+    let mut server = Server::new_async().await;
+    let _m = server.mock("GET", "/protected")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_header("X-PAYMENT-RESPONSE", "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4MTIzNDU2Nzg5MGFiY2RlZjEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVmMTIzNDU2Nzg5MGFiY2RlZiIsIm5ldHdvcmsiOiJiYXNlLXNlcG9saWEiLCJwYXllciI6IjB4ODU3YjA2NTE5RTkxZTNBNTQ1Mzg3OTFiRGJiMEUyMjM3M2UzNkI2NiJ9")
@@ -58,11 +61,11 @@ async fn test_client_with_successful_payment() {
         }).to_string())
         .create();
 
-    let client = X402Client::new();
+    let client = X402Client::new().unwrap();
     let payment_payload = create_test_payment_payload();
     
     let response = client
-        .get(&format!("{}/protected", server_url()))
+        .get(&format!("{}/protected", server.url()))
         .payment(&payment_payload)
         .unwrap()
         .send()
@@ -85,7 +88,8 @@ async fn test_client_with_successful_payment() {
 
 #[tokio::test]
 async fn test_discovery_client() {
-    let _m = mock("GET", "/resources")
+    let mut server = Server::new_async().await;
+    let _m = server.mock("GET", "/resources")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(json!({
@@ -121,7 +125,7 @@ async fn test_discovery_client() {
         }).to_string())
         .create();
 
-    let discovery = DiscoveryClient::new(&server_url());
+    let discovery = DiscoveryClient::new(&server.url());
     let response = discovery.get_all_resources().await.unwrap();
 
     assert_eq!(response.x402_version, 1);
@@ -133,7 +137,8 @@ async fn test_discovery_client() {
 
 #[tokio::test]
 async fn test_discovery_with_filters() {
-    let _m = mock("GET", "/resources")
+    let mut server = Server::new_async().await;
+    let _m = server.mock("GET", "/resources")
         .with_status(200)
         .match_query(Matcher::AllOf(vec![
             Matcher::UrlEncoded("type".to_string(), "http".to_string()),
@@ -152,8 +157,8 @@ async fn test_discovery_with_filters() {
         }).to_string())
         .create();
 
-    let discovery = DiscoveryClient::new(&server_url());
-    let filters = DiscoveryClient::new()
+    let discovery = DiscoveryClient::new(&server.url());
+    let filters = DiscoveryFilters::new()
         .with_resource_type("http")
         .with_limit(10)
         .with_offset(0);
@@ -177,7 +182,7 @@ async fn test_payment_requirements_creation() {
     );
 
     // Test USDC info setting
-    requirements.set_usdc_info(true).unwrap();
+    requirements.set_usdc_info(Network::Testnet).unwrap();
     assert!(requirements.extra.is_some());
     
     let extra = requirements.extra.as_ref().unwrap();

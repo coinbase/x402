@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_cors(vec!["http://localhost:3000".to_string()]);
 
     // Create the application
-    let app = create_payment_app(payment_config, |mut router| {
+    let app = create_payment_app(payment_config, |router| {
         router
             .route("/joke", get(examples::joke_handler))
             .route("/api/data", get(examples::api_data_handler))
