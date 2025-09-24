@@ -446,16 +446,24 @@ where
 {
     type Response = S::Response;
     type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
+    type Future = std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = std::result::Result<Self::Response, Self::Error>>
+                + Send,
+        >,
+    >;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<std::result::Result<(), Self::Error>> {
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::result::Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, req: http::Request<ReqBody>) -> Self::Future {
         let future = self.inner.call(req);
         let _middleware = self.middleware.clone();
-        
+
         Box::pin(async move {
             // For now, just pass through the request
             // TODO: Implement actual payment verification logic

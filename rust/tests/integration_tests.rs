@@ -83,10 +83,14 @@ async fn test_client_with_successful_payment() {
     assert_eq!(response.status(), 200);
 
     // Check settlement response header first (before consuming response)
-    let settlement_header = response.headers().get("X-PAYMENT-RESPONSE").unwrap().clone();
+    let settlement_header = response
+        .headers()
+        .get("X-PAYMENT-RESPONSE")
+        .unwrap()
+        .clone();
     let data: serde_json::Value = response.json().await.unwrap();
     assert_eq!(data["data"], "This is protected content");
-    
+
     let settlement: SettleResponse = serde_json::from_slice(
         &base64::engine::general_purpose::STANDARD
             .decode(settlement_header.to_str().unwrap())

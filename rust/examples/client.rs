@@ -56,7 +56,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         if final_response.status().is_success() {
             // Check for settlement response first (before consuming response)
             let settlement_header = final_response.headers().get("X-PAYMENT-RESPONSE").cloned();
-            
+
             let joke: serde_json::Value = final_response.json().await?;
             println!("✅ Success! Response: {}", joke);
 

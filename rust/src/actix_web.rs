@@ -5,12 +5,12 @@
 use crate::middleware::PaymentMiddleware;
 use crate::types::{PaymentRequirements, PaymentRequirementsResponse};
 use crate::Result;
+use actix_web::http::header::HeaderValue;
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     middleware::Next,
     Error, HttpRequest, HttpResponse,
 };
-use actix_web::http::header::HeaderValue;
 
 /// Actix-web middleware for x402 payment verification
 pub struct X402Middleware {
@@ -37,14 +37,12 @@ fn extract_payment_requirements(_req: &ServiceRequest) -> Result<Option<Vec<Paym
 }
 
 /// Create payment required response
-fn create_payment_required_response(
-    requirements: &[PaymentRequirements],
-) -> HttpResponse {
+fn create_payment_required_response(requirements: &[PaymentRequirements]) -> HttpResponse {
     let response = PaymentRequirementsResponse::new(
         "Payment required for this resource",
         requirements.to_vec(),
     );
-    
+
     HttpResponse::PaymentRequired().json(response)
 }
 
@@ -53,11 +51,9 @@ fn create_payment_error_response(
     _error: &crate::X402Error,
     requirements: &[PaymentRequirements],
 ) -> HttpResponse {
-    let response = PaymentRequirementsResponse::new(
-        "Payment verification failed",
-        requirements.to_vec(),
-    );
-    
+    let response =
+        PaymentRequirementsResponse::new("Payment verification failed", requirements.to_vec());
+
     HttpResponse::PaymentRequired().json(response)
 }
 
@@ -112,9 +108,12 @@ mod tests {
             rust_decimal::Decimal::from_str("0.0001").unwrap(),
             "0x209693Bc6afc0C5328bA36FaF03C514EF312287C".to_string(),
         );
-        
+
         let middleware = X402Middleware::new(payment_middleware);
-        assert_eq!(middleware.payment_middleware.config.amount, rust_decimal::Decimal::from_str("0.0001").unwrap());
+        assert_eq!(
+            middleware.payment_middleware.config.amount,
+            rust_decimal::Decimal::from_str("0.0001").unwrap()
+        );
     }
 
     #[test]
@@ -134,6 +133,9 @@ mod tests {
         }];
 
         let response = create_payment_required_response(&requirements);
-        assert_eq!(response.status(), actix_web::http::StatusCode::PAYMENT_REQUIRED);
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::PAYMENT_REQUIRED
+        );
     }
 }

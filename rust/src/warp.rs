@@ -22,16 +22,9 @@ impl Reject for PaymentRequired {}
 
 impl Reply for PaymentRequired {
     fn into_response(self) -> warp::reply::Response {
-        let response = PaymentRequirementsResponse::new(
-            &self.error,
-            self.requirements,
-        );
-        
-        with_status(
-            json(&response),
-            StatusCode::PAYMENT_REQUIRED,
-        )
-        .into_response()
+        let response = PaymentRequirementsResponse::new(&self.error, self.requirements);
+
+        with_status(json(&response), StatusCode::PAYMENT_REQUIRED).into_response()
     }
 }
 
@@ -39,19 +32,27 @@ impl Reply for PaymentRequired {
 pub fn x402_payment_filter(
     _payment_middleware: PaymentMiddleware,
 ) -> impl Filter<Extract = (), Error = Rejection> + Clone {
-    warp::any().map(|| ())
+    warp::any()
+        .and_then(|| async { Ok::<(), Rejection>(()) })
+        .untuple_one()
 }
 
 /// Create a Warp filter that requires payment
 pub fn require_payment(
     requirements: Vec<PaymentRequirements>,
 ) -> impl Filter<Extract = (), Error = Rejection> + Clone {
-    warp::any().and_then(move || async move {
-        Err::<(), Rejection>(warp::reject::custom(PaymentRequired {
-            requirements: requirements.clone(),
-            error: "Payment required".to_string(),
-        }))
-    })
+    let requirements = std::sync::Arc::new(requirements);
+    warp::any()
+        .and_then(move || {
+            let requirements = requirements.clone();
+            async move {
+                Err::<(), Rejection>(warp::reject::custom(PaymentRequired {
+                    requirements: (*requirements).clone(),
+                    error: "Payment required".to_string(),
+                }))
+            }
+        })
+        .untuple_one()
 }
 
 /// Create a Warp filter that verifies payment with custom error
@@ -59,25 +60,29 @@ pub fn verify_payment_with_error(
     requirements: Vec<PaymentRequirements>,
     error_message: String,
 ) -> impl Filter<Extract = (), Error = Rejection> + Clone {
-    warp::any().and_then(move || async move {
-        Err::<(), Rejection>(warp::reject::custom(PaymentRequired {
-            requirements: requirements.clone(),
-            error: error_message.clone(),
-        }))
-    })
+    let requirements = std::sync::Arc::new(requirements);
+    let error_message = std::sync::Arc::new(error_message);
+    warp::any()
+        .and_then(move || {
+            let requirements = requirements.clone();
+            let error_message = error_message.clone();
+            async move {
+                Err::<(), Rejection>(warp::reject::custom(PaymentRequired {
+                    requirements: (*requirements).clone(),
+                    error: (*error_message).clone(),
+                }))
+            }
+        })
+        .untuple_one()
 }
 
 /// Create a payment handler for Warp routes
 pub fn payment_handler() -> impl Filter<Extract = (impl Reply,), Error = Rejection> + Clone {
-    warp::path::end()
-        .and(warp::get())
-        .map(|| {
-            let response = PaymentRequirementsResponse::new(
-                "Payment required for this resource",
-                vec![],
-            );
-            with_status(json(&response), StatusCode::PAYMENT_REQUIRED)
-        })
+    warp::path::end().and(warp::get()).map(|| {
+        let response =
+            PaymentRequirementsResponse::new("Payment required for this resource", vec![]);
+        with_status(json(&response), StatusCode::PAYMENT_REQUIRED)
+    })
 }
 
 /// Create x402 middleware for Warp

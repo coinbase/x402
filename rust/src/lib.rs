@@ -24,9 +24,8 @@ pub mod axum;
 #[cfg(feature = "actix-web")]
 pub mod actix_web;
 
-// Temporarily disabled due to complex type issues
-// #[cfg(feature = "warp")]
-// pub mod warp;
+#[cfg(feature = "warp")]
+pub mod warp;
 
 /// Current version of the x402 library
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

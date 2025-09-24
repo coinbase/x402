@@ -2,14 +2,11 @@
 //!
 //! This example demonstrates how to create an Actix-web server with x402 payment protection.
 
-use actix_web::{
-    middleware::Logger,
-    web, App, HttpRequest, HttpResponse, HttpServer, Result,
-};
+use actix_web::{middleware::Logger, web, App, HttpRequest, HttpResponse, HttpServer, Result};
 use std::str::FromStr;
 use x402::{
     middleware::PaymentMiddleware,
-    types::{PaymentRequirements, FacilitatorConfig},
+    types::{FacilitatorConfig, PaymentRequirements},
 };
 
 use x402::actix_web::{create_x402_middleware, handle_payment_verification};
@@ -23,7 +20,7 @@ async fn main() -> std::io::Result<()> {
 
     // Create facilitator config
     let facilitator_config = FacilitatorConfig::default();
-    
+
     // Create payment middleware
     let payment_middleware = PaymentMiddleware::new(
         rust_decimal::Decimal::from_str("0.0001").unwrap(),
@@ -43,7 +40,7 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api")
                     .route("/joke", web::get().to(joke_handler))
                     .route("/data", web::get().to(api_data_handler))
-                    .route("/download", web::get().to(download_handler))
+                    .route("/download", web::get().to(download_handler)),
             )
             .route("/health", web::get().to(health_handler))
     })
@@ -101,13 +98,11 @@ async fn api_data_handler(req: HttpRequest) -> Result<HttpResponse> {
 
     match handle_payment_verification(&req, &requirements).await? {
         Some(response) => Ok(response),
-        None => {
-            Ok(HttpResponse::Ok().json(serde_json::json!({
-                "data": "This is premium data that requires payment",
-                "timestamp": chrono::Utc::now(),
-                "value": 42
-            })))
-        }
+        None => Ok(HttpResponse::Ok().json(serde_json::json!({
+            "data": "This is premium data that requires payment",
+            "timestamp": chrono::Utc::now(),
+            "value": 42
+        }))),
     }
 }
 
@@ -133,7 +128,10 @@ async fn download_handler(req: HttpRequest) -> Result<HttpResponse> {
             // Simulate file download
             Ok(HttpResponse::Ok()
                 .content_type("application/octet-stream")
-                .header("Content-Disposition", "attachment; filename=\"premium_file.txt\"")
+                .header(
+                    "Content-Disposition",
+                    "attachment; filename=\"premium_file.txt\"",
+                )
                 .body("This is premium file content that requires payment!"))
         }
     }

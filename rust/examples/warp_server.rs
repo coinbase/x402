@@ -10,10 +10,10 @@ use warp::{
 };
 use x402::{
     middleware::PaymentMiddleware,
-    types::{PaymentRequirements, FacilitatorConfig},
+    types::{FacilitatorConfig, PaymentRequirements},
 };
 
-use x402::warp::{create_x402_middleware, require_payment, payment_handler};
+use x402::warp::{create_x402_middleware, payment_handler, require_payment};
 
 #[tokio::main]
 async fn main() {
@@ -21,7 +21,7 @@ async fn main() {
 
     // Create facilitator config
     let facilitator_config = FacilitatorConfig::default();
-    
+
     // Create payment middleware
     let payment_middleware = PaymentMiddleware::new(
         rust_decimal::Decimal::from_str("0.0001").unwrap(),
@@ -64,9 +64,7 @@ async fn main() {
         .and(x402_middleware.clone())
         .and_then(download_handler);
 
-    let health_route = warp::path!("health")
-        .and(warp::get())
-        .map(health_handler);
+    let health_route = warp::path!("health").and(warp::get()).map(health_handler);
 
     let payment_route = payment_handler();
 
@@ -76,7 +74,12 @@ async fn main() {
         .or(download_route)
         .or(health_route)
         .or(payment_route)
-        .with(warp::cors().allow_any_origin().allow_headers(vec!["content-type"]).allow_methods(vec!["GET", "POST"]));
+        .with(
+            warp::cors()
+                .allow_any_origin()
+                .allow_headers(vec!["content-type"])
+                .allow_methods(vec!["GET", "POST"]),
+        );
 
     println!("📡 Server running on http://localhost:4023");
     println!("🔒 Protected endpoints:");
@@ -87,9 +90,7 @@ async fn main() {
     println!("  GET /health - Health check");
     println!("  GET / - Payment requirements");
 
-    warp::serve(routes)
-        .run(([127, 0, 0, 1], 4023))
-        .await;
+    warp::serve(routes).run(([127, 0, 0, 1], 4023)).await;
 }
 
 /// Protected joke handler
@@ -119,7 +120,7 @@ async fn data_handler() -> Result<impl Reply, warp::Rejection> {
 /// Protected download handler
 async fn download_handler() -> Result<impl Reply, warp::Rejection> {
     Ok(warp::reply::Response::new(
-        "This is premium file content that requires payment!".into()
+        "This is premium file content that requires payment!".into(),
     ))
 }
 
