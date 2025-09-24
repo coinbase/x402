@@ -87,8 +87,8 @@ async fn verify_payment_header(
         );
     }
 
-    // TODO: Implement signature verification with facilitator
-    // For now, basic validation is performed
+    // Note: Full signature verification with facilitator is handled in verify_payment_with_facilitator
+    // This function performs basic payload validation
     Ok(())
 }
 

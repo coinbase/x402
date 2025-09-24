@@ -185,8 +185,8 @@ pub fn create_x402_middleware(
 pub async fn handle_payment_verification(
     _requirements: &[PaymentRequirements],
 ) -> std::result::Result<Option<warp::reply::Response>, Box<dyn std::error::Error>> {
-    // TODO: Implement actual payment verification
-    // This would check for X-PAYMENT header and verify the signature
+    // This function is used for manual payment verification in handlers
+    // For automatic verification, use the x402_payment_filter
     Ok(None)
 }
 

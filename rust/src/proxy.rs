@@ -9,7 +9,7 @@ use crate::{Result, X402Error};
 use axum::{
     extract::State,
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
-    response::Response,
+    response::{IntoResponse, Response},
     routing::any,
     Router,
 };
@@ -227,6 +227,63 @@ pub fn create_proxy_server_with_tracing(config: ProxyConfig) -> Result<Router> {
         .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()));
 
     Ok(app)
+}
+
+/// Create a proxy server with x402 payment middleware
+pub fn create_proxy_server_with_payment(config: ProxyConfig) -> Result<Router> {
+    let state = ProxyState::new(config.clone())?;
+    
+    // Create payment middleware from config
+    let payment_config = config.to_payment_config()?;
+    let payment_middleware = crate::middleware::PaymentMiddleware::new(
+        payment_config.amount,
+        payment_config.pay_to.clone(),
+    )
+    .with_facilitator_config(payment_config.facilitator_config.clone())
+    .with_testnet(payment_config.testnet)
+    .with_description(payment_config.description.as_deref().unwrap_or("Proxy payment"));
+
+    let app = Router::new()
+        .route("/*path", any(proxy_handler_with_payment))
+        .with_state(state)
+        .layer(axum::middleware::from_fn_with_state(
+            payment_middleware,
+            payment_middleware_handler,
+        ));
+
+    Ok(app)
+}
+
+/// Payment middleware handler for proxy
+async fn payment_middleware_handler(
+    State(middleware): State<crate::middleware::PaymentMiddleware>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> impl axum::response::IntoResponse {
+    match middleware.process_payment(request, next).await {
+        Ok(result) => match result {
+            crate::middleware::PaymentResult::Success { response, .. } => response,
+            crate::middleware::PaymentResult::PaymentRequired { response } => response,
+            crate::middleware::PaymentResult::VerificationFailed { response } => response,
+            crate::middleware::PaymentResult::SettlementFailed { response } => response,
+        },
+        Err(e) => (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            axum::Json(serde_json::json!({
+                "error": format!("Payment processing error: {}", e),
+                "x402Version": 1
+            }))
+        ).into_response(),
+    }
+}
+
+/// Proxy handler with payment protection that forwards requests to the target server
+async fn proxy_handler_with_payment(
+    State(state): State<ProxyState>,
+    request: axum::extract::Request,
+) -> std::result::Result<Response, StatusCode> {
+    // This handler is called after payment middleware has verified the payment
+    proxy_handler(State(state), request).await
 }
 
 /// Proxy handler that forwards requests to the target server
