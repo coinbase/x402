@@ -311,7 +311,7 @@ describe("paymentMiddleware()", () => {
     const json = await response.json();
     expect(json).toEqual({
       x402Version: 1,
-      error: "X-PAYMENT header is required",
+      error: "Payment-Agreement header is required",
       accepts: [
         {
           scheme: "exact",
@@ -385,7 +385,7 @@ describe("paymentMiddleware()", () => {
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "Payment-Agreement": validPayment,
       }),
     } as NextRequest;
 
@@ -423,7 +423,7 @@ describe("paymentMiddleware()", () => {
       },
     });
     expect(response.status).toBe(200);
-    expect(response.headers.get("X-PAYMENT-RESPONSE")).toBeDefined();
+    expect(response.headers.get("Payment-Response")).toBeDefined();
   });
 
   it("should return 402 if payment verification fails", async () => {
@@ -431,7 +431,7 @@ describe("paymentMiddleware()", () => {
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": invalidPayment,
+        "Payment-Agreement": invalidPayment,
       }),
     } as NextRequest;
 
@@ -480,7 +480,7 @@ describe("paymentMiddleware()", () => {
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "Payment-Agreement": validPayment,
       }),
     } as NextRequest;
 
@@ -516,7 +516,7 @@ describe("paymentMiddleware()", () => {
         version: "2",
       },
     });
-    expect(response.headers.get("X-PAYMENT-RESPONSE")).toBeDefined();
+    expect(response.headers.get("Payment-Response")).toBeDefined();
   });
 
   it("should handle settlement failure", async () => {
@@ -524,7 +524,7 @@ describe("paymentMiddleware()", () => {
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "Payment-Agreement": validPayment,
       }),
     } as NextRequest;
 
@@ -590,7 +590,7 @@ describe("paymentMiddleware()", () => {
     const json = await response.json();
     expect(json).toEqual({
       x402Version: 1,
-      error: "X-PAYMENT header is required",
+      error: "Payment-Agreement header is required",
       accepts: [
         {
           scheme: "exact",
@@ -671,7 +671,7 @@ describe("paymentMiddleware()", () => {
     const request = {
       ...mockRequest,
       headers: new Headers({
-        "X-PAYMENT": validPayment,
+        "Payment-Agreement": validPayment,
       }),
     } as NextRequest;
 

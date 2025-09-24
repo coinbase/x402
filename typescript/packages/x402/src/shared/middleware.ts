@@ -201,12 +201,12 @@ export function findMatchingPaymentRequirements(
 }
 
 /**
- * Decodes the X-PAYMENT-RESPONSE header
+ * Decodes the Payment-Response header
  *
- * @param header - The X-PAYMENT-RESPONSE header to decode
+ * @param header - The Payment-Response header to decode
  * @returns The decoded payment response
  */
-export function decodeXPaymentResponse(header: string) {
+export function decodePaymentResponse(header: string) {
   const decoded = safeBase64Decode(header);
   return JSON.parse(decoded) as {
     success: boolean;
@@ -246,7 +246,19 @@ export const buildPaymentRequirementsMiddleware = async ({
     if (!isDeferredNetwork(network)) {
       throw new Error(`The network supplied is not a deferred network. Supplied: ${network}`);
     }
-    return [];
+
+    return [
+      {
+        scheme: DeferredScheme,
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
+        mimeType,
+        payTo,
+      },
+    ];
   }
 
   // This is a requirement to build, we know that everything is for exact schema because of the statement above

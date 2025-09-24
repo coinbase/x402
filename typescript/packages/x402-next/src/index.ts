@@ -4,6 +4,7 @@ import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
+  buildPaymentRequirementsMiddleware,
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
@@ -11,7 +12,7 @@ import {
   processPriceToAtomicAmount,
   safeBase64Encode,
   toJsonSafe,
-  buildPaymentRequirementsMiddleware,
+  buildPaywallHeaders,
 } from "x402/shared";
 import {
   FacilitatorConfig,
@@ -134,8 +135,13 @@ export function paymentMiddleware(
     });
 
     // Check for payment header
-    const paymentHeader = request.headers.get("X-PAYMENT");
+    const paymentHeader = request.headers.get("Payment-Agreement");
     if (!paymentHeader) {
+      const paymentRequiredHeaders = buildPaywallHeaders({
+        x402Version,
+        accepts: paymentRequirements,
+      });
+
       const accept = request.headers.get("Accept");
       if (accept?.includes("text/html")) {
         const userAgent = request.headers.get("User-Agent");
@@ -169,7 +175,7 @@ export function paymentMiddleware(
             });
           return new NextResponse(html, {
             status: 402,
-            headers: { "Content-Type": "text/html" },
+            headers: { "Content-Type": "text/html", ...paymentRequiredHeaders },
           });
         }
       }
@@ -177,10 +183,16 @@ export function paymentMiddleware(
       return new NextResponse(
         JSON.stringify({
           x402Version,
-          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "Payment-Agreement header is required",
           accepts: paymentRequirements,
         }),
-        { status: 402, headers: { "Content-Type": "application/json" } },
+        {
+          status: 402,
+          headers: {
+            "Content-Type": "application/json",
+            ...paymentRequiredHeaders,
+          },
+        },
       );
     }
 
@@ -245,7 +257,7 @@ export function paymentMiddleware(
 
       if (settlement.success) {
         response.headers.set(
-          "X-PAYMENT-RESPONSE",
+          "Payment-Response",
           safeBase64Encode(
             JSON.stringify({
               success: true,

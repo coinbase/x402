@@ -139,8 +139,8 @@ describe("withPaymentInterceptor()", () => {
     expect(mockAxiosClient.request).toHaveBeenCalledWith({
       ...error.config,
       headers: new AxiosHeaders({
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+        "Payment-Agreement": paymentHeader,
+        "Access-Control-Expose-Headers": "Payment-Response",
       }),
       __is402Retry: true,
     });

@@ -159,8 +159,8 @@ export function PaywallApp() {
       setStatus("Requesting content with payment...");
       const response = await fetch(x402.currentUrl, {
         headers: {
-          "X-PAYMENT": paymentHeader,
-          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+          "Payment-Agreement": paymentHeader,
+          "Access-Control-Expose-Headers": "Payment-Response",
         },
       });
 
@@ -181,8 +181,8 @@ export function PaywallApp() {
           const retryHeader = exact.evm.encodePayment(retryPayment);
           const retryResponse = await fetch(x402.currentUrl, {
             headers: {
-              "X-PAYMENT": retryHeader,
-              "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+              "Payment-Agreement": retryHeader,
+              "Access-Control-Expose-Headers": "Payment-Response",
             },
           });
           if (retryResponse.ok) {

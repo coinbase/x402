@@ -63,4 +63,4 @@ The modified Axios instance with the payment interceptor that will:
 2. Parse the payment requirements
 3. Create a payment header using the provided wallet client
 4. Retry the original request with the payment header
-5. Expose the X-PAYMENT-RESPONSE header in the final response
+5. Expose the Payment-Response header in the final response

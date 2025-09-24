@@ -14,7 +14,7 @@ type VerifyRequest = {
  * Verifies a payment request using the legacy x402 protocol. This endpoint checks if a payment header
  * is valid for the given payment details.
  *
- * ## X-Payment Header Payload
+ * ## Payment-Agreement Header Payload
  * The payload should be a base64 encoded JSON string containing:
  * - `x402Version`: Protocol version number
  * - `scheme`: Payment scheme identifier
