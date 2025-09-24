@@ -59,6 +59,14 @@ pub enum X402Error {
     #[error("Network not supported: {network}")]
     NetworkNotSupported { network: String },
 
+    /// Network error (connection, RPC, etc.)
+    #[error("Network error: {message}")]
+    NetworkError { message: String },
+
+    /// Invalid network configuration
+    #[error("Invalid network: {message}")]
+    InvalidNetwork { message: String },
+
     /// Scheme not supported
     #[error("Scheme not supported: {scheme}")]
     SchemeNotSupported { scheme: String },
@@ -150,6 +158,20 @@ impl X402Error {
         }
     }
 
+    /// Create a network error
+    pub fn network_error(message: impl Into<String>) -> Self {
+        Self::NetworkError {
+            message: message.into(),
+        }
+    }
+
+    /// Create an invalid network error
+    pub fn invalid_network(message: impl Into<String>) -> Self {
+        Self::InvalidNetwork {
+            message: message.into(),
+        }
+    }
+
     /// Create an unexpected error
     pub fn unexpected(message: impl Into<String>) -> Self {
         Self::Unexpected {
@@ -175,6 +197,8 @@ impl X402Error {
             Self::InvalidSignature { .. } => 400,
             Self::InvalidAuthorization { .. } => 401,
             Self::NetworkNotSupported { .. } => 400,
+            Self::NetworkError { .. } => 502,
+            Self::InvalidNetwork { .. } => 400,
             Self::SchemeNotSupported { .. } => 400,
             Self::InsufficientFunds => 402,
             Self::AuthorizationExpired => 401,
@@ -203,6 +227,8 @@ impl X402Error {
             Self::InvalidSignature { .. } => "invalid_signature",
             Self::InvalidAuthorization { .. } => "invalid_authorization",
             Self::NetworkNotSupported { .. } => "network_not_supported",
+            Self::NetworkError { .. } => "network_error",
+            Self::InvalidNetwork { .. } => "invalid_network",
             Self::SchemeNotSupported { .. } => "scheme_not_supported",
             Self::InsufficientFunds => "insufficient_funds",
             Self::AuthorizationExpired => "authorization_expired",

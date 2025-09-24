@@ -47,7 +47,15 @@ where
         "POST" => Router::new().route(path, post(handler)),
         "PUT" => Router::new().route(path, put(handler)),
         "DELETE" => Router::new().route(path, delete(handler)),
-        _ => panic!("Unsupported HTTP method: {}", method),
+        _ => {
+            // For unsupported methods, return an error router
+            return Router::new().route(
+                path,
+                axum::routing::any(|| async {
+                    (StatusCode::METHOD_NOT_ALLOWED, "Unsupported HTTP method")
+                }),
+            );
+        }
     };
 
     // Apply payment middleware

@@ -4,7 +4,8 @@
 use tracing_subscriber;
 use x402::{
     client::{DiscoveryClient, X402Client},
-    types::{ExactEvmPayload, ExactEvmPayloadAuthorization, PaymentPayload, PaymentRequirements},
+    types::{PaymentPayload, PaymentRequirements},
+    wallet::{RealWallet, WalletFactory},
     Result,
 };
 
@@ -42,8 +43,8 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         println!("  Network: {}", payment_req.network);
         println!("  Description: {}", payment_req.description);
 
-        // Create a mock payment payload (in real usage, this would be signed by a wallet)
-        let payment_payload = create_mock_payment_payload(&payment_req)?;
+        // Create a real payment payload using wallet integration
+        let payment_payload = create_real_payment_payload(&payment_req)?;
 
         // Retry request with payment
         println!("\n💳 Retrying request with payment...");
@@ -101,31 +102,39 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Create a mock payment payload for demonstration
-/// In real usage, this would be created and signed by a wallet
-fn create_mock_payment_payload(requirements: &PaymentRequirements) -> Result<PaymentPayload> {
-    // This is a mock implementation - in reality, you'd need to:
-    // 1. Generate a proper nonce
-    // 2. Set appropriate timestamps
-    // 3. Sign the authorization with a private key
+/// Create a real payment payload using wallet integration
+///
+/// This function demonstrates how to create a payment payload using the real wallet implementation.
+/// In production, you would:
+///
+/// 1. Load the private key from secure storage (hardware wallet, encrypted file, etc.)
+/// 2. Use environment variables or secure key management services
+/// 3. Implement proper key rotation and security practices
+fn create_real_payment_payload(requirements: &PaymentRequirements) -> Result<PaymentPayload> {
+    // In a real application, you would get the private key from secure storage
+    // For demonstration purposes, we'll use a test private key
+    // NEVER use hardcoded private keys in production!
 
-    let authorization = ExactEvmPayloadAuthorization::new(
-        "0x857b06519E91e3A54538791bDbb0E22373e36b66", // Payer address
-        &requirements.pay_to,
-        &requirements.max_amount_required,
-        chrono::Utc::now().timestamp().to_string(), // valid_after
-        (chrono::Utc::now().timestamp() + 300).to_string(), // valid_before (5 minutes)
-        "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480", // Mock nonce
+    let private_key = std::env::var("X402_PRIVATE_KEY").unwrap_or_else(|_| {
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string()
+    });
+
+    let payer_address = std::env::var("X402_PAYER_ADDRESS")
+        .unwrap_or_else(|_| "0x857b06519E91e3A54538791bDbb0E22373e36b66".to_string());
+
+    // Create a real wallet instance
+    let wallet = WalletFactory::from_private_key(&private_key, &requirements.network)?;
+
+    // Create the signed payment payload
+    let payment_payload = wallet.create_signed_payment_payload(requirements, &payer_address)?;
+
+    println!("✅ Created real payment payload with EIP-712 signature");
+    println!("   Payer: {}", payer_address);
+    println!("   Network: {}", requirements.network);
+    println!(
+        "   Amount: {} {}",
+        requirements.max_amount_required, requirements.asset
     );
 
-    let payload = ExactEvmPayload {
-        signature: "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c".to_string(),
-        authorization,
-    };
-
-    Ok(PaymentPayload::new(
-        &requirements.scheme,
-        &requirements.network,
-        payload,
-    ))
+    Ok(payment_payload)
 }

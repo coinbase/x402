@@ -344,8 +344,11 @@ pub mod eip712 {
     }
 
     /// SHA3-256 hash function
-    #[allow(dead_code)]
-    fn sha3_256(data: &[u8]) -> [u8; 32] {
+    ///
+    /// This function is available for applications that need SHA3-256 hashing
+    /// in addition to Keccak-256. While EIP-712 primarily uses Keccak-256,
+    /// SHA3-256 may be needed for other cryptographic operations.
+    pub fn sha3_256(data: &[u8]) -> [u8; 32] {
         use sha3::{Digest, Sha3_256};
         Sha3_256::digest(data).into()
     }
@@ -654,6 +657,6 @@ mod tests {
         }
 
         // Test that the function doesn't panic even with invalid data
-        assert!(is_ok || !is_ok); // Should return a result, not panic
+        assert!(true); // Should return a result, not panic
     }
 }

@@ -99,18 +99,43 @@ pub fn x402_payment_filter(
 }
 
 /// Create payment requirements for Warp
+///
+/// This function can be extended to create payment requirements based on:
+/// - Route patterns
+/// - Configuration files
+/// - Environment variables
+/// - Database lookups
 fn create_payment_requirements_for_warp() -> crate::Result<PaymentRequirements> {
+    // In a real application, you might want to make this configurable
+    let scheme = std::env::var("X402_SCHEME").unwrap_or_else(|_| "exact".to_string());
+    let network = std::env::var("X402_NETWORK").unwrap_or_else(|_| "base-sepolia".to_string());
+    let amount = std::env::var("X402_AMOUNT").unwrap_or_else(|_| "1000000".to_string());
+    let pay_to = std::env::var("X402_PAY_TO")
+        .unwrap_or_else(|_| "0x209693Bc6afc0C5328bA36FaF03C514EF312287C".to_string());
+
+    let asset = match network.as_str() {
+        "base-sepolia" => "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "base" => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        _ => "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Default to testnet
+    };
+
     let mut requirements = PaymentRequirements::new(
-        "exact",
-        "base-sepolia",
-        "1000000",
-        "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        &scheme,
+        &network,
+        &amount,
+        asset,
+        &pay_to,
         "/",
         "Payment required for this resource",
     );
 
-    requirements.set_usdc_info(crate::types::Network::Testnet)?;
+    let network_type = match network.as_str() {
+        "base" => crate::types::Network::Mainnet,
+        "base-sepolia" => crate::types::Network::Testnet,
+        _ => crate::types::Network::Testnet, // Default to testnet
+    };
+
+    requirements.set_usdc_info(network_type)?;
     Ok(requirements)
 }
 

@@ -4,19 +4,25 @@
 //! This library provides the core types, client, and middleware for implementing
 //! payment-protected HTTP resources.
 
+pub mod blockchain;
 pub mod client;
 pub mod crypto;
 pub mod error;
 pub mod facilitator;
 pub mod middleware;
 pub mod proxy;
+pub mod real_facilitator;
 pub mod template;
 pub mod types;
+pub mod wallet;
 
 // Re-exports for convenience
+pub use blockchain::{BlockchainClient, BlockchainClientFactory};
 pub use client::X402Client;
 pub use error::{Result, X402Error};
+pub use real_facilitator::{FacilitatorConfig, RealFacilitatorClient, RealFacilitatorFactory};
 pub use types::*;
+pub use wallet::{RealWallet, WalletFactory};
 
 // Feature-gated framework support
 #[cfg(feature = "axum")]
@@ -179,11 +185,23 @@ mod tests {
 
     #[test]
     fn test_facilitator_config() {
-        let config = FacilitatorConfig::new("https://example.com/facilitator")
-            .with_timeout(std::time::Duration::from_secs(30));
+        let config = FacilitatorConfig {
+            rpc_url: Some("https://example.com/facilitator".to_string()),
+            network: "base-sepolia".to_string(),
+            verification_timeout: std::time::Duration::from_secs(30),
+            confirmation_blocks: 1,
+            max_retries: 3,
+            retry_delay: std::time::Duration::from_secs(1),
+        };
 
-        assert_eq!(config.url, "https://example.com/facilitator");
-        assert_eq!(config.timeout, Some(std::time::Duration::from_secs(30)));
+        assert_eq!(
+            config.rpc_url,
+            Some("https://example.com/facilitator".to_string())
+        );
+        assert_eq!(
+            config.verification_timeout,
+            std::time::Duration::from_secs(30)
+        );
     }
 
     #[test]

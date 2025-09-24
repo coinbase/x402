@@ -176,12 +176,12 @@ impl FacilitatorClient {
         payment_payload: &PaymentPayload,
         payment_requirements: &PaymentRequirements,
     ) -> Result<VerifyResponse> {
-        // Validate that the payment network matches requirements - should panic on mismatch
+        // Validate that the payment network matches requirements - return error on mismatch
         if payment_payload.network != payment_requirements.network {
-            panic!(
+            return Err(X402Error::payment_verification_failed(format!(
                 "CRITICAL ERROR: Network mismatch detected! Payment network '{}' does not match requirements network '{}'. This is a security violation.",
                 payment_payload.network, payment_requirements.network
-            );
+            )));
         }
 
         // Validate that the payment scheme matches requirements
@@ -632,8 +632,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "CRITICAL ERROR: Network mismatch detected!")]
-    async fn test_network_mismatch_panics() {
+    async fn test_network_mismatch_returns_error() {
         let mut server = Server::new_async().await;
         let _m = server
             .mock("POST", "/verify")
@@ -681,10 +680,16 @@ mod tests {
             "Test payment",
         );
 
-        // This should panic due to network mismatch
-        let _response = client
+        // This should return an error due to network mismatch
+        let result = client
             .verify_with_network_validation(&payment_payload, &payment_requirements)
             .await;
+
+        // Verify that we get an error for network mismatch
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Network mismatch detected"));
+        assert!(error_msg.contains("base") && error_msg.contains("base-sepolia"));
     }
 
     // Helper functions for creating test data

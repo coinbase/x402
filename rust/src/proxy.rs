@@ -232,7 +232,7 @@ pub fn create_proxy_server_with_tracing(config: ProxyConfig) -> Result<Router> {
 /// Create a proxy server with x402 payment middleware
 pub fn create_proxy_server_with_payment(config: ProxyConfig) -> Result<Router> {
     let state = ProxyState::new(config.clone())?;
-    
+
     // Create payment middleware from config
     let payment_config = config.to_payment_config()?;
     let payment_middleware = crate::middleware::PaymentMiddleware::new(
@@ -241,7 +241,12 @@ pub fn create_proxy_server_with_payment(config: ProxyConfig) -> Result<Router> {
     )
     .with_facilitator_config(payment_config.facilitator_config.clone())
     .with_testnet(payment_config.testnet)
-    .with_description(payment_config.description.as_deref().unwrap_or("Proxy payment"));
+    .with_description(
+        payment_config
+            .description
+            .as_deref()
+            .unwrap_or("Proxy payment"),
+    );
 
     let app = Router::new()
         .route("/*path", any(proxy_handler_with_payment))
@@ -272,8 +277,9 @@ async fn payment_middleware_handler(
             axum::Json(serde_json::json!({
                 "error": format!("Payment processing error: {}", e),
                 "x402Version": 1
-            }))
-        ).into_response(),
+            })),
+        )
+            .into_response(),
     }
 }
 

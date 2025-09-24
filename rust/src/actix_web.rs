@@ -14,7 +14,6 @@ use actix_web::{
 
 /// Actix-web middleware for x402 payment verification
 pub struct X402Middleware {
-    #[allow(dead_code)]
     payment_middleware: PaymentMiddleware,
 }
 
@@ -22,6 +21,16 @@ impl X402Middleware {
     /// Create a new x402 middleware instance
     pub fn new(payment_middleware: PaymentMiddleware) -> Self {
         Self { payment_middleware }
+    }
+
+    /// Get the payment middleware configuration
+    pub fn config(&self) -> &PaymentMiddleware {
+        &self.payment_middleware
+    }
+
+    /// Get a mutable reference to the payment middleware configuration
+    pub fn config_mut(&mut self) -> &mut PaymentMiddleware {
+        &mut self.payment_middleware
     }
 }
 
@@ -31,11 +40,44 @@ pub fn create_x402_middleware(payment_middleware: PaymentMiddleware) -> X402Midd
 }
 
 /// Extract payment requirements from request
-#[allow(dead_code)]
-fn extract_payment_requirements(_req: &ServiceRequest) -> Result<Option<Vec<PaymentRequirements>>> {
-    // This would typically extract from route metadata or configuration
-    // For now, return None to indicate no payment required
-    Ok(None)
+///
+/// This function can be extended to extract payment requirements from:
+/// - Route metadata/attributes
+/// - Configuration files
+/// - Database lookups
+/// - Environment variables
+fn extract_payment_requirements(req: &ServiceRequest) -> Result<Option<Vec<PaymentRequirements>>> {
+    let path = req.uri().path();
+
+    // Example: Extract payment requirements based on route patterns
+    // In a real application, this could come from route metadata, configuration, or database
+    match path {
+        "/premium" | "/api/v1/premium" => {
+            // Premium endpoints require payment
+            let requirements = PaymentRequirements::new(
+                "exact",
+                "base-sepolia",
+                "1000000", // 1 USDC
+                "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+                path,
+                "Premium API access",
+            );
+
+            let mut req = requirements;
+            req.set_usdc_info(crate::types::Network::Testnet)?;
+            Ok(Some(vec![req]))
+        }
+        "/health" | "/metrics" | "/status" => {
+            // Health and monitoring endpoints are free
+            Ok(None)
+        }
+        _ => {
+            // Default: no payment required for other endpoints
+            // This can be overridden by route-specific configuration
+            Ok(None)
+        }
+    }
 }
 
 /// Create payment required response
@@ -73,18 +115,23 @@ async fn verify_payment_header(
         crate::X402Error::invalid_payment_payload(format!("Failed to decode payment: {}", e))
     })?;
 
-    // Basic validation - should panic on invalid data
+    // Basic validation - return errors instead of panicking
     if payload.scheme.is_empty() {
-        panic!("Invalid payment payload: scheme cannot be empty");
+        return Err(crate::X402Error::invalid_payment_payload(
+            "Payment scheme cannot be empty",
+        ));
     }
     if payload.network.is_empty() {
-        panic!("Invalid payment payload: network cannot be empty");
+        return Err(crate::X402Error::invalid_payment_payload(
+            "Payment network cannot be empty",
+        ));
     }
     if payload.x402_version != crate::X402_VERSION {
-        panic!(
-            "Invalid payment payload: unsupported x402 version {}",
-            payload.x402_version
-        );
+        return Err(crate::X402Error::invalid_payment_payload(format!(
+            "Unsupported x402 version: {}. Expected version: {}",
+            payload.x402_version,
+            crate::X402_VERSION
+        )));
     }
 
     // Note: Full signature verification with facilitator is handled in verify_payment_with_facilitator
@@ -214,27 +261,70 @@ pub async fn x402_middleware(
 }
 
 /// Create payment requirements from request
+///
+/// This function creates payment requirements based on the request path and headers.
+/// In a production application, this could be extended to:
+/// - Read from configuration files
+/// - Query a database for route-specific payment requirements
+/// - Extract from route metadata or annotations
+/// - Use environment-specific settings
 fn create_payment_requirements_from_request(
     req: &ServiceRequest,
 ) -> crate::Result<crate::types::PaymentRequirements> {
-    // This is a simplified implementation - in a real app, you'd get this from route metadata
     let uri = req.uri();
     let path = uri.path();
 
-    // Create basic payment requirements
+    // Extract configuration from headers or use defaults
+    let scheme = req
+        .headers()
+        .get("X-Payment-Scheme")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("exact");
+
+    let network = req
+        .headers()
+        .get("X-Payment-Network")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("base-sepolia");
+
+    let amount = req
+        .headers()
+        .get("X-Payment-Amount")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("1000000"); // Default to 1 USDC
+
+    let asset = match network {
+        "base-sepolia" => "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "base" => "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        _ => "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Default to testnet
+    };
+
+    let pay_to = req
+        .headers()
+        .get("X-Payment-To")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("0x209693Bc6afc0C5328bA36FaF03C514EF312287C");
+
+    // Create payment requirements with dynamic configuration
     let requirements = crate::types::PaymentRequirements::new(
-        "exact",
-        "base-sepolia",                               // Default to testnet
-        "1000000",                                    // 1 USDC in atomic units
-        "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-        "0x209693Bc6afc0C5328bA36FaF03C514EF312287C", // Default pay-to address
+        scheme,
+        network,
+        amount,
+        asset,
+        pay_to,
         path,
         "Payment required for this resource",
     );
 
-    // Set USDC info
+    // Set network-specific info
+    let network_type = match network {
+        "base" => crate::types::Network::Mainnet,
+        "base-sepolia" => crate::types::Network::Testnet,
+        _ => crate::types::Network::Testnet, // Default to testnet
+    };
+
     let mut req = requirements;
-    req.set_usdc_info(crate::types::Network::Testnet)?;
+    req.set_usdc_info(network_type)?;
     Ok(req)
 }
 
