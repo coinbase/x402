@@ -14,8 +14,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// Real facilitator client for production use
-pub struct RealFacilitatorClient {
+/// Blockchain facilitator client for production use
+pub struct BlockchainFacilitatorClient {
     /// Blockchain client for network interactions
     blockchain_client: BlockchainClient,
     /// Network name
@@ -29,9 +29,9 @@ pub struct RealFacilitatorClient {
     confirmation_blocks: u64,
 }
 
-/// Facilitator configuration
+/// Blockchain facilitator configuration
 #[derive(Debug, Clone)]
-pub struct FacilitatorConfig {
+pub struct BlockchainFacilitatorConfig {
     /// RPC endpoint URL
     pub rpc_url: Option<String>,
     /// Network name
@@ -46,7 +46,7 @@ pub struct FacilitatorConfig {
     pub retry_delay: Duration,
 }
 
-impl Default for FacilitatorConfig {
+impl Default for BlockchainFacilitatorConfig {
     fn default() -> Self {
         Self {
             rpc_url: None,
@@ -69,9 +69,9 @@ pub struct TransactionVerification {
     pub error_reason: Option<String>,
 }
 
-impl RealFacilitatorClient {
-    /// Create a new real facilitator client
-    pub fn new(config: FacilitatorConfig) -> Result<Self> {
+impl BlockchainFacilitatorClient {
+    /// Create a new blockchain facilitator client
+    pub fn new(config: BlockchainFacilitatorConfig) -> Result<Self> {
         let blockchain_client = if let Some(rpc_url) = config.rpc_url {
             BlockchainClient::new(rpc_url, config.network.clone())
         } else {
@@ -471,45 +471,45 @@ struct ConfirmationResult {
     gas_used: Option<u64>,
 }
 
-/// Real facilitator client factory
-pub struct RealFacilitatorFactory;
+/// Blockchain facilitator client factory
+pub struct BlockchainFacilitatorFactory;
 
-impl RealFacilitatorFactory {
+impl BlockchainFacilitatorFactory {
     /// Create facilitator for Base Sepolia testnet
-    pub fn base_sepolia() -> Result<RealFacilitatorClient> {
-        RealFacilitatorClient::new(FacilitatorConfig {
+    pub fn base_sepolia() -> Result<BlockchainFacilitatorClient> {
+        BlockchainFacilitatorClient::new(BlockchainFacilitatorConfig {
             network: "base-sepolia".to_string(),
             ..Default::default()
         })
     }
 
     /// Create facilitator for Base mainnet
-    pub fn base() -> Result<RealFacilitatorClient> {
-        RealFacilitatorClient::new(FacilitatorConfig {
+    pub fn base() -> Result<BlockchainFacilitatorClient> {
+        BlockchainFacilitatorClient::new(BlockchainFacilitatorConfig {
             network: "base".to_string(),
             ..Default::default()
         })
     }
 
     /// Create facilitator for Avalanche Fuji testnet
-    pub fn avalanche_fuji() -> Result<RealFacilitatorClient> {
-        RealFacilitatorClient::new(FacilitatorConfig {
+    pub fn avalanche_fuji() -> Result<BlockchainFacilitatorClient> {
+        BlockchainFacilitatorClient::new(BlockchainFacilitatorConfig {
             network: "avalanche-fuji".to_string(),
             ..Default::default()
         })
     }
 
     /// Create facilitator for Avalanche mainnet
-    pub fn avalanche() -> Result<RealFacilitatorClient> {
-        RealFacilitatorClient::new(FacilitatorConfig {
+    pub fn avalanche() -> Result<BlockchainFacilitatorClient> {
+        BlockchainFacilitatorClient::new(BlockchainFacilitatorConfig {
             network: "avalanche".to_string(),
             ..Default::default()
         })
     }
 
     /// Create facilitator with custom configuration
-    pub fn custom(config: FacilitatorConfig) -> Result<RealFacilitatorClient> {
-        RealFacilitatorClient::new(config)
+    pub fn custom(config: BlockchainFacilitatorConfig) -> Result<BlockchainFacilitatorClient> {
+        BlockchainFacilitatorClient::new(config)
     }
 }
 
@@ -519,14 +519,14 @@ mod tests {
 
     #[test]
     fn test_facilitator_config_default() {
-        let config = FacilitatorConfig::default();
+        let config = BlockchainFacilitatorConfig::default();
         assert_eq!(config.network, "base-sepolia");
         assert_eq!(config.confirmation_blocks, 1);
     }
 
     #[test]
     fn test_facilitator_factory() {
-        let facilitator = RealFacilitatorFactory::base_sepolia();
+        let facilitator = BlockchainFacilitatorFactory::base_sepolia();
         assert!(facilitator.is_ok());
     }
 }

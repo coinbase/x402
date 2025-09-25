@@ -5,7 +5,7 @@
 
 use x402::{
     blockchain::BlockchainClientFactory,
-    real_facilitator::{FacilitatorConfig, RealFacilitatorFactory},
+    real_facilitator::{BlockchainFacilitatorConfig, BlockchainFacilitatorFactory},
     types::PaymentRequirements,
     wallet::WalletFactory,
 };
@@ -139,35 +139,35 @@ async fn test_blockchain_usdc_contract_addresses() {
 #[tokio::test]
 async fn test_real_facilitator_factory() {
     // Test Base Sepolia facilitator - MUST succeed
-    let facilitator = RealFacilitatorFactory::base_sepolia();
+    let facilitator = BlockchainFacilitatorFactory::base_sepolia();
     assert!(
         facilitator.is_ok(),
         "Base Sepolia facilitator creation MUST succeed"
     );
 
     // Test Base mainnet facilitator - MUST succeed
-    let facilitator = RealFacilitatorFactory::base();
+    let facilitator = BlockchainFacilitatorFactory::base();
     assert!(
         facilitator.is_ok(),
         "Base mainnet facilitator creation MUST succeed"
     );
 
     // Test Avalanche Fuji facilitator - MUST succeed
-    let facilitator = RealFacilitatorFactory::avalanche_fuji();
+    let facilitator = BlockchainFacilitatorFactory::avalanche_fuji();
     assert!(
         facilitator.is_ok(),
         "Avalanche Fuji facilitator creation MUST succeed"
     );
 
     // Test Avalanche mainnet facilitator - MUST succeed
-    let facilitator = RealFacilitatorFactory::avalanche();
+    let facilitator = BlockchainFacilitatorFactory::avalanche();
     assert!(
         facilitator.is_ok(),
         "Avalanche mainnet facilitator creation MUST succeed"
     );
 
     // Test custom facilitator configuration - MUST succeed with valid config
-    let config = FacilitatorConfig {
+    let config = BlockchainFacilitatorConfig {
         rpc_url: Some("https://custom.facilitator.com".to_string()),
         network: "custom".to_string(),
         verification_timeout: std::time::Duration::from_secs(60),
@@ -176,7 +176,7 @@ async fn test_real_facilitator_factory() {
         retry_delay: std::time::Duration::from_secs(2),
     };
 
-    let facilitator = RealFacilitatorFactory::custom(config);
+    let facilitator = BlockchainFacilitatorFactory::custom(config);
     assert!(
         facilitator.is_ok(),
         "Custom facilitator creation MUST succeed with valid configuration"
@@ -185,7 +185,7 @@ async fn test_real_facilitator_factory() {
 
 #[tokio::test]
 async fn test_facilitator_config_default() {
-    let config = FacilitatorConfig::default();
+    let config = BlockchainFacilitatorConfig::default();
     assert_eq!(
         config.network, "base-sepolia",
         "Default network MUST be 'base-sepolia'"
@@ -323,7 +323,7 @@ async fn test_real_implementation_workflow() {
     let blockchain_client = BlockchainClientFactory::base_sepolia();
 
     // Step 3: Create facilitator - MUST succeed
-    let _facilitator = RealFacilitatorFactory::base_sepolia()
+    let _facilitator = BlockchainFacilitatorFactory::base_sepolia()
         .expect("Facilitator creation MUST succeed - this is a critical failure in the workflow");
 
     // Step 4: Create payment requirements - MUST succeed

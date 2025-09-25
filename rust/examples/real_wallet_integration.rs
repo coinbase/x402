@@ -26,14 +26,14 @@ use x402::{
 /// - wallet libraries like WalletConnect
 /// - Hardware wallets (Ledger, Trezor)
 /// - Browser extension wallets (MetaMask, Coinbase Wallet)
-pub struct RealWalletIntegration {
+pub struct WalletIntegration {
     /// Private key for signing (in production, this would come from secure storage)
     private_key: String,
     /// Network configuration
     network: String,
 }
 
-impl RealWalletIntegration {
+impl WalletIntegration {
     /// Create a new wallet integration instance
     pub fn new(private_key: String, network: String) -> Self {
         Self {
@@ -208,7 +208,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let from_address = "0x857b06519E91e3A54538791bDbb0E22373e36b66";
 
     // Create wallet integration
-    let wallet = RealWalletIntegration::new(private_key.to_string(), network.to_string());
+    let wallet = WalletIntegration::new(private_key.to_string(), network.to_string());
 
     // Create HTTP client
     let client = X402Client::new()?;
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_wallet_creation() {
-        let wallet = RealWalletIntegration::new("0x1234".to_string(), "base-sepolia".to_string());
+        let wallet = WalletIntegration::new("0x1234".to_string(), "base-sepolia".to_string());
         assert_eq!(wallet.network, "base-sepolia");
     }
 }

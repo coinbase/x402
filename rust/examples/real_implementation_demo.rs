@@ -7,9 +7,9 @@ use x402::{
     blockchain::{BlockchainClientFactory, TransactionStatus},
     client::X402Client,
     error::X402Error,
-    real_facilitator::{RealFacilitatorClient, RealFacilitatorFactory},
+    real_facilitator::{BlockchainFacilitatorClient, BlockchainFacilitatorFactory},
     types::{PaymentPayload, PaymentRequirements},
-    wallet::{RealWallet, WalletFactory},
+    wallet::{Wallet, WalletFactory},
     Result,
 };
 
@@ -125,7 +125,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Setup real wallet from environment variables
-fn setup_real_wallet() -> Result<RealWallet> {
+fn setup_real_wallet() -> Result<Wallet> {
     let private_key = std::env::var("X402_PRIVATE_KEY").unwrap_or_else(|_| {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string()
     });
@@ -136,8 +136,8 @@ fn setup_real_wallet() -> Result<RealWallet> {
 }
 
 /// Setup real facilitator
-fn setup_real_facilitator() -> Result<RealFacilitatorClient> {
-    RealFacilitatorFactory::base_sepolia()
+fn setup_real_facilitator() -> Result<BlockchainFacilitatorClient> {
+    BlockchainFacilitatorFactory::base_sepolia()
 }
 
 /// Create payment requirements

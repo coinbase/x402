@@ -20,9 +20,11 @@ pub mod wallet;
 pub use blockchain::{BlockchainClient, BlockchainClientFactory};
 pub use client::X402Client;
 pub use error::{Result, X402Error};
-pub use real_facilitator::{FacilitatorConfig, RealFacilitatorClient, RealFacilitatorFactory};
+pub use real_facilitator::{
+    BlockchainFacilitatorClient, BlockchainFacilitatorConfig, BlockchainFacilitatorFactory,
+};
 pub use types::*;
-pub use wallet::{RealWallet, WalletFactory};
+pub use wallet::{Wallet, WalletFactory};
 
 // Feature-gated framework support
 #[cfg(feature = "axum")]
@@ -187,6 +189,18 @@ mod tests {
     #[test]
     fn test_facilitator_config() {
         let config = FacilitatorConfig {
+            url: "https://example.com/facilitator".to_string(),
+            timeout: Some(std::time::Duration::from_secs(30)),
+            create_auth_headers: None,
+        };
+
+        assert_eq!(config.url, "https://example.com/facilitator".to_string());
+        assert_eq!(config.timeout, Some(std::time::Duration::from_secs(30)));
+    }
+
+    #[test]
+    fn test_blockchain_facilitator_config() {
+        let config = BlockchainFacilitatorConfig {
             rpc_url: Some("https://example.com/facilitator".to_string()),
             network: "base-sepolia".to_string(),
             verification_timeout: std::time::Duration::from_secs(30),

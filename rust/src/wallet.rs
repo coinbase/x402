@@ -14,16 +14,16 @@ use crate::{
 use ethereum_types::{Address, U256};
 use std::str::FromStr;
 
-/// Real wallet implementation for x402 payments
-pub struct RealWallet {
+/// Wallet implementation for x402 payments
+pub struct Wallet {
     /// Private key for signing (in production, this should come from secure storage)
     private_key: String,
     /// Network configuration
     network: String,
 }
 
-impl RealWallet {
-    /// Create a new real wallet instance
+impl Wallet {
+    /// Create a new wallet instance
     ///
     /// # Security Note
     /// In production, the private key should be loaded from:
@@ -118,24 +118,24 @@ impl RealWallet {
     }
 
     /// Get network configuration for the current network
-    pub fn get_network_config(&self) -> Result<NetworkConfig> {
+    pub fn get_network_config(&self) -> Result<WalletNetworkConfig> {
         match self.network.as_str() {
-            "base-sepolia" => Ok(NetworkConfig {
+            "base-sepolia" => Ok(WalletNetworkConfig {
                 chain_id: 84532,
                 usdc_contract: Address::from_str("0x036CbD53842c5426634e7929541eC2318f3dCF7e")
                     .map_err(|_| X402Error::invalid_network("Invalid USDC contract address"))?,
             }),
-            "base" => Ok(NetworkConfig {
+            "base" => Ok(WalletNetworkConfig {
                 chain_id: 8453,
                 usdc_contract: Address::from_str("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913")
                     .map_err(|_| X402Error::invalid_network("Invalid USDC contract address"))?,
             }),
-            "avalanche-fuji" => Ok(NetworkConfig {
+            "avalanche-fuji" => Ok(WalletNetworkConfig {
                 chain_id: 43113,
                 usdc_contract: Address::from_str("0x5425890298aed601595a70AB815c96711a31Bc65")
                     .map_err(|_| X402Error::invalid_network("Invalid USDC contract address"))?,
             }),
-            "avalanche" => Ok(NetworkConfig {
+            "avalanche" => Ok(WalletNetworkConfig {
                 chain_id: 43114,
                 usdc_contract: Address::from_str("0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E")
                     .map_err(|_| X402Error::invalid_network("Invalid USDC contract address"))?,
@@ -153,9 +153,9 @@ impl RealWallet {
     }
 }
 
-/// Network configuration for different blockchains
+/// Wallet network configuration for different blockchains
 #[derive(Debug, Clone)]
-pub struct NetworkConfig {
+pub struct WalletNetworkConfig {
     pub chain_id: u64,
     pub usdc_contract: Address,
 }
@@ -165,7 +165,7 @@ pub struct WalletFactory;
 
 impl WalletFactory {
     /// Create wallet from private key string
-    pub fn from_private_key(private_key: &str, network: &str) -> Result<RealWallet> {
+    pub fn from_private_key(private_key: &str, network: &str) -> Result<Wallet> {
         // Validate private key format
         if !private_key.starts_with("0x") || private_key.len() != 66 {
             return Err(X402Error::invalid_authorization(
@@ -177,14 +177,11 @@ impl WalletFactory {
         hex::decode(&private_key[2..])
             .map_err(|_| X402Error::invalid_authorization("Invalid hex in private key"))?;
 
-        Ok(RealWallet::new(
-            private_key.to_string(),
-            network.to_string(),
-        ))
+        Ok(Wallet::new(private_key.to_string(), network.to_string()))
     }
 
     /// Create wallet from environment variable
-    pub fn from_env(private_key_env: &str, network: &str) -> Result<RealWallet> {
+    pub fn from_env(private_key_env: &str, network: &str) -> Result<Wallet> {
         let private_key = std::env::var(private_key_env).map_err(|_| {
             X402Error::config(format!(
                 "Environment variable {} not found",
@@ -196,7 +193,7 @@ impl WalletFactory {
     }
 
     /// Create wallet with network from environment
-    pub fn from_env_with_network(private_key_env: &str, network_env: &str) -> Result<RealWallet> {
+    pub fn from_env_with_network(private_key_env: &str, network_env: &str) -> Result<Wallet> {
         let private_key = std::env::var(private_key_env).map_err(|_| {
             X402Error::config(format!(
                 "Environment variable {} not found",
@@ -218,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_wallet_creation() {
-        let wallet = RealWallet::new(
+        let wallet = Wallet::new(
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
             "base-sepolia".to_string(),
         );
@@ -242,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_network_config() {
-        let wallet = RealWallet::new(
+        let wallet = Wallet::new(
             "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
             "base-sepolia".to_string(),
         );
