@@ -371,9 +371,4 @@ async fn test_real_implementation_workflow() {
         "Wallet and requirements USDC addresses MUST match exactly"
     );
 
-    println!("✅ Real implementation workflow test passed");
-    println!("   Wallet network: {}", wallet.network());
-    println!("   Blockchain network: {}", blockchain_client.network);
-    println!("   Requirements network: {}", requirements.network);
-    println!("   USDC contract: {}", wallet_address);
 }
