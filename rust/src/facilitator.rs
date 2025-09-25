@@ -2,6 +2,7 @@
 
 use crate::types::*;
 use crate::{Result, X402Error};
+use crate::client::DiscoveryFilters;
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
@@ -194,6 +195,63 @@ impl FacilitatorClient {
 
         // Proceed with normal verification
         self.verify(payment_payload, payment_requirements).await
+    }
+
+    /// List discovery resources from the facilitator service
+    /// 
+    /// This method hits the `/discovery/resources` endpoint and forwards any auth headers,
+    /// similar to TypeScript's `useFacilitator().list()` and Python's `FacilitatorClient.list()`
+    pub async fn list(
+        &self,
+        filters: Option<DiscoveryFilters>,
+    ) -> Result<DiscoveryResponse> {
+        let mut request = self.client.get(format!("{}/discovery/resources", self.url));
+
+        // Add query parameters if filters are provided
+        if let Some(filters) = filters {
+            if let Some(resource_type) = filters.resource_type {
+                request = request.query(&[("type", resource_type)]);
+            }
+            if let Some(limit) = filters.limit {
+                request = request.query(&[("limit", limit.to_string())]);
+            }
+            if let Some(offset) = filters.offset {
+                request = request.query(&[("offset", offset.to_string())]);
+            }
+        }
+
+        // Add authentication headers if available
+        if let Some(auth_config) = &self.auth_config {
+            let headers = auth_config()?;
+            if let Some(discovery_headers) = headers.get("list") {
+                for (key, value) in discovery_headers {
+                    request = request.header(key, value);
+                }
+            }
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            return Err(X402Error::facilitator_error(format!(
+                "Discovery failed with status: {}",
+                response.status()
+            )));
+        }
+
+        let discovery_response: DiscoveryResponse = response.json().await?;
+        Ok(discovery_response)
+    }
+
+    /// Get all discovery resources without filters
+    pub async fn list_all(&self) -> Result<DiscoveryResponse> {
+        self.list(None).await
+    }
+
+    /// Get discovery resources by type
+    pub async fn list_by_type(&self, resource_type: &str) -> Result<DiscoveryResponse> {
+        let filters = DiscoveryFilters::new().with_resource_type(resource_type);
+        self.list(Some(filters)).await
     }
 }
 
@@ -734,5 +792,147 @@ mod tests {
             "https://example.com/test",
             "Test payment",
         )
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_discovery_list() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/discovery/resources")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "items": [
+                        {
+                            "resource": "https://example.com/resource1",
+                            "type": "http",
+                            "x402Version": 1,
+                            "accepts": [],
+                            "lastUpdated": 1640995200
+                        }
+                    ],
+                    "pagination": {
+                        "total": 1,
+                        "limit": 10,
+                        "offset": 0
+                    }
+                })
+                .to_string(),
+            )
+            .create();
+
+        let config = FacilitatorConfig::new(server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let response = client.list_all().await;
+        assert!(response.is_ok(), "Discovery list should succeed");
+        
+        let discovery_response = response.unwrap();
+        assert_eq!(discovery_response.items.len(), 1);
+        assert_eq!(discovery_response.items[0].resource, "https://example.com/resource1");
+        assert_eq!(discovery_response.items[0].r#type, "http");
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_discovery_with_filters() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/discovery/resources")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("type".to_string(), "http".to_string()),
+                Matcher::UrlEncoded("limit".to_string(), "5".to_string()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "items": [],
+                    "pagination": {
+                        "total": 0,
+                        "limit": 5,
+                        "offset": 0
+                    }
+                })
+                .to_string(),
+            )
+            .create();
+
+        let config = FacilitatorConfig::new(server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let filters = DiscoveryFilters::new()
+            .with_resource_type("http")
+            .with_limit(5);
+        
+        let response = client.list(Some(filters)).await;
+        assert!(response.is_ok(), "Discovery with filters should succeed");
+        
+        let discovery_response = response.unwrap();
+        assert_eq!(discovery_response.items.len(), 0);
+        assert_eq!(discovery_response.pagination.limit, 5);
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_discovery_by_type() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/discovery/resources")
+            .match_query(Matcher::UrlEncoded("type".to_string(), "api".to_string()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "items": [
+                        {
+                            "resource": "https://api.example.com",
+                            "type": "api",
+                            "x402Version": 1,
+                            "accepts": [],
+                            "lastUpdated": 1640995200
+                        }
+                    ],
+                    "pagination": {
+                        "total": 1,
+                        "limit": 10,
+                        "offset": 0
+                    }
+                })
+                .to_string(),
+            )
+            .create();
+
+        let config = FacilitatorConfig::new(server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let response = client.list_by_type("api").await;
+        assert!(response.is_ok(), "Discovery by type should succeed");
+        
+        let discovery_response = response.unwrap();
+        assert_eq!(discovery_response.items.len(), 1);
+        assert_eq!(discovery_response.items[0].r#type, "api");
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_discovery_error() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/discovery/resources")
+            .with_status(500)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"error": "Internal server error"}"#)
+            .create();
+
+        let config = FacilitatorConfig::new(server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let response = client.list_all().await;
+        assert!(response.is_err(), "Discovery should fail with 500 error");
+        
+        let error = response.unwrap_err();
+        assert!(error.to_string().contains("Discovery failed with status: 500"));
     }
 }
