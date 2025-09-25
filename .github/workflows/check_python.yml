@@ -8,23 +8,22 @@ jobs:
       run:
         working-directory: ./python/x402
     steps:
-      steps:
-        - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-        - name: Install uv
-          uses: astral-sh/setup-uv@v5
-          with:
-            enable-cache: true
-            cache-dependency-glob: "uv.lock"
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
-        - name: Set up Python
-          run: uv python install
+      - name: Set up Python
+        run: uv python install
 
-        - name: Install dependencies
-          run: uv sync --all-extras --dev
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
 
-        - name: Run Tests
-          run: pytest
+      - name: Run Tests
+        run: pytest
 
   lint-python:
     runs-on: ubuntu-latest
