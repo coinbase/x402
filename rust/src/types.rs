@@ -446,6 +446,9 @@ pub struct SupportedKind {
     pub scheme: String,
     /// Blockchain network identifier
     pub network: String,
+    /// Additional metadata provided by the facilitator
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Value>,
 }
 
 /// Discovery API resource

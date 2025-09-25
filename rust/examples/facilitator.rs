@@ -224,21 +224,25 @@ async fn supported_handler(Query(_query): Query<SupportedQuery>) -> Json<Support
                 x402_version: X402_VERSION,
                 scheme: schemes::EXACT.to_string(),
                 network: networks::BASE_SEPOLIA.to_string(),
+                metadata: None,
             },
             SupportedKind {
                 x402_version: X402_VERSION,
                 scheme: schemes::EXACT.to_string(),
                 network: networks::BASE_MAINNET.to_string(),
+                metadata: None,
             },
             SupportedKind {
                 x402_version: X402_VERSION,
                 scheme: schemes::EXACT.to_string(),
                 network: networks::AVALANCHE_FUJI.to_string(),
+                metadata: None,
             },
             SupportedKind {
                 x402_version: X402_VERSION,
                 scheme: schemes::EXACT.to_string(),
                 network: networks::AVALANCHE_MAINNET.to_string(),
+                metadata: None,
             },
         ],
     })

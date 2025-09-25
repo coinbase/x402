@@ -33,6 +33,9 @@ impl std::fmt::Debug for FacilitatorClient {
 impl FacilitatorClient {
     /// Create a new facilitator client
     pub fn new(config: FacilitatorConfig) -> Result<Self> {
+        // Validate configuration first
+        config.validate()?;
+
         let mut client_builder = Client::builder();
 
         if let Some(timeout) = config.timeout {
@@ -132,11 +135,21 @@ impl FacilitatorClient {
 
     /// Get supported payment schemes and networks
     pub async fn supported(&self) -> Result<SupportedKinds> {
-        let response = self
+        let mut request = self
             .client
-            .get(format!("{}/supported", self.url))
-            .send()
-            .await?;
+            .get(format!("{}/supported", self.url));
+
+        // Add authentication headers if available
+        if let Some(auth_config) = &self.auth_config {
+            let headers = auth_config()?;
+            if let Some(supported_headers) = headers.get("supported") {
+                for (key, value) in supported_headers {
+                    request = request.header(key, value);
+                }
+            }
+        }
+
+        let response = request.send().await?;
 
         if !response.status().is_success() {
             return Err(X402Error::facilitator_error(format!(
@@ -934,5 +947,123 @@ mod tests {
         
         let error = response.unwrap_err();
         assert!(error.to_string().contains("Discovery failed with status: 500"));
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_supported_with_auth_headers() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/supported")
+            .match_header("Authorization", "Bearer test-token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "kinds": [
+                        {
+                            "x402Version": 1,
+                            "scheme": "exact",
+                            "network": "base-sepolia",
+                            "metadata": {
+                                "description": "Test metadata",
+                                "version": "1.0.0"
+                            }
+                        }
+                    ]
+                })
+                .to_string(),
+            )
+            .create();
+
+        let auth_config = || -> Result<HashMap<String, HashMap<String, String>>> {
+            let mut headers = HashMap::new();
+            let mut supported_headers = HashMap::new();
+            supported_headers.insert("Authorization".to_string(), "Bearer test-token".to_string());
+            headers.insert("supported".to_string(), supported_headers);
+            Ok(headers)
+        };
+
+        let config = FacilitatorConfig {
+            url: server.url(),
+            timeout: None,
+            create_auth_headers: Some(std::sync::Arc::new(auth_config)),
+        };
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let response = client.supported().await;
+        assert!(response.is_ok(), "Supported should succeed with auth headers");
+        
+        let supported = response.unwrap();
+        assert_eq!(supported.kinds.len(), 1);
+        assert_eq!(supported.kinds[0].scheme, "exact");
+        assert_eq!(supported.kinds[0].network, "base-sepolia");
+        assert!(supported.kinds[0].metadata.is_some());
+        
+        let metadata = supported.kinds[0].metadata.as_ref().unwrap();
+        assert_eq!(metadata["description"], "Test metadata");
+        assert_eq!(metadata["version"], "1.0.0");
+    }
+
+    #[tokio::test]
+    async fn test_facilitator_supported_without_auth_headers() {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("GET", "/supported")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                json!({
+                    "x402Version": 1,
+                    "kinds": [
+                        {
+                            "x402Version": 1,
+                            "scheme": "exact",
+                            "network": "base-sepolia"
+                        }
+                    ]
+                })
+                .to_string(),
+            )
+            .create();
+
+        let config = FacilitatorConfig::new(server.url());
+        let client = FacilitatorClient::new(config).unwrap();
+
+        let response = client.supported().await;
+        assert!(response.is_ok(), "Supported should succeed without auth headers");
+        
+        let supported = response.unwrap();
+        assert_eq!(supported.kinds.len(), 1);
+        assert_eq!(supported.kinds[0].scheme, "exact");
+        assert_eq!(supported.kinds[0].network, "base-sepolia");
+        assert!(supported.kinds[0].metadata.is_none());
+    }
+
+    #[test]
+    fn test_facilitator_client_creation_with_invalid_config() {
+        let config = FacilitatorConfig {
+            url: "invalid-url".to_string(),
+            timeout: None,
+            create_auth_headers: None,
+        };
+
+        let result = FacilitatorClient::new(config);
+        assert!(result.is_err(), "Should fail with invalid URL");
+        
+        let error = result.unwrap_err();
+        assert!(error.to_string().contains("Facilitator URL must start with http:// or https://"));
+    }
+
+    #[test]
+    fn test_facilitator_client_creation_with_valid_config() {
+        let config = FacilitatorConfig {
+            url: "https://example.com/facilitator".to_string(),
+            timeout: Some(std::time::Duration::from_secs(30)),
+            create_auth_headers: None,
+        };
+
+        let result = FacilitatorClient::new(config);
+        assert!(result.is_ok(), "Should succeed with valid config");
     }
 }
