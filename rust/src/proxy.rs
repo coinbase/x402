@@ -435,7 +435,7 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_ok(), "Valid config should pass validation");
-        
+
         // Verify the config values are preserved
         assert_eq!(config.target_url, "https://example.com");
         assert_eq!(config.pay_to, "0x1234567890123456789012345678901234567890");
@@ -446,11 +446,18 @@ mod tests {
     fn test_proxy_config_validation_missing_target() {
         let config = ProxyConfig::default();
         let result = config.validate();
-        assert!(result.is_err(), "Config without target URL should fail validation");
-        
+        assert!(
+            result.is_err(),
+            "Config without target URL should fail validation"
+        );
+
         // Verify the specific error type and message
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("TARGET_URL is required"), "Error should mention TARGET_URL is required - actual: {}", error_msg);
+        assert!(
+            error_msg.contains("TARGET_URL is required"),
+            "Error should mention TARGET_URL is required - actual: {}",
+            error_msg
+        );
     }
 
     #[test]
@@ -462,12 +469,18 @@ mod tests {
         };
 
         let result = config.validate();
-        assert!(result.is_err(), "Config with invalid URL should fail validation");
-        
+        assert!(
+            result.is_err(),
+            "Config with invalid URL should fail validation"
+        );
+
         // Verify the specific error type and message
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("invalid URL") || error_msg.contains("URL"), 
-                "Error should mention invalid URL - actual: {}", error_msg);
+        assert!(
+            error_msg.contains("invalid URL") || error_msg.contains("URL"),
+            "Error should mention invalid URL - actual: {}",
+            error_msg
+        );
     }
 
     #[test]

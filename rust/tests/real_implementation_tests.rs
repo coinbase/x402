@@ -370,5 +370,4 @@ async fn test_real_implementation_workflow() {
         requirements.asset.to_lowercase(),
         "Wallet and requirements USDC addresses MUST match exactly"
     );
-
 }

@@ -4,10 +4,7 @@
 //! similar to TypeScript's `useFacilitator().list()` and Python's `FacilitatorClient.list()`
 
 use x402::{
-    client::DiscoveryFilters,
-    facilitator::FacilitatorClient,
-    types::FacilitatorConfig,
-    Result,
+    client::DiscoveryFilters, facilitator::FacilitatorClient, types::FacilitatorConfig, Result,
 };
 
 #[tokio::main]
@@ -27,10 +24,10 @@ async fn main() -> Result<()> {
             for (i, resource) in response.items.iter().enumerate() {
                 println!("  {}. {} ({})", i + 1, resource.resource, resource.r#type);
             }
-            println!("📊 Pagination: {} total, limit: {}, offset: {}", 
-                    response.pagination.total, 
-                    response.pagination.limit, 
-                    response.pagination.offset);
+            println!(
+                "📊 Pagination: {} total, limit: {}, offset: {}",
+                response.pagination.total, response.pagination.limit, response.pagination.offset
+            );
         }
         Err(e) => {
             println!("❌ Failed to list resources: {}", e);
@@ -72,7 +69,9 @@ async fn main() -> Result<()> {
                 println!("  • {} (v{})", resource.resource, resource.x402_version);
                 println!("    Last updated: {}", resource.last_updated);
                 if !resource.accepts.is_empty() {
-                    let schemes: Vec<&str> = resource.accepts.iter()
+                    let schemes: Vec<&str> = resource
+                        .accepts
+                        .iter()
                         .map(|req| req.scheme.as_str())
                         .collect();
                     println!("    Payment schemes: {}", schemes.join(", "));

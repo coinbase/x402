@@ -1,8 +1,8 @@
 //! Facilitator client for payment verification and settlement
 
+use crate::client::DiscoveryFilters;
 use crate::types::*;
 use crate::{Result, X402Error};
-use crate::client::DiscoveryFilters;
 use reqwest::Client;
 use serde_json::json;
 use std::collections::HashMap;
@@ -135,9 +135,7 @@ impl FacilitatorClient {
 
     /// Get supported payment schemes and networks
     pub async fn supported(&self) -> Result<SupportedKinds> {
-        let mut request = self
-            .client
-            .get(format!("{}/supported", self.url));
+        let mut request = self.client.get(format!("{}/supported", self.url));
 
         // Add authentication headers if available
         if let Some(auth_config) = &self.auth_config {
@@ -211,13 +209,10 @@ impl FacilitatorClient {
     }
 
     /// List discovery resources from the facilitator service
-    /// 
+    ///
     /// This method hits the `/discovery/resources` endpoint and forwards any auth headers,
     /// similar to TypeScript's `useFacilitator().list()` and Python's `FacilitatorClient.list()`
-    pub async fn list(
-        &self,
-        filters: Option<DiscoveryFilters>,
-    ) -> Result<DiscoveryResponse> {
+    pub async fn list(&self, filters: Option<DiscoveryFilters>) -> Result<DiscoveryResponse> {
         let mut request = self.client.get(format!("{}/discovery/resources", self.url));
 
         // Add query parameters if filters are provided
@@ -758,7 +753,7 @@ mod tests {
 
         // Verify that we get an error for network mismatch
         assert!(result.is_err(), "Network mismatch should result in error");
-        
+
         // Verify the error is specifically a payment verification error
         let error = result.unwrap_err();
         match error {
@@ -767,13 +762,19 @@ mod tests {
             }
             _ => panic!("Expected PaymentVerificationFailed error, got: {:?}", error),
         }
-        
+
         // Verify the error message content
         let error_msg = error.to_string();
-        assert!(error_msg.contains("Network mismatch detected"), 
-                "Error should contain 'Network mismatch detected' - actual: {}", error_msg);
-        assert!(error_msg.contains("base") && error_msg.contains("base-sepolia"),
-                "Error should contain both network names - actual: {}", error_msg);
+        assert!(
+            error_msg.contains("Network mismatch detected"),
+            "Error should contain 'Network mismatch detected' - actual: {}",
+            error_msg
+        );
+        assert!(
+            error_msg.contains("base") && error_msg.contains("base-sepolia"),
+            "Error should contain both network names - actual: {}",
+            error_msg
+        );
     }
 
     // Helper functions for creating test data
@@ -841,10 +842,13 @@ mod tests {
 
         let response = client.list_all().await;
         assert!(response.is_ok(), "Discovery list should succeed");
-        
+
         let discovery_response = response.unwrap();
         assert_eq!(discovery_response.items.len(), 1);
-        assert_eq!(discovery_response.items[0].resource, "https://example.com/resource1");
+        assert_eq!(
+            discovery_response.items[0].resource,
+            "https://example.com/resource1"
+        );
         assert_eq!(discovery_response.items[0].r#type, "http");
     }
 
@@ -879,10 +883,10 @@ mod tests {
         let filters = DiscoveryFilters::new()
             .with_resource_type("http")
             .with_limit(5);
-        
+
         let response = client.list(Some(filters)).await;
         assert!(response.is_ok(), "Discovery with filters should succeed");
-        
+
         let discovery_response = response.unwrap();
         assert_eq!(discovery_response.items.len(), 0);
         assert_eq!(discovery_response.pagination.limit, 5);
@@ -923,7 +927,7 @@ mod tests {
 
         let response = client.list_by_type("api").await;
         assert!(response.is_ok(), "Discovery by type should succeed");
-        
+
         let discovery_response = response.unwrap();
         assert_eq!(discovery_response.items.len(), 1);
         assert_eq!(discovery_response.items[0].r#type, "api");
@@ -944,9 +948,11 @@ mod tests {
 
         let response = client.list_all().await;
         assert!(response.is_err(), "Discovery should fail with 500 error");
-        
+
         let error = response.unwrap_err();
-        assert!(error.to_string().contains("Discovery failed with status: 500"));
+        assert!(error
+            .to_string()
+            .contains("Discovery failed with status: 500"));
     }
 
     #[tokio::test]
@@ -992,14 +998,17 @@ mod tests {
         let client = FacilitatorClient::new(config).unwrap();
 
         let response = client.supported().await;
-        assert!(response.is_ok(), "Supported should succeed with auth headers");
-        
+        assert!(
+            response.is_ok(),
+            "Supported should succeed with auth headers"
+        );
+
         let supported = response.unwrap();
         assert_eq!(supported.kinds.len(), 1);
         assert_eq!(supported.kinds[0].scheme, "exact");
         assert_eq!(supported.kinds[0].network, "base-sepolia");
         assert!(supported.kinds[0].metadata.is_some());
-        
+
         let metadata = supported.kinds[0].metadata.as_ref().unwrap();
         assert_eq!(metadata["description"], "Test metadata");
         assert_eq!(metadata["version"], "1.0.0");
@@ -1031,8 +1040,11 @@ mod tests {
         let client = FacilitatorClient::new(config).unwrap();
 
         let response = client.supported().await;
-        assert!(response.is_ok(), "Supported should succeed without auth headers");
-        
+        assert!(
+            response.is_ok(),
+            "Supported should succeed without auth headers"
+        );
+
         let supported = response.unwrap();
         assert_eq!(supported.kinds.len(), 1);
         assert_eq!(supported.kinds[0].scheme, "exact");
@@ -1050,9 +1062,11 @@ mod tests {
 
         let result = FacilitatorClient::new(config);
         assert!(result.is_err(), "Should fail with invalid URL");
-        
+
         let error = result.unwrap_err();
-        assert!(error.to_string().contains("Facilitator URL must start with http:// or https://"));
+        assert!(error
+            .to_string()
+            .contains("Facilitator URL must start with http:// or https://"));
     }
 
     #[test]
