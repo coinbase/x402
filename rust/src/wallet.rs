@@ -15,6 +15,7 @@ use ethereum_types::{Address, U256};
 use std::str::FromStr;
 
 /// Wallet implementation for x402 payments
+#[derive(Debug)]
 pub struct Wallet {
     /// Private key for signing (in production, this should come from secure storage)
     private_key: String,
@@ -234,7 +235,39 @@ mod tests {
     #[test]
     fn test_wallet_factory_invalid_key() {
         let wallet = WalletFactory::from_private_key("invalid", "base-sepolia");
-        assert!(wallet.is_err());
+        assert!(wallet.is_err(), "Invalid private key should fail");
+        
+        // Verify the specific error type
+        let error = wallet.unwrap_err();
+        match error {
+            X402Error::InvalidAuthorization { message: _ } => {
+                // This is the expected error type
+            }
+            _ => panic!("Expected InvalidAuthorization error, got: {:?}", error),
+        }
+    }
+
+    #[test]
+    fn test_wallet_factory_edge_cases() {
+        // Test empty string
+        let wallet = WalletFactory::from_private_key("", "base-sepolia");
+        assert!(wallet.is_err(), "Empty private key should fail");
+        
+        // Test too short key
+        let wallet = WalletFactory::from_private_key("0x123", "base-sepolia");
+        assert!(wallet.is_err(), "Too short private key should fail");
+        
+        // Test too long key
+        let wallet = WalletFactory::from_private_key("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "base-sepolia");
+        assert!(wallet.is_err(), "Too long private key should fail");
+        
+        // Test invalid hex characters
+        let wallet = WalletFactory::from_private_key("0xgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg", "base-sepolia");
+        assert!(wallet.is_err(), "Invalid hex characters should fail");
+        
+        // Test missing 0x prefix
+        let wallet = WalletFactory::from_private_key("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", "base-sepolia");
+        assert!(wallet.is_err(), "Missing 0x prefix should fail");
     }
 
     #[test]

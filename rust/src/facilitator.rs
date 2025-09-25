@@ -686,10 +686,23 @@ mod tests {
             .await;
 
         // Verify that we get an error for network mismatch
-        assert!(result.is_err());
-        let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Network mismatch detected"));
-        assert!(error_msg.contains("base") && error_msg.contains("base-sepolia"));
+        assert!(result.is_err(), "Network mismatch should result in error");
+        
+        // Verify the error is specifically a payment verification error
+        let error = result.unwrap_err();
+        match error {
+            X402Error::PaymentVerificationFailed { reason: _ } => {
+                // This is the expected error type
+            }
+            _ => panic!("Expected PaymentVerificationFailed error, got: {:?}", error),
+        }
+        
+        // Verify the error message content
+        let error_msg = error.to_string();
+        assert!(error_msg.contains("Network mismatch detected"), 
+                "Error should contain 'Network mismatch detected' - actual: {}", error_msg);
+        assert!(error_msg.contains("base") && error_msg.contains("base-sepolia"),
+                "Error should contain both network names - actual: {}", error_msg);
     }
 
     // Helper functions for creating test data

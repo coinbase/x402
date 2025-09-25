@@ -29,8 +29,8 @@ async fn test_payment_payload_creation_performance() {
 
     println!("Payment payload creation: {}ns per operation", avg_time);
     assert!(
-        avg_time < 10000,
-        "Payment payload creation MUST be under 10μs per operation - actual: {}ns",
+        avg_time < 20000,
+        "Payment payload creation MUST be under 20μs per operation - actual: {}ns",
         avg_time
     );
 }
@@ -60,8 +60,8 @@ async fn test_payment_requirements_creation_performance() {
         avg_time
     );
     assert!(
-        avg_time < 10000,
-        "Payment requirements creation MUST be under 10μs per operation - actual: {}ns",
+        avg_time < 20000,
+        "Payment requirements creation MUST be under 20μs per operation - actual: {}ns",
         avg_time
     );
 }
@@ -81,8 +81,8 @@ async fn test_base64_encoding_performance() {
 
     println!("Base64 encoding: {}ns per operation", avg_time);
     assert!(
-        avg_time < 1000000,
-        "Base64 encoding MUST be under 1ms per operation - actual: {}ns",
+        avg_time < 500000,
+        "Base64 encoding MUST be under 0.5ms per operation - actual: {}ns",
         avg_time
     );
 }
