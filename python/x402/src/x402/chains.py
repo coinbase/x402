@@ -2,7 +2,9 @@ NETWORK_TO_ID = {
     "base-sepolia": "84532",
     "base": "8453",
     "avalanche-fuji": "43113",
-    "avalanche": "43114",
+    "avalanche": "43114", 
+    "scroll": "534352",
+    "scroll-sepolia": "534351",
 }
 
 
@@ -57,6 +59,24 @@ KNOWN_TOKENS = {
             "version": "2",
         }
     ],
+    "534352": [
+        {
+            "human_name": "usdc",
+            "address": "0x06efdbff2a14a7c8e15944d1f4a48f9f95f663a4",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "534351": [
+        {
+            "human_name": "usdc",
+            "address": "0xA0D71B9877f44C744546D649147E3F1e70a93760",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
 }
 
 
@@ -89,4 +109,4 @@ def get_default_token_address(chain_id: str, token_type: str = "usdc") -> str:
     for token in KNOWN_TOKENS[chain_id]:
         if token["human_name"] == token_type:
             return token["address"]
-    raise ValueError(f"Token type '{token_type}' not found for chain {chain_id}")
+    raise ValueError(f"Token type \"{token_type}\" not found for chain {chain_id}")
