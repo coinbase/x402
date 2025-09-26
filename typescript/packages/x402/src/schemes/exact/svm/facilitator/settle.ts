@@ -24,8 +24,8 @@ import {
 } from "@solana/kit";
 import {
   decodeTransactionFromPayload,
-  getRpcClient,
-  getRpcSubscriptions,
+  getRpcClientFromRequirements,
+  getRpcSubscriptionsFromRequirements,
 } from "../../../../shared/svm";
 import {
   createBlockHeightExceedencePromiseFactory,
@@ -63,8 +63,8 @@ export async function settle(
   const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
   const payer = signer.address.toString();
 
-  const rpc = getRpcClient(payload.network);
-  const rpcSubscriptions = getRpcSubscriptions(payload.network);
+  const rpc = getRpcClientFromRequirements(paymentRequirements);
+  const rpcSubscriptions = getRpcSubscriptionsFromRequirements(paymentRequirements);
 
   try {
     const { success, errorReason, signature } = await sendAndConfirmSignedTransaction(
@@ -125,7 +125,7 @@ export async function sendSignedTransaction(
 export async function confirmSignedTransaction(
   signedTransaction: Awaited<ReturnType<typeof signTransaction>>,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
-  rpcSubscriptions: ReturnType<typeof getRpcSubscriptions>,
+  rpcSubscriptions: ReturnType<typeof getRpcSubscriptionsFromRequirements>,
 ): Promise<{ success: boolean; errorReason?: (typeof ErrorReasons)[number]; signature: string }> {
   // get the signature from the signed transaction
   const signature = getSignatureFromTransaction(signedTransaction);
@@ -224,7 +224,7 @@ export async function confirmSignedTransaction(
 export async function sendAndConfirmSignedTransaction(
   signedTransaction: Awaited<ReturnType<typeof signTransaction>>,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
-  rpcSubscriptions: ReturnType<typeof getRpcSubscriptions>,
+  rpcSubscriptions: ReturnType<typeof getRpcSubscriptionsFromRequirements>,
 ): Promise<{ success: boolean; errorReason?: (typeof ErrorReasons)[number]; signature: string }> {
   await sendSignedTransaction(signedTransaction, rpc);
   return await confirmSignedTransaction(signedTransaction, rpc, rpcSubscriptions);

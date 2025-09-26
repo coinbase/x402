@@ -28,7 +28,7 @@ import {
   getSetComputeUnitLimitInstruction,
   setTransactionMessageComputeUnitPrice,
 } from "@solana-program/compute-budget";
-import { getRpcClient } from "../../../shared/svm/rpc";
+import { getRpcClientFromRequirements } from "../../../shared/svm/rpc";
 
 /**
  * Creates and encodes a payment header for the given client and payment requirements.
@@ -86,7 +86,7 @@ async function createTransferTransactionMessage(
   client: KeyPairSigner,
   paymentRequirements: PaymentRequirements,
 ) {
-  const rpc = getRpcClient(paymentRequirements.network);
+  const rpc = getRpcClientFromRequirements(paymentRequirements);
 
   // create the transfer instruction
   const transferInstructions = await createAtaAndTransferInstructions(client, paymentRequirements);
@@ -134,7 +134,7 @@ async function createAtaAndTransferInstructions(
 ): Promise<Instruction[]> {
   const { asset } = paymentRequirements;
 
-  const rpc = getRpcClient(paymentRequirements.network);
+  const rpc = getRpcClientFromRequirements(paymentRequirements);
   const tokenMint = await fetchMint(rpc, asset as Address);
   const tokenProgramAddress = tokenMint.programAddress;
 
@@ -186,7 +186,7 @@ async function createAtaInstructionOrUndefined(
   paymentRequirements: PaymentRequirements,
   tokenProgramAddress: Address,
 ): Promise<Instruction | undefined> {
-  const { asset, payTo, extra, network } = paymentRequirements;
+  const { asset, payTo, extra } = paymentRequirements;
   const feePayer = extra?.feePayer as Address;
 
   // feePayer is required
@@ -205,7 +205,7 @@ async function createAtaInstructionOrUndefined(
   });
 
   // check if the ATA exists
-  const rpc = getRpcClient(network);
+  const rpc = getRpcClientFromRequirements(paymentRequirements);
   const maybeAccount = await fetchEncodedAccount(rpc, destinationATAAddress);
 
   // if the ATA does not exist, return an instruction to create it
