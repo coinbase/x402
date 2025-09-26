@@ -92,8 +92,8 @@ describe("SVM Client", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock RPC client
-    vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
+    // Mock RPC client using the new helper function
+    vi.spyOn(rpc, "getRpcClientFromRequirements").mockReturnValue(mockRpcClient as any);
 
     // Mock fetchEncodedAccount to return existing account by default when fetching ATAs
     vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: true } as any);

@@ -6,8 +6,8 @@ import * as transactionConfirmation from "@solana/transaction-confirmation";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import {
   decodeTransactionFromPayload,
-  getRpcClient,
-  getRpcSubscriptions,
+  getRpcClientFromRequirements,
+  getRpcSubscriptionsFromRequirements,
 } from "../../../../shared/svm";
 import { verify } from "./verify";
 import * as settleModule from "./settle";
@@ -114,8 +114,8 @@ describe("SVM Settle", () => {
       };
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
-      vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
-      vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
+      vi.mocked(getRpcClientFromRequirements).mockReturnValue(mockRpcClient);
+      vi.mocked(getRpcSubscriptionsFromRequirements).mockReturnValue(mockRpcSubscriptions);
       vi.mocked(mockRpcClient.sendTransaction).mockReturnValue({
         send: vi.fn().mockResolvedValue("mock_signature_123"),
       });
@@ -185,8 +185,8 @@ describe("SVM Settle", () => {
       };
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
-      vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
-      vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
+      vi.mocked(getRpcClientFromRequirements).mockReturnValue(mockRpcClient);
+      vi.mocked(getRpcSubscriptionsFromRequirements).mockReturnValue(mockRpcSubscriptions);
       // Mock the \sendAndConfirmSignedTransaction to throw an error
       vi.mocked(mockRpcClient.sendTransaction).mockReturnValue({
         send: vi.fn().mockRejectedValue(new Error("Unexpected error")),

@@ -102,4 +102,5 @@ export function withPaymentInterceptor(
 
 export { decodeXPaymentResponse } from "x402/shared";
 export { createSigner, type Signer, type MultiNetworkSigner } from "x402/types";
+export { withRpcConfig, withLocalRpc, type PaymentRequirementsSelector } from "x402/client";
 export type { Hex } from "viem";

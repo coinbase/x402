@@ -45,7 +45,7 @@ import {
 } from "@solana-program/token";
 import {
   decodeTransactionFromPayload,
-  getRpcClient,
+  getRpcClientFromRequirements,
   signAndSimulateTransaction,
 } from "../../../../shared/svm";
 import { SCHEME } from "../../";
@@ -70,7 +70,7 @@ export async function verify(
     // decode the base64 encoded transaction
     const svmPayload = payload.payload as ExactSvmPayload;
     const decodedTransaction = decodeTransactionFromPayload(svmPayload);
-    const rpc = getRpcClient(payload.network);
+    const rpc = getRpcClientFromRequirements(paymentRequirements);
 
     // perform transaction introspection to validate the transaction structure and details
     await transactionIntrospection(svmPayload, paymentRequirements, rpc);
@@ -357,7 +357,7 @@ export async function verifyTransferCheckedInstruction(
 
   // verify that the source and destination ATAs exist
   const addresses = [parsedInstruction.accounts.source.address, payToATA[0]];
-  const rpc = getRpcClient(paymentRequirements.network);
+  const rpc = getRpcClientFromRequirements(paymentRequirements);
   const maybeAccounts = await fetchEncodedAccounts(rpc, addresses);
   const missingAccounts = maybeAccounts.filter(a => !a.exists);
   for (const missingAccount of missingAccounts) {

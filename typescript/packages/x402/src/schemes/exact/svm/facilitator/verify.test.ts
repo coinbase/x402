@@ -88,7 +88,7 @@ vi.mock("../../../../shared/svm", async () => {
   return {
     ...actual,
     decodeTransactionFromPayload: vi.fn(),
-    getRpcClient: vi.fn(),
+    getRpcClientFromRequirements: vi.fn(),
     signAndSimulateTransaction: vi.fn(),
   };
 });
@@ -286,7 +286,7 @@ describe("verify", () => {
       mockRpc = {}; // Mock rpc object
 
       vi.mocked(findAssociatedTokenPda).mockResolvedValue(["destinationAta"] as any);
-      vi.mocked(SvmShared.getRpcClient).mockReturnValue(mockRpc);
+      vi.mocked(SvmShared.getRpcClientFromRequirements).mockReturnValue(mockRpc);
       vi.mocked(fetchEncodedAccounts).mockResolvedValue([
         { address: "sourceAta", exists: true },
         { address: "destinationAta", exists: true },
@@ -404,7 +404,7 @@ describe("verify", () => {
         signatures: {},
         messageBytes: new Uint8Array(),
       } as any);
-      vi.mocked(SvmShared.getRpcClient).mockReturnValue({} as any);
+      vi.mocked(SvmShared.getRpcClientFromRequirements).mockReturnValue({} as any);
       vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
         instructions: [
           mockComputeLimitInstruction,
@@ -552,7 +552,7 @@ describe("verify", () => {
         { address: "sourceAta", exists: true },
         { address: "destinationAta", exists: true },
       ] as any);
-      vi.mocked(SvmShared.getRpcClient).mockReturnValue({} as any);
+      vi.mocked(SvmShared.getRpcClientFromRequirements).mockReturnValue({} as any);
       vi.mocked(parseCreateAssociatedTokenInstruction).mockReturnValue({
         accounts: {
           owner: { address: "payToAddress" },

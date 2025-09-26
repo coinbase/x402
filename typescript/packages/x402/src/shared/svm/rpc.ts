@@ -13,6 +13,7 @@ import {
   ClusterUrl,
 } from "@solana/kit";
 import { Network } from "../../types/shared";
+import { PaymentRequirements } from "../../types/verify";
 
 /**
  * Creates a Solana RPC client for the devnet network.
@@ -81,4 +82,37 @@ export function getRpcSubscriptions(
   } else {
     throw new Error("Invalid network");
   }
+}
+
+/**
+ * Gets the RPC client for the given payment requirements.
+ *
+ * @param paymentRequirements - The payment requirements
+ * @returns The RPC client
+ */
+export function getRpcClientFromRequirements(
+  paymentRequirements: PaymentRequirements,
+): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
+  return getRpcClient(
+    paymentRequirements.network,
+    paymentRequirements.extra?.rpcUrl as string | undefined,
+  );
+}
+
+/**
+ * Gets the RPC subscriptions for the given payment requirements.
+ *
+ * @param paymentRequirements - The payment requirements
+ * @returns The RPC subscriptions
+ */
+export function getRpcSubscriptionsFromRequirements(
+  paymentRequirements: PaymentRequirements,
+): RpcSubscriptionsFromTransport<
+  SolanaRpcSubscriptionsApi,
+  RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>
+> {
+  return getRpcSubscriptions(
+    paymentRequirements.network,
+    paymentRequirements.extra?.rpcUrl as string | undefined,
+  );
 }
