@@ -459,6 +459,7 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
+  Price,
 } from "x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
 export type { Address as AlgorandAddress } from "algosdk";
