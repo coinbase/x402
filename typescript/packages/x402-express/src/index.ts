@@ -75,10 +75,8 @@ import { useFacilitator } from "x402/verify";
  * ));
  * ```
  */
-type AlgorandAddress = string;
-
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress | AlgorandAddress,
+  payTo: Address | SolanaAddress | string,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,

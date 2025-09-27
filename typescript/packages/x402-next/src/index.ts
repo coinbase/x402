@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address, getAddress } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
-import type { Address as AlgorandAddress } from "algosdk";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -95,7 +94,7 @@ import { POST } from "./api/session-token";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress | AlgorandAddress,
+  payTo: Address | SolanaAddress | string,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
