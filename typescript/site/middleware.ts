@@ -11,6 +11,16 @@ const cdpClientKey = process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY;
 const BLOCKED_COUNTRIES = ["KP", "IR", "CU", "SY"];
 const BLOCKED_REGIONS = { UA: ["43", "14", "09"] };
 
+/**
+ * Retrieves Algorand client options from environment variables.
+ *
+ * @returns {AlgodClientOptions | undefined} The Algorand client options if at least one of the required
+ * environment variables (`ALGOD_SERVER`, `ALGOD_TOKEN`, `ALGOD_PORT`) is set; otherwise, returns `undefined`.
+ *
+ * @description
+ * This function is used to configure the Algorand client connection parameters.
+ * If none of the required environment variables are set, it returns `undefined`.
+ */
 function getAlgodOptions(): AlgodClientOptions | undefined {
   const server = process.env.ALGOD_SERVER || undefined;
   const token = process.env.ALGOD_TOKEN || undefined;
@@ -25,7 +35,16 @@ function getAlgodOptions(): AlgodClientOptions | undefined {
   };
 }
 
-// 🔑 This version assumes you ONLY call it when network is algorand/algorand-testnet
+/**
+ * Resolves the price and asset information for Algorand or an Algorand Standard Asset (ASA).
+ *
+ * The function uses environment variables `ASSET` and `PRICE` to determine the asset ID and price.
+ * - If `ASSET` is "0" or not set, it returns pricing for native ALGO (with 6 decimals).
+ * - If `ASSET` is a valid ASA ID, it fetches asset info from the Algorand network and calculates the price using the asset's decimals.
+ * - If any error occurs or the environment variables are invalid, it falls back to a default price for ALGO.
+ *
+ * @returns {Promise<Price>} A promise that resolves to a `Price` object containing the amount and asset details.
+ */
 async function resolveAlgorandPrice(): Promise<Price> {
   const assetEnv = process.env.ASSET ?? "0";
   const priceEnv = process.env.PRICE ?? "0.01";

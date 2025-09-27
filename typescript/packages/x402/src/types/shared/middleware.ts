@@ -60,6 +60,7 @@ export interface ASAAmount {
   asset: {
     id: string;
     decimals: number;
+    name?: string;
   };
 }
 
