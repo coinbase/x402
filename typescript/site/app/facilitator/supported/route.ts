@@ -23,7 +23,7 @@ export async function GET() {
   ];
 
   if (process.env.NETWORK === "algorand" || process.env.NETWORK === "algorand-testnet") {
-    const algorandFeePayer = process.env.ALGORAND_FEE_PAYER;
+    const algorandFeePayer = process.env.FEE_PAYER;
     kinds.push({
       x402Version: 1,
       scheme: "exact",
