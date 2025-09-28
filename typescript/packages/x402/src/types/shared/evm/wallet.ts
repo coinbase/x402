@@ -47,15 +47,17 @@ export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount;
  * Creates a public client configured for the specified network
  *
  * @param network - The network to connect to
+ * @param url - The RPC URL to use to use to connect to the network
  * @returns A public client instance connected to the specified chain
  */
 export function createConnectedClient(
   network: string,
+  url?: string,
 ): ConnectedClient<Transport, Chain, undefined> {
   const chain = getChainFromNetwork(network);
   return createPublicClient({
     chain,
-    transport: http(),
+    transport: http(url),
   }).extend(publicActions);
 }
 

@@ -20,13 +20,14 @@ export type SvmSigner = KeyPairSigner;
  * Creates a public client configured for the specified SVM network
  *
  * @param network - The network to connect to
+ * @param url - The RPC URL to use to use to connect to the network
  * @returns A public client instance connected to the specified chain
  */
-export function createSvmConnectedClient(network: string): SvmConnectedClient {
+export function createSvmConnectedClient(network: string, url?: string): SvmConnectedClient {
   if (!SupportedSVMNetworks.find(n => n === network)) {
     throw new Error(`Unsupported SVM network: ${network}`);
   }
-  return getRpcClient(network as Network);
+  return getRpcClient(network as Network, url);
 }
 
 /**

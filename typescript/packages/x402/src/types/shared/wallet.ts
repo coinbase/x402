@@ -11,15 +11,16 @@ export type MultiNetworkSigner = { evm: evm.EvmSigner; svm: svm.SvmSigner };
  * Creates a public client configured for the specified network.
  *
  * @param network - The network to connect to.
+ * @param url - The RPC URL to use to use to connect to the network
  * @returns A public client instance connected to the specified chain.
  */
-export function createConnectedClient(network: string): ConnectedClient {
+export function createConnectedClient(network: string, url?: string): ConnectedClient {
   if (SupportedEVMNetworks.find(n => n === network)) {
-    return evm.createConnectedClient(network);
+    return evm.createConnectedClient(network, url);
   }
 
   if (SupportedSVMNetworks.find(n => n === network)) {
-    return svm.createSvmConnectedClient(network);
+    return svm.createSvmConnectedClient(network, url);
   }
 
   throw new Error(`Unsupported network: ${network}`);
