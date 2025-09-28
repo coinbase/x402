@@ -604,7 +604,7 @@ function AvmPaywall({ config, paymentRequirements }: PaywallProps): JSX.Element 
           <p className="instructions">
             Need Algorand Testnet funds?{" "}
             <a
-              href="https://bank.testnet.algorand.network/"
+              href="https://dispenser.testnet.aws.algodev.network/"
               target="_blank"
               rel="noopener noreferrer"
             >
