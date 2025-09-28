@@ -12,6 +12,7 @@ export const NetworkSchema = z.enum([
   "sei-testnet",
   "polygon",
   "polygon-amoy",
+  "load-alphanet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -26,6 +27,7 @@ export const SupportedEVMNetworks: Network[] = [
   "sei-testnet",
   "polygon",
   "polygon-amoy",
+  "load-alphanet",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
   ["base-sepolia", 84532],
@@ -37,6 +39,7 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["sei-testnet", 1328],
   ["polygon", 137],
   ["polygon-amoy", 80002],
+  ["load-alphanet", 9496],
 ]);
 
 // svm

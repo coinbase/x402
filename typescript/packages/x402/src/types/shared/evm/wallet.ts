@@ -18,6 +18,7 @@ import {
   seiTestnet,
   polygon,
   polygonAmoy,
+  loadAlphanet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -199,6 +200,8 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return polygon;
     case "polygon-amoy":
       return polygonAmoy;
+    case "load-alphanet":
+      return loadAlphanet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
