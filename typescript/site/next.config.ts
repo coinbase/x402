@@ -28,8 +28,11 @@ const nextConfig: NextConfig = {
         new ProvidePlugin({
           Buffer: ["buffer", "Buffer"],
           process: "process/browser",
-        })
+        }),
       );
+    }
+    if (process.env.CF_PAGES) {
+      config.cache = false;
     }
 
     return config;
