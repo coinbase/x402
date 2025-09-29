@@ -1,7 +1,7 @@
 {
-  "name": "PayAI Echo Merchant",
-  "description": "PayAI Echo Merchant lets developers test their x402 clients and payments against a live server, for free. All payments are refunded!",
+  "name": "PayAI Facilitator",
+  "description": "Accept x402 payments on all networks including Avalanche, Base, Polygon, Sei, Solana, and more! Get started in less than 1 minute. Supports all tokens. No API Keys required.",
   "logoUrl": "/logos/payai.svg",
-  "websiteUrl": "https://x402.payai.network",
+  "websiteUrl": "https://facilitator.payai.network",
   "category": "Ecosystem Infrastructure & Tooling"
 }
