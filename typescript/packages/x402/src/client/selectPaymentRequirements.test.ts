@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   selectPaymentRequirements,
-  withRpcConfig,
-  withLocalRpc,
 } from "./selectPaymentRequirements";
 import { PaymentRequirements, Network } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
@@ -167,100 +165,5 @@ describe("selectPaymentRequirements", () => {
     const selected = selectPaymentRequirements(reqs);
     expect(selected.network).toBe("solana");
     expect(selected.asset).toBe(solanaUsdc);
-  });
-});
-
-describe("withRpcConfig", () => {
-  const baseRequirements: PaymentRequirements[] = [
-    makeRequirement("solana-devnet", "USDC"),
-    makeRequirement("solana", "USDC"),
-    makeRequirement("base", "USDC"),
-  ];
-
-  it("should add RPC URL for Solana devnet", () => {
-    const selector = withRpcConfig({
-      solanaDevnetRpc: "http://localhost:8899",
-    });
-
-    const selected = selector(baseRequirements, "solana-devnet");
-
-    expect(selected.network).toBe("solana-devnet");
-    expect(selected.extra?.rpcUrl).toBe("http://localhost:8899");
-  });
-
-  it("should add RPC URL for Solana mainnet", () => {
-    const selector = withRpcConfig({
-      solanaMainnetRpc: "https://custom-mainnet.com",
-    });
-
-    const selected = selector(baseRequirements, "solana");
-
-    expect(selected.network).toBe("solana");
-    expect(selected.extra?.rpcUrl).toBe("https://custom-mainnet.com");
-  });
-
-  it("should not modify non-Solana networks", () => {
-    const selector = withRpcConfig({
-      solanaDevnetRpc: "http://localhost:8899",
-    });
-
-    const selected = selector(baseRequirements, "base");
-
-    expect(selected.network).toBe("base");
-    expect(selected.extra?.rpcUrl).toBeUndefined();
-  });
-
-  it("should preserve existing extra fields", () => {
-    const requirementWithExtra = makeRequirement("solana-devnet", "USDC", {
-      extra: { feePayer: "some-address" },
-    });
-
-    const selector = withRpcConfig({
-      solanaDevnetRpc: "http://localhost:8899",
-    });
-
-    const selected = selector([requirementWithExtra]);
-
-    expect(selected.extra?.feePayer).toBe("some-address");
-    expect(selected.extra?.rpcUrl).toBe("http://localhost:8899");
-  });
-
-  it("should return unchanged requirements when no RPC config matches", () => {
-    const selector = withRpcConfig({
-      solanaMainnetRpc: "https://mainnet-rpc.com",
-    });
-
-    const selected = selector(baseRequirements, "solana-devnet");
-
-    expect(selected.network).toBe("solana-devnet");
-    expect(selected.extra?.rpcUrl).toBeUndefined();
-  });
-});
-
-describe("withLocalRpc", () => {
-  const baseRequirements: PaymentRequirements[] = [
-    makeRequirement("solana-devnet", "USDC"),
-    makeRequirement("base", "USDC"),
-  ];
-
-  it("should use default localhost RPC URL", () => {
-    const selector = withLocalRpc();
-    const selected = selector(baseRequirements, "solana-devnet");
-
-    expect(selected.extra?.rpcUrl).toBe("http://localhost:8899");
-  });
-
-  it("should use custom localhost RPC URL", () => {
-    const selector = withLocalRpc("http://localhost:8900");
-    const selected = selector(baseRequirements, "solana-devnet");
-
-    expect(selected.extra?.rpcUrl).toBe("http://localhost:8900");
-  });
-
-  it("should not affect non-Solana networks", () => {
-    const selector = withLocalRpc();
-    const selected = selector(baseRequirements, "base");
-
-    expect(selected.extra?.rpcUrl).toBeUndefined();
   });
 });
