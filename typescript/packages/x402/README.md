@@ -8,14 +8,15 @@ Core TypeScript implementation of the x402 Payment Protocol. This package provid
 npm install x402
 ```
 
-## Overview
+## Supported Networks
 
-The x402 package provides the core building blocks for implementing the x402 Payment Protocol in TypeScript. It's designed to be used by:
+x402 currently supports the following blockchain networks:
 
-- Middleware implementations (Express, Hono, Next.js)
-- Client-side payment handlers (fetch wrapper)
-- Facilitator services
-- Custom integrations
+- **EVM**: Ethereum, Base, Avalanche, Polygon, and more
+- **SVM**: Solana
+- **TON**: The Open Network (native TON and Jettons via TonConnect)
+
+For TON integration details, see [docs/networks/ton.md](../docs/networks/ton.md).
 
 ## Integration Packages
 
