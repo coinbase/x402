@@ -61,4 +61,3 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
  * @returns The payment requirement that is the most appropriate for the user.
  */
 export type PaymentRequirementsSelector = (paymentRequirements: PaymentRequirements[], network?: Network | Network[], scheme?: "exact") => PaymentRequirements;
-

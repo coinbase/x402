@@ -15,7 +15,6 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-          cache-dependency-glob: "python/x402/uv.lock"
 
       - name: Set up Python
         run: uv python install
@@ -25,8 +24,6 @@ jobs:
 
       - name: Run Tests
         run: pytest
-        run: uv run python -m pytest
-
 
   lint-python:
     runs-on: ubuntu-latest
@@ -40,7 +37,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-          cache-dependency-glob: "python/x402/uv.lock"
+          cache-dependency-glob: "uv.lock"
 
       - name: Lint
         run: uvx ruff check

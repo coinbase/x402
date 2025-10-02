@@ -6,7 +6,6 @@ import {
   ErrorReasons,
 } from "../../../../types/verify";
 import { SupportedSVMNetworks } from "../../../../types/shared";
-import { X402Config } from "../../../../types/config";
 import {
   Address,
   assertIsInstructionWithAccounts,
@@ -44,8 +43,11 @@ import {
   TOKEN_PROGRAM_ADDRESS,
   TokenInstruction,
 } from "@solana-program/token";
-import { decodeTransactionFromPayload, signAndSimulateTransaction } from "../../../../shared/svm";
-import { getRpcClient } from "../../../../shared/svm/rpc";
+import {
+  decodeTransactionFromPayload,
+  getRpcClient,
+  signAndSimulateTransaction,
+} from "../../../../shared/svm";
 import { SCHEME } from "../../";
 
 /**
@@ -54,14 +56,12 @@ import { SCHEME } from "../../";
  * @param signer - The signer that will sign and simulate the transaction
  * @param payload - The payment payload to verify
  * @param paymentRequirements - The payment requirements to verify against
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
 export async function verify(
   signer: KeyPairSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
 ): Promise<VerifyResponse> {
   try {
     // verify that the scheme and network are supported
@@ -70,10 +70,10 @@ export async function verify(
     // decode the base64 encoded transaction
     const svmPayload = payload.payload as ExactSvmPayload;
     const decodedTransaction = decodeTransactionFromPayload(svmPayload);
-    const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+    const rpc = getRpcClient(payload.network);
 
     // perform transaction introspection to validate the transaction structure and details
-    await transactionIntrospection(svmPayload, paymentRequirements, config);
+    await transactionIntrospection(svmPayload, paymentRequirements, rpc);
 
     // simulate the transaction to ensure it will execute successfully
     const simulateResult = await signAndSimulateTransaction(signer, decodedTransaction, rpc);
@@ -134,14 +134,13 @@ export function verifySchemesAndNetworks(
  *
  * @param svmPayload - The SVM payload containing the transaction
  * @param paymentRequirements - The payment requirements to verify against
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param rpc - The RPC client to use for fetching token and ATA information
  */
 export async function transactionIntrospection(
   svmPayload: ExactSvmPayload,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ): Promise<void> {
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
   const decodedTransaction = decodeTransactionFromPayload(svmPayload);
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,
@@ -152,7 +151,7 @@ export async function transactionIntrospection(
   );
 
   // verify that the transaction contains the expected instructions
-  await verifyTransactionInstructions(transactionMessage, paymentRequirements, rpc);
+  await verifyTransactionInstructions(transactionMessage, paymentRequirements);
 }
 
 /**
@@ -160,13 +159,11 @@ export async function transactionIntrospection(
  *
  * @param transactionMessage - The transaction message to verify
  * @param paymentRequirements - The payment requirements to verify against
- * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transaction does not contain the expected instructions
  */
 export async function verifyTransactionInstructions(
   transactionMessage: CompilableTransactionMessage,
   paymentRequirements: PaymentRequirements,
-  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // validate the number of expected instructions
   if (
@@ -183,28 +180,18 @@ export async function verifyTransactionInstructions(
   // verify that the transfer instruction is valid
   // this expects the destination ATA to already exist
   if (transactionMessage.instructions.length === 3) {
-    await verifyTransferInstruction(
-      transactionMessage.instructions[2],
-      paymentRequirements,
-      {
-        txHasCreateDestATAInstruction: false,
-      },
-      rpc,
-    );
+    await verifyTransferInstruction(transactionMessage.instructions[2], paymentRequirements, {
+      txHasCreateDestATAInstruction: false,
+    });
   }
 
   // verify that the transfer instruction is valid
   // this expects the destination ATA to be created in the same transaction
   else {
     verifyCreateATAInstruction(transactionMessage.instructions[2], paymentRequirements);
-    await verifyTransferInstruction(
-      transactionMessage.instructions[3],
-      paymentRequirements,
-      {
-        txHasCreateDestATAInstruction: true,
-      },
-      rpc,
-    );
+    verifyTransferInstruction(transactionMessage.instructions[3], paymentRequirements, {
+      txHasCreateDestATAInstruction: true,
+    });
   }
 }
 
@@ -319,7 +306,6 @@ export function verifyCreateATAInstruction(
  * @param paymentRequirements - The payment requirements to verify against
  * @param {object} options - The options for the verification of the transfer instruction
  * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
- * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer instruction is invalid
  */
 export async function verifyTransferInstruction(
@@ -329,18 +315,12 @@ export async function verifyTransferInstruction(
   >,
   paymentRequirements: PaymentRequirements,
   { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
-  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // get a validated and parsed transferChecked instruction
   const tokenInstruction = getValidatedTransferCheckedInstruction(instruction);
-  await verifyTransferCheckedInstruction(
-    tokenInstruction,
-    paymentRequirements,
-    {
-      txHasCreateDestATAInstruction,
-    },
-    rpc,
-  );
+  await verifyTransferCheckedInstruction(tokenInstruction, paymentRequirements, {
+    txHasCreateDestATAInstruction,
+  });
 }
 
 /**
@@ -350,14 +330,12 @@ export async function verifyTransferInstruction(
  * @param paymentRequirements - The payment requirements to verify against
  * @param {object} options - The options for the verification of the transfer checked instruction
  * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
- * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer checked instruction is invalid
  */
 export async function verifyTransferCheckedInstruction(
   parsedInstruction: ReturnType<typeof parseTransferCheckedInstruction2022>,
   paymentRequirements: PaymentRequirements,
   { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
-  rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // get the token program address
   const tokenProgramAddress =
@@ -379,6 +357,7 @@ export async function verifyTransferCheckedInstruction(
 
   // verify that the source and destination ATAs exist
   const addresses = [parsedInstruction.accounts.source.address, payToATA[0]];
+  const rpc = getRpcClient(paymentRequirements.network);
   const maybeAccounts = await fetchEncodedAccounts(rpc, addresses);
   const missingAccounts = maybeAccounts.filter(a => !a.exists);
   for (const missingAccount of missingAccounts) {

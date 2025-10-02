@@ -94,7 +94,6 @@ describe("fetchWithPayment()", () => {
       mockWalletClient,
       1,
       validPaymentRequirements[0],
-      undefined,
     );
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch).toHaveBeenLastCalledWith("https://api.example.com", {
