@@ -1,4 +1,9 @@
-import { EvmNetworkToChainId, Network, SvmNetworkToChainId, TonNetworkToChainId } from "../types/shared";
+import {
+  EvmNetworkToChainId,
+  Network,
+  SvmNetworkToChainId,
+  TonNetworkToChainId,
+} from "../types/shared";
 
 /**
  * Converts a network name to its corresponding chain ID

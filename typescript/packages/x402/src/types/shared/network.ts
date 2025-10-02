@@ -60,7 +60,9 @@ export const TonNetworkToChainId = new Map<Network, number>([
 
 export const ChainIdToNetwork = Object.fromEntries(
   [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedTONNetworks].map(network => [
-    EvmNetworkToChainId.get(network) ?? SvmNetworkToChainId.get(network) ?? TonNetworkToChainId.get(network),
+    EvmNetworkToChainId.get(network) ??
+      SvmNetworkToChainId.get(network) ??
+      TonNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;

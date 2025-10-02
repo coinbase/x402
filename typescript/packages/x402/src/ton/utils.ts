@@ -1,9 +1,23 @@
 import { Address } from "@ton/core";
 
+/**
+ * Asserts equality and throws with a reason if values differ.
+ *
+ * @param a - Actual value.
+ * @param b - Expected value.
+ * @param reason - Error code/reason used in thrown error.
+ */
 export function assertEq<T>(a: T, b: T, reason: string) {
   if (a !== b) throw new Error(reason);
 }
 
+/**
+ * Converts a human-readable amount to atomic units given token decimals.
+ *
+ * @param amount - Decimal string (e.g. "1.23").
+ * @param decimals - Number of decimal places for the asset.
+ * @returns Atomic unit string.
+ */
 export function toAtomic(amount: string, decimals: number): string {
   const [whole, fractional = ""] = amount.split(".");
   const paddedFractional = fractional.padEnd(decimals, "0").slice(0, decimals);
@@ -12,7 +26,12 @@ export function toAtomic(amount: string, decimals: number): string {
   return result.replace(/^0+/, "") || "0";
 }
 
-// Normalize TON address formats (bounceable/non-bounceable, workchain, user-friendly/raw)
+/**
+ * Normalizes TON address to a stable, comparable representation.
+ *
+ * @param address - Raw, bounceable or user-friendly address.
+ * @returns Canonical non-bounceable, urlSafe address string.
+ */
 export function normalizeTonAddress(address: string): string {
   try {
     const addr = Address.parse(address);
@@ -24,7 +43,13 @@ export function normalizeTonAddress(address: string): string {
   }
 }
 
-// Generate explorer URL for transaction viewing
+/**
+ * Generates explorer URL for transaction viewing.
+ *
+ * @param txid - Transaction hash.
+ * @param network - Network name (e.g. "ton:testnet", "ton:mainnet").
+ * @returns Explorer URL for the given transaction.
+ */
 export function getTonExplorerUrl(txid: string, network: string): string {
   const baseUrl =
     network === "ton:testnet" ? "https://testnet.tonviewer.com" : "https://tonviewer.com";
@@ -32,7 +57,12 @@ export function getTonExplorerUrl(txid: string, network: string): string {
   return `${baseUrl}/transaction/${txid}`;
 }
 
-// Validate TON address format and return normalized version
+/**
+ * Validates TON address format and returns normalized version.
+ *
+ * @param address - Raw TON address.
+ * @returns Normalized address or throws if invalid.
+ */
 export function isValidTonAddress(address: string): boolean {
   try {
     Address.parse(address);
@@ -42,7 +72,12 @@ export function isValidTonAddress(address: string): boolean {
   }
 }
 
-// Validate memo/invoice ID format and security
+/**
+ * Validates memo/invoice ID format and security.
+ *
+ * @param memo - Memo string to validate.
+ * @returns Object with validation result and optional reason.
+ */
 export function validateMemoStrict(memo: string): { valid: boolean; reason?: string } {
   // Length check
   if (memo.length === 0 || memo.length > 128) {
@@ -65,7 +100,13 @@ export function validateMemoStrict(memo: string): { valid: boolean; reason?: str
   return { valid: true };
 }
 
-export function validateMemoLegacy(memo: string): { valid: boolean; reason?: string } {
+/**
+ * Validates memo/invoice ID format and security.
+ *
+ * @param memo - Memo string to validate.
+ * @returns Object with validation result and optional reason.
+ */
+export function validateMemo(memo: string): { valid: boolean; reason?: string } {
   // Length check
   if (memo.length === 0 || memo.length > 128) {
     return { valid: false, reason: "Memo length must be 1-128 characters" };
