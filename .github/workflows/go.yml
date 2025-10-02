@@ -28,6 +28,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.4.0
+          working-directory: ./go
 
   test:
     runs-on: ubuntu-latest
