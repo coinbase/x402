@@ -36,6 +36,14 @@ Want to add your project to the ecosystem? See our [demo site README](https://gi
 
 **Roadmap:** see [ROADMAP.md](https://github.com/coinbase/x402/blob/main/ROADMAP.md)
 
+## Specs
+
+- [V1 Protocol](specs/v1.md)
+- Schemes:
+  - [Exact EVM Scheme](specs/schemes/exact/scheme_exact_evm.md)
+- Optional extensions:
+  - [Attestation Binding](specs/extensions/attestation-binding.md)
+
 ## Terms:
 
 - `resource`: Something on the internet. This could be a webpage, file server, RPC service, API, any resource on the internet that accepts HTTP / HTTPS requests.
