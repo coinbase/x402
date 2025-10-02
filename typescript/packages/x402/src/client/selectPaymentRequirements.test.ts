@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { selectPaymentRequirements } from "./selectPaymentRequirements";
+import {
+  selectPaymentRequirements,
+} from "./selectPaymentRequirements";
 import { PaymentRequirements, Network } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
@@ -165,5 +167,3 @@ describe("selectPaymentRequirements", () => {
     expect(selected.asset).toBe(solanaUsdc);
   });
 });
-
-
