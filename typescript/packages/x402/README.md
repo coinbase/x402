@@ -51,8 +51,8 @@ If you're not using our `x402-fetch` or `x402-axios` packages, you can manually 
 3. Create the payment header using the selected payment requirement
 
 4. Retry your network call with:
-   - The payment header assigned to the `X-PAYMENT` field
-   - The `Access-Control-Expose-Headers` field set to `"X-PAYMENT-RESPONSE"` to receive the server's transaction response
+   - The payment header assigned to the `Payment-Agreement` field
+   - The `Access-Control-Expose-Headers` field set to `"Payment-Response"` to receive the server's transaction response
 
 For implementation examples, we recommend reviewing our official client packages:
 - [x402-fetch implementation](https://github.com/coinbase/x402/blob/main/typescript/packages/x402-fetch/src/index.ts)

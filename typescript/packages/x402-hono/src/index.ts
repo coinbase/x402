@@ -10,6 +10,7 @@ import {
   getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaywallHeaders,
 } from "x402/shared";
 import {
   FacilitatorConfig,
@@ -110,12 +111,16 @@ export function paymentMiddleware(
       asset,
     });
 
-    const payment = c.req.header("X-PAYMENT");
+    const payment = c.req.header("Payment-Agreement");
     const userAgent = c.req.header("User-Agent") || "";
     const acceptHeader = c.req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
     if (!payment) {
+      const paymentRequiredHeaders = buildPaywallHeaders({
+        x402Version,
+        accepts: paymentRequirements,
+      });
       // TODO: handle paywall html for solana
       if (isWebBrowser) {
         let displayAmount: number;
@@ -145,15 +150,16 @@ export function paymentMiddleware(
             appLogo: paywall?.appLogo,
             sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
           });
-        return c.html(html, 402);
+        return c.html(html, 402, paymentRequiredHeaders);
       }
       return c.json(
         {
-          error: errorMessages?.paymentRequired || "X-PAYMENT header is required",
+          error: errorMessages?.paymentRequired || "Payment-Agreement header is required",
           accepts: paymentRequirements,
           x402Version,
         },
         402,
+        paymentRequiredHeaders,
       );
     }
 
@@ -222,7 +228,7 @@ export function paymentMiddleware(
       const settlement = await settle(decodedPayment, selectedPaymentRequirements);
       if (settlement.success) {
         const responseHeader = settleResponseHeader(settlement);
-        res.headers.set("X-PAYMENT-RESPONSE", responseHeader);
+        res.headers.set("Payment-Response", responseHeader);
       } else {
         throw new Error(settlement.errorReason);
       }

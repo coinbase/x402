@@ -100,8 +100,8 @@ export function wrapFetchWithPayment(
       ...init,
       headers: {
         ...(init.headers || {}),
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+        "Payment-Agreement": paymentHeader,
+        "Access-Control-Expose-Headers": "Payment-Response",
       },
       __is402Retry: true,
     };
@@ -111,6 +111,6 @@ export function wrapFetchWithPayment(
   };
 }
 
-export { decodeXPaymentResponse } from "x402/shared";
+export { decodePaymentResponse } from "x402/shared";
 export { createSigner, type Signer, type MultiNetworkSigner } from "x402/types";
 export type { Hex } from "viem";

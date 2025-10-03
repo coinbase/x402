@@ -1,6 +1,7 @@
 import { PAYWALL_TEMPLATE } from "../paywall/gen/template";
 import { config } from "../types/shared/evm/config";
-import { PaymentRequirements } from "../types/verify";
+import { PaymentRequirements, x402Response } from "../types/verify";
+import { safeBase64Encode } from "./base64";
 
 interface PaywallOptions {
   amount: number;
@@ -12,6 +13,16 @@ interface PaywallOptions {
   appLogo?: string;
   sessionTokenEndpoint?: string;
 }
+
+type PaywallHeaderInput = {
+  x402Version: number;
+  accepts: PaymentRequirements[];
+};
+
+type PaywallHeaders = {
+  "Payment-Requirement": string;
+  "x402-Version": string;
+};
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
@@ -79,3 +90,24 @@ export function getPaywallHtml({
   // Inject the configuration script into the head
   return PAYWALL_TEMPLATE.replace("</head>", `${configScript}\n</head>`);
 }
+
+/**
+ * Small utility to build headers sent when responding with a 402 status code and paywall.
+ *
+ * @param x402Version - The x402 version supported by the server. Also sent in a standalone header for future compatibility.
+ * @param accepts - The accepted payment requirements
+ */
+export const buildPaywallHeaders = ({
+  x402Version,
+  accepts,
+}: PaywallHeaderInput): PaywallHeaders => {
+  // Type safety for future compatibility
+  const paymentRequiredHeader: x402Response = {
+    x402Version,
+    accepts,
+  };
+  return {
+    "Payment-Requirement": safeBase64Encode(JSON.stringify(paymentRequiredHeader)),
+    "x402-Version": x402Version.toString(),
+  };
+};

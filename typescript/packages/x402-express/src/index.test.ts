@@ -214,7 +214,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith(
       expect.objectContaining({
-        error: "X-PAYMENT header is required",
+        error: "Payment-Agreement header is required",
         accepts: expect.any(Array),
         x402Version: 1,
       }),
@@ -234,7 +234,7 @@ describe("paymentMiddleware()", () => {
 
   it("should verify payment and proceed if valid", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
 
@@ -247,7 +247,7 @@ describe("paymentMiddleware()", () => {
 
   it("should return 402 if payment verification fails", async () => {
     mockReq.headers = {
-      "x-payment": "invalid-payment-header",
+      "Payment-Agreement": "invalid-payment-header",
     };
     (exact.evm.decodePayment as ReturnType<typeof vi.fn>).mockImplementation(() => {
       throw new Error("Invalid payment");
@@ -287,7 +287,7 @@ describe("paymentMiddleware()", () => {
 
   it("should return 402 if payment verification throws an error", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Unexpected error"));
 
@@ -320,7 +320,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle settlement after response", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -341,12 +341,12 @@ describe("paymentMiddleware()", () => {
 
     expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
     expect(mockSettle).toHaveBeenCalledWith(validPayment, expect.any(Object));
-    expect(mockRes.setHeader).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
+    expect(mockRes.setHeader).toHaveBeenCalledWith("Payment-Response", expect.any(String));
   });
 
   it("should handle settle throwing an error before response is sent", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
@@ -380,7 +380,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle unsuccessful settle before resource response is sent", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -420,7 +420,7 @@ describe("paymentMiddleware()", () => {
 
   it("should handle settlement failure after response is sent", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
@@ -444,7 +444,7 @@ describe("paymentMiddleware()", () => {
 
   it("should not settle payment if protected route returns status >= 400", async () => {
     mockReq.headers = {
-      "x-payment": encodedValidPayment,
+      "Payment-Agreement": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({

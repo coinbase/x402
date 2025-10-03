@@ -23,7 +23,7 @@ import {
  * 1. Extracts payment requirements from the response
  * 2. Creates a payment header using the provided wallet client
  * 3. Retries the original request with the payment header
- * 4. Exposes the X-PAYMENT-RESPONSE header in the final response
+ * 4. Exposes the Payment-Response header in the final response
  *
  * @param axiosClient - The Axios instance to add the interceptor to
  * @param walletClient - A wallet client that can sign transactions and create payment headers
@@ -86,8 +86,8 @@ export function withPaymentInterceptor(
 
         (originalConfig as { __is402Retry?: boolean }).__is402Retry = true;
 
-        originalConfig.headers["X-PAYMENT"] = paymentHeader;
-        originalConfig.headers["Access-Control-Expose-Headers"] = "X-PAYMENT-RESPONSE";
+        originalConfig.headers["Payment-Agreement"] = paymentHeader;
+        originalConfig.headers["Access-Control-Expose-Headers"] = "Payment-Response";
 
         const secondResponse = await axiosClient.request(originalConfig);
         return secondResponse;
@@ -100,6 +100,6 @@ export function withPaymentInterceptor(
   return axiosClient;
 }
 
-export { decodeXPaymentResponse } from "x402/shared";
+export { decodePaymentResponse } from "x402/shared";
 export { createSigner, type Signer, type MultiNetworkSigner } from "x402/types";
 export type { Hex } from "viem";
