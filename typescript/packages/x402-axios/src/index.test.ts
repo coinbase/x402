@@ -135,6 +135,7 @@ describe("withPaymentInterceptor()", () => {
       mockWalletClient,
       1,
       validPaymentRequirements[0],
+      undefined,
     );
     expect(mockAxiosClient.request).toHaveBeenCalledWith({
       ...error.config,
