@@ -88,13 +88,13 @@ export class TonRpcClient implements TonRpcLike {
             const tx = (data.transactions ?? []).find(t => {
               const inMsg = t.in_msg;
               if (!inMsg || !inMsg.value || inMsg.value === "0") return false;
-              
+
               const dest =
                 typeof inMsg.destination === "string"
                   ? inMsg.destination
                   : (inMsg.destination?.address ?? "");
               const destNorm = normalizeTonAddress(dest);
-              
+
               const comment = inMsg.decoded_body?.text ?? "";
               return comment === memo && destNorm === toNorm;
             });
@@ -127,7 +127,7 @@ export class TonRpcClient implements TonRpcLike {
             const tx = (data.result ?? []).find(t => {
               const inMsg = t.in_msg;
               if (!inMsg || !inMsg.value || inMsg.value === "0") return false;
-              
+
               const dest = inMsg.destination ?? "";
               const destNorm = normalizeTonAddress(dest);
               const comment = inMsg.message ?? "";
@@ -237,37 +237,51 @@ export class TonRpcClient implements TonRpcLike {
             const base = p.endpoint.replace(/\/$/, "");
             const url = `${base}/v2/blockchain/accounts/${encodeURIComponent(to)}/events?limit=100`;
 
-            const ev = await this.getJSON<any>(url, p.apiKey);
+            interface JettonTransferEvent {
+              events?: Array<{
+                event_id?: string;
+                tx_hash?: string;
+                hash?: string;
+                actions?: Array<Record<string, unknown>>;
+              }>;
+            }
+            const ev = await this.getJSON<JettonTransferEvent>(url, p.apiKey);
 
             const toNorm = normalizeTonAddress(to);
             const masterNorm = normalizeTonAddress(filter.master);
-            
+
             for (const e of ev.events ?? []) {
               for (const a of e.actions ?? []) {
-                const jt = a.JettonTransfer ?? a.jetton_transfer ?? null;
+                const action = a as Record<string, unknown>;
+                const jt = action.JettonTransfer ?? action.jetton_transfer ?? null;
                 if (!jt) continue;
-                const masterAddr = jt.jetton?.master?.address ?? jt.jetton_master ?? "";
-                const masterAddrNorm = normalizeTonAddress(masterAddr);
-                const dst = jt.recipient?.address ?? jt.recipient ?? "";
-                const dstNorm = normalizeTonAddress(dst);
-                const memo = jt.comment ?? jt.payload?.comment ?? "";
-                if (dstNorm === toNorm && masterAddrNorm === masterNorm && memo === filter.memo) {
-                  return {
-                    txHash: e.event_id ?? e.tx_hash ?? e.hash ?? "",
-                    master: masterAddr,
-                    amount: String(jt.amount ?? "0"),
-                    memo: String(memo),
-                    to,
-                  };
-                }
+                const jtData = jt as Record<string, unknown>;
+                const jettonInfo = jtData.jetton as Record<string, unknown> | undefined;
+                const masterInfo = jettonInfo?.master as Record<string, unknown> | undefined;
+                const masterAddr = masterInfo?.address ?? jtData.jetton_master ?? "";
+                const masterAddrNorm = normalizeTonAddress(String(masterAddr));
+
+                const recipientInfo = jtData.recipient as Record<string, unknown> | undefined;
+                const recipientAddr = recipientInfo?.address ?? jtData.recipient ?? "";
+                const recipientNorm = normalizeTonAddress(String(recipientAddr));
+
+                const payloadInfo = jtData.payload as Record<string, unknown> | undefined;
+                const comment = String(jtData.comment ?? payloadInfo?.comment ?? "");
+
+                if (masterAddrNorm !== masterNorm) continue;
+                if (recipientNorm !== toNorm) continue;
+                if (comment !== filter.memo) continue;
+
+                return {
+                  txHash: e.tx_hash ?? e.hash ?? e.event_id ?? "",
+                  master: filter.master,
+                  amount: String(jtData.amount ?? "0"),
+                  memo: comment,
+                };
               }
             }
           }
-
-          if (p.name === "toncenter") {
-            // toncenter does not expose easy jetton transfers endpoint -> TODO
-            continue;
-          }
+          // toncenter does not expose easy jetton transfers endpoint -> TODO
         } catch {
           continue;
         }
