@@ -4,7 +4,7 @@ This is an example implementation of an x402 facilitator service that handles pa
 
 For production use, we recommend using:
 
-- Testnet: https://x402.org/facilitator
+- Testnet: https://www.x402.org/protected
 - Production: https://api.cdp.coinbase.com/platform/v2/x402
 
 ## Overview
