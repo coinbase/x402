@@ -1,4 +1,5 @@
 import type { TonRpcLike } from "./types";
+import { normalizeTonAddress } from "./utils";
 
 /** Configuration for the multi-provider TON RPC client. */
 export type TonRpcConfig = {
@@ -66,32 +67,83 @@ export class TonRpcClient implements TonRpcLike {
     return this.withRetry(async () => {
       for (const p of this.config.providers) {
         try {
-          // Placeholder routes & shapes — adapt to your real provider(s)
-          const res = await this.postJSON<{
-            transactions?: Array<{
-              hash: string;
-              in_msg?: { destination?: string; value?: string; comment?: string | null };
-            }>;
-          }>(`${p.endpoint}/getTransactions`, { account: to, limit: 20 }, p.apiKey);
+          if (p.name === "tonapi") {
+            const base = p.endpoint.replace(/\/$/, "");
+            const url = `${base}/v2/blockchain/accounts/${encodeURIComponent(
+              to,
+            )}/transactions?limit=100`;
 
-          const list = res.transactions ?? [];
-          const found = list.find(t => {
-            const dest = t.in_msg?.destination ?? "";
-            const value = t.in_msg?.value ?? "0";
-            const comment = t.in_msg?.comment ?? null;
-            return dest === to && comment === memo && value !== "0";
-          });
+            const data = await this.getJSON<{
+              transactions?: Array<{
+                hash: string;
+                in_msg?: {
+                  value?: string;
+                  destination?: { address?: string } | string;
+                  decoded_body?: { text?: string };
+                };
+              }>;
+            }>(url, p.apiKey);
 
-          if (!found) continue;
+            const toNorm = normalizeTonAddress(to);
+            const tx = (data.transactions ?? []).find(t => {
+              const inMsg = t.in_msg;
+              if (!inMsg || !inMsg.value || inMsg.value === "0") return false;
+              
+              const dest =
+                typeof inMsg.destination === "string"
+                  ? inMsg.destination
+                  : (inMsg.destination?.address ?? "");
+              const destNorm = normalizeTonAddress(dest);
+              
+              const comment = inMsg.decoded_body?.text ?? "";
+              return comment === memo && destNorm === toNorm;
+            });
 
-          return {
-            hash: found.hash,
-            to,
-            amount: String(found.in_msg?.value ?? "0"),
-            comment: String(found.in_msg?.comment ?? ""), // force string
-          };
+            if (tx) {
+              return {
+                hash: tx.hash,
+                to,
+                amount: String(tx.in_msg?.value ?? "0"),
+                comment: String(tx.in_msg?.decoded_body?.text ?? ""),
+              };
+            }
+          }
+
+          if (p.name === "toncenter") {
+            const base = p.endpoint.replace(/\/$/, "");
+            const url = `${base}/getTransactions?address=${encodeURIComponent(
+              to,
+            )}&limit=100&archival=true${p.apiKey ? `&api_key=${encodeURIComponent(p.apiKey)}` : ""}`;
+
+            const data = await this.getJSON<{
+              ok: boolean;
+              result?: Array<{
+                transaction_id?: { hash?: string };
+                in_msg?: { destination?: string; value?: string; message?: string };
+              }>;
+            }>(url);
+
+            const toNorm = normalizeTonAddress(to);
+            const tx = (data.result ?? []).find(t => {
+              const inMsg = t.in_msg;
+              if (!inMsg || !inMsg.value || inMsg.value === "0") return false;
+              
+              const dest = inMsg.destination ?? "";
+              const destNorm = normalizeTonAddress(dest);
+              const comment = inMsg.message ?? "";
+              return comment === memo && destNorm === toNorm;
+            });
+
+            if (tx) {
+              return {
+                hash: String(tx.transaction_id?.hash ?? ""),
+                to,
+                amount: String(tx.in_msg?.value ?? "0"),
+                comment: String(tx.in_msg?.message ?? ""),
+              };
+            }
+          }
         } catch {
-          // try next provider
           continue;
         }
       }
@@ -109,22 +161,54 @@ export class TonRpcClient implements TonRpcLike {
     return this.withRetry(async () => {
       for (const p of this.config.providers) {
         try {
-          const res = await this.postJSON<{
-            transaction?: {
+          if (p.name === "tonapi") {
+            const base = p.endpoint.replace(/\/$/, "");
+            const url = `${base}/v2/blockchain/transactions/${encodeURIComponent(hash)}`;
+
+            const t = await this.getJSON<{
               hash: string;
-              in_msg?: { destination?: string; value?: string; comment?: string | null };
+              in_msg?: {
+                value?: string;
+                destination?: { address?: string } | string;
+                decoded_body?: { text?: string };
+              };
+            }>(url, p.apiKey);
+
+            const inMsg = t.in_msg;
+            const toAddr =
+              typeof inMsg?.destination === "string"
+                ? inMsg.destination
+                : (inMsg?.destination?.address ?? "");
+            return {
+              hash: t.hash,
+              to: String(toAddr),
+              amount: String(inMsg?.value ?? "0"),
+              comment: String(inMsg?.decoded_body?.text ?? ""),
             };
-          }>(`${p.endpoint}/getTransaction`, { hash }, p.apiKey);
+          }
 
-          const t = res.transaction;
-          if (!t) continue;
+          if (p.name === "toncenter") {
+            const base = p.endpoint.replace(/\/$/, "");
+            const url = `${base}/getTransaction?hash=${encodeURIComponent(
+              hash,
+            )}${p.apiKey ? `&api_key=${encodeURIComponent(p.apiKey)}` : ""}`;
 
-          return {
-            hash: t.hash,
-            to: String(t.in_msg?.destination ?? ""),
-            amount: String(t.in_msg?.value ?? "0"),
-            comment: String(t.in_msg?.comment ?? ""), // force string
-          };
+            const t = await this.getJSON<{
+              ok: boolean;
+              result?: {
+                transaction_id?: { hash?: string };
+                in_msg?: { destination?: string; value?: string; message?: string };
+              };
+            }>(url);
+
+            const toAddr = t.result?.in_msg?.destination ?? "";
+            return {
+              hash: String(t.result?.transaction_id?.hash ?? hash),
+              to: String(toAddr),
+              amount: String(t.result?.in_msg?.value ?? "0"),
+              comment: String(t.result?.in_msg?.message ?? ""),
+            };
+          }
         } catch {
           continue;
         }
@@ -149,38 +233,41 @@ export class TonRpcClient implements TonRpcLike {
     return this.withRetry(async () => {
       for (const p of this.config.providers) {
         try {
-          // Placeholder routes & shapes — adapt to your real provider(s)
-          const res = await this.postJSON<{
-            events?: Array<{
-              tx_hash: string;
-              to?: string;
-              jetton_master?: string;
-              amount?: string;
-              forward_payload_memo?: string | null;
-            }>;
-          }>(
-            `${p.endpoint}/getJettonTransfers`,
-            { account: to, jetton_master: filter.master, limit: 20 },
-            p.apiKey,
-          );
+          if (p.name === "tonapi") {
+            const base = p.endpoint.replace(/\/$/, "");
+            const url = `${base}/v2/blockchain/accounts/${encodeURIComponent(to)}/events?limit=100`;
 
-          const list = res.events ?? [];
-          const match = list.find(
-            e =>
-              (e.to ?? to) === to &&
-              (e.jetton_master ?? "") === filter.master &&
-              String(e.forward_payload_memo ?? "") === filter.memo,
-          );
+            const ev = await this.getJSON<any>(url, p.apiKey);
 
-          if (!match) continue;
+            const toNorm = normalizeTonAddress(to);
+            const masterNorm = normalizeTonAddress(filter.master);
+            
+            for (const e of ev.events ?? []) {
+              for (const a of e.actions ?? []) {
+                const jt = a.JettonTransfer ?? a.jetton_transfer ?? null;
+                if (!jt) continue;
+                const masterAddr = jt.jetton?.master?.address ?? jt.jetton_master ?? "";
+                const masterAddrNorm = normalizeTonAddress(masterAddr);
+                const dst = jt.recipient?.address ?? jt.recipient ?? "";
+                const dstNorm = normalizeTonAddress(dst);
+                const memo = jt.comment ?? jt.payload?.comment ?? "";
+                if (dstNorm === toNorm && masterAddrNorm === masterNorm && memo === filter.memo) {
+                  return {
+                    txHash: e.event_id ?? e.tx_hash ?? e.hash ?? "",
+                    master: masterAddr,
+                    amount: String(jt.amount ?? "0"),
+                    memo: String(memo),
+                    to,
+                  };
+                }
+              }
+            }
+          }
 
-          return {
-            txHash: match.tx_hash,
-            master: match.jetton_master ?? filter.master,
-            amount: match.amount ?? "0",
-            memo: String(match.forward_payload_memo ?? ""), // force string
-            to: match.to ?? to,
-          };
+          if (p.name === "toncenter") {
+            // toncenter does not expose easy jetton transfers endpoint -> TODO
+            continue;
+          }
         } catch {
           continue;
         }
@@ -222,25 +309,17 @@ export class TonRpcClient implements TonRpcLike {
   }
 
   /**
-   * Performs a POST JSON request against a provider endpoint.
+   * Performs a GET JSON request against a provider endpoint.
    *
    * @param url - Full provider URL.
-   * @param body - Payload object.
    * @param apiKey - Optional provider API key.
    * @returns Parsed JSON typed as T.
    */
-  private async postJSON<T>(
-    url: string,
-    body: Record<string, unknown>,
-    apiKey?: string,
-  ): Promise<T> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers["X-API-Key"] = apiKey;
-
-    const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-    if (!res.ok) {
-      throw new Error(`RPC request failed: ${res.status} ${res.statusText}`);
-    }
+  private async getJSON<T>(url: string, apiKey?: string): Promise<T> {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+    const res = await fetch(url, { method: "GET", headers });
+    if (!res.ok) throw new Error(`RPC GET failed: ${res.status} ${res.statusText}`);
     return (await res.json()) as T;
   }
 
@@ -262,7 +341,7 @@ export class TonRpcClient implements TonRpcLike {
  */
 export function createTonApiRpc(apiKey?: string): TonRpcClient {
   return new TonRpcClient({
-    providers: [{ name: "tonapi", endpoint: "https://tonapi.io/v1", apiKey }],
+    providers: [{ name: "tonapi", endpoint: "https://tonapi.io", apiKey }],
   });
 }
 
@@ -293,9 +372,8 @@ export function createMultiProviderRpc(config: {
   customEndpoints?: Array<{ name: string; endpoint: string; apiKey?: string }>;
 }): TonRpcClient {
   const providers: TonRpcConfig["providers"] = [];
-
   if (config.tonApiKey) {
-    providers.push({ name: "tonapi", endpoint: "https://tonapi.io/v1", apiKey: config.tonApiKey });
+    providers.push({ name: "tonapi", endpoint: "https://tonapi.io", apiKey: config.tonApiKey });
   }
   if (config.toncenterKey) {
     providers.push({
@@ -307,6 +385,5 @@ export function createMultiProviderRpc(config: {
   if (config.customEndpoints?.length) {
     providers.push(...config.customEndpoints);
   }
-
   return new TonRpcClient({ providers });
 }
