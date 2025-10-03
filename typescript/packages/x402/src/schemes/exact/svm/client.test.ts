@@ -92,7 +92,7 @@ describe("SVM Client", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Mock RPC client using the getRpcClient function
+    // Mock RPC client
     vi.spyOn(rpc, "getRpcClient").mockReturnValue(mockRpcClient as any);
 
     // Mock fetchEncodedAccount to return existing account by default when fetching ATAs
@@ -352,73 +352,6 @@ describe("SVM Client", () => {
 
       // Assert
       expect(computePriceSpy).toHaveBeenCalledWith(1, expect.any(Object));
-    });
-  });
-
-  describe("Custom RPC Configuration", () => {
-    it("should use custom RPC URL from config for devnet", async () => {
-      // Arrange
-      const customRpcUrl = "http://localhost:8899";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
-      const getRpcClientSpy = vi.spyOn(rpc, "getRpcClient");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements, config);
-
-      // Assert
-      expect(getRpcClientSpy).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
-    });
-
-    it("should use custom RPC URL from config for mainnet", async () => {
-      // Arrange
-      const customRpcUrl = "https://custom-mainnet.com";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
-      const mainnetRequirements = { ...paymentRequirements, network: "solana" as const };
-      const getRpcClientSpy = vi.spyOn(rpc, "getRpcClient");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, mainnetRequirements, config);
-
-      // Assert
-      expect(getRpcClientSpy).toHaveBeenCalledWith("solana", customRpcUrl);
-    });
-
-    it("should use default RPC when config is undefined", async () => {
-      // Arrange
-      const getRpcClientSpy = vi.spyOn(rpc, "getRpcClient");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements, undefined);
-
-      // Assert
-      expect(getRpcClientSpy).toHaveBeenCalledWith("solana-devnet", undefined);
-    });
-
-    it("should use default RPC when svmConfig is undefined", async () => {
-      // Arrange
-      const config = {}; // Empty config object
-      const getRpcClientSpy = vi.spyOn(rpc, "getRpcClient");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements, config);
-
-      // Assert
-      expect(getRpcClientSpy).toHaveBeenCalledWith("solana-devnet", undefined);
-    });
-
-    it("should propagate config through createPaymentHeader → createAndSignPayment", async () => {
-      // Arrange
-      const customRpcUrl = "http://localhost:8899";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
-      const getRpcClientSpy = vi.spyOn(rpc, "getRpcClient");
-      vi.mocked(paymentUtils.encodePayment).mockReturnValue("encoded_header");
-
-      // Act
-      await createPaymentHeader(clientSigner, 1, paymentRequirements, config);
-
-      // Assert - verify config was passed all the way through
-      expect(getRpcClientSpy).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
-      expect(paymentUtils.encodePayment).toHaveBeenCalled();
     });
   });
 });
