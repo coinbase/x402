@@ -11,14 +11,16 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "../types/verify";
+import { useDeferredFacilitator } from "./useDeferred";
 
-const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
+export const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 
 export type CreateHeaders = () => Promise<{
   verify: Record<string, string>;
   settle: Record<string, string>;
   supported: Record<string, string>;
   list?: Record<string, string>;
+  deferred?: Record<string, string>;
 }>;
 
 /**
@@ -169,7 +171,13 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     return data as ListDiscoveryResourcesResponse;
   }
 
-  return { verify, settle, supported, list };
+  return {
+    verify,
+    settle,
+    supported,
+    list,
+    deferred: useDeferredFacilitator(facilitator || { url: DEFAULT_FACILITATOR_URL }),
+  };
 }
 
-export const { verify, settle, supported, list } = useFacilitator();
+export const { verify, settle, supported, list, deferred } = useFacilitator();

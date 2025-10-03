@@ -1,5 +1,6 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
+import { verify as verifyDeferred, settle as settleDeferred } from "../schemes/deferred/evm";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import {
   ConnectedClient as EvmConnectedClient,
@@ -9,12 +10,17 @@ import { ConnectedClient, Signer } from "../types/shared/wallet";
 import {
   PaymentPayload,
   PaymentRequirements,
+  SchemeContext,
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
+import { ExactPaymentPayloadSchema } from "../types/verify/schemes/exact";
+import { DeferredPaymentPayloadSchema } from "../types/verify/schemes/deferred";
+import { DEFERRRED_SCHEME } from "../types/verify/schemes/deferred";
+import { EXACT_SCHEME } from "../types/verify/schemes/exact";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -23,6 +29,7 @@ import { KeyPairSigner } from "@solana/kit";
  * @param client - The public client used for blockchain interactions
  * @param payload - The signed payment payload containing transfer parameters and signature
  * @param paymentRequirements - The payment requirements that the payload must satisfy
+ * @param schemeContext - Scheme specific context for verification
  * @returns A ValidPaymentRequest indicating if the payment is valid and any invalidation reason
  */
 export async function verify<
@@ -33,9 +40,10 @@ export async function verify<
   client: ConnectedClient | Signer,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
+  schemeContext?: SchemeContext,
 ): Promise<VerifyResponse> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme == EXACT_SCHEME) {
+    payload = ExactPaymentPayloadSchema.parse(payload);
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return verifyExactEvm(
@@ -48,6 +56,32 @@ export async function verify<
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+  }
+
+  if (paymentRequirements.scheme == DEFERRRED_SCHEME) {
+    payload = DeferredPaymentPayloadSchema.parse(payload);
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      if (!schemeContext) {
+        return {
+          isValid: false,
+          invalidReason: "missing_scheme_context",
+          payer: payload.payload.voucher.buyer,
+        };
+      }
+      const valid = await verifyDeferred(
+        client as EvmConnectedClient<transport, chain, account>,
+        payload,
+        paymentRequirements,
+        schemeContext,
+      );
+      return valid;
+    } else {
+      return {
+        isValid: false,
+        invalidReason: "invalid_network",
+        payer: payload.payload.voucher.buyer,
+      };
     }
   }
 
@@ -68,15 +102,17 @@ export async function verify<
  * @param client - The signer wallet used for blockchain interactions
  * @param payload - The signed payment payload containing transfer parameters and signature
  * @param paymentRequirements - The payment requirements that the payload must satisfy
+ * @param schemeContext - Scheme specific context for verification
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   client: Signer,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
+  schemeContext?: SchemeContext,
 ): Promise<SettleResponse> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme == EXACT_SCHEME) {
+    payload = ExactPaymentPayloadSchema.parse(payload);
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactEvm(
@@ -89,6 +125,35 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements);
+    }
+  }
+
+  if (paymentRequirements.scheme == DEFERRRED_SCHEME) {
+    payload = DeferredPaymentPayloadSchema.parse(payload);
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      if (!schemeContext) {
+        return {
+          success: false,
+          errorReason: "missing_scheme_context",
+          transaction: "",
+          network: paymentRequirements.network,
+          payer: payload.payload.voucher.buyer,
+        };
+      }
+      return settleDeferred(
+        client as EvmSignerWallet<chain, transport>,
+        payload,
+        paymentRequirements,
+        schemeContext,
+      );
+    } else {
+      return {
+        success: false,
+        errorReason: "invalid_scheme",
+        transaction: "",
+        network: paymentRequirements.network,
+        payer: payload.payload.voucher.buyer,
+      };
     }
   }
 

@@ -3,7 +3,7 @@
 import { Wallet } from "@coinbase/onchainkit/wallet";
 import { useState } from "react";
 import { verifyPayment } from "../actions";
-import { PaymentRequirements, PaymentPayload } from "x402/types";
+import { PaymentRequirements, PaymentPayload, UnsignedExactPaymentPayloadSchema, ExactPaymentRequirementsSchema } from "x402/types";
 import { preparePaymentHeader } from "x402/client";
 import { getNetworkId } from "x402/shared";
 import { exact } from "x402/schemes";
@@ -27,11 +27,10 @@ function PaymentForm({
     );
   }
 
-  const unSignedPaymentHeader = preparePaymentHeader(
-    address,
-    1,
-    paymentRequirements
+  const unSignedPaymentHeader = UnsignedExactPaymentPayloadSchema.parse(
+    preparePaymentHeader(address, 1, paymentRequirements)
   );
+  paymentRequirements = ExactPaymentRequirementsSchema.parse(paymentRequirements);
 
   const eip712Data = {
     types: {

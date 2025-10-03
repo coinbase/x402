@@ -1,10 +1,16 @@
 import { safeBase64Encode, safeBase64Decode } from "../../../../shared";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import {
+  ExactEvmPayloadSchema,
+  ExactSvmPayloadSchema,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+} from "../../../../types";
 import {
   PaymentPayload,
-  PaymentPayloadSchema,
   ExactEvmPayload,
   ExactSvmPayload,
+  ExactPaymentPayload,
+  ExactPaymentPayloadSchema,
 } from "../../../../types/verify";
 
 /**
@@ -14,13 +20,14 @@ import {
  * @returns A base64 encoded string representation of the payment payload
  */
 export function encodePayment(payment: PaymentPayload): string {
-  let safe: PaymentPayload;
+  let safe: ExactPaymentPayload;
 
   // evm
   if (SupportedEVMNetworks.includes(payment.network)) {
-    const evmPayload = payment.payload as ExactEvmPayload;
+    const exactPayment = ExactPaymentPayloadSchema.parse(payment);
+    const evmPayload = ExactEvmPayloadSchema.parse(exactPayment.payload);
     safe = {
-      ...payment,
+      ...exactPayment,
       payload: {
         ...evmPayload,
         authorization: Object.fromEntries(
@@ -36,7 +43,9 @@ export function encodePayment(payment: PaymentPayload): string {
 
   // svm
   if (SupportedSVMNetworks.includes(payment.network)) {
-    safe = { ...payment, payload: payment.payload as ExactSvmPayload };
+    const exactPayment = ExactPaymentPayloadSchema.parse(payment);
+    const svmPayload = ExactSvmPayloadSchema.parse(exactPayment.payload);
+    safe = { ...exactPayment, payload: svmPayload };
     return safeBase64Encode(JSON.stringify(safe));
   }
 
@@ -49,7 +58,7 @@ export function encodePayment(payment: PaymentPayload): string {
  * @param payment - The base64 encoded payment string to decode
  * @returns The decoded and validated PaymentPayload object
  */
-export function decodePayment(payment: string): PaymentPayload {
+export function decodePayment(payment: string): ExactPaymentPayload {
   const decoded = safeBase64Decode(payment);
   const parsed = JSON.parse(decoded);
 
@@ -73,6 +82,6 @@ export function decodePayment(payment: string): PaymentPayload {
     throw new Error("Invalid network");
   }
 
-  const validated = PaymentPayloadSchema.parse(obj);
+  const validated = ExactPaymentPayloadSchema.parse(obj);
   return validated;
 }

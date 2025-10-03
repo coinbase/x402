@@ -80,6 +80,43 @@ payment_middleware.add(
 )
 ```
 
+## Payment Schemes
+
+The x402 protocol supports multiple payment schemes. Currently supported:
+
+- **`exact`**: Traditional EIP-3009 payments with immediate settlement
+- **`deferred`**: Voucher-based payments with aggregation and batch settlement
+
+### Deferred Payment Scheme
+
+The deferred scheme enables efficient micropayments by allowing sellers to accumulate signed vouchers and redeem them in batches:
+
+```py
+# The client automatically handles both exact and deferred schemes
+# based on the server's payment requirements
+
+from eth_account import Account
+from x402.clients.httpx import x402HttpxClient
+
+account = Account.from_key("your_private_key")
+
+async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
+    # First request creates a new voucher
+    response1 = await client.get("/api/endpoint")
+    
+    # Subsequent requests aggregate to the same voucher
+    response2 = await client.get("/api/endpoint")
+    
+    # The valueAggregate increases with each request
+    # Seller can batch redeem vouchers later
+```
+
+Key features of deferred payments:
+- Vouchers are aggregated offchain, reducing gas costs
+- Value accumulates monotonically (always increases)
+- 30-day default expiry for vouchers
+- Sellers batch redeem when it's economically efficient
+
 ## Client Integration
 
 ### Simple Usage

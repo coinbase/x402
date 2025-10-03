@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSignerSepolia, SignerWallet } from "../../../types/shared/evm";
-import { PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import {
+  ExactEvmPayload,
+  PaymentRequirements,
+  UnsignedPaymentPayload,
+} from "../../../types/verify";
 import { createPaymentHeader, preparePaymentHeader, signPaymentHeader } from "./client";
 import { signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
@@ -166,7 +170,9 @@ describe("signPaymentHeader", () => {
     expect(result.x402Version).toBe(mockUnsignedHeader.x402Version);
     expect(result.scheme).toBe(mockUnsignedHeader.scheme);
     expect(result.network).toBe(mockUnsignedHeader.network);
-    expect(result.payload.authorization).toEqual(mockUnsignedHeader.payload.authorization);
+    expect((result.payload as ExactEvmPayload).authorization).toEqual(
+      mockUnsignedHeader.payload.authorization,
+    );
   });
 
   it("should throw an error if signing fails", async () => {

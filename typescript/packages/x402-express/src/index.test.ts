@@ -1,16 +1,17 @@
 import { NextFunction, Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPaywallHtml, findMatchingRoute } from "x402/shared";
-import { exact } from "x402/schemes";
+import { exact, deferred } from "x402/schemes";
 import {
   PaymentMiddlewareConfig,
   PaymentPayload,
   RoutesConfig,
   FacilitatorConfig,
   RouteConfig,
+  DeferredEvmPayloadSchema,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
-import { paymentMiddleware } from "./index";
+import { paymentMiddleware, deferredPaymentMiddleware } from "./index";
 import { Address as SolanaAddress } from "@solana/kit";
 
 // Mock dependencies
@@ -20,6 +21,10 @@ vi.mock("x402/verify", () => ({
     settle: vi.fn(),
     supported: vi.fn(),
     list: vi.fn(),
+    deferred: {
+      getAvailableVoucher: vi.fn(),
+      storeVoucher: vi.fn(),
+    },
   }),
 }));
 
@@ -80,12 +85,20 @@ vi.mock("x402/shared/evm", () => ({
   getUsdcAddressForChain: vi.fn().mockReturnValue("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
 }));
 
-// Mock exact.evm.decodePayment
+// Mock exact.evm.decodePayment and deferred.evm
 vi.mock("x402/schemes", () => ({
   exact: {
     evm: {
       encodePayment: vi.fn(),
       decodePayment: vi.fn(),
+    },
+  },
+  deferred: {
+    evm: {
+      encodePayment: vi.fn(),
+      decodePayment: vi.fn(),
+      getPaymentRequirementsExtra: vi.fn(),
+      VoucherStore: vi.fn(),
     },
   },
 }));
@@ -698,6 +711,361 @@ describe("paymentMiddleware()", () => {
           cdpClientKey: undefined,
           appName: undefined,
           appLogo: undefined,
+        }),
+      );
+    });
+  });
+});
+
+describe("deferredPaymentMiddleware()", () => {
+  let mockReq: Partial<Request>;
+  let mockRes: Partial<Response>;
+  let mockNext: NextFunction;
+  let middleware: ReturnType<typeof deferredPaymentMiddleware>;
+  let mockVerify: ReturnType<typeof useFacilitator>["verify"];
+  let mockDeferredFacilitator: ReturnType<typeof useFacilitator>["deferred"];
+
+  const middlewareConfig: PaymentMiddlewareConfig = {
+    description: "Test deferred payment",
+    mimeType: "application/json",
+    maxTimeoutSeconds: 300,
+    outputSchema: { type: "object" },
+    resource: "https://api.example.com/resource",
+  };
+
+  const facilitatorConfig: FacilitatorConfig = {
+    url: "https://facilitator.example.com",
+  };
+
+  const payTo = "0x1234567890123456789012345678901234567890";
+  const escrow = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
+
+  const routesConfig: RoutesConfig = {
+    "/test": {
+      price: "$0.001",
+      network: "base-sepolia",
+      config: middlewareConfig,
+    },
+  };
+
+  const validVoucher = {
+    buyer: "0x1234567890123456789012345678901234567890",
+    seller: "0x1234567890123456789012345678901234567890",
+    valueAggregate: "1000",
+    nonce: 0,
+    id: "0x1234567890123456789012345678901234567890123456789012345678901234",
+    asset: "0x1234567890123456789012345678901234567890",
+    timestamp: 1715769600,
+    escrow: "0x1234567890123456789012345678901234567890",
+    chainId: 84532,
+    expiry: 1715769600 + 1000 * 60 * 60 * 24 * 30,
+    signature: "0xsignature",
+  };
+  const validDeferredPayment: PaymentPayload = {
+    scheme: "deferred",
+    x402Version: 1,
+    network: "base-sepolia",
+    payload: {
+      voucher: validVoucher,
+      signature: "0xsignature",
+    },
+  };
+  const encodedValidDeferredPayment = "encoded-deferred-payment";
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockReq = {
+      path: "/test",
+      method: "GET",
+      protocol: "https",
+      headers: { host: "api.example.com" },
+      header: function (name: string) {
+        return this.headers[name.toLowerCase()];
+      },
+    } as Request;
+    mockRes = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      send: vi.fn().mockReturnThis(),
+      setHeader: vi.fn().mockReturnThis(),
+      end: vi.fn().mockReturnThis(),
+      headersSent: false,
+    } as unknown as Response;
+    mockNext = vi.fn();
+    mockVerify = vi.fn();
+    mockDeferredFacilitator = {
+      getAvailableVoucher: vi.fn(),
+      storeVoucher: vi.fn(),
+    };
+
+    vi.mocked(useFacilitator).mockReturnValue({
+      verify: mockVerify,
+      settle: vi.fn(),
+      supported: vi.fn(),
+      list: vi.fn(),
+      deferred: mockDeferredFacilitator,
+    });
+
+    // Setup route pattern matching mock
+    vi.mocked(findMatchingRoute).mockImplementation((routePatterns, path, method) => {
+      if (path === "/test" && method === "GET") {
+        return {
+          pattern: /^\/test$/,
+          verb: "GET",
+          config: {
+            price: "$0.001",
+            network: "base-sepolia",
+            config: middlewareConfig,
+          },
+        };
+      }
+      return undefined;
+    });
+
+    // Setup deferred.evm mocks
+    vi.mocked(deferred.evm.encodePayment).mockReturnValue(encodedValidDeferredPayment);
+    vi.mocked(deferred.evm.decodePayment).mockReturnValue(validDeferredPayment);
+    vi.mocked(deferred.evm.getPaymentRequirementsExtra).mockResolvedValue({
+      type: "new",
+      voucher: {
+        id: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        escrow,
+      },
+    });
+
+    // Mock DeferredEvmPayloadSchema.parse
+    vi.spyOn(DeferredEvmPayloadSchema, "parse").mockReturnValue({
+      voucher: validVoucher,
+      signature: "0xsignature",
+    });
+  });
+
+  it("should return 402 with payment requirements when no payment header is present", async () => {
+    middleware = deferredPaymentMiddleware(payTo, routesConfig, escrow, facilitatorConfig);
+    mockReq.headers = { host: "api.example.com" };
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "X-PAYMENT header is required",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+    );
+  });
+
+  it("should return 402 if payment decoding fails", async () => {
+    middleware = deferredPaymentMiddleware(payTo, routesConfig, escrow, facilitatorConfig);
+    mockReq.headers = {
+      "x-payment": "invalid-payment-header",
+      host: "api.example.com",
+    };
+    (deferred.evm.decodePayment as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("Invalid payment");
+    });
+
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        x402Version: 1,
+        error: expect.anything(),
+        accepts: expect.any(Array),
+      }),
+    );
+  });
+
+  describe("with facilitator voucher store", () => {
+    beforeEach(() => {
+      middleware = deferredPaymentMiddleware(payTo, routesConfig, escrow, facilitatorConfig);
+    });
+
+    it("should store voucher via facilitator and proceed if valid", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockDeferredFacilitator.storeVoucher as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(deferred.evm.decodePayment).toHaveBeenCalledWith(encodedValidDeferredPayment);
+      expect(mockDeferredFacilitator.storeVoucher).toHaveBeenCalledWith(
+        validDeferredPayment,
+        expect.any(Object),
+      );
+      expect(mockVerify).not.toHaveBeenCalled(); // Skip verify when using facilitator store
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it("should return 402 if facilitator voucher storage fails", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockDeferredFacilitator.storeVoucher as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("Storage failed"),
+      );
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x402Version: 1,
+          error: expect.any(Error),
+          accepts: expect.any(Array),
+        }),
+      );
+    });
+
+    it("should set X-PAYMENT-RESPONSE header on successful payment", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockDeferredFacilitator.storeVoucher as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.setHeader).toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it("should not set X-PAYMENT-RESPONSE if protected route returns status >= 400", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockDeferredFacilitator.storeVoucher as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
+
+      // Simulate downstream handler setting status 500
+      (mockRes.status as ReturnType<typeof vi.fn>).mockImplementation(function (
+        this: Response,
+        code: number,
+      ) {
+        this.statusCode = code;
+        return this;
+      });
+      mockRes.statusCode = 500;
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.setHeader).not.toHaveBeenCalledWith("X-PAYMENT-RESPONSE", expect.any(String));
+      expect(mockRes.statusCode).toBe(500);
+    });
+  });
+
+  describe("with custom voucher store", () => {
+    let mockVoucherStore: {
+      getAvailableVoucher: ReturnType<typeof vi.fn>;
+      storeVoucher: ReturnType<typeof vi.fn>;
+    };
+
+    beforeEach(() => {
+      mockVoucherStore = {
+        getAvailableVoucher: vi.fn().mockResolvedValue(null),
+        storeVoucher: vi.fn().mockResolvedValue(undefined),
+      };
+      middleware = deferredPaymentMiddleware(
+        payTo,
+        routesConfig,
+        escrow,
+        facilitatorConfig,
+        mockVoucherStore,
+      );
+    });
+
+    it("should verify payment and store voucher locally when using custom store", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(deferred.evm.decodePayment).toHaveBeenCalledWith(encodedValidDeferredPayment);
+      expect(mockVerify).toHaveBeenCalledWith(validDeferredPayment, expect.any(Object));
+      expect(mockVoucherStore.storeVoucher).toHaveBeenCalledWith(
+        expect.objectContaining({
+          signature: "0xsignature",
+        }),
+      );
+      expect(mockDeferredFacilitator.storeVoucher).not.toHaveBeenCalled();
+      expect(mockNext).toHaveBeenCalled();
+    });
+
+    it("should return 402 if payment verification fails with custom store", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({
+        isValid: false,
+        invalidReason: "insufficient_funds",
+        payer: "0x123",
+      });
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x402Version: 1,
+          error: "insufficient_funds",
+          accepts: expect.any(Array),
+          payer: "0x123",
+        }),
+      );
+      expect(mockVoucherStore.storeVoucher).not.toHaveBeenCalled();
+    });
+
+    it("should return 402 if verification throws error with custom store", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Verification failed"));
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x402Version: 1,
+          error: expect.any(Error),
+          accepts: expect.any(Array),
+        }),
+      );
+      expect(mockVoucherStore.storeVoucher).not.toHaveBeenCalled();
+    });
+
+    it("should return 402 if local voucher storage fails", async () => {
+      mockReq.headers = {
+        "x-payment": encodedValidDeferredPayment,
+        host: "api.example.com",
+      };
+      (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+      mockVoucherStore.storeVoucher.mockRejectedValue(new Error("Storage failed"));
+
+      await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x402Version: 1,
+          error: expect.any(Error),
+          accepts: expect.any(Array),
         }),
       );
     });

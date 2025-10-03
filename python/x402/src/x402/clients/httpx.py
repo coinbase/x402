@@ -17,7 +17,9 @@ class HttpxHooks:
 
     async def on_request(self, request: Request):
         """Handle request before it is sent."""
-        pass
+        # Add buyer header to identify the account
+        if self.client.account and hasattr(self.client.account, 'address'):
+            request.headers["X-PAYMENT-BUYER"] = self.client.account.address
 
     async def on_response(self, response: Response) -> Response:
         """Handle response after it is received."""

@@ -64,7 +64,7 @@ It specifies:
 5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`)
 6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response
 
-### V1 Protocol Sequencing
+### V1 Protocol Sequencing (`exact` scheme)
 
 ![](./static/x402-protocol-flow.png)
 
@@ -93,6 +93,48 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
 12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64 encoded JSON if the payment was executed successfully.
+
+### V1 Protocol Sequencing (`deferred` scheme)
+
+![](./static/x402-deferred-protocol-flow.png)
+
+The `deferred` scheme modifies slightly the x402 protocol flow to allow for a deferred settlement to happen. The following steps outline the resource request and payment verification flow:
+
+1. `Client` makes an HTTP request to a `resource server` with the `X-PAYMENT-BUYER` header containing the `Client` address.
+
+2. `Resource server` retrieves previous voucher history for the `Client`, responds with a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body. The response body contains additional information required for the `deferred` scheme encoded in the `extra` field of the payment requirements, it will contain either a new voucher id for the `Client` to generate or details for the latest voucher for the `Client/Resource server` pair if it exists.
+
+3. `Client` creates a `Payment Payload` based on the value of the `paymentRequirements.extra` property:
+   - If there is no previous `Client/Resource server` history, it will instruct the `Client` to create a new voucher as payload.
+   - Otherwise it will contain the latest voucher for the pair, allowing the `Client` to aggregate payments on top of it before setting it as the payload.
+
+4. `Client` sends the HTTP request with the `X-PAYMENT` header containing the `Payment Payload` to the resource server. The payload will include:
+   - the signed voucher (which can be new or an aggregation with a previous one)
+   - (optionally) A signed deposit authorization. Allows the `facilitator server` to escrow funds on behalf of the `Client`. These are the funds the voucher will be claimed against. 
+
+5. `Resource server` verifies the `Payment Payload` is valid either via local verification or by POSTing the `Payment Payload` and `Payment Requirements` to the `/verify` endpoint of a `facilitator server`.
+
+6. `Facilitator server` performs verification of the object based on the `scheme` and `network` of the `Payment Payload` and returns a `Verification Response`.
+
+7. If the `Verification Response` is valid:
+    - The resource server POSTs the validated voucher back to the `facilitator server` for peristent storage. 
+      - The `facilitator server` will reverify the `Payment Payload` before storing the voucher, which makes the previous verification call optional.
+      - If a deposit authorization is present the `facilitator server` will execute it.
+    - Then the resource server performs the work to fulfill the original request. 
+  If the `Verification Response` is invalid:
+    - the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
+
+8. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the total outstanding payment that is pending on-chain settlement.
+
+At this point the `Client` has "payed for" the resource access by means of a signed voucher. The `facilitator server` stores the vouchers which can be redeemed at any time. The settlement sequencing then is as follows:
+
+1. `Resource server` requests a settlement to happen by POSTing to a special `facilitator server` endpoint. 
+
+2. `Facilitator server` retrieves the voucher to be settled and submits the transaction to the blockchain based on the `scheme` and `network` of the `Payment Payload`.
+
+3. `Facilitator server` waits for the voucher settlment to be confirmed on the blockchain.
+
+4. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
 ### Type Specifications
 
@@ -149,6 +191,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
   // Extra information about the payment details specific to the scheme
   // For `exact` scheme on a EVM network, expects extra to contain the records `name` and `version` pertaining to asset
+  // For `deferred` scheme on a EVN network, expects extra to contain the records `type`, `voucher` and `signature`
   extra: object | null;
 }
 ```

@@ -1,7 +1,10 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
 import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { createPaymentHeader as createPaymentHeaderDeferredEVM } from "../schemes/deferred/evm/client";
 import { PaymentRequirements } from "../types/verify";
+import { DEFERRRED_SCHEME } from "../types/verify/schemes/deferred";
+import { EXACT_SCHEME } from "../types/verify/schemes/exact";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -17,7 +20,7 @@ export async function createPaymentHeader(
   paymentRequirements: PaymentRequirements,
 ): Promise<string> {
   // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme === EXACT_SCHEME) {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
@@ -47,5 +50,20 @@ export async function createPaymentHeader(
     }
     throw new Error("Unsupported network");
   }
+
+  // deferred scheme
+  if (
+    paymentRequirements.scheme === DEFERRRED_SCHEME &&
+    SupportedEVMNetworks.includes(paymentRequirements.network)
+  ) {
+    const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
+
+    if (!isEvmSignerWallet(evmClient)) {
+      throw new Error("Invalid evm wallet client provided");
+    }
+
+    return await createPaymentHeaderDeferredEVM(evmClient, x402Version, paymentRequirements);
+  }
+
   throw new Error("Unsupported scheme");
 }

@@ -7,3 +7,7 @@ proxy
 .env
 __pycache__/
 **/.DS_Store
+cache/
+out/
+lcov.info
+broadcast/

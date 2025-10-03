@@ -190,8 +190,78 @@ class SettleResponse(BaseModel):
     )
 
 
+# Deferred payment types
+class DeferredEvmPayloadVoucher(BaseModel):
+    """Represents a deferred payment voucher for EVM chains"""
+    
+    id: str  # Hex encoded 64 bytes (bytes32)
+    buyer: str  # EVM address
+    seller: str  # EVM address  
+    value_aggregate: str  # Total outstanding amount, monotonically increasing
+    asset: str  # ERC-20 token address
+    timestamp: int  # Unix timestamp
+    nonce: int  # Incremented with each aggregation
+    escrow: str  # Escrow contract address
+    chain_id: int  # Network chain ID
+    expiry: int  # Expiration timestamp
+    
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+    
+    @field_validator("value_aggregate")
+    def validate_value_aggregate(cls, v):
+        try:
+            int(v)
+        except ValueError:
+            raise ValueError("value_aggregate must be an integer encoded as a string")
+        return v
+
+
+class DeferredPaymentPayload(BaseModel):
+    """Payload for deferred payment scheme"""
+    
+    signature: str
+    voucher: DeferredEvmPayloadVoucher
+    
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class DeferredPaymentRequirementsExtraNewVoucher(BaseModel):
+    """Extra data for creating a new deferred payment voucher"""
+    
+    type: Literal["new"]
+    voucher: dict  # Contains only 'id' and 'escrow' fields
+    
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class DeferredPaymentRequirementsExtraAggregationVoucher(BaseModel):
+    """Extra data for aggregating an existing deferred payment voucher"""
+    
+    type: Literal["aggregation"]
+    signature: str
+    voucher: DeferredEvmPayloadVoucher
+    
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
 # Union of payloads for each scheme
-SchemePayloads = ExactPaymentPayload
+SchemePayloads = Union[ExactPaymentPayload, DeferredPaymentPayload]
 
 
 class PaymentPayload(BaseModel):

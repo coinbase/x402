@@ -1,8 +1,13 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import { PaymentRequirements } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
+import {
+  ExactPaymentPayload,
+  UnsignedExactPaymentPayload,
+} from "../../../types/verify/schemes/exact";
+import { EXACT_SCHEME } from "../../../types/verify/schemes/exact";
 
 /**
  * Prepares an unsigned payment header with the given sender address and payment requirements.
@@ -16,7 +21,7 @@ export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): UnsignedPaymentPayload {
+): UnsignedExactPaymentPayload {
   const nonce = createNonce();
 
   const validAfter = BigInt(
@@ -28,7 +33,7 @@ export function preparePaymentHeader(
 
   return {
     x402Version,
-    scheme: paymentRequirements.scheme,
+    scheme: EXACT_SCHEME,
     network: paymentRequirements.network,
     payload: {
       signature: undefined,
@@ -55,8 +60,8 @@ export function preparePaymentHeader(
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | LocalAccount,
   paymentRequirements: PaymentRequirements,
-  unsignedPaymentHeader: UnsignedPaymentPayload,
-): Promise<PaymentPayload> {
+  unsignedPaymentHeader: UnsignedExactPaymentPayload,
+): Promise<ExactPaymentPayload> {
   const { signature } = await signAuthorization(
     client,
     unsignedPaymentHeader.payload.authorization,
@@ -84,7 +89,7 @@ export async function createPayment<transport extends Transport, chain extends C
   client: SignerWallet<chain, transport> | LocalAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): Promise<PaymentPayload> {
+): Promise<ExactPaymentPayload> {
   const from = isSignerWallet(client) ? client.account!.address : client.address;
   const unsignedPaymentHeader = preparePaymentHeader(from, x402Version, paymentRequirements);
   return signPaymentHeader(client, paymentRequirements, unsignedPaymentHeader);

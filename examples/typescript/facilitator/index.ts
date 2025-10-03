@@ -15,7 +15,11 @@ import {
   ConnectedClient,
   SupportedPaymentKind,
   isSvmSignerWallet,
+  evm,
+  X402RequestSchema,
+  DeferredEvmPayloadSchema,
 } from "x402/types";
+import { deferred } from "x402/schemes";
 
 config();
 
@@ -31,6 +35,9 @@ const app = express();
 
 // Configure express to parse JSON bodies
 app.use(express.json());
+
+// Initialize the in-memory voucher store for deferred payments
+const voucherStore = new deferred.evm.InMemoryVoucherStore();
 
 type VerifyRequest = {
   paymentPayload: PaymentPayload;
@@ -71,7 +78,9 @@ app.post("/verify", async (req: Request, res: Response) => {
     }
 
     // verify
-    const valid = await verify(client, paymentPayload, paymentRequirements);
+    const valid = await verify(client, paymentPayload, paymentRequirements, {
+      deferred: { voucherStore },
+    });
     res.json(valid);
   } catch (error) {
     console.error("error", error);
@@ -93,11 +102,18 @@ app.get("/settle", (req: Request, res: Response) => {
 app.get("/supported", async (req: Request, res: Response) => {
   let kinds: SupportedPaymentKind[] = [];
 
-  // evm
+  // evm exact
   if (EVM_PRIVATE_KEY) {
     kinds.push({
       x402Version: 1,
       scheme: "exact",
+      network: "base-sepolia",
+    });
+
+    // evm deferred
+    kinds.push({
+      x402Version: 1,
+      scheme: "deferred",
       network: "base-sepolia",
     });
   }
@@ -138,7 +154,9 @@ app.post("/settle", async (req: Request, res: Response) => {
     }
 
     // settle
-    const response = await settle(signer, paymentPayload, paymentRequirements);
+    const response = await settle(signer, paymentPayload, paymentRequirements, {
+      deferred: { voucherStore },
+    });
     res.json(response);
   } catch (error) {
     console.error("error", error);
@@ -146,6 +164,120 @@ app.post("/settle", async (req: Request, res: Response) => {
   }
 });
 
+// Deferred scheme endpoints
+
+// GET /deferred/vouchers/:id
+app.get("/deferred/vouchers/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const vouchers = await voucherStore.getVoucherSeries(id, {});
+    res.json(vouchers);
+  } catch (error) {
+    console.error("error", error);
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// GET /deferred/vouchers/available/:buyer/:seller
+app.get("/deferred/vouchers/available/:buyer/:seller", async (req: Request, res: Response) => {
+  try {
+    const { buyer, seller } = req.params;
+    const voucher = await voucherStore.getAvailableVoucher(buyer, seller);
+
+    if (!voucher) {
+      return res.status(404).json({ error: "No vouchers available for this buyer-seller pair" });
+    }
+
+    res.json(voucher);
+  } catch (error) {
+    console.error("error", error);
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /deferred/vouchers
+app.post("/deferred/vouchers", async (req: Request, res: Response) => {
+  try {
+    const { paymentPayload, paymentRequirements } = X402RequestSchema.parse(req.body);
+
+    // Verify the voucher
+    const client = evm.createConnectedClient(paymentPayload.network);
+    const verifyResponse = await verify(client, paymentPayload, paymentRequirements, {
+      deferred: { voucherStore },
+    });
+
+    if (!verifyResponse.isValid) {
+      return res.status(400).json(verifyResponse);
+    }
+
+    // Extract and store the voucher
+    const { signature, voucher } = DeferredEvmPayloadSchema.parse(paymentPayload.payload);
+    const signedVoucher = { ...voucher, signature };
+    const result = await voucherStore.storeVoucher(signedVoucher);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error ?? "Unknown voucher storage error",
+        details: { voucher: signedVoucher },
+      });
+    }
+
+    res.status(201).json(signedVoucher);
+  } catch (error) {
+    console.error("error", error);
+    res.status(400).json({ error: "Invalid request" });
+  }
+});
+
+// POST /deferred/vouchers/:id/:nonce/settle
+app.post("/deferred/vouchers/:id/:nonce/settle", async (req: Request, res: Response) => {
+  try {
+    const { id, nonce } = req.params;
+    const nonceNum = parseInt(nonce, 10);
+
+    if (isNaN(nonceNum)) {
+      return res.status(400).json({ success: false, error: "Invalid nonce" });
+    }
+
+    const voucher = await voucherStore.getVoucher(id, nonceNum);
+    if (!voucher) {
+      return res.status(404).json({ success: false, error: "Voucher not found" });
+    }
+
+    // Get the signer for the voucher's network
+    const signer = evm.createSigner("base-sepolia", EVM_PRIVATE_KEY as `0x${string}`);
+
+    // Extract signature and voucher data
+    const { signature, ...voucherData } = voucher;
+
+    // Settle the voucher
+    const response = await deferred.evm.settleVoucher(signer, voucherData, signature, voucherStore);
+
+    if (!response.success) {
+      return res.status(400).json({
+        success: false,
+        error: response.errorReason || "Settlement failed",
+      });
+    }
+
+    res.json({
+      success: true,
+      transactionHash: response.transaction,
+      network: response.network || "base-sepolia",
+    });
+  } catch (error) {
+    console.error("error", error);
+    res.status(400).json({ success: false, error: `Settlement failed: ${error}` });
+  }
+});
+
 app.listen(process.env.PORT || 3000, () => {
   console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
+
+  console.log(
+    `For deferred voucher history: GET http://localhost:${process.env.PORT || 3000}/deferred/vouchers/:id`,
+  );
+  console.log(
+    `To settle a deferred voucher: POST http://localhost:${process.env.PORT || 3000}/deferred/vouchers/:id/:nonce/settle`,
+  );
 });

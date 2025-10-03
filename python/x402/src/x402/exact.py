@@ -38,7 +38,7 @@ def prepare_payment_header(
                 "value": payment_requirements.max_amount_required,
                 "validAfter": valid_after,
                 "validBefore": valid_before,
-                "nonce": nonce,
+                "nonce": nonce.hex(),
             },
         },
     }

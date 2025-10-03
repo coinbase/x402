@@ -1,0 +1,9 @@
+[submodule "solidity/deferred-escrow/lib/openzeppelin-contracts"]
+	path = solidity/deferred-escrow/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "solidity/deferred-escrow/lib/forge-std"]
+	path = solidity/deferred-escrow/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "solidity/deferred-escrow/lib/safe-singleton-deployer-sol"]
+	path = solidity/deferred-escrow/lib/safe-singleton-deployer-sol
+	url = https://github.com/wilsoncusack/safe-singleton-deployer-sol

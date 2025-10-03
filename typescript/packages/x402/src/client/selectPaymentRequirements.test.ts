@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { selectPaymentRequirements } from "./selectPaymentRequirements";
-import { PaymentRequirements, Network } from "../types";
+import { PaymentRequirements, Network, EXACT_SCHEME, type X402_SCHEMES } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
 
@@ -10,15 +10,17 @@ import { getNetworkId } from "../shared/network";
  * @param network - The network to create the payment requirement for.
  * @param asset - The asset to create the payment requirement for.
  * @param overrides - The overrides to apply to the payment requirement.
+ * @param scheme - The scheme to create the payment requirement for.
  * @returns The created payment requirement.
  */
 function makeRequirement(
   network: Network,
   asset: string,
-  overrides: Partial<PaymentRequirements> = {},
+  overrides: Partial<Omit<PaymentRequirements, 'scheme'>> = {},
+  scheme: X402_SCHEMES = EXACT_SCHEME,
 ): PaymentRequirements {
   return {
-    scheme: "exact",
+    scheme,
     network,
     maxAmountRequired: "1000",
     resource: "https://example.com/resource",
@@ -28,7 +30,7 @@ function makeRequirement(
     maxTimeoutSeconds: 300,
     asset,
     ...overrides,
-  };
+  } as PaymentRequirements;
 }
 
 describe("selectPaymentRequirements", () => {

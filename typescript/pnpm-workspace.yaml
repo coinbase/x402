@@ -5,3 +5,10 @@ packages:
   - site
 ignoredBuiltDependencies:
   - esbuild
+onlyBuiltDependencies:
+  - bigint-buffer
+  - bufferutil
+  - keccak
+  - sharp
+  - unrs-resolver
+  - utf-8-validate

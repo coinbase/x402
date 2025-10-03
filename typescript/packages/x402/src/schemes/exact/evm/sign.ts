@@ -1,12 +1,11 @@
 import { Chain, getAddress, Hex, LocalAccount, toHex, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
+import { typedDataTypes, isAccount, isSignerWallet, SignerWallet } from "../../../types/shared/evm";
+import { PaymentRequirements } from "../../../types/verify";
 import {
-  authorizationTypes,
-  isAccount,
-  isSignerWallet,
-  SignerWallet,
-} from "../../../types/shared/evm";
-import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
+  ExactEvmPayloadAuthorization,
+  ExactPaymentRequirementsSchema,
+} from "../../../types/verify/schemes/exact";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer
@@ -28,14 +27,15 @@ import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../type
 export async function signAuthorization<transport extends Transport, chain extends Chain>(
   walletClient: SignerWallet<chain, transport> | LocalAccount,
   { from, to, value, validAfter, validBefore, nonce }: ExactEvmPayloadAuthorization,
-  { asset, network, extra }: PaymentRequirements,
+  paymentRequirements: PaymentRequirements,
 ): Promise<{ signature: Hex }> {
+  const { asset, network, extra } = ExactPaymentRequirementsSchema.parse(paymentRequirements);
   const chainId = getNetworkId(network);
   const name = extra?.name;
   const version = extra?.version;
 
   const data = {
-    types: authorizationTypes,
+    types: typedDataTypes,
     domain: {
       name,
       version,

@@ -1,10 +1,16 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, Resource, type SolanaAddress } from "x402-express";
+import {
+  paymentMiddleware,
+  deferredPaymentMiddleware,
+  Resource,
+  type SolanaAddress,
+} from "x402-express";
 config();
 
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource;
 const payTo = process.env.ADDRESS as `0x${string}` | SolanaAddress;
+const deferredEscrow = process.env.DEFERRED_ESCROW as `0x${string}`;
 
 if (!facilitatorUrl || !payTo) {
   console.error("Missing required environment variables");
@@ -13,6 +19,7 @@ if (!facilitatorUrl || !payTo) {
 
 const app = express();
 
+// Exact scheme content
 app.use(
   paymentMiddleware(
     payTo,
@@ -49,6 +56,25 @@ app.use(
   ),
 );
 
+// Deferred scheme content
+if (deferredEscrow) {
+  app.use(
+    deferredPaymentMiddleware(
+      payTo as `0x${string}`,
+      {
+        "/deferred/*": {
+          price: "$0.001",
+          network: "base-sepolia",
+        },
+      },
+      deferredEscrow,
+      {
+        url: facilitatorUrl,
+      },
+    ),
+  );
+}
+
 app.get("/weather", (req, res) => {
   res.send({
     report: {
@@ -63,6 +89,20 @@ app.get("/premium/content", (req, res) => {
     content: "This is premium content",
   });
 });
+
+app.get("/free", (req, res) => {
+  res.send({
+    content: "This is free content",
+  });
+});
+
+if (deferredEscrow) {
+  app.get("/deferred/content", (req, res) => {
+    res.send({
+      content: "This is premium content via deferred scheme",
+    });
+  });
+}
 
 app.listen(4021, () => {
   console.log(`Server listening at http://localhost:${4021}`);

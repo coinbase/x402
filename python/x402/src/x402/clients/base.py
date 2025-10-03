@@ -1,7 +1,9 @@
-import time
 from typing import Optional, Callable, Dict, Any, List
 from eth_account import Account
-from x402.exact import sign_payment_header
+from x402.exact import sign_payment_header as sign_exact_payment_header
+from x402.exact import prepare_payment_header as prepare_exact_payment_header
+from x402.deferred import sign_payment_header as sign_deferred_payment_header
+from x402.deferred import prepare_payment_header as prepare_deferred_payment_header
 from x402.types import (
     PaymentRequirements,
     UnsupportedSchemeException,
@@ -116,7 +118,7 @@ class x402Client:
             if network_filter and network != network_filter:
                 continue
 
-            if scheme == "exact":
+            if scheme in ["exact", "deferred"]:
                 # Check max value if set
                 if max_value is not None:
                     max_amount = int(paymentRequirements.max_amount_required)
@@ -167,30 +169,35 @@ class x402Client:
         Returns:
             Signed payment header
         """
-        unsigned_header = {
-            "x402Version": x402_version,
-            "scheme": payment_requirements.scheme,
-            "network": payment_requirements.network,
-            "payload": {
-                "signature": None,
-                "authorization": {
-                    "from": self.account.address,
-                    "to": payment_requirements.pay_to,
-                    "value": payment_requirements.max_amount_required,
-                    "validAfter": str(int(time.time()) - 60),  # 60 seconds before
-                    "validBefore": str(
-                        int(time.time()) + payment_requirements.max_timeout_seconds
-                    ),
-                    "nonce": self.generate_nonce(),
-                },
-            },
-        }
-
-        signed_header = sign_payment_header(
-            self.account,
-            payment_requirements,
-            unsigned_header,
-        )
+        scheme = payment_requirements.scheme
+        
+        if scheme == "exact":
+            # Create exact payment header
+            unsigned_header = prepare_exact_payment_header(
+                self.account.address,
+                x402_version,
+                payment_requirements
+            )
+            signed_header = sign_exact_payment_header(
+                self.account,
+                payment_requirements,
+                unsigned_header,
+            )
+        elif scheme == "deferred":
+            # Create deferred payment header
+            unsigned_header = prepare_deferred_payment_header(
+                self.account.address,
+                x402_version,
+                payment_requirements
+            )
+            signed_header = sign_deferred_payment_header(
+                self.account,
+                payment_requirements,
+                unsigned_header,
+            )
+        else:
+            raise UnsupportedSchemeException(f"Unsupported payment scheme: {scheme}")
+        
         return signed_header
 
     def generate_nonce(self):

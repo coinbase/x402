@@ -36,6 +36,10 @@ class x402HTTPAdapter(HTTPAdapter):
         Returns:
             Response object
         """
+        # Add buyer header to identify the account
+        if not self._is_retry and self.client.account and hasattr(self.client.account, 'address'):
+            request.headers["X-PAYMENT-BUYER"] = self.client.account.address
+        
         if self._is_retry:
             self._is_retry = False
             return super().send(request, **kwargs)

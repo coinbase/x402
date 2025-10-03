@@ -10,9 +10,11 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
+    "axios": "^1.11.0",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
-    "x402-express": "workspace:*"
+    "x402-express": "workspace:*",
+    "x402-axios": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
