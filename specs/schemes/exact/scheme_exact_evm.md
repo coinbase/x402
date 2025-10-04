@@ -9,7 +9,7 @@ The `exact` scheme on EVM chains uses `EIP-3009` to authorize a transfer of a sp
 The `payload` field of the `X-PAYMENT` header must contain the following fields:
 
 - `signature`: The signature of the `EIP-3009` `transferWithAuthorization` operation.
-- `authorization`: parameters required to reconstruct the messaged signed for the `transferWithAuthorization` operation.
+- `authorization`: parameters required to reconstruct the message signed for the `transferWithAuthorization` operation.
 
 Example:
 
@@ -83,7 +83,7 @@ Cons:
 
 Pros:
 
-- Because the permit signature gives permission for transfering up to an amount, it allows for usage-based payments.
+- Because the permit signature gives permission for transferring up to an amount, it allows for usage-based payments.
 
 Cons:
 
