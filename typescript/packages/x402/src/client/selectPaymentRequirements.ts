@@ -39,8 +39,8 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
     // For Starknet networks, check against hardcoded USDC addresses
     if (requirement.network === "starknet" || requirement.network === "starknet-sepolia") {
       const starknetUsdc = requirement.network === "starknet" 
-        ? "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8"
-        : "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
+        ? "0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8"
+        : "0x053b40A647CEDfca6cA84f542A0fe36736031905A9639a7f19A3C1e66bFd5080";
       return requirement.asset === starknetUsdc;
     }
     
