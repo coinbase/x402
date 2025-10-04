@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Any, Optional, Union, TYPE_CHECKING
 import requests
 import json
 from requests.adapters import HTTPAdapter
 from eth_account import Account
+
 from x402.clients.base import (
     x402Client,
     PaymentError,
@@ -11,6 +12,11 @@ from x402.clients.base import (
 from x402.types import x402PaymentRequiredResponse
 import copy
 
+if TYPE_CHECKING:
+    try:
+        from pysui import SyncClient
+    except ImportError:
+        SyncClient = Any
 
 class x402HTTPAdapter(HTTPAdapter):
     """HTTP adapter for handling x402 payment required responses."""
@@ -85,7 +91,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
 
 def x402_http_adapter(
-    account: Account,
+    account: Union[Account, "SyncClient"],
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
@@ -93,7 +99,7 @@ def x402_http_adapter(
     """Create an HTTP adapter that handles 402 Payment Required responses.
 
     Args:
-        account: eth_account.Account instance for signing payments
+        account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
         max_value: Optional maximum allowed payment amount in base units
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
@@ -112,7 +118,7 @@ def x402_http_adapter(
 
 
 def x402_requests(
-    account: Account,
+    account: Union[Account, "SyncClient"],
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     **kwargs,
@@ -120,7 +126,7 @@ def x402_requests(
     """Create a requests session with x402 payment handling.
 
     Args:
-        account: eth_account.Account instance for signing payments
+        account: eth_account.Account instance for EVM networks or pysui.SyncClient for Sui networks
         max_value: Optional maximum allowed payment amount in base units
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
