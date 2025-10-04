@@ -1,0 +1,99 @@
+[package]
+name = "x402"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP-native micropayments with x402 protocol"
+authors = ["Coinbase"]
+license = "Apache-2.0"
+repository = "https://github.com/coinbase/x402"
+homepage = "https://x402.org"
+documentation = "https://docs.rs/x402"
+keywords = ["payment", "micropayment", "blockchain", "http", "web3"]
+categories = ["api-bindings", "cryptography", "web-programming"]
+
+[dependencies]
+# Core dependencies
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+url = "2.5"
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+percent-encoding = "2.0"
+tokio = { version = "1.0", features = ["full"] }
+http = "1.0"
+
+# Web framework support (optional)
+axum = { version = "0.7", features = ["json"], optional = true }
+actix-web = { version = "4.0", optional = true }
+warp = { version = "0.3", optional = true }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "trace"], optional = true }
+
+# Cryptographic dependencies
+k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
+secp256k1 = { version = "0.28", features = ["recovery", "global-context"] }
+ethereum-types = "0.14"
+rlp = "0.5"
+hex = "0.4"
+rustc-hex = "2.1"
+sha2 = "0.10"
+sha3 = "0.10"
+rand = "0.8"
+
+# JWT for authentication
+jsonwebtoken = "9.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Decimal arithmetic
+rust_decimal = { version = "1.0", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.0"
+mockito = "1.0"
+env_logger = "0.11"
+
+[features]
+default = ["axum"]
+axum = ["dep:axum", "dep:tower-http"]
+actix-web = ["dep:actix-web"]
+warp = ["dep:warp"]
+
+[[example]]
+name = "axum_server"
+path = "examples/axum_server.rs"
+required-features = ["axum"]
+
+[[example]]
+name = "actix_server"
+path = "examples/actix_server.rs"
+required-features = ["actix-web"]
+
+[[example]]
+name = "warp_server"
+path = "examples/warp_server.rs"
+required-features = ["warp"]
+
+[[example]]
+name = "client"
+path = "examples/client.rs"
+
+[[example]]
+name = "facilitator"
+path = "examples/facilitator.rs"
+
+[[example]]
+name = "proxy_server"
+path = "examples/proxy_server.rs"
+
+[[example]]
+name = "mainnet_server"
+path = "examples/mainnet_server.rs"
