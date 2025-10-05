@@ -5,6 +5,8 @@ export const NetworkSchema = z.enum([
   "base",
   "avalanche-fuji",
   "avalanche",
+  "bsc-testnet",
+  "bsc",
   "iotex",
   "solana-devnet",
   "solana",
@@ -13,6 +15,8 @@ export const NetworkSchema = z.enum([
   "polygon",
   "polygon-amoy",
   "peaq",
+  "ton:mainnet",
+  "ton:testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -22,6 +26,8 @@ export const SupportedEVMNetworks: Network[] = [
   "base",
   "avalanche-fuji",
   "avalanche",
+  "bsc-testnet",
+  "bsc",
   "iotex",
   "sei",
   "sei-testnet",
@@ -34,6 +40,8 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["base", 8453],
   ["avalanche-fuji", 43113],
   ["avalanche", 43114],
+  ["bsc-testnet", 97],
+  ["bsc", 56],
   ["iotex", 4689],
   ["sei", 1329],
   ["sei-testnet", 1328],
