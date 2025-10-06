@@ -233,7 +233,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/weather": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -261,7 +267,13 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       pattern: /^\/weather$/,
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -295,7 +307,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana when no payment header is present", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/weather": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -323,7 +341,13 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       pattern: /^\/weather$/,
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -346,6 +370,79 @@ describe("paymentMiddleware()", () => {
             network: "solana",
             payTo: solanaPayTo,
             extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should include Algorand payment details with facilitator metadata", async () => {
+    const algorandRoutesConfig: RoutesConfig = {
+      "/weather": {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    };
+    const algorandPayTo = "ALGOSOMEADDRESS";
+    const feePayer = "ALG-FEEPAYER";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "algorand-testnet",
+          extra: { feePayer },
+        },
+      ],
+    };
+
+    mockSupported = vi.fn().mockResolvedValue(supportedResponse);
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareAlgorand = paymentMiddleware(
+      algorandPayTo,
+      algorandRoutesConfig,
+      facilitatorConfig,
+    );
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation(name => {
+      if (name === "Accept") {
+        return "application/json";
+      }
+      return undefined;
+    });
+
+    await middlewareAlgorand(mockContext, mockNext);
+
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "algorand-testnet",
+            payTo: algorandPayTo,
+            mimeType: "application/json",
+            asset: "0",
+            extra: expect.objectContaining({
+              decimals: 6,
+              feePayer,
+            }),
           }),
         ]),
         x402Version: 1,
@@ -380,14 +477,20 @@ describe("paymentMiddleware()", () => {
     );
 
     await expect(middlewareUnsupported(mockContext, mockNext)).rejects.toThrow(
-      "Unsupported network: unsupported-network",
+      "Unsupported network for price conversion: unsupported-network",
     );
   });
 
   it("should throw error when SVM facilitator does not provide fee payer", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/weather": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -414,7 +517,13 @@ describe("paymentMiddleware()", () => {
       verb: "GET",
       pattern: /^\/weather$/,
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },

@@ -707,7 +707,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
     const solanaRoutesConfig = {
       "/protected/*": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -730,7 +736,13 @@ describe("paymentMiddleware()", () => {
       pattern: /^\/protected\/test$/,
       verb: "GET",
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -768,7 +780,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana when no payment header is present", async () => {
     const solanaRoutesConfig = {
       "/protected/*": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -791,7 +809,13 @@ describe("paymentMiddleware()", () => {
       pattern: /^\/protected\/test$/,
       verb: "GET",
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -820,6 +844,71 @@ describe("paymentMiddleware()", () => {
             network: "solana",
             payTo: solanaPayTo,
             extra: expect.objectContaining({ feePayer }),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("should include Algorand payment requirements with facilitator metadata", async () => {
+    const algorandRoutesConfig = {
+      "/protected/*": {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    } as const;
+
+    const algorandPayTo = "VSOOXO3JHY7SZ5K4YVAK2MCW6N6SY7JYLLNP7EZ4OQMZT6HKXAF3GEEEQA";
+    const feePayer = "FTZPNC5WAZY6P3QJ67JX6L5YSLG4CX67UJH6RY5QXNI2OBOFUZH3H4I6TY";
+
+    const mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "algorand-testnet", extra: { feePayer } }],
+    });
+
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    });
+
+    const middlewareAlgorand = paymentMiddleware(
+      algorandPayTo,
+      algorandRoutesConfig,
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    const response = await middlewareAlgorand(request);
+
+    expect(response.status).toBe(402);
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        x402Version: 1,
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "algorand-testnet",
+            payTo: algorandPayTo,
+            mimeType: "application/json",
+            extra: expect.objectContaining({
+              decimals: 6,
+              feePayer,
+            }),
           }),
         ]),
       }),
@@ -856,8 +945,11 @@ describe("paymentMiddleware()", () => {
       headers: new Headers({ Accept: "application/json" }),
     } as NextRequest;
 
-    await expect(middlewareUnsupported(request)).rejects.toThrow(
-      "Unsupported network: unsupported-network",
+    const response = await middlewareUnsupported(request);
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain(
+      "Unsupported network for price conversion: unsupported-network",
     );
   });
 

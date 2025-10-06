@@ -92,3 +92,20 @@ fetchWithPay(API_URL, {
   });
 ```
 
+### Algorand Signers
+
+`wrapFetchWithPayment` also works with Algorand wallets. Provide any object that implements the x402 Algorand signer interface (`address` plus an async `signTransactions` function) and the helper automatically prefers Algorand (or Algorand Testnet) payment requirements when they exist.
+
+```typescript
+import { wrapFetchWithPayment } from "x402-fetch";
+
+const algorandWallet = {
+  address: account.address,
+  signTransactions: async (transactions: Uint8Array[]) => {
+    // Delegate to your Algorand wallet SDK (e.g. Pera, Defly) to sign the transactions
+    return peraWallet.signTransactions([transactions]);
+  },
+};
+
+const fetchWithPay = wrapFetchWithPayment(fetch, algorandWallet);
+```

@@ -210,6 +210,72 @@ describe("withPaymentInterceptor()", () => {
       "exact",
     );
   });
+
+  it("supports Algorand signers and forwards Algorand networks", async () => {
+    const paymentHeader = "payment-header-value";
+    const successResponse = { data: "success" } as AxiosResponse;
+
+    const algorandPayTo = "VSOOXO3JHY7SZ5K4YVAK2MCW6N6SY7JYLLNP7EZ4OQMZT6HKXAF3GEEEQA";
+    const feePayer = "FTZPNC5WAZY6P3QJ67JX6L5YSLG4CX67UJH6RY5QXNI2OBOFUZH3H4I6TY";
+
+    const algorandRequirements: PaymentRequirements[] = [
+      {
+        scheme: "exact",
+        network: "algorand-testnet",
+        maxAmountRequired: "1000",
+        resource: "https://api.example.com/resource",
+        description: "Algorand payment",
+        mimeType: "application/json",
+        payTo: algorandPayTo,
+        maxTimeoutSeconds: 120,
+        asset: "0",
+        extra: {
+          decimals: 6,
+          feePayer,
+        },
+      },
+    ];
+
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
+    (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
+      (requirements, _) => requirements[0],
+    );
+    (mockAxiosClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(successResponse);
+
+    const algorandWallet = {
+      address: "ALGOSOMEADDRESS",
+      signTransactions: vi.fn(),
+    } as unknown as Signer;
+
+    withPaymentInterceptor(mockAxiosClient, algorandWallet);
+    const handler = (
+      mockAxiosClient.interceptors.response.use as ReturnType<typeof vi.fn>
+    ).mock.calls.at(-1)![1];
+
+    const error = createAxiosError(402, createErrorConfig(), {
+      accepts: algorandRequirements,
+      x402Version: 1,
+    });
+
+    await handler(error);
+
+    const lastCall = (selectPaymentRequirements as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(lastCall[1]).toEqual(["algorand", "algorand-testnet"]);
+    expect(createPaymentHeader).toHaveBeenCalledWith(
+      algorandWallet,
+      1,
+      algorandRequirements[0],
+    );
+    expect(mockAxiosClient.request).toHaveBeenCalledWith({
+      ...error.config,
+      headers: new AxiosHeaders({
+        "X-PAYMENT": paymentHeader,
+        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+      }),
+      __is402Retry: true,
+    });
+  });
 });
 
 describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {

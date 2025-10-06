@@ -38,6 +38,23 @@ const response = await api.get("/paid-endpoint");
 console.log(response.data);
 ```
 
+### Algorand Wallets
+
+Provide any object that implements the Algorand signer interface (`address` plus `signTransactions`) and the interceptor will automatically target Algorand (or Algorand Testnet) payment requirements when they are offered.
+
+```typescript
+import { withPaymentInterceptor } from "x402-axios";
+
+const algorandWallet = {
+  address: account.address,
+  signTransactions: async (transactions: Uint8Array[]) => {
+    return peraWallet.signTransactions([transactions]);
+  },
+};
+
+const api = withPaymentInterceptor(axios.create({ baseURL: API_URL }), algorandWallet);
+```
+
 ## Features
 
 - Automatic handling of 402 Payment Required responses

@@ -474,7 +474,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana-devnet when no payment header is present", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/test": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -496,7 +502,13 @@ describe("paymentMiddleware()", () => {
       pattern: /^\/test$/,
       verb: "GET",
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            decimals: 6,
+          },
+        },
         network: "solana-devnet",
         config: middlewareConfig,
       },
@@ -534,7 +546,13 @@ describe("paymentMiddleware()", () => {
   it("should return 402 with feePayer for solana mainnet when no payment header is present", async () => {
     const solanaRoutesConfig: RoutesConfig = {
       "/test": {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -556,7 +574,13 @@ describe("paymentMiddleware()", () => {
       pattern: /^\/test$/,
       verb: "GET",
       config: {
-        price: "$0.001",
+        price: {
+          amount: "1000",
+          asset: {
+            address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            decimals: 6,
+          },
+        },
         network: "solana",
         config: middlewareConfig,
       },
@@ -589,6 +613,62 @@ describe("paymentMiddleware()", () => {
 
     const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+  });
+
+  it("should return 402 with Algorand ASA metadata when no payment header is present", async () => {
+    const algorandRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    };
+    const algorandPayTo = "ALGOSOMEADDRESS";
+    const feePayer = "ALG-FEEPAYER";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "algorand-testnet",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "algorand-testnet",
+        config: middlewareConfig,
+      },
+    });
+
+    middleware = paymentMiddleware(algorandPayTo, algorandRoutesConfig, facilitatorConfig);
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "algorand-testnet",
+            payTo: algorandPayTo,
+            mimeType: "application/json",
+            asset: "0",
+            extra: expect.objectContaining({
+              decimals: 6,
+              feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
   });
 
   describe("session token integration", () => {

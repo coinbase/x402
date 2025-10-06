@@ -131,7 +131,7 @@ export function paymentMiddleware(
         maxAmountRequired,
         resource: resourceUrl,
         description: description ?? "",
-        mimeType: mimeType ?? "",
+        mimeType: mimeType ?? "application/json",
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: getAddress(evmAsset.address),
@@ -176,7 +176,7 @@ export function paymentMiddleware(
         maxAmountRequired,
         resource: resourceUrl,
         description: description ?? "",
-        mimeType: mimeType ?? "",
+        mimeType: mimeType ?? "application/json",
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: splAsset.address,
@@ -263,7 +263,10 @@ export function paymentMiddleware(
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
-            testnet: network === "base-sepolia",
+            testnet:
+              network === "base-sepolia" ||
+              network === "algorand-testnet" ||
+              network === "solana-devnet",
             cdpClientKey: paywall?.cdpClientKey,
             appName: paywall?.appName,
             appLogo: paywall?.appLogo,

@@ -62,7 +62,7 @@ type RoutesConfig = Record<string, Price | RouteConfig>;
 
 interface RouteConfig {
   price: Price;           // Price in USD or token amount
-  network: Network;       // "base" or "base-sepolia"
+  network: Network;       // e.g. "base", "solana", "algorand"
   config?: PaymentMiddlewareConfig;
 }
 ```
@@ -79,6 +79,27 @@ interface PaymentMiddlewareConfig {
   resource?: string;                  // Resource URL (defaults to request URL)
 }
 ```
+
+### Algorand Pricing
+
+You can charge in Algorand Standard Assets by supplying their ASA identifier and decimals:
+
+```typescript
+app.use(paymentMiddleware(
+  "ALGORECEIVER",
+  {
+    "/algorand": {
+      price: {
+        amount: "250000",
+        asset: { id: "31566704", decimals: 6 },
+      },
+      network: "algorand",
+    },
+  },
+));
+```
+
+If your facilitator provides a `feePayer` for Algorand, the middleware includes it automatically in the payment requirements sent to clients.
 
 ### Facilitator Configuration
 

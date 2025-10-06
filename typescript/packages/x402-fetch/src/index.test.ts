@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { wrapFetchWithPayment } from "./index";
-import { evm, PaymentRequirements } from "x402/types";
+import { evm, PaymentRequirements, Signer } from "x402/types";
 
 vi.mock("x402/client", () => ({
   createPaymentHeader: vi.fn(),
@@ -165,5 +165,69 @@ describe("fetchWithPayment()", () => {
         method: "GET",
       } as RequestInitWithRetry),
     ).rejects.toBe(paymentError);
+  });
+
+  it("should support Algorand signers and pass Algorand networks", async () => {
+    const algorandWallet = {
+      address: "ALGOSOMEADDRESS",
+      signTransactions: vi.fn(),
+    } as unknown as Signer;
+
+    const algorandPayTo = "VSOOXO3JHY7SZ5K4YVAK2MCW6N6SY7JYLLNP7EZ4OQMZT6HKXAF3GEEEQA";
+    const feePayer = "FTZPNC5WAZY6P3QJ67JX6L5YSLG4CX67UJH6RY5QXNI2OBOFUZH3H4I6TY";
+
+    const algorandRequirements: PaymentRequirements[] = [
+      {
+        scheme: "exact",
+        network: "algorand-testnet",
+        maxAmountRequired: "1000",
+        resource: "https://api.example.com/resource",
+        description: "Algorand payment",
+        mimeType: "application/json",
+        payTo: algorandPayTo,
+        maxTimeoutSeconds: 120,
+        asset: "0",
+        extra: {
+          decimals: 6,
+          feePayer,
+        },
+      },
+    ];
+
+    const paymentHeader = "algorand-payment-header";
+    const successResponse = createResponse(200, { data: "algorand-success" });
+
+    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, { accepts: algorandRequirements, x402Version: 1 }),
+      )
+      .mockResolvedValueOnce(successResponse);
+
+    const fetchWithPay = wrapFetchWithPayment(mockFetch, algorandWallet);
+
+    const result = await fetchWithPay("https://api.example.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    } as RequestInitWithRetry);
+
+    expect(result).toBe(successResponse);
+    const lastCall = (selectPaymentRequirements as ReturnType<typeof vi.fn>).mock.calls.at(-1)!;
+    expect(lastCall[1]).toEqual(["algorand", "algorand-testnet"]);
+    expect(createPaymentHeader).toHaveBeenCalledWith(
+      algorandWallet,
+      1,
+      algorandRequirements[0],
+    );
+    expect(mockFetch).toHaveBeenLastCalledWith("https://api.example.com", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-PAYMENT": paymentHeader,
+        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+      },
+      __is402Retry: true,
+    } as RequestInitWithRetry);
   });
 });
