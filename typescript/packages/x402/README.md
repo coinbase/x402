@@ -154,7 +154,7 @@ node typescript/scripts/gen-evm-xpayment.mjs \
 curl -i -H "<X-PAYMENT OUTPUT>" http://localhost:4021/weather
 ```
 
-### ✅ Example: Verify BSC (USDT) payment via x402 protocol
+Verify BSC (USDT) payment via x402 protocol
 
 # Transaction example:
 # https://bscscan.com/tx/0x5f71f6faaaf86540a0cf254f420c33481edae0b4f327bc98d03ab01fc42901cb
@@ -199,6 +199,44 @@ If you're not using one of our server middleware packages, you can implement the
 4. Return the appropriate response header to the caller
 
 For a complete example implementation, see our [advanced server example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) which demonstrates both synchronous and asynchronous payment processing patterns.
+
+## Detecting ERC-20 payment flow (EIP-3009 vs pull)
+
+Not all tokens support gasless EIP-3009 transfers. Detection is token-based, not chain-based. On BSC, popular tokens (e.g., USDT/USDC) usually do NOT implement EIP-3009, so a standard pull-flow (approve → transferFrom) is recommended.
+
+Use helpers:
+
+```ts
+import { detectErc20PaymentFlow, buildPullFlowPlan } from "x402";
+
+const res = await detectErc20PaymentFlow(client, tokenAddress, {
+  // optional ABI lookup, improves accuracy
+  etherscanApiUrl: "https://api.bscscan.com/api",
+  etherscanApiKey: process.env.BSCSCAN_API_KEY,
+  // prefer pull if allowance already covers the amount
+  owner: userAddress,
+  spender: facilitatorAddress,
+  amountAtomic: 1_000_000n,
+  preferPullIfAllowanceSufficient: true,
+});
+
+if (res.kind === "eip3009") {
+  // Build EIP-712 typed data off-chain and relay transferWithAuthorization
+} else {
+  // Pull-flow plan for UI/back-end to execute
+  const plan = buildPullFlowPlan({
+    token: tokenAddress,
+    owner: userAddress,
+    spender: facilitatorAddress,
+    to: merchantAddress,
+    amountAtomic: 1_000_000n,
+  });
+}
+```
+
+EIP-3009 detection uses two strategies:
+- ABI lookup via Etherscan-like API (preferred when API key available)
+- Fallback heuristic using eth_call selector presence test
 
 ## Manual Client Integration
 
