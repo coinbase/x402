@@ -1,0 +1,18 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#0057FF"/>
+
+  <!-- Wallet icon -->
+  <rect x="55" y="70" width="90" height="65" rx="8" fill="white" opacity="0.9"/>
+  <rect x="55" y="80" width="90" height="8" fill="#0057FF" opacity="0.3"/>
+
+  <!-- Shield/Check overlay -->
+  <path d="M100 50 L120 60 L120 85 Q120 100 100 110 Q80 100 80 85 L80 60 Z" fill="white" opacity="0.95"/>
+
+  <!-- Checkmark -->
+  <path d="M90 85 L97 92 L110 72" stroke="#00E676" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Decorative elements -->
+  <circle cx="75" cy="95" r="4" fill="#0057FF" opacity="0.6"/>
+  <circle cx="125" cy="95" r="4" fill="#0057FF" opacity="0.6"/>
+</svg>
