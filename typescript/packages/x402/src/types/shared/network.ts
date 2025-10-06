@@ -15,8 +15,6 @@ export const NetworkSchema = z.enum([
   "polygon",
   "polygon-amoy",
   "peaq",
-  "ton:mainnet",
-  "ton:testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 

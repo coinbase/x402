@@ -9,6 +9,7 @@ npm install x402
 ```
 
 ## Overview
+## Supported Networks
 
 The x402 package provides the core building blocks for implementing the x402 Payment Protocol in TypeScript. It's designed to be used by:
 
@@ -129,7 +130,6 @@ if (res.isValid) {
 
 We provide small scripts to build headers used by the demo Hono server (`X-PAYMENT <base64url(JSON)>`).
 
-- TON: `typescript/scripts/gen-ton-xpayment.mjs`
 - EVM: `typescript/scripts/gen-evm-xpayment.mjs`
 
 Examples:
