@@ -70,12 +70,13 @@ Once decoded, the `X-PAYMENT` header is a JSON string with the following propert
   "scheme": "exact",
   "network": "algorand",
   "payload": {
-    "transaction": "AAAAAAAAAAAAA...AAAAAAAAAAAAA="
+    "transaction": "AAAAAAAAAAAAA...AAAAAAAAAAAAA=",
+    "feeTransaction": "BBBBBBBBBBBBB...BBBBBBBBBBBBB=" (optional)
   }
 }
 ```
 
-The `payload` field contains the base64-encoded, serialized, signed Algorand transaction with the `lease` field set to the SHA-256 hash of the `paymentRequirements`.
+The `payload` field contains the base64-encoded, serialized, signed Algorand transaction with the `lease` field set to the SHA-256 hash of the `paymentRequirements`, and if feePayer exists, the base64-encoded unsigned fee payment transaction from `feePayer`, to `feePayer` with static fee equal to sum of fees on the two transactions in the group (2 x 0.001 Algo = 0.002 Algo).
 
 ## `X-PAYMENT-RESPONSE` Header Payload
 
@@ -96,15 +97,21 @@ Once decoded, the `X-PAYMENT-RESPONSE` is a JSON string with the following prope
 
 Steps to verify a payment for the `exact` scheme on Algorand:
 
-1. Verify the transaction is properly signed by the client
-2. Verify the `lease` field matches the SHA-256 hash of the `paymentRequirements`
-3. Verify the transaction type matches the asset being paid (ALGO vs. ASA)
-4. Verify the transaction amount matches `paymentRequirements.maxAmountRequired`
-5. Verify the recipient address matches `paymentRequirements.payTo`
-6. Verify the transaction network round is within transaction valid round range
-7. Verify the transaction is for the correct asset ID when an ASA is required
-8. Verify the client has sufficient balance to cover the payment
-9. Verify the client has opted in to the ASA (if applicable)
+1. Verify the transaction is properly signed by the client.
+2. Verify the `lease` field matches the SHA-256 hash of the `paymentRequirements`.
+3. Verify the transaction type matches the asset being paid (ALGO vs. ASA).
+4. Verify the transaction amount matches `paymentRequirements.maxAmountRequired`.
+5. Verify the recipient address matches `paymentRequirements.payTo`.
+6. Verify the transaction network round is within transaction valid round range.
+7. Verify the transaction `CloseRemainderTo` for payments and `AssetCloseTo` for asset transfer, are empty.
+8. Verify the transaction is for the correct asset ID when an ASA is required.
+9. Verify the client has sufficient balance to cover the payment.
+10. Verify the client has opted in to the ASA (if applicable).
+    if fee payer is present:
+11. Verify the sender and receiver address matches `extra.feePayer`.
+12. Verify the fee payer transaction is unsigned, amount=0, and fee covers both transactions (2000 MicroAlgos).
+13. Verify that the fee payer transaction field `CloseRemainderTo` is empty.
+14. Verify both transactions share the same group ID
 
 ## Settlement
 
