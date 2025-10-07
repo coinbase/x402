@@ -1,7 +1,7 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
 import { createPaymentHeader as createPaymentHeaderExactStarknet } from "../schemes/exact/starknet/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks, SupportedStarknetNetworks } from "../types/shared";
+import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, isStarknetSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks, SupportedStarknetNetworks } from "../types/shared";
 import { PaymentRequirements } from "../types/verify";
 
 /**
@@ -50,12 +50,16 @@ export async function createPaymentHeader(
     // starknet
     if (SupportedStarknetNetworks.includes(paymentRequirements.network)) {
       const starknetSigner = isMultiNetworkSigner(client) ? client.starknet : client;
-      
+
+      if (!isStarknetSignerWallet(starknetSigner)) {
+        throw new Error("Invalid starknet wallet client provided");
+      }
+
       // Create StarknetClientConfig from the signer
       const starknetClientConfig = {
         userSigner: starknetSigner,
       };
-      
+
       return await createPaymentHeaderExactStarknet(
         starknetClientConfig,
         x402Version,

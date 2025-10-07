@@ -566,7 +566,7 @@ export class StarknetFacilitator {
           high: balance[1],
         });
 
-        if (balanceAmount.lt(BigInt(payload.authorization.amount))) {
+        if (balanceAmount < BigInt(payload.authorization.amount)) {
           return { valid: false, reason: "Insufficient balance" };
         }
       } catch (error) {
@@ -657,10 +657,11 @@ export class StarknetFacilitator {
           try {
             const receipt = await this.client.provider.waitForTransaction(result.transaction_hash, {
               retryInterval: 5000,
-              timeout: 60000,
             });
 
-            if (receipt.execution_status === "REVERTED") {
+            // Check if transaction failed (using type assertion for compatibility)
+            const receiptAny = receipt as any;
+            if (receiptAny.execution_status === "REVERTED" || receiptAny.status === "REJECTED") {
               // Record failed transaction
               await this.stateManager.recordTransaction({
                 txHash: result.transaction_hash,
@@ -670,13 +671,14 @@ export class StarknetFacilitator {
                 amount: payload.authorization.amount,
                 nonce: payload.authorization.nonce,
                 status: "failed",
-                error: receipt.revert_reason,
-                blockNumber: receipt.block_number,
+                error: receiptAny.revert_reason || "Transaction failed",
+                blockNumber: receiptAny.block_number,
               });
-              throw new Error(`Transaction reverted: ${receipt.revert_reason}`);
+              throw new Error(`Transaction reverted: ${receiptAny.revert_reason || "Unknown error"}`);
             }
 
             // Record confirmed transaction
+            const receiptConfirmed = receipt as any;
             await this.stateManager.recordTransaction({
               txHash: result.transaction_hash,
               account: payload.authorization.from,
@@ -685,13 +687,13 @@ export class StarknetFacilitator {
               amount: payload.authorization.amount,
               nonce: payload.authorization.nonce,
               status: "confirmed",
-              blockNumber: receipt.block_number,
+              blockNumber: receiptConfirmed.block_number,
             });
 
             return {
               success: true,
               txHash: result.transaction_hash,
-              blockNumber: receipt.block_number,
+              blockNumber: receiptConfirmed.block_number,
             };
           } catch (error) {
             console.warn("Could not wait for confirmation:", error);
@@ -735,16 +737,18 @@ export class StarknetFacilitator {
     try {
       const receipt = await this.client.provider.getTransactionReceipt(txHash);
 
-      if (receipt.execution_status === "REVERTED") {
+      // Use type assertion for compatibility
+      const receiptAny = receipt as any;
+      if (receiptAny.execution_status === "REVERTED" || receiptAny.status === "REJECTED") {
         return {
           status: "reverted",
-          error: receipt.revert_reason,
+          error: receiptAny.revert_reason || "Transaction failed",
         };
       }
 
       return {
         status: "accepted",
-        blockNumber: receipt.block_number,
+        blockNumber: receiptAny.block_number,
       };
     } catch {
       // Transaction might still be pending

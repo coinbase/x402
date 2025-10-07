@@ -315,6 +315,32 @@ export class StateManager {
   }
 
   /**
+   * Gets state for a key
+   *
+   * @param key - State key
+   * @returns State value or undefined
+   */
+  getState<T = any>(key: string): T | undefined {
+    const cached = this.cache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T;
+    }
+    return undefined;
+  }
+
+  /**
+   * Sets state for a key
+   *
+   * @param key - State key
+   * @param value - State value
+   * @param ttlMs - Time to live in milliseconds
+   */
+  setState<T = any>(key: string, value: T, ttlMs = 3600000): void {
+    const expiresAt = Date.now() + ttlMs;
+    this.cache.set(key, { value, expiresAt });
+  }
+
+  /**
    * Manages session keys with validation
    *
    * @param sessionKey - Session key to create
