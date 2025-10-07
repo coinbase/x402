@@ -15,7 +15,8 @@ The protocol flow for `exact` on Algorand is client-driven with facilitator fee 
 1. **Client** makes an HTTP request to a **Resource Server**.
 2. **Resource Server** responds with a `402 Payment Required` status. The response body contains the `paymentRequirements` for the `exact` scheme. Optional facilitator metadata MAY be carried inside the `extra` object.
 3. **Client** creates an Algorand payment or asset transfer transaction that sends the required amount to the resource server's wallet address.
-4. **Client** sets the `lease` field of the transaction to the SHA-256 hash of the `paymentRequirements` to prevent replay attacks and bind the transaction to the specific payment request.
+
+4. If a fee payer address is supplied in the metadata, the **Client** creates a fee-payer transaction (amount=0, fee=cover both) and assigns it the same group ID as the payment transaction (fee=0).
 5. **Client** signs the transaction with their Algorand wallet.
 6. **Client** serializes the signed transaction and encodes it as a Base64 string.
 7. **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing the Base64-encoded signed transaction payload.
@@ -25,10 +26,9 @@ The protocol flow for `exact` on Algorand is client-driven with facilitator fee 
 11. **Facilitator** inspects the transaction to ensure it is valid and only contains the expected payment instruction.
 12. **Facilitator** returns a response to the **Resource Server** verifying the **client** transaction.
 13. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
-14. If a fee payer address is supplied in the metadata, the **Facilitator Server** creates a fee-payer transaction (amount=0, fee=cover both) and assigns it the same group ID as the client's payment transaction (fee=0).
-15. The facilitator submits either the atomic transaction group (fee payer present) or the client transaction alone (no fee payer) to the Algorand network.
-16. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
-17. **Resource Server** grants the **Client** access to the resource in its response.
+14. The facilitator submits either the atomic transaction group (fee payer present) or the client transaction alone (no fee payer) to the Algorand network.
+15. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
+16. **Resource Server** grants the **Client** access to the resource in its response.
 
 ## `PaymentRequirements` for `exact`
 
@@ -98,9 +98,9 @@ Steps to verify a payment for the `exact` scheme on Algorand:
 1. Verify the transaction is properly signed by the client
 2. Verify the `lease` field matches the SHA-256 hash of the `paymentRequirements`
 3. Verify the transaction type matches the asset being paid (ALGO vs. ASA)
-4. Verify the transaction amount matches or exceeds `paymentRequirements.maxAmountRequired`
+4. Verify the transaction amount matches `paymentRequirements.maxAmountRequired`
 5. Verify the recipient address matches `paymentRequirements.payTo`
-6. Verify the transaction is within its valid round range
+6. Verify the transaction network round is within transaction valid round range
 7. Verify the transaction is for the correct asset ID when an ASA is required
 8. Verify the client has sufficient balance to cover the payment
 9. Verify the client has opted in to the ASA (if applicable)
@@ -118,7 +118,7 @@ Settlement is performed by the facilitator creating an atomic transaction group:
    - Asset ID: `paymentRequirements.asset`
    - Lease: SHA-256 hash of `paymentRequirements`
 
-2. **Transaction 2** *(optional)*: Facilitator fee-payer transaction (only if `extra.feePayer` is provided)
+2. **Transaction 2** _(optional)_: Facilitator fee-payer transaction (only if `extra.feePayer` is provided)
 
    - Amount: 0
    - Fee: Covers both transactions in the group
@@ -136,4 +136,3 @@ Algorand requires accounts to opt in to ASAs before receiving them. This require
 
 1. **Pre-opt-in**: The resource server must opt in to the ASA before accepting payments.
 2. **Opt-in verification**: The facilitator verifies that the recipient has opted in to the ASA before settling the payment.
-3. **Atomic opt-in**: For advanced implementations, an opt-in transaction can be included in the atomic transaction group.
