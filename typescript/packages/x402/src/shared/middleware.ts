@@ -40,14 +40,13 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
     return {
       verb: verb.toUpperCase(),
       pattern: new RegExp(
-        `^${
-          path
-            // First escape all special regex characters except * and []
-            .replace(/[$()+.?^{|}]/g, "\\$&")
-            // Then handle our special pattern characters
-            .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
-            .replace(/\[([^\]]+)\]/g, "[^/]+") // Convert [param] to regex capture
-            .replace(/\//g, "\\/") // Escape slashes
+        `^${path
+          // First escape all special regex characters except * and []
+          .replace(/[$()+.?^{|}]/g, "\\$&")
+          // Then handle our special pattern characters
+          .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
+          .replace(/\[([^\]]+)\]/g, "[^/]+") // Convert [param] to regex capture
+          .replace(/\//g, "\\/") // Escape slashes
         }$`,
         "i",
       ),
@@ -207,4 +206,16 @@ export function decodeXPaymentResponse(header: string) {
     network: Network;
     payer: Address;
   };
+}
+
+
+/**
+ * Decodes the X-PAYMENT-META header
+ *
+ * @param header - The X-PAYMENT-META header to decode
+ * @returns The decoded payment response
+ */
+export function decodeXPaymentMeta(header: string): Record<string, unknown> {
+  const decoded = safeBase64Decode(header);
+  return JSON.parse(decoded)
 }
