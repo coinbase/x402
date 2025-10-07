@@ -6,9 +6,43 @@
 3. Must exit with code 0 for success, 1 for failure
 4. Must output JSON result as the last line of stdout
 
+## Protocol Family Support
+Clients must declare which protocol families they support in their test.config.json:
+- **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
+- **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
+
+Example configuration:
+```json
+{
+  "name": "my-client",
+  "type": "client",
+  "language": "typescript",
+  "protocolFamilies": ["evm"],
+  "environment": {
+    "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
+    "optional": []
+  }
+}
+```
+
+Multi-protocol client example:
+```json
+{
+  "name": "universal-client",
+  "type": "client", 
+  "language": "typescript",
+  "protocolFamilies": ["evm", "svm"],
+  "environment": {
+    "required": ["EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
+    "optional": []
+  }
+}
+```
+
 ## Environment Variables / CLI Arguments
 The following parameters must be configurable:
-- `PRIVATE_KEY`: Private key for signing requests
+- `EVM_PRIVATE_KEY`: Private key for signing requests (EVM networks)
+- `SVM_PRIVATE_KEY`: Private key for signing requests (Solana networks)
 - `RESOURCE_SERVER_URL`: URL of the server to call
 - `ENDPOINT_PATH`: Path to the protected endpoint (default: "/protected")
 

@@ -17,6 +17,7 @@ const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 export type CreateHeaders = () => Promise<{
   verify: Record<string, string>;
   settle: Record<string, string>;
+  supported: Record<string, string>;
   list?: Record<string, string>;
 }>;
 
@@ -110,7 +111,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   async function supported(): Promise<SupportedPaymentKindsResponse> {
     const url = facilitator?.url || DEFAULT_FACILITATOR_URL;
 
-    const res = await fetch(`${url}/supported`);
+    let headers = { "Content-Type": "application/json" };
+    if (facilitator?.createAuthHeaders) {
+      const authHeaders = await facilitator.createAuthHeaders();
+      headers = { ...headers, ...authHeaders.supported };
+    }
+
+    const res = await fetch(`${url}/supported`, {
+      method: "GET",
+      headers,
+    });
 
     if (res.status !== 200) {
       throw new Error(`Failed to get supported payment kinds: ${res.statusText}`);

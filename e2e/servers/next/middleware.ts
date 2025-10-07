@@ -3,8 +3,8 @@ import { paymentMiddleware, Network, Resource } from "x402-next";
 import { facilitator } from "@coinbase/x402";
 
 const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
-const payTo = process.env.ADDRESS as Address;
-const network = process.env.NETWORK as Network;
+const payTo = process.env.EVM_ADDRESS as Address;
+const network = process.env.EVM_NETWORK as Network;
 
 // Configure facilitator
 const facilitatorConfig = useCdpFacilitator

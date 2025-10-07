@@ -7,8 +7,8 @@ import { facilitator } from "@coinbase/x402";
 config();
 
 const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
-const payTo = process.env.ADDRESS as `0x${string}`;
-const network = process.env.NETWORK as Network;
+const payTo = process.env.EVM_ADDRESS as `0x${string}`;
+const network = process.env.EVM_NETWORK as Network;
 const port = parseInt(process.env.PORT || '4021');
 
 if (!payTo || !network) {
