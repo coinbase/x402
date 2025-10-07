@@ -64,7 +64,7 @@ async function getCurrentRound(client: AlgorandClient): Promise<number> {
  * @param from - The sender's address
  * @param to - The recipient's address
  * @param amount - The payment amount in microAlgos
- * @param lease - The lease field to prevent replay attacks
+ * @param lease - The lease field to attest to the payment requirements
  * @param firstRound - The first valid round
  * @param lastRound - The last valid round
  * @param assetIndex - Optional asset ID for ASA transfers
@@ -248,12 +248,12 @@ export async function signPaymentHeader(
   const signedTransaction = Buffer.from(signedUserTxn).toString("base64");
   const payload: ExactAvmPayload = feePayerTransaction
     ? {
-        transaction: signedTransaction,
-        feeTransaction: Buffer.from(feePayerTransaction.toByte()).toString("base64"),
-      }
+      transaction: signedTransaction,
+      feeTransaction: Buffer.from(feePayerTransaction.toByte()).toString("base64"),
+    }
     : {
-        transaction: signedTransaction,
-      };
+      transaction: signedTransaction,
+    };
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { transactionGroup: _ignoredTransactionGroup, ...unsignedWithoutGroup } =
     unsignedPaymentHeader;

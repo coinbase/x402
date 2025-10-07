@@ -17,18 +17,19 @@ The protocol flow for `exact` on Algorand is client-driven with facilitator fee 
 3. **Client** creates an Algorand payment or asset transfer transaction that sends the required amount to the resource server's wallet address.
 
 4. If a fee payer address is supplied in the metadata, the **Client** creates a fee-payer transaction (amount=0, fee=cover both) and assigns it the same group ID as the payment transaction (fee=0).
-5. **Client** signs the transaction with their Algorand wallet.
-6. **Client** serializes the signed transaction and encodes it as a Base64 string.
-7. **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing the Base64-encoded signed transaction payload.
-8. **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
-9. **Facilitator** decodes and deserializes the transaction.
-10. **Facilitator** verifies the `lease` field matches the SHA-256 hash of the `paymentRequirements`.
-11. **Facilitator** inspects the transaction to ensure it is valid and only contains the expected payment instruction.
-12. **Facilitator** returns a response to the **Resource Server** verifying the **client** transaction.
-13. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
-14. The facilitator submits either the atomic transaction group (fee payer present) or the client transaction alone (no fee payer) to the Algorand network.
-15. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
-16. **Resource Server** grants the **Client** access to the resource in its response.
+5. **Client** sets the `lease` field of the transaction to the SHA-256 hash of the `paymentRequirements` to as an attestation to payment requirements and bind the transaction to the specific payment request.
+6. **Client** signs the transaction with their Algorand wallet.
+7. **Client** serializes the signed transaction and encodes it as a Base64 string.
+8. **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing the Base64-encoded signed transaction payload.
+9. **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
+10. **Facilitator** decodes and deserializes the transaction.
+11. **Facilitator** verifies the `lease` field matches the SHA-256 hash of the `paymentRequirements`.
+12. **Facilitator** inspects the transaction to ensure it is valid and only contains the expected payment instruction.
+13. **Facilitator** returns a response to the **Resource Server** verifying the **client** transaction.
+14. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
+15. The facilitator submits either the atomic transaction group (fee payer present) or the client transaction alone (no fee payer) to the Algorand network.
+16. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
+17. **Resource Server** grants the **Client** access to the resource in its response.
 
 ## `PaymentRequirements` for `exact`
 
@@ -128,7 +129,7 @@ When a fee payer is supplied the two transactions are grouped to ensure atomic s
 
 ## Replay Protection
 
-Replay protection is achieved through Algorand's `lease` field, which ensures that a transaction with the same sender and lease value can only be executed once within the transaction's validity window. The lease value is the SHA-256 hash of the core `paymentRequirements` fields (`scheme`, `network`, `resource`, `mimeType`, `payTo`, `maxAmountRequired`, and `asset`), binding each payment to the specific requirements returned in the 402 response.
+Replay protection is part of Algorand's protocol since any transaction can be submitted only once. Once transaction is settled and on Algorand ledger it cannot be replayed.
 
 ## ASA Opt-In Requirement
 

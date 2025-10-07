@@ -3,7 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { utf8ToBytes } from "@noble/hashes/utils";
 
 /**
- * Creates a lease field from payment requirements to prevent replay attacks
+ * Creates a lease field from payment requirements to attest to them
  *
  * @param paymentRequirements - The payment requirements to hash
  * @returns A Uint8Array containing the lease field
