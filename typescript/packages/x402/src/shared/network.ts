@@ -42,16 +42,3 @@ export function getNumericNetworkId(network: Network): number {
   throw new Error(`Network ${network} does not have a numeric chain ID`);
 }
 
-/**
- * Converts a network name to its corresponding string chain ID (Starknet only)
- *
- * @param network - The network name to convert to a chain ID
- * @returns The string chain ID for the specified network
- * @throws Error if the network is not supported or is not Starknet
- */
-export function getStarknetNetworkId(network: Network): string {
-  if (StarknetNetworkToChainId.has(network)) {
-    return StarknetNetworkToChainId.get(network)!;
-  }
-  throw new Error(`Network ${network} is not a supported Starknet network`);
-}
