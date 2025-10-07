@@ -111,7 +111,6 @@ async function createAtomicTransactionGroup(
     });
   }
 
-  // Lease assignment is not exposed in SDK helpers, so we patch the property directly.
   Object.defineProperty(userTransaction, "lease", {
     value: lease,
     writable: true,
