@@ -26,11 +26,11 @@ func main() {
 
 	// Get configuration from environment
 	useCdpFacilitator := os.Getenv("USE_CDP_FACILITATOR") == "true"
-	network := os.Getenv("NETWORK")
+	network := os.Getenv("EVM_NETWORK")
 	if network == "" {
 		network = "base-sepolia"
 	}
-	address := os.Getenv("ADDRESS")
+	address := os.Getenv("EVM_ADDRESS")
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "4021"

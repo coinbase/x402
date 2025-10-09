@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   BoltIcon,
   CloudIcon,
@@ -15,7 +16,6 @@ import {
 import { FeatureItem } from './components/FeatureItem';
 import GithubIcon from './assets/github.svg';
 import DiscordIcon from './assets/discord.svg';
-import WordmarkCondensed from './assets/x402_wordmark_dark.svg';
 import { Section } from './components/Section';
 import { BackgroundVideo } from './components/BackgroundVideo';
 import NavBar from './components/NavBar';
@@ -92,8 +92,14 @@ export default function Home() {
         {/* Hero Section */}
         <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
           <div className="text-center">
-            <div className="w-64 mb-6 mx-auto">
-              <WordmarkCondensed className="mx-auto" />
+            <div className="mb-6">
+              <Image
+                src="/x402-logo.png"
+                alt="x402 logo"
+                width={320}
+                height={160}
+                className="mx-auto"
+              />
             </div>
             <p className="text-xl text-gray-400 mb-8 font-mono">
               An open protocol for internet-native payments
@@ -247,6 +253,17 @@ export default function Home() {
             </div>
           </div>
         </Section>
+        
+        {/* x402 Button Section */}
+        <div className="relative z-10 text-center py-12">
+          <Image
+            src="/x402-button-large.png"
+            alt="x402 button"
+            width={320}
+            height={160}
+            className="mx-auto"
+          />
+        </div>
       </div>
       <footer className="relative z-10 py-8 text-center text-sm text-gray-400">
         By using this site, you agree to be bound by the{' '}

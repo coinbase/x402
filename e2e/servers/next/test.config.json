@@ -7,7 +7,8 @@
       "path": "/api/protected",
       "method": "GET",
       "description": "Protected API endpoint requiring payment",
-      "requiresPayment": true
+      "requiresPayment": true,
+      "protocolFamily": "evm"
     },
     {
       "path": "/api/health",
@@ -26,8 +27,8 @@
     "required": [
       "PORT",
       "USE_CDP_FACILITATOR",
-      "NETWORK",
-      "ADDRESS"
+      "EVM_NETWORK",
+      "EVM_ADDRESS"
     ],
     "optional": [
       "CDP_API_KEY_ID",

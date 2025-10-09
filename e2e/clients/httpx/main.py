@@ -11,7 +11,7 @@ import httpx
 load_dotenv()
 
 # Get environment variables
-private_key = os.getenv("PRIVATE_KEY")
+private_key = os.getenv("EVM_PRIVATE_KEY")
 base_url = os.getenv("RESOURCE_SERVER_URL")
 endpoint_path = os.getenv("ENDPOINT_PATH")
 
