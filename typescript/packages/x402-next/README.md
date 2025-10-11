@@ -100,78 +100,64 @@ type PaywallConfig = {
 
 ## Accessing Mainnet with @coinbase/x402
 
-**TEMPORARY WORKAROUND**: The following configuration changes are only required until the `@coinbase/x402` package adds support for Edge runtime. Coinbase is actively working on making the package Edge-compatible, which will eliminate the need for these workarounds in the near future.
+> [!NOTE]
+> **TEMPORARY WORKAROUND**: The following configuration changes are only required until the `@coinbase/x402` package adds support for Edge runtime. Coinbase is actively working on making the package Edge-compatible, which will eliminate the need for these workarounds in the near future.
 
 To use the official Coinbase facilitator package (`@coinbase/x402`) in your Next.js project, you'll need to make the following **temporary** changes to your project configuration:
 
 1. Install the Coinbase facilitator package:
 
-```bash
-npm install @coinbase/x402
-```
+   ```bash
+   npm install @coinbase/x402
+   ```
 
-2. Enable Node.js middleware as an experimental feature in your Next.js config:
+2. Update your Next.js dependency to 15.5.0 or later which provides [stable support for Node.js middleware](https://nextjs.org/blog/next-15-5#nodejs-middleware-stable)
 
-```ts
-// next.config.ts
-const nextConfig: NextConfig = {
-  // rest of your next config setup
-  experimental: {
-    nodeMiddleware: true, // TEMPORARY: Only needed until Edge runtime support is added
-  }
-};
-
-export default nextConfig;
-```
+   ```
+   // package.json
+   {
+     "dependencies": {
+       "next": "^15.5.0",
+       // other dependencies
+     }
+   }
+   ```
 
 3. Specify the Node.js runtime in your middleware file:
 
-```ts
-// middleware.ts
-import { paymentMiddleware } from "x402-next";
-import { facilitator } from "@coinbase/x402";
+    ```ts
+    // middleware.ts
+    import { paymentMiddleware } from "x402-next";
+    import { facilitator } from "@coinbase/x402";
+    
+    export const middleware = paymentMiddleware(
+      "0xYourAddress",
+      {
+        "/protected": {
+          price: "$0.01",
+          network: "base",
+          // other config options
+        },
+      },
+      facilitator // Use the Coinbase facilitator
+    );
+    
+    export const config = {
+      matcher: ["/protected/:path*"],
+      runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
+    };
+    ```
 
-export const middleware = paymentMiddleware(
-  "0xYourAddress",
-  {
-    "/protected": {
-      price: "$0.01",
-      network: "base",
-      // other config options
-    },
-  },
-  facilitator // Use the Coinbase facilitator
-);
+4. Set up your CDP API keys as environment variables:
 
-export const config = {
-  matcher: ["/protected/:path*"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
-};
-```
+    ```bash
+    # .env
+    CDP_API_KEY_ID=your-cdp-api-key-id
+    CDP_API_KEY_SECRET=your-cdp-api-key-secret
+    ```
 
-4. Update your Next.js dependency to the canary version to access experimental features:
-
-```json
-// package.json
-{
-  "dependencies": {
-    "next": "canary", // TEMPORARY: Only needed until Edge runtime support is added
-    "x402-next": "^1.0.0",
-    "@coinbase/x402": "^1.0.0"
-    // other dependencies
-  }
-}
-```
-
-5. Set up your CDP API keys as environment variables:
-
-```bash
-# .env
-CDP_API_KEY_ID=your-cdp-api-key-id
-CDP_API_KEY_SECRET=your-cdp-api-key-secret
-```
-
-**Important Note**: Once the `@coinbase/x402` package adds support for Edge runtime, you'll be able to use it directly without enforcing the nodejs runtime or requiring the canary version of next.
+> [!NOTE]
+> **Important Note**: Once the `@coinbase/x402` package adds support for Edge runtime, you'll be able to use it directly without enforcing the nodejs runtime.
 
 ## Optional: Coinbase Onramp Integration
 
