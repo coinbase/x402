@@ -71,7 +71,7 @@ Once decoded, the `X-PAYMENT` header is a JSON string with the following propert
   "network": "algorand",
   "payload": {
     "transaction": "AAAAAAAAAAAAA...AAAAAAAAAAAAA=",
-    "feeTransaction": "BBBBBBBBBBBBB...BBBBBBBBBBBBB=" (optional)
+    "feeTransaction": "BBBBBBBBBBBBB...BBBBBBBBBBBBB=" (optional, only if feePayer is used in x402 metadata)
   }
 }
 ```
