@@ -134,4 +134,4 @@ We welcome contributions! Please see our [Contributing Guidelines](https://githu
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](https://github.com/coinbase/x402/blob/main/LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/coinbase/x402/blob/main/LICENSE) file for details.
