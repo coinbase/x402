@@ -81,9 +81,6 @@ def process_price_to_atomic_amount(
             },
         )
 
-    else:
-        raise ValueError(f"Invalid price type: {type(price)}")
-
 
 def get_usdc_address(chain_id: int | str) -> str:
     """Get the USDC contract address for a given chain ID"""
