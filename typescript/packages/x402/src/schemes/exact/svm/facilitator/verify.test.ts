@@ -13,9 +13,10 @@ import {
   KeyPairSigner,
   assertIsInstructionWithData,
   assertIsInstructionWithAccounts,
-  decompileTransactionMessageFetchingLookupTables,
+  decompileTransactionMessage,
   fetchEncodedAccounts,
   ProgramDerivedAddressBump,
+  generateKeyPairSigner,
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import { Network } from "../../../../types";
@@ -51,7 +52,7 @@ vi.mock("@solana/kit", async () => {
     assertIsInstructionWithData: vi.fn(),
     assertIsInstructionWithAccounts: vi.fn(),
     getCompiledTransactionMessageDecoder: vi.fn().mockReturnValue({ decode: vi.fn() }),
-    decompileTransactionMessageFetchingLookupTables: vi.fn(),
+    decompileTransactionMessage: vi.fn(),
     fetchEncodedAccounts: vi.fn(),
   };
 });
@@ -91,6 +92,7 @@ vi.mock("../../../../shared/svm", async () => {
     ...actual,
     decodeTransactionFromPayload: vi.fn(),
     signAndSimulateTransaction: vi.fn(),
+    getTokenPayerFromTransaction: vi.fn(),
   };
 });
 
@@ -397,16 +399,18 @@ describe("verify", () => {
 
   describe("verify high level flow", () => {
     let mockSigner: KeyPairSigner;
+    let mockPayerAddress: string;
     let mockPayload: PaymentPayload;
     let mockRequirements: PaymentRequirements;
     let mockComputeLimitInstruction: any;
     let mockComputePriceInstruction: any;
     let mockTransferInstruction: any;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       vi.clearAllMocks();
 
       mockSigner = {} as any;
+      mockPayerAddress = (await generateKeyPairSigner()).address;
       mockPayload = {
         scheme: SCHEME,
         network: "solana-devnet",
@@ -444,7 +448,7 @@ describe("verify", () => {
         messageBytes: new Uint8Array(),
       } as any);
       vi.mocked(rpc.getRpcClient).mockReturnValue({} as any);
-      vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+      vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [
           mockComputeLimitInstruction,
           mockComputePriceInstruction,
@@ -477,11 +481,13 @@ describe("verify", () => {
         },
       } as any);
       vi.mocked(identifyToken2022Instruction).mockReturnValue(Token2022Instruction.TransferChecked);
+      vi.mocked(SvmShared.getTokenPayerFromTransaction).mockReturnValue(mockPayerAddress);
     });
 
     it("should return isValid: true for a valid transaction", async () => {
       const result = await verify(mockSigner, mockPayload, mockRequirements);
       expect(result.isValid).toBe(true);
+      expect(result.payer).toBe(mockPayerAddress);
     });
 
     it("should return isValid: false if schemes or networks are invalid", async () => {
@@ -502,7 +508,7 @@ describe("verify", () => {
     });
 
     it("should return isValid: false if instruction validation fails", async () => {
-      vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+      vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [mockTransferInstruction, mockTransferInstruction],
       } as any);
       const result = await verify(mockSigner, mockPayload, mockRequirements);
@@ -837,7 +843,7 @@ describe("verify", () => {
         value: { err: null },
       } as any);
 
-      vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+      vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [
           {
             programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
@@ -905,7 +911,7 @@ describe("verify", () => {
         value: { err: null },
       } as any);
 
-      vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+      vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [
           {
             programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
@@ -968,7 +974,7 @@ describe("verify", () => {
         value: { err: null },
       } as any);
 
-      vi.mocked(decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+      vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [
           {
             programAddress: COMPUTE_BUDGET_PROGRAM_ADDRESS,
