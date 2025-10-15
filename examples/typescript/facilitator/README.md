@@ -43,7 +43,7 @@ cd facilitator
 
 ```env
 EVM_PRIVATE_KEY=0xYourPrivateKey
-SVM_PRIVATE_KEY=solanaprivatekey
+SVM_PRIVATE_KEY=base58EncodedSolanaPrivateKey
 ```
 
 3. Start the server:
