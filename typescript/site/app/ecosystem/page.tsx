@@ -35,7 +35,7 @@ async function getPartners(): Promise<Partner[]> {
 }
 
 interface EcosystemPageProps {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 export default async function EcosystemPage({ searchParams }: EcosystemPageProps) {
