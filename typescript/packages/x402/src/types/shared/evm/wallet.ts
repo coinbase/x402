@@ -19,6 +19,8 @@ import {
   polygon,
   polygonAmoy,
   peaq,
+  zeroGMainnet,
+  zeroGGalileoTestnet
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -202,6 +204,10 @@ function getChainFromNetwork(network: string | undefined): Chain {
       return polygonAmoy;
     case "peaq":
       return peaq;
+    case "zeroGMainnet":
+      return zeroGMainnet;
+    case "zeroGGalileoTestnet":
+      return zeroGGalileoTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

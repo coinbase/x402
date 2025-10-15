@@ -368,6 +368,30 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return zeroG mainnet USDC asset details", () => {
+    const result = getDefaultAsset("zeroGMainnet");
+    expect(result).toEqual({
+      address: "0x1f3aa82227281ca364bfb3d253b0f1af1da6473e",
+      decimals: 6,
+      eip712: {
+        name: "Bridged USDC",
+        version: "2",
+      },
+    });
+  });
+
+  it("should return zeroG Testnet USDC asset details", () => {
+    const result = getDefaultAsset("zeroGGalileoTestnet");
+    expect(result).toEqual({
+      address: "0x8f2250b452dad70a0199c15d941450561e5d2e73",
+      decimals: 6,
+      eip712: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });
