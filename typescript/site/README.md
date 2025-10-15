@@ -83,6 +83,30 @@ We welcome projects that are building with x402! To add your project to our ecos
 }
 ```
 
+**For Facilitators, use this JSON template:**
+
+```json
+{
+  "name": "Your Facilitator Name",
+  "description": "A brief description of your facilitator service and supported networks",
+  "logoUrl": "/logos/your-logo.png",
+  "websiteUrl": "https://your-facilitator.com",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://your-facilitator.com",
+    "networks": ["base", "base-sepolia", "polygon", "solana"],
+    "schemes": ["exact"],
+    "assets": ["ERC20"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
+```
+
 
 5. Submit a pull request
 
@@ -107,6 +131,13 @@ We welcome projects that are building with x402! To add your project to our ecos
 - Should be shared on social media (Twitter/X, Discord, etc.)
 - Must include clear setup instructions
 - Should demonstrate a practical use case
+
+#### Facilitators
+- Must implement the x402 facilitator API specification
+- Should support at least one payment scheme (e.g., "exact")
+- Must provide working verify and/or settle endpoints
+- Should maintain high uptime and reliability
+- Must include comprehensive API documentation
 
 ### Review Process
 

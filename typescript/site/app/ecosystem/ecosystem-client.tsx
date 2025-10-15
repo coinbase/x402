@@ -1,17 +1,37 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { type Partner, type CategoryInfo } from './data'; // Partner and CategoryInfo types
 import PartnerCard from './partner-card';
+import FacilitatorCard from './facilitator-card';
 import { BackgroundVideo } from '../components/BackgroundVideo'; // Adjusted import path
 
 interface EcosystemClientProps {
   initialPartners: Partner[];
   categories: CategoryInfo[];
+  initialSelectedCategory?: string | null;
 }
 
-export default function EcosystemClient({ initialPartners, categories }: EcosystemClientProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+export default function EcosystemClient({ initialPartners, categories, initialSelectedCategory }: EcosystemClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(initialSelectedCategory || null);
+
+  // Update URL when category changes
+  const updateCategory = (categoryId: string | null) => {
+    setSelectedCategory(categoryId);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (categoryId) {
+      params.set('category', categoryId);
+    } else {
+      params.delete('category');
+    }
+
+    const newUrl = params.toString() ? `?${params.toString()}` : '';
+    router.push(`/ecosystem${newUrl}`, { scroll: false });
+  };
 
   const filteredPartners = useMemo(() => {
     if (!selectedCategory) {
@@ -53,7 +73,7 @@ export default function EcosystemClient({ initialPartners, categories }: Ecosyst
               {mainCategoriesFilter.map((category) => (
                 <button
                   key={category.id || 'all'}
-                  onClick={() => setSelectedCategory(category.id)}
+                  onClick={() => updateCategory(category.id)}
                   className={`
                     px-6 py-3 rounded-lg text-sm font-mono transition-all duration-200 ease-in-out 
                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50
@@ -73,8 +93,12 @@ export default function EcosystemClient({ initialPartners, categories }: Ecosyst
             {filteredPartners.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 {filteredPartners.map((partner) => (
-                  // Ensure partner has a unique slug or name for the key if names can repeat
-                  <PartnerCard key={partner.slug || partner.name} partner={partner} />
+                  // Render FacilitatorCard for facilitators, PartnerCard for others
+                  partner.facilitator ? (
+                    <FacilitatorCard key={partner.slug || partner.name} partner={partner} />
+                  ) : (
+                    <PartnerCard key={partner.slug || partner.name} partner={partner} />
+                  )
                 ))}
               </div>
             ) : (
