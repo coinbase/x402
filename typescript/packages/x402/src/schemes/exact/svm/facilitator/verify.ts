@@ -12,7 +12,7 @@ import {
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
   CompilableTransactionMessage,
-  decompileTransactionMessageFetchingLookupTables,
+  decompileTransactionMessage,
   fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
   KeyPairSigner,
@@ -44,7 +44,11 @@ import {
   TOKEN_PROGRAM_ADDRESS,
   TokenInstruction,
 } from "@solana-program/token";
-import { decodeTransactionFromPayload, signAndSimulateTransaction } from "../../../../shared/svm";
+import {
+  decodeTransactionFromPayload,
+  signAndSimulateTransaction,
+  getTokenPayerFromTransaction,
+} from "../../../../shared/svm";
 import { getRpcClient } from "../../../../shared/svm/rpc";
 import { SCHEME } from "../../";
 
@@ -84,6 +88,7 @@ export async function verify(
     return {
       isValid: true,
       invalidReason: undefined,
+      payer: getTokenPayerFromTransaction(decodedTransaction),
     };
   } catch (error) {
     // if the error is one of the known error reasons, return the error reason
@@ -92,6 +97,14 @@ export async function verify(
         return {
           isValid: false,
           invalidReason: error.message as (typeof ErrorReasons)[number],
+          payer: (() => {
+            try {
+              const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
+              return getTokenPayerFromTransaction(tx);
+            } catch {
+              return undefined;
+            }
+          })(),
         };
       }
     }
@@ -101,6 +114,14 @@ export async function verify(
     return {
       isValid: false,
       invalidReason: "unexpected_verify_error",
+      payer: (() => {
+        try {
+          const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
+          return getTokenPayerFromTransaction(tx);
+        } catch {
+          return undefined;
+        }
+      })(),
     };
   }
 }
@@ -146,12 +167,10 @@ export async function transactionIntrospection(
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,
   );
-  const transactionMessage = await decompileTransactionMessageFetchingLookupTables(
+  const transactionMessage: CompilableTransactionMessage = decompileTransactionMessage(
     compiledTransactionMessage,
-    rpc,
   );
 
-  // verify that the transaction contains the expected instructions
   await verifyTransactionInstructions(transactionMessage, paymentRequirements, rpc);
 }
 
