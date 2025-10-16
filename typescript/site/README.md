@@ -79,7 +79,7 @@ We welcome projects that are building with x402! To add your project to our ecos
   "description": "A brief description of your project and how it uses x402",
   "logoUrl": "/logos/your-logo.png",
   "websiteUrl": "https://your-project.com", // ideally pointing to somehwere to learn more about the x402 integration
-  "category": "Client-Side Integrations" // Must match one of our categories: - `Client-Side Integrations`, `Services/Endpoints`, `Ecosystem Infrastructure & Tooling`, `Learning & Community Resources`
+  "category": "Client-Side Integrations" // Must match one of our categories: - `Client-Side Integrations`, `Services/Endpoints`, `Infrastructure & Tooling`, `Learning & Community Resources`
 }
 ```
 
@@ -122,7 +122,7 @@ We welcome projects that are building with x402! To add your project to our ecos
 - Should include API documentation
 - Should maintain 99% uptime
 
-#### Ecosystem Infrastructure & Tooling
+#### Infrastructure & Tooling
 - Should include comprehensive documentation
 - Should demonstrate clear value to the x402 ecosystem
 

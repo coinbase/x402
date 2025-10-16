@@ -40,7 +40,7 @@ export const categories: CategoryInfo[] = [
   },
   {
     id: "ecosystem-infrastructure",
-    name: "Ecosystem Infrastructure & Tooling",
+    name: "Infrastructure & Tooling",
   },
   {
     id: "learning-community",

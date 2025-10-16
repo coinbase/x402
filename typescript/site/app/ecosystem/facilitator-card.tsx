@@ -20,11 +20,8 @@ export default function FacilitatorCard({ partner }: FacilitatorCardProps) {
 
   return (
     <>
-      {/* Card that opens modal */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="flex flex-col bg-gray-800/[.4] hover:bg-gray-700/[.6] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ease-in-out group p-6 border border-gray-700 hover:border-blue-500/70 h-full backdrop-blur-sm text-left w-full"
-      >
+      {/* Card */}
+      <div className="flex flex-col bg-gray-800/[.4] hover:bg-gray-700/[.6] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ease-in-out group p-6 border border-gray-700 hover:border-blue-500/70 h-full backdrop-blur-sm font-mono">
         <div className="flex items-start justify-between mb-4">
           <div className="relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0">
             <Image
@@ -50,10 +47,15 @@ export default function FacilitatorCard({ partner }: FacilitatorCardProps) {
           {partner.description}
         </p>
 
-        <div className="mt-4 text-xs text-blue-400 font-mono">
-          view details →
+        <div className="mt-4">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="text-blue-400 hover:text-blue-300 font-mono text-sm transition-colors"
+          >
+            View details →
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* Modal */}
       {isModalOpen && (

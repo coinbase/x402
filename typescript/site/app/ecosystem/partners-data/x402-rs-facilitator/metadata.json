@@ -1,6 +1,6 @@
 {
   "name": "x402.rs Facilitator",
-  "category": "Ecosystem Infrastructure & Tooling",
+  "category": "Infrastructure & Tooling",
   "logoUrl": "/logos/x402-rs.svg",
   "description": "Independent, open-source facilitator in Rust. Easy to self-host, extend to new networks, or use via our hosted instance.",
   "websiteUrl": "https://facilitator.x402.rs"
