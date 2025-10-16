@@ -60,7 +60,7 @@ describe("RPC Helper Functions", () => {
     });
 
     it("should throw error for invalid network", () => {
-      expect(() => getRpcClient("invalid-network" as any)).toThrow("Invalid network");
+      expect(() => getRpcClient("invalid-network" as any)).toThrow("Invalid Solana network");
     });
   });
 
@@ -112,7 +112,7 @@ describe("RPC Helper Functions", () => {
     });
 
     it("should throw error for invalid network", () => {
-      expect(() => getRpcSubscriptions("invalid-network" as any)).toThrow("Invalid network");
+      expect(() => getRpcSubscriptions("invalid-network" as any)).toThrow("Invalid Solana network");
     });
 
     it("should use custom subscriptionsUrl when provided (devnet)", () => {
