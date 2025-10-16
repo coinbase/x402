@@ -21,39 +21,45 @@ export default function FacilitatorCard({ partner }: FacilitatorCardProps) {
   return (
     <>
       {/* Card */}
-      <div className="flex flex-col bg-gray-800/[.4] hover:bg-gray-700/[.6] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ease-in-out group p-6 border border-gray-700 hover:border-blue-500/70 h-full backdrop-blur-sm font-mono">
-        <div className="flex items-start justify-between mb-4">
-          <div className="relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0">
-            <Image
-              src={partner.logoUrl}
-              alt={`${partner.name} logo`}
-              fill
-              sizes="(max-width: 768px) 64px, 80px"
-              style={{ objectFit: 'contain', borderRadius: '0.5rem' }}
-              className="transition-transform duration-300 group-hover:scale-105 bg-gray-700/[.5] p-1"
-            />
-          </div>
-          <div className="flex-1 flex justify-center items-center px-4">
-            <span className="inline-block bg-gray-700 text-blue-300 text-xs font-mono px-2 py-1 rounded-full whitespace-normal break-words max-w-[230px] text-center">
-              {partner.category}
-            </span>
-          </div>
+      <div
+        onClick={() => setIsModalOpen(true)}
+        className="flex flex-col bg-gray-800/[.4] hover:bg-gray-700/[.6] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ease-in-out group border border-gray-700 hover:border-blue-500/70 h-full backdrop-blur-sm font-mono cursor-pointer"
+      >
+        {/* Category Tag - Top Left */}
+        <div className="flex justify-start pt-2 pb-4 pl-6">
+          <span className="inline-block bg-gray-700 text-blue-300 text-xs font-mono px-2 py-1 rounded-full">
+            {partner.category}
+          </span>
         </div>
 
-        <h3 className="text-xl font-bold text-gray-100 group-hover:text-blue-400 mb-1 font-mono">
-          {partner.name}
-        </h3>
-        <p className="text-sm text-gray-300 leading-relaxed flex-grow font-mono">
-          {partner.description}
-        </p>
+        <div className="px-6 pb-6 flex flex-col flex-grow">
+          <div className="flex items-start mb-4">
+            <div className="relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0">
+              <Image
+                src={partner.logoUrl}
+                alt={`${partner.name} logo`}
+                fill
+                sizes="(max-width: 768px) 64px, 80px"
+                style={{ objectFit: 'contain', borderRadius: '0.5rem' }}
+                className="transition-transform duration-300 group-hover:scale-105 bg-gray-700/[.5] p-1"
+              />
+            </div>
+            <div className="ml-4 flex-1">
+              <h3 className="text-xl font-bold text-gray-100 group-hover:text-blue-400 mb-1 font-mono">
+                {partner.name}
+              </h3>
+            </div>
+          </div>
 
-        <div className="mt-4">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="text-blue-400 hover:text-blue-300 font-mono text-sm transition-colors"
-          >
-            View details →
-          </button>
+          <p className="text-sm text-gray-300 leading-relaxed flex-grow font-mono">
+            {partner.description}
+          </p>
+
+          <div className="mt-4">
+            <span className="text-blue-400 group-hover:text-blue-300 font-mono text-sm transition-colors">
+              View details →
+            </span>
+          </div>
         </div>
       </div>
 

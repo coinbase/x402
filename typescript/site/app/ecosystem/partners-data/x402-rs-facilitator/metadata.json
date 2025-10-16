@@ -3,7 +3,7 @@
   "logoUrl": "/logos/x402-rs.svg",
   "description": "Independent, open-source facilitator in Rust. Easy to self-host, extend to new networks, or use via our hosted instance.",
   "websiteUrl": "https://facilitator.x402.rs",
-  "category": "Facilitator",
+  "category": "Facilitators",
   "facilitator": {
       "baseUrl": "https://facilitator.x402.rs",
       "networks": ["base", "base-sepolia", "solana", "solana-devnet", "avalanche", "avalanche-fuji", "polygon", "polygon-amoy", "sei", "sei-testnet", "xdc"],

@@ -3,7 +3,7 @@
   "logoUrl": "/logos/x402-logo.png",
   "description": "Default testnet facilitator for x402",
   "websiteUrl": "https://x402.org",
-  "category": "Facilitator",
+  "category": "Facilitators",
   "facilitator": {
       "baseUrl": "https://www.x402.org/facilitator",
       "networks": ["base-sepolia", "solana-devnet"],
