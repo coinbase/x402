@@ -1,11 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  getRpcClient,
-  getRpcSubscriptions,
-  createDevnetRpcClient,
-  createMainnetRpcClient,
-} from "./rpc";
+import { getRpcClient, getRpcSubscriptions } from "./rpc";
 import * as solanaKit from "@solana/kit";
 
 // Mock the Solana Kit functions
@@ -19,56 +14,6 @@ vi.mock("@solana/kit", () => ({
 describe("RPC Helper Functions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe("createDevnetRpcClient", () => {
-    it("should create devnet RPC client with default URL when no URL provided", () => {
-      const mockRpcClient = { mock: "devnet-client" };
-      vi.mocked(solanaKit.createSolanaRpc).mockReturnValue(mockRpcClient as any);
-
-      const result = createDevnetRpcClient();
-
-      expect(solanaKit.devnet).toHaveBeenCalledWith("https://api.devnet.solana.com");
-      expect(solanaKit.createSolanaRpc).toHaveBeenCalledWith("https://api.devnet.solana.com");
-      expect(result).toBe(mockRpcClient);
-    });
-
-    it("should create devnet RPC client with custom URL when provided", () => {
-      const customUrl = "http://localhost:8899";
-      const mockRpcClient = { mock: "devnet-client-custom" };
-      vi.mocked(solanaKit.createSolanaRpc).mockReturnValue(mockRpcClient as any);
-
-      const result = createDevnetRpcClient(customUrl);
-
-      expect(solanaKit.devnet).toHaveBeenCalledWith(customUrl);
-      expect(solanaKit.createSolanaRpc).toHaveBeenCalledWith(customUrl);
-      expect(result).toBe(mockRpcClient);
-    });
-  });
-
-  describe("createMainnetRpcClient", () => {
-    it("should create mainnet RPC client with default URL when no URL provided", () => {
-      const mockRpcClient = { mock: "mainnet-client" };
-      vi.mocked(solanaKit.createSolanaRpc).mockReturnValue(mockRpcClient as any);
-
-      const result = createMainnetRpcClient();
-
-      expect(solanaKit.mainnet).toHaveBeenCalledWith("https://api.mainnet-beta.solana.com");
-      expect(solanaKit.createSolanaRpc).toHaveBeenCalledWith("https://api.mainnet-beta.solana.com");
-      expect(result).toBe(mockRpcClient);
-    });
-
-    it("should create mainnet RPC client with custom URL when provided", () => {
-      const customUrl = "https://custom-mainnet-rpc.com";
-      const mockRpcClient = { mock: "mainnet-client-custom" };
-      vi.mocked(solanaKit.createSolanaRpc).mockReturnValue(mockRpcClient as any);
-
-      const result = createMainnetRpcClient(customUrl);
-
-      expect(solanaKit.mainnet).toHaveBeenCalledWith(customUrl);
-      expect(solanaKit.createSolanaRpc).toHaveBeenCalledWith(customUrl);
-      expect(result).toBe(mockRpcClient);
-    });
   });
 
   describe("getRpcClient", () => {
@@ -168,6 +113,76 @@ describe("RPC Helper Functions", () => {
 
     it("should throw error for invalid network", () => {
       expect(() => getRpcSubscriptions("invalid-network" as any)).toThrow("Invalid network");
+    });
+
+    it("should use custom subscriptionsUrl when provided (devnet)", () => {
+      const mockSubscriptions = { mock: "custom-ws-subscriptions" };
+      const customWsUrl = "wss://custom-ws.example.com";
+      const httpUrl = "https://custom-rpc.example.com";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      const result = getRpcSubscriptions("solana-devnet", httpUrl, customWsUrl);
+
+      expect(solanaKit.devnet).toHaveBeenCalledWith(customWsUrl);
+      expect(solanaKit.createSolanaRpcSubscriptions).toHaveBeenCalled();
+      expect(result).toBe(mockSubscriptions);
+    });
+
+    it("should use custom subscriptionsUrl when provided (mainnet)", () => {
+      const mockSubscriptions = { mock: "custom-ws-subscriptions" };
+      const customWsUrl = "wss://custom-ws.example.com";
+      const httpUrl = "https://custom-rpc.example.com";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      const result = getRpcSubscriptions("solana", httpUrl, customWsUrl);
+
+      expect(solanaKit.mainnet).toHaveBeenCalledWith(customWsUrl);
+      expect(solanaKit.createSolanaRpcSubscriptions).toHaveBeenCalled();
+      expect(result).toBe(mockSubscriptions);
+    });
+
+    it("should prioritize subscriptionsUrl over url parameter", () => {
+      const mockSubscriptions = { mock: "prioritized-subscriptions" };
+      const customWsUrl = "wss://priority-ws.example.com";
+      const httpUrl = "https://should-not-use.example.com";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      getRpcSubscriptions("solana-devnet", httpUrl, customWsUrl);
+
+      // Should use the custom WS URL, not convert the HTTP URL
+      expect(solanaKit.devnet).toHaveBeenCalledWith(customWsUrl);
+      expect(solanaKit.devnet).not.toHaveBeenCalledWith("wss://should-not-use.example.com");
+    });
+
+    it("should convert http://127.0.0.1:8899 to ws://127.0.0.1:8900", () => {
+      const mockSubscriptions = { mock: "localhost-subscriptions" };
+      const localhostUrl = "http://127.0.0.1:8899";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      const result = getRpcSubscriptions("solana-devnet", localhostUrl);
+
+      expect(solanaKit.devnet).toHaveBeenCalledWith("ws://127.0.0.1:8900");
+      expect(result).toBe(mockSubscriptions);
+    });
+
+    it("should convert http to ws for non-localhost URLs", () => {
+      const mockSubscriptions = { mock: "converted-subscriptions" };
+      const httpUrl = "https://custom-rpc.example.com";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      getRpcSubscriptions("solana-devnet", httpUrl);
+
+      expect(solanaKit.devnet).toHaveBeenCalledWith("wss://custom-rpc.example.com");
+    });
+
+    it("should use url as-is if it's already a websocket URL", () => {
+      const mockSubscriptions = { mock: "ws-subscriptions" };
+      const wsUrl = "wss://already-ws.example.com";
+      vi.mocked(solanaKit.createSolanaRpcSubscriptions).mockReturnValue(mockSubscriptions as any);
+
+      getRpcSubscriptions("solana-devnet", wsUrl);
+
+      expect(solanaKit.devnet).toHaveBeenCalledWith(wsUrl);
     });
   });
 });

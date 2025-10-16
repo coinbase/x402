@@ -456,7 +456,7 @@ describe("SVM Settle", () => {
 
       // Assert
       expect(getRpcClient).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
-      expect(getRpcSubscriptions).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
+      expect(getRpcSubscriptions).toHaveBeenCalledWith("solana-devnet", customRpcUrl, undefined);
     });
 
     it("should propagate config to verify() call", async () => {
@@ -497,6 +497,46 @@ describe("SVM Settle", () => {
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements, config);
     });
 
+    it("should use custom WebSocket URL from config when provided", async () => {
+      // Arrange
+      const customRpcUrl = "http://localhost:8899";
+      const customWsUrl = "ws://custom-ws.example.com";
+      const config = { svmConfig: { rpcUrl: customRpcUrl, rpcSubscriptionsUrl: customWsUrl } };
+      const mockVerifyResponse = {
+        isValid: true,
+        invalidReason: undefined,
+      };
+      vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
+      vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
+      vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
+      vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
+      vi.mocked(mockRpcClient.sendTransaction).mockReturnValue({
+        send: vi.fn().mockResolvedValue("mock_signature_123"),
+      });
+      vi.mocked(solanaKit.getCompiledTransactionMessageDecoder).mockReturnValue({
+        decode: vi.fn().mockReturnValue({}),
+        read: vi.fn(),
+      } as any);
+      vi.mocked(solanaKit.decompileTransactionMessageFetchingLookupTables).mockResolvedValue({
+        lifetimeConstraint: {
+          blockhash: "mock_blockhash" as any,
+          lastValidBlockHeight: BigInt(1234),
+        },
+        instructions: [],
+        version: 0,
+      } as any);
+      vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(
+        undefined,
+      );
+
+      // Act
+      await settleModule.settle(signer, paymentPayload, paymentRequirements, config);
+
+      // Assert
+      expect(getRpcClient).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
+      expect(getRpcSubscriptions).toHaveBeenCalledWith("solana-devnet", customRpcUrl, customWsUrl);
+    });
+
     it("should work without config (backward compatibility)", async () => {
       // Arrange
       const mockVerifyResponse = {
@@ -532,7 +572,7 @@ describe("SVM Settle", () => {
       // Assert
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements, undefined);
       expect(getRpcClient).toHaveBeenCalledWith("solana-devnet", undefined);
-      expect(getRpcSubscriptions).toHaveBeenCalledWith("solana-devnet", undefined);
+      expect(getRpcSubscriptions).toHaveBeenCalledWith("solana-devnet", undefined, undefined);
     });
   });
 

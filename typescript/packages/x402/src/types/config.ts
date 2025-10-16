@@ -7,6 +7,12 @@ export interface SvmConfig {
    * If not provided, defaults to public Solana RPC endpoints based on network.
    */
   rpcUrl?: string;
+
+  /**
+   * Custom WS subscriptions URL for Solana connections.
+   * If not provided, defaults to public Solana RPC subscriptions endpoints based on network.
+   */
+  rpcSubscriptionsUrl?: string;
 }
 
 /**
