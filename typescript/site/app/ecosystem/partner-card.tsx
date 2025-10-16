@@ -17,14 +17,14 @@ export default function PartnerCard({ partner }: PartnerCardProps) {
       className="flex flex-col bg-gray-800/[.4] hover:bg-gray-700/[.6] rounded-lg shadow-xl overflow-hidden transition-all duration-300 ease-in-out group border border-gray-700 hover:border-blue-500/70 h-full backdrop-blur-sm"
     >
       {/* Category Tag - Top Left */}
-      <div className="flex justify-start pt-2 pb-6 pl-6">
-        <span className="inline-block bg-gray-700 text-blue-300 text-xs font-mono px-2 py-1 rounded-full">
+      <div className="flex justify-start pt-4 pb-4 pl-6">
+        <span className="inline-block bg-gray-700/[.5] text-blue-300 text-xs font-mono px-2 py-1 rounded-full">
           {partner.category}
         </span>
       </div>
 
       <div className="px-6 pb-6 flex flex-col flex-grow">
-        <div className="flex items-start mb-4">
+        <div className="flex items-center mb-4">
           <div className="relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0">
             <Image
               src={partner.logoUrl}
