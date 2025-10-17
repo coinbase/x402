@@ -1,13 +1,6 @@
-from x402.types import (
-    PaymentRequirements,
-    x402PaymentRequiredResponse,
-    ExactPaymentPayload,
-    EIP3009Authorization,
-    VerifyResponse,
-    SettleResponse,
-    PaymentPayload,
-    X402Headers,
-)
+from x402.types import (EIP3009Authorization, PaymentPayload, PaymentRequirements, SettleResponse,
+                        VerifyResponse, ExactEvmPaymentPayload, X402Headers,
+                        x402PaymentRequiredResponse)
 
 
 def test_payment_requirements_serde():
@@ -97,10 +90,10 @@ def test_exact_payment_payload_serde():
         valid_before="1000",
         nonce="0x789",
     )
-    original = ExactPaymentPayload(signature="0x123", authorization=auth)
+    original = ExactEvmPaymentPayload(signature="0x123", authorization=auth)
     expected = {"signature": "0x123", "authorization": auth.model_dump(by_alias=True)}
     assert original.model_dump(by_alias=True) == expected
-    assert ExactPaymentPayload(**expected) == original
+    assert ExactEvmPaymentPayload(**expected) == original
 
 
 def test_verify_response_serde():
@@ -138,7 +131,7 @@ def test_payment_payload_serde():
         valid_before="1000",
         nonce="0x789",
     )
-    payload = ExactPaymentPayload(signature="0x123", authorization=auth)
+    payload = ExactEvmPaymentPayload(signature="0x123", authorization=auth)
     original = PaymentPayload(
         x402_version=1,
         scheme="exact",
