@@ -34,8 +34,15 @@ async function getPartners(): Promise<Partner[]> {
   return allPartnersData.filter(partner => partner !== null) as Partner[];
 }
 
-export default async function EcosystemPage() {
+interface EcosystemPageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function EcosystemPage({ searchParams }: EcosystemPageProps) {
   const partners = await getPartners();
+  const resolvedSearchParams = await searchParams;
+  const selectedCategory = typeof resolvedSearchParams.category === 'string' ? resolvedSearchParams.category : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-800 to-black text-white relative overflow-hidden">
       <div className="relative z-10">
@@ -45,7 +52,11 @@ export default async function EcosystemPage() {
             <ChevronLeftIcon className="w-5 h-5 mr-2" />
             Back to Main Page
           </Link>
-          <EcosystemClient initialPartners={partners} categories={categories} />
+          <EcosystemClient
+            initialPartners={partners}
+            categories={categories}
+            initialSelectedCategory={selectedCategory}
+          />
         </div>
       </div>
     </div>
