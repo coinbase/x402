@@ -24,5 +24,8 @@
     "tsup": "^8.4.0",
     "turbo": "^2.5.0",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@coinbase/cdp-sdk": "^1.38.3"
   }
 }

@@ -50,6 +50,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@hashgraph/sdk": "^2.74.0",
     "@scure/base": "^1.2.6",
     "@solana-program/compute-budget": "^0.8.0",
     "@solana-program/token": "^0.5.1",
@@ -71,6 +72,86 @@
         "default": "./dist/cjs/shared/index.js"
       }
     },
+    "./types/shared/network": {
+      "import": {
+        "types": "./dist/esm/types/shared/network.d.mts",
+        "default": "./dist/esm/types/shared/network.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/types/shared/network.d.ts",
+        "default": "./dist/cjs/types/shared/network.js"
+      }
+    },
+    "./types/shared/middleware": {
+      "import": {
+        "types": "./dist/esm/types/shared/middleware.d.mts",
+        "default": "./dist/esm/types/shared/middleware.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/types/shared/middleware.d.ts",
+        "default": "./dist/cjs/types/shared/middleware.js"
+      }
+    },
+    "./types/shared/money": {
+      "import": {
+        "types": "./dist/esm/types/shared/money.d.mts",
+        "default": "./dist/esm/types/shared/money.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/types/shared/money.d.ts",
+        "default": "./dist/cjs/types/shared/money.js"
+      }
+    },
+    "./types/verify": {
+      "import": {
+        "types": "./dist/esm/types/verify/index.d.mts",
+        "default": "./dist/esm/types/verify/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/types/verify/index.d.ts",
+        "default": "./dist/cjs/types/verify/index.js"
+      }
+    },
+    "./shared/middleware": {
+      "import": {
+        "types": "./dist/esm/shared/middleware.d.mts",
+        "default": "./dist/esm/shared/middleware.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/middleware.d.ts",
+        "default": "./dist/cjs/shared/middleware.js"
+      }
+    },
+    "./shared/paywall": {
+      "import": {
+        "types": "./dist/esm/shared/paywall.d.mts",
+        "default": "./dist/esm/shared/paywall.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/paywall.d.ts",
+        "default": "./dist/cjs/shared/paywall.js"
+      }
+    },
+    "./shared/json": {
+      "import": {
+        "types": "./dist/esm/shared/json.d.mts",
+        "default": "./dist/esm/shared/json.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/json.d.ts",
+        "default": "./dist/cjs/shared/json.js"
+      }
+    },
+    "./shared/base64": {
+      "import": {
+        "types": "./dist/esm/shared/base64.d.mts",
+        "default": "./dist/esm/shared/base64.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/shared/base64.d.ts",
+        "default": "./dist/cjs/shared/base64.js"
+      }
+    },
     "./shared/evm": {
       "import": {
         "types": "./dist/esm/shared/evm/index.d.mts",
@@ -89,6 +170,46 @@
       "require": {
         "types": "./dist/cjs/schemes/index.d.ts",
         "default": "./dist/cjs/schemes/index.js"
+      }
+    },
+    "./schemes/exact/evm": {
+      "import": {
+        "types": "./dist/esm/schemes/exact/evm/index.d.mts",
+        "default": "./dist/esm/schemes/exact/evm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemes/exact/evm/index.d.ts",
+        "default": "./dist/cjs/schemes/exact/evm/index.js"
+      }
+    },
+    "./schemes/exact/svm": {
+      "import": {
+        "types": "./dist/esm/schemes/exact/svm/index.d.mts",
+        "default": "./dist/esm/schemes/exact/svm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemes/exact/svm/index.d.ts",
+        "default": "./dist/cjs/schemes/exact/svm/index.js"
+      }
+    },
+    "./schemes/exact/hedera": {
+      "import": {
+        "types": "./dist/esm/schemes/exact/hedera/index.d.mts",
+        "default": "./dist/esm/schemes/exact/hedera/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemes/exact/hedera/index.d.ts",
+        "default": "./dist/cjs/schemes/exact/hedera/index.js"
+      }
+    },
+    "./schemes/exact/evm/utils/paymentUtils": {
+      "import": {
+        "types": "./dist/esm/schemes/exact/evm/utils/paymentUtils.d.mts",
+        "default": "./dist/esm/schemes/exact/evm/utils/paymentUtils.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/schemes/exact/evm/utils/paymentUtils.d.ts",
+        "default": "./dist/cjs/schemes/exact/evm/utils/paymentUtils.js"
       }
     },
     "./client": {

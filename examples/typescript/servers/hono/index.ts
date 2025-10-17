@@ -26,6 +26,20 @@ app.use(
         price: "$0.001",
         network,
       },
+      "GET /hedera-usdc": {
+        price: "$0.001",
+        network: "hedera-testnet",
+      },
+      "GET /hedera-native": {
+        price: {
+          amount: "50000000",
+          asset: {
+            address: "hbar",
+            decimals: 8,
+          },
+        },
+        network: "hedera-testnet",
+      },
     },
     {
       url: facilitatorUrl,
@@ -38,6 +52,33 @@ app.get("/weather", c => {
     report: {
       weather: "sunny",
       temperature: 70,
+    },
+  });
+});
+// Hedera endpoints
+app.get("/hedera-usdc", c => {
+  return c.json({
+    report: {
+      weather: "sunny on Hedera",
+      temperature: 75,
+    },
+    data: {
+      paid_with: "USDC",
+      token_id: "0.0.429274",
+      network: "hedera-testnet",
+    },
+  });
+});
+
+app.get("/hedera-native", c => {
+  return c.json({
+    report: {
+      premium_content: "Exclusive Hedera network data with native payment",
+      temperature: 75,
+    },
+    data: {
+      paid_with: "HBAR",
+      amount_hbar: "0.5",
     },
   });
 });

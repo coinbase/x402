@@ -1,16 +1,8 @@
 import { Address, Hex } from "viem";
-import {
-  moneySchema,
-  Network,
-  Price,
-  RouteConfig,
-  RoutePattern,
-  ERC20TokenAmount,
-  PaymentRequirements,
-  PaymentPayload,
-  SPLTokenAmount,
-} from "../types";
-import { RoutesConfig } from "../types";
+import { moneySchema } from "../types/shared/money";
+import { Network } from "../types/shared/network";
+import { RouteConfig, RoutePattern, RoutesConfig, ERC20TokenAmount, SPLTokenAmount, Price } from "../types/shared/middleware";
+import { PaymentRequirements, PaymentPayload } from "../types/verify";
 import { safeBase64Decode } from "./base64";
 import { getUsdcChainConfigForChain } from "./evm";
 import { getNetworkId } from "./network";
@@ -40,14 +32,13 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
     return {
       verb: verb.toUpperCase(),
       pattern: new RegExp(
-        `^${
-          path
-            // First escape all special regex characters except * and []
-            .replace(/[$()+.?^{|}]/g, "\\$&")
-            // Then handle our special pattern characters
-            .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
-            .replace(/\[([^\]]+)\]/g, "[^/]+") // Convert [param] to regex capture
-            .replace(/\//g, "\\/") // Escape slashes
+        `^${path
+          // First escape all special regex characters except * and []
+          .replace(/[$()+.?^{|}]/g, "\\$&")
+          // Then handle our special pattern characters
+          .replace(/\*/g, ".*?") // Make wildcard non-greedy and optional
+          .replace(/\[([^\]]+)\]/g, "[^/]+") // Convert [param] to regex capture
+          .replace(/\//g, "\\/") // Escape slashes
         }$`,
         "i",
       ),

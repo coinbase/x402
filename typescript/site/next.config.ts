@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
       use: ["@svgr/webpack"],
     });
 
+    // Prevent @hashgraph/sdk from being bundled into Edge runtime by aliasing to an empty module
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@hashgraph/sdk": false,
+    } as typeof config.resolve.alias;
+
     return config;
   },
 };

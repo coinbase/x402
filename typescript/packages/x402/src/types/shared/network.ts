@@ -13,6 +13,8 @@ export const NetworkSchema = z.enum([
   "polygon",
   "polygon-amoy",
   "peaq",
+  "hedera-testnet",
+  "hedera-mainnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -49,9 +51,30 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
-export const ChainIdToNetwork = Object.fromEntries(
-  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
-    network,
-  ]),
-) as Record<number, Network>;
+// hedera
+export const SupportedHederaNetworks: Network[] = ["hedera-testnet", "hedera-mainnet"];
+export const HederaNetworkToChainId = new Map<Network, number>([
+  ["hedera-testnet", 296],
+  ["hedera-mainnet", 295],
+]);
+
+
+export type NetworkFamily = "evm" | "svm" | "hedera";
+
+export function getNetworkFamily(network: Network): NetworkFamily {
+  if (SupportedEVMNetworks.includes(network)) return "evm";
+  if (SupportedSVMNetworks.includes(network)) return "svm";
+  if (SupportedHederaNetworks.includes(network)) return "hedera";
+  throw new Error(`Unsupported network: ${network}`);
+}
+
+// Build a unified reverse lookup from chainId to network across all supported families
+const chainIdNetworkPairs = [
+  ...Array.from(EvmNetworkToChainId.entries()),
+  ...Array.from(SvmNetworkToChainId.entries()),
+  ...Array.from(HederaNetworkToChainId.entries()),
+] as Array<[Network, number]>;
+
+const chainIdEntries = chainIdNetworkPairs.map(([network, chainId]) => [String(chainId), network] as const);
+
+export const ChainIdToNetwork = Object.fromEntries(chainIdEntries) as unknown as Record<number, Network>;
