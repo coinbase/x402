@@ -52,7 +52,7 @@ describe("paymentUtils", () => {
 
   it("throws on invalid network in encodePayment", () => {
     const invalidPayment = { ...validEvmPayment, network: "invalid-network" };
-    expect(() => encodePayment(invalidPayment)).toThrow("Invalid network");
+    expect(() => encodePayment(invalidPayment as PaymentPayload)).toThrow("Invalid network");
   });
 
   it("throws on invalid network in decodePayment", () => {

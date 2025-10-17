@@ -49,8 +49,8 @@ import {
   signAndSimulateTransaction,
   getTokenPayerFromTransaction,
 } from "../../../../shared/svm";
+import { EXACT_SCHEME } from "../../../../types/verify/schemes";
 import { getRpcClient } from "../../../../shared/svm/rpc";
-import { SCHEME } from "../../";
 
 /**
  * Verify the payment payload against the payment requirements.
@@ -136,7 +136,7 @@ export function verifySchemesAndNetworks(
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): void {
-  if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
+  if (payload.scheme !== EXACT_SCHEME || paymentRequirements.scheme !== EXACT_SCHEME) {
     throw new Error("unsupported_scheme");
   }
 

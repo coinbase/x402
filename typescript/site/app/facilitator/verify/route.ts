@@ -1,6 +1,6 @@
 import {
-  PaymentPayload,
-  PaymentPayloadSchema,
+  ExactPaymentPayload as PaymentPayload,
+  ExactPaymentPayloadSchema as PaymentPayloadSchema,
   PaymentRequirements,
   PaymentRequirementsSchema,
   SupportedEVMNetworks,

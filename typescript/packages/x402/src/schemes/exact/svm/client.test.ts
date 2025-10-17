@@ -236,7 +236,7 @@ describe("SVM Client", () => {
 
       // Act & Assert
       await expect(
-        createAndSignPayment(clientSigner, 1, paymentReqsWithoutFeePayer),
+        createAndSignPayment(clientSigner, 1, paymentReqsWithoutFeePayer as PaymentRequirements),
       ).rejects.toThrow(
         "feePayer is required in paymentRequirements.extra in order to set the facilitator as the fee payer for the create associated token account instruction",
       );

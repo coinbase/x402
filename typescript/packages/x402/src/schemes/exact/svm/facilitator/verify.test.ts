@@ -20,7 +20,6 @@ import {
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
 import { Network } from "../../../../types";
-import { SCHEME } from "../../";
 import * as SvmShared from "../../../../shared/svm";
 import * as rpc from "../../../../shared/svm/rpc";
 import {
@@ -42,6 +41,7 @@ import {
   parseSetComputeUnitLimitInstruction,
   parseSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
+import { EXACT_SCHEME } from "../../../../types/verify/schemes";
 
 vi.mock("@solana/kit", async () => {
   const actual = await vi.importActual("@solana/kit");
@@ -109,7 +109,7 @@ const devnetUSDCAddress = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
 describe("verify", () => {
   describe("verifySchemesAndNetworks", () => {
     const validPayload: PaymentPayload = {
-      scheme: SCHEME,
+      scheme: EXACT_SCHEME,
       network: "solana-devnet",
       x402Version: 1,
       payload: {
@@ -118,7 +118,7 @@ describe("verify", () => {
     };
 
     const validRequirements: PaymentRequirements = {
-      scheme: SCHEME,
+      scheme: EXACT_SCHEME,
       network: "solana-devnet",
       payTo: "someAddress",
       maxAmountRequired: "1000",
@@ -284,7 +284,7 @@ describe("verify", () => {
         },
       };
       mockPaymentRequirements = {
-        scheme: SCHEME,
+        scheme: EXACT_SCHEME,
         network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
@@ -412,13 +412,13 @@ describe("verify", () => {
       mockSigner = {} as any;
       mockPayerAddress = (await generateKeyPairSigner()).address;
       mockPayload = {
-        scheme: SCHEME,
+        scheme: EXACT_SCHEME,
         network: "solana-devnet",
         x402Version: 1,
         payload: { transaction: "..." } as ExactSvmPayload,
       };
       mockRequirements = {
-        scheme: SCHEME,
+        scheme: EXACT_SCHEME,
         network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
@@ -491,7 +491,7 @@ describe("verify", () => {
     });
 
     it("should return isValid: false if schemes or networks are invalid", async () => {
-      const invalidPayload = { ...mockPayload, scheme: "invalid" as "exact" };
+      const invalidPayload = { ...mockPayload, scheme: "invalid" } as unknown as PaymentPayload;
       const result = await verify(mockSigner, invalidPayload, mockRequirements);
       expect(result.isValid).toBe(false);
       expect(result.invalidReason).toBe("unsupported_scheme");
@@ -528,6 +528,7 @@ describe("verify", () => {
     });
 
     it("should return isValid: false if simulation fails", async () => {
+      console.log("SCHEME", EXACT_SCHEME);
       vi.mocked(SvmShared.signAndSimulateTransaction).mockResolvedValue({
         value: { err: "simulation_error" },
       } as any);
@@ -550,7 +551,7 @@ describe("verify", () => {
       vi.clearAllMocks();
 
       mockPaymentRequirements = {
-        scheme: SCHEME,
+        scheme: EXACT_SCHEME,
         network: "solana-devnet",
         payTo: "payToAddress",
         maxAmountRequired: "1000",
@@ -792,7 +793,7 @@ describe("verify", () => {
 
   describe("Custom RPC Configuration", () => {
     const mockPaymentRequirements: PaymentRequirements = {
-      scheme: SCHEME,
+      scheme: EXACT_SCHEME,
       network: "solana-devnet" as Network,
       payTo: "TestRecipient111111111111111111111111111" as any,
       asset: "TestToken1111111111111111111111111111111" as any,
@@ -804,7 +805,7 @@ describe("verify", () => {
     };
 
     const mockPayload: PaymentPayload = {
-      scheme: SCHEME,
+      scheme: EXACT_SCHEME,
       network: "solana-devnet" as Network,
       x402Version: 1,
       payload: {

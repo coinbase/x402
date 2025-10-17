@@ -3,19 +3,19 @@ import { getNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
   usdcABI as abi,
-  authorizationTypes,
+  typedDataTypes,
+  transferWithAuthorizationPrimaryType,
   config,
   ConnectedClient,
   SignerWallet,
 } from "../../../types/shared/evm";
 import {
-  PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
 } from "../../../types/verify";
-import { SCHEME } from "../../exact";
+import { ExactPaymentPayload, EXACT_SCHEME } from "../../../types/verify/schemes/exact";
 
 /**
  * Verifies a payment payload against the required payment details
@@ -39,7 +39,7 @@ export async function verify<
   account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
-  payload: PaymentPayload,
+  payload: ExactPaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   /* TODO: work with security team on brainstorming more verification steps
@@ -58,7 +58,7 @@ export async function verify<
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
   // Verify payload version
-  if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
+  if (payload.scheme !== EXACT_SCHEME || paymentRequirements.scheme !== EXACT_SCHEME) {
     return {
       isValid: false,
       invalidReason: `unsupported_scheme`,
@@ -84,8 +84,8 @@ export async function verify<
   }
   // Verify permit signature is recoverable for the owner address
   const permitTypedData = {
-    types: authorizationTypes,
-    primaryType: "TransferWithAuthorization" as const,
+    types: typedDataTypes,
+    primaryType: transferWithAuthorizationPrimaryType,
     domain: {
       name,
       version,
@@ -183,7 +183,7 @@ export async function verify<
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
-  paymentPayload: PaymentPayload,
+  paymentPayload: ExactPaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const payload = paymentPayload.payload as ExactEvmPayload;

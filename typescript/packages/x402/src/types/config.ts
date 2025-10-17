@@ -1,3 +1,5 @@
+import { SchemeContext } from ".";
+
 /**
  * Configuration options for Solana (SVM) RPC connections.
  */
@@ -10,10 +12,19 @@ export interface SvmConfig {
 }
 
 /**
+ * Extra payload to be considered in the payment header creation, scheme dependent interpretation and validation.
+ */
+export type ExtraPayload = Record<string, unknown>;
+
+/**
  * Configuration options for X402 client and facilitator operations.
  */
 export interface X402Config {
   /** Configuration for Solana (SVM) operations */
   svmConfig?: SvmConfig;
   // Future: evmConfig?: EvmConfig for EVM-specific configurations
+  /** Extra payload for header creation. */
+  extraPayload?: ExtraPayload;
+  /** Scheme specific context. */
+  schemeContext?: SchemeContext;
 }

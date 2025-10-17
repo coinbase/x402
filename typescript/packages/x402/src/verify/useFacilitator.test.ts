@@ -32,6 +32,98 @@ describe("useFacilitator", () => {
     asset: "0x1234567890123456789012345678901234567890",
   };
 
+  const mockDeferredPaymentRequirements: PaymentRequirements = {
+    scheme: "deferred",
+    network: "base-sepolia",
+    maxAmountRequired: "20",
+    resource: "http://localhost:3002/subgraph/1234",
+    description: "",
+    mimeType: "",
+    payTo: "0xC93d37AD45c907eE1b27a02b2E1bd823BA9D379C",
+    maxTimeoutSeconds: 60,
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    extra: {
+      type: "new",
+      voucher: {
+        id: "0x198e73e1cecf59db4fbf8ca10000000000000000000000000000000000000000",
+        escrow: "0x1a9ea876cfe472514967d2e5cf326fb49dc68559",
+      },
+    },
+  };
+
+  const mockDeferredPaymentPayload: PaymentPayload = {
+    x402Version: 1,
+    scheme: "deferred",
+    network: "base-sepolia",
+    payload: {
+      signature:
+        "0xa80421aca752ab2e10b7e073f636bb50ccaec54f2813f8c194b45256460b5603340ce9ce75c12d0dabbe64e2011907f4c887064a39c36f633cb232b45dbec4611c",
+      voucher: {
+        nonce: 0,
+        id: "0x198e73e1cecf59db4fbf8ca10000000000000000000000000000000000000000",
+        escrow: "0x1a9ea876cfe472514967d2e5cf326fb49dc68559",
+        buyer: "0x80cdF1957EBb7a2DF22dd8913753A4423FF4272E",
+        seller: "0xC93d37AD45c907eE1b27a02b2E1bd823BA9D379C",
+        valueAggregate: "20",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        timestamp: 1756226264,
+        chainId: 84532,
+        expiry: 1758818264,
+      },
+    },
+  };
+
+  const mockDeferredAggregatedPaymentRequirements: PaymentRequirements = {
+    scheme: "deferred",
+    network: "base-sepolia",
+    maxAmountRequired: "20",
+    resource: "http://localhost:3002/subgraph/1234",
+    description: "",
+    mimeType: "",
+    payTo: "0xC93d37AD45c907eE1b27a02b2E1bd823BA9D379C",
+    maxTimeoutSeconds: 60,
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    extra: {
+      type: "aggregation",
+      signature:
+        "0xa80421aca752ab2e10b7e073f636bb50ccaec54f2813f8c194b45256460b5603340ce9ce75c12d0dabbe64e2011907f4c887064a39c36f633cb232b45dbec4611c",
+      voucher: {
+        nonce: 0,
+        id: "0x198e73e1cecf59db4fbf8ca10000000000000000000000000000000000000000",
+        escrow: "0x1a9ea876cfe472514967d2e5cf326fb49dc68559",
+        buyer: "0x80cdF1957EBb7a2DF22dd8913753A4423FF4272E",
+        seller: "0xC93d37AD45c907eE1b27a02b2E1bd823BA9D379C",
+        valueAggregate: "20",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        timestamp: 1756226264,
+        chainId: 84532,
+        expiry: 1758818264,
+      },
+    },
+  };
+
+  const mockDeferredAggregatedPaymentPayload: PaymentPayload = {
+    x402Version: 1,
+    scheme: "deferred",
+    network: "base-sepolia",
+    payload: {
+      signature:
+        "0xdf13d8f233a508ed40a85236df422d38edd0ad5ca3cb4e73d86cb712869919e82606bc2c29ace0d2a804b61808f099cf78d83b709ef1ea631b1496149cbfb1ea1c",
+      voucher: {
+        nonce: 1,
+        id: "0x198e73e1cecf59db4fbf8ca10000000000000000000000000000000000000000",
+        escrow: "0x1a9ea876cfe472514967d2e5cf326fb49dc68559",
+        buyer: "0x80cdF1957EBb7a2DF22dd8913753A4423FF4272E",
+        seller: "0xC93d37AD45c907eE1b27a02b2E1bd823BA9D379C",
+        valueAggregate: "40",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        timestamp: 1756226267,
+        chainId: 84532,
+        expiry: 1758818267,
+      },
+    },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn().mockResolvedValue({
@@ -42,132 +134,251 @@ describe("useFacilitator", () => {
   });
 
   describe("verify", () => {
-    it("should call fetch with the correct data and default URL", async () => {
-      const { verify } = useFacilitator();
-      await verify(mockPaymentPayload, mockPaymentRequirements);
+    describe("exact scheme", () => {
+      it("should call fetch with the correct data and default URL", async () => {
+        const { verify } = useFacilitator();
+        await verify(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        }),
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        });
+      });
+
+      it("should use custom URL when provided", async () => {
+        const customUrl = "https://custom-facilitator.org";
+        const { verify } = useFacilitator({ url: customUrl });
+        await verify(mockPaymentPayload, mockPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith(`${customUrl}/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        });
+      });
+
+      it("should include auth headers when createAuthHeaders is provided", async () => {
+        const mockHeaders = {
+          verify: { Authorization: "Bearer test-token" },
+          settle: { Authorization: "Bearer test-token" },
+          supported: { Authorization: "Bearer test-token" },
+        };
+        const { verify } = useFacilitator({
+          url: "https://x402.org/facilitator",
+          createAuthHeaders: async () => mockHeaders,
+        });
+        await verify(mockPaymentPayload, mockPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith(
+          "https://x402.org/facilitator/verify",
+          expect.objectContaining({
+            headers: { "Content-Type": "application/json", ...mockHeaders.verify },
+          }),
+        );
+      });
+
+      it("should throw error on non-200 response", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 400,
+          statusText: "Bad Request",
+          json: async () => ({}),
+        });
+        const { verify } = useFacilitator();
+
+        await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
+          "Failed to verify payment: Bad Request",
+        );
       });
     });
 
-    it("should use custom URL when provided", async () => {
-      const customUrl = "https://custom-facilitator.org";
-      const { verify } = useFacilitator({ url: customUrl });
-      await verify(mockPaymentPayload, mockPaymentRequirements);
+    describe("deferred scheme", () => {
+      it("should call fetch with the correct data and default URL", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 200,
+          json: async () => ({
+            isValid: true,
+            payer: mockDeferredPaymentPayload.payload.voucher.buyer,
+          }),
+        });
 
-      expect(fetch).toHaveBeenCalledWith(`${customUrl}/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        }),
+        const { verify } = useFacilitator();
+        await verify(mockDeferredPaymentPayload, mockDeferredPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockDeferredPaymentPayload.x402Version,
+            paymentPayload: mockDeferredPaymentPayload,
+            paymentRequirements: mockDeferredPaymentRequirements,
+          }),
+        });
       });
-    });
 
-    it("should include auth headers when createAuthHeaders is provided", async () => {
-      const mockHeaders = {
-        verify: { Authorization: "Bearer test-token" },
-        settle: { Authorization: "Bearer test-token" },
-      };
-      const { verify } = useFacilitator({
-        url: "https://x402.org/facilitator",
-        createAuthHeaders: async () => mockHeaders,
+      it("should call fetch with the correct data and default URL for aggregated payment", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 200,
+          json: async () => ({
+            isValid: true,
+            payer: mockDeferredAggregatedPaymentPayload.payload.voucher.buyer,
+          }),
+        });
+
+        const { verify } = useFacilitator();
+        const result = await verify(
+          mockDeferredAggregatedPaymentPayload,
+          mockDeferredAggregatedPaymentRequirements,
+        );
+
+        expect(result).toEqual({
+          isValid: true,
+          payer: mockDeferredAggregatedPaymentPayload.payload.voucher.buyer,
+        });
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockDeferredAggregatedPaymentPayload.x402Version,
+            paymentPayload: mockDeferredAggregatedPaymentPayload,
+            paymentRequirements: mockDeferredAggregatedPaymentRequirements,
+          }),
+        });
       });
-      await verify(mockPaymentPayload, mockPaymentRequirements);
-
-      expect(fetch).toHaveBeenCalledWith(
-        "https://x402.org/facilitator/verify",
-        expect.objectContaining({
-          headers: { "Content-Type": "application/json", ...mockHeaders.verify },
-        }),
-      );
-    });
-
-    it("should throw error on non-200 response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 400,
-        statusText: "Bad Request",
-        json: async () => ({}),
-      });
-      const { verify } = useFacilitator();
-
-      await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to verify payment: Bad Request",
-      );
     });
   });
 
   describe("settle", () => {
-    it("should call fetch with the correct data and default URL", async () => {
-      const { settle } = useFacilitator();
-      await settle(mockPaymentPayload, mockPaymentRequirements);
+    describe("exact scheme", () => {
+      it("should call fetch with the correct data and default URL", async () => {
+        const { settle } = useFacilitator();
+        await settle(mockPaymentPayload, mockPaymentRequirements);
 
-      expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        }),
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        });
+      });
+
+      it("should use custom URL when provided", async () => {
+        const customUrl = "https://custom-facilitator.org";
+        const { settle } = useFacilitator({ url: customUrl });
+        await settle(mockPaymentPayload, mockPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith(`${customUrl}/settle`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockPaymentPayload.x402Version,
+            paymentPayload: mockPaymentPayload,
+            paymentRequirements: mockPaymentRequirements,
+          }),
+        });
+      });
+
+      it("should include auth headers when createAuthHeaders is provided", async () => {
+        const mockHeaders = {
+          verify: { Authorization: "Bearer test-token" },
+          settle: { Authorization: "Bearer test-token" },
+          supported: { Authorization: "Bearer test-token" },
+        };
+        const { settle } = useFacilitator({
+          url: "https://x402.org/facilitator",
+          createAuthHeaders: async () => mockHeaders,
+        });
+        await settle(mockPaymentPayload, mockPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith(
+          "https://x402.org/facilitator/settle",
+          expect.objectContaining({
+            headers: { "Content-Type": "application/json", ...mockHeaders.settle },
+          }),
+        );
+      });
+
+      it("should throw error on non-200 response", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 400,
+          statusText: "Bad Request",
+          json: async () => ({}),
+        });
+        const { settle } = useFacilitator();
+
+        await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
+          "Failed to settle payment: 400 Bad Request",
+        );
       });
     });
 
-    it("should use custom URL when provided", async () => {
-      const customUrl = "https://custom-facilitator.org";
-      const { settle } = useFacilitator({ url: customUrl });
-      await settle(mockPaymentPayload, mockPaymentRequirements);
+    describe("deferred scheme", () => {
+      it("should call fetch with the correct data and default URL", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 200,
+          json: async () => ({
+            success: true,
+            transaction: "0x1234567890abcdef",
+            payer: mockDeferredPaymentPayload.payload.voucher.buyer,
+          }),
+        });
 
-      expect(fetch).toHaveBeenCalledWith(`${customUrl}/settle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          x402Version: mockPaymentPayload.x402Version,
-          paymentPayload: mockPaymentPayload,
-          paymentRequirements: mockPaymentRequirements,
-        }),
+        const { settle } = useFacilitator();
+        await settle(mockDeferredPaymentPayload, mockDeferredPaymentRequirements);
+
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockDeferredPaymentPayload.x402Version,
+            paymentPayload: mockDeferredPaymentPayload,
+            paymentRequirements: mockDeferredPaymentRequirements,
+          }),
+        });
       });
-    });
 
-    it("should include auth headers when createAuthHeaders is provided", async () => {
-      const mockHeaders = {
-        verify: { Authorization: "Bearer test-token" },
-        settle: { Authorization: "Bearer test-token" },
-      };
-      const { settle } = useFacilitator({
-        url: "https://x402.org/facilitator",
-        createAuthHeaders: async () => mockHeaders,
+      it("should call fetch with the correct data and default URL for aggregated payment", async () => {
+        global.fetch = vi.fn().mockResolvedValue({
+          status: 200,
+          json: async () => ({
+            success: true,
+            transaction: "0xabcdef1234567890",
+            payer: mockDeferredAggregatedPaymentPayload.payload.voucher.buyer,
+          }),
+        });
+
+        const { settle } = useFacilitator();
+        const result = await settle(
+          mockDeferredAggregatedPaymentPayload,
+          mockDeferredAggregatedPaymentRequirements,
+        );
+
+        expect(result).toEqual({
+          success: true,
+          transaction: "0xabcdef1234567890",
+          payer: mockDeferredAggregatedPaymentPayload.payload.voucher.buyer,
+        });
+        expect(fetch).toHaveBeenCalledWith("https://x402.org/facilitator/settle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            x402Version: mockDeferredAggregatedPaymentPayload.x402Version,
+            paymentPayload: mockDeferredAggregatedPaymentPayload,
+            paymentRequirements: mockDeferredAggregatedPaymentRequirements,
+          }),
+        });
       });
-      await settle(mockPaymentPayload, mockPaymentRequirements);
-
-      expect(fetch).toHaveBeenCalledWith(
-        "https://x402.org/facilitator/settle",
-        expect.objectContaining({
-          headers: { "Content-Type": "application/json", ...mockHeaders.settle },
-        }),
-      );
-    });
-
-    it("should throw error on non-200 response", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        status: 400,
-        statusText: "Bad Request",
-        json: async () => ({}),
-      });
-      const { settle } = useFacilitator();
-
-      await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to settle payment: 400 Bad Request",
-      );
     });
   });
 

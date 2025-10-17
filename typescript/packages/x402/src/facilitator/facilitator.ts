@@ -1,5 +1,6 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
+import { verify as verifyDeferred, settle as settleDeferred } from "../schemes/deferred/evm";
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { X402Config } from "../types/config";
 import {
@@ -16,6 +17,10 @@ import {
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { KeyPairSigner } from "@solana/kit";
+import { ExactPaymentPayloadSchema } from "../types/verify/schemes/exact";
+import { DeferredPaymentPayloadSchema } from "../types/verify/schemes/deferred";
+import { DEFERRRED_SCHEME } from "../types/verify/schemes/deferred";
+import { EXACT_SCHEME } from "../types/verify/schemes/exact";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -37,8 +42,8 @@ export async function verify<
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<VerifyResponse> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme == EXACT_SCHEME) {
+    payload = ExactPaymentPayloadSchema.parse(payload);
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return verifyExactEvm(
@@ -51,6 +56,32 @@ export async function verify<
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements, config);
+    }
+  }
+
+  if (paymentRequirements.scheme == DEFERRRED_SCHEME) {
+    payload = DeferredPaymentPayloadSchema.parse(payload);
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      if (!config?.schemeContext) {
+        return {
+          isValid: false,
+          invalidReason: "missing_scheme_context",
+          payer: payload.payload.voucher.buyer,
+        };
+      }
+      const valid = await verifyDeferred(
+        client as EvmConnectedClient<transport, chain, account>,
+        payload,
+        paymentRequirements,
+        config?.schemeContext,
+      );
+      return valid;
+    } else {
+      return {
+        isValid: false,
+        invalidReason: "invalid_network",
+        payer: payload.payload.voucher.buyer,
+      };
     }
   }
 
@@ -80,8 +111,8 @@ export async function settle<transport extends Transport, chain extends Chain>(
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<SettleResponse> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
+  if (paymentRequirements.scheme == EXACT_SCHEME) {
+    payload = ExactPaymentPayloadSchema.parse(payload);
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactEvm(
@@ -94,6 +125,35 @@ export async function settle<transport extends Transport, chain extends Chain>(
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements, config);
+    }
+  }
+
+  if (paymentRequirements.scheme == DEFERRRED_SCHEME) {
+    payload = DeferredPaymentPayloadSchema.parse(payload);
+    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      if (!config?.schemeContext) {
+        return {
+          success: false,
+          errorReason: "missing_scheme_context",
+          transaction: "",
+          network: paymentRequirements.network,
+          payer: payload.payload.voucher.buyer,
+        };
+      }
+      return settleDeferred(
+        client as EvmSignerWallet<chain, transport>,
+        payload,
+        paymentRequirements,
+        config?.schemeContext,
+      );
+    } else {
+      return {
+        success: false,
+        errorReason: "invalid_scheme",
+        transaction: "",
+        network: paymentRequirements.network,
+        payer: payload.payload.voucher.buyer,
+      };
     }
   }
 

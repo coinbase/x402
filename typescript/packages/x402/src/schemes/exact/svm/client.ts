@@ -14,7 +14,11 @@ import {
   TransactionSigner,
   Instruction,
 } from "@solana/kit";
-import { PaymentPayload, PaymentRequirements } from "../../../types/verify";
+import {
+  ExactPaymentRequirementsSchema,
+  PaymentPayload,
+  PaymentRequirements,
+} from "../../../types/verify";
 import { X402Config } from "../../../types/config";
 import {
   fetchMint,
@@ -112,7 +116,8 @@ async function createTransferTransactionMessage(
   );
 
   // create tx to simulate
-  const feePayer = paymentRequirements.extra?.feePayer as Address;
+  const { extra } = ExactPaymentRequirementsSchema.parse(paymentRequirements);
+  const feePayer = extra?.feePayer as Address;
   const txToSimulate = pipe(
     createTransactionMessage({ version: 0 }),
     tx => setTransactionMessageComputeUnitPrice(1, tx), // 1 microlamport priority fee
@@ -211,7 +216,7 @@ async function createAtaInstructionOrUndefined(
   tokenProgramAddress: Address,
   config?: X402Config,
 ): Promise<Instruction | undefined> {
-  const { asset, payTo, extra } = paymentRequirements;
+  const { asset, payTo, extra } = ExactPaymentRequirementsSchema.parse(paymentRequirements);
   const feePayer = extra?.feePayer as Address;
 
   // feePayer is required
@@ -236,7 +241,7 @@ async function createAtaInstructionOrUndefined(
   // if the ATA does not exist, return an instruction to create it
   if (!maybeAccount.exists) {
     return getCreateAssociatedTokenInstruction({
-      payer: paymentRequirements.extra?.feePayer as TransactionSigner<string>,
+      payer: extra?.feePayer as unknown as TransactionSigner<string>,
       ata: destinationATAAddress,
       owner: payTo as Address,
       mint: asset as Address,
