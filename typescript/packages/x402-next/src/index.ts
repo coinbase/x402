@@ -7,10 +7,10 @@ import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
 } from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
   moneySchema,

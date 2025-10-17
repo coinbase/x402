@@ -121,6 +121,16 @@
         "default": "./dist/cjs/facilitator/index.js"
       }
     },
+    "./paywall": {
+      "import": {
+        "types": "./dist/esm/paywall/index.d.mts",
+        "default": "./dist/esm/paywall/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/paywall/index.d.ts",
+        "default": "./dist/cjs/paywall/index.js"
+      }
+    },
     "./types": {
       "import": {
         "types": "./dist/esm/types/index.d.mts",

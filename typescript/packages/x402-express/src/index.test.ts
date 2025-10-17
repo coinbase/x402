@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getPaywallHtml, findMatchingRoute } from "x402/shared";
+import { findMatchingRoute } from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
 import { exact } from "x402/schemes";
 import {
   PaymentMiddlewareConfig,
@@ -23,11 +24,14 @@ vi.mock("x402/verify", () => ({
   }),
 }));
 
+vi.mock("x402/paywall", () => ({
+  getPaywallHtml: vi.fn(),
+}));
+
 vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    getPaywallHtml: vi.fn(),
     getNetworkId: vi.fn().mockReturnValue("base-sepolia"),
     toJsonSafe: vi.fn(x => x),
     computeRoutePatterns: vi.fn().mockImplementation(routes => {
