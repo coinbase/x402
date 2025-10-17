@@ -1,11 +1,33 @@
-# x402 Advanced Resource Server Example (Python)
+# x402 Advanced Resource Server Example (Python) <!-- omit in toc -->
 
-This is an advanced Python example using FastAPI that demonstrates how to implement paywall functionality without using middleware. This approach is useful for more complex scenarios, such as:
+This is an advanced Python example using FastAPI that demonstrates how to implement paywall functionality without using middleware.
+
+This approach is useful for more complex scenarios, such as:
 
 - Asynchronous payment settlement
 - Custom payment validation logic
 - Complex routing requirements
 - Integration with existing authentication systems
+
+## Table of Contents <!-- omit in toc -->
+
+- [Prerequisites](#prerequisites)
+- [Quickstart](#quickstart)
+- [Implementation Overview](#implementation-overview)
+- [Usage Examples](#usage-examples)
+  - [`create_exact_payment_requirements()`](#create_exact_payment_requirements)
+  - [`verify_payment()`](#verify_payment)
+- [Testing the Server](#testing-the-server)
+  - [Using the httpx Client](#using-the-httpx-client)
+  - [Using the requests Client](#using-the-requests-client)
+- [Example Endpoints](#example-endpoints)
+  - [Delayed Settlement: `/delayed-settlement`](#delayed-settlement-delayed-settlement)
+  - [Dynamic Pricing: `/dynamic-price`](#dynamic-pricing-dynamic-price)
+  - [Multiple Payment Requirements: `/multiple-payment-requirements`](#multiple-payment-requirements-multiple-payment-requirements)
+- [Response Format](#response-format)
+  - [Payment Required (402)](#payment-required-402)
+  - [Successful Response](#successful-response)
+- [Extending the Example](#extending-the-example)
 
 ## Prerequisites
 
@@ -15,25 +37,27 @@ This is an advanced Python example using FastAPI that demonstrates how to implem
 - Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
   - Get them here: [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
 
-## Setup
+## Quickstart
 
 1. Copy `.env-local` to `.env` and add your Ethereum address:
 
-```bash
-cp .env-local .env
-```
+   ```bash
+   cp .env-local .env
+   ```
 
 2. Install dependencies:
-```bash
-uv sync
-```
+
+   ```bash
+   uv sync
+   ```
 
 3. Run the server:
-```bash
-uv run python main.py
-```
 
-The server will start on http://localhost:4021
+   ```bash
+   uv run python main.py
+   ```
+
+The server will start on [localhost:4021](http://localhost:4021).
 
 ## Implementation Overview
 
@@ -46,7 +70,9 @@ This advanced implementation provides a structured approach to handling payments
 5. Proper error handling and response formatting
 6. Integration with the x402 facilitator service
 
-## Usage examples:
+## Usage Examples
+
+### `create_exact_payment_requirements()`
 
 ```python
 # USD price (automatically converts to USDC)
@@ -72,7 +98,7 @@ payment_req = create_exact_payment_requirements(
 )
 ```
 
-### verify_payment()
+### `verify_payment()`
 
 Handles payment verification and returns appropriate error responses:
 
@@ -88,6 +114,7 @@ async def verify_payment(
 You can test the server using one of the example Python clients:
 
 ### Using the httpx Client
+
 ```bash
 cd ../../clients/httpx
 # Ensure .env is set up
@@ -96,6 +123,7 @@ uv run python main.py
 ```
 
 ### Using the requests Client
+
 ```bash
 cd ../../clients/requests
 # Ensure .env is set up
@@ -107,20 +135,23 @@ uv run python main.py
 
 The server includes example endpoints that demonstrate different payment scenarios:
 
-### Delayed Settlement
-- `/delayed-settlement` - Demonstrates asynchronous payment processing
+### Delayed Settlement: `/delayed-settlement`
+
+- Demonstrates asynchronous payment processing
 - Returns the weather data immediately without waiting for payment settlement
 - Processes payment asynchronously in the background using `asyncio.create_task()`
 - Useful for scenarios where immediate response is critical and payment settlement can be handled later
 
-### Dynamic Pricing
-- `/dynamic-price` - Shows how to implement variable pricing based on request parameters
+### Dynamic Pricing: `/dynamic-price`
+
+- Shows how to implement variable pricing based on request parameters
 - Accepts a `multiplier` query parameter to adjust the base price
 - Demonstrates how to calculate and validate payments with dynamic amounts
 - Useful for implementing tiered pricing or demand-based pricing models
 
-### Multiple Payment Requirements
-- `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
+### Multiple Payment Requirements: `/multiple-payment-requirements`
+
+- Illustrates how to accept multiple payment options
 - Allows clients to pay using different assets (e.g., USDC or custom tokens)
 - Supports multiple networks (e.g., Base and Base Sepolia)
 - Useful for providing flexibility in payment methods and networks
@@ -128,32 +159,34 @@ The server includes example endpoints that demonstrate different payment scenari
 ## Response Format
 
 ### Payment Required (402)
+
 ```json5
 {
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
-  "accepts": [
+  x402Version: 1,
+  error: "X-PAYMENT header is required",
+  accepts: [
     {
-      "scheme": "exact",
-      "network": "base-sepolia",
-      "maxAmountRequired": "1000",
-      "resource": "http://localhost:4021/weather",
-      "description": "Access to weather data",
-      "mimeType": "application/json",
-      "payTo": "0xYourAddress",
-      "maxTimeoutSeconds": 60,
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "outputSchema": null,
-      "extra": {
-        "name": "USD Coin",
-        "version": "2"
-      }
-    }
-  ]
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "http://localhost:4021/weather",
+      description: "Access to weather data",
+      mimeType: "application/json",
+      payTo: "0xYourAddress",
+      maxTimeoutSeconds: 60,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: null,
+      extra: {
+        name: "USD Coin",
+        version: "2",
+      },
+    },
+  ],
 }
 ```
 
 ### Successful Response
+
 ```json5
 // Body
 {
@@ -201,13 +234,13 @@ async def your_endpoint(request: Request) -> Dict[str, Any]:
             if not x_payment:
                 logger.error("X-PAYMENT header missing in async processing")
                 return
-                
+
             decoded_payment_dict = decode_payment(x_payment)
             decoded_payment = PaymentPayload(**decoded_payment_dict)
-            
+
             settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
             response_header = settle_response_header(settle_response)
-            
+
             # In a real application, you would store this response header
             # and associate it with the payment for later verification
             logger.info(f"Payment settled: {response_header}")

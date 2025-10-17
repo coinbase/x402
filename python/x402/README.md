@@ -1,6 +1,21 @@
-# x402 Python
+# x402 Python <!-- omit in toc -->
 
 Python package for the x402 payments protocol.
+
+- [Installation](#installation)
+- [Overview](#overview)
+- [Server Integration](#server-integration)
+  - [FastAPI Integration](#fastapi-integration)
+  - [Flask Integration](#flask-integration)
+  - [Manual Server Integration](#manual-server-integration)
+  - [Python Server Examples](#python-server-examples)
+- [Client Integration](#client-integration)
+  - [Simple Usage](#simple-usage)
+    - [Httpx Client](#httpx-client)
+    - [Requests Session Client](#requests-session-client)
+  - [Advanced Usage](#advanced-usage)
+    - [Httpx Extensible Example](#httpx-extensible-example)
+    - [Requests Session Extensible Example](#requests-session-extensible-example)
 
 ## Installation
 
@@ -10,14 +25,23 @@ pip install x402
 
 ## Overview
 
-The x402 package provides the core building blocks for implementing the x402 Payment Protocol in Python. It's designed to be used by:
+The x402 package provides the core building blocks for implementing the x402 Payment Protocol in Python.
 
-- FastAPI middleware for accepting payments
-- Flask middleware for accepting payments
-- httpx client for paying resources
-- requests client for paying resources
+It's designed to be used by **Servers** & **Clients**.
 
-## FastAPI Integration
+**Servers** (Facilitators) can accept payments using:
+
+- FastAPI middleware
+- Flask middleware
+
+**Clients** can pay for resources using:
+
+- Httpx client
+- Requests client
+
+## Server Integration
+
+### FastAPI Integration
 
 The simplest way to add x402 payment protection to your FastAPI application:
 
@@ -45,7 +69,7 @@ app.middleware("http")(
 )
 ```
 
-## Flask Integration
+### Flask Integration
 
 The simplest way to add x402 payment protection to your Flask application:
 
@@ -80,89 +104,16 @@ payment_middleware.add(
 )
 ```
 
-## Client Integration
+### Manual Server Integration
 
-### Simple Usage
+If you're not using the FastAPI or Flask middleware, you can implement the x402 protocol manually
 
-#### Httpx Client
-```py
-from eth_account import Account
-from x402.clients.httpx import x402HttpxClient
+Here's what you'll need to handle:
 
-# Initialize account
-account = Account.from_key("your_private_key")
-
-# Create client and make request
-async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
-```
-
-#### Requests Session Client
-```py
-from eth_account import Account
-from x402.clients.requests import x402_requests
-
-# Initialize account
-account = Account.from_key("your_private_key")
-
-# Create session and make request
-session = x402_requests(account)
-response = session.get("https://api.example.com/protected-endpoint")
-print(response.content)
-```
-
-### Advanced Usage
-
-#### Httpx Extensible Example
-```py
-import httpx
-from eth_account import Account
-from x402.clients.httpx import x402_payment_hooks
-
-# Initialize account
-account = Account.from_key("your_private_key")
-
-# Create httpx client with x402 payment hooks
-async with httpx.AsyncClient(base_url="https://api.example.com") as client:
-    # Add payment hooks directly to client
-    client.event_hooks = x402_payment_hooks(account)
-    
-    # Make request - payment handling is automatic
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
-```
-
-#### Requests Session Extensible Example
-```py
-import requests
-from eth_account import Account
-from x402.clients.requests import x402_http_adapter
-
-# Initialize account
-account = Account.from_key("your_private_key")
-
-# Create session and mount the x402 adapter
-session = requests.Session()
-adapter = x402_http_adapter(account)
-
-# Mount the adapter for both HTTP and HTTPS
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
-# Make request - payment handling is automatic
-response = session.get("https://api.example.com/protected-endpoint")
-print(response.content)
-```
-
-## Manual Server Integration
-
-If you're not using the FastAPI middleware, you can implement the x402 protocol manually. Here's what you'll need to handle:
-
-1. Return 402 error responses with the appropriate response body
-2. Use the facilitator to validate payments
-3. Use the facilitator to settle payments
-4. Return the appropriate response header to the caller
+1. **Respond** to 402 Payment Required error responses with the appropriate response body
+2. **Validate payments** using the facilitator
+3. **Settle payments** using the facilitator
+4. **Return** the appropriate response header to the caller
 
 Here's an example of manual integration:
 
@@ -190,7 +141,7 @@ async def foo(req: request: Request):
             content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
-    
+
     payment = PaymentPayload(**json.loads(safe_base64_decode(payment_header)))
 
     verify_response = await facilitator.verify(payment, payment_requirements)
@@ -214,4 +165,85 @@ async def foo(req: request: Request):
         )
 ```
 
-For more examples and advanced usage patterns, check out our [examples directory](https://github.com/coinbase/x402/tree/main/examples/python).
+### Python Server Examples
+
+For more examples and advanced usage patterns, check out our [python examples directory](../../examples/python/).
+
+## Client Integration
+
+### Simple Usage
+
+#### Httpx Client
+
+```py
+from eth_account import Account
+from x402.clients.httpx import x402HttpxClient
+
+# Initialize account
+account = Account.from_key("your_private_key")
+
+# Create client and make request
+async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
+    response = await client.get("/protected-endpoint")
+    print(await response.aread())
+```
+
+#### Requests Session Client
+
+```py
+from eth_account import Account
+from x402.clients.requests import x402_requests
+
+# Initialize account
+account = Account.from_key("your_private_key")
+
+# Create session and make request
+session = x402_requests(account)
+response = session.get("https://api.example.com/protected-endpoint")
+print(response.content)
+```
+
+### Advanced Usage
+
+#### Httpx Extensible Example
+
+```py
+import httpx
+from eth_account import Account
+from x402.clients.httpx import x402_payment_hooks
+
+# Initialize account
+account = Account.from_key("your_private_key")
+
+# Create httpx client with x402 payment hooks
+async with httpx.AsyncClient(base_url="https://api.example.com") as client:
+    # Add payment hooks directly to client
+    client.event_hooks = x402_payment_hooks(account)
+
+    # Make request - payment handling is automatic
+    response = await client.get("/protected-endpoint")
+    print(await response.aread())
+```
+
+#### Requests Session Extensible Example
+
+```py
+import requests
+from eth_account import Account
+from x402.clients.requests import x402_http_adapter
+
+# Initialize account
+account = Account.from_key("your_private_key")
+
+# Create session and mount the x402 adapter
+session = requests.Session()
+adapter = x402_http_adapter(account)
+
+# Mount the adapter for both HTTP and HTTPS
+session.mount("http://", adapter)
+session.mount("https://", adapter)
+
+# Make request - payment handling is automatic
+response = session.get("https://api.example.com/protected-endpoint")
+print(response.content)
+```
