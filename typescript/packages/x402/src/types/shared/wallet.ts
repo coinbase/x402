@@ -29,7 +29,7 @@ export function createConnectedClient(network: string): ConnectedClient {
  * Creates a wallet client configured for the specified chain with a private key.
  *
  * @param network - The network to connect to.
- * @param privateKey - The private key to use for signing transactions.
+ * @param privateKey - The private key to use for signing transactions. This should be a hex string for EVM or a base58 encoded string for SVM.
  * @returns A wallet client instance connected to the specified chain with the provided private key.
  */
 export function createSigner(network: string, privateKey: Hex | string): Promise<Signer> {
