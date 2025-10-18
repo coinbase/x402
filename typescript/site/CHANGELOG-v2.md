@@ -25,18 +25,82 @@ This will materialize across documentation, code, and complimentary materials.
 
 Increment `x402Version` to `2`.
 
+### PaymentRequired
+
+1. Resource
+
+**What**: `resource` to be added to the top level `PaymentRequired` object. This object will contain the `url`, `description`, and `mimeType` fields that were previously on `PaymentRequirements`
+
+**Why**: These fields describe the resource being gated, rather than the payment itself. The data was duplicated between each `PaymentRequirement` in the `PaymentRequired`'s `accepts`' array.
+
+2. Extensions
+
+**What**:  A new `extensions` property to be added to both `PaymentRequired` and `PaymentPayload`, enabling modular optional functionality beyond core payment mechanics. Extensions follow a standardized structure with `info` and `schema` properties, allowing servers to advertise capabilities and clients or facilitators to respond appropriately.
+
+```git
++  "extensions": {
++    "discovery": {
++      "info": {},
++      "schema": {}
++    },
++    "sign-in-with-x": {
++      "info": {},
++      "schema": {}
++    },
++  } | undefined
+```
+
+**PaymentRequired with Extensions:**
+```json
+{
+  "x402Version": "2",
+  "error": "No PAYMENT-SIGNATURE header provided",
+  "resource": {
+    "url": "https://api.example.com/v1/ai/generate",
+    "description": "Text to image generator using AI",
+    "mimeType": "image/png"
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "amount": "80000",
+      "payTo": "0x9F86b5b01d584e2eF5AC2c7A60F3E5164d548881",
+      "maxTimeoutSeconds": 60,
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    }
+  ],
+  "extensions": {
+    "discovery": {
+      "info": {
+        /* Discovery info per schema */
+      },
+      "schema": { /* JSON Schema */ }
+    },
+    "sign-in-with-x": {
+      "info": {
+        /* CAIP-122 / Sign-In-With-X info per schema */
+      },
+      "schema": { /* JSON Schema */ }
+    }
+  }
+}
+```
+
+**Why**: The core x402 protocol focuses on payment signaling and settlement, but real-world applications need additional capabilities like service discovery, identity verification, authentication flows, and custom business logic. Extensions provide a standardized way to add these features without polluting the core payment protocol or requiring spec changes for each new capability.
+
 ### PaymentRequirements
 
 1. Network
 
-**What**: `network` to be moved from a custom identifier per-chain, to the CAIP-2 format for Blockchains. (e.g. `eip155:8453`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`). Custom network identifers remain valid for non-blockchain networks (ex: `cloudflare`, `ach`, `sepa`)
+**What**: `network` to be moved from a custom identifier to the CAIP-2 format. (e.g. `eip155:8453`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `cloudflare:com`, `ach:us`, `sepa:eu`).
 
 ```git
 -  "network": "base" | "solana"
-+  "network": "eip155:8453" | "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" | "cloudflare" | "ach"
++  "network": "eip155:8453" | "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" | "cloudflare:com" | "ach:us" | "sepa:eu"
 ```
 
-**Why**: Leveraging existing standards for blockchain networks will improves portability, and simplifies integrations with other networks. However, supporting fiat requires supporting non-blockchain networks, therefore the flexibility of a custom network identifier is required.
+**Why**: Leveraging existing standards for blockchain networks will improves portability, and simplifies integrations with other networks. CAIP-2 format is flexible enough to support non-blockchain identifiers, therefor non-blockchain networks will be encouraged to follow the CAIP-2 format.
 
 2. Asset
 
@@ -62,36 +126,35 @@ Increment `x402Version` to `2`.
 
 **Why**: A facilitator who is faciliating a fiat transfer will not have an address for this transfer. Instead, the facilitator would resolve the `payTo` based on the `resource`, therefore `payTo` represents a role in association with the resource.
 
-4. Schema
+4. Remove Output Schema
 
-**What**: `outputSchema` to be been renamed to `schema`. Though schema remains optional and flexible, the recommended structure to ensure robustness and interopability between Bazaars is to have an internal `input` and `output` properties, specific to the transport (ex: `http`, `a2a`, `mcp`).
+**What**: `outputSchema` to be been removed from `PaymentRequirements`. An extension will be proposed which will bring back the structure.
 
 ```
-  "schema": {
-    "input": <transport specific input> | undefined
-    "output": <transport specific output> | undefined
-  } | undefined
+-  "outputSchema": {
+-   "input": <transport specific input> | undefined
+-   "output": <transport specific output> | undefined
+- } | undefined
 ```
 
-**Why**: `outputSchema` became overloaded in v1, being repurposed to support both `input` and `output` schemas. This rename codifies this behavior into the spec. The recommended input structure remains flexible, however the suggested path is to ensure compatibility with the emerging Bazaar standard being built ontop of x402, and ensures a clear separation of concerns between transport protocols.
+**Why**: `outputSchema` is an transport concern rather than a payments concern.
 
-5. MimeType
+5. Move MimeType, Resource & Description
 
-**What**: `mimeType` to be removed, with the suggestion that it be moved into `schema.output`.
+**What**: `mimeType`, `resource` and `description` to be moved out of `PaymentRequirements` and into the top-level `PaymentRequired` response.
 
-**Why**: `mimeType` is a HTTP concern, while x402 is a transport agnostic protocol for payments.
+**Why**: `mimeType`, `resource` and `description` are not payment concerns, and thus are the same for every `PaymentRequirements` for a given resource.
 
-6. External Id
+7. Amount
 
-**What**: `externalId` to be added as a new optional field of the `PaymentRequirements`
+**What**: `maxAmountRequired` to be renamed to `amount`, and let the scheme define what amount means.
 
 ```git
-+  "externalId": "1" | "1b0ef9cf-5d80-4b43-bd1f-aa5c3787179f" | undefined
+- "maxAmountRequired": "1000000"
++ "amount": "1000000
 ```
 
-**Why**: There is no way to associate a `PaymentRequirement` with an external identifier such as an ID from a proprietary database or external payments service. There is also no way to guarantee the provided `PaymentPayload` is for a specific `PaymentRequirements`, only that it satisfies the payment constraints of a `PaymentRequirements`. This allows the resource server to create flexible associations between `PaymentRequirements` and `PaymentPayload`
-
-**Validation Rules**: Both `PaymentRequirements` and `PaymentPayload` must have matching `externalId` values.
+**Why**: `maxAmountRequired` is not a fitting name for every scheme. While it works for `exact` and for the future `upto` scheme, it is too prescriptive for many other schemes.
 
 #### Updated PaymentRequirements
 
@@ -99,13 +162,10 @@ Increment `x402Version` to `2`.
 | --- | --- | --- | --- |
 | `scheme` | `string` | Required | Payment scheme identifier (e.g., "exact") |
 | `network` | `string` | Required | Network identifier in CAIP-2 format (e.g., "eip155:84532") or custom string |
-| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units |
+| `amount` | `string` | Required | Required payment amount in atomic token units |
 | `asset` | `string` | Required | Token contract address or ISO 4217 currency code |
 | `payTo` | `string` | Required | Recipient wallet address for the payment or a constant (e.g. "merchant") |
-| `resource` | `string` | Required | URL of the protected resource |
-| `description` | `string` | Required | Human-readable description of the resource |
 | `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion |
-| `externalId` | `string` | Optional | Unique identifier for the payment requirement |
 | `schema` | `object` | Optional | JSON schema describing the request & response formats |
 | `extra` | `object` | Optional | Scheme-specific additional information |
 
@@ -120,13 +180,47 @@ Same as PaymentRequirements' `network` change (e.g. `eip155:8453`, `solana:5eykt
 +  "network": "eip155:8453" | "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" | "cloudflare" | "ach"
 ```
 
-2. External Id
+2. Accepted
 
-Same as PaymentRequirements' `externalId` change
+**What**: The addition of a `accepted` property which stores the accepted `PaymentRequirement` from the list of acceptable payments.
 
-```git
-+  "externalId": "1" | "1b0ef9cf-5d80-4b43-bd1f-aa5c3787179f"
+**Why**: There is not sufficient overlap between the fields of a `PaymentPayload` to always correctly determine which `PaymentRequirement` it was made for
+
+3. Extensions
+
+**What**: A new `extensions` property to be added to both `PaymentRequired` and `PaymentPayload`, enabling modular optional functionality beyond core payment mechanics. The `PaymentPayload` echo's the `extensions` from the `PaymentRequired`.
+
+**PaymentPayload with Extensions:**
+```json
+{
+  "x402Version": 2,
+  "scheme": "exact",
+  "network": "eip155:8453",
+  "payload": { /* scheme-specific data */ },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "amount": "80000",
+    "payTo": "0x9F86b5b01d584e2eF5AC2c7A60F3E5164d548881",
+    "maxTimeoutSeconds": 60,
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  },
+  "extensions": {
+    "discovery": {
+      "info": { /* Discovery info per schema */ },
+      "schema": { /* JSON Schema */ }
+    },
+    "sign-in-with-x": {
+      "info": { /* CAIP-122 / Sign-In-With-X info per schema */ },
+      "schema": { /* JSON Schema */ }
+    }
+  }
+}
 ```
+
+**Why**: The core x402 protocol focuses on payment signaling and settlement, but real-world applications need additional capabilities like service discovery, identity verification, authentication flows, and custom business logic. Extensions provide a standardized way to add these features without polluting the core payment protocol or requiring spec changes for each new capability.
+
+**Validation Rule**: The `PaymentRequired`'s `extensions` must be a subset of the `PaymentPayload`'s `extensions`. The client must echo at least the info received. It may append additional info, however it cannot delete or overwrite existing info.
 
 #### Updated PaymentPayload
 
@@ -136,48 +230,195 @@ Same as PaymentRequirements' `externalId` change
 | `scheme` | `string` | Required | Payment scheme identifier (e.g., "exact") |
 | `network` | `string` | Required | Network identifier in CAIP-2 format (e.g., "eip155:84532") or custom string |
 | `payload` | `object` | Required | Payment data object |
-| `externalId` | `string` | Optional | Unique identifier referencing the payment requirement |
+| `accepted` | `PaymentRequirements` | Required | The payment required payload fulfills |
+| `extensions` | `object` | Optional | The echoed extensions from PaymentRequired |
 
-### Signed Identifier
 
-**What**: A new concept called the `SignedIdentifier` to be added. This optional object to allow a client to provide proof of controlling a signer that may have previously paid for a resource. Servers to be able to use the signed identifier to validate that a customer did in fact pay for a resource, and grant the caller access without requiring repurchase. `SignedIdentifer` is to be included on initial request to allow servers to skip the 402 response, if they have identified the client has paid. In the http transport this would be included as a `Signed-Identifier` header.
 
-```git
-+  "signedIdentifier": {
-+    "resource": "https://api.example.com/data/123",
-+    "expiry": 1735689600,
-+    "curve": "secp256k1",
-+    "signature": "0x..."
-+  } | undefined
+## Extensions
+
+### Sign-In-With-X (SIWx)
+
+**What**: A new extension implementing the CAIP-122 standard for chain-agnostic wallet-based identity assertions. This extension allows clients to prove control of a wallet that may have previously paid for a resource, enabling servers to grant access without requiring repurchase. The SIWx extension follows the standardized structure with `info` and `schema` properties.
+
+**Why**: The CAIP-122 standard provides a chain-agnostic, interoperable way for blockchain accounts to authenticate with off-chain services. This aligns x402 with emerging identity standards used in WalletConnect v2, SIWS, and multi-chain wallets. It enables:
+- Cross-chain authentication (EVM and non-EVM)
+- Smart account verification via EIP-1271/6492
+- Natural interoperability with W3C Verifiable Credentials
+- Extensibility to non-blockchain networks via custom CAIP-2 namespaces
+
+**Server PaymentRequired with SIWx Extension**:
+
+Servers advertise SIWx support by including the extension in their PaymentRequired response:
+
+```json
+{
+  "x402Version": "2",
+  "error": "No authentication provided",
+  "resource": {
+    "url": "https://api.example.com/data/123",
+    "description": "Premium market data"
+  },
+  "accepts": [...],
+  "extensions": {
+    "sign-in-with-x": {
+      "info": {
+        "domain": "api.example.com",
+        "uri": "https://api.example.com/data/123",
+        "statement": "Sign in to access your purchased content",
+        "version": "1",
+        "chainId": "eip155:8453",
+        "nonce": "32891756",
+        "issuedAt": "2025-10-17T10:00:00Z",
+        "expirationTime": "2025-10-17T10:05:00Z",
+        "resources": ["https://api.example.com/data/123"],
+        "signatureScheme": "eip191" // or "eip712", "eip1271", "eip6492", "siws", "sep10"
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "domain": { "type": "string" },
+          "address": { "type": "string" },
+          "statement": { "type": "string" },
+          "uri": { "type": "string", "format": "uri" },
+          "version": { "type": "string" },
+          "chainId": { "type": "string" },
+          "nonce": { "type": "string" },
+          "issuedAt": { "type": "string", "format": "date-time" },
+          "expirationTime": { "type": "string", "format": "date-time" },
+          "notBefore": { "type": "string", "format": "date-time" },
+          "requestId": { "type": "string" },
+          "resources": { "type": "array", "items": { "type": "string", "format": "uri" } },
+          "signature": { "type": "string" }
+        },
+        "required": ["domain", "address", "uri", "version", "chainId", "nonce", "issuedAt", "signature"]
+      }
+    }
+  }
+}
 ```
 
-**Why**: Currently, there is no standardized way for clients to prove they have previously paid for a resource without re-submitting the full payment payload. This creates friction for returning users and prevents access to previously purchased content. The `SignedIdentifier` provides a lightweight authentication mechanism that proves wallet ownership without requiring on-chain verification for every access attempt.
+**Client Response with SIWx**:
+
+Clients sign the CAIP-122 message and include it in their response:
+
+```json
+{
+  "domain": "api.example.com",
+  "address": "0x1234...abcd",
+  "statement": "Sign this message to prove you control the wallet that purchased this resource",
+  "uri": "https://api.example.com/data/123",
+  "version": "1",
+  "chainId": "eip155:8453",
+  "nonce": "32891756",
+  "issuedAt": "2025-10-17T10:00:00Z",
+  "expirationTime": "2025-10-17T10:05:00Z",
+  "resources": ["https://api.example.com/data/123"],
+  "signature": "0x..."
+}
+```
 
 **Validation Rules**:
 
-- The `signature` must be a valid signature of the concatenated `resource` and `expiry` fields using the specified `curve`
-- The `expiry` timestamp must be in the future at the time of verification
-- It is advised that servers reject signatures that expire at `> time.now() + 1 minute` or `<time.now()`.
-- The signing address recovered from the signature should match a previously verified payment for the specified `resource`
-
-**Note:** content access policies should not be tied to signature expiry. Ex: It is fully valid to have 30 day access for a resource tied to the signing address that issues many signature over time.
-
-#### SignedIdentifier Structure
-
-| Field Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| `resource` | `string` | Required | URL of the protected resource being accessed |
-| `expiry` | `number` | Required | The expiry timestamp of the signature in epoch seconds |
-| `curve` | `string` | Required | The cryptographic curve used for signing (e.g., "secp256k1", "ed25519") |
-| `signature` | `string` | Required | The signature of the concatenated resource and expiry |
+- **Message Construction**: Servers MUST construct the CAIP-122 message following the canonical format specified in the standard
+- **Signature Verification**: Chain-specific verification based on CAIP-2 namespace
+- **Temporal Validation**:
+  - `issuedAt` MUST be recent (recommended < 5 minutes old)
+  - `expirationTime` MUST be in the future
+  - `notBefore` (if present) MUST be in the past
+- **Nonce**: MUST be unique per session to prevent replay attacks
+- **Address Recovery**: The recovered address MUST match a previously verified payment for the resource
+- **Domain Binding**: The `domain` field MUST match the server's domain
 
 **Transport Considerations**:
 
-- **HTTP**: transmitted as a custom header (e.g., `SIGNED-IDENTIFIER`) with base64-encoded JSON
-- **MCP**: included as a parameter in the tool request
-- **A2A**: included in the message payload structure
+- **HTTP**: 
+  - Server includes SIWx extension in PAYMENT-REQUIRED header (base64-encoded)
+  - Client sends signed SIWx message in SIGN-IN-WITH-X header (base64-encoded)
+- **MCP**: 
+  - Included in the extensions field of the payment required/payload structures
+- **A2A**: 
+  - Included in the extensions field of message payload structures
 
-**NOTE**: We encourage additional feedback from builders operating in the A2A and MCP spaces regarding the best way to incorporate the signed identifier into the transport flows.
+
+### Discovery
+
+**What**: The discovery layer is being codified as an extension. Discovery enables Facilitators to automatically catalog and index x402-enabled resources by following the server's provided discovery instructions. When a server includes discovery information, Facilitators can proactively explore endpoints to maintain fresh payment requirements.
+
+```json
+{
+  "extensions": {
+    "discovery": {
+      "info": {
+        "input": {
+          "type": "http",
+          "method": "GET",
+          /* Additional input fields as needed by the API */
+        },
+        "output": {
+          /* Output specification for the API */
+        }
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "method": { "type": "string" }
+            },
+            "required": ["type", "method"],
+            "additionalProperties": true
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["input", "output"]
+      }
+    }
+  }
+}
+```
+
+**Why**: The discovery layer is not strictly a payments concern, but it's a valuable service for the x402 ecosystem.
+
+**Discovery Flow**:
+
+1. Server includes discovery extension in PaymentRequired response with instructions on how to explore its API.
+2. Facilitator examines the discovery extension. Validates that it can safely explore the indicated endpoints.
+3. Follows the `input` specification to construct valid requests.
+
+4. When exploration triggers a 402 response, Facilitator logs the fresh PaymentRequired. It only logs if the response continues to include the discovery extension. Using this it updates its catalog with current pricing and requirements.
+
+## Facilitator
+
+### Supported Endpoint Update
+
+**What**: The facilitator's `/supported` endpoint is being updated to include a new `extensions` field, an array of extension keys that the facilitator supports. This allows facilitators to declare which optional extensions they have implemented.
+
+```git
+{
+  "kinds":[
+    {
+      "x402Version":2,
+      "scheme":"exact",
+      "network": "eip155:84532"
+    },
+  ],
++ "extensions": [
++   "discovery",
++ ]
+}
+```
+
+**Why**: Not every facilitator will implement every extension. This explicit declaration enables resource servers to verify extension compatibility before use, preventing runtime failures when servers attempt to use unsupported extensions. Servers can query this endpoint to dynamically adapt their behavior based on facilitator capabilities. 
+
+**Note**: Not all extensions require facilitator involvement. Extensions that operate solely between resource servers and clients (such as Sign-In-With-X) can be used regardless of facilitator support. Facilitators only need to declare support for extensions where they play an active role in the extension's functionality (such as Discovery, where the facilitator performs the crawling).
 
 ## HTTP Transport
 
@@ -205,11 +446,11 @@ The new `PAYMENT-SIGNATURE` name is more descriptive and follows modern HTTP hea
 
 **Why**: Same as PAYMENT-SIGNATURE above. The `X-` prefix has been deprecated since RFC 6648 to avoid standardization and interoperability issues.
 
-### SIGNED-IDENTIFIER
+### SIGN-IN-WITH-X
 
-**What**: A new optional `SIGNED-IDENTIFIER` header containing a base64-encoded payload proving wallet ownership, allowing access to previously purchased resources without re-payment.
+**What**: A new optional `SIGN-IN-WITH-X` header containing a base64-encoded CAIP-122 compliant signed message proving wallet ownership, allowing access to previously purchased resources without re-payment. This header can be sent on the initial request to bypass the 402 response if the server recognizes the wallet has already paid.
 
-**Why**: Eliminates friction for returning users by providing lightweight proof of prior payment on first request without requiring full payment re-submission or on-chain verification for every access.
+**Why**: Provides a standardized, chain-agnostic authentication mechanism aligned with emerging identity standards (CAIP-122). Eliminates friction for returning users by providing lightweight proof of wallet control without requiring full payment re-submission or on-chain verification for every access.
 
 ## SDK Refactor
 
@@ -393,6 +634,32 @@ usdcOnBase(payTo, { "/api/*": "$0.01" });
 ```
 
 **Why**: Reduces configuration complexity for faster development when following common patterns.
+
+#### Hooks
+
+**What**: A hooks system for middleware allowing custom logic injection at critical payment flow points. Six hooks cover the entire payment lifecycle, with `onSettlementFailure` being the most critical for handling irreversible side effects.
+
+```typescript
+paymentMiddleware(payTo, routes, facilitator, {
+  beforeVerification: async ({ requirements, payload, request }) => {},
+  afterVerification: async ({ requirements, payload, request }) => {},
+  beforeSettlement: async ({ requirements, payload, request }) => {},
+  afterSettlement: async ({ requirements, payload, request, response }) => {},
+  onSettlementFailure: async ({ requirements, payload, request, response }) => {},
+  onVerificationFailure: async ({ requirements, payload, request, response }) => {}
+});
+```
+
+**Why**: Current middleware executes business logic after verification but before settlement. If settlement fails (facilitator outage, blockchain reorg, nonce reuse), irreversible side effects may persist without payment.
+
+The hooks system enables:
+- **Rollback mechanisms** for failed settlements
+- **Pre-flight validation** (rate limiting, blacklisting)
+- **Conditional settlement** based on risk assessment
+- **Analytics and monitoring** at each stage
+- **Custom error handling** for better UX
+
+Without hooks, integrators must wrap response streams themselves, leading to fragmented compensation logic. The `onSettlementFailure` hook is especially critical as it provides the only opportunity to handle orphaned side effects when settlement fails after work completion.
 
 ### Facilitator Usage in Middlewares
 
