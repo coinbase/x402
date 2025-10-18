@@ -2,6 +2,7 @@ package coinbasefacilitator
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/coinbase/x402/go/pkg/types"
@@ -34,22 +35,22 @@ func CreateCdpAuthHeaders(apiKeyID, apiKeySecret string) func() (map[string]map[
 		supportedPath := fmt.Sprintf("%s/supported", CoinbaseFacilitatorV2Route)
 		discoveryPath := fmt.Sprintf("%s/discovery/resources", CoinbaseFacilitatorV2Route)
 
-		verifyToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, verifyPath, "POST")
+		verifyToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, verifyPath, http.MethodPost)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create verify auth header: %w", err)
 		}
 
-		settleToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, settlePath, "POST")
+		settleToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, settlePath, http.MethodPost)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create settle auth header: %w", err)
 		}
 
-		supportedToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, supportedPath, "GET")
+		supportedToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, supportedPath, http.MethodGet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create supported auth header: %w", err)
 		}
 
-		discoveryToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, discoveryPath, "GET")
+		discoveryToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, discoveryPath, http.MethodGet)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create discovery auth header: %w", err)
 		}
