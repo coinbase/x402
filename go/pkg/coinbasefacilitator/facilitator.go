@@ -31,22 +31,36 @@ func CreateCdpAuthHeaders(apiKeyID, apiKeySecret string) func() (map[string]map[
 
 		verifyPath := fmt.Sprintf("%s/verify", CoinbaseFacilitatorV2Route)
 		settlePath := fmt.Sprintf("%s/settle", CoinbaseFacilitatorV2Route)
+		supportedPath := fmt.Sprintf("%s/supported", CoinbaseFacilitatorV2Route)
+		discoveryPath := fmt.Sprintf("%s/discovery/resources", CoinbaseFacilitatorV2Route)
 
-		verifyToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, verifyPath)
+		verifyToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, verifyPath, "POST")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create verify auth header: %w", err)
 		}
 
-		settleToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, settlePath)
+		settleToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, settlePath, "POST")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create settle auth header: %w", err)
+		}
+
+		supportedToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, supportedPath, "GET")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create supported auth header: %w", err)
+		}
+
+		discoveryToken, err := CreateAuthHeader(id, secret, CoinbaseFacilitatorBaseURL, discoveryPath, "GET")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create discovery auth header: %w", err)
 		}
 
 		correlationHeader := CreateCorrelationHeader()
 
 		return map[string]map[string]string{
-			"verify": {"Authorization": verifyToken, "Correlation-Context": correlationHeader},
-			"settle": {"Authorization": settleToken, "Correlation-Context": correlationHeader},
+			"verify":    {"Authorization": verifyToken, "Correlation-Context": correlationHeader},
+			"settle":    {"Authorization": settleToken, "Correlation-Context": correlationHeader},
+			"supported": {"Authorization": supportedToken, "Correlation-Context": correlationHeader},
+			"list":      {"Authorization": discoveryToken, "Correlation-Context": correlationHeader},
 		}, nil
 	}
 }
