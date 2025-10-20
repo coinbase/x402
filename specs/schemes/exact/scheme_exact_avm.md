@@ -76,7 +76,9 @@ Once decoded, the `X-PAYMENT` header is a JSON string with the following propert
 }
 ```
 
-The `payload` field contains the base64-encoded, serialized, signed Algorand transaction from user address to `payTo` address, with the `lease` field set to the SHA-256 hash of the `paymentRequirements`, amount equal to `maxAmountRequired` and minimum fee (0.001 Algo, 1000 MicroAlgos), and if feePayer exists (fees payment delegated to feePayer address), the base64-encoded unsigned zero amount fee payment transaction from `feePayer`, to `feePayer` with static fee equal to sum of fees on the two transactions in the group (2 x 0.001 Algo = 0.002 Algo).
+The `payload` field contains `transaction` field, the base64-encoded, serialized, signed Algorand transaction from user address to `payTo` address, with the `lease` field set to the SHA-256 hash of the `paymentRequirements`, amount equal to `maxAmountRequired` and minimum fee (0.001 Algo, 1000 MicroAlgos).
+
+If feePayer exists (fees payment delegated to feePayer address),the `payload` must contain `feeTransaction` field, the base64-encoded unsigned zero amount payment transaction from `feePayer`, to `feePayer` with static fee equal to sum of fees on the two transactions in the group (2 x 0.001 Algo = 0.002 Algo).
 
 ## `X-PAYMENT-RESPONSE` Header Payload
 
