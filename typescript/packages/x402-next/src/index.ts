@@ -198,6 +198,7 @@ export function paymentMiddleware(
           input: {
             type: "http",
             method,
+            discoverable: discoverable ?? true,
             ...inputSchema,
           },
           output: outputSchema,

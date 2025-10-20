@@ -23,7 +23,7 @@ import {
   RpcDevnet,
   RpcMainnet,
 } from "@solana/kit";
-import { decodeTransactionFromPayload } from "../../../../shared/svm";
+import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../../../shared/svm";
 import { getRpcClient, getRpcSubscriptions } from "../../../../shared/svm/rpc";
 import {
   createBlockHeightExceedencePromiseFactory,
@@ -61,7 +61,7 @@ export async function settle(
   const svmPayload = payload.payload as ExactSvmPayload;
   const decodedTransaction = decodeTransactionFromPayload(svmPayload);
   const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
-  const payer = signer.address.toString();
+  const payer = getTokenPayerFromTransaction(decodedTransaction);
 
   const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
   const rpcSubscriptions = getRpcSubscriptions(
@@ -90,6 +90,7 @@ export async function settle(
       errorReason: "unexpected_settle_error",
       network: payload.network,
       transaction: getSignatureFromTransaction(signedTransaction),
+      payer,
     };
   }
 }
