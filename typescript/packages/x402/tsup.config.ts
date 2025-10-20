@@ -9,6 +9,7 @@ const baseConfig = {
     "client/index": "src/client/index.ts",
     "verify/index": "src/verify/index.ts",
     "facilitator/index": "src/facilitator/index.ts",
+    "paywall/index": "src/paywall/index.ts",
     "types/index": "src/types/index.ts",
   },
   dts: {
