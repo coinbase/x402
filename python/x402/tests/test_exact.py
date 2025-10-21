@@ -74,9 +74,8 @@ def test_prepare_payment_header(account, payment_requirements):
 def test_sign_payment_header(account, payment_requirements):
     unsigned_header = prepare_payment_header(account.address, 1, payment_requirements)
 
-    # Convert nonce to hex string for signing
-    nonce = unsigned_header["payload"]["authorization"]["nonce"]
-    unsigned_header["payload"]["authorization"]["nonce"] = nonce.hex()
+    # Verify nonce is bytes (the fix ensures this works)
+    assert isinstance(unsigned_header["payload"]["authorization"]["nonce"], bytes)
 
     signed_message = sign_payment_header(account, payment_requirements, unsigned_header)
 
@@ -93,7 +92,12 @@ def test_sign_payment_header(account, payment_requirements):
     assert "signature" in decoded["payload"]
     assert "authorization" in decoded["payload"]
     assert decoded["payload"]["signature"].startswith("0x")
+
+    # Verify nonce is converted to hex string in output
     assert decoded["payload"]["authorization"]["nonce"].startswith("0x")
+    assert (
+        len(decoded["payload"]["authorization"]["nonce"]) == 66
+    )  # "0x" + 64 hex chars
 
     # Test domain data
     auth = decoded["payload"]["authorization"]
@@ -108,10 +112,6 @@ def test_sign_payment_header_no_account(payment_requirements):
     unsigned_header = prepare_payment_header(
         "0x0000000000000000000000000000000000000000", 1, payment_requirements
     )
-
-    # Convert nonce to hex string for signing
-    nonce = unsigned_header["payload"]["authorization"]["nonce"]
-    unsigned_header["payload"]["authorization"]["nonce"] = nonce.hex()
 
     with pytest.raises(Exception):
         sign_payment_header(None, payment_requirements, unsigned_header)
