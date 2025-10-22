@@ -15,7 +15,7 @@ The contract manages deposits, withdrawals, and voucher redemption:
 - **Vouchers**: Off-chain signed promises to pay that aggregate over time
 - **Collection**: Sellers redeem vouchers against escrow balances
 - **Withdrawal**: Buyers can withdraw unused funds after a thawing period
-- **Authorization**: EIP-712 signed operations for gasless interactions (designed for x402 Facilitators to be able to abstract escrow management actions from buyers)
+- **Authorizations**: EIP-712 signed operations for gasless interactions (designed for x402 Facilitators to be able to abstract escrow management actions from buyers)
 
 ## Data Structures
 
@@ -42,7 +42,6 @@ struct Voucher {
     uint256 nonce;             // Incremented with each aggregation
     address escrow;            // This contract's address
     uint256 chainId;           // Network chain ID
-    uint64 expiry;             // Expiration timestamp
 }
 ```
 
@@ -86,6 +85,10 @@ Escrow Contract → transfer(asset, amount) → Seller
 Buyer → thaw(seller, asset, amount) → Escrow Contract
 [wait THAWING_PERIOD]
 Buyer → withdraw(seller, asset) → Escrow Contract
+
+OR 
+
+Buyer → flushWithAuthorization(auth) → Escrow Contract
 ```
 
 ## Verification
@@ -95,9 +98,8 @@ To verify a payment in the `deferred` scheme:
 1. **Signature Validation**: Verify the voucher signature using EIP-712 and ERC-1271
 2. **Contract Verification**: Ensure `voucher.escrow` matches the expected contract address
 3. **Chain Verification**: Ensure `voucher.chainId` matches the current network
-4. **Expiry Check**: Verify `block.timestamp <= voucher.expiry`
-5. **Balance Check**: Verify escrow account has sufficient balance for collection
-6. **Aggregation Validation**: Ensure `voucher.valueAggregate >= previous_collections`
+4. **Balance Check**: Verify escrow account has sufficient balance for collection
+5. **Aggregation Validation**: Ensure `voucher.valueAggregate >= previous_collections`
 
 ## Settlement
 

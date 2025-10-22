@@ -3,7 +3,8 @@
 ## Summary
 
 The `deferred` scheme on EVM chains uses `EIP-712` signed vouchers to represent payment commitments from a buyer to a seller. Before issuing vouchers, the buyer deposits funds—denominated in a specific `ERC-20` token—into an on-chain escrow earmarked for the seller. Each voucher authorizes a payment against that escrow balance, and explicitly specifies the asset being used.
-Sellers can collect and aggregate these signed messages over time, choosing when to redeem them on-chain and settling the total amount in a single transaction.
+Sellers can collect and aggregate these signed messages over time, choosing when to redeem them on-chain and settling the total amount in a single transaction. The funds in the escrow contract are subject to a thawing period when withdrawing, this gives sellers guarantee they will be able to redeem in time.
+Interactions with the escrow contract for the buyer (depositing, thawing and withdrawing funds) are all performed via signed authorizations to remove the need for gas and blockchain access. These authorizations are executed and translated into on-chain actions by the facilitator.
 This design enables efficient, asset-flexible micropayments without incurring prohibitive gas costs for every interaction.
 
 ## `X-Payment` header payload
@@ -25,7 +26,6 @@ The `payload` field of the `X-PAYMENT` header must contain the following fields:
 - `nonce`: Incremented with each aggregation (uint256)
 - `escrow`: Address of the escrow contract (address)
 - `chainId`: Network chain ID (uint256)
-- `expiry`: Expiration timestamp after which voucher cannot be collected (uint64)
 
 Example:
 
@@ -41,8 +41,7 @@ Example:
     "timestamp": 1740673000,
     "nonce": 3,
     "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-    "chainId": 84532,
-    "expiry": 1740759400
+    "chainId": 84532
   }
 }
 ```
@@ -65,8 +64,7 @@ Full `X-PAYMENT` header (without deposit authorization):
       "timestamp": 1740673000,
       "nonce": 3,
       "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-      "chainId": 84532,
-      "expiry": 1740759400
+      "chainId": 84532
     }
   }
 }
@@ -74,7 +72,9 @@ Full `X-PAYMENT` header (without deposit authorization):
 
 ### Deposit Authorization Fields (optional)
 
-The `depositAuthorization` object enables gasless escrow deposits by allowing the facilitator to execute deposits on behalf of the buyer. This is particularly useful for first-time buyers or when escrow balance needs to be topped up. The structure consists of two parts:
+The `depositAuthorization` object enables gasless escrow deposits by allowing the facilitator to execute deposits on behalf of the buyer. This is particularly useful for first-time buyers or when escrow balance needs to be topped up. Note that only assets implementing ERC-2612 permit extension are supported for gasless deposits.
+
+The structure consists of two parts:
 
 **Required:**
 - `depositAuthorization`: EIP-712 signed authorization for the escrow contract
@@ -87,7 +87,7 @@ The `depositAuthorization` object enables gasless escrow deposits by allowing th
   - `signature`: EIP-712 signature of the deposit authorization (bytes)
 
 **Optional:**
-- `permit`: EIP-2612 permit for the ERC-20 token (if token supports permits)
+- `permit`: EIP-2612 permit for the ERC-20 token
   - `owner`: Token owner address (address)
   - `spender`: Escrow contract address (address)
   - `value`: Token amount to approve (uint256)
@@ -116,8 +116,7 @@ Example `X-PAYMENT` header with deposit authorization:
       "timestamp": 1740673000,
       "nonce": 3,
       "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-      "chainId": 84532,
-      "expiry": 1740759400
+      "chainId": 84532
     },
     "depositAuthorization": {
       "permit": {
@@ -156,6 +155,8 @@ The `extra` object in the "Payment Required Response" should contain the followi
   - `balance`: Current escrow balance in atomic token units
   - `assetAllowance`: Current token allowance for the escrow contract
   - `assetPermitNonce`: Current permit nonce for the token contract
+  - `assetDomainName`: EIP-712 domain name for the asset
+  - `assetDomainVersion`: EIP-712 domain version for the asset
   - `facilitator`: Address of the facilitator managing the escrow
 
 ### For New Vouchers (`type: "new"`)
@@ -193,6 +194,8 @@ The `extra` object in the "Payment Required Response" should contain the followi
       "balance": "5000000",
       "assetAllowance": "5000000",
       "assetPermitNonce": "0",
+      "assetDomainName": "USDC",
+      "assetDomainVersion": "2",
       "facilitator": "https://facilitator.com"
     },
     "signature": "0x3a2f7e3b6c1d8e9c0f64f8724e5cfb8bfe9a3cdb1ad6e4a876f7d418e47e96b11a23346a1b0e60c8d3a4c4fd0150a244ab4b0e6d6c5fa4103f8fa8fd2870a3c81b",
@@ -205,8 +208,7 @@ The `extra` object in the "Payment Required Response" should contain the followi
       "timestamp": 1740673000,
       "nonce": 3,
       "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-      "chainId": 84532,
-      "expiry": 1740759400
+      "chainId": 84532
     }
   }
 }
@@ -233,10 +235,7 @@ The following steps are required to verify a deferred payment:
 5. **Escrow balance check**:
     - Verify the `buyer` has enough of the `asset` (ERC20 token) in the escrow to cover the valueAggregate in the `payload.voucher`
     - Verify `id` has not been already collected in the escrow, or if it has, that the new balance is greater than what was already paid (in which case the difference will be paid)
-6. **Expiry validation**:
-    - Verify the voucher has not expired by checking that the current timestamp is less than or equal to `expiry`
-    - Verify `paymentPayload.voucher.expiry` and `paymentPayload.voucher.timestamp` dates make sense
-7. **Deposit authorization validation** (if present):
+6. **Deposit authorization validation** (if present):
     - Verify the `depositAuthorization.depositAuthorization.signature` is a valid EIP-712 signature
     - Verify `depositAuthorization.depositAuthorization.buyer` matches `paymentPayload.voucher.buyer`
     - Verify `depositAuthorization.depositAuthorization.seller` matches `paymentPayload.voucher.seller`
@@ -250,7 +249,7 @@ The following steps are required to verify a deferred payment:
         - Verify `permit.spender` matches the escrow contract address
         - Verify `permit.value` is sufficient to cover the deposit amount
         - Verify `permit.deadline` has not passed
-8. **Transaction simulation** (optional but recommended):
+7. **Transaction simulation** (optional but recommended):
     - Simulate the voucher collection to ensure the transaction would succeed on-chain
 
 ## Deposit Authorization Execution

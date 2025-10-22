@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Voucher Store is a critical component of the X402 `deferred` payment scheme that manages the persistence and retrieval of signed payment vouchers and their settlement records. It serves as the data layer for sellers and facilitators to track off-chain payment obligations and their eventual on-chain settlements.
+The Voucher Store is a critical component of the x402 `deferred` payment scheme that manages the persistence and retrieval of signed payment vouchers and their settlement records. It serves as the data layer for sellers and facilitators to track off-chain payment obligations and their eventual on-chain settlements.
 
 This specification defines the interface and requirements for implementing a voucher store in the deferred EVM payment system, ensuring consistent behavior across different implementations (in-memory, database-backed, etc.).
 
@@ -31,7 +31,6 @@ A voucher contains the following fields:
 | `nonce` | uint256 | Incremented with each aggregation |
 | `escrow` | address | Address of the escrow contract |
 | `chainId` | uint256 | Network chain ID |
-| `expiry` | uint64 | Expiration timestamp |
 | `signature` | bytes | EIP-712 signature of the voucher |
 
 ### Collection Structure

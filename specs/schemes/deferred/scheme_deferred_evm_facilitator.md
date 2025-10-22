@@ -43,8 +43,7 @@ GET /buyers/0x209693Bc6afc0C5328bA36FaF03C514EF312287C?seller=0xA1c7Bf3d421e8A54
     "timestamp": 1740673000,
     "nonce": 2,
     "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-    "chainId": 84532,
-    "expiry": 1740759400,
+    "chainId": 84532
     "signature": "0x3a2f7e3b..."
   }
 }
@@ -94,8 +93,7 @@ If the payment payload contains a `depositAuthorization`, the facilitator must e
         "timestamp": 1740673100,
         "nonce": 3,
         "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-        "chainId": 84532,
-        "expiry": 1740759400
+        "chainId": 84532
       }
     }
   },
@@ -118,8 +116,7 @@ If the payment payload contains a `depositAuthorization`, the facilitator must e
         "timestamp": 1740673000,
         "nonce": 2,
         "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-        "chainId": 84532,
-        "expiry": 1740759400
+        "chainId": 84532
       }
     }
   }
@@ -144,8 +141,7 @@ If the payment payload contains a `depositAuthorization`, the facilitator must e
         "timestamp": 1740673000,
         "nonce": 1,
         "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-        "chainId": 84532,
-        "expiry": 1740759400
+        "chainId": 84532
       },
       "depositAuthorization": {
         "permit": {
@@ -201,8 +197,7 @@ If the payment payload contains a `depositAuthorization`, the facilitator must e
   "timestamp": 1740673100,
   "nonce": 3,
   "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-  "chainId": 84532,
-  "expiry": 1740759400,
+  "chainId": 84532
   "signature": "0x4b3f8e..."
 }
 ```
@@ -329,14 +324,6 @@ Verifies a voucher's validity without settling it.
 }
 ```
 
-**Response (200 OK - Invalid):**
-```json
-{
-  "valid": false,
-  "reason": "Voucher expired"
-}
-```
-
 ### GET /vouchers/:id/:nonce/collections
 
 Retrieves settlement history for a voucher.
@@ -384,8 +371,7 @@ Returns the most suitable voucher for aggregation between a buyer-seller pair.
     "timestamp": 1740673000,
     "nonce": 2,
     "escrow": "0x7cB1A5A2a2C9e91B76914C0A7b7Fb3AefF3BCA27",
-    "chainId": 84532,
-    "expiry": 1740759400
+    "chainId": 84532
   },
   "signature": "0x3a2f7e3b..."
 }
