@@ -1,4 +1,4 @@
-# @x402/bazaar
+# @x402/extensions/bazaar
 
 ## TODO
 
