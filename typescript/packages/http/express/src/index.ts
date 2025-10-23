@@ -1,6 +1,11 @@
-
-
-import { HTTPAdapter, HTTPRequestContext, PaywallConfig, x402HTTPResourceService, RoutesConfig, FacilitatorClient } from "@x402/core/server";
+import {
+  HTTPAdapter,
+  HTTPRequestContext,
+  PaywallConfig,
+  x402HTTPResourceService,
+  RoutesConfig,
+  FacilitatorClient,
+} from "@x402/core/server";
 import { SchemeNetworkService, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
 
@@ -8,31 +13,67 @@ import { NextFunction, Request, Response } from "express";
  * Express adapter implementation
  */
 export class ExpressAdapter implements HTTPAdapter {
-  constructor(private req: Request) { }
+  /**
+   * Creates a new ExpressAdapter instance.
+   *
+   * @param req - The Express request object
+   */
+  constructor(private req: Request) {}
 
+  /**
+   * Gets a header value from the request.
+   *
+   * @param name - The header name
+   * @returns The header value or undefined
+   */
   getHeader(name: string): string | undefined {
     const value = this.req.header(name);
     return Array.isArray(value) ? value[0] : value;
   }
 
+  /**
+   * Gets the HTTP method of the request.
+   *
+   * @returns The HTTP method
+   */
   getMethod(): string {
     return this.req.method;
   }
 
+  /**
+   * Gets the path of the request.
+   *
+   * @returns The request path
+   */
   getPath(): string {
     return this.req.path;
   }
 
+  /**
+   * Gets the full URL of the request.
+   *
+   * @returns The full request URL
+   */
   getUrl(): string {
     return `${this.req.protocol}://${this.req.headers.host}${this.req.path}`;
   }
 
+  /**
+   * Gets the Accept header from the request.
+   *
+   * @returns The Accept header value or empty string
+   */
   getAcceptHeader(): string {
-    return this.req.header('Accept') || '';
+    return this.req.header("Accept") || "";
   }
 
+  /**
+   * Gets the User-Agent header from the request.
+   *
+   * @returns The User-Agent header value or empty string
+   */
   getUserAgent(): string {
-    return this.req.header('User-Agent') || '';
+    return this.req.header("User-Agent") || "";
   }
 }
 
@@ -53,11 +94,12 @@ export interface SchemeRegistration {
 
 /**
  * Express payment middleware for x402 protocol
- * 
+ *
  * @param routes - Route configurations for protected endpoints
  * @param facilitatorClients - Optional facilitator client(s) for payment processing
  * @param schemes - Optional array of scheme registrations for server-side payment processing
  * @param paywallConfig - Optional configuration for the built-in paywall UI
+ * @param initializeOnStart - Whether to initialize the server on startup
  * @returns Express middleware handler
  */
 export function paymentMiddleware(
@@ -65,7 +107,7 @@ export function paymentMiddleware(
   facilitatorClients?: FacilitatorClient | FacilitatorClient[],
   schemes?: SchemeRegistration[],
   paywallConfig?: PaywallConfig,
-  initializeOnStart: boolean = true
+  initializeOnStart: boolean = true,
 ) {
   // Create the x402 HTTP server instance
   const server = new x402HTTPResourceService(routes, facilitatorClients);
@@ -88,7 +130,7 @@ export function paymentMiddleware(
       adapter,
       path: req.path,
       method: req.method,
-      paymentHeader: adapter.getHeader('payment-signature') || adapter.getHeader('x-payment'),
+      paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
     };
 
     // Process payment requirement check
@@ -96,11 +138,11 @@ export function paymentMiddleware(
 
     // Handle the different result types
     switch (result.type) {
-      case 'no-payment-required':
+      case "no-payment-required":
         // No payment needed, proceed directly to the route handler
         return next();
 
-      case 'payment-error':
+      case "payment-error":
         // Payment required but not provided or invalid
         const { response } = result;
         res.status(response.status);
@@ -114,9 +156,9 @@ export function paymentMiddleware(
         }
         return;
 
-      case 'payment-verified':
+      case "payment-verified":
         // Payment is valid, need to wrap response for settlement
-        const { paymentPayload, requirements } = result;
+        const { paymentPayload, paymentRequirements } = result;
 
         /* eslint-disable @typescript-eslint/no-explicit-any */
         type EndArgs =
@@ -148,8 +190,8 @@ export function paymentMiddleware(
         try {
           const settlementHeaders = await server.processSettlement(
             paymentPayload,
-            requirements,
-            res.statusCode
+            paymentRequirements,
+            res.statusCode,
           );
 
           if (settlementHeaders) {
@@ -164,8 +206,8 @@ export function paymentMiddleware(
           // If settlement fails and the response hasn't been sent yet, return an error
           if (!res.headersSent) {
             res.status(402).json({
-              error: 'Settlement failed',
-              details: error instanceof Error ? error.message : 'Unknown error'
+              error: "Settlement failed",
+              details: error instanceof Error ? error.message : "Unknown error",
             });
             return;
           }
@@ -180,4 +222,10 @@ export function paymentMiddleware(
   };
 }
 
-export type { PaymentRequired, PaymentRequirements, PaymentPayload, Network, SchemeNetworkService } from "@x402/core/types";
+export type {
+  PaymentRequired,
+  PaymentRequirements,
+  PaymentPayload,
+  Network,
+  SchemeNetworkService,
+} from "@x402/core/types";

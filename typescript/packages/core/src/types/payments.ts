@@ -7,8 +7,8 @@ export type PaymentRequirements = {
   amount: string;
   payTo: string;
   maxTimeoutSeconds: number;
-  extra: Record<string, any>;
-}
+  extra: Record<string, unknown>;
+};
 
 export type PaymentRequired = {
   x402Version: number;
@@ -19,14 +19,14 @@ export type PaymentRequired = {
     mimeType: string;
   };
   accepts: PaymentRequirements[];
-  extensions?: Record<string, any>;
-}
+  extensions?: Record<string, unknown>;
+};
 
 export type PaymentPayload = {
   x402Version: number;
   scheme: string;
   network: Network;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   accepted: PaymentRequirements;
-  extensions?: Record<string, any>;
-}
+  extensions?: Record<string, unknown>;
+};

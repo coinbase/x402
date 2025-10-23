@@ -1,12 +1,5 @@
-import {
-  PaymentPayload,
-  PaymentRequirements
-} from "../types/payments";
-import {
-  VerifyResponse,
-  SettleResponse,
-  SupportedResponse
-} from "../types/facilitator";
+import { PaymentPayload, PaymentRequirements } from "../types/payments";
+import { VerifyResponse, SettleResponse, SupportedResponse } from "../types/facilitator";
 
 const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 
@@ -26,31 +19,31 @@ export interface FacilitatorConfig {
 export interface FacilitatorClient {
   /**
    * Verify a payment with the facilitator
-   * 
+   *
    * @param paymentPayload - The payment to verify
    * @param paymentRequirements - The requirements to verify against
    * @returns Verification response
    */
   verify(
     paymentPayload: PaymentPayload,
-    paymentRequirements: PaymentRequirements
+    paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse>;
 
   /**
    * Settle a payment with the facilitator
-   * 
+   *
    * @param paymentPayload - The payment to settle
    * @param paymentRequirements - The requirements for settlement
    * @returns Settlement response
    */
   settle(
     paymentPayload: PaymentPayload,
-    paymentRequirements: PaymentRequirements
+    paymentRequirements: PaymentRequirements,
   ): Promise<SettleResponse>;
 
   /**
    * Get supported payment kinds and extensions from the facilitator
-   * 
+   *
    * @returns Supported payment kinds and extensions
    */
   getSupported(): Promise<SupportedResponse>;
@@ -62,36 +55,31 @@ export interface FacilitatorClient {
  */
 export class HTTPFacilitatorClient implements FacilitatorClient {
   private readonly url: string;
-  private readonly createAuthHeaders?: FacilitatorConfig['createAuthHeaders'];
+  private readonly createAuthHeaders?: FacilitatorConfig["createAuthHeaders"];
 
+  /**
+   * Creates a new HTTPFacilitatorClient instance.
+   *
+   * @param config - Configuration options for the facilitator client
+   */
   constructor(config?: FacilitatorConfig) {
     this.url = config?.url || DEFAULT_FACILITATOR_URL;
     this.createAuthHeaders = config?.createAuthHeaders;
   }
 
   /**
-   * Helper to convert objects to JSON-safe format
-   * Handles BigInt and other non-JSON types
-   */
-  private toJsonSafe(obj: any): any {
-    return JSON.parse(JSON.stringify(obj, (_, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-    ));
-  }
-
-  /**
    * Verify a payment with the facilitator
-   * 
+   *
    * @param paymentPayload - The payment to verify
    * @param paymentRequirements - The requirements to verify against
    * @returns Verification response
    */
   async verify(
     paymentPayload: PaymentPayload,
-    paymentRequirements: PaymentRequirements
+    paymentRequirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
     let headers: Record<string, string> = {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     };
 
     if (this.createAuthHeaders) {
@@ -105,8 +93,8 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       body: JSON.stringify({
         x402Version: paymentPayload.x402Version,
         paymentPayload: this.toJsonSafe(paymentPayload),
-        paymentRequirements: this.toJsonSafe(paymentRequirements)
-      })
+        paymentRequirements: this.toJsonSafe(paymentRequirements),
+      }),
     });
 
     if (!response.ok) {
@@ -114,22 +102,22 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       throw new Error(`Facilitator verify failed (${response.status}): ${errorText}`);
     }
 
-    return await response.json() as VerifyResponse;
+    return (await response.json()) as VerifyResponse;
   }
 
   /**
    * Settle a payment with the facilitator
-   * 
+   *
    * @param paymentPayload - The payment to settle
    * @param paymentRequirements - The requirements for settlement
    * @returns Settlement response
    */
   async settle(
     paymentPayload: PaymentPayload,
-    paymentRequirements: PaymentRequirements
+    paymentRequirements: PaymentRequirements,
   ): Promise<SettleResponse> {
     let headers: Record<string, string> = {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     };
 
     if (this.createAuthHeaders) {
@@ -143,8 +131,8 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       body: JSON.stringify({
         x402Version: paymentPayload.x402Version,
         paymentPayload: this.toJsonSafe(paymentPayload),
-        paymentRequirements: this.toJsonSafe(paymentRequirements)
-      })
+        paymentRequirements: this.toJsonSafe(paymentRequirements),
+      }),
     });
 
     if (!response.ok) {
@@ -152,17 +140,17 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       throw new Error(`Facilitator settle failed (${response.status}): ${errorText}`);
     }
 
-    return await response.json() as SettleResponse;
+    return (await response.json()) as SettleResponse;
   }
 
   /**
    * Get supported payment kinds and extensions from the facilitator
-   * 
+   *
    * @returns Supported payment kinds and extensions
    */
   async getSupported(): Promise<SupportedResponse> {
     let headers: Record<string, string> = {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     };
 
     if (this.createAuthHeaders) {
@@ -172,7 +160,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
 
     const response = await fetch(`${this.url}/supported`, {
       method: "GET",
-      headers
+      headers,
     });
 
     if (!response.ok) {
@@ -180,6 +168,19 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       throw new Error(`Facilitator getSupported failed (${response.status}): ${errorText}`);
     }
 
-    return await response.json() as SupportedResponse;
+    return (await response.json()) as SupportedResponse;
+  }
+
+  /**
+   * Helper to convert objects to JSON-safe format.
+   * Handles BigInt and other non-JSON types.
+   *
+   * @param obj - The object to convert
+   * @returns The JSON-safe representation of the object
+   */
+  private toJsonSafe(obj: unknown): unknown {
+    return JSON.parse(
+      JSON.stringify(obj, (_, value) => (typeof value === "bigint" ? value.toString() : value)),
+    );
   }
 }

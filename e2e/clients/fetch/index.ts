@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader, Network } from "@x402/fetch";
+import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmClient } from "@x402/evm";
 
@@ -20,21 +20,20 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, {
 });
 
 fetchWithPayment(url, {
-  method: "GET"
+  method: "GET",
 }).then(async response => {
   const data = await response.json();
   const paymentResponse = response.headers.get("PAYMENT-RESPONSE");
   const decodedPaymentResponse = decodePaymentResponseHeader(paymentResponse!);
 
-
   const result = {
     success: decodedPaymentResponse.success,
     data: data,
     status_code: response.status,
-    payment_response: decodedPaymentResponse
+    payment_response: decodedPaymentResponse,
   };
 
   // Output structured result as JSON for proxy to parse
   console.log(JSON.stringify(result));
   process.exit(0);
-})
+});

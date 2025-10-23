@@ -34,9 +34,6 @@
       "EVM_ADDRESS",
       "SVM_ADDRESS"
     ],
-    "optional": [
-      "CDP_API_KEY_ID",
-      "CDP_API_KEY_SECRET"
-    ]
+    "optional": ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET"]
   }
 }

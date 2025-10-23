@@ -6,22 +6,51 @@ import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
 
+/**
+ *
+ */
 export class x402Client {
   private readonly paymentRequirementsSelector: SelectPaymentRequirements;
   private readonly registeredClientSchemes: Map<number, Map<string, Map<string, SchemeNetworkClient>>> = new Map();
 
+  /**
+   * Creates a new x402Client instance.
+   *
+   * @param paymentRequirementsSelector - Function to select payment requirements from available options
+   */
   constructor(paymentRequirementsSelector?: SelectPaymentRequirements) {
     this.paymentRequirementsSelector = paymentRequirementsSelector || ((x402Version, accepts) => accepts[0]);
   }
 
+  /**
+   * Registers a scheme client for the current x402 version.
+   *
+   * @param network - The network to register the client for
+   * @param client - The scheme network client to register
+   * @returns The x402Client instance for chaining
+   */
   registerScheme(network: Network, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(x402Version, network, client);
   }
 
+  /**
+   * Registers a scheme client for x402 version 1.
+   *
+   * @param network - The network to register the client for
+   * @param client - The scheme network client to register
+   * @returns The x402Client instance for chaining
+   */
   registerSchemeV1(network: Network, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(1, network, client);
   }
 
+  /**
+   * Selects appropriate payment requirements based on registered clients.
+   *
+   * @param x402Version - The x402 protocol version
+   * @param paymentRequirements - Array of available payment requirements
+   * @returns The selected payment requirements
+   */
   selectPaymentRequirements(x402Version: number, paymentRequirements: PaymentRequirements[]): PaymentRequirements {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
@@ -50,6 +79,13 @@ export class x402Client {
     return this.paymentRequirementsSelector(x402Version, supportedPaymentRequirements);
   }
 
+  /**
+   * Creates a payment payload based on the requirements.
+   *
+   * @param x402Version - The x402 protocol version
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to the payment payload
+   */
   createPaymentPayload(x402Version: number, requirements: PaymentRequirements): Promise<PaymentPayload> {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
@@ -64,6 +100,14 @@ export class x402Client {
     throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
   }
 
+  /**
+   * Internal method to register a scheme client.
+   *
+   * @param x402Version - The x402 protocol version
+   * @param network - The network to register the client for
+   * @param client - The scheme network client to register
+   * @returns The x402Client instance for chaining
+   */
   private _registerScheme(x402Version: number, network: Network, client: SchemeNetworkClient): x402Client {
     if (!this.registeredClientSchemes.has(x402Version)) {
       this.registeredClientSchemes.set(x402Version, new Map());

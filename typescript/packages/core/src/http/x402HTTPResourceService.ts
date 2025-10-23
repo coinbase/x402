@@ -2,14 +2,15 @@ import { FacilitatorClient, x402ResourceService } from "../server";
 import {
   decodePaymentSignatureHeader,
   encodePaymentRequiredHeader,
-  encodePaymentResponseHeader
+  encodePaymentResponseHeader,
 } from ".";
 import {
   PaymentPayload,
   PaymentRequired,
   SettleResponse,
   Price,
-  Network
+  Network,
+  PaymentRequirements,
 } from "../types";
 
 /**
@@ -46,7 +47,7 @@ export interface RouteConfig {
   price: Price;
   network: Network;
   maxTimeoutSeconds?: number;
-  extra?: Record<string, any>;
+  extra?: Record<string, unknown>;
 
   // HTTP-specific metadata
   resource?: string;
@@ -54,8 +55,8 @@ export interface RouteConfig {
   mimeType?: string;
   customPaywallHtml?: string;
   discoverable?: boolean;
-  inputSchema?: any;
-  outputSchema?: any;
+  inputSchema?: unknown;
+  outputSchema?: unknown;
 }
 
 /**
@@ -88,17 +89,21 @@ export interface HTTPRequestContext {
 export interface HTTPResponseInstructions {
   status: number;
   headers: Record<string, string>;
-  body?: any;
-  isHtml?: boolean;
+  body?: unknown; // e.g. Paywall for web browser requests, but could be any other type
+  isHtml?: boolean; // e.g. if body is a paywall, then isHtml is true
 }
 
 /**
  * Result of processing an HTTP request for payment
  */
 export type HTTPProcessResult =
-  | { type: 'no-payment-required' }
-  | { type: 'payment-verified'; paymentPayload: PaymentPayload; requirements: any }
-  | { type: 'payment-error'; response: HTTPResponseInstructions };
+  | { type: "no-payment-required" }
+  | {
+      type: "payment-verified";
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    }
+  | { type: "payment-error"; response: HTTPResponseInstructions };
 
 /**
  * HTTP-enhanced x402 resource server
@@ -107,20 +112,27 @@ export type HTTPProcessResult =
 export class x402HTTPResourceService extends x402ResourceService {
   private compiledRoutes: CompiledRoute[] = [];
 
+  /**
+   * Creates a new x402HTTPResourceService instance.
+   *
+   * @param routes - Route configuration for payment-protected endpoints
+   * @param facilitatorClients - Optional facilitator client(s) for payment processing
+   */
   constructor(routes: RoutesConfig, facilitatorClients?: FacilitatorClient | FacilitatorClient[]) {
     super(facilitatorClients);
 
     // Handle both single route and multiple routes
-    const normalizedRoutes = typeof routes === 'object' && !('scheme' in routes)
-      ? routes as Record<string, RouteConfig>
-      : { '*': routes as RouteConfig };
+    const normalizedRoutes =
+      typeof routes === "object" && !("scheme" in routes)
+        ? (routes as Record<string, RouteConfig>)
+        : { "*": routes as RouteConfig };
 
     for (const [pattern, config] of Object.entries(normalizedRoutes)) {
       const parsed = this.parseRoutePattern(pattern);
       this.compiledRoutes.push({
         verb: parsed.verb,
         regex: parsed.regex,
-        config
+        config,
       });
     }
   }
@@ -128,21 +140,21 @@ export class x402HTTPResourceService extends x402ResourceService {
   /**
    * Process HTTP request and return response instructions
    * This is the main entry point for framework middleware
-   * 
+   *
    * @param context - HTTP request context
    * @param paywallConfig - Optional paywall configuration
    * @returns Process result indicating next action for middleware
    */
   async processHTTPRequest(
     context: HTTPRequestContext,
-    paywallConfig?: PaywallConfig
+    paywallConfig?: PaywallConfig,
   ): Promise<HTTPProcessResult> {
     const { adapter, path, method } = context;
 
     // Find matching route
     const routeConfig = this.getRouteConfig(path, method);
     if (!routeConfig) {
-      return { type: 'no-payment-required' }; // No payment required for this route
+      return { type: "no-payment-required" }; // No payment required for this route
     }
 
     // Check for payment header (v1 or v2)
@@ -155,25 +167,25 @@ export class x402HTTPResourceService extends x402ResourceService {
     const resourceInfo = {
       url: context.adapter.getUrl(),
       description: routeConfig.description || "",
-      mimeType: routeConfig.mimeType || ""
+      mimeType: routeConfig.mimeType || "",
     };
 
     const paymentRequired = this.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
-      !paymentPayload ? "Payment required" : undefined
+      !paymentPayload ? "Payment required" : undefined,
     );
 
     // If no payment provided
     if (!paymentPayload) {
       return {
-        type: 'payment-error',
+        type: "payment-error",
         response: this.createHTTPResponse(
           paymentRequired,
           this.isWebBrowser(adapter),
           paywallConfig,
-          routeConfig.customPaywallHtml
-        )
+          routeConfig.customPaywallHtml,
+        ),
       };
     }
 
@@ -181,22 +193,18 @@ export class x402HTTPResourceService extends x402ResourceService {
     try {
       const matchingRequirements = this.findMatchingRequirements(
         paymentRequired.accepts,
-        paymentPayload
+        paymentPayload,
       );
 
       if (!matchingRequirements) {
         const errorResponse = this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
-          "No matching payment requirements"
+          "No matching payment requirements",
         );
         return {
-          type: 'payment-error',
-          response: this.createHTTPResponse(
-            errorResponse,
-            false,
-            paywallConfig
-          )
+          type: "payment-error",
+          response: this.createHTTPResponse(errorResponse, false, paywallConfig),
         };
       }
 
@@ -206,44 +214,36 @@ export class x402HTTPResourceService extends x402ResourceService {
         const errorResponse = this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
-          verifyResult.invalidReason
+          verifyResult.invalidReason,
         );
         return {
-          type: 'payment-error',
-          response: this.createHTTPResponse(
-            errorResponse,
-            false,
-            paywallConfig
-          )
+          type: "payment-error",
+          response: this.createHTTPResponse(errorResponse, false, paywallConfig),
         };
       }
 
       // Payment is valid, return data needed for settlement
       return {
-        type: 'payment-verified',
+        type: "payment-verified",
         paymentPayload,
-        requirements: matchingRequirements
+        paymentRequirements: matchingRequirements,
       };
     } catch (error) {
       const errorResponse = this.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
-        error instanceof Error ? error.message : "Payment verification failed"
+        error instanceof Error ? error.message : "Payment verification failed",
       );
       return {
-        type: 'payment-error',
-        response: this.createHTTPResponse(
-          errorResponse,
-          false,
-          paywallConfig
-        )
+        type: "payment-error",
+        response: this.createHTTPResponse(errorResponse, false, paywallConfig),
       };
     }
   }
 
   /**
    * Process settlement after successful response
-   * 
+   *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
    * @param responseStatus - Status code from protected resource
@@ -251,28 +251,26 @@ export class x402HTTPResourceService extends x402ResourceService {
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
-    requirements: any,
-    responseStatus: number
+    requirements: PaymentRequirements,
+    responseStatus: number,
   ): Promise<Record<string, string> | null> {
     // Don't settle if response failed
     if (responseStatus >= 400) {
       return null;
     }
 
-
-
     try {
       const settleResult = await this.settlePayment(paymentPayload, requirements);
       return this.createSettlementHeaders(settleResult);
     } catch (error) {
-      console.error('Settlement failed:', error);
+      console.error("Settlement failed:", error);
       throw error;
     }
   }
 
   /**
    * Get route configuration for a request
-   * 
+   *
    * @param path - Request path
    * @param method - HTTP method
    * @returns Route configuration or undefined if no match
@@ -281,9 +279,9 @@ export class x402HTTPResourceService extends x402ResourceService {
     const normalizedPath = this.normalizePath(path);
     const upperMethod = method.toUpperCase();
 
-    const matchingRoute = this.compiledRoutes.find(route =>
-      route.regex.test(normalizedPath) &&
-      (route.verb === '*' || route.verb === upperMethod)
+    const matchingRoute = this.compiledRoutes.find(
+      route =>
+        route.regex.test(normalizedPath) && (route.verb === "*" || route.verb === upperMethod),
     );
 
     return matchingRoute?.config;
@@ -291,19 +289,19 @@ export class x402HTTPResourceService extends x402ResourceService {
 
   /**
    * Extract payment from HTTP headers (handles v1 and v2)
-   * 
+   *
    * @param adapter - HTTP adapter
    * @returns Decoded payment payload or null
    */
   private extractPayment(adapter: HTTPAdapter): PaymentPayload | null {
     // Check v2 header first (PAYMENT-SIGNATURE)
-    const header = adapter.getHeader('payment-signature') || adapter.getHeader('PAYMENT-SIGNATURE');
+    const header = adapter.getHeader("payment-signature") || adapter.getHeader("PAYMENT-SIGNATURE");
 
     if (header) {
       try {
         return decodePaymentSignatureHeader(header);
       } catch (error) {
-        console.warn('Failed to decode PAYMENT-SIGNATURE header:', error);
+        console.warn("Failed to decode PAYMENT-SIGNATURE header:", error);
       }
     }
 
@@ -312,19 +310,19 @@ export class x402HTTPResourceService extends x402ResourceService {
 
   /**
    * Check if request is from a web browser
-   * 
+   *
    * @param adapter - HTTP adapter
    * @returns True if request appears to be from a browser
    */
   private isWebBrowser(adapter: HTTPAdapter): boolean {
     const accept = adapter.getAcceptHeader();
     const userAgent = adapter.getUserAgent();
-    return accept.includes('text/html') && userAgent.includes('Mozilla');
+    return accept.includes("text/html") && userAgent.includes("Mozilla");
   }
 
   /**
    * Create HTTP response instructions from payment required
-   * 
+   *
    * @param paymentRequired - Payment requirements
    * @param isWebBrowser - Whether request is from browser
    * @param paywallConfig - Paywall configuration
@@ -335,19 +333,15 @@ export class x402HTTPResourceService extends x402ResourceService {
     paymentRequired: PaymentRequired,
     isWebBrowser: boolean,
     paywallConfig?: PaywallConfig,
-    customHtml?: string
+    customHtml?: string,
   ): HTTPResponseInstructions {
     if (isWebBrowser) {
-      const html = this.generatePaywallHTML(
-        paymentRequired,
-        paywallConfig,
-        customHtml
-      );
+      const html = this.generatePaywallHTML(paymentRequired, paywallConfig, customHtml);
       return {
         status: 402,
-        headers: { 'Content-Type': 'text/html' },
+        headers: { "Content-Type": "text/html" },
         body: html,
-        isHtml: true
+        isHtml: true,
       };
     }
 
@@ -355,60 +349,57 @@ export class x402HTTPResourceService extends x402ResourceService {
     return {
       status: 402,
       headers: {
-        'Content-Type': 'application/json',
-        ...response.headers
-      }
+        "Content-Type": "application/json",
+        ...response.headers,
+      },
     };
   }
 
   /**
    * Create HTTP payment required response (v1 puts in body, v2 puts in header)
-   * 
+   *
    * @param paymentRequired - Payment required object
    * @returns Headers and body for the HTTP response
    */
-  private createHTTPPaymentRequiredResponse(
-    paymentRequired: PaymentRequired
-  ): { headers: Record<string, string> } {
+  private createHTTPPaymentRequiredResponse(paymentRequired: PaymentRequired): {
+    headers: Record<string, string>;
+  } {
     return {
       headers: {
-        'PAYMENT-REQUIRED': encodePaymentRequiredHeader(paymentRequired)
+        "PAYMENT-REQUIRED": encodePaymentRequiredHeader(paymentRequired),
       },
     };
   }
 
   /**
    * Create settlement response headers
-   * 
+   *
    * @param settleResponse - Settlement response
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(
-    settleResponse: SettleResponse,
-  ): Record<string, string> {
+  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
     const encoded = encodePaymentResponseHeader(settleResponse);
-    return { 'PAYMENT-RESPONSE': encoded };
+    return { "PAYMENT-RESPONSE": encoded };
   }
 
   /**
    * Parse route pattern into verb and regex
-   * 
+   *
    * @param pattern - Route pattern like "GET /api/*" or "/api/[id]"
    * @returns Parsed pattern with verb and regex
    */
   private parseRoutePattern(pattern: string): { verb: string; regex: RegExp } {
-    const [verb, path] = pattern.includes(' ')
-      ? pattern.split(/\s+/)
-      : ['*', pattern];
+    const [verb, path] = pattern.includes(" ") ? pattern.split(/\s+/) : ["*", pattern];
 
     const regex = new RegExp(
-      `^${path
-        .replace(/[$()+.?^{|}]/g, '\\$&')  // Escape regex special chars
-        .replace(/\*/g, '.*?')              // Wildcards
-        .replace(/\[([^\]]+)\]/g, '[^/]+') // Parameters
-        .replace(/\//g, '\\/')            // Escape slashes
+      `^${
+        path
+          .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
+          .replace(/\*/g, ".*?") // Wildcards
+          .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters
+          .replace(/\//g, "\\/") // Escape slashes
       }$`,
-      'i'
+      "i",
     );
 
     return { verb: verb.toUpperCase(), regex };
@@ -416,7 +407,7 @@ export class x402HTTPResourceService extends x402ResourceService {
 
   /**
    * Normalize path for matching
-   * 
+   *
    * @param path - Raw path from request
    * @returns Normalized path
    */
@@ -425,9 +416,9 @@ export class x402HTTPResourceService extends x402ResourceService {
       const pathWithoutQuery = path.split(/[?#]/)[0];
       const decodedPath = decodeURIComponent(pathWithoutQuery);
       return decodedPath
-        .replace(/\\/g, '/')
-        .replace(/\/+/g, '/')
-        .replace(/(.+?)\/+$/, '$1');
+        .replace(/\\/g, "/")
+        .replace(/\/+/g, "/")
+        .replace(/(.+?)\/+$/, "$1");
     } catch {
       return path;
     }
@@ -435,7 +426,7 @@ export class x402HTTPResourceService extends x402ResourceService {
 
   /**
    * Generate paywall HTML for browser requests
-   * 
+   *
    * @param paymentRequired - Payment required response
    * @param paywallConfig - Optional paywall configuration
    * @param customHtml - Optional custom HTML template
@@ -444,7 +435,7 @@ export class x402HTTPResourceService extends x402ResourceService {
   private generatePaywallHTML(
     paymentRequired: PaymentRequired,
     paywallConfig?: PaywallConfig,
-    customHtml?: string
+    customHtml?: string,
   ): string {
     if (customHtml) {
       return customHtml;
@@ -465,14 +456,14 @@ export class x402HTTPResourceService extends x402ResourceService {
         </head>
         <body>
           <div style="max-width: 600px; margin: 50px auto; padding: 20px; font-family: system-ui, -apple-system, sans-serif;">
-            ${paywallConfig?.appLogo ? `<img src="${paywallConfig.appLogo}" alt="${paywallConfig.appName || 'App'}" style="max-width: 200px; margin-bottom: 20px;">` : ''}
+            ${paywallConfig?.appLogo ? `<img src="${paywallConfig.appLogo}" alt="${paywallConfig.appName || "App"}" style="max-width: 200px; margin-bottom: 20px;">` : ""}
             <h1>Payment Required</h1>
-            ${resource ? `<p><strong>Resource:</strong> ${resource.description || resource.url}</p>` : ''}
+            ${resource ? `<p><strong>Resource:</strong> ${resource.description || resource.url}</p>` : ""}
             <p><strong>Amount:</strong> $${displayAmount.toFixed(2)} USDC</p>
             <div id="payment-widget" 
                  data-requirements='${JSON.stringify(paymentRequired)}'
-                 data-cdp-client-key="${paywallConfig?.cdpClientKey || ''}"
-                 data-app-name="${paywallConfig?.appName || ''}"
+                 data-cdp-client-key="${paywallConfig?.cdpClientKey || ""}"
+                 data-app-name="${paywallConfig?.appName || ""}"
                  data-testnet="${paywallConfig?.testnet || false}">
               <!-- CDP widget would be injected here -->
             </div>
@@ -483,13 +474,16 @@ export class x402HTTPResourceService extends x402ResourceService {
   }
 
   /**
-   * Extract display amount from payment requirements
+   * Extract display amount from payment requirements.
+   *
+   * @param paymentRequired - The payment required object
+   * @returns The display amount in decimal format
    */
   private getDisplayAmount(paymentRequired: PaymentRequired): number {
     const accepts = paymentRequired.accepts;
     if (accepts && accepts.length > 0) {
       const firstReq = accepts[0];
-      if ('amount' in firstReq) {
+      if ("amount" in firstReq) {
         // V2 format
         return parseFloat(firstReq.amount) / 1000000; // Assuming USDC with 6 decimals
       }

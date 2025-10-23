@@ -3,11 +3,7 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
-    "lib": [
-      "DOM"
-    ]
+    "lib": ["DOM"]
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src"]
 }
