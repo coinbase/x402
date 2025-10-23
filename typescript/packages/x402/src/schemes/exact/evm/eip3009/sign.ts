@@ -1,12 +1,12 @@
 import { Chain, getAddress, Hex, LocalAccount, toHex, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
+import { getNetworkId } from "../../../../shared";
 import {
   authorizationTypes,
   isAccount,
   isSignerWallet,
   SignerWallet,
-} from "../../../types/shared/evm";
-import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
+} from "../../../../types/shared/evm";
+import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../../types/verify";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer
@@ -76,10 +76,10 @@ export async function signAuthorization<transport extends Transport, chain exten
 export function createNonce(): Hex {
   const cryptoObj =
     typeof globalThis.crypto !== "undefined" &&
-      typeof globalThis.crypto.getRandomValues === "function"
+    typeof globalThis.crypto.getRandomValues === "function"
       ? globalThis.crypto
       : // Dynamic require is needed to support node.js
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require("crypto").webcrypto;
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("crypto").webcrypto;
   return toHex(cryptoObj.getRandomValues(new Uint8Array(32)));
 }

@@ -1,26 +1,24 @@
 import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
-import { getVersion, getERC20Balance } from "../../../shared/evm";
+import { getNetworkId } from "../../../../shared";
+import { getVersion, getERC20Balance } from "../../../../shared/evm";
 import {
   usdcABI as abi,
   authorizationTypes,
   config,
   ConnectedClient,
   SignerWallet,
-} from "../../../types/shared/evm";
+} from "../../../../types/shared/evm";
 import {
   PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
-} from "../../../types/verify";
-import { SCHEME } from "../../exact";
-import { verifyPermit, settlePermit } from "./facilitatorPermit";
-import { verifyPermit2, settlePermit2 } from "./facilitatorPermit2";
+} from "../../../../types/verify";
+import { SCHEME } from "../../../exact";
 
 /**
- * Verifies a payment payload against the required payment details
+ * Verifies an EIP-3009 payment payload against the required payment details
  *
  * This function performs several verification steps:
  * - Verifies protocol version compatibility
@@ -46,24 +44,13 @@ export async function verify<
 ): Promise<VerifyResponse> {
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
-  // Route to appropriate verification based on authorization type
-  switch (exactEvmPayload.authorizationType) {
-    case "permit":
-      return verifyPermit(client, payload, paymentRequirements);
-
-    case "permit2":
-      return verifyPermit2(client, payload, paymentRequirements);
-
-    case "eip3009":
-      // Fall through to existing EIP-3009 logic
-      break;
-
-    default:
-      return {
-        isValid: false,
-        invalidReason: "unsupported_authorization_type",
-        payer: "",
-      };
+  // Verify this is EIP-3009
+  if (exactEvmPayload.authorizationType !== "eip3009") {
+    return {
+      isValid: false,
+      invalidReason: "unsupported_authorization_type",
+      payer: "",
+    };
   }
 
   /* TODO: work with security team on brainstorming more verification steps
@@ -78,15 +65,6 @@ export async function verify<
     - check min amount is above some threshold we think is reasonable for covering gas
     - verify resource is not already paid for (next version)
     */
-
-  // Type guard: from here on we know it's EIP-3009
-  if (exactEvmPayload.authorizationType !== "eip3009") {
-    return {
-      isValid: false,
-      invalidReason: "unsupported_authorization_type",
-      payer: "",
-    };
-  }
 
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
@@ -202,7 +180,7 @@ export async function verify<
 }
 
 /**
- * Settles a payment by executing a USDC transferWithAuthorization transaction
+ * Settles an EIP-3009 payment by executing a USDC transferWithAuthorization transaction
  *
  * This function executes the actual USDC transfer using the signed authorization from the user.
  * The facilitator wallet submits the transaction but does not need to hold or transfer any tokens itself.
@@ -219,26 +197,15 @@ export async function settle<transport extends Transport, chain extends Chain>(
 ): Promise<SettleResponse> {
   const payload = paymentPayload.payload as ExactEvmPayload;
 
-  // Route to appropriate settlement based on authorization type
-  switch (payload.authorizationType) {
-    case "permit":
-      return settlePermit(wallet, paymentPayload, paymentRequirements);
-
-    case "permit2":
-      return settlePermit2(wallet, paymentPayload, paymentRequirements);
-
-    case "eip3009":
-      // Fall through to existing EIP-3009 logic
-      break;
-
-    default:
-      return {
-        success: false,
-        errorReason: "unsupported_authorization_type",
-        transaction: "",
-        network: paymentPayload.network,
-        payer: "",
-      };
+  // Verify this is EIP-3009
+  if (payload.authorizationType !== "eip3009") {
+    return {
+      success: false,
+      errorReason: "unsupported_authorization_type",
+      transaction: "",
+      network: paymentPayload.network,
+      payer: "",
+    };
   }
 
   // re-verify to ensure the payment is still valid

@@ -1,7 +1,7 @@
-import { signPaymentHeader as signPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
+import { signPaymentHeader as signPaymentHeaderExactEVM } from "../schemes/exact/evm/eip3009/client";
 import { encodePayment } from "../schemes/exact/evm/utils/paymentUtils";
 import { isEvmSignerWallet, isMultiNetworkSigner, MultiNetworkSigner, Signer, SupportedEVMNetworks } from "../types/shared";
-import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
+import { PaymentRequirements, UnsignedEip3009PaymentPayload } from "../types/verify";
 
 /**
  * Signs a payment header using the provided client and payment requirements.
@@ -14,7 +14,7 @@ import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
 export async function signPaymentHeader(
   client: Signer | MultiNetworkSigner,
   paymentRequirements: PaymentRequirements,
-  unsignedPaymentHeader: UnsignedPaymentPayload,
+  unsignedPaymentHeader: UnsignedEip3009PaymentPayload,
 ): Promise<string> {
   if (
     paymentRequirements.scheme === "exact" &&

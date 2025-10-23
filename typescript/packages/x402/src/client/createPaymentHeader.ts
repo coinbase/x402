@@ -1,4 +1,4 @@
-import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
+import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/eip3009/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
 import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { PaymentRequirements } from "../types/verify";

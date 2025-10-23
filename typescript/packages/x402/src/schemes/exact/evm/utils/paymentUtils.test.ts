@@ -5,6 +5,7 @@ import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
 
 // valid exact EVM payload
 const validEvmPayload: ExactEvmPayload = {
+  authorizationType: "eip3009",
   signature: "0x" + "a".repeat(130),
   authorization: {
     from: "0x" + "1".repeat(40),
@@ -51,7 +52,10 @@ describe("paymentUtils", () => {
   });
 
   it("throws on invalid network in encodePayment", () => {
-    const invalidPayment = { ...validEvmPayment, network: "invalid-network" };
+    const invalidPayment = {
+      ...validEvmPayment,
+      network: "invalid-network" as (typeof SupportedEVMNetworks)[number],
+    };
     expect(() => encodePayment(invalidPayment)).toThrow("Invalid network");
   });
 

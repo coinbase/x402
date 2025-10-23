@@ -161,9 +161,46 @@ export const PaymentPayloadSchema = z.object({
   payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
-export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
-  payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
+
+// Protocol-specific payment payload types
+export type EvmPaymentPayload<T extends "eip3009" | "permit" | "permit2"> = Omit<
+  PaymentPayload,
+  "payload"
+> & {
+  payload: {
+    authorizationType: T;
+    signature: `0x${string}`;
+    authorization: T extends "eip3009"
+    ? z.infer<typeof ExactEvmPayloadAuthorizationSchema>
+    : T extends "permit"
+    ? z.infer<typeof PermitEvmPayloadAuthorizationSchema>
+    : z.infer<typeof Permit2EvmPayloadAuthorizationSchema>;
+  };
 };
+
+// Unsigned EVM payment payload (core type definition)
+export type UnsignedEvmPaymentPayload<T extends "eip3009" | "permit" | "permit2"> = Omit<
+  PaymentPayload,
+  "payload"
+> & {
+  payload: {
+    authorizationType: T;
+    signature: undefined;
+    authorization: T extends "eip3009"
+    ? z.infer<typeof ExactEvmPayloadAuthorizationSchema>
+    : T extends "permit"
+    ? Omit<z.infer<typeof PermitEvmPayloadAuthorizationSchema>, "nonce"> & { nonce?: string }
+    : Omit<z.infer<typeof Permit2EvmPayloadAuthorizationSchema>, "nonce"> & { nonce?: string };
+  };
+};
+
+// Specific type aliases (for convenience)
+export type Eip3009PaymentPayload = EvmPaymentPayload<"eip3009">;
+export type UnsignedEip3009PaymentPayload = UnsignedEvmPaymentPayload<"eip3009">;
+export type PermitPaymentPayload = EvmPaymentPayload<"permit">;
+export type UnsignedPermitPaymentPayload = UnsignedEvmPaymentPayload<"permit">;
+export type Permit2PaymentPayload = EvmPaymentPayload<"permit2">;
+export type UnsignedPermit2PaymentPayload = UnsignedEvmPaymentPayload<"permit2">;
 
 // x402 Resource Server Response
 export const x402ResponseSchema = z.object({

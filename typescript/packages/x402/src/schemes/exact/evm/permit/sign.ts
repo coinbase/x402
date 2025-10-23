@@ -1,13 +1,12 @@
-import { Chain, getAddress, Hex, LocalAccount, Transport, Address } from "viem";
-import { getNetworkId } from "../../../shared";
+import { Chain, getAddress, Hex, LocalAccount, Transport } from "viem";
+import { getNetworkId } from "../../../../shared";
 import {
   permitTypes,
   erc20PermitABI,
-  isAccount,
   isSignerWallet,
   SignerWallet,
-} from "../../../types/shared/evm";
-import { PermitEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
+} from "../../../../types/shared/evm";
+import { PermitEvmPayloadAuthorization, PaymentRequirements } from "../../../../types/verify";
 
 /**
  * Signs an EIP-2612 Permit authorization for ERC20 approval
@@ -95,6 +94,9 @@ export async function signPermit<transport extends Transport, chain extends Chai
 /**
  * Helper function to split signature into v, r, s components
  * Required for calling the permit function on-chain
+ *
+ * @param signature - The signature to split
+ * @returns The v, r, s components of the signature
  */
 export function splitSignature(signature: Hex): { v: number; r: Hex; s: Hex } {
   const sig = signature.slice(2); // Remove 0x prefix

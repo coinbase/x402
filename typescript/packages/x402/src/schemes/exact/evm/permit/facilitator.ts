@@ -1,30 +1,30 @@
 import { Account, Address, Chain, getAddress, Hex, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
-import { getERC20Balance } from "../../../shared/evm";
+import { getNetworkId } from "../../../../shared";
+import { getERC20Balance } from "../../../../shared/evm";
 import {
-  permit2Types,
-  permit2ABI,
-  PERMIT2_ADDRESS,
+  permitTypes,
+  erc20PermitABI,
   ConnectedClient,
   SignerWallet,
-} from "../../../types/shared/evm";
+} from "../../../../types/shared/evm";
 import {
   PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
-} from "../../../types/verify";
-import { SCHEME } from "../../exact";
+} from "../../../../types/verify";
+import { SCHEME } from "../../../exact";
+import { splitSignature } from "./sign";
 
 /**
- * Verifies a Permit2 payment payload
+ * Verifies an EIP-2612 Permit payment payload
  *
  * @param client - The public client used for blockchain interactions
- * @param payload - The signed payment payload containing permit2 parameters and signature
+ * @param payload - The signed payment payload containing permit parameters and signature
  * @param paymentRequirements - The payment requirements that the payload must satisfy
  * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
-export async function verifyPermit2<
+export async function verify<
   transport extends Transport,
   chain extends Chain,
   account extends Account | undefined,
@@ -44,7 +44,7 @@ export async function verifyPermit2<
 
   // Validate payload has correct authorizationType
   if (
-    payload.payload.authorizationType !== "permit2" ||
+    payload.payload.authorizationType !== "permit" ||
     payload.scheme !== SCHEME ||
     paymentRequirements.scheme !== SCHEME
   ) {
@@ -58,43 +58,57 @@ export async function verifyPermit2<
     };
   }
 
-  const permit2Payload = payload.payload;
-  const { owner, spender, token, amount, deadline, nonce } = permit2Payload.authorization;
+  const permitPayload = payload.payload;
+  const { owner, spender, value, deadline, nonce } = permitPayload.authorization;
 
   const chainId = getNetworkId(payload.network);
-  const tokenAddress = getAddress(token);
-  const ownerAddress = getAddress(owner);
+  const tokenAddress = paymentRequirements.asset as Address;
 
-  // Verify permit2 signature
-  const permit2TypedData = {
-    types: permit2Types,
+  // Get token name for EIP-712 domain
+  let tokenName: string;
+  try {
+    tokenName = (await client.readContract({
+      address: tokenAddress,
+      abi: erc20PermitABI,
+      functionName: "name",
+    })) as string;
+  } catch {
+    return {
+      isValid: false,
+      invalidReason: "invalid_token_address",
+      payer: owner,
+    };
+  }
+
+  // Verify permit signature
+  const permitTypedData = {
+    types: permitTypes,
     domain: {
-      name: "Permit2",
+      name: tokenName,
+      version: "1",
       chainId,
-      verifyingContract: PERMIT2_ADDRESS,
+      verifyingContract: tokenAddress,
     },
-    primaryType: "PermitTransferFrom" as const,
+    primaryType: "Permit" as const,
     message: {
-      permitted: {
-        token: tokenAddress,
-        amount: BigInt(amount),
-      },
+      owner: getAddress(owner),
       spender: getAddress(spender),
+      value: BigInt(value),
       nonce: BigInt(nonce),
       deadline: BigInt(deadline),
     },
   };
 
   const recoveredAddress = await client.verifyTypedData({
-    address: ownerAddress,
-    ...permit2TypedData,
-    signature: permit2Payload.signature as Hex,
+    address: owner as Address,
+    ...permitTypedData,
+    signature: permitPayload.signature as Hex,
   });
 
   if (!recoveredAddress) {
     return {
       isValid: false,
-      invalidReason: "invalid_permit2_signature",
+      invalidReason: "invalid_permit_signature",
       payer: owner,
     };
   }
@@ -104,22 +118,24 @@ export async function verifyPermit2<
   if (BigInt(deadline) < now) {
     return {
       isValid: false,
-      invalidReason: "permit2_expired",
+      invalidReason: "permit_expired",
       payer: owner,
     };
   }
 
-  // Verify token address matches payment requirements
-  if (tokenAddress.toLowerCase() !== (paymentRequirements.asset as string).toLowerCase()) {
+  // Verify spender matches the facilitator's wallet address
+  // In x402, the facilitator acts as the spender to execute transferFrom
+  // The client must authorize the facilitator's wallet address as the spender
+  if (client.account && getAddress(spender) !== getAddress(client.account.address)) {
     return {
       isValid: false,
-      invalidReason: "token_mismatch",
+      invalidReason: "invalid_spender_address",
       payer: owner,
     };
   }
 
-  // Verify owner has sufficient token balance
-  const balance = await getERC20Balance(client, tokenAddress, ownerAddress);
+  // Verify owner has sufficient balance
+  const balance = await getERC20Balance(client, tokenAddress, owner as Address);
   if (balance < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
@@ -128,8 +144,8 @@ export async function verifyPermit2<
     };
   }
 
-  // Verify amount meets the required amount
-  if (BigInt(amount) < BigInt(paymentRequirements.maxAmountRequired)) {
+  // Verify value meets the required amount
+  if (BigInt(value) < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
       invalidReason: "insufficient_payment_amount",
@@ -144,14 +160,14 @@ export async function verifyPermit2<
 }
 
 /**
- * Settles a Permit2 payment by calling permitTransferFrom()
+ * Settles an EIP-2612 Permit payment by calling permit() then transferFrom()
  *
- * @param wallet - The facilitator wallet that will execute the permit transfer
- * @param paymentPayload - The signed payment payload containing permit2 parameters and signature
+ * @param wallet - The facilitator wallet that will execute the permit and transfer
+ * @param paymentPayload - The signed payment payload containing permit parameters and signature
  * @param paymentRequirements - The payment requirements
  * @returns A SettleResponse containing the transaction status and hash
  */
-export async function settlePermit2<transport extends Transport, chain extends Chain>(
+export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
@@ -167,9 +183,9 @@ export async function settlePermit2<transport extends Transport, chain extends C
     };
   }
 
-  const permit2Payload = paymentPayload.payload;
+  const permitPayload = paymentPayload.payload;
 
-  if (permit2Payload.authorizationType !== "permit2") {
+  if (permitPayload.authorizationType !== "permit") {
     return {
       success: false,
       errorReason: "invalid_authorization_type",
@@ -180,7 +196,7 @@ export async function settlePermit2<transport extends Transport, chain extends C
   }
 
   // Re-verify to ensure the payment is still valid
-  const valid = await verifyPermit2(wallet, paymentPayload, paymentRequirements);
+  const valid = await verify(wallet, paymentPayload, paymentRequirements);
 
   if (!valid.isValid) {
     return {
@@ -188,46 +204,46 @@ export async function settlePermit2<transport extends Transport, chain extends C
       network: paymentPayload.network,
       transaction: "",
       errorReason: valid.invalidReason ?? "invalid_payment",
-      payer: permit2Payload.authorization.owner,
+      payer: permitPayload.authorization.owner,
     };
   }
 
-  const { owner, token, amount, deadline, nonce } = permit2Payload.authorization;
-  const tokenAddress = getAddress(token);
-  const ownerAddress = getAddress(owner);
+  const { owner, spender, value, deadline } = permitPayload.authorization;
+  const { v, r, s } = splitSignature(permitPayload.signature as Hex);
+  const tokenAddress = paymentRequirements.asset as Address;
 
   try {
-    // Call permitTransferFrom on Permit2 contract
-    const tx = await wallet.writeContract({
-      address: PERMIT2_ADDRESS,
-      abi: permit2ABI,
-      functionName: "permitTransferFrom",
+    // Step 1: Call permit to approve the spender
+    const permitTx = await wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20PermitABI,
+      functionName: "permit",
+      args: [owner as Address, spender as Address, BigInt(value), BigInt(deadline), v, r, s],
+      chain: wallet.chain as Chain,
+    });
+
+    await wallet.waitForTransactionReceipt({ hash: permitTx });
+
+    // Step 2: Call transferFrom to transfer tokens to payTo address
+    const transferTx = await wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20PermitABI,
+      functionName: "transferFrom",
       args: [
-        {
-          permitted: {
-            token: tokenAddress,
-            amount: BigInt(amount),
-          },
-          nonce: BigInt(nonce),
-          deadline: BigInt(deadline),
-        },
-        {
-          to: paymentRequirements.payTo as Address,
-          requestedAmount: BigInt(paymentRequirements.maxAmountRequired),
-        },
-        ownerAddress,
-        permit2Payload.signature as Hex,
+        owner as Address,
+        paymentRequirements.payTo as Address,
+        BigInt(paymentRequirements.maxAmountRequired),
       ],
       chain: wallet.chain as Chain,
     });
 
-    const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
+    const receipt = await wallet.waitForTransactionReceipt({ hash: transferTx });
 
     if (receipt.status !== "success") {
       return {
         success: false,
         errorReason: "transaction_failed",
-        transaction: tx,
+        transaction: transferTx,
         network: paymentPayload.network,
         payer: owner,
       };
@@ -235,7 +251,7 @@ export async function settlePermit2<transport extends Transport, chain extends C
 
     return {
       success: true,
-      transaction: tx,
+      transaction: transferTx,
       network: paymentPayload.network,
       payer: owner,
     };

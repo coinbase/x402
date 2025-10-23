@@ -1,14 +1,13 @@
-import { Chain, getAddress, Hex, LocalAccount, Transport, Address } from "viem";
-import { getNetworkId } from "../../../shared";
+import { Chain, getAddress, Hex, LocalAccount, Transport } from "viem";
+import { getNetworkId } from "../../../../shared";
 import {
   permit2Types,
   permit2ABI,
   PERMIT2_ADDRESS,
-  isAccount,
   isSignerWallet,
   SignerWallet,
-} from "../../../types/shared/evm";
-import { Permit2EvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
+} from "../../../../types/shared/evm";
+import { Permit2EvmPayloadAuthorization, PaymentRequirements } from "../../../../types/verify";
 
 /**
  * Signs a Permit2 PermitTransferFrom authorization
@@ -21,6 +20,7 @@ import { Permit2EvmPayloadAuthorization, PaymentRequirements } from "../../../ty
  * @param params.amount - The amount of tokens to transfer (in base units)
  * @param params.deadline - Unix timestamp after which the permit is no longer valid
  * @param paymentRequirements - The payment requirements containing network information
+ * @param paymentRequirements.network - The network where the token exists
  * @returns The signature and nonce for the permit2
  */
 export async function signPermit2<transport extends Transport, chain extends Chain>(
@@ -45,7 +45,7 @@ export async function signPermit2<transport extends Transport, chain extends Cha
     });
 
     // allowanceData is [amount: bigint, expiration: number, nonce: number]
-    nonce = BigInt((allowanceData as any)[2]); // nonce is the third element
+    nonce = BigInt((allowanceData as [bigint, number, number])[2]); // nonce is the third element
   } else {
     throw new Error("Local account signing for permit2 requires a connected client");
   }
