@@ -164,6 +164,18 @@ class EIP3009Authorization(BaseModel):
         return v
 
 
+class ExactSvmPaymentPayload(BaseModel):
+    """Payment payload for SVM (Solana) transactions."""
+
+    transaction: str  # Base64-encoded partially signed transaction
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
 class VerifyResponse(BaseModel):
     is_valid: bool = Field(alias="isValid")
     invalid_reason: Optional[str] = Field(None, alias="invalidReason")
@@ -191,7 +203,7 @@ class SettleResponse(BaseModel):
 
 
 # Union of payloads for each scheme
-SchemePayloads = ExactPaymentPayload
+SchemePayloads = Union[ExactPaymentPayload, ExactSvmPaymentPayload, dict]
 
 
 class PaymentPayload(BaseModel):

@@ -3,6 +3,8 @@ NETWORK_TO_ID = {
     "base": "8453",
     "avalanche-fuji": "43113",
     "avalanche": "43114",
+    "solana-devnet": "103",
+    "solana": "101",
 }
 
 
@@ -55,6 +57,24 @@ KNOWN_TOKENS = {
             "name": "USDC",
             "decimals": 6,
             "version": "2",
+        }
+    ],
+    "103": [  # Solana Devnet
+        {
+            "human_name": "usdc",
+            "address": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "1",
+        }
+    ],
+    "101": [  # Solana Mainnet
+        {
+            "human_name": "usdc",
+            "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "1",
         }
     ],
 }

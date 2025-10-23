@@ -1,5 +1,5 @@
 import time
-from typing import Optional, Callable, Dict, Any, List
+from typing import Optional, Callable, Dict, Any, List, Union
 from eth_account import Account
 from x402.exact import sign_payment_header
 from x402.types import (
@@ -7,6 +7,7 @@ from x402.types import (
     UnsupportedSchemeException,
 )
 from x402.common import x402_VERSION
+from x402.networks import SUPPORTED_SVM_NETWORKS
 import secrets
 from x402.encoding import safe_base64_decode
 import json
@@ -61,22 +62,40 @@ class PaymentAlreadyAttemptedError(PaymentError):
 
 
 class x402Client:
-    """Base client for handling x402 payments."""
+    """Base client for handling x402 payments (both EVM and SVM)."""
 
     def __init__(
         self,
-        account: Account,
+        account: Union[Account, "Keypair"] = None,  # type: ignore
+        evm_account: Optional[Account] = None,
+        svm_keypair: Optional["Keypair"] = None,  # type: ignore
         max_value: Optional[int] = None,
         payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
     ):
         """Initialize the x402 client.
 
         Args:
-            account: eth_account.Account instance for signing payments
+            account: Legacy parameter - eth_account.Account instance for EVM signing
+            evm_account: eth_account.Account instance for EVM signing
+            svm_keypair: Solana Keypair instance for SVM signing
             max_value: Optional maximum allowed payment amount in base units
             payment_requirements_selector: Optional custom selector for payment requirements
         """
-        self.account = account
+        # Support legacy single account parameter
+        if account is not None:
+            # Check if it's an EVM account or SVM keypair
+            if hasattr(account, "address") and isinstance(account.address, str):
+                # EVM Account
+                self.evm_account = account
+                self.svm_keypair = None
+            else:
+                # Assume SVM Keypair
+                self.evm_account = None
+                self.svm_keypair = account
+        else:
+            self.evm_account = evm_account
+            self.svm_keypair = svm_keypair
+
         self.max_value = max_value
         self._payment_requirements_selector = (
             payment_requirements_selector or self.default_payment_requirements_selector
@@ -167,6 +186,21 @@ class x402Client:
         Returns:
             Signed payment header
         """
+        # Check if this is an SVM network
+        if payment_requirements.network in SUPPORTED_SVM_NETWORKS:
+            return self._create_svm_payment_header(payment_requirements, x402_version)
+        else:
+            return self._create_evm_payment_header(payment_requirements, x402_version)
+
+    def _create_evm_payment_header(
+        self,
+        payment_requirements: PaymentRequirements,
+        x402_version: int,
+    ) -> str:
+        """Create an EVM payment header."""
+        if not self.evm_account:
+            raise ValueError("EVM account required for EVM payment")
+
         unsigned_header = {
             "x402Version": x402_version,
             "scheme": payment_requirements.scheme,
@@ -174,7 +208,7 @@ class x402Client:
             "payload": {
                 "signature": None,
                 "authorization": {
-                    "from": self.account.address,
+                    "from": self.evm_account.address,
                     "to": payment_requirements.pay_to,
                     "value": payment_requirements.max_amount_required,
                     "validAfter": str(int(time.time()) - 60),  # 60 seconds before
@@ -187,11 +221,38 @@ class x402Client:
         }
 
         signed_header = sign_payment_header(
-            self.account,
+            self.evm_account,
             payment_requirements,
             unsigned_header,
         )
         return signed_header
+
+    def _create_svm_payment_header(
+        self,
+        payment_requirements: PaymentRequirements,
+        x402_version: int,
+    ) -> str:
+        """Create an SVM payment header."""
+        if not self.svm_keypair:
+            raise ValueError("SVM keypair required for SVM payment")
+
+        import asyncio
+        from x402.exact_svm import create_payment_header
+
+        # Run async function in sync context
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            header = loop.run_until_complete(
+                create_payment_header(
+                    self.svm_keypair,
+                    x402_version,
+                    payment_requirements,
+                )
+            )
+            return header
+        finally:
+            loop.close()
 
     def generate_nonce(self):
         # Generate a random nonce (32 bytes = 64 hex chars)
