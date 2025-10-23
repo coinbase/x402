@@ -11,16 +11,17 @@ This scheme facilitates payments of Cardano Native Tokens to a Cardano Wallet or
 The protocol flow for `exact` on Cardano is server-driven. 
 
 1.  **Client** makes an HTTP request to a **Resource Server**.
-2.  **Resource Server** responds with a `402 Payment Required` status. The response body contains the finalised transaction body.
-3.  **Client** signs the transaction body with their wallet.
-6.  **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing the Base64-encoded partially-signed transaction payload.
-7.  **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
-9.  **Facilitator** inspects the transaction to ensure it is valid and only contains the expected payment instruction.
-10.  **Facilitator** returns a response to the **Resource Server** verifying the **client**  transaction.
-11. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
-12. **Facilitator Server** provides its final signature as the `feePayer` and submits the now fully-signed transaction to the Solana network.
-13. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
-14. **Resource Server** grants the **Client** access to the resource in its response.
+3.  **Resource Server** responds with a `402 Payment Required` status. Detiling the Paymsnt Information and specifying which information is still required from the client to create a transaction.
+4.  **Client** responds with required information.
+5.  **Ressource Server** sends information to Facilitator.
+6. **Facilitator** checks validity, constructs transaction body & returns it to Ressource Server.
+8.  **Ressource Server** forwards transaction body to client.
+9.  **Client** signs the transaction body with their wallet.
+11.  **Client** sends a new HTTP request to the resource server with the `X-PAYMENT` header containing signed transaction payload.
+12.  **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator Server's** `/verify` endpoint.
+13.  **Facilitator** checks that only the required assets are being moved in the transaction & submits transction.
+15. Upon successful on-chain settlement, the **Facilitator Server** responds to the **Resource Server**.
+16. **Resource Server** grants the **Client** access to the resource in its response.
 
 ## `X-PAYMENT` Header Payload
 
