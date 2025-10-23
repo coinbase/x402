@@ -77,7 +77,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         EVM_ADDRESS: config.evmPayTo,
         SVM_NETWORK: config.svmNetwork,
         SVM_ADDRESS: config.svmPayTo,
-        PORT: config.port.toString()
+        PORT: config.port.toString(),
+
+        // TODO: Include private keys for servers temporarily until we have a facilitator for e2e tests to call directly. Until then, they act as their own facilitator
+        EVM_PRIVATE_KEY: process.env.CLIENT_EVM_PRIVATE_KEY || '',
+        SVM_PRIVATE_KEY: process.env.CLIENT_SVM_PRIVATE_KEY || ''
       }
     };
 
