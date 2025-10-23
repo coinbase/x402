@@ -171,20 +171,17 @@ Increment `x402Version` to `2`.
 
 ### PaymentPayload
 
-1. Network
-
-Same as PaymentRequirements' `network` change (e.g. `eip155:8453`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`)
-
-```git
--  "network": "base" | "solana"
-+  "network": "eip155:8453" | "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" | "cloudflare" | "ach"
-```
-
-2. Accepted
+1. Accepted
 
 **What**: The addition of a `accepted` property which stores the accepted `PaymentRequirement` from the list of acceptable payments.
 
 **Why**: There is not sufficient overlap between the fields of a `PaymentPayload` to always correctly determine which `PaymentRequirement` it was made for
+
+1. Scheme & Network
+
+**What**: The `scheme` and `network` properties to be removed.
+
+**Why**: The `scheme` and `network` properties are duplicated after the addition of `accepted`
 
 3. Extensions
 
@@ -194,8 +191,6 @@ Same as PaymentRequirements' `network` change (e.g. `eip155:8453`, `solana:5eykt
 ```json
 {
   "x402Version": 2,
-  "scheme": "exact",
-  "network": "eip155:8453",
   "payload": { /* scheme-specific data */ },
   "accepted": {
     "scheme": "exact",
@@ -264,14 +259,14 @@ Servers advertise SIWx support by including the extension in their PaymentRequir
     "sign-in-with-x": {
       "info": {
         "domain": "api.example.com",
-        "uri": "https://api.example.com/data/123",
+        "uri": "https://api.example.com",
         "statement": "Sign in to access your purchased content",
         "version": "1",
         "chainId": "eip155:8453",
         "nonce": "32891756",
         "issuedAt": "2025-10-17T10:00:00Z",
         "expirationTime": "2025-10-17T10:05:00Z",
-        "resources": ["https://api.example.com/data/123"],
+        "resources": ["https://api.example.com"],
         "signatureScheme": "eip191" // or "eip712", "eip1271", "eip6492", "siws", "sep10"
       },
       "schema": {
@@ -308,13 +303,13 @@ Clients sign the CAIP-122 message and include it in their response:
   "domain": "api.example.com",
   "address": "0x1234...abcd",
   "statement": "Sign this message to prove you control the wallet that purchased this resource",
-  "uri": "https://api.example.com/data/123",
+  "uri": "https://api.example.com",
   "version": "1",
   "chainId": "eip155:8453",
   "nonce": "32891756",
   "issuedAt": "2025-10-17T10:00:00Z",
   "expirationTime": "2025-10-17T10:05:00Z",
-  "resources": ["https://api.example.com/data/123"],
+  "resources": ["https://api.example.com"],
   "signature": "0x..."
 }
 ```
@@ -330,6 +325,7 @@ Clients sign the CAIP-122 message and include it in their response:
 - **Nonce**: MUST be unique per session to prevent replay attacks
 - **Address Recovery**: The recovered address MUST match a previously verified payment for the resource
 - **Domain Binding**: The `domain` field MUST match the server's domain
+- **URI & Resources**: The `uri` and `resources` fields must refer to the base url of the resource
 
 **Transport Considerations**:
 
