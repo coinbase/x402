@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { createWalletClient, http, publicActions, Hex, parseAbiItem, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { base } from "viem/chains";
 
 // --- Types for Payment Handling ---
 type PaymentDetails = {
@@ -56,7 +56,7 @@ dotenv.config({ path: envPath });
 // ---------------------------
 
 // --- Environment Variable Checks ---
-let resourceServerPrivateKey = process.env.PRIVATE_KEY;
+let resourceServerPrivateKey = process.env.RESOURCE_SERVER_PRIVATE_KEY;
 // if not prefixed, add 0x as prefix
 if (resourceServerPrivateKey && !resourceServerPrivateKey.startsWith("0x")) {
   resourceServerPrivateKey = "0x" + resourceServerPrivateKey;
@@ -65,17 +65,17 @@ if (resourceServerPrivateKey && !resourceServerPrivateKey.startsWith("0x")) {
 const providerUrl = process.env.PROVIDER_URL;
 
 if (!resourceServerPrivateKey || !providerUrl) {
-  console.error("Missing PRIVATE_KEY or PROVIDER_URL in .env file");
+  console.error("Missing RESOURCE_SERVER_PRIVATE_KEY or PROVIDER_URL in .env file");
   process.exit(1);
 }
 // ----------------------------------------
 
 // --- Constants and Setup ---
 const PORT = 4023;
-const FACILITATOR_PORT = 3000;
+const FACILITATOR_PORT = 3002;
 const FACILITATOR_URL = `http://localhost:${FACILITATOR_PORT}`;
 const NFT_CONTRACT_ADDRESS = "0xcD8841f9a8Dbc483386fD80ab6E9FD9656Da39A2" as Hex;
-const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Hex; // Base Sepolia USDC
+const USDC_CONTRACT_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Hex; // Base Mainnet USDC
 const REQUIRED_USDC_PAYMENT = "50000"; // 0.05 USDC (50000 wei, assuming 6 decimals)
 const PAYMENT_RECIPIENT_ADDRESS = "0x52eE5a881287486573cF5CB5e7E7D92F30b03014" as Hex; // TODO @dev - put in your second wallet address as Resource server wallet
 const MINT_ETH_VALUE_STR = "0.01"; // Estimated ETH needed for VRF fee
@@ -85,7 +85,7 @@ const SCHEME = "exact";
 const resourceServerAccount = privateKeyToAccount(resourceServerPrivateKey as Hex);
 const resourceServerWalletClient = createWalletClient({
   account: resourceServerAccount,
-  chain: baseSepolia,
+  chain: base,
   transport: http(providerUrl),
 }).extend(publicActions);
 
@@ -101,7 +101,7 @@ const nftContractAbi = [
 // and the facilitator calls (for its internal validation).
 const paymentDetailsRequired: PaymentDetails = {
   scheme: SCHEME,
-  network: baseSepolia.network, // Use network name string
+  network: "base", // Use network name string
   maxAmountRequired: REQUIRED_USDC_PAYMENT,
   resource: `http://localhost:${PORT}/request-mint`,
   description: "Request to mint a VRF NFT",
@@ -149,7 +149,7 @@ app.post("/request-mint", async c => {
     // Basic validation - check network name now
     if (
       paymentHeader.scheme !== SCHEME ||
-      paymentHeader.network !== baseSepolia.network ||
+      paymentHeader.network !== "base" ||
       !paymentHeader.payload?.authorization?.from
     ) {
       throw new Error("Invalid or incomplete payment header content.");

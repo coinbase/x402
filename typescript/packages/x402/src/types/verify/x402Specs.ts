@@ -4,7 +4,12 @@ import { SvmAddressRegex } from "../shared/svm";
 import { Base64EncodedRegex } from "../../shared/base64";
 
 // Constants
-const EvmMaxAtomicUnits = 18;
+// Maximum digits for token amounts in wei/atomic units
+// This is a security measure to prevent DoS attacks with unreasonably large numbers
+// Practical limit: Most tokens have supply < 10^30 (e.g., ETH ~10^26, USDC ~10^16)
+// Setting to 40 allows up to 10^40, which is 10 trillion times the total ETH supply
+// This is more than enough for any legitimate use case while preventing abuse
+const EvmMaxAtomicUnits = 40;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
@@ -45,12 +50,23 @@ export const ErrorReasons = [
   "unsupported_scheme",
   "invalid_x402_version",
   "invalid_transaction_state",
-  "invalid_x402_version",
   "settle_exact_svm_block_height_exceeded",
   "settle_exact_svm_transaction_confirmation_timed_out",
-  "unsupported_scheme",
   "unexpected_settle_error",
   "unexpected_verify_error",
+  // New error reasons for Permit and Permit2
+  "unsupported_authorization_type",
+  "invalid_authorization_type",
+  "invalid_permit_signature",
+  "invalid_permit2_signature",
+  "permit_expired",
+  "permit2_expired",
+  "invalid_token_address",
+  "invalid_spender_address",
+  "token_mismatch",
+  "insufficient_payment_amount",
+  "transaction_failed",
+  "settlement_failed",
 ] as const;
 
 // Refiners
@@ -79,7 +95,7 @@ export const PaymentRequirementsSchema = z.object({
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirementsSchema>;
 
-// x402ExactEvmPayload
+// x402ExactEvmPayload - EIP-3009 (transferWithAuthorization)
 export const ExactEvmPayloadAuthorizationSchema = z.object({
   from: z.string().regex(EvmAddressRegex),
   to: z.string().regex(EvmAddressRegex),
@@ -90,10 +106,45 @@ export const ExactEvmPayloadAuthorizationSchema = z.object({
 });
 export type ExactEvmPayloadAuthorization = z.infer<typeof ExactEvmPayloadAuthorizationSchema>;
 
-export const ExactEvmPayloadSchema = z.object({
-  signature: z.string().regex(EvmSignatureRegex),
-  authorization: ExactEvmPayloadAuthorizationSchema,
+// EIP-2612 Permit
+export const PermitEvmPayloadAuthorizationSchema = z.object({
+  owner: z.string().regex(EvmAddressRegex),
+  spender: z.string().regex(EvmAddressRegex),
+  value: z.string().refine(isInteger).refine(hasMaxLength(EvmMaxAtomicUnits)),
+  deadline: z.string().refine(isInteger),
+  nonce: z.string().refine(isInteger),
 });
+export type PermitEvmPayloadAuthorization = z.infer<typeof PermitEvmPayloadAuthorizationSchema>;
+
+// Permit2
+export const Permit2EvmPayloadAuthorizationSchema = z.object({
+  owner: z.string().regex(EvmAddressRegex),
+  spender: z.string().regex(EvmAddressRegex),
+  token: z.string().regex(EvmAddressRegex),
+  amount: z.string().refine(isInteger).refine(hasMaxLength(EvmMaxAtomicUnits)),
+  deadline: z.string().refine(isInteger),
+  nonce: z.string().refine(isInteger),
+});
+export type Permit2EvmPayloadAuthorization = z.infer<typeof Permit2EvmPayloadAuthorizationSchema>;
+
+// Discriminated union for all EVM authorization types
+export const ExactEvmPayloadSchema = z.discriminatedUnion("authorizationType", [
+  z.object({
+    authorizationType: z.literal("eip3009"),
+    signature: z.string().regex(EvmSignatureRegex),
+    authorization: ExactEvmPayloadAuthorizationSchema,
+  }),
+  z.object({
+    authorizationType: z.literal("permit"),
+    signature: z.string().regex(EvmSignatureRegex),
+    authorization: PermitEvmPayloadAuthorizationSchema,
+  }),
+  z.object({
+    authorizationType: z.literal("permit2"),
+    signature: z.string().regex(EvmSignatureRegex),
+    authorization: Permit2EvmPayloadAuthorizationSchema,
+  }),
+]);
 export type ExactEvmPayload = z.infer<typeof ExactEvmPayloadSchema>;
 
 // x402ExactSvmPayload

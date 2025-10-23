@@ -1,6 +1,11 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import {
+  PaymentPayload,
+  PaymentRequirements,
+  UnsignedPaymentPayload,
+  ExactEvmPayloadAuthorization,
+} from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
 
@@ -31,6 +36,7 @@ export function preparePaymentHeader(
     scheme: paymentRequirements.scheme,
     network: paymentRequirements.network,
     payload: {
+      authorizationType: "eip3009" as const,
       signature: undefined,
       authorization: {
         from,
@@ -57,19 +63,19 @@ export async function signPaymentHeader<transport extends Transport, chain exten
   paymentRequirements: PaymentRequirements,
   unsignedPaymentHeader: UnsignedPaymentPayload,
 ): Promise<PaymentPayload> {
-  const { signature } = await signAuthorization(
-    client,
-    unsignedPaymentHeader.payload.authorization,
-    paymentRequirements,
-  );
+  // We know this is EIP-3009 since preparePaymentHeader only creates EIP-3009 payloads
+  const authorization = unsignedPaymentHeader.payload.authorization as ExactEvmPayloadAuthorization;
+
+  const { signature } = await signAuthorization(client, authorization, paymentRequirements);
 
   return {
     ...unsignedPaymentHeader,
     payload: {
-      ...unsignedPaymentHeader.payload,
+      authorizationType: "eip3009",
       signature,
+      authorization,
     },
-  };
+  } as PaymentPayload;
 }
 
 /**

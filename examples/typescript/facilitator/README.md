@@ -1,123 +1,299 @@
-# x402 Facilitator Example
+# X402 Facilitator Example
 
-This is an example implementation of an x402 facilitator service that handles payment verification and settlement for the x402 payment protocol. This implementation is for learning purposes and demonstrates how to build a facilitator service.
+A reference implementation of an x402 payment facilitator that supports multiple authorization types.
 
-For production use, we recommend using:
+## Supported Authorization Types
 
-- Testnet: https://x402.org/facilitator
-- Production: https://api.cdp.coinbase.com/platform/v2/x402
+This facilitator supports all major EVM token authorization methods:
 
-## Overview
+### 1. **EIP-3009** - `transferWithAuthorization`
+- **Tokens**: USDC, EURC
+- **Transactions**: 1
+- **Gas Cost**: Lowest
+- **Use Case**: Best for USDC payments
 
-The facilitator provides two main endpoints:
+### 2. **EIP-2612** - Standard `permit`
+- **Tokens**: Most modern ERC20 (DAI, UNI, COMP, AAVE, etc.)
+- **Transactions**: 2 (permit + transferFrom)
+- **Gas Cost**: Medium
+- **Use Case**: Wide token support
 
-- `/verify`: Verifies x402 payment payloads
-- `/settle`: Settles x402 payments by signing and broadcasting transactions
-- `/supported`: Returns the payment kinds that are supported by the facilitator
+### 3. **Permit2** - Universal Approvals
+- **Tokens**: ANY ERC20 (including legacy tokens)
+- **Transactions**: 1 (after one-time approval)
+- **Gas Cost**: Medium
+- **Use Case**: Maximum flexibility, future-proof
 
-This example demonstrates how to:
+### 4. **Solana** - Token Transfers
+- **Network**: Solana (mainnet/devnet)
+- **Use Case**: SPL token transfers
 
-1. Set up a basic Express server to handle x402 payment verification and settlement
-2. Integrate with the x402 protocol's verification and settlement functions
-3. Handle payment payload validation and error cases
+## Quick Start
 
-## Prerequisites
-
-- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum private key and/or Solana private key
-- Base Sepolia testnet ETH and/or Solana Devnet SOL for transaction fees
-
-## Setup
-
-1. Install and build all packages from the typescript examples root:
+### 1. Install Dependencies
 
 ```bash
-cd ..
+cd examples/typescript
 pnpm install
 pnpm build
+```
+
+### 2. Configure Environment
+
+```bash
 cd facilitator
+cp .env-local .env
 ```
 
-2. Create a `.env` file with the following variables:
+Edit `.env`:
+```bash
+# EVM chains (Base, Ethereum, etc.)
+EVM_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
 
-```env
-EVM_PRIVATE_KEY=0xYourPrivateKey
-SVM_PRIVATE_KEY=base58EncodedSolanaPrivateKey
+# Solana (optional)
+SVM_PRIVATE_KEY=base58_private_key
+SVM_RPC_URL=https://api.devnet.solana.com
+
+# Server port
+PORT=3002
 ```
 
-3. Start the server:
+### 3. Start the Facilitator
 
 ```bash
 pnpm dev
 ```
 
-The server will start on http://localhost:3000
+You should see:
+```
+═══════════════════════════════════════════════════════
+  X402 Facilitator Server
+═══════════════════════════════════════════════════════
+  Server listening at http://localhost:3002
+
+  Supported Authorization Types:
+    ✅ EIP-3009  - USDC/EURC transferWithAuthorization
+    ✅ EIP-2612  - Standard ERC20 Permit
+    ✅ Permit2   - Universal token approvals (any ERC20)
+
+  Endpoints:
+    POST /verify    - Verify payment signatures
+    POST /settle    - Settle payments on-chain
+    GET  /supported - List supported payment types
+═══════════════════════════════════════════════════════
+```
 
 ## API Endpoints
 
-### GET /supported
-
-Returns information the payment kinds that the facilitator supports.
-
-Sample Response
-
-```json5
-[
-  {
-    "x402Version": 1,
-    "scheme": "exact",
-    "network": "base-sepolia"
-    "extra": {}
-  },
-  {
-    "x402Version": 1,
-    "scheme": "exact",
-    "network": "solana-devnet"
-    "extra": {
-      "feePayer": "SolanaAddress"
-    }
-  },
-]
-```
-
-### GET /verify
-
-Returns information about the verify endpoint.
-
 ### POST /verify
 
-Verifies an x402 payment payload.
+Verifies a payment signature without executing the transaction.
 
-Request body:
-
-```typescript
+**Request:**
+```json
 {
-  payload: string; // x402 payment payload
-  details: PaymentRequirements; // Payment requirements
+  "paymentPayload": {
+    "x402Version": 1,
+    "scheme": "exact",
+    "network": "base",
+    "payload": {
+      "authorizationType": "permit",
+      "signature": "0x...",
+      "authorization": { ... }
+    }
+  },
+  "paymentRequirements": {
+    "scheme": "exact",
+    "network": "base",
+    "maxAmountRequired": "1000000",
+    "resource": "...",
+    "payTo": "0x...",
+    "asset": "0x...",
+    ...
+  }
 }
 ```
 
-### GET /settle
-
-Returns information about the settle endpoint.
+**Response:**
+```json
+{
+  "isValid": true,
+  "payer": "0x..."
+}
+```
 
 ### POST /settle
 
-Settles an x402 payment by signing and broadcasting the transaction.
+Settles a verified payment on-chain.
 
-Request body:
+**Request:** Same as `/verify`
 
-```typescript
+**Response:**
+```json
 {
-  payload: string; // x402 payment payload
-  details: PaymentRequirements; // Payment requirements
+  "success": true,
+  "transaction": "0x...",
+  "network": "base",
+  "payer": "0x..."
 }
 ```
 
-## Learning Resources
+### GET /supported
 
-This example is designed to help you understand how x402 facilitators work. For more information about the x402 protocol and its implementation, visit:
+Lists all supported payment types.
 
-- [x402 Protocol Documentation](https://x402.org)
-- [Coinbase Developer Platform](https://www.coinbase.com/developer-platform)
+**Response:**
+```json
+{
+  "kinds": [
+    {
+      "x402Version": 1,
+      "scheme": "exact",
+      "network": "base",
+      "extra": {
+        "authorizationType": "eip3009",
+        "description": "USDC/EURC with transferWithAuthorization"
+      }
+    },
+    {
+      "x402Version": 1,
+      "scheme": "exact",
+      "network": "base",
+      "extra": {
+        "authorizationType": "permit",
+        "description": "ERC20 tokens with EIP-2612 Permit support"
+      }
+    },
+    {
+      "x402Version": 1,
+      "scheme": "exact",
+      "network": "base",
+      "extra": {
+        "authorizationType": "permit2",
+        "description": "Any ERC20 token via Uniswap Permit2"
+      }
+    }
+  ]
+}
+```
+
+## How It Works
+
+The facilitator acts as a trusted intermediary that:
+
+1. **Verifies** payment signatures off-chain
+2. **Settles** payments on-chain by executing the authorized transfer
+
+```
+┌─────────┐           ┌─────────────┐          ┌──────────────┐
+│ Client  │  Sign     │ Facilitator │  Verify  │  Blockchain  │
+│         │ Payment   │             │ Signature│              │
+│         │──────────>│             │──────────>│              │
+│         │           │             │          │              │
+│         │           │   Settle    │ Execute  │              │
+│Resource │           │             │ Transfer │              │
+│ Server  │<──────────│             │──────────>│              │
+└─────────┘  Confirm  └─────────────┘          └──────────────┘
+```
+
+## Authorization Type Selection
+
+The facilitator automatically detects the authorization type from the payment payload:
+
+```typescript
+// EIP-3009
+{
+  "authorizationType": "eip3009",
+  "authorization": {
+    "from": "0x...",
+    "to": "0x...",
+    "value": "1000000",
+    "validAfter": "0",
+    "validBefore": "1234567890",
+    "nonce": "0x..."
+  }
+}
+
+// EIP-2612
+{
+  "authorizationType": "permit",
+  "authorization": {
+    "owner": "0x...",
+    "spender": "0x...",
+    "value": "1000000",
+    "deadline": "1234567890",
+    "nonce": "0"
+  }
+}
+
+// Permit2
+{
+  "authorizationType": "permit2",
+  "authorization": {
+    "owner": "0x...",
+    "spender": "0x...",
+    "token": "0x...",
+    "amount": "1000000",
+    "deadline": "1234567890",
+    "nonce": "0"
+  }
+}
+```
+
+## Testing with Different Authorization Types
+
+### Test with EIP-3009 (USDC)
+```bash
+cd ../clients/chainlink-vrf-nft
+pnpm run client
+```
+
+### Test with EIP-2612 (Permit)
+```bash
+cd ../clients/permit-erc20
+pnpm run client
+```
+
+### Test with Permit2
+```bash
+cd ../clients/permit2-universal
+pnpm run client
+```
+
+## Security Considerations
+
+1. **Private Key Management** - Never commit private keys
+2. **Network Validation** - Verify network matches expected chain
+3. **Amount Validation** - Check amounts don't exceed limits
+4. **Deadline Validation** - Ensure permits haven't expired
+5. **Signature Verification** - Always verify signatures before settling
+
+## Deployment
+
+For production:
+
+1. Use a secure key management system (HSM, KMS)
+2. Implement rate limiting
+3. Add authentication for settle endpoint
+4. Monitor for suspicious activity
+5. Set up proper error handling and logging
+
+## Troubleshooting
+
+**Error: "Missing required environment variables"**
+- Ensure `EVM_PRIVATE_KEY` or `SVM_PRIVATE_KEY` is set in `.env`
+
+**Error: "invalid_scheme"**
+- Check that the authorization type is supported
+- Verify the payment payload structure
+
+**Error: "insufficient_funds"**
+- Ensure the payer has enough token balance
+- Check token approval if using Permit2
+
+## Resources
+
+- [X402 Specification](../../../specs/x402-specification.md)
+- [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009)
+- [EIP-2612](https://eips.ethereum.org/EIPS/eip-2612)
+- [Permit2 Documentation](https://github.com/Uniswap/permit2)

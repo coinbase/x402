@@ -19,17 +19,43 @@ export function encodePayment(payment: PaymentPayload): string {
   // evm
   if (SupportedEVMNetworks.includes(payment.network)) {
     const evmPayload = payment.payload as ExactEvmPayload;
+
+    // Convert bigint to string based on authorization type
+    let processedPayload: ExactEvmPayload;
+
+    if (evmPayload.authorizationType === "eip3009") {
+      processedPayload = {
+        ...evmPayload,
+        authorization: {
+          ...evmPayload.authorization,
+          validAfter: evmPayload.authorization.validAfter.toString(),
+          validBefore: evmPayload.authorization.validBefore.toString(),
+        },
+      };
+    } else if (evmPayload.authorizationType === "permit") {
+      processedPayload = {
+        ...evmPayload,
+        authorization: {
+          ...evmPayload.authorization,
+          deadline: evmPayload.authorization.deadline.toString(),
+          nonce: evmPayload.authorization.nonce.toString(),
+        },
+      };
+    } else {
+      // permit2
+      processedPayload = {
+        ...evmPayload,
+        authorization: {
+          ...evmPayload.authorization,
+          deadline: evmPayload.authorization.deadline.toString(),
+          nonce: evmPayload.authorization.nonce.toString(),
+        },
+      };
+    }
+
     safe = {
       ...payment,
-      payload: {
-        ...evmPayload,
-        authorization: Object.fromEntries(
-          Object.entries(evmPayload.authorization).map(([key, value]) => [
-            key,
-            typeof value === "bigint" ? (value as bigint).toString() : value,
-          ]),
-        ) as ExactEvmPayload["authorization"],
-      },
+      payload: processedPayload,
     };
     return safeBase64Encode(JSON.stringify(safe));
   }

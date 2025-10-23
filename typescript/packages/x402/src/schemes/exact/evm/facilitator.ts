@@ -16,6 +16,8 @@ import {
   ExactEvmPayload,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
+import { verifyPermit, settlePermit } from "./facilitatorPermit";
+import { verifyPermit2, settlePermit2 } from "./facilitatorPermit2";
 
 /**
  * Verifies a payment payload against the required payment details
@@ -42,8 +44,30 @@ export async function verify<
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
+  const exactEvmPayload = payload.payload as ExactEvmPayload;
+
+  // Route to appropriate verification based on authorization type
+  switch (exactEvmPayload.authorizationType) {
+    case "permit":
+      return verifyPermit(client, payload, paymentRequirements);
+
+    case "permit2":
+      return verifyPermit2(client, payload, paymentRequirements);
+
+    case "eip3009":
+      // Fall through to existing EIP-3009 logic
+      break;
+
+    default:
+      return {
+        isValid: false,
+        invalidReason: "unsupported_authorization_type",
+        payer: "",
+      };
+  }
+
   /* TODO: work with security team on brainstorming more verification steps
-  verification steps:
+  verification steps for EIP-3009:
     - ✅ verify payload version
     - ✅ verify usdc address is correct for the chain
     - ✅ verify permit signature
@@ -55,7 +79,14 @@ export async function verify<
     - verify resource is not already paid for (next version)
     */
 
-  const exactEvmPayload = payload.payload as ExactEvmPayload;
+  // Type guard: from here on we know it's EIP-3009
+  if (exactEvmPayload.authorizationType !== "eip3009") {
+    return {
+      isValid: false,
+      invalidReason: "unsupported_authorization_type",
+      payer: "",
+    };
+  }
 
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
@@ -79,7 +110,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `invalid_network`,
-      payer: (payload.payload as ExactEvmPayload).authorization.from,
+      payer: exactEvmPayload.authorization.from,
     };
   }
   // Verify permit signature is recoverable for the owner address
@@ -95,9 +126,9 @@ export async function verify<
     message: {
       from: exactEvmPayload.authorization.from,
       to: exactEvmPayload.authorization.to,
-      value: exactEvmPayload.authorization.value,
-      validAfter: exactEvmPayload.authorization.validAfter,
-      validBefore: exactEvmPayload.authorization.validBefore,
+      value: BigInt(exactEvmPayload.authorization.value),
+      validAfter: BigInt(exactEvmPayload.authorization.validAfter),
+      validBefore: BigInt(exactEvmPayload.authorization.validBefore),
       nonce: exactEvmPayload.authorization.nonce,
     },
   };
@@ -187,6 +218,28 @@ export async function settle<transport extends Transport, chain extends Chain>(
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const payload = paymentPayload.payload as ExactEvmPayload;
+
+  // Route to appropriate settlement based on authorization type
+  switch (payload.authorizationType) {
+    case "permit":
+      return settlePermit(wallet, paymentPayload, paymentRequirements);
+
+    case "permit2":
+      return settlePermit2(wallet, paymentPayload, paymentRequirements);
+
+    case "eip3009":
+      // Fall through to existing EIP-3009 logic
+      break;
+
+    default:
+      return {
+        success: false,
+        errorReason: "unsupported_authorization_type",
+        transaction: "",
+        network: paymentPayload.network,
+        payer: "",
+      };
+  }
 
   // re-verify to ensure the payment is still valid
   const valid = await verify(wallet, paymentPayload, paymentRequirements);

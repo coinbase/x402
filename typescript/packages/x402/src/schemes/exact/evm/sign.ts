@@ -46,9 +46,9 @@ export async function signAuthorization<transport extends Transport, chain exten
     message: {
       from: getAddress(from),
       to: getAddress(to),
-      value,
-      validAfter,
-      validBefore,
+      value: BigInt(value),
+      validAfter: BigInt(validAfter),
+      validBefore: BigInt(validBefore),
       nonce: nonce,
     },
   };
@@ -76,10 +76,10 @@ export async function signAuthorization<transport extends Transport, chain exten
 export function createNonce(): Hex {
   const cryptoObj =
     typeof globalThis.crypto !== "undefined" &&
-    typeof globalThis.crypto.getRandomValues === "function"
+      typeof globalThis.crypto.getRandomValues === "function"
       ? globalThis.crypto
       : // Dynamic require is needed to support node.js
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("crypto").webcrypto;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("crypto").webcrypto;
   return toHex(cryptoObj.getRandomValues(new Uint8Array(32)));
 }
