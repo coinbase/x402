@@ -1,146 +1,113 @@
-# x402-express Example Server
+# x402 Express E2E Test Server
 
-This is an example Express.js server that demonstrates how to use the `x402-express` middleware to implement paywall functionality in your API endpoints.
+This directory contains an Express server configured with x402 payment middleware for end-to-end testing.
 
-## Prerequisites
+## Overview
 
-- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+The server demonstrates how to integrate x402 payment protection into an Express application. It includes:
+
+- **Payment-protected endpoints** requiring micropayments to access
+- **Local facilitator** for testing without external dependencies  
+- **EVM support** for Base Sepolia testnet transactions
 
 ## Setup
 
-1. Copy `.env-local` to `.env` and add your Ethereum address to receive payments:
+### Prerequisites
 
-```bash
-cp .env-local .env
-```
+1. Node.js and pnpm installed
+2. Environment variables configured:
+   ```bash
+   EVM_PRIVATE_KEY=0x...  # Private key for facilitator account
+   EVM_ADDRESS=0x...      # Address to receive payments
+   PORT=4021              # Optional: server port (defaults to 4021)
+   ```
 
-2. Install and build all packages from the typescript examples root:
-```bash
-cd ../../
-pnpm install
-pnpm build
-cd servers/express
-```
+### Installation
 
-3. Run the server
 ```bash
 pnpm install
-pnpm dev
 ```
 
-## Testing the Server
+### Running the Server
 
-You can test the server using one of the example clients:
-
-### Using the Fetch Client
 ```bash
-cd ../clients/fetch
-# Ensure .env is setup
-pnpm install
-pnpm dev
+pnpm run start
 ```
 
-### Using the Axios Client
+Or for development with auto-reload:
+
 ```bash
-cd ../clients/axios
-# Ensure .env is setup
-pnpm install
-pnpm dev
+pnpm run dev
 ```
 
-These clients will demonstrate how to:
-1. Make an initial request to get payment requirements
-2. Process the payment requirements
-3. Make a second request with the payment token
+## Endpoints
 
-## Example Endpoint
+### Protected Endpoint
+- **GET /protected** - Requires $0.001 USDC payment on Base Sepolia
+- Returns success message with timestamp when payment is valid
 
-The server includes a single example endpoint at `/weather` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
+### Utility Endpoints  
+- **GET /health** - Health check (no payment required)
+- **POST /close** - Gracefully shutdown server (for testing)
 
-## Response Format
+## Architecture
 
-### Payment Required (402)
-```json
-{
-  "error": "X-PAYMENT header is required",
-  "paymentRequirements": {
-    "scheme": "exact",
-    "network": "base",
-    "maxAmountRequired": "1000",
-    "resource": "http://localhost:4021/weather",
-    "description": "",
-    "mimeType": "",
-    "payTo": "0xYourAddress",
-    "maxTimeoutSeconds": 60,
-    "asset": "0x...",
-    "outputSchema": null,
-    "extra": null
-  }
-}
+### Components
+
+1. **`index.ts`** - Main server file with Express app and route configuration
+2. **`facilitator.ts`** - Local facilitator setup for payment processing
+
+### Payment Flow
+
+1. Client requests protected endpoint
+2. Server returns 402 Payment Required with payment instructions
+3. Client creates and signs payment
+4. Client retries request with payment signature
+5. Server verifies payment via facilitator
+6. If valid, server processes request and settles payment
+7. Server returns response with settlement confirmation
+
+## Testing
+
+This server is used by the e2e test suite to verify x402 client implementations. The local facilitator allows testing without relying on external services.
+
+### Running E2E Tests
+
+From the project root:
+
+```bash
+pnpm run test:e2e
 ```
 
-### Successful Response
-```ts
-// Body
-{
-  "report": {
-    "weather": "sunny",
-    "temperature": 70
-  }
-}
-// Headers
-{
-  "X-PAYMENT-RESPONSE": "..." // Encoded response object
-}
-```
+## Production Considerations
 
-## Extending the Example
+For production use:
 
-To add more paid endpoints, follow this pattern:
+1. Replace the local facilitator with a remote facilitator service
+2. Configure appropriate payment amounts and networks
+3. Add proper error handling and logging
+4. Implement rate limiting and security measures
+5. Use environment-specific configuration
 
-```typescript
-// First, configure the payment middleware with your routes
-app.use(
-  paymentMiddleware(
-    payTo,
-    {
-      // Define your routes and their payment requirements
-      "GET /your-endpoint": {
-        price: "$0.10",
-        network: "base-sepolia",
-      },
-      "/premium/*": {
-        price: {
-          amount: "100000",
-          asset: {
-            address: "0xabc",
-            decimals: 18,
-            eip712: {
-              name: "WETH",
-              version: "1",
-            },
-          },
-        },
-        network: "base-sepolia",
-      },
-    },
-  ),
-);
+## Troubleshooting
 
-// Then define your routes as normal
-app.get("/your-endpoint", (req, res) => {
-  res.json({
-    // Your response data
-  });
-});
+### Common Issues
 
-app.get("/premium/content", (req, res) => {
-  res.json({
-    content: "This is premium content",
-  });
-});
-```
+1. **"EVM_PRIVATE_KEY environment variable is required"**
+   - Ensure `.env` file exists with required variables
+   - Check that dotenv is loading correctly
+
+2. **"Server already running on port"**
+   - Check for existing processes: `lsof -i :4021`
+   - Kill existing process or use different port
+
+3. **Payment verification fails**
+   - Verify private key matches the expected account
+   - Check network configuration matches client
+   - Ensure sufficient balance for gas fees
+
+## Related Documentation
+
+- [x402 Protocol Specification](../../../specs/x402-specification.md)
+- [Express Middleware Package](../../../typescript/packages/http/express/README.md)
+- [E2E Test Suite](../../README.md)
