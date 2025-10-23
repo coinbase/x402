@@ -5,7 +5,7 @@ import { localFacilitatorClient, NETWORK, PAYEE_ADDRESS } from "./facilitator";
 
 /**
  * Express E2E Test Server with x402 Payment Middleware
- * 
+ *
  * This server demonstrates how to integrate x402 payment middleware
  * with an Express application for end-to-end testing.
  */
@@ -17,7 +17,7 @@ const app = express();
 
 /**
  * Configure x402 payment middleware
- * 
+ *
  * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
  * on the Base Sepolia testnet.
  */
@@ -38,17 +38,17 @@ app.use(
     [
       {
         network: NETWORK,
-        server: new ExactEvmService()
-      }
+        server: new ExactEvmService(),
+      },
     ],
     // No custom paywall configuration (uses defaults)
-    undefined
+    undefined,
   ),
 );
 
 /**
  * Protected endpoint - requires payment to access
- * 
+ *
  * This endpoint demonstrates a resource protected by x402 payment middleware.
  * Clients must provide a valid payment signature to access this endpoint.
  */
@@ -61,7 +61,7 @@ app.get("/protected", (req, res) => {
 
 /**
  * Health check endpoint - no payment required
- * 
+ *
  * Used to verify the server is running and responsive.
  */
 app.get("/health", (req, res) => {
@@ -69,13 +69,13 @@ app.get("/health", (req, res) => {
     status: "ok",
     network: NETWORK,
     payee: PAYEE_ADDRESS,
-    version: "2.0.0"
+    version: "2.0.0",
   });
 });
 
 /**
  * Shutdown endpoint - used by e2e tests
- * 
+ *
  * Allows graceful shutdown of the server during testing.
  */
 app.post("/close", (req, res) => {
@@ -104,4 +104,4 @@ app.listen(parseInt(PORT), () => {
 ║  • POST /close      (shutdown server)                 ║
 ╚════════════════════════════════════════════════════════╝
   `);
-}); 
+});

@@ -8,4 +8,4 @@ packages:
   - "legacy/mcp-embedded-wallet"
   - "legacy/mpc"
   - "legacy/discovery"
-  - "../../typescript/packages/*"
+  - "../../typescript/packages/legacy/*"

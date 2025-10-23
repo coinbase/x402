@@ -1,5 +1,3 @@
-
-
 export type ExactEIP3009Payload = {
   signature?: `0x${string}`;
   authorization: {
@@ -10,8 +8,8 @@ export type ExactEIP3009Payload = {
     validBefore: string;
     nonce: `0x${string}`;
   };
-}
+};
 
-export type ExactEvmPayloadV1 = ExactEIP3009Payload
+export type ExactEvmPayloadV1 = ExactEIP3009Payload;
 
-export type ExactEvmPayloadV2 = ExactEIP3009Payload
+export type ExactEvmPayloadV2 = ExactEIP3009Payload;

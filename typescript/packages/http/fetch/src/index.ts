@@ -18,6 +18,7 @@ export interface SchemeRegistration {
 
   /**
    * The x402 protocol version to use for this scheme
+   *
    * @default 2
    */
   x402Version?: number;
@@ -58,7 +59,7 @@ export interface FetchWrapperConfig {
  * import { wrapFetchWithPayment } from '@x402/fetch';
  * import { EVMExactScheme } from '@x402/evm';
  * import { SolanaExactScheme } from '@x402/solana';
- * 
+ *
  * const fetchWithPay = wrapFetchWithPayment(fetch, {
  *   schemes: [
  *     { network: 'eip155:8453', client: new EVMExactScheme({ signer: evmWallet }) },
@@ -66,7 +67,7 @@ export interface FetchWrapperConfig {
  *     { network: 'eip155:1', client: new EVMExactScheme({ signer: evmWallet }), x402Version: 1 }
  *   ]
  * });
- * 
+ *
  * // Make a request that may require payment
  * const response = await fetchWithPay('https://api.example.com/paid-endpoint');
  * ```
@@ -76,10 +77,7 @@ export interface FetchWrapperConfig {
  * @throws {Error} If a payment has already been attempted for this request
  * @throws {Error} If there's an error creating the payment header
  */
-export function wrapFetchWithPayment(
-  fetch: typeof globalThis.fetch,
-  config: FetchWrapperConfig
-) {
+export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: FetchWrapperConfig) {
   const { schemes, paymentRequirementsSelector } = config;
 
   if (!schemes || schemes.length === 0) {
@@ -126,13 +124,15 @@ export function wrapFetchWithPayment(
 
       paymentRequired = client.getPaymentRequiredResponse(responseHeaders, body);
     } catch (error) {
-      throw new Error(`Failed to parse payment requirements: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse payment requirements: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
 
     // Select payment requirements using the client's logic
     const selectedPaymentRequirements = client.selectPaymentRequirements(
       paymentRequired.x402Version,
-      paymentRequired.accepts
+      paymentRequired.accepts,
     );
 
     // Create payment payload
@@ -140,10 +140,12 @@ export function wrapFetchWithPayment(
     try {
       paymentPayload = await client.createPaymentPayload(
         paymentRequired.x402Version,
-        selectedPaymentRequirements
+        selectedPaymentRequirements,
       );
     } catch (error) {
-      throw new Error(`Failed to create payment payload: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to create payment payload: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
     }
 
     // Encode payment header
@@ -178,7 +180,12 @@ export function wrapFetchWithPayment(
 
 // Re-export types and utilities for convenience
 export type { SelectPaymentRequirements } from "@x402/core/client";
-export type { PaymentRequired, PaymentRequirements, PaymentPayload, Network } from "@x402/core/types";
+export type {
+  PaymentRequired,
+  PaymentRequirements,
+  PaymentPayload,
+  Network,
+} from "@x402/core/types";
 export type { SchemeNetworkClient } from "@x402/core/types";
 export { decodePaymentResponseHeader } from "@x402/core/http";
 export { x402HTTPClient } from "@x402/core/client";

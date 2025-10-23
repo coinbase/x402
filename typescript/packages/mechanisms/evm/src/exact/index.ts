@@ -1,5 +1,10 @@
 import { getAddress, parseErc6492Signature } from "viem";
-import { PaymentRequirements, SchemeNetworkClient, SchemeNetworkFacilitator, SchemeNetworkService } from "@x402/core/types";
+import {
+  PaymentRequirements,
+  SchemeNetworkClient,
+  SchemeNetworkFacilitator,
+  SchemeNetworkService,
+} from "@x402/core/types";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
 import { PaymentPayload, Price, AssetAmount, Network } from "@x402/core/types";
 import { ExactEvmPayloadV2 } from "../types";
@@ -7,12 +12,31 @@ import { createNonce } from "../utils";
 import { authorizationTypes, eip3009ABI } from "../constants";
 import { SettleResponse, VerifyResponse } from "@x402/core/types";
 
+/**
+ * EVM client implementation for the Exact payment scheme.
+ *
+ */
 export class ExactEvmClient implements SchemeNetworkClient {
   readonly scheme = "exact";
 
-  constructor(private readonly signer: ClientEvmSigner) { }
+  /**
+   * Creates a new ExactEvmClient instance.
+   *
+   * @param signer - The EVM signer for client operations
+   */
+  constructor(private readonly signer: ClientEvmSigner) {}
 
-  async createPaymentPayload(_: number, requirements: PaymentRequirements): Promise<PaymentPayload> {
+  /**
+   * Creates a payment payload for the Exact scheme.
+   *
+   * @param _ - The x402 version (unused)
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to a payment payload
+   */
+  async createPaymentPayload(
+    _: number,
+    requirements: PaymentRequirements,
+  ): Promise<PaymentPayload> {
     const nonce = createNonce();
     const now = Math.floor(Date.now() / 1000);
 
@@ -44,15 +68,21 @@ export class ExactEvmClient implements SchemeNetworkClient {
 
   /**
    * Sign the EIP-3009 authorization using EIP-712
+   *
+   * @param authorization - The authorization to sign
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to the signature
    */
   private async signAuthorization(
     authorization: ExactEvmPayloadV2["authorization"],
-    requirements: PaymentRequirements
+    requirements: PaymentRequirements,
   ): Promise<`0x${string}`> {
     const chainId = parseInt(requirements.network.split(":")[1]);
 
     if (!requirements.extra?.name || !requirements.extra?.version) {
-      throw new Error(`EIP-712 domain parameters (name, version) are required in payment requirements for asset ${requirements.asset}`);
+      throw new Error(
+        `EIP-712 domain parameters (name, version) are required in payment requirements for asset ${requirements.asset}`,
+      );
     }
 
     const { name, version } = requirements.extra;
@@ -82,12 +112,30 @@ export class ExactEvmClient implements SchemeNetworkClient {
   }
 }
 
+/**
+ * EVM facilitator implementation for the Exact payment scheme.
+ */
 export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
 
-  constructor(private readonly signer: FacilitatorEvmSigner) { }
+  /**
+   * Creates a new ExactEvmFacilitator instance.
+   *
+   * @param signer - The EVM signer for facilitator operations
+   */
+  constructor(private readonly signer: FacilitatorEvmSigner) {}
 
-  async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse> {
+  /**
+   * Verifies a payment payload.
+   *
+   * @param payload - The payment payload to verify
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to verification response
+   */
+  async verify(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<VerifyResponse> {
     const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
 
     // Verify scheme matches
@@ -155,7 +203,7 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
           payer: exactEvmPayload.authorization.from,
         };
       }
-    } catch (error) {
+    } catch {
       return {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_signature",
@@ -193,12 +241,12 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
 
     // Check balance
     try {
-      const balance = await this.signer.readContract({
+      const balance = (await this.signer.readContract({
         address: erc20Address,
         abi: eip3009ABI,
         functionName: "balanceOf",
         args: [exactEvmPayload.authorization.from],
-      });
+      })) as bigint;
 
       if (BigInt(balance) < BigInt(requirements.amount)) {
         return {
@@ -207,7 +255,7 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
           payer: exactEvmPayload.authorization.from,
         };
       }
-    } catch (error) {
+    } catch {
       // If we can't check balance, continue with other validations
     }
 
@@ -227,7 +275,17 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
     };
   }
 
-  async settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse> {
+  /**
+   * Settles a payment by executing the transfer.
+   *
+   * @param payload - The payment payload to settle
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to settlement response
+   */
+  async settle(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<SettleResponse> {
     const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
 
     // Re-verify before settling
@@ -282,7 +340,7 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
         payer: exactEvmPayload.authorization.from,
       };
     } catch (error) {
-      console.error('Failed to settle transaction:', error);
+      console.error("Failed to settle transaction:", error);
       return {
         success: false,
         errorReason: "transaction_failed",
@@ -294,27 +352,36 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
   }
 }
 
-
+/**
+ * EVM service implementation for the Exact payment scheme.
+ */
 export class ExactEvmService implements SchemeNetworkService {
   readonly scheme = "exact";
 
+  /**
+   * Parses a price into an asset amount.
+   *
+   * @param price - The price to parse
+   * @param network - The network to use
+   * @returns The parsed asset amount
+   */
   parsePrice(price: Price, network: Network): AssetAmount {
     // Handle pre-parsed price object
-    if (typeof price === 'object' && price !== null && 'amount' in price) {
+    if (typeof price === "object" && price !== null && "amount" in price) {
       if (!price.asset) {
         throw new Error(`Asset address must be specified for price object on network ${network}`);
       }
       return {
         amount: price.amount,
         asset: price.asset,
-        extra: price.extra || {}
+        extra: price.extra || {},
       };
     }
 
     // Parse string prices like "$0.10" or "0.10 USDC"
-    if (typeof price === 'string') {
+    if (typeof price === "string") {
       // Remove $ sign if present
-      const cleanPrice = price.replace(/^\$/, '').trim();
+      const cleanPrice = price.replace(/^\$/, "").trim();
 
       // Check if it contains a currency/asset identifier
       const parts = cleanPrice.split(/\s+/);
@@ -327,8 +394,8 @@ export class ExactEvmService implements SchemeNetworkService {
           asset: assetInfo.address,
           extra: {
             name: assetInfo.name,
-            version: assetInfo.version
-          }
+            version: assetInfo.version,
+          },
         };
       } else if (cleanPrice.match(/^\d+(\.\d+)?$/)) {
         // Simple number format like "0.10" - assume USD/USDC
@@ -339,16 +406,18 @@ export class ExactEvmService implements SchemeNetworkService {
           asset: assetInfo.address,
           extra: {
             name: assetInfo.name,
-            version: assetInfo.version
-          }
+            version: assetInfo.version,
+          },
         };
       } else {
-        throw new Error(`Invalid price format: ${price}. Must specify currency (e.g., "0.10 USDC") or use simple number format.`);
+        throw new Error(
+          `Invalid price format: ${price}. Must specify currency (e.g., "0.10 USDC") or use simple number format.`,
+        );
       }
     }
 
     // Handle number input - assume USD/USDC
-    if (typeof price === 'number') {
+    if (typeof price === "number") {
       const amount = this.convertToTokenAmount(price.toString(), network);
       const assetInfo = this.getDefaultAsset(network);
       return {
@@ -356,8 +425,8 @@ export class ExactEvmService implements SchemeNetworkService {
         asset: assetInfo.address,
         extra: {
           name: assetInfo.name,
-          version: assetInfo.version
-        }
+          version: assetInfo.version,
+        },
       };
     }
 
@@ -365,7 +434,39 @@ export class ExactEvmService implements SchemeNetworkService {
   }
 
   /**
+   * Build payment requirements for this scheme/network combination
+   *
+   * @param paymentRequirements - The base payment requirements
+   * @param supportedKind - The supported kind from facilitator (unused)
+   * @param supportedKind.x402Version - The x402 version
+   * @param supportedKind.scheme - The logical payment scheme
+   * @param supportedKind.network - The network identifier in CAIP-2 format
+   * @param supportedKind.extra - Optional extra metadata regarding scheme/network implementation details
+   * @param extensionKeys - Extension keys supported by the facilitator (unused)
+   * @returns Payment requirements ready to be sent to clients
+   */
+  enhancePaymentRequirements(
+    paymentRequirements: PaymentRequirements,
+    supportedKind: {
+      x402Version: number;
+      scheme: string;
+      network: Network;
+      extra?: Record<string, unknown>;
+    },
+    extensionKeys: string[],
+  ): Promise<PaymentRequirements> {
+    // Mark unused parameters to satisfy linter
+    void supportedKind;
+    void extensionKeys;
+    return Promise.resolve(paymentRequirements);
+  }
+
+  /**
    * Convert decimal amount to token units (e.g., 0.10 -> 100000 for 6-decimal USDC)
+   *
+   * @param decimalAmount - The decimal amount to convert
+   * @param network - The network to use
+   * @returns The token amount as a string
    */
   private convertToTokenAmount(decimalAmount: string, network: Network): string {
     const decimals = this.getAssetDecimals(network);
@@ -380,6 +481,9 @@ export class ExactEvmService implements SchemeNetworkService {
 
   /**
    * Get the default asset info for a network (typically USDC)
+   *
+   * @param network - The network to get asset info for
+   * @returns The asset information including address, name, and version
    */
   private getDefaultAsset(network: Network): { address: string; name: string; version: string } {
     // Map of network to USDC info including EIP-712 domain parameters
@@ -387,22 +491,22 @@ export class ExactEvmService implements SchemeNetworkService {
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         name: "USD Coin",
-        version: "2"
+        version: "2",
       }, // Base mainnet USDC
       "eip155:84532": {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         name: "USDC",
-        version: "2"
+        version: "2",
       }, // Base Sepolia USDC
       "eip155:1": {
         address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         name: "USD Coin",
-        version: "2"
+        version: "2",
       }, // Ethereum mainnet USDC
       "eip155:11155111": {
         address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
         name: "USDC",
-        version: "2"
+        version: "2",
       }, // Sepolia USDC
     };
 
@@ -416,8 +520,15 @@ export class ExactEvmService implements SchemeNetworkService {
 
   /**
    * Get asset info for a given symbol on a network
+   *
+   * @param symbol - The asset symbol
+   * @param network - The network to use
+   * @returns The asset information including address, name, and version
    */
-  private getAssetInfo(symbol: string, network: Network): { address: string; name: string; version: string } {
+  private getAssetInfo(
+    symbol: string,
+    network: Network,
+  ): { address: string; name: string; version: string } {
     const upperSymbol = symbol.toUpperCase();
 
     // For now, only support USDC
@@ -431,29 +542,12 @@ export class ExactEvmService implements SchemeNetworkService {
 
   /**
    * Get the number of decimals for the asset
+   *
+   * @param _ - The network to use (unused)
+   * @returns The number of decimals for the asset
    */
-  private getAssetDecimals(network: Network): number {
+  private getAssetDecimals(_: Network): number {
     // USDC has 6 decimals on all EVM chains
     return 6;
-  }
-
-  /**
-   * Build payment requirements for this scheme/network combination
-   * @param config - The resource configuration from the server
-   * @param supportedKind - The supported kind from facilitator's /supported endpoint
-   * @param facilitatorExtensions - Extensions supported by the facilitator
-   * @returns Payment requirements ready to be sent to clients
-   */
-  enhancePaymentRequirements(
-    paymentRequirements: PaymentRequirements,
-    supportedKind: {
-      x402Version: number;
-      scheme: string;
-      network: Network;
-      extra?: Record<string, any>;
-    },
-    facilitatorExtensions: string[]
-  ): Promise<PaymentRequirements> {
-    return Promise.resolve(paymentRequirements);
   }
 }

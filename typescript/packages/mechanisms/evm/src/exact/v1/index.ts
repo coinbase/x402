@@ -1,4 +1,11 @@
-import { PaymentPayload, PaymentRequirements, SchemeNetworkClient, SchemeNetworkFacilitator, SettleResponse, VerifyResponse } from "@x402/core/types";
+import {
+  PaymentPayload,
+  PaymentRequirements,
+  SchemeNetworkClient,
+  SchemeNetworkFacilitator,
+  SettleResponse,
+  VerifyResponse,
+} from "@x402/core/types";
 import { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import { getAddress, parseErc6492Signature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
@@ -6,12 +13,30 @@ import { ClientEvmSigner, FacilitatorEvmSigner } from "../../signer";
 import { ExactEvmPayloadV1 } from "../../types";
 import { createNonce, getEvmChainId } from "../../utils";
 
+/**
+ * EVM client implementation for the Exact payment scheme (V1).
+ */
 export class ExactEvmClientV1 implements SchemeNetworkClient {
   readonly scheme = "exact";
 
-  constructor(private readonly signer: ClientEvmSigner) { }
+  /**
+   * Creates a new ExactEvmClientV1 instance.
+   *
+   * @param signer - The EVM signer for client operations
+   */
+  constructor(private readonly signer: ClientEvmSigner) {}
 
-  async createPaymentPayload(_: number, requirements: PaymentRequirements): Promise<PaymentPayload> {
+  /**
+   * Creates a payment payload for the Exact scheme (V1).
+   *
+   * @param _ - The x402 version (unused)
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to a payment payload
+   */
+  async createPaymentPayload(
+    _: number,
+    requirements: PaymentRequirements,
+  ): Promise<PaymentPayload> {
     const requirementsV1 = requirements as unknown as PaymentRequirementsV1;
     const nonce = createNonce();
     const now = Math.floor(Date.now() / 1000);
@@ -43,15 +68,21 @@ export class ExactEvmClientV1 implements SchemeNetworkClient {
 
   /**
    * Sign the EIP-3009 authorization using EIP-712
+   *
+   * @param authorization - The authorization to sign
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to the signature
    */
   private async signAuthorization(
     authorization: ExactEvmPayloadV1["authorization"],
-    requirements: PaymentRequirementsV1
+    requirements: PaymentRequirementsV1,
   ): Promise<`0x${string}`> {
     const chainId = getEvmChainId(requirements.network);
 
     if (!requirements.extra?.name || !requirements.extra?.version) {
-      throw new Error(`EIP-712 domain parameters (name, version) are required in payment requirements for asset ${requirements.asset}`);
+      throw new Error(
+        `EIP-712 domain parameters (name, version) are required in payment requirements for asset ${requirements.asset}`,
+      );
     }
 
     const { name, version } = requirements.extra;
@@ -81,12 +112,30 @@ export class ExactEvmClientV1 implements SchemeNetworkClient {
   }
 }
 
+/**
+ * EVM facilitator implementation for the Exact payment scheme (V1).
+ */
 export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
 
-  constructor(private readonly signer: FacilitatorEvmSigner) { }
+  /**
+   * Creates a new ExactEvmFacilitatorV1 instance.
+   *
+   * @param signer - The EVM signer for facilitator operations
+   */
+  constructor(private readonly signer: FacilitatorEvmSigner) {}
 
-  async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse> {
+  /**
+   * Verifies a payment payload (V1).
+   *
+   * @param payload - The payment payload to verify
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to verification response
+   */
+  async verify(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<VerifyResponse> {
     const requirementsV1 = requirements as unknown as PaymentRequirementsV1;
     const exactEvmPayload = payload.payload as ExactEvmPayloadV1;
 
@@ -157,7 +206,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
           payer: exactEvmPayload.authorization.from,
         };
       }
-    } catch (error) {
+    } catch {
       return {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_signature",
@@ -195,12 +244,12 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
 
     // Check balance
     try {
-      const balance = await this.signer.readContract({
+      const balance = (await this.signer.readContract({
         address: erc20Address,
         abi: eip3009ABI,
         functionName: "balanceOf",
         args: [exactEvmPayload.authorization.from],
-      });
+      })) as bigint;
 
       if (BigInt(balance) < BigInt(requirementsV1.maxAmountRequired)) {
         return {
@@ -209,7 +258,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
           payer: exactEvmPayload.authorization.from,
         };
       }
-    } catch (error) {
+    } catch {
       // If we can't check balance, continue with other validations
     }
 
@@ -229,7 +278,17 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     };
   }
 
-  async settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse> {
+  /**
+   * Settles a payment by executing the transfer (V1).
+   *
+   * @param payload - The payment payload to settle
+   * @param requirements - The payment requirements
+   * @returns Promise resolving to settlement response
+   */
+  async settle(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<SettleResponse> {
     const exactEvmPayload = payload.payload as ExactEvmPayloadV1;
 
     // Re-verify before settling
@@ -284,7 +343,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
         payer: exactEvmPayload.authorization.from,
       };
     } catch (error) {
-      console.error('Failed to settle transaction:', error);
+      console.error("Failed to settle transaction:", error);
       return {
         success: false,
         errorReason: "transaction_failed",
@@ -295,4 +354,3 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     }
   }
 }
-

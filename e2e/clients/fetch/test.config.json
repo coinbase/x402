@@ -2,19 +2,10 @@
   "name": "fetch",
   "type": "client",
   "language": "typescript",
-  "protocolFamilies": [
-    "evm"
-  ],
-  "x402Versions": [
-    1,
-    2
-  ],
+  "protocolFamilies": ["evm"],
+  "x402Versions": [1, 2],
   "environment": {
-    "required": [
-      "EVM_PRIVATE_KEY",
-      "RESOURCE_SERVER_URL",
-      "ENDPOINT_PATH"
-    ],
+    "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
   }
 }

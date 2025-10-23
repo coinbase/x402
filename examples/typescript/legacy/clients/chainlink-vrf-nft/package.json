@@ -13,7 +13,7 @@
     "hono": "^4.7.2",
     "@hono/node-server": "^1.13.8",
     "viem": "^2.23.5",
-    "x402": "file:../../../../typescript/packages/x402",
+    "x402": "workspace:*",
     "axios": "^1.7.9",
     "x402-axios": "workspace:*"
   },
