@@ -26,7 +26,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
   walletClient: SignerWallet<chain, transport> | LocalAccount,
   { owner, spender, value, deadline }: Omit<PermitEvmPayloadAuthorization, "nonce">,
   { asset, network }: PaymentRequirements,
-): Promise<{ signature: Hex; nonce: number }> {
+): Promise<{ signature: Hex; nonce: string }> {
   const chainId = getNetworkId(network);
   const tokenAddress = getAddress(asset);
 
@@ -80,7 +80,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
     const signature = await walletClient.signTypedData(data);
     return {
       signature,
-      nonce: Number(nonce),
+      nonce: nonce.toString(),
     };
   }
 
@@ -90,7 +90,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
     const signature = await account.signTypedData(data);
     return {
       signature,
-      nonce: Number(nonce),
+      nonce: nonce.toString(),
     };
   }
 
