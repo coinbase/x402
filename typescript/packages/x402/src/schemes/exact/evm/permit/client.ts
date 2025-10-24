@@ -73,7 +73,7 @@ export async function signPaymentHeader<transport extends Transport, chain exten
         spender,
         value,
         deadline,
-        nonce,
+        nonce: nonce.toString(),
       },
     },
   };
