@@ -1,6 +1,6 @@
 import { Account, Address, Chain, getAddress, Hex, Transport } from "viem";
 import { getNetworkId } from "../../../../shared";
-import { getERC20Balance } from "../../../../shared/evm";
+import { getERC20Balance, getERC20Allowance } from "../../../../shared/evm";
 import {
   permit2Types,
   permit2ABI,
@@ -109,11 +109,33 @@ export async function verify<
     };
   }
 
+  // Verify spender matches the facilitator's wallet address
+  // In x402, the facilitator acts as the spender to execute permitTransferFrom
+  // The client must authorize the facilitator's wallet address as the spender
+  if (client.account && getAddress(spender) !== getAddress(client.account.address)) {
+    return {
+      isValid: false,
+      invalidReason: "invalid_spender_address",
+      payer: owner,
+    };
+  }
+
   // Verify token address matches payment requirements
   if (tokenAddress.toLowerCase() !== (paymentRequirements.asset as string).toLowerCase()) {
     return {
       isValid: false,
       invalidReason: "token_mismatch",
+      payer: owner,
+    };
+  }
+
+  // Verify owner has approved Permit2 contract
+  // This is a critical check - users must approve Permit2 once before using it
+  const allowance = await getERC20Allowance(client, tokenAddress, ownerAddress, PERMIT2_ADDRESS);
+  if (allowance < BigInt(paymentRequirements.maxAmountRequired)) {
+    return {
+      isValid: false,
+      invalidReason: "permit2_not_approved",
       payer: owner,
     };
   }

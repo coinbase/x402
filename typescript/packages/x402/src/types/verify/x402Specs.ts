@@ -61,6 +61,7 @@ export const ErrorReasons = [
   "invalid_permit2_signature",
   "permit_expired",
   "permit2_expired",
+  "permit2_not_approved",
   "invalid_token_address",
   "invalid_spender_address",
   "token_mismatch",

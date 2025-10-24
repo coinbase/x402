@@ -1,6 +1,6 @@
 import { Account, Address, Chain, getAddress, Hex, Transport } from "viem";
 import { getNetworkId } from "../../../../shared";
-import { getERC20Balance } from "../../../../shared/evm";
+import { getERC20Balance, getVersion } from "../../../../shared/evm";
 import {
   permitTypes,
   erc20PermitABI,
@@ -61,21 +61,27 @@ export async function verify<
   const permitPayload = payload.payload;
   const { owner, spender, value, deadline, nonce } = permitPayload.authorization;
 
-  const chainId = getNetworkId(payload.network);
-  const tokenAddress = paymentRequirements.asset as Address;
-
   // Get token name for EIP-712 domain
-  let tokenName: string;
+  let name: string;
+  let version: string;
+  let erc20Address: Address;
+  let chainId: number;
+
   try {
-    tokenName = (await client.readContract({
-      address: tokenAddress,
-      abi: erc20PermitABI,
-      functionName: "name",
-    })) as string;
+    chainId = getNetworkId(payload.network);
+    erc20Address = paymentRequirements.asset as Address;
+    name =
+      paymentRequirements.extra?.name ??
+      ((await client.readContract({
+        address: erc20Address,
+        abi: erc20PermitABI,
+        functionName: "name",
+      })) as string);
+    version = paymentRequirements.extra?.version ?? (await getVersion(client));
   } catch {
     return {
       isValid: false,
-      invalidReason: "invalid_token_address",
+      invalidReason: "invalid_network",
       payer: owner,
     };
   }
@@ -84,10 +90,10 @@ export async function verify<
   const permitTypedData = {
     types: permitTypes,
     domain: {
-      name: tokenName,
-      version: "1",
+      name: name,
+      version: version,
       chainId,
-      verifyingContract: tokenAddress,
+      verifyingContract: erc20Address,
     },
     primaryType: "Permit" as const,
     message: {
@@ -135,7 +141,7 @@ export async function verify<
   }
 
   // Verify owner has sufficient balance
-  const balance = await getERC20Balance(client, tokenAddress, owner as Address);
+  const balance = await getERC20Balance(client, erc20Address, owner as Address);
   if (balance < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
