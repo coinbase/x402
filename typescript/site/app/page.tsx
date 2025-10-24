@@ -226,8 +226,7 @@ export default function Home() {
                     <span className="text-gray-300">{'}'}</span>
                     <span className="text-gray-300">);</span>
                     {'\n'}
-                    {/* eslint-disable-next-line react/jsx-no-comment-textnodes */}
-                    <span className="text-gray-400">// and thats it!</span>
+                    <span className="text-gray-400">{'// and thats it!'}</span>
                   </pre>
                 </div>
               </div>
@@ -253,7 +252,7 @@ export default function Home() {
             </div>
           </div>
         </Section>
-        
+
         {/* x402 Button Section */}
         <div className="relative z-10 text-center py-12">
           <Image
