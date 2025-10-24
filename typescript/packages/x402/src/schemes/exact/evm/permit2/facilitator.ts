@@ -194,56 +194,46 @@ export async function settle<transport extends Transport, chain extends Chain>(
   const tokenAddress = getAddress(token);
   const ownerAddress = getAddress(owner);
 
-  try {
-    // Call permitTransferFrom on Permit2 contract
-    const tx = await wallet.writeContract({
-      address: PERMIT2_ADDRESS,
-      abi: permit2ABI,
-      functionName: "permitTransferFrom",
-      args: [
-        {
-          permitted: {
-            token: tokenAddress,
-            amount: BigInt(amount),
-          },
-          nonce: BigInt(nonce),
-          deadline: BigInt(deadline),
+  // Call permitTransferFrom on Permit2 contract
+  const tx = await wallet.writeContract({
+    address: PERMIT2_ADDRESS,
+    abi: permit2ABI,
+    functionName: "permitTransferFrom",
+    args: [
+      {
+        permitted: {
+          token: tokenAddress,
+          amount: BigInt(amount),
         },
-        {
-          to: paymentRequirements.payTo as Address,
-          requestedAmount: BigInt(paymentRequirements.maxAmountRequired),
-        },
-        ownerAddress,
-        permit2Payload.signature as Hex,
-      ],
-      chain: wallet.chain as Chain,
-    });
+        nonce: BigInt(nonce),
+        deadline: BigInt(deadline),
+      },
+      {
+        to: paymentRequirements.payTo as Address,
+        requestedAmount: BigInt(paymentRequirements.maxAmountRequired),
+      },
+      ownerAddress,
+      permit2Payload.signature as Hex,
+    ],
+    chain: wallet.chain as Chain,
+  });
 
-    const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
+  const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
 
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: "transaction_failed",
-        transaction: tx,
-        network: paymentPayload.network,
-        payer: owner,
-      };
-    }
-
+  if (receipt.status !== "success") {
     return {
-      success: true,
+      success: false,
+      errorReason: "transaction_failed",
       transaction: tx,
       network: paymentPayload.network,
       payer: owner,
     };
-  } catch {
-    return {
-      success: false,
-      errorReason: "settlement_failed",
-      transaction: "",
-      network: paymentPayload.network,
-      payer: owner,
-    };
   }
+
+  return {
+    success: true,
+    transaction: tx,
+    network: paymentPayload.network,
+    payer: owner,
+  };
 }

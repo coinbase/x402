@@ -194,56 +194,52 @@ export async function settle<transport extends Transport, chain extends Chain>(
   const { v, r, s } = splitSignature(permitPayload.signature as Hex);
   const tokenAddress = paymentRequirements.asset as Address;
 
-  try {
-    // Step 1: Call permit to approve the spender
-    const permitTx = await wallet.writeContract({
-      address: tokenAddress,
-      abi: erc20PermitABI,
-      functionName: "permit",
-      args: [owner as Address, spender as Address, BigInt(value), BigInt(deadline), v, r, s],
-      chain: wallet.chain as Chain,
-    });
+  const nonce = await wallet.getTransactionCount({
+    address: wallet.account.address,
+  });
 
-    await wallet.waitForTransactionReceipt({ hash: permitTx });
+  // Step 1: Call permit to approve the spender
+  const permitTx = await wallet.writeContract({
+    address: tokenAddress,
+    abi: erc20PermitABI,
+    functionName: "permit",
+    args: [owner as Address, spender as Address, BigInt(value), BigInt(deadline), v, r, s],
+    chain: wallet.chain as Chain,
+    nonce: nonce,
+  });
 
-    // Step 2: Call transferFrom to transfer tokens to payTo address
-    const transferTx = await wallet.writeContract({
-      address: tokenAddress,
-      abi: erc20PermitABI,
-      functionName: "transferFrom",
-      args: [
-        owner as Address,
-        paymentRequirements.payTo as Address,
-        BigInt(paymentRequirements.maxAmountRequired),
-      ],
-      chain: wallet.chain as Chain,
-    });
+  await wallet.waitForTransactionReceipt({ hash: permitTx });
 
-    const receipt = await wallet.waitForTransactionReceipt({ hash: transferTx });
+  // Step 2: Call transferFrom to transfer tokens to payTo address
+  const transferTx = await wallet.writeContract({
+    address: tokenAddress,
+    abi: erc20PermitABI,
+    functionName: "transferFrom",
+    args: [
+      owner as Address,
+      paymentRequirements.payTo as Address,
+      BigInt(paymentRequirements.maxAmountRequired),
+    ],
+    chain: wallet.chain as Chain,
+    nonce: nonce + 1,
+  });
 
-    if (receipt.status !== "success") {
-      return {
-        success: false,
-        errorReason: "transaction_failed",
-        transaction: transferTx,
-        network: paymentPayload.network,
-        payer: owner,
-      };
-    }
+  const receipt = await wallet.waitForTransactionReceipt({ hash: transferTx });
 
+  if (receipt.status !== "success") {
     return {
-      success: true,
+      success: false,
+      errorReason: "transaction_failed",
       transaction: transferTx,
       network: paymentPayload.network,
       payer: owner,
     };
-  } catch {
-    return {
-      success: false,
-      errorReason: "settlement_failed",
-      transaction: "",
-      network: paymentPayload.network,
-      payer: owner,
-    };
   }
+
+  return {
+    success: true,
+    transaction: transferTx,
+    network: paymentPayload.network,
+    payer: owner,
+  };
 }

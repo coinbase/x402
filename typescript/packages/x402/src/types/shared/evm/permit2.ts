@@ -1,6 +1,15 @@
 /**
  * Permit2 - Universal token approvals
  * https://github.com/Uniswap/permit2
+ * 
+ * Permit2 has two main modes:
+ * 1. AllowanceTransfer - Pre-approve and use allowance() to get nonce
+ * 2. SignatureTransfer - Use permitTransferFrom() with any unused nonce
+ * 
+ * This implementation uses SignatureTransfer mode where:
+ * - Nonce can be any uint256 value (not sequential)
+ * - Permit2 uses nonceBitmap to track used nonces
+ * - No pre-approval needed, just sign each transfer
  */
 
 // Universal Permit2 contract address (same on all chains)
