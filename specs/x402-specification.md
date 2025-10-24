@@ -254,9 +254,51 @@ The facilitator performs the following verification steps:
 
 Settlement is performed by calling the `transferWithAuthorization` function on the ERC-20 contract with the signature and authorization parameters provided in the payment payload.
 
+**6.2 Deferred Scheme**
+
+The "deferred" scheme enables micropayments through EIP-712 signed vouchers that aggregate off-chain before on-chain settlement. This approach is designed for scenarios where individual payment amounts are smaller than practical transaction costs.
+
+**6.2.1 EIP-712 Voucher Structure**
+
+The voucher follows the EIP-712 standard with the following structure:
+
+```javascript
+const voucherTypes = {
+  Voucher: [
+    { name: "id", type: "bytes32" },
+    { name: "buyer", type: "address" },
+    { name: "seller", type: "address" },
+    { name: "valueAggregate", type: "uint256" },
+    { name: "asset", type: "address" },
+    { name: "timestamp", type: "uint64" },
+    { name: "nonce", type: "uint256" },
+    { name: "escrow", type: "address" },
+    { name: "chainId", type: "uint256" },
+    { name: "expiry", type: "uint64" },
+  ],
+};
+```
+
+**6.2.2 Verification Steps**
+
+The facilitator performs the following verification steps:
+
+1. **Signature Validation**: Verify the EIP-712 voucher signature is valid
+2. **Escrow Balance Check**: Confirm the buyer has sufficient deposited funds in the escrow contract
+3. **Voucher Aggregation**: Validate nonce increment and value aggregation if building on existing voucher
+4. **Expiry Validation**: Ensure the voucher has not expired
+5. **Amount Validation**: Verify valueAggregate covers the required payment amount
+6. **Collection Simulation**: Optionally simulate the escrow collection transaction
+
+**6.2.3 Settlement**
+
+Settlement occurs when the facilitator calls the `collect` function on the escrow contract with the voucher and signature. Multiple vouchers can be settled in a single transaction using `collectMany`. The escrow contract handles partial collection if insufficient funds are available.
+
 **7. Facilitator Interface**
 
 The facilitator provides HTTP REST APIs for payment verification and settlement. This allows resource servers to delegate blockchain operations to trusted third parties or host the endpoints themselves. Note that while the core x402 protocol is transport-agnostic, facilitator APIs are currently standardized as HTTP endpoints.
+
+The `deferred` scheme adds additional APIs to manage a facilitator voucher store for sellers. The specification for this can be found here: [Deferred Facilitator Spec](./schemes/deferred/scheme_deferred_evm_facilitator.md)
 
 **7.1 POST /verify**
 
