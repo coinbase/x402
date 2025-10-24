@@ -248,7 +248,9 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		// Reset the response writer to the original
 		c.Writer = writer.ResponseWriter
 		c.Writer.WriteHeader(writer.statusCode)
-		c.Writer.Write([]byte(writer.body.String()))
+		if _, err := c.Writer.Write([]byte(writer.body.String())); err != nil {
+			fmt.Println("failed to write response:", err)
+		}
 	}
 }
 
