@@ -6,6 +6,9 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  Eip3009PaymentPayload,
+  PermitPaymentPayload,
+  Permit2PaymentPayload,
 } from "../../../types/verify";
 import * as eip3009Facilitator from "./eip3009/facilitator";
 import * as permitFacilitator from "./permit/facilitator";
@@ -41,13 +44,21 @@ export async function verify<
   // Route to appropriate verification based on authorization type
   switch (exactEvmPayload.authorizationType) {
     case "eip3009":
-      return eip3009Facilitator.verify(client, payload, paymentRequirements);
+      return eip3009Facilitator.verify(
+        client,
+        payload as Eip3009PaymentPayload,
+        paymentRequirements,
+      );
 
     case "permit":
-      return permitFacilitator.verify(client, payload, paymentRequirements);
+      return permitFacilitator.verify(client, payload as PermitPaymentPayload, paymentRequirements);
 
     case "permit2":
-      return permit2Facilitator.verify(client, payload, paymentRequirements);
+      return permit2Facilitator.verify(
+        client,
+        payload as Permit2PaymentPayload,
+        paymentRequirements,
+      );
 
     default:
       return {
@@ -76,13 +87,25 @@ export async function settle<transport extends Transport, chain extends Chain>(
   // Route to appropriate settlement based on authorization type
   switch (payload.authorizationType) {
     case "eip3009":
-      return eip3009Facilitator.settle(wallet, paymentPayload, paymentRequirements);
+      return eip3009Facilitator.settle(
+        wallet,
+        paymentPayload as Eip3009PaymentPayload,
+        paymentRequirements,
+      );
 
     case "permit":
-      return permitFacilitator.settle(wallet, paymentPayload, paymentRequirements);
+      return permitFacilitator.settle(
+        wallet,
+        paymentPayload as PermitPaymentPayload,
+        paymentRequirements,
+      );
 
     case "permit2":
-      return permit2Facilitator.settle(wallet, paymentPayload, paymentRequirements);
+      return permit2Facilitator.settle(
+        wallet,
+        paymentPayload as Permit2PaymentPayload,
+        paymentRequirements,
+      );
 
     default:
       return {

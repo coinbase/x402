@@ -83,4 +83,11 @@ export const erc20PermitABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [],
+    name: "version",
+    outputs: [{ internalType: "string", name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;

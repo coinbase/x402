@@ -5,10 +5,8 @@ import { Base64EncodedRegex } from "../../shared/base64";
 
 // Constants
 // Maximum digits for token amounts in wei/atomic units
-// This is a security measure to prevent DoS attacks with unreasonably large numbers
 // Practical limit: Most tokens have supply < 10^30 (e.g., ETH ~10^26, USDC ~10^16)
 // Setting to 40 allows up to 10^40, which is 10 trillion times the total ETH supply
-// This is more than enough for any legitimate use case while preventing abuse
 const EvmMaxAtomicUnits = 40;
 const EvmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
 const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za-z0-9]$/;

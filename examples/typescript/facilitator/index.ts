@@ -15,6 +15,7 @@ import {
   SupportedPaymentKind,
   isSvmSignerWallet,
   type X402Config,
+  createConnectedClient,
 } from "x402/types";
 
 config();
@@ -72,7 +73,7 @@ app.post("/verify", async (req: Request, res: Response) => {
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       // Use Signer instead of ConnectedClient for Permit/Permit2 verification
       // which requires checking if the spender matches facilitator's address
-      client = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
+      client = createConnectedClient(paymentRequirements.network);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
     } else {

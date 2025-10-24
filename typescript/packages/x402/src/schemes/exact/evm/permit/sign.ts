@@ -32,10 +32,11 @@ export async function signPermit<transport extends Transport, chain extends Chai
 
   // Get the current nonce for the owner
   let nonce: bigint;
-  let tokenName: string;
+  let name: string;
+  let version: string;
 
   if (isSignerWallet(walletClient)) {
-    [nonce, tokenName] = await Promise.all([
+    [nonce, name, version] = await Promise.all([
       walletClient.readContract({
         address: tokenAddress,
         abi: erc20PermitABI,
@@ -47,6 +48,11 @@ export async function signPermit<transport extends Transport, chain extends Chai
         abi: erc20PermitABI,
         functionName: "name",
       }) as Promise<string>,
+      walletClient.readContract({
+        address: tokenAddress,
+        abi: erc20PermitABI,
+        functionName: "version",
+      }) as Promise<string>,
     ]);
   } else {
     throw new Error("Local account signing for permit requires a connected client");
@@ -55,8 +61,8 @@ export async function signPermit<transport extends Transport, chain extends Chai
   const data = {
     types: permitTypes,
     domain: {
-      name: tokenName,
-      version: "1",
+      name: name,
+      version: version,
       chainId,
       verifyingContract: tokenAddress,
     },

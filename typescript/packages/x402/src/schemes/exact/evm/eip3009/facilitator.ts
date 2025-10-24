@@ -9,11 +9,11 @@ import {
   SignerWallet,
 } from "../../../../types/shared/evm";
 import {
-  PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  Eip3009PaymentPayload,
 } from "../../../../types/verify";
 import { SCHEME } from "../../../exact";
 
@@ -39,7 +39,7 @@ export async function verify<
   account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
-  payload: PaymentPayload,
+  payload: Eip3009PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
   const exactEvmPayload = payload.payload as ExactEvmPayload;
@@ -192,7 +192,7 @@ export async function verify<
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
-  paymentPayload: PaymentPayload,
+  paymentPayload: Eip3009PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const payload = paymentPayload.payload as ExactEvmPayload;

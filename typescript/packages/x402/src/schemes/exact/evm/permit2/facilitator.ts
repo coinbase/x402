@@ -9,8 +9,8 @@ import {
   SignerWallet,
 } from "../../../../types/shared/evm";
 import {
-  PaymentPayload,
   PaymentRequirements,
+  Permit2PaymentPayload,
   SettleResponse,
   VerifyResponse,
 } from "../../../../types/verify";
@@ -30,18 +30,9 @@ export async function verify<
   account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
-  payload: PaymentPayload,
+  payload: Permit2PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
-  // Check if this is an EVM payload (not SVM)
-  if ("transaction" in payload.payload) {
-    return {
-      isValid: false,
-      invalidReason: "invalid_payload",
-      payer: "",
-    };
-  }
-
   // Validate payload has correct authorizationType
   if (
     payload.payload.authorizationType !== "permit2" ||
@@ -51,10 +42,6 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: "unsupported_scheme",
-      payer:
-        payload.payload.authorizationType === "eip3009"
-          ? payload.payload.authorization.from
-          : payload.payload.authorization.owner,
     };
   }
 
@@ -130,7 +117,7 @@ export async function verify<
   }
 
   // Verify owner has approved Permit2 contract
-  // This is a critical check - users must approve Permit2 once before using it
+  // This is a critical check - users must approve Uniswap Permit2 once before using it
   const allowance = await getERC20Allowance(client, tokenAddress, ownerAddress, PERMIT2_ADDRESS);
   if (allowance < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
@@ -175,20 +162,9 @@ export async function verify<
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
-  paymentPayload: PaymentPayload,
+  paymentPayload: Permit2PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
-  // Check if this is an EVM payload (not SVM)
-  if ("transaction" in paymentPayload.payload) {
-    return {
-      success: false,
-      errorReason: "invalid_payload",
-      transaction: "",
-      network: paymentPayload.network,
-      payer: "",
-    };
-  }
-
   const permit2Payload = paymentPayload.payload;
 
   if (permit2Payload.authorizationType !== "permit2") {
