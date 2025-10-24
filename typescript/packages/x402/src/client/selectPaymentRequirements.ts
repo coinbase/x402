@@ -1,6 +1,6 @@
 import { Network, PaymentRequirements } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
-import { getNetworkId } from "../shared/network";
+import { getNumericNetworkId } from "../shared/network";
 
 /**
  * Default selector for payment requirements.
@@ -36,8 +36,21 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
 
   // Filter down to USDC requirements
   const usdcRequirements = broadlyAcceptedPaymentRequirements.filter(requirement => {
-    // If the address is a USDC address, we return it.
-    return requirement.asset === getUsdcChainConfigForChain(getNetworkId(requirement.network))?.usdcAddress;
+    // For Starknet networks, check against hardcoded USDC addresses
+    if (requirement.network === "starknet" || requirement.network === "starknet-sepolia") {
+      const starknetUsdc = requirement.network === "starknet" 
+        ? "0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8"
+        : "0x053b40A647CEDfca6cA84f542A0fe36736031905A9639a7f19A3C1e66bFd5080";
+      return requirement.asset === starknetUsdc;
+    }
+    
+    // For EVM/SVM networks, use the existing logic
+    try {
+      const chainId = getNumericNetworkId(requirement.network);
+      return requirement.asset === getUsdcChainConfigForChain(chainId)?.usdcAddress;
+    } catch {
+      return false;
+    }
   });
 
   // Prioritize USDC requirements if available
