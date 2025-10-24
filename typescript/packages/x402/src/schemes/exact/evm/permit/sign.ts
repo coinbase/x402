@@ -26,7 +26,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
   walletClient: SignerWallet<chain, transport> | LocalAccount,
   { owner, spender, value, deadline }: Omit<PermitEvmPayloadAuthorization, "nonce">,
   { asset, network }: PaymentRequirements,
-): Promise<{ signature: Hex; nonce: string }> {
+): Promise<{ signature: Hex; nonce: number }> {
   const chainId = getNetworkId(network);
   const tokenAddress = getAddress(asset);
 
@@ -61,8 +61,8 @@ export async function signPermit<transport extends Transport, chain extends Chai
   const data = {
     types: permitTypes,
     domain: {
-      name: name,
-      version: version,
+      name,
+      version,
       chainId,
       verifyingContract: tokenAddress,
     },
@@ -70,9 +70,9 @@ export async function signPermit<transport extends Transport, chain extends Chai
     message: {
       owner: getAddress(owner),
       spender: getAddress(spender),
-      value: BigInt(value),
+      value,
       nonce,
-      deadline: BigInt(deadline),
+      deadline,
     },
   };
 
@@ -80,7 +80,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
     const signature = await walletClient.signTypedData(data);
     return {
       signature,
-      nonce: nonce.toString(),
+      nonce: Number(nonce),
     };
   }
 
@@ -90,7 +90,7 @@ export async function signPermit<transport extends Transport, chain extends Chai
     const signature = await account.signTypedData(data);
     return {
       signature,
-      nonce: nonce.toString(),
+      nonce: Number(nonce),
     };
   }
 

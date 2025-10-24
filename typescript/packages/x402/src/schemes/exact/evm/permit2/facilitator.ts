@@ -64,11 +64,11 @@ export async function verify<
     message: {
       permitted: {
         token: tokenAddress,
-        amount: BigInt(amount),
+        amount,
       },
       spender: getAddress(spender),
-      nonce: BigInt(nonce),
-      deadline: BigInt(deadline),
+      nonce,
+      deadline,
     },
   };
 
@@ -141,7 +141,7 @@ export async function verify<
   if (BigInt(amount) < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
-      invalidReason: "insufficient_payment_amount",
+      invalidReason: "invalid_exact_evm_payload_authorization_value",
       payer: owner,
     };
   }
@@ -210,7 +210,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       },
       {
         to: paymentRequirements.payTo as Address,
-        requestedAmount: BigInt(paymentRequirements.maxAmountRequired),
+        requestedAmount: BigInt(amount),
       },
       ownerAddress,
       permit2Payload.signature as Hex,

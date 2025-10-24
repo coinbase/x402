@@ -86,9 +86,9 @@ export async function verify<
     message: {
       owner: getAddress(owner),
       spender: getAddress(spender),
-      value: BigInt(value),
-      nonce: BigInt(nonce),
-      deadline: BigInt(deadline),
+      value: value,
+      nonce: nonce,
+      deadline: deadline,
     },
   };
 
@@ -141,7 +141,7 @@ export async function verify<
   if (BigInt(value) < BigInt(paymentRequirements.maxAmountRequired)) {
     return {
       isValid: false,
-      invalidReason: "insufficient_payment_amount",
+      invalidReason: "invalid_exact_evm_payload_authorization_value",
       payer: owner,
     };
   }
@@ -194,37 +194,38 @@ export async function settle<transport extends Transport, chain extends Chain>(
   const { v, r, s } = splitSignature(permitPayload.signature as Hex);
   const tokenAddress = paymentRequirements.asset as Address;
 
-  const nonce = await wallet.getTransactionCount({
+  // 获取 facilitator 的当前 nonce
+  const txNonce = await wallet.getTransactionCount({
     address: wallet.account.address,
   });
 
-  // Step 1: Call permit to approve the spender
-  const permitTx = await wallet.writeContract({
-    address: tokenAddress,
-    abi: erc20PermitABI,
-    functionName: "permit",
-    args: [owner as Address, spender as Address, BigInt(value), BigInt(deadline), v, r, s],
-    chain: wallet.chain as Chain,
-    nonce: nonce,
-  });
+  // Step 1 & 2: 同时发送两笔交易
+  const [permitTx, transferTx] = await Promise.all([
+    // Call permit to approve the spender
+    wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20PermitABI,
+      functionName: "permit",
+      args: [owner as Address, spender as Address, BigInt(value), BigInt(deadline), v, r, s],
+      chain: wallet.chain as Chain,
+      nonce: txNonce,
+    }),
+    // Call transferFrom to transfer tokens to payTo address
+    wallet.writeContract({
+      address: tokenAddress,
+      abi: erc20PermitABI,
+      functionName: "transferFrom",
+      args: [owner as Address, paymentRequirements.payTo as Address, BigInt(value)],
+      chain: wallet.chain as Chain,
+      nonce: txNonce + 1,
+    }),
+  ]);
 
-  await wallet.waitForTransactionReceipt({ hash: permitTx });
-
-  // Step 2: Call transferFrom to transfer tokens to payTo address
-  const transferTx = await wallet.writeContract({
-    address: tokenAddress,
-    abi: erc20PermitABI,
-    functionName: "transferFrom",
-    args: [
-      owner as Address,
-      paymentRequirements.payTo as Address,
-      BigInt(paymentRequirements.maxAmountRequired),
-    ],
-    chain: wallet.chain as Chain,
-    nonce: nonce + 1,
-  });
-
-  const receipt = await wallet.waitForTransactionReceipt({ hash: transferTx });
+  // 等待两笔交易都确认
+  const [, receipt] = await Promise.all([
+    wallet.waitForTransactionReceipt({ hash: permitTx }),
+    wallet.waitForTransactionReceipt({ hash: transferTx }),
+  ]);
 
   if (receipt.status !== "success") {
     return {

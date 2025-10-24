@@ -104,9 +104,9 @@ export async function verify<
     message: {
       from: exactEvmPayload.authorization.from,
       to: exactEvmPayload.authorization.to,
-      value: BigInt(exactEvmPayload.authorization.value),
-      validAfter: BigInt(exactEvmPayload.authorization.validAfter),
-      validBefore: BigInt(exactEvmPayload.authorization.validBefore),
+      value: exactEvmPayload.authorization.value,
+      validAfter: exactEvmPayload.authorization.validAfter,
+      validBefore: exactEvmPayload.authorization.validBefore,
       nonce: exactEvmPayload.authorization.nonce,
     },
   };
