@@ -22,6 +22,50 @@ type PaymentRequirements struct {
 	Extra             *json.RawMessage `json:"extra,omitempty"`
 }
 
+// ListDiscoveryResourcesRequest represents query parameters accepted by /discovery/resources.
+type ListDiscoveryResourcesRequest struct {
+	Type   *string `json:"type,omitempty"`
+	Limit  *int    `json:"limit,omitempty"`
+	Offset *int    `json:"offset,omitempty"`
+}
+
+// SupportedPaymentKind mirrors the facilitator supported payment kind payload.
+type SupportedPaymentKind struct {
+	X402Version int            `json:"x402Version"`
+	Scheme      string         `json:"scheme"`
+	Network     string         `json:"network"`
+	Extra       map[string]any `json:"extra,omitempty"`
+}
+
+// SupportedPaymentKindsResponse is returned by the facilitator /supported endpoint.
+type SupportedPaymentKindsResponse struct {
+	Kinds []SupportedPaymentKind `json:"kinds"`
+}
+
+// DiscoveredResource models a facilitator discovery resource entry.
+type DiscoveredResource struct {
+	Resource    string                `json:"resource"`
+	Type        string                `json:"type"`
+	X402Version int                   `json:"x402Version"`
+	Accepts     []PaymentRequirements `json:"accepts"`
+	LastUpdated int64                 `json:"lastUpdated"`
+	Metadata    map[string]any        `json:"metadata,omitempty"`
+}
+
+// ListDiscoveryPagination captures pagination metadata for discovery listings.
+type ListDiscoveryPagination struct {
+	Limit  int `json:"limit"`
+	Offset int `json:"offset"`
+	Total  int `json:"total"`
+}
+
+// ListDiscoveryResourcesResponse represents the facilitator /discovery/resources response.
+type ListDiscoveryResourcesResponse struct {
+	X402Version int                     `json:"x402Version"`
+	Items       []DiscoveredResource    `json:"items"`
+	Pagination  ListDiscoveryPagination `json:"pagination"`
+}
+
 // PaymentPayload represents the decoded payment payload for a client's payment
 type PaymentPayload struct {
 	X402Version int              `json:"x402Version"`
@@ -111,7 +155,11 @@ func (p *PaymentRequirements) SetUSDCInfo(isTestnet bool) error {
 	return nil
 }
 
-// FacilitatorConfig represents configuration for the facilitator service
+// FacilitatorConfig represents configuration for the facilitator service.
+// CreateAuthHeaders must return a map keyed by facilitator operation names:
+//
+//	verify, settle, supported, list. Implementations may omit keys when no
+//	authentication is required for a specific operation.
 type FacilitatorConfig struct {
 	URL               string
 	Timeout           func() time.Duration
