@@ -137,32 +137,11 @@ async function createPermit2PaymentHeader() {
   console.log(`   Token: ${TOKEN_ADDRESS}`);
   console.log(`   Amount: ${PAYMENT_AMOUNT}`);
 
-  // Get current nonce from Permit2 contract
-  const allowanceData = await clientWallet.readContract({
-    address: PERMIT2_ADDRESS,
-    abi: [
-      {
-        inputs: [
-          { name: "owner", type: "address" },
-          { name: "token", type: "address" },
-          { name: "spender", type: "address" },
-        ],
-        name: "allowance",
-        outputs: [
-          { name: "amount", type: "uint160" },
-          { name: "expiration", type: "uint48" },
-          { name: "nonce", type: "uint48" },
-        ],
-        stateMutability: "view",
-        type: "function",
-      },
-    ],
-    functionName: "allowance",
-    args: [clientAccount.address, TOKEN_ADDRESS, clientAccount.address], // spender can be anyone for signature
-  });
-
-  const nonce = (allowanceData as unknown as [bigint, number, number])[2];
-  console.log(`   Current nonce: ${nonce}`);
+  // For Permit2 SignatureTransfer (permitTransferFrom), nonce can be any unused value
+  // Permit2 uses a nonceBitmap to track used nonces, not a sequential counter
+  // Using timestamp-based nonce to ensure uniqueness
+  const nonce = Date.now();
+  console.log(`   Nonce: ${nonce}`);
 
   const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
   // IMPORTANT: spender must be the facilitator's wallet address
