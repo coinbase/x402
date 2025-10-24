@@ -1,0 +1,14 @@
+{
+  "name": "Mogami facilitator",
+  "description": "Facilitator running on base (testnet & mainnet) with a development console - You can run it as a Docker image within your own infrastructure, or use our always-on hosted facilitator online",
+  "logoUrl": "/logos/logo_mogami_vertical_small.png",
+  "websiteUrl": "https://facilitator.mogami.tech",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://facilitator.mogami.tech",
+    "networks": ["base", "base-sepolia"],
+    "schemes": ["exact"],
+    "assets": ["EIP-3009", "SPL", "Token-2022"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
