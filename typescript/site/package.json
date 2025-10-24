@@ -24,7 +24,7 @@
     "wagmi": "^2.15.6",
     "x402": "workspace:*",
     "x402-legacy": "npm:x402@0.1.2",
-    "x402-next": "workspace:*"
+    "x402-next": "link:..\\packages\\x402-next"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

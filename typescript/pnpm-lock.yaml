@@ -538,7 +538,7 @@ importers:
         specifier: npm:x402@0.1.2
         version: x402@0.1.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
       x402-next:
-        specifier: workspace:*
+        specifier: link:..\packages\x402-next
         version: link:../packages/x402-next
     devDependencies:
       '@eslint/eslintrc':
