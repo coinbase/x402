@@ -22,6 +22,8 @@ import {
   avalanche,
   iotexTestnet,
   iotex,
+  optimism,
+  gnosis,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -211,6 +213,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "optimism":
+      return optimism;
+    case "gnosis":
+      return gnosis;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

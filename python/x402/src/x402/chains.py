@@ -3,6 +3,8 @@ NETWORK_TO_ID = {
     "base": "8453",
     "avalanche-fuji": "43113",
     "avalanche": "43114",
+    "optimism": "10",
+    "gnosis": "100",
 }
 
 
@@ -53,6 +55,24 @@ KNOWN_TOKENS = {
             "human_name": "usdc",
             "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
             "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "10": [
+        {
+            "human_name": "usdc",
+            "address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+            "name": "USD Coin",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "100": [
+        {
+            "human_name": "usdc",
+            "address": "0x2a22f9c3b484c3629090FeED35F17Ff8F88f76F0",
+            "name": "Bridged USDC (Gnosis)",
             "decimals": 6,
             "version": "2",
         }
