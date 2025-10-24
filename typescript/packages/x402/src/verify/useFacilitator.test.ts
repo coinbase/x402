@@ -8,6 +8,7 @@ describe("useFacilitator", () => {
     scheme: "exact",
     network: "base-sepolia",
     payload: {
+      authorizationType: "eip3009",
       signature: "0x1234567890123456789012345678901234567890123456789012345678901234",
       authorization: {
         from: "0x1234567890123456789012345678901234567890",

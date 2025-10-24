@@ -1,7 +1,7 @@
 import { Address } from "viem";
-import { preparePaymentHeader as preparePaymentHeaderExactEVM } from "../schemes/exact/evm/client";
+import { preparePaymentHeader as preparePaymentHeaderExactEVM } from "../schemes/exact/evm/eip3009/client";
 import { SupportedEVMNetworks } from "../types/shared";
-import { PaymentRequirements, UnsignedPaymentPayload } from "../types/verify";
+import { PaymentRequirements, UnsignedEip3009PaymentPayload } from "../types/verify";
 
 /**
  * Prepares a payment header with the given sender address and payment requirements.
@@ -15,7 +15,7 @@ export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): UnsignedPaymentPayload {
+): UnsignedEip3009PaymentPayload {
   if (
     paymentRequirements.scheme === "exact" &&
     SupportedEVMNetworks.includes(paymentRequirements.network)

@@ -7,7 +7,6 @@ import {
   type PaymentRequirements,
   type PaymentPayload,
   PaymentPayloadSchema,
-  createConnectedClient,
   createSigner,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
@@ -16,6 +15,7 @@ import {
   SupportedPaymentKind,
   isSvmSignerWallet,
   type X402Config,
+  createConnectedClient,
 } from "x402/types";
 
 config();
@@ -67,9 +67,12 @@ app.post("/verify", async (req: Request, res: Response) => {
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
 
     // use the correct client/signer based on the requested network
-    // svm verify requires a Signer because it signs & simulates the txn
+    // For EVM with Permit/Permit2, we need a Signer to access facilitator's address
+    // For SVM, we always need a Signer because it signs & simulates the txn
     let client: Signer | ConnectedClient;
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+      // Use Signer instead of ConnectedClient for Permit/Permit2 verification
+      // which requires checking if the spender matches facilitator's address
       client = createConnectedClient(paymentRequirements.network);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
@@ -100,12 +103,39 @@ app.get("/settle", (req: Request, res: Response) => {
 app.get("/supported", async (req: Request, res: Response) => {
   let kinds: SupportedPaymentKind[] = [];
 
-  // evm
+  // evm - supports multiple authorization types
   if (EVM_PRIVATE_KEY) {
+    // EIP-3009 (USDC transferWithAuthorization)
     kinds.push({
       x402Version: 1,
       scheme: "exact",
       network: "base-sepolia",
+      extra: {
+        authorizationType: "eip3009",
+        description: "USDC/EURC with transferWithAuthorization",
+      },
+    });
+
+    // EIP-2612 (Standard ERC20 Permit)
+    kinds.push({
+      x402Version: 1,
+      scheme: "exact",
+      network: "base-sepolia",
+      extra: {
+        authorizationType: "permit",
+        description: "ERC20 tokens with EIP-2612 Permit support",
+      },
+    });
+
+    // Permit2 (Universal token approvals)
+    kinds.push({
+      x402Version: 1,
+      scheme: "exact",
+      network: "base-sepolia",
+      extra: {
+        authorizationType: "permit2",
+        description: "Any ERC20 token via Uniswap Permit2",
+      },
     });
   }
 
@@ -154,5 +184,22 @@ app.post("/settle", async (req: Request, res: Response) => {
 });
 
 app.listen(process.env.PORT || 3000, () => {
-  console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
+  console.log(`\n═══════════════════════════════════════════════════════`);
+  console.log(`  X402 Facilitator Server`);
+  console.log(`═══════════════════════════════════════════════════════`);
+  console.log(`  Server listening at http://localhost:${process.env.PORT || 3000}`);
+  console.log(`\n  Supported Authorization Types:`);
+  if (EVM_PRIVATE_KEY) {
+    console.log(`    ✅ EIP-3009  - USDC/EURC transferWithAuthorization`);
+    console.log(`    ✅ EIP-2612  - Standard ERC20 Permit`);
+    console.log(`    ✅ Permit2   - Universal token approvals (any ERC20)`);
+  }
+  if (SVM_PRIVATE_KEY) {
+    console.log(`    ✅ Solana    - Token transfers on Solana`);
+  }
+  console.log(`\n  Endpoints:`);
+  console.log(`    POST /verify    - Verify payment signatures`);
+  console.log(`    POST /settle    - Settle payments on-chain`);
+  console.log(`    GET  /supported - List supported payment types`);
+  console.log(`═══════════════════════════════════════════════════════\n`);
 });

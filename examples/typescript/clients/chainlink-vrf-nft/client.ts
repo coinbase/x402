@@ -15,7 +15,7 @@ dotenv.config({ path: envPath });
 // ---------------------------
 
 // --- Environment Variable Checks ---
-let clientPrivateKey = process.env.PRIVATE_KEY as Hex | undefined;
+let clientPrivateKey = process.env.CLIENT_PRIVATE_KEY as Hex | undefined;
 // if not prefixed, add 0x as prefix
 if (clientPrivateKey && !clientPrivateKey.startsWith("0x")) {
   clientPrivateKey = "0x" + clientPrivateKey;
