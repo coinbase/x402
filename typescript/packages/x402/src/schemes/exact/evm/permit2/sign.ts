@@ -33,22 +33,8 @@ export async function signPermit2<transport extends Transport, chain extends Cha
   const ownerAddress = getAddress(owner);
   const spenderAddress = getAddress(spender);
 
-  // Get the current nonce from Permit2 contract
-  let nonce: bigint;
-
-  if (isSignerWallet(walletClient)) {
-    const allowanceData = await walletClient.readContract({
-      address: PERMIT2_ADDRESS,
-      abi: permit2ABI,
-      functionName: "allowance",
-      args: [ownerAddress, tokenAddress, spenderAddress],
-    });
-
-    // allowanceData is [amount: bigint, expiration: number, nonce: number]
-    nonce = BigInt((allowanceData as [bigint, number, number])[2]); // nonce is the third element
-  } else {
-    throw new Error("Local account signing for permit2 requires a connected client");
-  }
+  // Generate a unique nonce for Permit2 SignatureTransfer
+  const nonce = await createPermit2Nonce(walletClient, ownerAddress);
 
   const data = {
     types: permit2Types,
@@ -88,4 +74,53 @@ export async function signPermit2<transport extends Transport, chain extends Cha
   }
 
   throw new Error("Invalid wallet client provided does not support signTypedData");
+}
+
+/**
+ * Generates a unique nonce for Permit2 SignatureTransfer
+ * Uses timestamp-based approach with nonceBitmap verification
+ *
+ * @param walletClient - The wallet client used to check nonce bitmap
+ * @param ownerAddress - The address of the token owner
+ * @returns A unique nonce for the permit2 authorization
+ */
+export async function createPermit2Nonce<transport extends Transport, chain extends Chain>(
+  walletClient: SignerWallet<chain, transport> | LocalAccount,
+  ownerAddress: `0x${string}`,
+): Promise<bigint> {
+  if (!isSignerWallet(walletClient)) {
+    throw new Error("Local account signing for permit2 requires a connected client");
+  }
+
+  // Generate a timestamp-based nonce for uniqueness
+  // This ensures each permit has a unique nonce without requiring sequential ordering
+  const timestamp = BigInt(Math.floor(Date.now() / 1000));
+  const randomOffset = BigInt(Math.floor(Math.random() * 1000)); // Add some randomness
+  let nonce = timestamp * 1000n + randomOffset;
+
+  // Optional: Check if this nonce is already used (though unlikely with timestamp-based approach)
+  // This is more for demonstration - in practice, timestamp-based nonces are very unlikely to collide
+  try {
+    const wordPos = nonce / 256n;
+    const bitIndex = nonce % 256n;
+    const bitmap = await walletClient.readContract({
+      address: PERMIT2_ADDRESS,
+      abi: permit2ABI,
+      functionName: "nonceBitmap",
+      args: [ownerAddress, wordPos],
+    });
+
+    // Check if the specific bit is set (nonce is used)
+    const used = ((bitmap as bigint) >> bitIndex) & 1n;
+    if (used === 1n) {
+      // If nonce is used, add a small increment to make it unique
+      nonce += 1n;
+    }
+  } catch (error) {
+    // If we can't check the bitmap, continue with the timestamp-based nonce
+    // This is acceptable since timestamp-based nonces are very unlikely to collide
+    console.warn("Could not check nonce bitmap, using timestamp-based nonce:", error);
+  }
+
+  return nonce;
 }
