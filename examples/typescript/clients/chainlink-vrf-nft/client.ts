@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { base } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient, Hex } from "viem";
 import axios from "axios";
@@ -24,7 +24,7 @@ if (clientPrivateKey && !clientPrivateKey.startsWith("0x")) {
 const providerUrl = process.env.PROVIDER_URL;
 
 if (!clientPrivateKey || !providerUrl) {
-  console.error("Missing CLIENT_PRIVATE_KEY or PROVIDER_URL in .env file");
+  console.error("Missing PRIVATE_KEY or PROVIDER_URL in .env file");
   process.exit(1);
 }
 // ----------------------------------------
@@ -33,7 +33,7 @@ if (!clientPrivateKey || !providerUrl) {
 const clientAccount = privateKeyToAccount(clientPrivateKey as Hex);
 const clientWallet = createWalletClient({
   account: clientAccount,
-  chain: base,
+  chain: baseSepolia,
   transport: http(providerUrl),
 }).extend(publicActions);
 

@@ -108,7 +108,7 @@ app.get("/supported", async (req: Request, res: Response) => {
     kinds.push({
       x402Version: 1,
       scheme: "exact",
-      network: "base",
+      network: "base-sepolia",
       extra: {
         authorizationType: "eip3009",
         description: "USDC/EURC with transferWithAuthorization",
@@ -119,7 +119,7 @@ app.get("/supported", async (req: Request, res: Response) => {
     kinds.push({
       x402Version: 1,
       scheme: "exact",
-      network: "base",
+      network: "base-sepolia",
       extra: {
         authorizationType: "permit",
         description: "ERC20 tokens with EIP-2612 Permit support",
@@ -130,7 +130,7 @@ app.get("/supported", async (req: Request, res: Response) => {
     kinds.push({
       x402Version: 1,
       scheme: "exact",
-      network: "base",
+      network: "base-sepolia",
       extra: {
         authorizationType: "permit2",
         description: "Any ERC20 token via Uniswap Permit2",

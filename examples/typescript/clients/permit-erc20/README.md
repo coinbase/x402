@@ -37,7 +37,7 @@ EIP-2612 Permit is supported by many popular tokens including:
    Edit `.env` and add:
    ```
    CLIENT_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
-   PROVIDER_URL=https://base.blockpi.network/v1/rpc/YOUR_RPC_KEY
+   PROVIDER_URL=
    ```
 
 3. **Ensure Facilitator is Running:**

@@ -83,7 +83,7 @@ cp .env-local .env
 Edit `.env`:
 ```
 CLIENT_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
-PROVIDER_URL=https://base.blockpi.network/v1/rpc/YOUR_RPC_KEY
+PROVIDER_URL=
 ```
 
 ### 4. Run Facilitator
