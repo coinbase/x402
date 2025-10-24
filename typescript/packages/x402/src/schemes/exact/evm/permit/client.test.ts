@@ -125,7 +125,7 @@ describe("Permit signPaymentHeader", () => {
   };
 
   const mockSignature = "0x1234567890123456789012345678901234567890123456789012345678901234";
-  const mockNonce = 5;
+  const mockNonce = "5";
 
   const createTestClient = () => {
     return createSignerSepolia(
@@ -214,7 +214,7 @@ describe("Permit createPaymentHeader", () => {
   };
 
   const mockSignature = "0x1234567890123456789012345678901234567890123456789012345678901234";
-  const mockNonce = 5;
+  const mockNonce = "5";
 
   const createTestClient = () => {
     const client = createSignerSepolia(
