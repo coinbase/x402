@@ -17,21 +17,21 @@ dotenv.config({ path: envPath });
 // Constants
 const PORT = 4024;
 const FACILITATOR_URL = "http://localhost:3002";
-const DAI_ADDRESS = "0x1111111111166b7fe7bd91427724b487980afc69" as Hex; // Base DAI
-const PAYMENT_AMOUNT = "1000000000000000000"; // 1 DAI
+const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Hex; // USDC
+const PAYMENT_AMOUNT = "50000"; // 0.05 USDC (50000 wei, assuming 6 decimals)
 const PAYMENT_RECIPIENT = "0xaec0188efb73769aedd1ffcbb7c5e1fe468e64e3" as Hex;
 
 // Payment details
 const paymentDetails = {
   scheme: "exact",
-  network: "base",
+  network: "base-sepolia",
   maxAmountRequired: PAYMENT_AMOUNT,
   resource: `http://localhost:${PORT}/protected-resource`,
   description: "Access to protected resource with EIP-2612 Permit",
   mimeType: "application/json",
   payTo: PAYMENT_RECIPIENT,
   maxTimeoutSeconds: 3600,
-  asset: DAI_ADDRESS,
+  asset: USDC_ADDRESS,
   outputSchema: {},
   extra: {
     authorizationType: "permit",
@@ -131,7 +131,7 @@ console.log(`\n═════════════════════�
 console.log(`  EIP-2612 Permit Resource Server`);
 console.log(`═══════════════════════════════════════════`);
 console.log(`  Port: ${PORT}`);
-console.log(`  Token: ${DAI_ADDRESS} (DAI)`);
+console.log(`  Token: ${USDC_ADDRESS} (USDC)`);
 console.log(`  Payment: ${PAYMENT_AMOUNT} wei (1 DAI)`);
 console.log(`  Facilitator: ${FACILITATOR_URL}`);
 console.log(`═══════════════════════════════════════════\n`);

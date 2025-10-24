@@ -17,14 +17,14 @@ dotenv.config({ path: envPath });
 // Constants
 const PORT = 4025;
 const FACILITATOR_URL = "http://localhost:3002";
-const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Hex; // Base USDC
-const PAYMENT_AMOUNT = "1000000"; // 1 USDC (6 decimals)
-const PAYMENT_RECIPIENT = "0x52eE5a881287486573cF5CB5e7E7D92F30b03014" as Hex;
+const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Hex; // Base Sepolia USDC
+const PAYMENT_AMOUNT = "50000"; // 0.05 USDC (50000 wei, assuming 6 decimals)
+const PAYMENT_RECIPIENT = "0xaec0188efb73769aedd1ffcbb7c5e1fe468e64e3" as Hex;
 
 // Payment details
 const paymentDetails = {
   scheme: "exact",
-  network: "base",
+  network: "base-sepolia",
   maxAmountRequired: PAYMENT_AMOUNT,
   resource: `http://localhost:${PORT}/protected-resource`,
   description: "Access to protected resource with Permit2",
@@ -132,7 +132,7 @@ console.log(`  Permit2 Universal Resource Server`);
 console.log(`═══════════════════════════════════════════`);
 console.log(`  Port: ${PORT}`);
 console.log(`  Token: ${USDC_ADDRESS} (USDC)`);
-console.log(`  Payment: ${PAYMENT_AMOUNT} wei (1 USDC)`);
+console.log(`  Payment: ${PAYMENT_AMOUNT} wei (0.05 USDC)`);
 console.log(`  Facilitator: ${FACILITATOR_URL}`);
 console.log(`  Permit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3`);
 console.log(`═══════════════════════════════════════════\n`);

@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { base } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient, Hex, Address } from "viem";
 import axios from "axios";
@@ -26,15 +26,15 @@ if (!clientPrivateKey || !providerUrl) {
 
 // Constants
 const RESOURCE_SERVER_URL = "http://localhost:4024"; // Different port for Permit example
-const DAI_ADDRESS = "0x1111111111166b7fe7bd91427724b487980afc69" as Address; // Base DAI (example)
-const PAYMENT_AMOUNT = "1000000000000000000"; // 1 DAI (18 decimals)
+const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address; // USDC
+const PAYMENT_AMOUNT = "50000"; // 0.05 USDC (50000 wei, assuming 6 decimals)
 const FACILITATOR_WALLET_ADDRESS = "0xaec0188efb73769aedd1ffcbb7c5e1fe468e64e3" as Address;
 
 // Setup client wallet
 const clientAccount = privateKeyToAccount(clientPrivateKey as Hex);
 const clientWallet = createWalletClient({
   account: clientAccount,
-  chain: base,
+  chain: baseSepolia,
   transport: http(providerUrl),
 }).extend(publicActions);
 
@@ -44,12 +44,12 @@ const clientWallet = createWalletClient({
 async function createPermitPaymentHeader() {
   console.log(`\n🔐 Creating Permit payment header...`);
   console.log(`   Client: ${clientAccount.address}`);
-  console.log(`   Token: ${DAI_ADDRESS}`);
+  console.log(`   Token: ${USDC_ADDRESS}`);
   console.log(`   Amount: ${PAYMENT_AMOUNT}`);
 
   // Get current nonce from token contract
   const nonce = await clientWallet.readContract({
-    address: DAI_ADDRESS,
+    address: USDC_ADDRESS,
     abi: [
       {
         inputs: [{ name: "owner", type: "address" }],
@@ -67,7 +67,7 @@ async function createPermitPaymentHeader() {
 
   // Get token name for EIP-712 domain
   const tokenName = await clientWallet.readContract({
-    address: DAI_ADDRESS,
+    address: USDC_ADDRESS,
     abi: [
       {
         inputs: [],
@@ -88,9 +88,9 @@ async function createPermitPaymentHeader() {
   // Sign the permit
   const domain = {
     name: tokenName,
-    version: "1",
-    chainId: base.id,
-    verifyingContract: DAI_ADDRESS,
+    version: "2",
+    chainId: baseSepolia.id,
+    verifyingContract: USDC_ADDRESS,
   };
 
   const types = {
@@ -124,7 +124,7 @@ async function createPermitPaymentHeader() {
   const paymentPayload = {
     x402Version: 1,
     scheme: "exact",
-    network: "base",
+    network: "base-sepolia",
     payload: {
       authorizationType: "permit",
       signature,
