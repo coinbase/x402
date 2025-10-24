@@ -1,0 +1,57 @@
+---
+description: Rust coding standards and best practices for x402
+globs:
+  - 'src/**/*.rs'
+  - 'tests/**/*.rs'
+  - 'examples/**/*.rs'
+  - 'benches/**/*.rs'
+alwaysApply: false
+---
+
+# Rust Standards for x402
+
+## Code Formatting
+- Always run `cargo fmt` before committing
+- Use `cargo clippy` with `-D warnings` flag
+- Follow standard Rust naming conventions (snake_case for functions/variables, PascalCase for types)
+- Use the configured rustfmt.toml settings
+
+## Import Organization
+- Use explicit imports, never wildcard imports
+- One import per line for better readability
+- Group imports by: std, external crates, internal modules
+- Use vertical layout for imports
+
+## Testing
+- Write comprehensive unit tests for all public functions
+- Test both success and error cases
+- Use descriptive test names that explain what is being tested
+- Run `cargo test --all-features` before committing
+- Test template generation with various configurations
+
+## Error Handling
+- Use the custom `X402Error` enum for error handling
+- Provide meaningful error messages
+- Use `thiserror` for error derivation
+- Handle network errors gracefully in client code
+- Log errors appropriately using the `log` crate
+
+## Performance
+- Avoid unnecessary allocations
+- Use `&str` instead of `String` when possible
+- Consider using `Cow<str>` for string handling
+- Use `include_str!` for static HTML templates
+- Profile performance-critical code
+
+## Template System
+- Keep HTML templates in separate files
+- Use type-safe configuration injection
+- Support both basic and branded configurations
+- Ensure templates are responsive and accessible
+- Follow modern web design principles
+
+## Documentation
+- Document all public APIs with `///` comments
+- Include examples in documentation when appropriate
+- Use `# Examples` sections for complex functions
+- Document template configuration options
