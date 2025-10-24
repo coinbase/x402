@@ -69,7 +69,7 @@ describe("Core Integration Tests", () => {
     });
   });
 
-  describe("x402HTTPClient / x402HTTPMiddleware / x402Facilitator - Cash Flow", () => {
+  describe("x402HTTPClient / x402HTTPResourceService / x402Facilitator - Cash Flow", () => {
     let client: x402HTTPClient;
     let service: x402HTTPResourceService;
 
