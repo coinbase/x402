@@ -24,6 +24,8 @@ Examples of different client implementations for interacting with X402 services:
 - `clients/fetch/` - Client using the `x402-fetch` wrapper around the native fetch API.
 - `clients/cdp-sdk/` - Client that uses CDP Server Wallets as the signer with `x402-axios`.
 - `clients/chainlink-vrf-nft/` - Example using [Chainlink](docs.chain.link) to mint a randomized NFT (see them on [Opensea](https://testnets.opensea.io/collection/vrfnft-1)). Demonstrates verify/settle flow with `x402-axios`.
+- `clients/permit-erc20/` - Client demonstrating EIP-2612 Permit authorization for gasless ERC20 token approvals (works with DAI, UNI, AAVE, etc.).
+- `clients/permit2-universal/` - Client demonstrating Uniswap Permit2 for universal token approvals (works with ANY ERC20 token).
 
 ### Agents
 

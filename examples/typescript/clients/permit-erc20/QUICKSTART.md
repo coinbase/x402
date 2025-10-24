@@ -1,255 +1,225 @@
-# EIP-2612 Permit 快速启动指南
+# EIP-2612 Permit Quick Start Guide
 
-## 🎯 验证 Permit 支持
+## 🎯 Verify Permit Support
 
-按以下步骤验证 x402 的 EIP-2612 Permit 支持：
+Follow these steps to verify x402's EIP-2612 Permit support:
 
-## 📋 前置要求
+## 📋 Prerequisites
 
-### 1. 准备钱包和资金
+### 1. Prepare Wallet and Funds
 
-您需要一个钱包，包含：
-- ✅ **DAI 代币** (或其他支持 EIP-2612 的 ERC20)
-- ✅ **ETH** (少量，用于 gas 费)
+You need a wallet containing:
+- ✅ **DAI tokens** (or other ERC20 supporting EIP-2612)
+- ✅ **ETH** (small amount for gas fees)
 
-**获取测试代币:**
-- Base 主网: 从交易所提款或使用 DEX 兑换
-- 测试网: 使用水龙头
+**Get test tokens:**
+- Base Mainnet: Withdraw from exchanges or swap on DEX
+- Testnet: Use faucets
 
-### 2. 安装依赖
+### 2. Install Dependencies
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript
+cd examples/typescript
 pnpm install
+pnpm build
 ```
 
-## 🚀 运行步骤
+## 🚀 Running Steps
 
-### 步骤 1: 配置 Facilitator
+### Step 1: Configure Facilitator
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/facilitator
+cd ../../facilitator
 cp .env-local .env
 ```
 
-编辑 `.env`：
-```bash
+Edit `.env`:
+```env
 EVM_PRIVATE_KEY=0xYOUR_FACILITATOR_PRIVATE_KEY
-PORT=3002
 ```
 
-### 步骤 2: 配置 Permit 客户端
+### Step 2: Configure Permit Client
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/clients/permit-erc20
+cd examples/typescript/clients/permit-erc20
 cp .env-local .env
 ```
 
-编辑 `.env`：
-```bash
+Edit `.env`:
+```env
 CLIENT_PRIVATE_KEY=0xYOUR_CLIENT_PRIVATE_KEY
-PROVIDER_URL=https://base.blockpi.network/v1/rpc/b6e3eb324f795e5dca573bd6eb3950fbe0ba8f7a
+PROVIDER_URL=https://base.blockpi.network/v1/rpc/YOUR_RPC_KEY
 ```
 
-### 步骤 3: 安装示例依赖
+### Step 3: Install Example Dependencies
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/clients/permit-erc20
+cd examples/typescript/clients/permit-erc20
 pnpm install
 ```
 
-## 🎬 启动测试
+## 🎬 Start Testing
 
-打开**三个终端**:
+Open **three terminals**:
 
-### 🟦 终端 1 - Facilitator
+### 🟦 Terminal 1 - Facilitator
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/facilitator
+cd facilitator
 pnpm dev
 ```
 
-**预期输出:**
+**Expected output:**
 ```
-═══════════════════════════════════════════════════════
-  X402 Facilitator Server
-═══════════════════════════════════════════════════════
-  Server listening at http://localhost:3002
-
-  Supported Authorization Types:
-    ✅ EIP-3009  - USDC/EURC transferWithAuthorization
-    ✅ EIP-2612  - Standard ERC20 Permit
-    ✅ Permit2   - Universal token approvals (any ERC20)
-═══════════════════════════════════════════════════════
+✓ Registered route: POST /settle (exact/evm)
+✓ Registered route: POST /verify (exact/evm)
+✓ Registered route: GET /supported-payment-kinds
+Server listening at http://localhost:3002
 ```
 
-### 🟩 终端 2 - Resource Server
+### 🟩 Terminal 2 - Resource Server
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/clients/permit-erc20
+cd examples/typescript/clients/permit-erc20
 pnpm run resource
 ```
 
-**预期输出:**
+**Expected output:**
 ```
-═══════════════════════════════════════════
-  EIP-2612 Permit Resource Server
-═══════════════════════════════════════════
-  Port: 4024
-  Token: 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb (DAI)
-  Payment: 1000000000000000000 wei (1 DAI)
-  Facilitator: http://localhost:3002
-═══════════════════════════════════════════
+🔒 Protected resource server started
+📍 Listening on http://localhost:4024
+💰 Accepting Permit payments for DAI
 ```
 
-### 🟨 终端 3 - Client
+### 🟨 Terminal 3 - Client
 
 ```bash
-cd /Users/daxiongya/Desktop/Projects/web3/x402/x402/examples/typescript/clients/permit-erc20
+cd examples/typescript/clients/permit-erc20
 pnpm run client
 ```
 
-**预期输出:**
+**Expected output:**
 ```
 ═══════════════════════════════════════════
    EIP-2612 Permit x402 Example
 ═══════════════════════════════════════════
 
-🚀 Making request to resource server...
-
-💰 402 Payment Required
-   Payment details: { ... }
-
 🔐 Creating Permit payment header...
-   Client: 0xYourAddress
-   Token: 0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb
+   Client: 0x...
+   Token: 0x1111111111166b7fe7bd91427724b487980afc69
    Amount: 1000000000000000000
    Current nonce: 0
    ✅ Permit signed!
 
+🚀 Making request to resource server...
+
+💰 402 Payment Required
+   Payment details: {...}
+
 🔄 Retrying with payment...
 
 ✅ Success!
-   Response: {
-     message: "Payment verified and settled successfully with EIP-2612 Permit!",
-     authorizationType: "permit",
-     payer: "0xYourAddress"
-   }
+   Response: { message: 'Payment received and verified!', ... }
 ```
 
-## ✅ 验证成功标志
+## ✅ Success Indicators
 
-如果看到以下日志，说明 Permit 支持正常工作：
+If you see the following logs, Permit support is working correctly:
 
-### Facilitator 日志
+### Facilitator Logs
 ```
-POST /verify
-✅ Received permit authorization
-✅ Signature verified
-✅ Balance checked
-
-POST /settle
-✅ Called permit()
-✅ Called transferFrom()
-✅ Settlement successful
+Verifying EVM payment...
+Authorization type: permit
+Permit signature verified ✓
+Settling EVM payment...
+Permit transaction confirmed ✓
+TransferFrom transaction confirmed ✓
 ```
 
-### Resource Server 日志
+### Resource Server Logs
 ```
-📥 Received POST /protected-resource
-💰 No X-PAYMENT header, responding 402
-📥 Received POST /protected-resource (with payment)
-🔐 Verifying payment with Facilitator...
-✅ Facilitator verify response: { isValid: true }
-💸 Settling payment with Facilitator...
-✅ Facilitator settle response: { success: true }
-✅ Responding 200 OK to client
+💰 Payment verified successfully
+Payer: 0x...
 ```
 
-### Client 日志
+### Client Logs
 ```
 ✅ Success!
-   Response: {
-     message: "Payment verified and settled successfully with EIP-2612 Permit!"
-   }
+Response: { message: 'Payment received and verified!' }
 ```
 
-## 🔍 关键验证点
+## 🔍 Key Verification Points
 
-1. ✅ Client 成功创建 Permit 签名
-2. ✅ Facilitator 正确验证 Permit 签名
-3. ✅ Facilitator 调用 `permit()` 批准
-4. ✅ Facilitator 调用 `transferFrom()` 转账
-5. ✅ Resource Server 收到 200 OK
+1. ✅ Client successfully creates Permit signature
+2. ✅ Facilitator correctly verifies Permit signature
+3. ✅ Facilitator calls `permit()` for approval
+4. ✅ Facilitator calls `transferFrom()` for transfer
+5. ✅ Resource Server receives 200 OK
 
-## 🐛 常见问题
+## 🐛 Common Issues
 
-### "Missing CLIENT_PRIVATE_KEY"
-编辑 `.env` 文件，添加您的私钥
+**Missing private key?**
+Edit `.env` file and add your private key
 
-### "insufficient_funds"
-确保钱包有足够的 DAI 和 ETH
+**Insufficient balance?**
+Ensure wallet has enough DAI and ETH
 
-### "Facilitator verification failed"
-- 检查 Facilitator 是否在运行 (端口 3002)
-- 查看 Facilitator 终端的错误日志
+**Connection refused?**
+- Check if Facilitator is running (port 3002)
+- View Facilitator terminal error logs
 
-### "invalid_permit_signature"
-- 检查代币地址是否正确
-- 确认代币支持 EIP-2612
+**Invalid token?**
+- Check if token address is correct
+- Confirm token supports EIP-2612
 
-## 🎓 理解工作原理
+## 🎓 Understanding How It Works
 
-### 1. Client 签名 Permit (离链)
+### 1. Client Signs Permit (Off-chain)
+
 ```typescript
-signature = await wallet.signTypedData({
+const signature = await wallet.signTypedData({
+  domain: { name: "DAI", version: "1", ... },
   types: { Permit: [...] },
-  message: {
-    owner: clientAddress,
-    spender: facilitatorAddress,
-    value: amount,
-    nonce: currentNonce,
-    deadline: expirationTime,
-  }
+  message: { owner, spender, value, nonce, deadline }
 });
 ```
 
-### 2. Facilitator 验证 (离链)
+### 2. Facilitator Verifies (Off-chain)
+
 ```typescript
-const isValid = await verifyTypedData({
-  address: owner,
-  signature,
-  ...permitData
+const recoveredAddress = verifyTypedData({
+  domain, types, message, signature
 });
+// Check if recoveredAddress === authorization.owner
 ```
 
-### 3. Facilitator 结算 (链上 - 2 笔交易)
-```typescript
-// 交易 1: 批准
-await token.permit(owner, spender, value, deadline, v, r, s);
+### 3. Facilitator Settles (On-chain - 2 transactions)
 
-// 交易 2: 转账
-await token.transferFrom(owner, payTo, amount);
+```solidity
+// Transaction 1: Approve
+token.permit(owner, spender, value, deadline, v, r, s);
+
+// Transaction 2: Transfer
+token.transferFrom(owner, payTo, amount);
 ```
 
-## 📊 与 EIP-3009 对比
+## 📊 Comparison with EIP-3009
 
-| 特性 | EIP-3009 | EIP-2612 |
-|------|----------|----------|
-| **代币** | USDC only | DAI, UNI, AAVE, etc. |
-| **交易数** | 1 | **2** |
-| **Gas** | ~70k | ~110k |
-| **Nonce** | 自定义 bytes32 | 顺序 uint256 |
+| Feature | EIP-3009 | EIP-2612 |
+|---------|----------|----------|
+| **Tokens** | USDC only | DAI, UNI, AAVE, etc. |
+| **Transactions** | 1 | **2** |
+| **Gas** | Lower | Higher |
+| **Nonce** | Custom bytes32 | Sequential uint256 |
 
-## 🎯 下一步
+## 🎯 Next Steps
 
-- ✅ 尝试 Permit2 示例 (支持任何 ERC20)
-- ✅ 测试不同的 ERC20 代币
-- ✅ 对比三种授权方式的 gas 消耗
+- ✅ Try Permit2 example (supports any ERC20)
+- ✅ Test different ERC20 tokens
+- ✅ Compare gas costs of three authorization methods
 
-## 📚 相关资源
+## 📚 Related Resources
 
-- [EIP-2612 规范](https://eips.ethereum.org/EIPS/eip-2612)
-- [完整文档](../../../AUTHORIZATION_TYPES.md)
-- [Permit2 示例](../permit2-universal/README.md)
-
+- [EIP-2612 Specification](https://eips.ethereum.org/EIPS/eip-2612)
+- [Full Documentation](../../../AUTHORIZATION_TYPES.md)
+- [Permit2 Example](../permit2-universal/README.md)

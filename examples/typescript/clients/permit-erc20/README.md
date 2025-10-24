@@ -48,32 +48,32 @@ EIP-2612 Permit is supported by many popular tokens including:
 
 ## Running the Example
 
-你需要**三个终端**来运行完整的测试：
+You will need **three terminals** to run the complete test:
 
-### 终端 1: 启动 Facilitator
+### Terminal 1: Start Facilitator
 
 ```bash
 cd ../../facilitator
 cp .env-local .env
-# 编辑 .env，填入 EVM_PRIVATE_KEY
+# Edit .env and add your EVM_PRIVATE_KEY
 pnpm dev
 ```
 
-等待看到 `Server listening at http://localhost:3002`
+Wait to see `Server listening at http://localhost:3002`
 
-### 终端 2: 启动 Resource Server
+### Terminal 2: Start Resource Server
 
 ```bash
 cd examples/typescript/clients/permit-erc20
 pnpm run resource
 ```
 
-### 终端 3: 运行 Client
+### Terminal 3: Run Client
 
 ```bash
 cd examples/typescript/clients/permit-erc20
 cp .env-local .env
-# 编辑 .env，填入 CLIENT_PRIVATE_KEY
+# Edit .env and add your CLIENT_PRIVATE_KEY
 pnpm run client
 ```
 
