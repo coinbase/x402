@@ -15,6 +15,9 @@ const isDevMode = args.includes('--dev') || args.includes('-d');
 // Parse verbose flag
 const isVerbose = args.includes('-v') || args.includes('--verbose');
 
+// Parse legacy flag (includes /legacy directory in discovery)
+const includeLegacy = args.includes('--legacy');
+
 // Parse language flags
 const languageFilters: string[] = [];
 if (args.includes('-ts') || args.includes('--typescript')) languageFilters.push('typescript');
@@ -123,6 +126,7 @@ async function runTest() {
     console.log('Environment:');
     console.log('  -d, --dev                  Development mode (base-sepolia, no CDP)');
     console.log('  -v, --verbose              Enable verbose logging');
+    console.log('  --legacy                   Include legacy implementations from /legacy directory');
     console.log('  -ts, --typescript          Include TypeScript implementations');
     console.log('  -py, --python              Include Python implementations');
     console.log('  -go, --go                  Include Go implementations');
@@ -145,6 +149,8 @@ async function runTest() {
     console.log('  pnpm test --network=base --prod=true # Base mainnet only');
     console.log('  pnpm test -f evm                  # Test EVM protocol family only');
     console.log('  pnpm test -f evm -f svm           # Test both EVM and SVM protocol families');
+    console.log('  pnpm test --legacy                # Include legacy implementations');
+    console.log('  pnpm test --legacy -d -ts         # Test legacy + new TypeScript implementations');
     console.log('');
     return;
   }
@@ -166,7 +172,7 @@ async function runTest() {
   }
 
   // Discover all servers and clients
-  const discovery = new TestDiscovery('.');
+  const discovery = new TestDiscovery('.', includeLegacy);
   discovery.printDiscoverySummary();
 
   const scenarios = discovery.generateTestScenarios();

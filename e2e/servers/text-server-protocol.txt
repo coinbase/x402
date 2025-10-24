@@ -10,12 +10,17 @@ Servers must declare which protocol family each payment endpoint requires in the
 - **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
 - **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
 
+## X402 Version Support
+Servers must declare which x402 protocol version they implement using the `x402Version` field:
+- **x402Version**: The x402 protocol version implemented by the server (e.g., 1 or 2)
+
 Example configuration:
 ```json
 {
   "name": "my-server",
   "type": "server",
   "language": "typescript",
+  "x402Version": 2,
   "endpoints": [
     {
       "path": "/protected",
@@ -39,7 +44,8 @@ Multi-protocol server example:
 {
   "name": "universal-server",
   "type": "server",
-  "language": "typescript", 
+  "language": "typescript",
+  "x402Version": 2, 
   "endpoints": [
     {
       "path": "/evm-protected",

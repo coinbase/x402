@@ -1,0 +1,40 @@
+{
+  "name": "flask",
+  "type": "server",
+  "language": "python",
+  "x402Version": 1,
+  "description": "Python Flask server with x402 payment middleware",
+  "endpoints": [
+    {
+      "path": "/protected",
+      "method": "GET",
+      "description": "Protected endpoint requiring payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm"
+    },
+    {
+      "path": "/health",
+      "method": "GET",
+      "description": "Health check endpoint",
+      "health": true
+    },
+    {
+      "path": "/close",
+      "method": "POST",
+      "description": "Graceful shutdown endpoint",
+      "close": true
+    }
+  ],
+  "environment": {
+    "required": [
+      "EVM_ADDRESS"
+    ],
+    "optional": [
+      "PORT",
+      "USE_CDP_FACILITATOR",
+      "EVM_NETWORK",
+      "CDP_API_KEY_ID",
+      "CDP_API_KEY_SECRET"
+    ]
+  }
+}

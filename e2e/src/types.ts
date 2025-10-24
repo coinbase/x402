@@ -53,6 +53,8 @@ export interface TestConfig {
   type: 'server' | 'client';
   language: string;
   protocolFamilies?: ProtocolFamily[];
+  x402Version?: number; // For servers - single version they implement
+  x402Versions?: number[]; // For clients - array of versions they support
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

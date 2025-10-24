@@ -1,5 +1,5 @@
 {
-  "name": "express-e2e",
+  "name": "@x402/express-e2e",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,10 +10,11 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/x402": "workspace:*",
+    "@x402/core": "workspace:*",
     "dotenv": "^16.6.1",
     "express": "^4.18.2",
-    "x402-express": "workspace:*"
+    "@x402/express": "workspace:*",
+    "@x402/evm": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
