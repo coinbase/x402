@@ -19,6 +19,8 @@ import {
   polygon,
   polygonAmoy,
   peaq,
+  zeroGMainnet,
+  zeroGGalileoTestnet
   avalanche,
   iotexTestnet,
   iotex,
@@ -207,6 +209,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return polygonAmoy;
     case "peaq":
       return peaq;
+    case "zeroGMainnet":
+      return zeroGMainnet;
+    case "zeroGGalileoTestnet":
+      return zeroGGalileoTestnet;
     case "iotex":
       return iotex;
     case "iotex-testnet":
