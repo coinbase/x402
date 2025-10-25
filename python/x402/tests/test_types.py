@@ -15,12 +15,8 @@ def test_payment_requirements_serde():
         scheme="exact",
         network="base",
         max_amount_required="1000",
-        resource="/api/v1/resource",
-        description="Test resource",
-        mime_type="application/json",
         output_schema=None,
         pay_to="0x123",
-        max_timeout_seconds=60,
         asset="0x0000000000000000000000000000000000000000",
         extra=None,
     )
@@ -28,12 +24,8 @@ def test_payment_requirements_serde():
         "scheme": "exact",
         "network": "base",
         "maxAmountRequired": "1000",
-        "resource": "/api/v1/resource",
-        "description": "Test resource",
-        "mimeType": "application/json",
         "outputSchema": None,
         "payTo": "0x123",
-        "maxTimeoutSeconds": 60,
         "asset": "0x0000000000000000000000000000000000000000",
         "extra": None,
     }
@@ -46,22 +38,28 @@ def test_x402_payment_required_response_serde():
         scheme="exact",
         network="base",
         max_amount_required="1000",
-        resource="/api/v1/resource",
-        description="Test resource",
-        mime_type="application/json",
         output_schema=None,
         pay_to="0x123",
-        max_timeout_seconds=60,
         asset="0x0000000000000000000000000000000000000000",
         extra=None,
     )
     original = x402PaymentRequiredResponse(
-        x402_version=1, accepts=[payment_req], error=""
+        x402_version=1,
+        resource="/api/v1/resource",
+        description="Test resource",
+        mime_type="application/json",
+        max_timeout_seconds=60,
+        accepts=[payment_req],
+        error="",
     )
     expected = {
         "x402Version": 1,
-        "accepts": [payment_req.model_dump(by_alias=True)],
         "error": "",
+        "resource": "/api/v1/resource",
+        "description": "Test resource",
+        "mimeType": "application/json",
+        "maxTimeoutSeconds": 60,
+        "accepts": [payment_req.model_dump(by_alias=True)],
     }
     assert original.model_dump(by_alias=True) == expected
     assert x402PaymentRequiredResponse(**expected) == original
