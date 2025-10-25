@@ -22,9 +22,12 @@ import {
   avalanche,
   iotexTestnet,
   iotex,
+  abstract,
+  abstractTestnet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
+import { eip712WalletActions } from "viem/zksync";
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -57,6 +60,7 @@ export function createConnectedClient(
   network: string,
 ): ConnectedClient<Transport, Chain, undefined> {
   const chain = getChainFromNetwork(network);
+
   return createPublicClient({
     chain,
     transport: http(),
@@ -104,11 +108,18 @@ export function createClientAvalancheFuji(): ConnectedClient<
  */
 export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
   const chain = getChainFromNetwork(network);
-  return createWalletClient({
+
+  const walletClient = createWalletClient({
     chain,
     transport: http(),
     account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
+  });
+
+  if (isZkSyncChain(chain)) {
+    return walletClient.extend(publicActions).extend(eip712WalletActions());
+  }
+
+  return walletClient.extend(publicActions);
 }
 
 /**
@@ -189,6 +200,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
   }
 
   switch (network) {
+    case "abstract":
+      return abstract;
+    case "abstract-testnet":
+      return abstractTestnet;
     case "base":
       return base;
     case "base-sepolia":
@@ -214,4 +229,39 @@ export function getChainFromNetwork(network: string | undefined): Chain {
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
+}
+
+// Known ZKsync chain IDs (using Set for O(1) lookup)
+const ZKSTACK_CHAIN_IDS = new Set([
+  2741, // Abstract Mainnet
+  11124, // Abstract Sepolia Testnet
+  324, // ZKsync Era Mainnet
+  300, // ZKsync Sepolia Testnet
+  302, // ZKcandy Sepolia Testnet
+  282, // Zillion Sepolia Testnet
+  388, // Cronos zkEVM Mainnet
+  37111, // Lens Network
+  978658, // Treasure Topaz
+  531050104, // Sophon Testnet
+  4457845, // ZERO Testnet
+  240, // Cronos zkEVM Testnet
+  555271, // Sophon
+  61166, // Treasure
+  555272, // Sophon Sepolia
+  4654, // Gold ZKsync
+  333271, // Sophon Testnet
+]);
+
+/**
+ * Checks whether the given chain is part of the zksync stack
+ * @param chain - The chain to check
+ * @returns True if the chain is a ZKsync chain
+ */
+export function isZkSyncChain(chain: Chain): boolean {
+  // Skip local/dev chains
+  if (chain.id === 1337 || chain.id === 31337) {
+    return false;
+  }
+
+  return ZKSTACK_CHAIN_IDS.has(chain.id);
 }
