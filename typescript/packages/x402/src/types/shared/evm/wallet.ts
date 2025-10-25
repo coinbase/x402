@@ -254,6 +254,7 @@ const ZKSTACK_CHAIN_IDS = new Set([
 
 /**
  * Checks whether the given chain is part of the zksync stack
+ *
  * @param chain - The chain to check
  * @returns True if the chain is a ZKsync chain
  */
