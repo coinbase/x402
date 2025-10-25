@@ -26,10 +26,6 @@ def payment_requirements():
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
         max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
-        max_timeout_seconds=1000,
-        mime_type="text/plain",
         output_schema=None,
         extra={
             "name": "USD Coin",

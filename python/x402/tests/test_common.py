@@ -114,11 +114,7 @@ def test_find_matching_payment_requirements():
         scheme="exact",
         network="base-sepolia",
         max_amount_required="1000000",
-        resource="https://example.com/api/v1",
-        description="Test API",
-        mime_type="application/json",
         pay_to="0x1234567890123456789012345678901234567890",
-        max_timeout_seconds=300,
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     )
 
@@ -126,11 +122,7 @@ def test_find_matching_payment_requirements():
         scheme="exact",
         network="base",
         max_amount_required="2000000",
-        resource="https://example.com/api/v1",
-        description="Test API Mainnet",
-        mime_type="application/json",
         pay_to="0x1234567890123456789012345678901234567890",
-        max_timeout_seconds=300,
         asset="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     )
 

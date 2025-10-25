@@ -97,14 +97,15 @@ class PaymentRequirements(BaseModel):
     scheme: str
     network: SupportedNetworks
     max_amount_required: str
-    resource: str
-    description: str
-    mime_type: str
     output_schema: Optional[Any] = None
     pay_to: str
-    max_timeout_seconds: int
     asset: str
     extra: Optional[dict[str, Any]] = None
+    # Note: resource/description/mime_type/max_timeout_seconds were removed from
+    # PaymentRequirements. These fields are now part of the top-level
+    # x402PaymentRequiredResponse, as a single response typically targets one
+    # resource while `accepts` enumerates acceptable payment methods.
+    
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -126,8 +127,13 @@ class PaymentRequirements(BaseModel):
 # Returned by a server as json alongside a 402 response code
 class x402PaymentRequiredResponse(BaseModel):
     x402_version: int
-    accepts: list[PaymentRequirements]
     error: str
+    # Root-level resource metadata
+    resource: str
+    description: Optional[str] = None
+    mime_type: Optional[str] = None
+    max_timeout_seconds: Optional[int] = None
+    accepts: list[PaymentRequirements]
 
     model_config = ConfigDict(
         alias_generator=to_camel,

@@ -159,34 +159,36 @@ class PaymentMiddleware:
                 else:
                     # Fallback to request.url if the header is not present
                     resource_url = config["resource"] or request.url
+                    resource=resource_url,
+                    description=config.get("description"),
+                    mime_type=config.get("mime_type"),
+                    max_timeout_seconds=config.get("max_deadline_seconds"),
 
                 # Construct payment details
+                # Build payment method entries (accepts). These objects describe
+                # acceptable payment methods (scheme, network, asset, amount,
+                # etc.). Resource-specific metadata (resource, description,
+                # mimeType, maxTimeoutSeconds) is part of the top-level
+                # PaymentRequiredResponse because a single response targets a
+                # single resource while `accepts` enumerates payment options.
                 payment_requirements = [
                     PaymentRequirements(
                         scheme="exact",
                         network=cast(SupportedNetworks, config["network"]),
                         asset=asset_address,
                         max_amount_required=max_amount_required,
-                        resource=resource_url,
-                        description=config["description"],
-                        mime_type=config["mime_type"],
                         pay_to=config["pay_to_address"],
-                        max_timeout_seconds=config["max_deadline_seconds"],
                         # TODO: Rename output_schema to request_structure
                         output_schema={
                             "input": {
                                 "type": "http",
                                 "method": request.method.upper(),
                                 "discoverable": config.get("discoverable", True),
-                                **(
-                                    config["input_schema"].model_dump()
-                                    if config["input_schema"]
-                                    else {}
-                                ),
-                            },
-                            "output": config["output_schema"],
-                        },
-                        extra=eip712_domain,
+                        response_data = x402PaymentRequiredResponse(
+                            x402_version=x402_VERSION,
+                            accepts=payment_requirements,
+                            error=error,
+                        ).model_dump(by_alias=True)
                     )
                 ]
 
@@ -199,17 +201,27 @@ class PaymentMiddleware:
                         html_content = config[
                             "custom_paywall_html"
                         ] or get_paywall_html(
-                            error, payment_requirements, config["paywall_config"]
+                            error,
+                            payment_requirements,
+                            config["paywall_config"],
+                            resource_url,
                         )
                         headers = [("Content-Type", "text/html; charset=utf-8")]
 
                         start_response(status, headers)
                         return [html_content.encode("utf-8")]
                     else:
+                        # Create a response object with resource metadata at the
+                        # root level and the list of acceptable payment methods
+                        # under `accepts`.
                         response_data = x402PaymentRequiredResponse(
                             x402_version=x402_VERSION,
-                            accepts=payment_requirements,
                             error=error,
+                            resource=resource_url,
+                            description=config.get("description"),
+                            mime_type=config.get("mime_type"),
+                            max_timeout_seconds=config.get("max_deadline_seconds"),
+                            accepts=payment_requirements,
                         ).model_dump(by_alias=True)
 
                         headers = [

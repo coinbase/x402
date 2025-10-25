@@ -198,10 +198,7 @@ public class PaymentFilter implements Filter {
         pr.network           = "base-sepolia";
         pr.maxAmountRequired = priceTable.get(path).toString();
         pr.asset             = "USDC";               // adjust for your token
-        pr.resource          = path;
-        pr.mimeType          = "application/json";
         pr.payTo             = payTo;
-        pr.maxTimeoutSeconds = 30;
         return pr;
     }
 
@@ -250,7 +247,11 @@ public class PaymentFilter implements Filter {
 
         PaymentRequiredResponse prr = new PaymentRequiredResponse();
         prr.x402Version = 1;
-        prr.accepts.add(buildRequirements(path));
+    prr.accepts.add(buildRequirements(path));
+    // Resource-level metadata moved to the root of the response
+    prr.resource = path;
+    prr.mimeType = "application/json";
+    prr.maxTimeoutSeconds = 30;
         prr.error = error;
 
         resp.getWriter().write(Json.MAPPER.writeValueAsString(prr));

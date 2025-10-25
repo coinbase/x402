@@ -103,11 +103,7 @@ def require_payment(
                 network=cast(SupportedNetworks, network),
                 asset=asset_address,
                 max_amount_required=max_amount_required,
-                resource=resource_url,
-                description=description,
-                mime_type=mime_type,
                 pay_to=pay_to_address,
-                max_timeout_seconds=max_deadline_seconds,
                 # TODO: Rename output_schema to request_structure
                 output_schema={
                     "input": {
@@ -131,7 +127,7 @@ def require_payment(
 
             if is_browser_request(request_headers):
                 html_content = custom_paywall_html or get_paywall_html(
-                    error, payment_requirements, paywall_config
+                    error, payment_requirements, paywall_config, resource_url
                 )
                 headers = {"Content-Type": "text/html; charset=utf-8"}
 
@@ -143,6 +139,10 @@ def require_payment(
             else:
                 response_data = x402PaymentRequiredResponse(
                     x402_version=x402_VERSION,
+                    resource=resource_url,
+                    description=description,
+                    mime_type=mime_type,
+                    max_timeout_seconds=max_deadline_seconds,
                     accepts=payment_requirements,
                     error=error,
                 ).model_dump(by_alias=True)

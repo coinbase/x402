@@ -73,6 +73,10 @@ When a resource server requires payment, it responds with a payment required sig
 {
   "x402Version": 1,
   "error": "X-PAYMENT header is required",
+  "resource": "https://api.example.com/premium-data",
+  "description": "Access to premium market data",
+  "mimeType": "application/json",
+  "maxTimeoutSeconds": 60,
   "accepts": [
     {
       "scheme": "exact",
@@ -80,11 +84,7 @@ When a resource server requires payment, it responds with a payment required sig
       "maxAmountRequired": "10000",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-      "resource": "https://api.example.com/premium-data",
-      "description": "Access to premium market data",
-      "mimeType": "application/json",
       "outputSchema": null,
-      "maxTimeoutSeconds": 60,
       "extra": {
         "name": "USDC",
         "version": "2"
@@ -103,9 +103,13 @@ The `PaymentRequirementsResponse` schema contains the following fields:
 | ---------- | ---- | ----------- |
 | `x402Version` | `number` | Protocol version identifier |
 | `error` | `string` | Human-readable error message explaining why payment is required |
+| `resource` | `string` | URL of the protected resource |
+| `description` | `string` | Human-readable description of the resource |
+| `mimeType` | `string` | MIME type of the expected response (optional; may be null) |
+| `maxTimeoutSeconds` | `number` | Maximum time allowed for payment completion |
 | `accepts` | `array` | Array of payment requirement objects defining acceptable payment methods |
 
-Each `PaymentRequirements` object in the `accepts` array contains:
+Each `PaymentRequirements` object in the `accepts` array contains the payment method-specific fields (the `accepts` array enumerates alternative ways the client can pay for the resource):
 
 | Field Name          | Type     | Required | Description                                                              |
 | ------------------- | -------- | -------- | ------------------------------------------------------------------------ |
@@ -114,11 +118,7 @@ Each `PaymentRequirements` object in the `accepts` array contains:
 | `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                            |
 | `asset`             | `string` | Required | Token contract address                                                   |
 | `payTo`             | `string` | Required | Recipient wallet address for the payment                                 |
-| `resource`          | `string` | Required | URL of the protected resource                                            |
-| `description`       | `string` | Required | Human-readable description of the resource                               |
-| `mimeType`          | `string` | Optional | MIME type of the expected response                                       |
 | `outputSchema`      | `object` | Optional | JSON schema describing the response format                               |
-| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                              |
 | `extra`             | `object` | Optional | Scheme-specific additional information                                   |
 
 **5.2 PaymentPayload Schema**
