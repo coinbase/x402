@@ -1,5 +1,6 @@
 import { Address } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
+import { HederaAddress } from "../hedera";
 
 export const config: Record<string, ChainConfig> = {
   "84532": {
@@ -52,9 +53,17 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xbbA60da06c2c5424f03f7434542280FCAd453d10",
     usdcName: "USDC",
   },
+  "296": {
+    usdcAddress: "0.0.429274",
+    usdcName: "USDC",
+  },
+  "295": {
+    usdcAddress: "0.0.456858",
+    usdcName: "USDC",
+  },
 };
 
 export type ChainConfig = {
-  usdcAddress: Address | SolanaAddress;
+  usdcAddress: Address | SolanaAddress | HederaAddress;
   usdcName: string;
 };

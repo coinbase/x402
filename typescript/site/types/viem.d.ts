@@ -10,11 +10,8 @@ declare module "x402/facilitator" {
     SettleResponse,
   } from "x402/types/verify";
 
-  // Define a minimal client type that works for both EVM and Solana signers
-  type SimpleClient = {
-    [key: string]: unknown; // Allow any additional properties to avoid deep type instantiation issues
-    address?: string; // Optional to handle both EVM and Solana address formats
-  };
+  // Define a very permissive client type to accept any runtime client (EVM/SVM/Hedera)
+  type SimpleClient = object;
 
   export function verify(
     client: SimpleClient, // Using simpler client types to avoid deep type instantiation

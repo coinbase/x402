@@ -1,4 +1,4 @@
-import { toJsonSafe } from "../shared";
+import { toJsonSafe } from "../shared/json";
 import {
   ListDiscoveryResourcesRequest,
   ListDiscoveryResourcesResponse,

@@ -15,6 +15,7 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
+    "@coinbase/cdp-sdk": "^1.38.3",
     "@heroicons/react": "^2.2.0",
     "@vercel/functions": "^2.2.8",
     "next": "^15.2.4",

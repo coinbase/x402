@@ -1,8 +1,9 @@
-import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
-import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { isEvmSignerWallet, isHederaSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer } from "../types/shared";
+import { getNetworkFamily } from "../types/shared/network";
+import { strategy } from "../shared/strategy";
 import { PaymentRequirements } from "../types/verify";
 import { X402Config } from "../types/config";
+import { HederaSigner } from "../shared/hedera/wallet";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -14,42 +15,39 @@ import { X402Config } from "../types/config";
  * @returns A promise that resolves to the created payment header string
  */
 export async function createPaymentHeader(
-  client: Signer | MultiNetworkSigner,
+  client: Signer | MultiNetworkSigner | HederaSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<string> {
-  // exact scheme
-  if (paymentRequirements.scheme === "exact") {
-    // evm
-    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
-
-      if (!isEvmSignerWallet(evmClient)) {
-        throw new Error("Invalid evm wallet client provided");
-      }
-
-      return await createPaymentHeaderExactEVM(
-        evmClient,
-        x402Version,
-        paymentRequirements,
-      );
-    }
-    // svm
-    if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      const svmClient = isMultiNetworkSigner(client) ? client.svm : client;
-      if (!isSvmSignerWallet(svmClient)) {
-        throw new Error("Invalid svm wallet client provided");
-      }
-
-      return await createPaymentHeaderExactSVM(
-        svmClient,
-        x402Version,
-        paymentRequirements,
-        config,
-      );
-    }
-    throw new Error("Unsupported network");
+  if (paymentRequirements.scheme !== "exact") {
+    throw new Error("Unsupported scheme");
   }
-  throw new Error("Unsupported scheme");
+
+  const family = getNetworkFamily(paymentRequirements.network);
+  if (family === "evm") {
+    const evmClient = isMultiNetworkSigner(client) ? client.evm : client;
+    if (!isEvmSignerWallet(evmClient)) {
+      throw new Error("Invalid evm wallet client provided");
+    }
+    return await strategy.createPaymentHeader.evm(evmClient, x402Version, paymentRequirements);
+  }
+
+  if (family === "svm") {
+    const svmClient = isMultiNetworkSigner(client) ? client.svm : client;
+    if (!isSvmSignerWallet(svmClient)) {
+      throw new Error("Invalid svm wallet client provided");
+    }
+    return await strategy.createPaymentHeader.svm(svmClient, x402Version, paymentRequirements, config);
+  }
+
+  if (family === "hedera") {
+    const hederaClient = isMultiNetworkSigner(client) ? client.hedera : client;
+    if (!isHederaSignerWallet(hederaClient)) {
+      throw new Error("Invalid hedera wallet client provided");
+    }
+    return await strategy.createPaymentHeader.hedera(hederaClient, x402Version, paymentRequirements);
+  }
+
+  throw new Error("Unsupported network");
 }

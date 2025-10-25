@@ -40,7 +40,6 @@ cd facilitator
 ```
 
 2. Create a `.env` file with the following variables:
-
 ```env
 EVM_PRIVATE_KEY=0xYourPrivateKey
 SVM_PRIVATE_KEY=base58EncodedSolanaPrivateKey
