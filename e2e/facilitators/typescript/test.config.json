@@ -1,0 +1,20 @@
+{
+  "name": "typescript",
+  "type": "facilitator",
+  "language": "typescript",
+  "protocolFamilies": [
+    "evm"
+  ],
+  "x402Versions": [
+    2
+  ],
+  "environment": {
+    "required": [
+      "PORT",
+      "EVM_PRIVATE_KEY"
+    ],
+    "optional": [
+      "EVM_NETWORK"
+    ]
+  }
+}

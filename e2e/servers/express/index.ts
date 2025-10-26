@@ -1,6 +1,7 @@
 import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { ExactEvmService } from "@x402/evm";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import { localFacilitatorClient, NETWORK, PAYEE_ADDRESS } from "./facilitator";
 
 /**
@@ -14,6 +15,18 @@ const PORT = process.env.PORT || "4021";
 
 // Initialize Express app
 const app = express();
+
+// Determine which facilitator to use
+const facilitatorUrl = process.env.FACILITATOR_URL;
+const facilitatorClient = facilitatorUrl
+  ? new HTTPFacilitatorClient({ url: facilitatorUrl })
+  : localFacilitatorClient;
+
+if (facilitatorUrl) {
+  console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+} else {
+  console.log(`Using local facilitator`);
+}
 
 /**
  * Configure x402 payment middleware
@@ -32,8 +45,8 @@ app.use(
         network: NETWORK,
       },
     },
-    // Use local facilitator for testing
-    localFacilitatorClient,
+    // Use facilitator (either remote or local)
+    facilitatorClient,
     // Register the EVM server for handling exact payments
     [
       {

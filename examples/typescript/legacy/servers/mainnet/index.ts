@@ -23,7 +23,7 @@ app.use(
       "GET /weather": {
         // USDC amount in dollars
         price: "$0.001",
-        network: "base",
+        network: "solana",
       },
     },
     // Pass the mainnet facilitator to the payment middleware
