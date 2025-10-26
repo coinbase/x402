@@ -3,6 +3,8 @@ NETWORK_TO_ID = {
     "base": "8453",
     "avalanche-fuji": "43113",
     "avalanche": "43114",
+    "arbitrum-one": "42161",
+    "arbitrum-sepolia": "421614",
 }
 
 
@@ -53,6 +55,24 @@ KNOWN_TOKENS = {
             "human_name": "usdc",
             "address": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
             "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "42161": [
+        {
+            "human_name": "usdc",
+            "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+            "name": "USD Coin",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
+    "421614": [
+        {
+            "human_name": "usdc",
+            "address": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+            "name": "USD Coin",
             "decimals": 6,
             "version": "2",
         }
