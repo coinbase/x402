@@ -1,0 +1,28 @@
+{
+  "name": "Anda x402",
+  "logoUrl": "/logos/anda.svg",
+  "description": "A decentralized, fully on-chain x402 payment facilitator on the Internet Computer, with support for Ethereum, Solana, BNB Chain, Base, and more coming soon.",
+  "websiteUrl": "https://anda.ai/#project-x402",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://ogkpr-lyaaa-aaaap-an5fq-cai.icp0.io",
+    "networks": [
+      "icp-ogkpr-lyaaa-aaaap-an5fq-cai"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "ICP",
+      "ckUSDC",
+      "ckUSDT",
+      "PANDA"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
