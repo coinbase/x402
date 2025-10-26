@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmClient } from "@x402/evm";
+import { ExactEvmClientV1 } from "@x402/evm/v1";
 
 config();
 
@@ -15,6 +16,11 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, {
     {
       network: "eip155:*",
       client: new ExactEvmClient(account),
+    },
+    {
+      network: "eip155:*",
+      x402Version: 1,
+      client: new ExactEvmClientV1(account),
     },
   ],
 });

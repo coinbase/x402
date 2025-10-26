@@ -2,26 +2,25 @@ import { readdirSync, readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { GenericServerProxy } from './servers/generic-server';
 import { GenericClientProxy } from './clients/generic-client';
+import { GenericFacilitatorProxy } from './facilitators/generic-facilitator';
 import { log, verboseLog, errorLog } from './logger';
 import {
   TestConfig,
   DiscoveredServer,
   DiscoveredClient,
+  DiscoveredFacilitator,
   TestScenario,
   ProtocolFamily
 } from './types';
 
-const facilitatorNetworkCombos = [
-  { useCdpFacilitator: false, network: 'eip155:84532', protocolFamily: 'evm' as ProtocolFamily, x402Version: 2 },
-  // TODO: Add a localhost facilitator for the e2e tests, one per language
-  // TODO: Add back in once the live facilitators are integrated
-  // { useCdpFacilitator: false, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
-  // { useCdpFacilitator: true, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
-  // { useCdpFacilitator: true, network: 'base', protocolFamily: 'evm' as ProtocolFamily },
-  // { useCdpFacilitator: false, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
-  // { useCdpFacilitator: true, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
-  // { useCdpFacilitator: true, network: 'solana', protocolFamily: 'svm' as ProtocolFamily }
-];
+// Will be populated with discovered facilitators
+let facilitatorNetworkCombos: Array<{
+  useCdpFacilitator: boolean;
+  network: string;
+  protocolFamily: ProtocolFamily;
+  x402Version: number;
+  facilitatorName?: string;
+}> = [];
 
 export class TestDiscovery {
   private baseDir: string;
@@ -136,6 +135,61 @@ export class TestDiscovery {
   }
 
   /**
+   * Discover all facilitators in the facilitators directory
+   */
+  discoverFacilitators(): DiscoveredFacilitator[] {
+    const facilitators: DiscoveredFacilitator[] = [];
+
+    // Discover facilitators from main facilitators directory
+    const facilitatorsDir = join(this.baseDir, 'facilitators');
+    if (existsSync(facilitatorsDir)) {
+      this.discoverFacilitatorsInDirectory(facilitatorsDir, facilitators);
+    }
+
+    // Discover facilitators from legacy directory if flag is set
+    if (this.includeLegacy) {
+      const legacyFacilitatorsDir = join(this.baseDir, 'legacy', 'facilitators');
+      if (existsSync(legacyFacilitatorsDir)) {
+        this.discoverFacilitatorsInDirectory(legacyFacilitatorsDir, facilitators, 'legacy-');
+      }
+    }
+
+    return facilitators;
+  }
+
+  /**
+   * Helper method to discover facilitators in a specific directory
+   */
+  private discoverFacilitatorsInDirectory(facilitatorsDir: string, facilitators: DiscoveredFacilitator[], namePrefix: string = ''): void {
+    let facilitatorDirs = readdirSync(facilitatorsDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+
+    for (const facilitatorName of facilitatorDirs) {
+      const facilitatorDir = join(facilitatorsDir, facilitatorName);
+      const configPath = join(facilitatorDir, 'test.config.json');
+
+      if (existsSync(configPath)) {
+        try {
+          const configContent = readFileSync(configPath, 'utf-8');
+          const config: TestConfig = JSON.parse(configContent);
+
+          if (config.type === 'facilitator') {
+            facilitators.push({
+              name: namePrefix + facilitatorName,
+              directory: facilitatorDir,
+              config,
+              proxy: new GenericFacilitatorProxy(facilitatorDir)
+            });
+          }
+        } catch (error) {
+          errorLog(`Failed to load config for facilitator ${namePrefix}${facilitatorName}: ${error}`);
+        }
+      }
+    }
+  }
+
+  /**
    * Helper method to discover clients in a specific directory
    */
   private discoverClientsInDirectory(clientsDir: string, clients: DiscoveredClient[], namePrefix: string = ''): void {
@@ -168,11 +222,61 @@ export class TestDiscovery {
   }
 
   /**
+   * Build facilitator network combos from discovered facilitators
+   */
+  private buildFacilitatorNetworkCombos(facilitators: DiscoveredFacilitator[]): void {
+    facilitatorNetworkCombos = [];
+
+    for (const facilitator of facilitators) {
+      const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
+      const x402Versions = facilitator.config.x402Versions || [2];
+
+      for (const protocolFamily of protocolFamilies) {
+        for (const x402Version of x402Versions) {
+          // Add network combos based on protocol family
+          if (protocolFamily === 'evm') {
+            facilitatorNetworkCombos.push({
+              useCdpFacilitator: false,
+              network: 'eip155:84532',
+              protocolFamily: protocolFamily as ProtocolFamily,
+              x402Version,
+              facilitatorName: facilitator.name
+            });
+          } else if (protocolFamily === 'svm') {
+            facilitatorNetworkCombos.push({
+              useCdpFacilitator: false,
+              network: 'solana:devnet',
+              protocolFamily: protocolFamily as ProtocolFamily,
+              x402Version,
+              facilitatorName: facilitator.name
+            });
+          }
+        }
+      }
+    }
+
+    // If no facilitators found, add a default combo for backward compatibility
+    if (facilitatorNetworkCombos.length === 0) {
+      facilitatorNetworkCombos.push({
+        useCdpFacilitator: false,
+        network: 'eip155:84532',
+        protocolFamily: 'evm',
+        x402Version: 2
+      });
+    }
+  }
+
+  /**
    * Generate all possible test scenarios
    */
   generateTestScenarios(): TestScenario[] {
     const servers = this.discoverServers();
     const clients = this.discoverClients();
+    const facilitators = this.discoverFacilitators();
+
+    // Build facilitator network combos from discovered facilitators
+    this.buildFacilitatorNetworkCombos(facilitators);
+
     const scenarios: TestScenario[] = [];
 
     for (const client of clients) {
@@ -217,9 +321,15 @@ export class TestDiscovery {
             const combosForProtocol = this.getFacilitatorNetworkCombosForProtocol(endpointProtocolFamily);
 
             for (const combo of combosForProtocol) {
+              // Find matching facilitator if specified
+              const matchingFacilitator = combo.facilitatorName
+                ? facilitators.find(f => f.name === combo.facilitatorName)
+                : undefined;
+
               scenarios.push({
                 client,
                 server,
+                facilitator: matchingFacilitator,
                 endpoint,
                 protocolFamily: endpointProtocolFamily,
                 facilitatorNetworkCombo: {
@@ -242,6 +352,10 @@ export class TestDiscovery {
   printDiscoverySummary(): void {
     const servers = this.discoverServers();
     const clients = this.discoverClients();
+    const facilitators = this.discoverFacilitators();
+
+    // Build combos to get accurate scenario count
+    this.buildFacilitatorNetworkCombos(facilitators);
     const scenarios = this.generateTestScenarios();
 
     log('🔍 Test Discovery Summary');
@@ -264,6 +378,13 @@ export class TestDiscovery {
       const protocolFamilies = client.config.protocolFamilies || ['evm'];
       const versions = client.config.x402Versions || [1];
       log(`   - ${client.name} (${client.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+    });
+
+    log(`🏛️ Facilitators found: ${facilitators.length}`);
+    facilitators.forEach(facilitator => {
+      const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
+      const versions = facilitator.config.x402Versions || [2];
+      log(`   - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
     });
 
     log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
