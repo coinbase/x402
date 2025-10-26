@@ -12,6 +12,8 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as Hex;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const hederaPrivateKey = process.env.HEDERA_PRIVATE_KEY as string;
+const hederaAccountId = process.env.HEDERA_ACCOUNT_ID as string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 
@@ -32,7 +34,8 @@ if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
 async function main(): Promise<void> {
   const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
   const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
-  const signer = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
+  const hederaSigner = await createSigner("hedera-testnet", hederaPrivateKey, { accountId: hederaAccountId });
+  const signer = { evm: evmSigner, svm: svmSigner, hedera: hederaSigner } as MultiNetworkSigner;
 
   const api = withPaymentInterceptor(
     axios.create({

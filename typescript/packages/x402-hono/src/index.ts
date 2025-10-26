@@ -22,6 +22,8 @@ import {
   PaywallConfig,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
+  SupportedHederaNetworks,
+  HederaAddress,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -73,7 +75,7 @@ import { useFacilitator } from "x402/verify";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress,
+  payTo: Address | SolanaAddress | HederaAddress,
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
@@ -176,6 +178,49 @@ export function paymentMiddleware(
             type: "http",
             method,
             discoverable: discoverable ?? true,
+            ...inputSchema,
+          },
+          output: outputSchema,
+        },
+        extra: {
+          feePayer,
+        },
+      });
+    }
+    // hedera networks
+    else if (SupportedHederaNetworks.includes(network)) {
+      // get the supported payments from the facilitator
+      const paymentKinds = await supported();
+
+      // find the payment kind that matches the network and scheme
+      let feePayer: string | undefined;
+      for (const kind of paymentKinds.kinds) {
+        if (kind.network === network && kind.scheme === "exact") {
+          feePayer = kind?.extra?.feePayer;
+          break;
+        }
+      }
+
+      // if no fee payer is found, throw an error
+      if (!feePayer) {
+        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
+      }
+
+      paymentRequirements.push({
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? "",
+        payTo: payTo, // Hedera account ID format (e.g., "0.0.123456")
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        asset: typeof asset === "string" ? asset : asset.address, // HBAR or token ID
+        // TODO: Rename outputSchema to requestStructure
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
             ...inputSchema,
           },
           output: outputSchema,

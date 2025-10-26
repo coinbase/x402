@@ -72,3 +72,6 @@ export interface RoutePattern {
 }
 
 export type Wallet = EvmSigner;
+
+// Re-export Resource so consumers can import from this subpath
+export type { Resource } from "./resource";
