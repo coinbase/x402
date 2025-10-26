@@ -113,7 +113,7 @@ Schema:
 ```json
 {
   "success": "true | false",
-  "network": "cardano-masumi"
+  "network": "cardano-mainnet"
   "transaction": "transaction-id",
 }
 ```
