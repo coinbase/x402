@@ -59,7 +59,10 @@ async def test_on_response_non_402(hooks):
 async def test_on_response_retry(hooks):
     # Test retry response
     response = Response(402)
-    hooks._is_retry = True
+    response.request = Request("GET", "https://example.com")
+    # Mark this request as already being retried
+    request_id = id(response.request)
+    hooks._retrying_requests.add(request_id)
     result = await hooks.on_response(response)
     assert result == response
 
@@ -156,8 +159,9 @@ async def test_on_response_payment_error(hooks, payment_requirements):
     with pytest.raises(PaymentError):
         await hooks.on_response(response)
 
-    # Verify retry flag is reset
-    assert not hooks._is_retry
+    # Verify request is removed from retry set
+    request_id = id(response.request)
+    assert request_id not in hooks._retrying_requests
 
 
 async def test_on_response_general_error(hooks):
@@ -170,8 +174,9 @@ async def test_on_response_general_error(hooks):
     with pytest.raises(PaymentError):
         await hooks.on_response(response)
 
-    # Verify retry flag is reset
-    assert not hooks._is_retry
+    # Verify request is removed from retry set
+    request_id = id(response.request)
+    assert request_id not in hooks._retrying_requests
 
 
 def test_x402_payment_hooks(account):
