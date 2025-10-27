@@ -17,12 +17,13 @@ Each field must be encoded as follows:
 
 | Field | Type | Encoding | Notes |
 |--------|------|-----------|-------|
-| `from` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"`or `"0X"` prefix. |
-| `to` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` or `"0X"` prefix. |
-| `value` | Integer | Decimal string | No leading zeros. |
-| `validAfter` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
-| `validBefore` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
-| `nonce` | Bytes32 | Hexadecimal string | Must include the `"0x"` or `"0X"` prefix. |
+| `signature` | 65-byte EIP-712 Signature | Hex string | Must include `"0x"`or `"0X"` prefix. |
+| `from` | 20-byte Eth Address | Hex string (EIP-55 checksummed) | Must include `"0x"`or `"0X"` prefix. |
+| `to` | 120-bit Eth Address | Hex string (EIP-55 checksummed) | Must include `"0x"` or `"0X"` prefix. |
+| `value` |32-byte integer | Hex string, if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `validAfter` | 32-byte integer (UNIX timestamp) | Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `validBefore` | 32-byte integer (UNIX timestamp) | Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `nonce` | 32-byte integer |Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise.  | May omit leading zeros. |
 
 ### Example
 
