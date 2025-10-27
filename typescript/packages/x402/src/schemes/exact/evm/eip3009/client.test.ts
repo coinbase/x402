@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSignerSepolia, SignerWallet } from "../../../types/shared/evm";
-import { PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import { createSignerSepolia, SignerWallet } from "../../../../types/shared/evm";
+import { PaymentRequirements, UnsignedEip3009PaymentPayload } from "../../../../types/verify";
 import { createPaymentHeader, preparePaymentHeader, signPaymentHeader } from "./client";
 import { signAuthorization } from "./sign";
-import { encodePayment } from "./utils/paymentUtils";
+import { encodePayment } from "../utils/paymentUtils";
 
 vi.mock("./sign", async () => {
   const actual = await vi.importActual("./sign");
@@ -13,7 +13,7 @@ vi.mock("./sign", async () => {
   };
 });
 
-vi.mock("./utils/paymentUtils", () => ({
+vi.mock("../utils/paymentUtils", () => ({
   encodePayment: vi.fn().mockReturnValue("encoded-payment-header"),
 }));
 
@@ -43,7 +43,7 @@ describe("preparePaymentHeader", () => {
     vi.useRealTimers();
   });
 
-  it("should create a valid unsigned payment header", () => {
+  it("should create a valid unsigned EIP-3009 payment header", () => {
     const result = preparePaymentHeader(mockFromAddress, 1, mockPaymentRequirements);
     const currentTime = Math.floor(Date.now() / 1000);
 
@@ -52,6 +52,7 @@ describe("preparePaymentHeader", () => {
       scheme: "exact",
       network: "base-sepolia",
       payload: {
+        authorizationType: "eip3009",
         signature: undefined,
         authorization: {
           from: mockFromAddress,
@@ -74,7 +75,7 @@ describe("preparePaymentHeader", () => {
     expect(result1.payload.authorization.nonce).not.toBe(result2.payload.authorization.nonce);
   });
 
-  it("should calculate validAfter as 60 seconds before current time", () => {
+  it("should calculate validAfter as 600 seconds before current time", () => {
     const result = preparePaymentHeader(mockFromAddress, 1, mockPaymentRequirements);
     const currentTime = Math.floor(Date.now() / 1000);
     const validAfter = parseInt(result.payload.authorization.validAfter);
@@ -94,6 +95,11 @@ describe("preparePaymentHeader", () => {
     const result = preparePaymentHeader(mockFromAddress, 2, mockPaymentRequirements);
     expect(result.x402Version).toBe(2);
   });
+
+  it("should set authorizationType to eip3009", () => {
+    const result = preparePaymentHeader(mockFromAddress, 1, mockPaymentRequirements);
+    expect(result.payload.authorizationType).toBe("eip3009");
+  });
 });
 
 describe("signPaymentHeader", () => {
@@ -109,11 +115,12 @@ describe("signPaymentHeader", () => {
     asset: "0x1234567890123456789012345678901234567890",
   };
 
-  const mockUnsignedHeader: UnsignedPaymentPayload = {
+  const mockUnsignedHeader: UnsignedEip3009PaymentPayload = {
     x402Version: 1,
     scheme: "exact",
     network: "base-sepolia",
     payload: {
+      authorizationType: "eip3009" as const,
       signature: undefined,
       authorization: {
         from: "0xabcdef1234567890123456789012345678901234",
@@ -166,6 +173,7 @@ describe("signPaymentHeader", () => {
     expect(result.x402Version).toBe(mockUnsignedHeader.x402Version);
     expect(result.scheme).toBe(mockUnsignedHeader.scheme);
     expect(result.network).toBe(mockUnsignedHeader.network);
+    expect(result.payload.authorizationType).toBe("eip3009");
     expect(result.payload.authorization).toEqual(mockUnsignedHeader.payload.authorization);
   });
 

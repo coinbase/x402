@@ -1,28 +1,27 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
-import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
-import { createNonce, signAuthorization } from "./sign";
-import { encodePayment } from "./utils/paymentUtils";
+import { isSignerWallet, SignerWallet } from "../../../../types/shared/evm";
+import {
+  PaymentRequirements,
+  UnsignedPermitPaymentPayload,
+  PermitPaymentPayload,
+} from "../../../../types/verify";
+import { signPermit } from "./sign";
+import { encodePayment } from "../utils/paymentUtils";
 
 /**
- * Prepares an unsigned payment header with the given sender address and payment requirements.
+ * Prepares an unsigned EIP-2612 Permit payment header
  *
- * @param from - The sender's address from which the payment will be made
+ * @param from - The token owner's address
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @returns An unsigned payment payload containing authorization details
+ * @returns An unsigned Permit payment payload containing permit authorization details
  */
 export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): UnsignedPaymentPayload {
-  const nonce = createNonce();
-
-  const validAfter = BigInt(
-    Math.floor(Date.now() / 1000) - 600, // 10 minutes before
-  ).toString();
-  const validBefore = BigInt(
+): UnsignedPermitPaymentPayload {
+  const deadline = BigInt(
     Math.floor(Date.now() / 1000 + paymentRequirements.maxTimeoutSeconds),
   ).toString();
 
@@ -31,67 +30,75 @@ export function preparePaymentHeader(
     scheme: paymentRequirements.scheme,
     network: paymentRequirements.network,
     payload: {
+      authorizationType: "permit" as const,
       signature: undefined,
       authorization: {
-        from,
-        to: paymentRequirements.payTo as Address,
+        owner: from,
+        spender: paymentRequirements.payTo as Address,
         value: paymentRequirements.maxAmountRequired,
-        validAfter: validAfter.toString(),
-        validBefore: validBefore.toString(),
-        nonce,
+        deadline,
       },
     },
   };
 }
 
 /**
- * Signs a payment header using the provided client and payment requirements.
+ * Signs a Permit payment header using the provided client and payment requirements.
  *
- * @param client - The signer wallet instance used to sign the payment header
+ * @param client - The signer wallet instance used to sign the permit
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @param unsignedPaymentHeader - The unsigned payment payload to be signed
- * @returns A promise that resolves to the signed payment payload
+ * @param unsignedPaymentHeader - The unsigned Permit payment payload to be signed
+ * @returns A promise that resolves to the signed Permit payment payload
  */
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | LocalAccount,
   paymentRequirements: PaymentRequirements,
-  unsignedPaymentHeader: UnsignedPaymentPayload,
-): Promise<PaymentPayload> {
-  const { signature } = await signAuthorization(
+  unsignedPaymentHeader: UnsignedPermitPaymentPayload,
+): Promise<PermitPaymentPayload> {
+  const { owner, spender, value, deadline } = unsignedPaymentHeader.payload.authorization;
+
+  const { signature, nonce } = await signPermit(
     client,
-    unsignedPaymentHeader.payload.authorization,
+    { owner, spender, value, deadline },
     paymentRequirements,
   );
 
   return {
     ...unsignedPaymentHeader,
     payload: {
-      ...unsignedPaymentHeader.payload,
+      authorizationType: "permit",
       signature,
+      authorization: {
+        owner,
+        spender,
+        value,
+        deadline,
+        nonce: nonce.toString(),
+      },
     },
   };
 }
 
 /**
- * Creates a complete payment payload by preparing and signing a payment header.
+ * Creates a complete Permit payment payload by preparing and signing a payment header.
  *
  * @param client - The signer wallet instance used to create and sign the payment
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @returns A promise that resolves to the complete signed payment payload
+ * @returns A promise that resolves to the complete signed Permit payment payload
  */
 export async function createPayment<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | LocalAccount,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): Promise<PaymentPayload> {
+): Promise<PermitPaymentPayload> {
   const from = isSignerWallet(client) ? client.account!.address : client.address;
   const unsignedPaymentHeader = preparePaymentHeader(from, x402Version, paymentRequirements);
   return signPaymentHeader(client, paymentRequirements, unsignedPaymentHeader);
 }
 
 /**
- * Creates and encodes a payment header for the given client and payment requirements.
+ * Creates and encodes a Permit payment header for the given client and payment requirements.
  *
  * @param client - The signer wallet instance used to create the payment header
  * @param x402Version - The version of the X402 protocol to use

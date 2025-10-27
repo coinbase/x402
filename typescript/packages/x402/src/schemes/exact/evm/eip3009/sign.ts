@@ -1,12 +1,12 @@
 import { Chain, getAddress, Hex, LocalAccount, toHex, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
+import { getNetworkId } from "../../../../shared";
 import {
   authorizationTypes,
   isAccount,
   isSignerWallet,
   SignerWallet,
-} from "../../../types/shared/evm";
-import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../types/verify";
+} from "../../../../types/shared/evm";
+import { ExactEvmPayloadAuthorization, PaymentRequirements } from "../../../../types/verify";
 
 /**
  * Signs an EIP-3009 authorization for USDC transfer
@@ -46,9 +46,9 @@ export async function signAuthorization<transport extends Transport, chain exten
     message: {
       from: getAddress(from),
       to: getAddress(to),
-      value,
-      validAfter,
-      validBefore,
+      value: value,
+      validAfter: validAfter,
+      validBefore: validBefore,
       nonce: nonce,
     },
   };

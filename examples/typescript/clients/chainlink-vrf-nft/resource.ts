@@ -56,7 +56,7 @@ dotenv.config({ path: envPath });
 // ---------------------------
 
 // --- Environment Variable Checks ---
-let resourceServerPrivateKey = process.env.PRIVATE_KEY;
+let resourceServerPrivateKey = process.env.RESOURCE_SERVER_PRIVATE_KEY;
 // if not prefixed, add 0x as prefix
 if (resourceServerPrivateKey && !resourceServerPrivateKey.startsWith("0x")) {
   resourceServerPrivateKey = "0x" + resourceServerPrivateKey;
@@ -72,10 +72,10 @@ if (!resourceServerPrivateKey || !providerUrl) {
 
 // --- Constants and Setup ---
 const PORT = 4023;
-const FACILITATOR_PORT = 3000;
+const FACILITATOR_PORT = 3002;
 const FACILITATOR_URL = `http://localhost:${FACILITATOR_PORT}`;
 const NFT_CONTRACT_ADDRESS = "0xcD8841f9a8Dbc483386fD80ab6E9FD9656Da39A2" as Hex;
-const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Hex; // Base Sepolia USDC
+const USDC_CONTRACT_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Hex; // Base Sepolia USDC, you can get it from https://faucet.circle.com
 const REQUIRED_USDC_PAYMENT = "50000"; // 0.05 USDC (50000 wei, assuming 6 decimals)
 const PAYMENT_RECIPIENT_ADDRESS = "0x52eE5a881287486573cF5CB5e7E7D92F30b03014" as Hex; // TODO @dev - put in your second wallet address as Resource server wallet
 const MINT_ETH_VALUE_STR = "0.01"; // Estimated ETH needed for VRF fee
@@ -111,7 +111,7 @@ const paymentDetailsRequired: PaymentDetails = {
   asset: USDC_CONTRACT_ADDRESS,
   outputSchema: {},
   extra: {
-    name: "",
+    name: "USDC",
     version: "2"
   },
 };
@@ -259,7 +259,7 @@ app.post("/request-mint", async c => {
   console.log("INFO ResourceServer: Responding 200 OK to client.");
   return c.json({
     message: "NFT mint request initiated successfully.",
-    nftMintTxHash: mintTxHash,
+    nftMintTxHash: settlementResult.txHash,
   });
 });
 

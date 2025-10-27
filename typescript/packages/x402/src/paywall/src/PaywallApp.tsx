@@ -148,7 +148,7 @@ export function PaywallApp() {
 
       setStatus("Creating payment signature...");
       const validPaymentRequirements = ensureValidAmount(paymentRequirements);
-      const initialPayment = await exact.evm.createPayment(
+      const initialPayment = await exact.evm.eip3009.createPayment(
         walletClient,
         1,
         validPaymentRequirements,
@@ -171,7 +171,7 @@ export function PaywallApp() {
         const errorData = await response.json().catch(() => ({}));
         if (errorData && typeof errorData.x402Version === "number") {
           // Retry with server's x402Version
-          const retryPayment = await exact.evm.createPayment(
+          const retryPayment = await exact.evm.eip3009.createPayment(
             walletClient,
             errorData.x402Version,
             validPaymentRequirements,

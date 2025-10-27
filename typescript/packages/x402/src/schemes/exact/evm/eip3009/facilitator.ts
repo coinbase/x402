@@ -1,24 +1,24 @@
 import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
-import { getNetworkId } from "../../../shared";
-import { getVersion, getERC20Balance } from "../../../shared/evm";
+import { getNetworkId } from "../../../../shared";
+import { getVersion, getERC20Balance } from "../../../../shared/evm";
 import {
   usdcABI as abi,
   authorizationTypes,
   config,
   ConnectedClient,
   SignerWallet,
-} from "../../../types/shared/evm";
+} from "../../../../types/shared/evm";
 import {
-  PaymentPayload,
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
-} from "../../../types/verify";
-import { SCHEME } from "../../exact";
+  Eip3009PaymentPayload,
+} from "../../../../types/verify";
+import { SCHEME } from "../../../exact";
 
 /**
- * Verifies a payment payload against the required payment details
+ * Verifies an EIP-3009 payment payload against the required payment details
  *
  * This function performs several verification steps:
  * - Verifies protocol version compatibility
@@ -39,11 +39,22 @@ export async function verify<
   account extends Account | undefined,
 >(
   client: ConnectedClient<transport, chain, account>,
-  payload: PaymentPayload,
+  payload: Eip3009PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<VerifyResponse> {
+  const exactEvmPayload = payload.payload as ExactEvmPayload;
+
+  // Verify this is EIP-3009
+  if (exactEvmPayload.authorizationType !== "eip3009") {
+    return {
+      isValid: false,
+      invalidReason: "unsupported_authorization_type",
+      payer: "",
+    };
+  }
+
   /* TODO: work with security team on brainstorming more verification steps
-  verification steps:
+  verification steps for EIP-3009:
     - ✅ verify payload version
     - ✅ verify usdc address is correct for the chain
     - ✅ verify permit signature
@@ -54,8 +65,6 @@ export async function verify<
     - check min amount is above some threshold we think is reasonable for covering gas
     - verify resource is not already paid for (next version)
     */
-
-  const exactEvmPayload = payload.payload as ExactEvmPayload;
 
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
@@ -79,7 +88,7 @@ export async function verify<
     return {
       isValid: false,
       invalidReason: `invalid_network`,
-      payer: (payload.payload as ExactEvmPayload).authorization.from,
+      payer: exactEvmPayload.authorization.from,
     };
   }
   // Verify permit signature is recoverable for the owner address
@@ -171,7 +180,7 @@ export async function verify<
 }
 
 /**
- * Settles a payment by executing a USDC transferWithAuthorization transaction
+ * Settles an EIP-3009 payment by executing a USDC transferWithAuthorization transaction
  *
  * This function executes the actual USDC transfer using the signed authorization from the user.
  * The facilitator wallet submits the transaction but does not need to hold or transfer any tokens itself.
@@ -183,10 +192,21 @@ export async function verify<
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
-  paymentPayload: PaymentPayload,
+  paymentPayload: Eip3009PaymentPayload,
   paymentRequirements: PaymentRequirements,
 ): Promise<SettleResponse> {
   const payload = paymentPayload.payload as ExactEvmPayload;
+
+  // Verify this is EIP-3009
+  if (payload.authorizationType !== "eip3009") {
+    return {
+      success: false,
+      errorReason: "unsupported_authorization_type",
+      transaction: "",
+      network: paymentPayload.network,
+      payer: "",
+    };
+  }
 
   // re-verify to ensure the payment is still valid
   const valid = await verify(wallet, paymentPayload, paymentRequirements);

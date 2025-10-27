@@ -55,12 +55,23 @@ export async function verify<
   }
 
   // unsupported scheme
+  let payer = "";
+  if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+    const evmPayload = payload.payload as ExactEvmPayload;
+    if (evmPayload.authorizationType === "eip3009") {
+      payer = evmPayload.authorization.from;
+    } else if (
+      evmPayload.authorizationType === "permit" ||
+      evmPayload.authorizationType === "permit2"
+    ) {
+      payer = evmPayload.authorization.owner;
+    }
+  }
+
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
-      ? (payload.payload as ExactEvmPayload).authorization.from
-      : "",
+    payer,
   };
 }
 
@@ -97,14 +108,25 @@ export async function settle<transport extends Transport, chain extends Chain>(
     }
   }
 
+  let payer = "";
+  if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
+    const evmPayload = payload.payload as ExactEvmPayload;
+    if (evmPayload.authorizationType === "eip3009") {
+      payer = evmPayload.authorization.from;
+    } else if (
+      evmPayload.authorizationType === "permit" ||
+      evmPayload.authorizationType === "permit2"
+    ) {
+      payer = evmPayload.authorization.owner;
+    }
+  }
+
   return {
     success: false,
     errorReason: "invalid_scheme",
     transaction: "",
     network: paymentRequirements.network,
-    payer: SupportedEVMNetworks.includes(paymentRequirements.network)
-      ? (payload.payload as ExactEvmPayload).authorization.from
-      : "",
+    payer,
   };
 }
 
