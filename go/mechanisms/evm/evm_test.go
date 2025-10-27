@@ -522,8 +522,8 @@ func TestExactEvmService_EnhancePaymentRequirements(t *testing.T) {
 	}
 
 	// Check extra fields were added
-	if enhanced.Extra["name"] != "USD Coin" {
-		t.Errorf("Expected name 'USD Coin', got %v", enhanced.Extra["name"])
+	if enhanced.Extra["name"] != "USDC" {
+		t.Errorf("Expected name 'USDC', got %v", enhanced.Extra["name"])
 	}
 	if enhanced.Extra["version"] != "2" {
 		t.Errorf("Expected version '2', got %v", enhanced.Extra["version"])

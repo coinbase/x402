@@ -14,34 +14,24 @@ logging.getLogger("flask").setLevel(logging.ERROR)
 load_dotenv()
 
 # Get configuration from environment
-USE_CDP_FACILITATOR = os.getenv("USE_CDP_FACILITATOR", "false").lower() == "true"
 NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
 ADDRESS = os.getenv("EVM_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
-
-# CDP facilitator configuration
-CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
-CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")
+FACILITATOR_URL = os.getenv("FACILITATOR_URL")
 
 if not ADDRESS:
     print("Error: Missing required environment variable ADDRESS")
     sys.exit(1)
 
-# Validate CDP configuration if using CDP facilitator
-if USE_CDP_FACILITATOR and (not CDP_API_KEY_ID or not CDP_API_KEY_SECRET):
-    print(
-        "Error: CDP facilitator enabled but missing CDP_API_KEY_ID or CDP_API_KEY_SECRET"
-    )
-    sys.exit(1)
-
 app = Flask(__name__)
 
-# Create facilitator config if using CDP
+# Create facilitator config if URL is provided
 facilitator_config = None
-if USE_CDP_FACILITATOR:
-    from cdp.x402 import create_facilitator_config
-
-    facilitator_config = create_facilitator_config(CDP_API_KEY_ID, CDP_API_KEY_SECRET)
+if FACILITATOR_URL:
+    facilitator_config = {"url": FACILITATOR_URL}
+    print(f"Using remote facilitator at: {FACILITATOR_URL}")
+else:
+    print("Using default facilitator")
 
 # Initialize payment middleware
 payment_middleware = PaymentMiddleware(app)
@@ -119,7 +109,7 @@ if __name__ == "__main__":
     print(f"Starting Flask server on port {PORT}")
     print(f"Server address: {ADDRESS}")
     print(f"Network: {NETWORK}")
-    print(f"Using CDP facilitator: {USE_CDP_FACILITATOR}")
+    print(f"Using facilitator: {FACILITATOR_URL}")
     print("Server listening on port", PORT)
 
     app.run(

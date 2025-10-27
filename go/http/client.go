@@ -175,7 +175,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		resp.Body.Close()
 		if err != nil {
 			t.retryCount.Delete(requestID)
-			return resp, fmt.Errorf("failed to read 402 response body: %w", err)
+			return nil, fmt.Errorf("failed to read 402 response body: %w", err)
 		}
 	}
 
@@ -183,14 +183,14 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	paymentRequired, err := t.x402Client.GetPaymentRequiredResponse(headers, body)
 	if err != nil {
 		t.retryCount.Delete(requestID)
-		return resp, fmt.Errorf("failed to parse payment requirements: %w", err)
+		return nil, fmt.Errorf("failed to parse payment requirements: %w", err)
 	}
 
 	// Select and create payment
 	selected, err := t.x402Client.SelectPaymentRequirements(paymentRequired.X402Version, paymentRequired.Accepts)
 	if err != nil {
 		t.retryCount.Delete(requestID)
-		return resp, fmt.Errorf("cannot fulfill payment requirements: %w", err)
+		return nil, fmt.Errorf("cannot fulfill payment requirements: %w", err)
 	}
 
 	ctx := req.Context()
@@ -201,7 +201,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	payload, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selected)
 	if err != nil {
 		t.retryCount.Delete(requestID)
-		return resp, fmt.Errorf("failed to create payment: %w", err)
+		return nil, fmt.Errorf("failed to create payment: %w", err)
 	}
 
 	// Create new request with payment header

@@ -190,9 +190,13 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		}
 
 		if !response.IsValid {
-			fmt.Println("Invalid payment: ", response.InvalidReason)
+			invalidReason := "Unknown error"
+			if response.InvalidReason != nil {
+				invalidReason = *response.InvalidReason
+			}
+			fmt.Println("Invalid payment:", invalidReason)
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
-				"error":       response.InvalidReason,
+				"error":       invalidReason,
 				"accepts":     []*types.PaymentRequirements{paymentRequirements},
 				"x402Version": x402Version,
 			})

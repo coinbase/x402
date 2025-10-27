@@ -75,7 +75,8 @@ class FacilitatorClient:
             custom_headers = await self.config["create_headers"]()
             headers.update(custom_headers.get("settle", {}))
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for blockchain settlement operations (15 seconds)
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 f"{self.config['url']}/settle",
                 json={

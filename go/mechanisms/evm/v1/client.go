@@ -56,10 +56,15 @@ func (c *ExactEvmClientV1) CreatePaymentPayload(
 		return x402.PaymentPayload{}, err
 	}
 
-	// Requirements.Amount is already in the smallest unit
-	value, ok := new(big.Int).SetString(requirements.Amount, 10)
+	// V1: Use MaxAmountRequired if present, fallback to Amount
+	amountStr := requirements.MaxAmountRequired
+	if amountStr == "" {
+		amountStr = requirements.Amount
+	}
+
+	value, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
-		return x402.PaymentPayload{}, fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return x402.PaymentPayload{}, fmt.Errorf("invalid amount: %s", amountStr)
 	}
 
 	// Create nonce

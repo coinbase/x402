@@ -1,19 +1,29 @@
 import { config } from "dotenv";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { paymentMiddleware, Network, Resource } from "x402-hono";
-import { facilitator } from "@coinbase/x402";
+import { paymentMiddleware, Network, Resource, FacilitatorConfig } from "x402-hono";
 
 config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
 const payTo = process.env.EVM_ADDRESS as `0x${string}`;
 const network = process.env.EVM_NETWORK as Network;
 const port = parseInt(process.env.PORT || '4021');
+const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!payTo || !network) {
   console.error("Missing required environment variables");
   process.exit(1);
+}
+
+// Create facilitator config if URL is provided
+const facilitatorConfig: FacilitatorConfig | undefined = facilitatorUrl
+  ? { url: facilitatorUrl as Resource }
+  : undefined;
+
+if (facilitatorUrl) {
+  console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+} else {
+  console.log(`Using default facilitator`);
 }
 
 const app = new Hono();
@@ -28,9 +38,7 @@ app.use(
         network,
       },
     },
-    useCdpFacilitator
-      ? facilitator
-      : undefined,
+    facilitatorConfig,
   ),
 );
 

@@ -70,7 +70,7 @@ async def test_on_response_missing_request(hooks):
     # Don't set response.request at all to simulate missing request
     with pytest.raises(
         PaymentError,
-        match="Failed to handle payment: The request instance has not been set on this response.",
+        match="Failed to handle payment: RuntimeError: The request instance has not been set on this response.",
     ):
         await hooks.on_response(response)
 

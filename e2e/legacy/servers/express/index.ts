@@ -1,20 +1,30 @@
 import express from "express";
 import { Network, paymentMiddleware, SolanaAddress } from "x402-express";
-import { facilitator } from "@coinbase/x402";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
 const evmNetwork = process.env.EVM_NETWORK as Network;
 const svmNetwork = process.env.SVM_NETWORK as Network;
 const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
 const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
 const port = process.env.PORT || "4021";
+const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!payToEvm || !evmNetwork) {
   console.error("Missing required environment variables");
   process.exit(1);
+}
+
+// Create facilitator config if URL is provided
+const facilitatorConfig = facilitatorUrl
+  ? { url: facilitatorUrl as `${string}://${string}` }
+  : undefined as any;
+
+if (facilitatorUrl) {
+  console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+} else {
+  console.log(`Using default facilitator`);
 }
 
 const app = express();
@@ -28,7 +38,7 @@ app.use(
         network: evmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : undefined
+    facilitatorConfig
   ),
 );
 
@@ -41,7 +51,7 @@ app.use(
         network: svmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : undefined
+    facilitatorConfig
   ),
 );
 

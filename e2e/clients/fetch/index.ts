@@ -18,7 +18,7 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, {
       client: new ExactEvmClient(account),
     },
     {
-      network: "eip155:*",
+      network: "base-sepolia" as `${string}:${string}`,
       x402Version: 1,
       client: new ExactEvmClientV1(account),
     },
@@ -29,8 +29,22 @@ fetchWithPayment(url, {
   method: "GET",
 }).then(async response => {
   const data = await response.json();
-  const paymentResponse = response.headers.get("PAYMENT-RESPONSE");
-  const decodedPaymentResponse = decodePaymentResponseHeader(paymentResponse!);
+  // Check both v2 (PAYMENT-RESPONSE) and v1 (X-PAYMENT-RESPONSE) headers
+  const paymentResponse = response.headers.get("PAYMENT-RESPONSE") || response.headers.get("X-PAYMENT-RESPONSE");
+
+  if (!paymentResponse) {
+    // No payment was required
+    const result = {
+      success: true,
+      data: data,
+      status_code: response.status,
+    };
+    console.log(JSON.stringify(result));
+    process.exit(0);
+    return;
+  }
+
+  const decodedPaymentResponse = decodePaymentResponseHeader(paymentResponse);
 
   const result = {
     success: decodedPaymentResponse.success,

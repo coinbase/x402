@@ -2,7 +2,9 @@ import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { ExactEvmService } from "@x402/evm";
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { localFacilitatorClient, NETWORK, PAYEE_ADDRESS } from "./facilitator";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 /**
  * Express E2E Test Server with x402 Payment Middleware
@@ -12,21 +14,27 @@ import { localFacilitatorClient, NETWORK, PAYEE_ADDRESS } from "./facilitator";
  */
 
 const PORT = process.env.PORT || "4021";
+const NETWORK = "eip155:84532" as const;
+const PAYEE_ADDRESS = process.env.EVM_ADDRESS as `0x${string}`;
+const facilitatorUrl = process.env.FACILITATOR_URL;
+
+if (!PAYEE_ADDRESS) {
+  console.error("❌ EVM_ADDRESS environment variable is required");
+  process.exit(1);
+}
+
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
 
 // Initialize Express app
 const app = express();
 
-// Determine which facilitator to use
-const facilitatorUrl = process.env.FACILITATOR_URL;
-const facilitatorClient = facilitatorUrl
-  ? new HTTPFacilitatorClient({ url: facilitatorUrl })
-  : localFacilitatorClient;
-
-if (facilitatorUrl) {
-  console.log(`Using remote facilitator at: ${facilitatorUrl}`);
-} else {
-  console.log(`Using local facilitator`);
-}
+// Create HTTP facilitator client
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
+console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 /**
  * Configure x402 payment middleware

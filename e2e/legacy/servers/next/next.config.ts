@@ -4,13 +4,10 @@ const nextConfig: NextConfig = {
   experimental: {
     nodeMiddleware: true, // TEMPORARY: Only needed until Edge runtime support is added
   },
-  serverExternalPackages: ["@coinbase/cdp-sdk"],
   env: {
-    ADDRESS: process.env.ADDRESS,
-    USE_CDP_FACILITATOR: process.env.USE_CDP_FACILITATOR,
-    CDP_API_KEY_ID: process.env.CDP_API_KEY_ID,
-    CDP_API_KEY_SECRET: process.env.CDP_API_KEY_SECRET,
-    NETWORK: process.env.NETWORK,
+    EVM_ADDRESS: process.env.EVM_ADDRESS,
+    EVM_NETWORK: process.env.EVM_NETWORK,
+    FACILITATOR_URL: process.env.FACILITATOR_URL,
     PORT: process.env.PORT,
   },
   webpack(config) {

@@ -19,12 +19,12 @@ import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import dotenv from "dotenv";
+import { ExactEvmFacilitatorV1 } from "@x402/evm/v1";
 
 dotenv.config();
 
 // Configuration
 const PORT = process.env.PORT || "4022";
-const NETWORK = "eip155:84532" as const;
 
 // Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
@@ -44,46 +44,48 @@ const viemClient = createWalletClient({
 }).extend(publicActions);
 
 // Initialize the x402 Facilitator with EVM support
-const facilitator = new x402Facilitator();
+
+const signer = toFacilitatorEvmSigner({
+  readContract: (args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args?: readonly unknown[];
+  }) =>
+    viemClient.readContract({
+      ...args,
+      args: args.args || [],
+    }),
+  verifyTypedData: (args: {
+    address: `0x${string}`;
+    domain: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+    signature: `0x${string}`;
+  }) => viemClient.verifyTypedData(args as any),
+  writeContract: (args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args: readonly unknown[];
+  }) =>
+    viemClient.writeContract({
+      ...args,
+      args: args.args || [],
+    }),
+  waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
+    viemClient.waitForTransactionReceipt(args),
+});
 
 // Register the EVM scheme handler for v2
-facilitator.registerScheme(
-  NETWORK,
-  new ExactEvmFacilitator(
-    toFacilitatorEvmSigner({
-      readContract: (args: {
-        address: `0x${string}`;
-        abi: readonly unknown[];
-        functionName: string;
-        args?: readonly unknown[];
-      }) =>
-        viemClient.readContract({
-          ...args,
-          args: args.args || [],
-        }),
-      verifyTypedData: (args: {
-        address: `0x${string}`;
-        domain: Record<string, unknown>;
-        types: Record<string, unknown>;
-        primaryType: string;
-        message: Record<string, unknown>;
-        signature: `0x${string}`;
-      }) => viemClient.verifyTypedData(args),
-      writeContract: (args: {
-        address: `0x${string}`;
-        abi: readonly unknown[];
-        functionName: string;
-        args: readonly unknown[];
-      }) =>
-        viemClient.writeContract({
-          ...args,
-          args: args.args || [],
-        }),
-      waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
-        viemClient.waitForTransactionReceipt(args),
-    }),
-  ),
-);
+const facilitator = new x402Facilitator()
+  .registerScheme(
+    "eip155:*",
+    new ExactEvmFacilitator(
+      signer
+    )
+  ).registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(signer));
 
 // Initialize Express app
 const app = express();
@@ -103,6 +105,7 @@ app.post("/verify", async (req, res) => {
       });
     }
 
+    // No transformation needed - v1 mechanisms will read maxAmountRequired field directly
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
@@ -131,6 +134,7 @@ app.post("/settle", async (req, res) => {
       });
     }
 
+    // No transformation needed - v1 mechanisms will read maxAmountRequired field directly
     const response: SettleResponse = await facilitator.settle(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
@@ -156,7 +160,13 @@ app.get("/supported", async (req, res) => {
         {
           x402Version: 2,
           scheme: "exact",
-          network: NETWORK,
+          network: "eip155:84532",
+          extra: {},
+        },
+        {
+          x402Version: 1,
+          scheme: "exact",
+          network: "base-sepolia" as `${string}:${string}`,
           extra: {},
         },
       ],
@@ -179,7 +189,7 @@ app.get("/supported", async (req, res) => {
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    network: NETWORK,
+    network: "eip155:84532",
     facilitator: "typescript",
     version: "2.0.0",
   });
@@ -205,9 +215,9 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 TypeScript Facilitator                  ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                      ║
-║  Network:    ${NETWORK}                       ║
-║  Address:    ${account.address}     ║
+║  Server:     http://localhost:${PORT}                  ║
+║  Network:    eip155:84532                              ║
+║  Address:    ${account.address}                        ║
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • POST /verify    (verify payment)                   ║

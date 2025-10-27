@@ -137,15 +137,13 @@ func (s *ExactEvmService) EnhancePaymentRequirements(
 	}
 
 	// Add token name and version for EIP-712 signing
+	// ONLY add if not already present (client may have specified exact values)
 	if _, ok := requirements.Extra["name"]; !ok {
 		requirements.Extra["name"] = assetInfo.Name
 	}
 	if _, ok := requirements.Extra["version"]; !ok {
 		requirements.Extra["version"] = assetInfo.Version
 	}
-
-	// Add chain ID for reference
-	requirements.Extra["chainId"] = config.ChainID.String()
 
 	// Copy extensions from supportedKind if provided
 	if supportedKind.Extra != nil {

@@ -25,10 +25,12 @@ account = Account.from_key(private_key)
 
 
 async def main():
-    # Create httpx client with x402 payment hooks
-    async with httpx.AsyncClient(base_url=base_url) as client:
-        # Add payment hooks directly to client.event_hooks
-        client.event_hooks = x402_payment_hooks(account)
+    # Create httpx client with x402 payment hooks and increased timeout
+    # Set timeout to 30 seconds to handle busy servers during test runs
+    timeout = httpx.Timeout(30.0, connect=10.0)
+    async with httpx.AsyncClient(base_url=base_url, timeout=timeout) as client:
+        # Add payment hooks directly to client.event_hooks, passing client reference for proper retries
+        client.event_hooks = x402_payment_hooks(account, httpx_client=client)
 
         # Make request
         try:

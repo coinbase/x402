@@ -207,12 +207,16 @@ def require_payment(
                     settle_response.model_dump_json(by_alias=True).encode("utf-8")
                 ).decode("utf-8")
             else:
-                return x402_response(
-                    "Settle failed: "
-                    + (settle_response.error_reason or "Unknown error")
+                error_msg = "Settle failed: " + (
+                    settle_response.error_reason or "Unknown error"
                 )
-        except Exception:
-            return x402_response("Settle failed")
+                logger.error(error_msg)
+                return x402_response(error_msg)
+        except Exception as e:
+            error_msg = f"Settle failed: {type(e).__name__}: {str(e)}"
+            logger.error(error_msg)
+            logger.exception("Settlement exception details:")
+            return x402_response(error_msg)
 
         return response
 
