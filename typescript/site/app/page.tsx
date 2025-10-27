@@ -35,7 +35,7 @@ const whatIsItFeatures = [
   {
     title: 'Blockchain Agnostic',
     description:
-      'x402 is not tied to any specific blockchain or token, its a neutral standard open to integration by all.',
+      'x402 is not tied to any specific blockchain or token, it is a neutral standard open to integration by all.',
     icon: <CheckIcon className="w-5 h-5 text-indigo-400" />,
   },
   {
@@ -227,7 +227,7 @@ export default function Home() {
                     <span className="text-gray-300">);</span>
                     {'\n'}
                     {/* eslint-disable-next-line react/jsx-no-comment-textnodes */}
-                    <span className="text-gray-400">// and thats it!</span>
+                    <span className="text-gray-400">// and that's it!</span>
                   </pre>
                 </div>
               </div>
