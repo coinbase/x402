@@ -17,8 +17,8 @@ Each field must be encoded as follows:
 
 | Field | Type | Encoding | Notes |
 |--------|------|-----------|-------|
-| `from` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` prefix. |
-| `to` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` prefix. |
+| `from` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"`or `"0X"` prefix. |
+| `to` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` or `"0X"` prefix. |
 | `value` | Integer | Decimal string | No leading zeros. |
 | `validAfter` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
 | `validBefore` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
