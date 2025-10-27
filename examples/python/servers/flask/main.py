@@ -69,4 +69,7 @@ def public():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=4021, debug=True)
+    # Debug mode should be disabled in production.
+    # Set FLASK_DEBUG=true environment variable to enable it for development.
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() in ('true', '1', 't')
+    app.run(host='0.0.0.0', port=8080, debug=debug)
