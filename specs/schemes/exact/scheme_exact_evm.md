@@ -11,7 +11,22 @@ The `payload` field of the `X-PAYMENT` header must contain the following fields:
 - `signature`: The signature of the `EIP-3009` `transferWithAuthorization` operation.
 - `authorization`: parameters required to reconstruct the messaged signed for the `transferWithAuthorization` operation.
 
-Example:
+### Encoding Rules
+
+Each field must be encoded as follows:
+
+| Field | Type | Encoding | Notes |
+|--------|------|-----------|-------|
+| `from` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` prefix. |
+| `to` | Address | Hexadecimal (EIP-55 checksummed) | Must include the `"0x"` prefix. |
+| `value` | Integer | Decimal string | No leading zeros. |
+| `validAfter` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
+| `validBefore` | Integer (UNIX timestamp) | Decimal string | No leading zeros. |
+| `nonce` | Bytes32 | Hexadecimal string | Must include the `"0x"` or `"0X"` prefix. |
+
+### Example
+
+
 
 ```json
 {
