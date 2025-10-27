@@ -11,8 +11,9 @@ from x402.types import x402PaymentRequiredResponse
 
 
 class HttpxHooks:
-    def __init__(self, client: x402Client):
+    def __init__(self, client: x402Client, httpx_client: Optional[AsyncClient] = None):
         self.client = client
+        self.httpx_client = httpx_client  # Reference to the httpx client with hooks
         self._is_retry = False
 
     async def on_request(self, request: Request):
@@ -28,6 +29,7 @@ class HttpxHooks:
 
         # If this is a retry response, just return it
         if self._is_retry:
+            self._is_retry = False
             return response
 
         try:
@@ -58,28 +60,38 @@ class HttpxHooks:
             request.headers["X-Payment"] = payment_header
             request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
-            # Retry the request
-            async with AsyncClient() as client:
-                retry_response = await client.send(request)
+            # Retry the request using the same client (which has hooks) if available
+            if self.httpx_client:
+                retry_response = await self.httpx_client.send(request)
+            else:
+                # Fallback: create new client (less ideal but maintains backwards compatibility)
+                async with AsyncClient() as client:
+                    retry_response = await client.send(request)
 
-                # Copy the retry response data to the original response
-                response.status_code = retry_response.status_code
-                response.headers = retry_response.headers
-                response._content = retry_response._content
-                return response
+            # Copy the retry response data to the original response
+            response.status_code = retry_response.status_code
+            response.headers = retry_response.headers
+            response._content = retry_response._content
+            return response
 
         except PaymentError as e:
             self._is_retry = False
             raise e
         except Exception as e:
             self._is_retry = False
-            raise PaymentError(f"Failed to handle payment: {str(e)}") from e
+            # Get detailed error info
+            error_msg = str(e) if str(e) else repr(e)
+            error_type = type(e).__name__
+            raise PaymentError(
+                f"Failed to handle payment: {error_type}: {error_msg}"
+            ) from e
 
 
 def x402_payment_hooks(
     account: Account,
     max_value: Optional[int] = None,
     payment_requirements_selector: Optional[PaymentSelectorCallable] = None,
+    httpx_client: Optional[AsyncClient] = None,
 ) -> Dict[str, List]:
     """Create httpx event hooks dictionary for handling 402 Payment Required responses.
 
@@ -89,6 +101,7 @@ def x402_payment_hooks(
         payment_requirements_selector: Optional custom selector for payment requirements.
             Should be a callable that takes (accepts, network_filter, scheme_filter, max_value)
             and returns a PaymentRequirements object.
+        httpx_client: Optional AsyncClient instance to reuse for retries (recommended)
 
     Returns:
         Dictionary of event hooks that can be directly assigned to client.event_hooks
@@ -100,8 +113,8 @@ def x402_payment_hooks(
         payment_requirements_selector=payment_requirements_selector,
     )
 
-    # Create hooks
-    hooks = HttpxHooks(client)
+    # Create hooks with reference to httpx client for proper retry handling
+    hooks = HttpxHooks(client, httpx_client=httpx_client)
 
     # Return event hooks dictionary
     return {
@@ -131,6 +144,19 @@ class x402HttpxClient(AsyncClient):
             **kwargs: Additional arguments to pass to AsyncClient
         """
         super().__init__(**kwargs)
-        self.event_hooks = x402_payment_hooks(
-            account, max_value, payment_requirements_selector
+
+        # Create x402Client
+        client = x402Client(
+            account,
+            max_value=max_value,
+            payment_requirements_selector=payment_requirements_selector,
         )
+
+        # Create hooks with reference to this httpx client so retries use the same client with hooks
+        hooks = HttpxHooks(client, httpx_client=self)
+
+        # Install hooks
+        self.event_hooks = {
+            "request": [hooks.on_request],
+            "response": [hooks.on_response],
+        }

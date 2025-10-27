@@ -104,14 +104,14 @@ var (
 			ChainID: ChainIDBaseSepolia,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-				Name:     "USD Coin",
+				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
 			SupportedAssets: map[string]AssetInfo{
 				"USDC": {
 					Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					Name:     "USD Coin",
+					Name:     "USDC",
 					Version:  "2",
 					Decimals: DefaultDecimals,
 				},
@@ -121,14 +121,14 @@ var (
 			ChainID: ChainIDBaseSepolia,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-				Name:     "USD Coin",
+				Name:     "USDC",
 				Version:  "2",
 				Decimals: DefaultDecimals,
 			},
 			SupportedAssets: map[string]AssetInfo{
 				"USDC": {
 					Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-					Name:     "USD Coin",
+					Name:     "USDC",
 					Version:  "2",
 					Decimals: DefaultDecimals,
 				},

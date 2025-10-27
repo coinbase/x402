@@ -3,10 +3,25 @@ import { ServerProxy } from '../types';
 import { verboseLog, errorLog } from '../logger';
 import { getNetwork } from '../networks/networks';
 
+/**
+ * Translates v2 CAIP-2 network format to v1 simple format for legacy servers
+ * 
+ * @param network - Network in CAIP-2 format (e.g., "eip155:84532")
+ * @returns Network in v1 format (e.g., "base-sepolia")
+ */
+function translateNetworkForV1(network: string): string {
+  const networkMap: Record<string, string> = {
+    'eip155:84532': 'base-sepolia',
+    'eip155:8453': 'base',
+    'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'solana-devnet',
+    'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'solana-mainnet',
+  };
+
+  return networkMap[network] || network;
+}
 
 interface ServerConfig {
   port: number;
-  useCdpFacilitator: boolean;
   evmPayTo: string;
   svmPayTo: string;
   evmNetwork: string;
@@ -79,15 +94,32 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
   async start(config: ServerConfig): Promise<void> {
     this.port = config.port;
 
+    // Check if this is a v1 (legacy) server based on directory name
+    const isV1Server = this.directory.includes('legacy/');
+
+    verboseLog(`  📂 Server directory: ${this.directory}, isV1: ${isV1Server}`);
+
+    // Translate networks to v1 format for legacy servers using getNetwork helper
+    let evmNetwork = config.evmNetwork;
+    let svmNetwork = config.svmNetwork;
+
+    if (isV1Server) {
+      // Use getNetwork to look up and get v1 name
+      const evmNetworkInfo = getNetwork(config.evmNetwork);
+      const svmNetworkInfo = getNetwork(config.svmNetwork);
+
+      evmNetwork = evmNetworkInfo?.v1Name || translateNetworkForV1(config.evmNetwork);
+      svmNetwork = svmNetworkInfo?.v1Name || translateNetworkForV1(config.svmNetwork);
+
+      verboseLog(`  🔄 Translating networks for v1 server: ${config.evmNetwork} → ${evmNetwork}, ${config.svmNetwork} → ${svmNetwork}`);
+    }
+
     const runConfig: RunConfig = {
       port: config.port,
       env: {
-        USE_CDP_FACILITATOR: config.useCdpFacilitator.toString(),
-        CDP_API_KEY_ID: process.env.CDP_API_KEY_ID || '',
-        CDP_API_KEY_SECRET: process.env.CDP_API_KEY_SECRET || '',
-        EVM_NETWORK: config.evmNetwork,
+        EVM_NETWORK: evmNetwork,
         EVM_ADDRESS: config.evmPayTo,
-        SVM_NETWORK: config.svmNetwork,
+        SVM_NETWORK: svmNetwork,
         SVM_ADDRESS: config.svmPayTo,
         PORT: config.port.toString(),
         EVM_RPC_URL: getNetwork(config.evmNetwork)?.rpcUrl || '',

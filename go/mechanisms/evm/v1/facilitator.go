@@ -116,12 +116,17 @@ func (f *ExactEvmFacilitatorV1) Verify(
 		}, nil
 	}
 
-	// Requirements.Amount is already in the smallest unit
-	requiredValue, ok := new(big.Int).SetString(requirements.Amount, 10)
+	// V1: Use MaxAmountRequired if present, fallback to Amount
+	amountStr := requirements.MaxAmountRequired
+	if amountStr == "" {
+		amountStr = requirements.Amount
+	}
+
+	requiredValue, ok := new(big.Int).SetString(amountStr, 10)
 	if !ok {
 		return x402.VerifyResponse{
 			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid required amount: %s", requirements.Amount),
+			InvalidReason: fmt.Sprintf("invalid required amount: %s", amountStr),
 			Payer:         evmPayload.Authorization.From,
 		}, nil
 	}

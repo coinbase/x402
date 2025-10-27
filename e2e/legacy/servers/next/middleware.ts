@@ -1,15 +1,20 @@
 import { Address } from "viem";
-import { paymentMiddleware, Network, Resource } from "x402-next";
-import { facilitator } from "@coinbase/x402";
+import { paymentMiddleware, Network, Resource, FacilitatorConfig } from "x402-next";
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
 const payTo = process.env.EVM_ADDRESS as Address;
 const network = process.env.EVM_NETWORK as Network;
+const facilitatorUrl = process.env.FACILITATOR_URL;
 
-// Configure facilitator
-const facilitatorConfig = useCdpFacilitator
-  ? facilitator
+// Create facilitator config if URL is provided
+const facilitatorConfig: FacilitatorConfig | undefined = facilitatorUrl
+  ? { url: facilitatorUrl as Resource }
   : undefined;
+
+if (facilitatorUrl) {
+  console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+} else {
+  console.log(`Using default facilitator`);
+}
 
 export const middleware = paymentMiddleware(
   payTo,

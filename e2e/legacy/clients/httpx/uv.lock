@@ -1863,7 +1863,7 @@ wheels = [
 [[package]]
 name = "x402"
 version = "0.2.1"
-source = { editable = "../../../python/x402" }
+source = { editable = "../../../../python/x402" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },
@@ -1912,7 +1912,7 @@ requires-dist = [
     { name = "eth-account", specifier = ">=0.8.0" },
     { name = "httpx", specifier = ">=0.24.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "x402", editable = "../../../python/x402" },
+    { name = "x402", editable = "../../../../python/x402" },
 ]
 
 [[package]]

@@ -30,9 +30,8 @@ func ValidatePaymentRequirements(r PaymentRequirements) error {
 	if r.Asset == "" {
 		return fmt.Errorf("payment asset is required")
 	}
-	if r.Amount == "" {
-		return fmt.Errorf("payment amount is required")
-	}
+	// Note: Amount check is skipped for v1 compatibility (v1 uses maxAmountRequired)
+	// Version-specific facilitators will validate amount fields as needed
 	if r.PayTo == "" {
 		return fmt.Errorf("payment recipient is required")
 	}
@@ -43,14 +42,14 @@ func ValidatePaymentRequirements(r PaymentRequirements) error {
 // This supports pattern matching for networks (e.g., "eip155:*")
 func findByNetworkAndScheme[T any](networkMap map[Network]map[string]T, scheme string, network Network) T {
 	var zero T
-	
+
 	// Try exact match first
 	if schemeMap, exists := networkMap[network]; exists {
 		if impl, exists := schemeMap[scheme]; exists {
 			return impl
 		}
 	}
-	
+
 	// Try pattern matching
 	for registeredNetwork, schemeMap := range networkMap {
 		if network.Match(registeredNetwork) || registeredNetwork.Match(network) {
@@ -59,7 +58,7 @@ func findByNetworkAndScheme[T any](networkMap map[Network]map[string]T, scheme s
 			}
 		}
 	}
-	
+
 	return zero
 }
 
@@ -69,13 +68,13 @@ func findSchemesByNetwork[T any](networkMap map[Network]map[string]T, network Ne
 	if schemeMap, exists := networkMap[network]; exists {
 		return schemeMap
 	}
-	
+
 	// Try pattern matching
 	for registeredNetwork, schemeMap := range networkMap {
 		if network.Match(registeredNetwork) || registeredNetwork.Match(network) {
 			return schemeMap
 		}
 	}
-	
+
 	return nil
 }

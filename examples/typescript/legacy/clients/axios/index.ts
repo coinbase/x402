@@ -24,7 +24,6 @@ if (!baseURL || !privateKey || !endpointPath) {
  */
 async function main(): Promise<void> {
   // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  console.log('privateKey', privateKey);
   const signer = await createSigner("solana", privateKey);
 
   const api = withPaymentInterceptor(

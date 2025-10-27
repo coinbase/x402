@@ -147,9 +147,9 @@ func TestValidatePaymentRequirements(t *testing.T) {
 				Network: "eip155:1",
 				Asset:   "USDC",
 				PayTo:   "0xrecipient",
+				// Amount is optional for v1 compatibility (v1 uses maxAmountRequired)
 			},
-			wantErr: true,
-			errMsg:  "payment amount is required",
+			wantErr: false, // Changed: Amount validation removed for v1 compatibility
 		},
 		{
 			name: "missing payTo",

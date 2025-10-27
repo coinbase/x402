@@ -27,13 +27,11 @@
   "environment": {
     "required": [
       "PORT",
-      "USE_CDP_FACILITATOR",
       "EVM_NETWORK",
       "EVM_ADDRESS"
     ],
     "optional": [
-      "CDP_API_KEY_ID",
-      "CDP_API_KEY_SECRET"
+      "FACILITATOR_URL"
     ]
   }
 }

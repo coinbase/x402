@@ -59,7 +59,8 @@ type PaymentRequirements struct {
 	Scheme            string                 `json:"scheme"`
 	Network           Network                `json:"network"`
 	Asset             string                 `json:"asset"`
-	Amount            string                 `json:"amount"`
+	Amount            string                 `json:"amount"`                      // v2 field
+	MaxAmountRequired string                 `json:"maxAmountRequired,omitempty"` // v1 compatibility field
 	PayTo             string                 `json:"payTo"`
 	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds"`
 	Extra             map[string]interface{} `json:"extra,omitempty"`

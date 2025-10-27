@@ -188,9 +188,9 @@ func main() {
 	evmClient := evm.NewExactEvmClient(signer)
 	httpClient.RegisterScheme("eip155:*", evmClient)
 
-	// Register EVM v1 client for all EIP155 networks
+	// Register EVM v1 client for base-sepolia (v1 network name)
 	evmClientV1 := evmv1.NewExactEvmClientV1(signer)
-	httpClient.RegisterSchemeV1("eip155:*", evmClientV1)
+	httpClient.RegisterSchemeV1("base-sepolia", evmClientV1)
 
 	// Wrap standard HTTP client with payment handling
 	client := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)

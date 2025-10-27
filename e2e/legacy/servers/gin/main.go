@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/coinbase/x402/go/pkg/coinbasefacilitator"
 	x402gin "github.com/coinbase/x402/go/pkg/gin"
 	"github.com/coinbase/x402/go/pkg/types"
 	"github.com/gin-gonic/gin"
@@ -25,7 +24,6 @@ func main() {
 	}
 
 	// Get configuration from environment
-	useCdpFacilitator := os.Getenv("USE_CDP_FACILITATOR") == "true"
 	network := os.Getenv("EVM_NETWORK")
 	if network == "" {
 		network = "base-sepolia"
@@ -35,26 +33,22 @@ func main() {
 	if port == "" {
 		port = "4021"
 	}
-
-	// CDP facilitator configuration
-	cdpAPIKeyID := os.Getenv("CDP_API_KEY_ID")
-	cdpAPIKeySecret := os.Getenv("CDP_API_KEY_SECRET")
+	facilitatorURL := os.Getenv("FACILITATOR_URL")
 
 	if address == "" {
 		fmt.Println("Error: Missing required environment variable ADDRESS")
 		os.Exit(1)
 	}
 
-	// Validate CDP configuration if using CDP facilitator
-	if useCdpFacilitator && (cdpAPIKeyID == "" || cdpAPIKeySecret == "") {
-		fmt.Println("Error: CDP facilitator enabled but missing CDP_API_KEY_ID or CDP_API_KEY_SECRET")
-		os.Exit(1)
-	}
-
-	// Create facilitator config if using CDP
+	// Create facilitator config if URL is provided
 	var facilitatorConfig *types.FacilitatorConfig
-	if useCdpFacilitator {
-		facilitatorConfig = coinbasefacilitator.CreateFacilitatorConfig(cdpAPIKeyID, cdpAPIKeySecret)
+	if facilitatorURL != "" {
+		facilitatorConfig = &types.FacilitatorConfig{
+			URL: facilitatorURL,
+		}
+		fmt.Printf("Using remote facilitator at: %s\n", facilitatorURL)
+	} else {
+		fmt.Println("Using default facilitator")
 	}
 
 	// Set Gin to release mode to reduce logs
@@ -129,7 +123,11 @@ func main() {
 	fmt.Printf("Starting Gin server on port %s\n", port)
 	fmt.Printf("Server address: %s\n", address)
 	fmt.Printf("Network: %s\n", network)
-	fmt.Printf("Using CDP facilitator: %t\n", useCdpFacilitator)
+	if facilitatorURL != "" {
+		fmt.Printf("Using facilitator: %s\n", facilitatorURL)
+	} else {
+		fmt.Printf("Using default facilitator\n")
+	}
 	fmt.Printf("Server listening on port %s\n", port)
 
 	server := &http.Server{

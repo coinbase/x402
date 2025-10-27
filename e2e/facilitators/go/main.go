@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/big"
@@ -15,6 +16,7 @@ import (
 
 	x402 "github.com/coinbase/x402-go/v2"
 	"github.com/coinbase/x402-go/v2/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -512,6 +514,10 @@ func main() {
 	evmFacilitator := evm.NewExactEvmFacilitator(signer)
 	facilitator.RegisterScheme(Network, evmFacilitator)
 
+	// Register the EVM v1 scheme handler for base-sepolia
+	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(signer)
+	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+
 	// Set up Gin router
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -519,13 +525,37 @@ func main() {
 
 	// POST /verify - Verify a payment against requirements
 	router.POST("/verify", func(c *gin.Context) {
+		// First, peek at the version to determine which struct to use
+		var versionCheck struct {
+			X402Version int `json:"x402Version"`
+		}
+
+		// Read body into buffer so we can parse it twice
+		bodyBytes, err := c.GetRawData()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Failed to read request body: %v", err),
+			})
+			return
+		}
+
+		// Parse version
+		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Failed to parse version: %v", err),
+			})
+			return
+		}
+
 		var req VerifyRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Invalid request: %v", err),
 			})
 			return
 		}
+
+		// No transformation needed - v1 mechanisms will read MaxAmountRequired field directly
 
 		response, err := facilitator.Verify(
 			context.Background(),
@@ -545,19 +575,56 @@ func main() {
 
 	// POST /settle - Settle a payment on-chain
 	router.POST("/settle", func(c *gin.Context) {
+		// First, peek at the version to determine which struct to use
+		var versionCheck struct {
+			X402Version int `json:"x402Version"`
+		}
+
+		// Read body into buffer so we can parse it twice
+		bodyBytes, err := c.GetRawData()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Failed to read request body: %v", err),
+			})
+			return
+		}
+
+		// Debug: Log raw request body
+		log.Printf("🔍 [FACILITATOR SETTLE] Received raw body: %s", string(bodyBytes))
+
+		// Parse version
+		if err := json.Unmarshal(bodyBytes, &versionCheck); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": fmt.Sprintf("Failed to parse version: %v", err),
+			})
+			return
+		}
+
 		var req SettleRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := json.Unmarshal(bodyBytes, &req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": fmt.Sprintf("Invalid request: %v", err),
 			})
 			return
 		}
 
+		// Debug: Log parsed request
+		log.Printf("🔍 [FACILITATOR SETTLE] Parsed request:")
+		log.Printf("   X402Version: %d", req.X402Version)
+		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
+		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
+
+		// No transformation needed - v1 mechanisms will read MaxAmountRequired field directly
+
 		response, err := facilitator.Settle(
 			context.Background(),
 			req.PaymentPayload,
 			req.PaymentRequirements,
 		)
+
+		// Debug: Log response
+		log.Printf("🔍 [FACILITATOR SETTLE] Response: %+v", response)
+		log.Printf("🔍 [FACILITATOR SETTLE] Error: %v", err)
 		if err != nil {
 			log.Printf("Settle error: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -577,6 +644,12 @@ func main() {
 					X402Version: 2,
 					Scheme:      Scheme,
 					Network:     Network,
+					Extra:       map[string]interface{}{},
+				},
+				{
+					X402Version: 1,
+					Scheme:      Scheme,
+					Network:     "base-sepolia",
 					Extra:       map[string]interface{}{},
 				},
 			},
