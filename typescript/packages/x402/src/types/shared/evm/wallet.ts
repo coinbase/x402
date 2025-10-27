@@ -115,7 +115,7 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
     account: privateKeyToAccount(privateKey),
   });
 
-  if (isZkSyncChain(chain)) {
+  if (isZkStackChain(chain)) {
     return walletClient.extend(publicActions).extend(eip712WalletActions());
   }
 
@@ -231,38 +231,17 @@ export function getChainFromNetwork(network: string | undefined): Chain {
   }
 }
 
-// Known ZKsync chain IDs (using Set for O(1) lookup)
 const ZKSTACK_CHAIN_IDS = new Set([
   2741, // Abstract Mainnet
   11124, // Abstract Sepolia Testnet
-  324, // ZKsync Era Mainnet
-  300, // ZKsync Sepolia Testnet
-  302, // ZKcandy Sepolia Testnet
-  282, // Zillion Sepolia Testnet
-  388, // Cronos zkEVM Mainnet
-  37111, // Lens Network
-  978658, // Treasure Topaz
-  531050104, // Sophon Testnet
-  4457845, // ZERO Testnet
-  240, // Cronos zkEVM Testnet
-  555271, // Sophon
-  61166, // Treasure
-  555272, // Sophon Sepolia
-  4654, // Gold ZKsync
-  333271, // Sophon Testnet
 ]);
 
 /**
- * Checks whether the given chain is part of the zksync stack
+ * Checks whether the given chain is part of the zkstack stack
  *
  * @param chain - The chain to check
- * @returns True if the chain is a ZKsync chain
+ * @returns True if the chain is a ZK stack chain
  */
-export function isZkSyncChain(chain: Chain): boolean {
-  // Skip local/dev chains
-  if (chain.id === 1337 || chain.id === 31337) {
-    return false;
-  }
-
+export function isZkStackChain(chain: Chain): boolean {
   return ZKSTACK_CHAIN_IDS.has(chain.id);
 }
