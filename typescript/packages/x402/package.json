@@ -1,6 +1,6 @@
 {
   "name": "x402",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/cjs/index.d.ts",
@@ -119,6 +119,16 @@
       "require": {
         "types": "./dist/cjs/facilitator/index.d.ts",
         "default": "./dist/cjs/facilitator/index.js"
+      }
+    },
+    "./paywall": {
+      "import": {
+        "types": "./dist/esm/paywall/index.d.mts",
+        "default": "./dist/esm/paywall/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/paywall/index.d.ts",
+        "default": "./dist/cjs/paywall/index.js"
       }
     },
     "./types": {
