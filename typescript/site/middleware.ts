@@ -68,8 +68,8 @@ export const middleware = async (req: NextRequest) => {
   if (geolocationResponse) {
     return geolocationResponse;
   }
-
-  return x402PaymentMiddleware(req);
+  const delegate = x402PaymentMiddleware as unknown as (request: NextRequest) => ReturnType<typeof x402PaymentMiddleware>;
+  return delegate(req);
 };
 
 // Configure which paths the middleware should run on
