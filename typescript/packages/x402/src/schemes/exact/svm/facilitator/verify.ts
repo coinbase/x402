@@ -15,7 +15,7 @@ import {
   decompileTransactionMessage,
   fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
-  KeyPairSigner,
+  type TransactionSigner,
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
   RpcDevnet,
@@ -62,7 +62,7 @@ import { SCHEME } from "../../";
  * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
 export async function verify(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
