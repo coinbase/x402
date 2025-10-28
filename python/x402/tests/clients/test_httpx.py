@@ -24,10 +24,6 @@ def payment_requirements():
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
         max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
-        max_timeout_seconds=1000,
-        mime_type="text/plain",
         output_schema=None,
         extra={
             "name": "USD Coin",
@@ -79,8 +75,12 @@ async def test_on_response_payment_flow(hooks, payment_requirements):
     # Mock the payment required response
     payment_response = x402PaymentRequiredResponse(
         x402_version=1,
+        resource="https://example.com",
+        description="test",
+        mime_type="text/plain",
+        max_timeout_seconds=1000,
         accepts=[payment_requirements],
-        error="Payment Required",  # Add required error field
+        error="Payment Required",
     )
 
     # Create initial 402 response
@@ -143,8 +143,12 @@ async def test_on_response_payment_error(hooks, payment_requirements):
     payment_requirements.scheme = "unsupported"
     payment_response = x402PaymentRequiredResponse(
         x402_version=1,
+        resource="https://example.com",
+        description="test",
+        mime_type="text/plain",
+        max_timeout_seconds=1000,
         accepts=[payment_requirements],
-        error="Payment Required",  # Add required error field
+        error="Payment Required",
     )
 
     # Create initial 402 response

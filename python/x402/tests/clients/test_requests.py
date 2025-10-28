@@ -38,10 +38,6 @@ def payment_requirements():
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
         max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
-        max_timeout_seconds=1000,
-        mime_type="text/plain",
         output_schema=None,
         extra={
             "name": "USD Coin",
@@ -133,6 +129,10 @@ def test_adapter_payment_flow(adapter, payment_requirements):
     # Mock the payment required response
     payment_response = x402PaymentRequiredResponse(
         x402_version=1,
+        resource="https://example.com",
+        description="test",
+        mime_type="text/plain",
+        max_timeout_seconds=1000,
         accepts=[payment_requirements],
         error="Payment Required",
     )
@@ -211,6 +211,10 @@ def test_adapter_payment_error(adapter, payment_requirements):
     payment_requirements.scheme = "unsupported"
     payment_response = x402PaymentRequiredResponse(
         x402_version=1,
+        resource="https://example.com",
+        description="test",
+        mime_type="text/plain",
+        max_timeout_seconds=1000,
         accepts=[payment_requirements],
         error="Payment Required",
     )
