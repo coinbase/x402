@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { generateKeyPairSigner, type KeyPairSigner } from "@solana/kit";
+import { generateKeyPairSigner, type TransactionSigner } from "@solana/kit";
 import { createPaymentHeader } from "./createPaymentHeader";
 import { PaymentRequirements } from "../types/verify";
 import * as exactSvmClient from "../schemes/exact/svm/client";
@@ -9,7 +9,7 @@ vi.mock("../schemes/exact/svm/client", () => ({
 }));
 
 describe("createPaymentHeader", () => {
-  let svmSigner: KeyPairSigner;
+  let svmSigner: TransactionSigner;
   let paymentRequirements: PaymentRequirements;
 
   beforeAll(async () => {

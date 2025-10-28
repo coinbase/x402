@@ -15,7 +15,7 @@ import {
   ExactEvmPayload,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
-import { KeyPairSigner } from "@solana/kit";
+import { TransactionSigner } from "@solana/kit";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -50,7 +50,12 @@ export async function verify<
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await verifyExactSvm(client as KeyPairSigner, payload, paymentRequirements, config);
+      return await verifyExactSvm(
+        client as TransactionSigner,
+        payload,
+        paymentRequirements,
+        config,
+      );
     }
   }
 
@@ -93,7 +98,12 @@ export async function settle<transport extends Transport, chain extends Chain>(
 
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactSvm(client as KeyPairSigner, payload, paymentRequirements, config);
+      return await settleExactSvm(
+        client as TransactionSigner,
+        payload,
+        paymentRequirements,
+        config,
+      );
     }
   }
 

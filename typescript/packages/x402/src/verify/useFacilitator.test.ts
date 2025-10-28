@@ -77,6 +77,7 @@ describe("useFacilitator", () => {
       const mockHeaders = {
         verify: { Authorization: "Bearer test-token" },
         settle: { Authorization: "Bearer test-token" },
+        supported: { Authorization: "Bearer test-token" },
       };
       const { verify } = useFacilitator({
         url: "https://x402.org/facilitator",
@@ -142,6 +143,7 @@ describe("useFacilitator", () => {
       const mockHeaders = {
         verify: { Authorization: "Bearer test-token" },
         settle: { Authorization: "Bearer test-token" },
+        supported: { Authorization: "Bearer test-token" },
       };
       const { settle } = useFacilitator({
         url: "https://x402.org/facilitator",
