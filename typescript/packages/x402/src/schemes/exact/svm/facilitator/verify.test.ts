@@ -10,7 +10,7 @@ import {
   verifyComputePriceInstruction,
 } from "./verify";
 import {
-  KeyPairSigner,
+  type TransactionSigner,
   assertIsInstructionWithData,
   assertIsInstructionWithAccounts,
   decompileTransactionMessage,
@@ -398,7 +398,7 @@ describe("verify", () => {
   });
 
   describe("verify high level flow", () => {
-    let mockSigner: KeyPairSigner;
+    let mockSigner: TransactionSigner;
     let mockPayerAddress: string;
     let mockPayload: PaymentPayload;
     let mockRequirements: PaymentRequirements;
@@ -814,8 +814,8 @@ describe("verify", () => {
 
     const mockSigner = {
       address: "TestSigner1111111111111111111111111111" as any,
-      keyPair: {} as any,
-    } as KeyPairSigner;
+      signTransactions: vi.fn().mockResolvedValue([{}] as any),
+    } as TransactionSigner;
 
     beforeEach(() => {
       vi.clearAllMocks();

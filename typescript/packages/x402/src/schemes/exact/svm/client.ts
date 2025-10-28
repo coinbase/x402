@@ -9,7 +9,6 @@ import {
   partiallySignTransactionMessageWithSigners,
   prependTransactionMessageInstruction,
   getBase64EncodedWireTransaction,
-  type KeyPairSigner,
   fetchEncodedAccount,
   TransactionSigner,
   Instruction,
@@ -41,7 +40,7 @@ import { getRpcClient } from "../../../shared/svm/rpc";
  * @returns A promise that resolves to a base64 encoded payment header string
  */
 export async function createPaymentHeader(
-  client: KeyPairSigner,
+  client: TransactionSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
@@ -65,7 +64,7 @@ export async function createPaymentHeader(
  * @returns A promise that resolves to a payment payload containing a base64 encoded solana token transfer tx
  */
 export async function createAndSignPayment(
-  client: KeyPairSigner,
+  client: TransactionSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
@@ -98,7 +97,7 @@ export async function createAndSignPayment(
  * @returns A promise that resolves to the transaction message with the transfer instruction
  */
 async function createTransferTransactionMessage(
-  client: KeyPairSigner,
+  client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ) {
@@ -150,7 +149,7 @@ async function createTransferTransactionMessage(
  * @returns A promise that resolves to the create ATA (if needed) and transfer instruction
  */
 async function createAtaAndTransferInstructions(
-  client: KeyPairSigner,
+  client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<Instruction[]> {
@@ -260,7 +259,7 @@ async function createAtaInstructionOrUndefined(
  * @returns A promise that resolves to the transfer instruction
  */
 async function createTransferInstruction(
-  client: KeyPairSigner,
+  client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
   decimals: number,
   tokenProgramAddress: Address,

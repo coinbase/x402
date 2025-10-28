@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeAll, describe, expect, it, vi, beforeEach } from "vitest";
-import { type Address, type KeyPairSigner, generateKeyPairSigner, lamports } from "@solana/kit";
+import { type Address, type TransactionSigner, generateKeyPairSigner, lamports } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as token2022 from "@solana-program/token-2022";
 import * as token from "@solana-program/token";
@@ -54,7 +54,7 @@ vi.mock("@solana-program/compute-budget", async importOriginal => {
 });
 
 describe("SVM Client", () => {
-  let clientSigner: KeyPairSigner;
+  let clientSigner: TransactionSigner;
   let paymentRequirements: PaymentRequirements;
   const mockRpcClient = {
     getLatestBlockhash: vi.fn().mockReturnValue({
