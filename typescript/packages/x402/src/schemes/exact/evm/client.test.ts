@@ -166,7 +166,10 @@ describe("signPaymentHeader", () => {
     expect(result.x402Version).toBe(mockUnsignedHeader.x402Version);
     expect(result.scheme).toBe(mockUnsignedHeader.scheme);
     expect(result.network).toBe(mockUnsignedHeader.network);
-    expect(result.payload.authorization).toEqual(mockUnsignedHeader.payload.authorization);
+    expect("authorization" in result.payload).toBe(true);
+    if ("authorization" in result.payload) {
+      expect(result.payload.authorization).toEqual(mockUnsignedHeader.payload.authorization);
+    }
   });
 
   it("should throw an error if signing fails", async () => {
