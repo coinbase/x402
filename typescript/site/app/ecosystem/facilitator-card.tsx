@@ -17,6 +17,7 @@ export default function FacilitatorCard({ partner }: FacilitatorCardProps) {
   }
 
   const { facilitator } = partner;
+  const hasAnyAddresses = Array.isArray(facilitator.networks) && facilitator.networks.some((network) => (facilitator.addresses?.[network]?.length ?? 0) > 0);
 
   return (
     <>
@@ -188,6 +189,49 @@ export default function FacilitatorCard({ partner }: FacilitatorCardProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Facilitator Addresses (moved near footer) */}
+              {hasAnyAddresses && (
+                <div>
+                  <h3 className="text-lg font-semibold text-white mb-3 font-mono">Facilitator Addresses</h3>
+                  <div className="overflow-x-auto rounded-lg border border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-700">
+                      <thead className="bg-gray-800/60">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider font-mono">Network</th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider font-mono">Addresses</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800">
+                        {facilitator.networks.map((network) => {
+                          const addresses = facilitator.addresses?.[network];
+                          if (!addresses || addresses.length === 0) return null;
+                          return (
+                            <tr key={network} className="hover:bg-gray-800/40">
+                              <td className="px-4 py-2 align-top">
+                                <span className="text-sm bg-gray-700 text-gray-300 px-2 py-1 rounded-full font-mono">{network}</span>
+                              </td>
+                              <td className="px-4 py-2">
+                                <div className="flex flex-col gap-1">
+                                  {addresses.map((addr, idx) => (
+                                    <span
+                                      key={`${network}-${idx}`}
+                                      className="text-xs text-gray-200 font-mono break-all bg-gray-900/70 border border-gray-700 rounded px-2 py-1"
+                                      title={addr}
+                                    >
+                                      {addr}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
