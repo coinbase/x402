@@ -8,6 +8,7 @@ import {
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
+  decodeXPaymentMeta,
 } from "x402/shared";
 import { getPaywallHtml } from "x402/paywall";
 import {
@@ -95,6 +96,7 @@ export function paymentMiddleware(
       return next();
     }
 
+    const meta = decodeXPaymentMeta(req.header("X-PAYMENT-META") || "");
     const { price, network, config = {} } = matchingRoute.config;
     const {
       description,
@@ -141,7 +143,10 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: {
+          ...(asset as ERC20TokenAmount["asset"]).eip712,
+          ...meta
+        },
       });
     }
 
@@ -186,6 +191,7 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+          ...meta
         },
       });
     } else {
