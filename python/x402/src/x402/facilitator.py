@@ -87,6 +87,7 @@ class FacilitatorClient:
                 },
                 headers=headers,
                 follow_redirects=True,
+                timeout=30.0,
             )
             data = response.json()
             return SettleResponse(**data)
