@@ -25,7 +25,6 @@ import {
   abstract,
   abstractTestnet,
   story,
-  storyAeneid,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -226,8 +225,6 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return peaq;
     case "story":
       return story;
-    case "story-aeneid":
-      return storyAeneid;
     case "iotex":
       return iotex;
     case "iotex-testnet":
