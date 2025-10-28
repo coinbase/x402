@@ -22,6 +22,8 @@ import {
   avalanche,
   iotexTestnet,
   iotex,
+  xLayer,
+  xLayerTestnet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -211,6 +213,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "xlayer":
+      return xLayer;
+    case "xlayer-testnet":
+      return xLayerTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
