@@ -77,7 +77,7 @@ Impact-based micro‑grants up to **\$3k** are available for projects that unloc
 
 * Finds an expert, books a call, pays automatically.
 * **Payment moment:** Up‑front booking fee.
-* **Suggested APIs:** Cal.com., Twilio, XTMP messaging, LinkedIn search.
+* **Suggested APIs:** Cal.com., Twilio, XMTP messaging, LinkedIn search.
 
 ### Dynamic Endpoint Shopper
 
