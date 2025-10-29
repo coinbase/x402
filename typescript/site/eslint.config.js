@@ -7,7 +7,7 @@ import importPlugin from "eslint-plugin-import";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", ".next/**"],
+    ignores: ["dist/**", "node_modules/**", ".next/**", "**/*.d.ts"],
   },
   {
     files: ["**/*.ts"],

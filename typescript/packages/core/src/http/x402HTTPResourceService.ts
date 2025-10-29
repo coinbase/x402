@@ -57,6 +57,9 @@ export interface RouteConfig {
   discoverable?: boolean;
   inputSchema?: unknown;
   outputSchema?: unknown;
+
+  // Extensions
+  extensions?: Record<string, unknown>;
 }
 
 /**
@@ -160,20 +163,29 @@ export class x402HTTPResourceService extends x402ResourceService {
     // Check for payment header (v1 or v2)
     const paymentPayload = this.extractPayment(adapter);
 
-    // Build payment requirements from route config
-    const requirements = await this.buildPaymentRequirements(routeConfig);
-
-    // Create payment required response using base class method
+    // Create resource info first
     const resourceInfo = {
       url: context.adapter.getUrl(),
       description: routeConfig.description || "",
       mimeType: routeConfig.mimeType || "",
     };
 
+    // Build payment requirements from route config
+    const requirements = await this.buildPaymentRequirements(routeConfig);
+
+    // Add resource URL to all payment requirements for discovery
+    requirements.forEach(req => {
+      if (!req.extra) {
+        req.extra = {};
+      }
+      req.extra.resourceUrl = resourceInfo.url;
+    });
+
     const paymentRequired = this.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
+      routeConfig.extensions,
     );
 
     // If no payment provided
@@ -201,6 +213,7 @@ export class x402HTTPResourceService extends x402ResourceService {
           requirements,
           resourceInfo,
           "No matching payment requirements",
+          routeConfig.extensions,
         );
         return {
           type: "payment-error",
@@ -215,6 +228,7 @@ export class x402HTTPResourceService extends x402ResourceService {
           requirements,
           resourceInfo,
           verifyResult.invalidReason,
+          routeConfig.extensions,
         );
         return {
           type: "payment-error",
@@ -233,6 +247,7 @@ export class x402HTTPResourceService extends x402ResourceService {
         requirements,
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
+        routeConfig.extensions,
       );
       return {
         type: "payment-error",

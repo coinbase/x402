@@ -135,12 +135,13 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: Fet
       paymentRequired.accepts,
     );
 
-    // Create payment payload
+    // Create payment payload (copy extensions from PaymentRequired)
     let paymentPayload;
     try {
       paymentPayload = await client.createPaymentPayload(
         paymentRequired.x402Version,
         selectedPaymentRequirements,
+        paymentRequired.extensions,
       );
     } catch (error) {
       throw new Error(
