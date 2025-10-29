@@ -2,6 +2,7 @@ import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { ExactEvmService } from "@x402/evm";
 import { HTTPFacilitatorClient } from "@x402/core/server";
+import { declareDiscoveryExtension, BAZAAR } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -40,7 +41,7 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
  * Configure x402 payment middleware
  *
  * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
- * on the Base Sepolia testnet.
+ * on the Base Sepolia testnet with bazaar discovery extension.
  */
 app.use(
   paymentMiddleware(
@@ -51,6 +52,24 @@ app.use(
         scheme: "exact",
         price: "$0.001",
         network: NETWORK,
+        extensions: {
+          [BAZAAR]: declareDiscoveryExtension({
+            method: "GET",
+            output: {
+              example: {
+                message: "Protected endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
       },
     },
     // Use facilitator (either remote or local)

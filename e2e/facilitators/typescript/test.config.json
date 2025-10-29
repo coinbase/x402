@@ -8,6 +8,9 @@
   "x402Versions": [
     2
   ],
+  "extensions": [
+    "bazaar"
+  ],
   "environment": {
     "required": [
       "PORT",

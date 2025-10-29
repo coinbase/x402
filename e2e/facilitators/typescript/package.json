@@ -14,6 +14,7 @@
   "dependencies": {
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
+    "@x402/extensions": "workspace:*",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "viem": "^2.21.54"

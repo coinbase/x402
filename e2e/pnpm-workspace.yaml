@@ -5,7 +5,6 @@ packages:
   - "legacy/servers/*"
   - "legacy/clients/*"
   - "../typescript/packages/*"
-  - "../typescript/packages/extensions/*"
   - "../typescript/packages/http/*"
   - "../typescript/packages/mechanisms/*"
   - "../typescript/packages/legacy/*"

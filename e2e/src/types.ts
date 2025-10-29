@@ -15,6 +15,15 @@ export interface ClientConfig {
   endpointPath: string;
 }
 
+export interface ServerConfig {
+  port: number;
+  evmPayTo: string;
+  svmPayTo: string;
+  evmNetwork: string;
+  svmNetwork: string;
+  facilitatorUrl?: string;
+}
+
 export interface ServerProxy {
   start(config: ServerConfig): Promise<void>;
   stop(): Promise<void>;
@@ -46,6 +55,7 @@ export interface TestConfig {
   protocolFamilies?: ProtocolFamily[];
   x402Version?: number; // For servers - single version they implement
   x402Versions?: number[]; // For clients and facilitators - array of versions they support
+  extensions?: string[]; // Protocol extensions supported (e.g., ["bazaar"])
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {

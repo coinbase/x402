@@ -3,6 +3,9 @@
   "type": "server",
   "language": "typescript",
   "x402Version": 2,
+  "extensions": [
+    "bazaar"
+  ],
   "endpoints": [
     {
       "path": "/protected",

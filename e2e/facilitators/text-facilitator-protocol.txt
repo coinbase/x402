@@ -15,6 +15,10 @@ Facilitators must declare which protocol families they support in their test.con
 Facilitators must declare which x402 protocol versions they support using the `x402Versions` field:
 - **x402Versions**: Array of supported x402 protocol versions (e.g., [1, 2])
 
+## Extensions Support
+Facilitators must declare which protocol extensions they support using the `extensions` field:
+- **extensions**: Array of supported extension names (e.g., ["bazaar"])
+
 Example configuration:
 ```json
 {
@@ -23,6 +27,7 @@ Example configuration:
   "language": "typescript",
   "protocolFamilies": ["evm"],
   "x402Versions": [2],
+  "extensions": ["bazaar"],
   "environment": {
     "required": ["PORT", "EVM_PRIVATE_KEY", "EVM_NETWORK"],
     "optional": ["SVM_PRIVATE_KEY", "SVM_NETWORK"]
@@ -113,7 +118,35 @@ The following parameters must be configurable:
         "extra": {}
       }
     ],
-    "extensions": []
+    "extensions": ["bazaar"]
+  }
+  ```
+
+### GET /discovery/resources
+- **Purpose**: List all discovered resources from bazaar extensions
+- **Query Parameters**:
+  - `limit` (optional): Maximum number of resources to return (default: 100)
+  - `offset` (optional): Offset for pagination (default: 0)
+- **Response (200)**:
+  ```json
+  {
+    "x402Version": 1,
+    "items": [
+      {
+        "resource": "https://api.example.com/endpoint",
+        "type": "http",
+        "x402Version": 2,
+        "accepts": [...],
+        "discoveryInfo": {...},
+        "lastUpdated": "2024-01-01T00:00:00Z",
+        "metadata": {}
+      }
+    ],
+    "pagination": {
+      "limit": 100,
+      "offset": 0,
+      "total": 1
+    }
   }
   ```
 

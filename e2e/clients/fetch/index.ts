@@ -22,6 +22,11 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, {
       x402Version: 1,
       client: new ExactEvmClientV1(account),
     },
+    {
+      network: "base" as `${string}:${string}`,
+      x402Version: 1,
+      client: new ExactEvmClientV1(account),
+    },
   ],
 });
 
