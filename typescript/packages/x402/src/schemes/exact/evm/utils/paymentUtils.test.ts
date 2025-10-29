@@ -17,10 +17,13 @@ const validEvmPayload: ExactEvmPayload = {
 };
 
 // valid evm payment payload
+const defaultEvmNetwork = SupportedEVMNetworks[0] as (typeof SupportedEVMNetworks)[number];
+const defaultSvmNetwork = SupportedSVMNetworks[0] as (typeof SupportedSVMNetworks)[number];
+
 const validEvmPayment: PaymentPayload = {
   x402Version: 1,
   scheme: "exact",
-  network: SupportedEVMNetworks[0],
+  network: defaultEvmNetwork,
   payload: validEvmPayload,
 };
 
@@ -33,7 +36,7 @@ const validSvmPayload: ExactSvmPayload = {
 const validSvmPayment: PaymentPayload = {
   x402Version: 1,
   scheme: "exact",
-  network: SupportedSVMNetworks[0],
+  network: defaultSvmNetwork,
   payload: validSvmPayload,
 };
 
@@ -51,12 +54,18 @@ describe("paymentUtils", () => {
   });
 
   it("throws on invalid network in encodePayment", () => {
-    const invalidPayment = { ...validEvmPayment, network: "invalid-network" };
+    const invalidPayment = {
+      ...validEvmPayment,
+      network: "invalid-network",
+    } as unknown as PaymentPayload;
     expect(() => encodePayment(invalidPayment)).toThrow("Invalid network");
   });
 
   it("throws on invalid network in decodePayment", () => {
-    const invalid = { ...validEvmPayment, network: "invalid-network" };
+    const invalid = {
+      ...validEvmPayment,
+      network: "invalid-network",
+    } as unknown as PaymentPayload;
     const encoded = Buffer.from(JSON.stringify(invalid)).toString("base64");
     expect(() => decodePayment(encoded)).toThrow("Invalid network");
   });

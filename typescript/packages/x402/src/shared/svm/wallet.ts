@@ -1,12 +1,12 @@
 import {
   createKeyPairSignerFromBytes,
-  type KeyPairSigner,
   createKeyPairSignerFromPrivateKeyBytes,
   type RpcDevnet,
   type SolanaRpcApiDevnet,
   type RpcMainnet,
   type SolanaRpcApiMainnet,
-  isKeyPairSigner,
+  type TransactionSigner,
+  isTransactionSigner,
 } from "@solana/kit";
 import { base58 } from "@scure/base";
 import { getRpcClient } from "./rpc";
@@ -14,7 +14,7 @@ import { Network, SupportedSVMNetworks } from "../../types/shared";
 export type { KeyPairSigner } from "@solana/kit";
 
 export type SvmConnectedClient = RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>;
-export type SvmSigner = KeyPairSigner;
+export type SvmSigner = TransactionSigner;
 
 /**
  * Creates a public client configured for the specified SVM network
@@ -35,7 +35,7 @@ export function createSvmConnectedClient(network: string): SvmConnectedClient {
  * @param privateKey - The base58 encoded private key to create a signer from.
  * @returns A Solana signer.
  */
-export async function createSignerFromBase58(privateKey: string): Promise<KeyPairSigner> {
+export async function createSignerFromBase58(privateKey: string): Promise<TransactionSigner> {
   // decode the base58 encoded private key
   const bytes = base58.decode(privateKey);
 
@@ -52,11 +52,15 @@ export async function createSignerFromBase58(privateKey: string): Promise<KeyPai
 }
 
 /**
- * Checks if the given wallet is a solana KeyPairSigner wallet.
+ * Checks if the given wallet is a Solana transaction signer wallet.
  *
  * @param wallet - The object wallet to check.
- * @returns True if the wallet is a solana KeyPairSigner wallet, false otherwise.
+ * @returns True if the wallet satisfies the TransactionSigner interface.
  */
-export function isSignerWallet(wallet: SvmSigner): wallet is SvmSigner {
-  return isKeyPairSigner(wallet);
+export function isSignerWallet(wallet: unknown): wallet is SvmSigner {
+  return (
+    typeof wallet === "object" &&
+    wallet !== null &&
+    isTransactionSigner(wallet as TransactionSigner)
+  );
 }

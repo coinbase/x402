@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { exact } from "x402/schemes";
-import { findMatchingRoute, getPaywallHtml, findMatchingPaymentRequirements } from "x402/shared";
+import { findMatchingRoute, findMatchingPaymentRequirements } from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
   Network,
@@ -19,11 +20,14 @@ vi.mock("x402/verify", () => ({
   useFacilitator: vi.fn(),
 }));
 
+vi.mock("x402/paywall", () => ({
+  getPaywallHtml: vi.fn(),
+}));
+
 vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    getPaywallHtml: vi.fn(),
     getNetworkId: vi.fn().mockReturnValue(84532),
     toJsonSafe: vi.fn(x => x),
     computeRoutePatterns: vi.fn().mockImplementation(routes => {
