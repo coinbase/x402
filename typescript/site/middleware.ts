@@ -68,7 +68,9 @@ export const middleware = async (req: NextRequest) => {
   if (geolocationResponse) {
     return geolocationResponse;
   }
-  const delegate = x402PaymentMiddleware as unknown as (request: NextRequest) => ReturnType<typeof x402PaymentMiddleware>;
+  const delegate = x402PaymentMiddleware as unknown as (
+    request: NextRequest,
+  ) => ReturnType<typeof x402PaymentMiddleware>;
   return delegate(req);
 };
 
