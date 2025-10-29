@@ -24,6 +24,7 @@ import {
   iotex,
   abstract,
   abstractTestnet,
+  flowMainnet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -226,6 +227,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "flow-evm":
+      return flowMainnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
