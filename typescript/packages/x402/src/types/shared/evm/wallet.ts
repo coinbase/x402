@@ -24,9 +24,12 @@ import {
   iotex,
   lisk,
   liskSepolia,
+  abstract,
+  abstractTestnet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
+import { eip712WalletActions } from "viem/zksync";
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -59,6 +62,7 @@ export function createConnectedClient(
   network: string,
 ): ConnectedClient<Transport, Chain, undefined> {
   const chain = getChainFromNetwork(network);
+
   return createPublicClient({
     chain,
     transport: http(),
@@ -106,11 +110,18 @@ export function createClientAvalancheFuji(): ConnectedClient<
  */
 export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
   const chain = getChainFromNetwork(network);
-  return createWalletClient({
+
+  const walletClient = createWalletClient({
     chain,
     transport: http(),
     account: privateKeyToAccount(privateKey),
-  }).extend(publicActions);
+  });
+
+  if (isZkStackChain(chain)) {
+    return walletClient.extend(publicActions).extend(eip712WalletActions());
+  }
+
+  return walletClient.extend(publicActions);
 }
 
 /**
@@ -191,6 +202,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
   }
 
   switch (network) {
+    case "abstract":
+      return abstract;
+    case "abstract-testnet":
+      return abstractTestnet;
     case "base":
       return base;
     case "base-sepolia":
@@ -220,4 +235,19 @@ export function getChainFromNetwork(network: string | undefined): Chain {
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
+}
+
+const ZKSTACK_CHAIN_IDS = new Set([
+  2741, // Abstract Mainnet
+  11124, // Abstract Sepolia Testnet
+]);
+
+/**
+ * Checks whether the given chain is part of the zkstack stack
+ *
+ * @param chain - The chain to check
+ * @returns True if the chain is a ZK stack chain
+ */
+export function isZkStackChain(chain: Chain): boolean {
+  return ZKSTACK_CHAIN_IDS.has(chain.id);
 }
