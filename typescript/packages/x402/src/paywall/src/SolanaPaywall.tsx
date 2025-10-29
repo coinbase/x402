@@ -1,47 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatUnits } from "viem";
-import {
-  address as toAddress,
-  getTransactionDecoder,
-  getTransactionEncoder,
-  type Address,
-  type TransactionSigner,
-} from "@solana/kit";
-import { getWallets } from "@wallet-standard/app";
-import type { Wallet, WalletAccount } from "@wallet-standard/base";
-import { StandardConnect, StandardDisconnect, StandardEvents } from "@wallet-standard/features";
-import {
-  SolanaSignTransaction,
-  type WalletWithSolanaFeatures,
-} from "@solana/wallet-standard-features";
-import {
-  findAssociatedTokenPda,
-  fetchMint,
-  TOKEN_2022_PROGRAM_ADDRESS,
-} from "@solana-program/token-2022";
-import {
-  TOKEN_PROGRAM_ADDRESS,
-  fetchMaybeToken as fetchMaybeSplToken,
-} from "@solana-program/token";
-import { fetchMaybeToken as fetchMaybeToken2022 } from "@solana-program/token-2022";
-import type { SignatureDictionary } from "@solana/signers";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { WalletAccount } from "@wallet-standard/base";
+import type { WalletWithSolanaFeatures } from "@solana/wallet-standard-features";
 
 import type { PaymentRequirements } from "../../types/verify";
 import { exact } from "../../schemes";
-import { getRpcClient } from "../../shared/svm/rpc";
 
 import { Spinner } from "./Spinner";
 import { ensureValidAmount } from "./utils";
 import { getNetworkDisplayName } from "./paywallUtils";
+import { getStandardConnectFeature, getStandardDisconnectFeature } from "./solana/features";
+import { useSolanaBalance } from "./solana/useSolanaBalance";
+import { useSolanaSigner } from "./solana/useSolanaSigner";
+import { useSolanaWalletEvents } from "./solana/useSolanaWalletEvents";
+import { useSolanaWalletOptions } from "./solana/useSolanaWalletOptions";
+import { useSilentWalletConnection } from "./solana/useSilentWalletConnection";
+import type { WalletOption } from "./solana/types";
 
 type SolanaPaywallProps = {
   paymentRequirement: PaymentRequirements;
   onSuccessfulResponse: (response: Response) => Promise<void>;
-};
-
-type WalletOption = {
-  value: string;
-  wallet: WalletWithSolanaFeatures;
 };
 
 /**
@@ -55,15 +32,19 @@ type WalletOption = {
 export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: SolanaPaywallProps) {
   const [status, setStatus] = useState<string>("");
   const [isPaying, setIsPaying] = useState(false);
-  const [walletOptions, setWalletOptions] = useState<WalletOption[]>([]);
+  const walletOptions = useSolanaWalletOptions();
   const [selectedWalletValue, setSelectedWalletValue] = useState<string>("");
   const [activeWallet, setActiveWallet] = useState<WalletWithSolanaFeatures | null>(null);
   const [activeAccount, setActiveAccount] = useState<WalletAccount | null>(null);
-  const [usdcBalance, setUsdcBalance] = useState<bigint | null>(null);
-  const [formattedBalance, setFormattedBalance] = useState<string>("");
   const [hideBalance, setHideBalance] = useState(true);
-  const [isFetchingBalance, setIsFetchingBalance] = useState(false);
   const attemptedSilentConnectWalletsRef = useRef<Set<string>>(new Set());
+
+  const { usdcBalance, formattedBalance, isFetchingBalance, refreshBalance, resetBalance } =
+    useSolanaBalance({
+      activeAccount,
+      paymentRequirement,
+      onStatus: setStatus,
+    });
 
   const x402 = window.x402;
   const amount =
@@ -75,6 +56,12 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
   const chainName = getNetworkDisplayName(network);
   const targetChain =
     network === "solana" ? ("solana:mainnet" as const) : ("solana:devnet" as const);
+
+  const walletSigner = useSolanaSigner({
+    activeWallet,
+    activeAccount,
+    targetChain,
+  });
 
   useEffect(() => {
     if (!selectedWalletValue && walletOptions.length === 1) {
@@ -91,259 +78,44 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       setActiveWallet(null);
       setActiveAccount(null);
       setSelectedWalletValue("");
-      setUsdcBalance(null);
-      setFormattedBalance("");
+      resetBalance();
     }
-  }, [walletOptions, activeWallet]);
+  }, [walletOptions, activeWallet, resetBalance]);
 
-  /**
-   * Refresh the available wallets when the component mounts and when wallets register/unregister.
-   */
-  useEffect(() => {
-    const walletsApi = getWallets();
+  useSilentWalletConnection({
+    walletOptions,
+    activeWallet,
+    targetChain,
+    attemptedSilentConnectWalletsRef,
+    setSelectedWalletValue,
+    setActiveWallet,
+    setActiveAccount,
+    refreshBalance,
+    setStatus,
+  });
 
-    const mapWallets = (): WalletOption[] =>
-      walletsApi
-        .get()
-        .filter(hasSolanaSigning)
-        .map(wallet => ({
-          value: wallet.name,
-          wallet,
-        }));
-
-    setWalletOptions(mapWallets());
-
-    const offRegister = walletsApi.on("register", () => {
-      setWalletOptions(mapWallets());
-    });
-    const offUnregister = walletsApi.on("unregister", () => {
-      setWalletOptions(mapWallets());
-    });
-
-    return () => {
-      offRegister();
-      offUnregister();
-    };
-  }, []);
-
-  /**
-   * Derive the signer used to authorize Solana token transfers.
-   */
-  const walletSigner = useMemo<TransactionSigner<string> | null>(() => {
-    if (!activeWallet || !activeAccount) {
-      return null;
-    }
-
-    const signFeature = activeWallet.features[SolanaSignTransaction];
-    if (!signFeature) {
-      return null;
-    }
-
-    const signerAddress = toAddress(activeAccount.address);
-    const encoder = getTransactionEncoder();
-    const decoder = getTransactionDecoder();
-
-    return {
-      address: signerAddress,
-      async signTransactions(transactions) {
-        const signatures: SignatureDictionary[] = [];
-
-        for (const transaction of transactions) {
-          const serialized = encoder.encode(transaction);
-          const [signed] = await signFeature.signTransaction({
-            account: activeAccount,
-            transaction: serialized,
-            chain: targetChain,
-          });
-
-          const decodedTransaction = decoder.decode(signed.signedTransaction);
-          const signature = decodedTransaction.signatures[signerAddress];
-
-          if (!signature) {
-            throw new Error("Wallet did not return a signature for the selected account.");
-          }
-
-          signatures.push(
-            Object.freeze({
-              [signerAddress]: signature,
-            }) as SignatureDictionary,
-          );
-        }
-
-        return signatures;
-      },
-    };
-  }, [activeWallet, activeAccount, targetChain]);
-
-  /**
-   * Fetch the USDC balance for the provided account (defaults to the active account).
-   *
-   * @param account - Wallet account to fetch balance for.
-   * @returns The fetched balance, or null if unavailable.
-   */
-  const refreshBalance = useCallback(
-    async (account: WalletAccount | null = activeAccount) => {
-      if (!account) {
-        setUsdcBalance(null);
-        setFormattedBalance("");
-        return null;
-      }
-
-      try {
-        setIsFetchingBalance(true);
-
-        const rpc = getRpcClient(paymentRequirement.network);
-        const mint = await fetchMint(rpc, paymentRequirement.asset as Address);
-        const tokenProgramAddress = mint.programAddress;
-        const [ata] = await findAssociatedTokenPda({
-          mint: paymentRequirement.asset as Address,
-          owner: toAddress(account.address),
-          tokenProgram: tokenProgramAddress,
-        });
-
-        let balance = 0n;
-        if (tokenProgramAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()) {
-          const tokenAccount = await fetchMaybeSplToken(rpc, ata);
-          if (tokenAccount.exists) {
-            balance = tokenAccount.data.amount;
-          }
-        } else if (tokenProgramAddress.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
-          const tokenAccount = await fetchMaybeToken2022(rpc, ata);
-          if (tokenAccount.exists) {
-            balance = tokenAccount.data.amount;
-          }
-        }
-
-        setUsdcBalance(balance);
-        setFormattedBalance(formatUnits(balance, mint.data.decimals));
-        return balance;
-      } catch (error) {
-        console.error("Failed to fetch Solana USDC balance", error);
-        setStatus("Unable to read your USDC balance. Please retry.");
-        setUsdcBalance(null);
-        setFormattedBalance("");
-        return null;
-      } finally {
-        setIsFetchingBalance(false);
-      }
-    },
-    [activeAccount, paymentRequirement],
-  );
-
-  useEffect(() => {
-    if (activeAccount) {
-      void refreshBalance();
-    }
-  }, [activeAccount, refreshBalance]);
-
-  useEffect(() => {
-    if (activeWallet) {
-      return;
-    }
-
-    for (const option of walletOptions) {
-      if (attemptedSilentConnectWalletsRef.current.has(option.value)) {
-        continue;
-      }
-
-      attemptedSilentConnectWalletsRef.current.add(option.value);
-      const connectFeature = option.wallet.features[StandardConnect];
-      if (!connectFeature) {
-        continue;
-      }
-
-      void (async () => {
-        try {
-          const { accounts } = await connectFeature.connect({ silent: true });
-          if (!accounts?.length) {
-            return;
-          }
-
-          const matchingAccount =
-            accounts.find(account => account.chains?.includes(targetChain)) ?? accounts[0];
-          if (!matchingAccount) {
-            return;
-          }
-
-          setSelectedWalletValue(option.value);
-          setActiveWallet(option.wallet);
-          setActiveAccount(matchingAccount);
-          setStatus("");
-          await refreshBalance(matchingAccount);
-        } catch {
-          // Wallet may throw if silent connect isn't supported or authorization is missing. Ignore.
-        }
-      })();
-    }
-  }, [walletOptions, activeWallet, targetChain, refreshBalance]);
-
-  useEffect(() => {
-    if (!activeWallet) {
-      return;
-    }
-
-    const eventsFeature = activeWallet.features[StandardEvents];
-    if (!eventsFeature) {
-      return;
-    }
-
-    const unsubscribe = eventsFeature.on("change", properties => {
-      if (properties.features && !properties.features[SolanaSignTransaction]) {
-        setActiveWallet(null);
-        setActiveAccount(null);
-        setSelectedWalletValue("");
-        setUsdcBalance(null);
-        setFormattedBalance("");
-        setStatus("Selected wallet no longer supports Solana signing. Please reconnect.");
-        return;
-      }
-
-      if (properties.accounts) {
-        if (!properties.accounts.length) {
-          setActiveAccount(null);
-          setUsdcBalance(null);
-          setFormattedBalance("");
-          setStatus("Wallet disconnected. Select a wallet to reconnect.");
-          return;
-        }
-
-        const nextAccount =
-          properties.accounts.find(account => account.chains?.includes(targetChain)) ??
-          properties.accounts[0] ??
-          null;
-
-        setActiveAccount(nextAccount);
-
-        if (!nextAccount) {
-          setStatus("No authorized Solana accounts available. Reconnect your wallet.");
-          setUsdcBalance(null);
-          setFormattedBalance("");
-          return;
-        }
-
-        if (nextAccount.chains?.includes(targetChain)) {
-          setStatus("");
-        } else {
-          setStatus(`Switch your wallet to ${chainName} to continue.`);
-        }
-
-        void refreshBalance(nextAccount);
-      }
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [activeWallet, targetChain, chainName, refreshBalance]);
+  useSolanaWalletEvents({
+    activeWallet,
+    targetChain,
+    chainName,
+    setActiveWallet,
+    setActiveAccount,
+    setSelectedWalletValue,
+    setStatus,
+    resetBalance,
+    refreshBalance,
+  });
 
   const handleConnect = useCallback(async () => {
-    const wallet = walletOptions.find(option => option.value === selectedWalletValue)?.wallet;
+    const wallet = walletOptions.find(
+      (option: WalletOption) => option.value === selectedWalletValue,
+    )?.wallet;
     if (!wallet) {
       setStatus("Select a Solana wallet to continue.");
       return;
     }
 
-    const connectFeature = wallet.features[StandardConnect];
+    const connectFeature = getStandardConnectFeature(wallet);
     if (!connectFeature) {
       setStatus("Selected wallet does not support standard connect.");
       return;
@@ -357,7 +129,8 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       }
 
       const matchingAccount =
-        accounts.find(account => account.chains?.includes(targetChain)) ?? accounts[0];
+        accounts.find((account: WalletAccount) => account.chains?.includes(targetChain)) ??
+        accounts[0];
 
       setActiveWallet(wallet);
       setActiveAccount(matchingAccount);
@@ -370,15 +143,16 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
   }, [walletOptions, selectedWalletValue, targetChain, refreshBalance]);
 
   const handleDisconnect = useCallback(async () => {
-    if (activeWallet?.features[StandardDisconnect]) {
-      await activeWallet.features[StandardDisconnect].disconnect().catch(console.error);
+    const disconnectFeature = activeWallet && getStandardDisconnectFeature(activeWallet);
+    if (disconnectFeature) {
+      await disconnectFeature.disconnect().catch(console.error);
     }
+
     setActiveWallet(null);
     setActiveAccount(null);
-    setUsdcBalance(null);
-    setFormattedBalance("");
+    resetBalance();
     setStatus("");
-  }, [activeWallet]);
+  }, [activeWallet, resetBalance]);
 
   const handlePayment = useCallback(async () => {
     if (!x402) {
@@ -405,11 +179,7 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       const validPaymentRequirements = ensureValidAmount(paymentRequirement);
 
       const createHeader = async (version: number) =>
-        exact.svm.createPaymentHeader(
-          walletSigner as TransactionSigner,
-          version,
-          validPaymentRequirements,
-        );
+        exact.svm.createPaymentHeader(walletSigner, version, validPaymentRequirements);
 
       const paymentHeader = await createHeader(1);
 
@@ -429,19 +199,30 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       if (response.status === 402) {
         const errorData = await response.json().catch(() => ({}));
         if (errorData && typeof errorData.x402Version === "number") {
-          const retryHeader = await createHeader(errorData.x402Version);
+          const retryPayment = await exact.svm.createPaymentHeader(
+            walletSigner,
+            errorData.x402Version,
+            validPaymentRequirements,
+          );
+
           const retryResponse = await fetch(x402.currentUrl, {
             headers: {
-              "X-PAYMENT": retryHeader,
+              "X-PAYMENT": retryPayment,
               "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
             },
           });
+
           if (retryResponse.ok) {
             await onSuccessfulResponse(retryResponse);
             return;
           }
-          throw new Error(`Payment retry failed: ${retryResponse.statusText}`);
+
+          throw new Error(
+            `Payment retry failed: ${retryResponse.status} ${retryResponse.statusText}`,
+          );
         }
+
+        throw new Error(`Payment failed: ${response.statusText}`);
       }
 
       throw new Error(`Payment failed: ${response.status} ${response.statusText}`);
@@ -492,13 +273,17 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
           <div className="payment-row">
             <span className="payment-label">Available balance:</span>
             <span className="payment-value">
-              <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
-                {!hideBalance && formattedBalance
-                  ? `$${formattedBalance} USDC`
-                  : isFetchingBalance
-                    ? "Loading..."
-                    : "••••• USDC"}
-              </button>
+              {activeAccount ? (
+                <button className="balance-button" onClick={() => setHideBalance(prev => !prev)}>
+                  {!hideBalance && formattedBalance
+                    ? `$${formattedBalance} USDC`
+                    : isFetchingBalance
+                      ? "Loading..."
+                      : "••••• USDC"}
+                </button>
+              ) : (
+                "-"
+              )}
             </span>
           </div>
           <div className="payment-row">
@@ -559,6 +344,3 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
     </div>
   );
 }
-
-const hasSolanaSigning = (wallet: Wallet): wallet is WalletWithSolanaFeatures =>
-  SolanaSignTransaction in wallet.features;

@@ -59,10 +59,14 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
   const testnet = isTestnetNetwork(network);
   const showOnramp = Boolean(!testnet && isConnected && x402.sessionTokenEndpoint);
 
-  const publicClient = createPublicClient({
-    chain: paymentChain,
-    transport: http(),
-  }).extend(publicActions);
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: paymentChain,
+        transport: http(),
+      }).extend(publicActions),
+    [paymentChain],
+  );
 
   const checkUSDCBalance = useCallback(async () => {
     if (!address) {
