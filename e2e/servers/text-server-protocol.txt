@@ -14,6 +14,10 @@ Servers must declare which protocol family each payment endpoint requires in the
 Servers must declare which x402 protocol version they implement using the `x402Version` field:
 - **x402Version**: The x402 protocol version implemented by the server (e.g., 1 or 2)
 
+## Extensions Support
+Servers may declare which protocol extensions they support using the `extensions` field:
+- **extensions**: Array of supported extension names (e.g., ["bazaar"])
+
 Example configuration:
 ```json
 {
@@ -21,6 +25,7 @@ Example configuration:
   "type": "server",
   "language": "typescript",
   "x402Version": 2,
+  "extensions": ["bazaar"],
   "endpoints": [
     {
       "path": "/protected",

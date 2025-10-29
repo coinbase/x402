@@ -1,7 +1,8 @@
 import { config } from 'dotenv';
 import { TestDiscovery } from './src/discovery';
-import { ClientConfig, ScenarioResult, TestScenario } from './src/types';
+import { ClientConfig, ScenarioResult } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
+import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
 
 export interface ServerConfig {
   port: number;
@@ -50,6 +51,13 @@ const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
 // Initialize logger
 loggerConfig({ logFile, verbose: isVerbose });
 
+interface Facilitator {
+  start: (config: { port: number; evmPrivateKey: string; svmPrivateKey: string; evmNetwork: string; svmNetwork: string; }) => Promise<void>;
+  health: () => Promise<{ success: boolean }>;
+  getUrl: () => string;
+  stop: () => Promise<void>;
+}
+
 // FacilitatorManager handles async facilitator lifecycle
 class FacilitatorManager {
   private facilitator: any;
@@ -57,7 +65,7 @@ class FacilitatorManager {
   private readyPromise: Promise<string | null>;
   private url: string | null = null;
 
-  constructor(facilitator: any, port: number, evmNetwork: string, svmNetwork: string) {
+  constructor(facilitator: Facilitator, port: number, evmNetwork: string, svmNetwork: string) {
     this.facilitator = facilitator;
     this.port = port;
 
@@ -100,6 +108,10 @@ class FacilitatorManager {
 
   async ready(): Promise<string | null> {
     return this.readyPromise;
+  }
+
+  getProxy(): any {
+    return this.facilitator;
   }
 
   async stop(): Promise<void> {
@@ -319,11 +331,12 @@ async function runTest() {
 
   // Filter scenarios based on command line arguments
   const filteredScenarios = scenarios.filter(scenario => {
-    // Language filter - if languages specified, both client and server must match one of them
+    // Language filter - if languages specified, client, server, AND facilitator must match one of them
     if (languageFilters.length > 0) {
       const matchesLanguage = languageFilters.some(lang =>
         scenario.client.config.language.includes(lang) &&
-        scenario.server.config.language.includes(lang)
+        scenario.server.config.language.includes(lang) &&
+        (!scenario.facilitator || scenario.facilitator.config.language.includes(lang))
       );
       if (!matchesLanguage) return false;
     }
@@ -517,6 +530,25 @@ async function runTest() {
 
     // Delay between tests to prevent timing/state/nonce issues
     await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+
+  // Run discovery validation before cleanup (while facilitators are still running)
+  const facilitatorsWithConfig = Array.from(uniqueFacilitators.values()).map((f: any) => ({
+    proxy: facilitatorManagers.get(f.name)!.getProxy(),
+    config: f.config,
+  }));
+
+  const serversArray = Array.from(uniqueServers.values());
+  const serverPortsMap = new Map(
+    Array.from(serverInstances.entries()).map(([name, info]) => [name, info.port])
+  );
+
+  if (shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+    await handleDiscoveryValidation(
+      facilitatorsWithConfig,
+      serversArray,
+      serverPortsMap
+    );
   }
 
   // Clean up servers and facilitators in parallel

@@ -3,6 +3,12 @@
  *
  * This facilitator provides HTTP endpoints for payment verification and settlement
  * using the x402 TypeScript SDK.
+ * 
+ * Features:
+ * - Payment verification and settlement
+ * - Bazaar discovery extension support
+ * - Verified payment tracking (verify → settle flow)
+ * - Discovery resource cataloging
  */
 
 import express from "express";
@@ -20,6 +26,12 @@ import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import dotenv from "dotenv";
 import { ExactEvmFacilitatorV1 } from "@x402/evm/v1";
+import {
+  BAZAAR,
+  extractDiscoveryInfo,
+  type DiscoveryInfo,
+} from "@x402/extensions/bazaar";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -85,7 +97,41 @@ const facilitator = new x402Facilitator()
     new ExactEvmFacilitator(
       signer
     )
-  ).registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(signer));
+  )
+  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(signer))
+  .registerExtension(BAZAAR);
+
+/**
+ * Verified Payments Tracking
+ * Maps payment hash → timestamp for verify → settle flow validation
+ */
+const verifiedPayments = new Map<string, number>();
+
+/**
+ * Discovery Resources Storage
+ * Stores discovered resources from bazaar extensions
+ */
+interface DiscoveredResource {
+  resource: string;
+  type: "http";
+  x402Version: number;
+  accepts: PaymentRequirements[];
+  discoveryInfo?: DiscoveryInfo;
+  lastUpdated: string;
+  metadata?: Record<string, unknown>;
+}
+
+const discoveredResources = new Map<string, DiscoveredResource>();
+
+/**
+ * Helper to create a payment hash for tracking
+ */
+function createPaymentHash(paymentPayload: PaymentPayload): string {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(paymentPayload))
+    .digest("hex");
+}
 
 // Initialize Express app
 const app = express();
@@ -94,6 +140,8 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
+ * 
+ * Also tracks verified payments and extracts bazaar discovery info
  */
 app.post("/verify", async (req, res) => {
   try {
@@ -105,11 +153,46 @@ app.post("/verify", async (req, res) => {
       });
     }
 
-    // No transformation needed - v1 mechanisms will read maxAmountRequired field directly
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
     );
+
+    // Track verified payment for settle validation
+    if (response.isValid) {
+      const paymentHash = createPaymentHash(paymentPayload);
+      verifiedPayments.set(paymentHash, Date.now());
+
+      // Extract and store discovery info if present
+      // For v2: extensions are in paymentPayload.extensions (client copied from PaymentRequired)
+      // For v1: discovery info is in paymentRequirements.outputSchema
+      const discoveryInfo = extractDiscoveryInfo(
+        paymentPayload,
+        paymentRequirements
+      );
+
+      if (discoveryInfo) {
+        // Try to get resource URL from various sources
+        const resourceUrl =
+          paymentRequirements.extra?.resourceUrl ||
+          (paymentRequirements as any).resource || // v1 has resource field
+          `http://unknown${discoveryInfo.input.method === 'GET' ? '/get' : '/post'}`;
+
+        console.log(`📝 Discovered resource: ${resourceUrl}`);
+        console.log(`   Method: ${discoveryInfo.input.method}`);
+        console.log(`   x402 Version: ${paymentPayload.x402Version}`);
+
+        discoveredResources.set(resourceUrl, {
+          resource: resourceUrl,
+          type: "http",
+          x402Version: paymentPayload.x402Version,
+          accepts: [paymentRequirements],
+          discoveryInfo,
+          lastUpdated: new Date().toISOString(),
+          metadata: {},
+        });
+      }
+    }
 
     res.json(response);
   } catch (error) {
@@ -123,6 +206,8 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
+ * 
+ * Validates that the payment was previously verified
  */
 app.post("/settle", async (req, res) => {
   try {
@@ -134,11 +219,37 @@ app.post("/settle", async (req, res) => {
       });
     }
 
+    // Validate that payment was previously verified
+    const paymentHash = createPaymentHash(paymentPayload);
+    const verificationTimestamp = verifiedPayments.get(paymentHash);
+
+    if (!verificationTimestamp) {
+      return res.json({
+        success: false,
+        errorReason: "Payment must be verified before settlement",
+        network: paymentPayload.network,
+      } as SettleResponse);
+    }
+
+    // Check verification isn't too old (5 minute timeout)
+    const age = Date.now() - verificationTimestamp;
+    if (age > 5 * 60 * 1000) {
+      verifiedPayments.delete(paymentHash);
+      return res.json({
+        success: false,
+        errorReason: "Payment verification expired (must settle within 5 minutes)",
+        network: paymentPayload.network,
+      } as SettleResponse);
+    }
+
     // No transformation needed - v1 mechanisms will read maxAmountRequired field directly
     const response: SettleResponse = await facilitator.settle(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
     );
+
+    // Clean up verified payment after settlement (successful or not)
+    verifiedPayments.delete(paymentHash);
 
     res.json(response);
   } catch (error) {
@@ -170,12 +281,42 @@ app.get("/supported", async (req, res) => {
           extra: {},
         },
       ],
-      extensions: [],
+      extensions: [BAZAAR],
     };
 
     res.json(response);
   } catch (error) {
     console.error("Supported error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
+ * GET /discovery/resources
+ * List all discovered resources from bazaar extensions
+ */
+app.get("/discovery/resources", (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 100;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const allResources = Array.from(discoveredResources.values());
+    const total = allResources.length;
+    const items = allResources.slice(offset, offset + limit);
+
+    res.json({
+      x402Version: 1,
+      items,
+      pagination: {
+        limit,
+        offset,
+        total,
+      },
+    });
+  } catch (error) {
+    console.error("Discovery resources error:", error);
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });
@@ -192,6 +333,8 @@ app.get("/health", (req, res) => {
     network: "eip155:84532",
     facilitator: "typescript",
     version: "2.0.0",
+    extensions: [BAZAAR],
+    discoveredResources: discoveredResources.size,
   });
 });
 
@@ -218,13 +361,15 @@ app.listen(parseInt(PORT), () => {
 ║  Server:     http://localhost:${PORT}                  ║
 ║  Network:    eip155:84532                              ║
 ║  Address:    ${account.address}                        ║
+║  Extensions: bazaar                                    ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • POST /verify    (verify payment)                   ║
-║  • POST /settle    (settle payment)                   ║
-║  • GET  /supported (get supported kinds)              ║
-║  • GET  /health    (health check)                     ║
-║  • POST /close     (shutdown server)                  ║
+║  • POST /verify              (verify payment)         ║
+║  • POST /settle              (settle payment)         ║
+║  • GET  /supported           (get supported kinds)    ║
+║  • GET  /discovery/resources (list discovered)        ║
+║  • GET  /health              (health check)           ║
+║  • POST /close               (shutdown server)        ║
 ╚════════════════════════════════════════════════════════╝
   `);
 

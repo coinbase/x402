@@ -175,15 +175,15 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("validateDiscoveryExtension", () => {
     it("should validate a correct GET extension", () => {
-      const extension = declareDiscoveryExtension(
-        "GET",
-        { query: "test" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "GET",
+        input: { query: "test" },
+        inputSchema: {
           properties: {
             query: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const result = validateDiscoveryExtension(extension);
       expect(result.valid).toBe(true);
@@ -191,15 +191,15 @@ describe("Bazaar Discovery Extension", () => {
     });
 
     it("should validate a correct POST extension", () => {
-      const extension = declareDiscoveryExtension(
-        "POST",
-        { name: "John" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "POST",
+        input: { name: "John" },
+        inputSchema: {
           properties: {
             name: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const result = validateDiscoveryExtension(extension);
       expect(result.valid).toBe(true);
@@ -239,15 +239,15 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("extractDiscoveryInfoFromExtension", () => {
     it("should extract info from a valid extension", () => {
-      const extension = declareDiscoveryExtension(
-        "GET",
-        { query: "test" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "GET",
+        input: { query: "test" },
+        inputSchema: {
           properties: {
             query: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const info = extractDiscoveryInfoFromExtension(extension);
       expect(info).toEqual(extension.info);
@@ -256,15 +256,15 @@ describe("Bazaar Discovery Extension", () => {
     });
 
     it("should extract info without validation when validate=false", () => {
-      const extension = declareDiscoveryExtension(
-        "POST",
-        { name: "John" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "POST",
+        input: { name: "John" },
+        inputSchema: {
           properties: {
             name: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const info = extractDiscoveryInfoFromExtension(extension, false);
       expect(info).toEqual(extension.info);
@@ -303,15 +303,15 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("extractDiscoveryInfo (full flow)", () => {
     it("should extract info from v2 PaymentPayload with extensions", () => {
-      const extension = declareDiscoveryExtension(
-        "POST",
-        { userId: "123" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "POST",
+        input: { userId: "123" },
+        inputSchema: {
           properties: {
             userId: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const paymentPayload = {
         x402Version: 2,
@@ -384,15 +384,15 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("validateAndExtract", () => {
     it("should return valid result with info for correct extension", () => {
-      const extension = declareDiscoveryExtension(
-        "GET",
-        { query: "test" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "GET",
+        input: { query: "test" },
+        inputSchema: {
           properties: {
             query: { type: "string" },
           },
-        }
-      );
+        },
+      });
 
       const result = validateAndExtract(extension);
       expect(result.valid).toBe(true);
@@ -748,28 +748,26 @@ describe("Bazaar Discovery Extension", () => {
   describe("Integration - Full workflow", () => {
     it("should handle GET endpoint with output schema (e2e scenario)", () => {
       // This reproduces the exact scenario from e2e tests
-      const extension = declareDiscoveryExtension(
-        "GET",
-        {}, // No query params
-        {
+      const extension = declareDiscoveryExtension({
+        method: "GET",
+        input: {}, // No query params
+        inputSchema: {
           properties: {},
         },
-        {
-          output: {
-            example: {
-              message: "Protected endpoint accessed successfully",
-              timestamp: "2024-01-01T00:00:00Z",
-            },
-            schema: {
-              properties: {
-                message: { type: "string" },
-                timestamp: { type: "string" },
-              },
-              required: ["message", "timestamp"],
-            },
+        output: {
+          example: {
+            message: "Protected endpoint accessed successfully",
+            timestamp: "2024-01-01T00:00:00Z",
           },
-        }
-      );
+          schema: {
+            properties: {
+              message: { type: "string" },
+              timestamp: { type: "string" },
+            },
+            required: ["message", "timestamp"],
+          },
+        },
+      });
 
       // Validate the extension
       const validation = validateDiscoveryExtension(extension);
@@ -794,23 +792,21 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should handle complete v2 server-to-facilitator workflow", () => {
       // 1. Server declares extension
-      const extension = declareDiscoveryExtension(
-        "POST",
-        { userId: "123", action: "create" },
-        {
+      const extension = declareDiscoveryExtension({
+        method: "POST",
+        input: { userId: "123", action: "create" },
+        inputSchema: {
           properties: {
             userId: { type: "string" },
             action: { type: "string", enum: ["create", "update", "delete"] },
           },
           required: ["userId", "action"],
         },
-        {
-          bodyType: "json",
-          output: {
-            example: { success: true, id: "new-id" },
-          },
-        }
-      );
+        bodyType: "json",
+        output: {
+          example: { success: true, id: "new-id" },
+        },
+      });
 
       // 2. Server includes in PaymentRequired
       const paymentRequired = {
@@ -903,17 +899,15 @@ describe("Bazaar Discovery Extension", () => {
 
     it("should handle unified extraction for both v1 and v2", () => {
       // V2 case - extensions are in PaymentPayload
-      const v2Extension = declareDiscoveryExtension(
-        {
-          method: "GET",
-          input: { limit: 10 },
-          inputSchema: {
-            properties: {
-              limit: { type: "number" },
-            },
+      const v2Extension = declareDiscoveryExtension({
+        method: "GET",
+        input: { limit: 10 },
+        inputSchema: {
+          properties: {
+            limit: { type: "number" },
           },
-        }
-      );
+        },
+      });
 
       const v2Payload = {
         x402Version: 2,
