@@ -218,7 +218,7 @@ Each scheme defines:
 - Settlement and validation procedures
 - Scheme-specific requirements in the `extra` field of `PaymentRequirements`
 
-**6.1 Exact Scheme**
+**6.1 Exact Scheme (EVM overview)**
 
 The "exact" scheme uses EIP-3009 (Transfer with Authorization) to enable secure, gasless transfers of specific amounts of ERC-20 tokens.
 
@@ -253,6 +253,18 @@ The facilitator performs the following verification steps:
 **6.1.3 Settlement**
 
 Settlement is performed by calling the `transferWithAuthorization` function on the ERC-20 contract with the signature and authorization parameters provided in the payment payload.
+
+**6.2 Exact Scheme (SVM overview)**
+
+For Solana (SVM), the `exact` scheme is implemented using `TransferChecked` for SPL tokens. Critical verification requirements include:
+
+- Enforcing a strict instruction layout (Compute Unit Limit, Compute Unit Price, optional ATA Create, TransferChecked)
+- Ensuring the facilitator fee payer does not appear in any instruction accounts and is not the transfer `authority` or `source`
+- Bounding compute unit price to mitigate gas abuse
+- Verifying the destination ATA matches the `payTo`/`asset` PDA and account existence rules
+- Requiring the transfer `amount` to exactly equal `maxAmountRequired`
+
+Full SVM details are specified in `specs/schemes/exact/scheme_exact_svm.md`.
 
 **7. Facilitator Interface**
 
