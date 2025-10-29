@@ -15,6 +15,9 @@ export class x402Facilitator {
     Map<string, Map<string, SchemeNetworkFacilitator>>
   > = new Map();
 
+  // Extensions this facilitator supports (e.g., "bazaar", "sign_in_with_x")
+  private readonly extensions: string[] = [];
+
   /**
    * Registers a scheme facilitator for the current x402 version.
    *
@@ -35,6 +38,29 @@ export class x402Facilitator {
    */
   registerSchemeV1(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
     return this._registerScheme(1, network, facilitator);
+  }
+
+  /**
+   * Registers a protocol extension.
+   *
+   * @param extension - The extension name to register (e.g., "bazaar", "sign_in_with_x")
+   * @returns The x402Facilitator instance for chaining
+   */
+  registerExtension(extension: string): x402Facilitator {
+    // Check if already registered
+    if (!this.extensions.includes(extension)) {
+      this.extensions.push(extension);
+    }
+    return this;
+  }
+
+  /**
+   * Gets the list of registered extensions.
+   *
+   * @returns Array of extension names
+   */
+  getExtensions(): string[] {
+    return [...this.extensions];
   }
 
   /**

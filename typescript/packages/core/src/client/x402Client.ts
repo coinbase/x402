@@ -84,9 +84,14 @@ export class x402Client {
    *
    * @param x402Version - The x402 protocol version
    * @param requirements - The payment requirements
+   * @param extensions - Optional extensions to include in the payload (from PaymentRequired)
    * @returns Promise resolving to the payment payload
    */
-  createPaymentPayload(x402Version: number, requirements: PaymentRequirements): Promise<PaymentPayload> {
+  async createPaymentPayload(
+    x402Version: number,
+    requirements: PaymentRequirements,
+    extensions?: Record<string, unknown>
+  ): Promise<PaymentPayload> {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
       throw new Error(`No client registered for x402 version: ${x402Version}`);
@@ -94,7 +99,14 @@ export class x402Client {
 
     const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
     if (schemeNetworkClient) {
-      return schemeNetworkClient.createPaymentPayload(x402Version, requirements);
+      const payload = await schemeNetworkClient.createPaymentPayload(x402Version, requirements);
+
+      // Copy extensions from PaymentRequired into PaymentPayload
+      if (extensions && Object.keys(extensions).length > 0) {
+        payload.extensions = extensions;
+      }
+
+      return payload;
     }
 
     throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
