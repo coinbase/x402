@@ -1,9 +1,17 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPermitPaymentHeader as createPermitPaymentHeaderExactEVM } from "../schemes/exact/evm/permit-client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
-import { PaymentRequirements } from "../types/verify";
 import { X402Config } from "../types/config";
+import {
+  isEvmSignerWallet,
+  isMultiNetworkSigner,
+  isSvmSignerWallet,
+  MultiNetworkSigner,
+  Signer,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+} from "../types/shared";
+import { PaymentRequirements } from "../types/verify";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -36,18 +44,10 @@ export async function createPaymentHeader(
 
       if (signatureType === "permit") {
         // Use ERC-2612 Permit flow
-        return await createPermitPaymentHeaderExactEVM(
-          evmClient,
-          x402Version,
-          paymentRequirements,
-        );
+        return await createPermitPaymentHeaderExactEVM(evmClient, x402Version, paymentRequirements);
       } else {
         // Use EIP-3009 TransferWithAuthorization flow (default)
-        return await createPaymentHeaderExactEVM(
-          evmClient,
-          x402Version,
-          paymentRequirements,
-        );
+        return await createPaymentHeaderExactEVM(evmClient, x402Version, paymentRequirements);
       }
     }
     // svm
@@ -57,12 +57,7 @@ export async function createPaymentHeader(
         throw new Error("Invalid svm wallet client provided");
       }
 
-      return await createPaymentHeaderExactSVM(
-        svmClient,
-        x402Version,
-        paymentRequirements,
-        config,
-      );
+      return await createPaymentHeaderExactSVM(svmClient, x402Version, paymentRequirements, config);
     }
     throw new Error("Unsupported network");
   }

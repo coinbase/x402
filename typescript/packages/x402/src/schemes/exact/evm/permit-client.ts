@@ -2,10 +2,10 @@ import { Address, Chain, LocalAccount, Transport } from "viem";
 import { getNetworkId } from "../../../shared";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
 import {
+  ExactEvmPermitPayload,
   PaymentPayload,
   PaymentRequirements,
   UnsignedPaymentPayload,
-  ExactEvmPermitPayload,
 } from "../../../types/verify";
 import { signPermit } from "./permit-sign";
 import { encodePayment } from "./utils/paymentUtils";
@@ -156,8 +156,15 @@ export async function createPermitPayment<transport extends Transport, chain ext
   const owner = isSignerWallet(client) ? client.account!.address : client.address;
 
   // Query the current nonce from the contract
-  const nonce = await getPermitNonce(client, paymentRequirements.asset as Address, owner);
-
+  // For cross-chain payments (AnySpend), use the source token (verifyingContract) instead of destination asset
+  const tokenAddress =
+    (paymentRequirements.extra?.verifyingContract as Address) ||
+    (paymentRequirements.asset as Address);
+  console.log("owner", owner);
+  console.log("tokenAddress for nonce query", tokenAddress);
+  console.log("paymentRequirements.asset (destination)", paymentRequirements.asset);
+  const nonce = await getPermitNonce(client, tokenAddress, owner);
+  console.log("nonce", nonce);
   const unsignedPaymentHeader = preparePermitPaymentHeader(
     owner,
     x402Version,
