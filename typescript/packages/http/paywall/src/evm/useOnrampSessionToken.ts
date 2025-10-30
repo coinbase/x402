@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from "react";
-import { generateOnrampSessionToken } from "./evm-utils";
+import { generateOnrampSessionToken } from "../utils";
 
 type UseOnrampSessionTokenProps = {
   sessionToken: string | undefined;
