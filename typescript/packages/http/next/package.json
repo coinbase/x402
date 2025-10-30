@@ -42,13 +42,7 @@
     "zod": "^3.24.2"
   },
   "peerDependencies": {
-    "next": "^15.0.0",
-    "@x402/paywall": "workspace:*"
-  },
-  "peerDependenciesMeta": {
-    "@x402/paywall": {
-      "optional": true
-    }
+    "next": "^15.0.0"
   },
   "type": "module",
   "exports": {

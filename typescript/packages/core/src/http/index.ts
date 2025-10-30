@@ -85,6 +85,7 @@ export {
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,
+  PaywallProvider,
   RouteConfig,
   RoutesConfig,
   CompiledRoute,

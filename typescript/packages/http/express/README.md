@@ -158,12 +158,39 @@ The paywall includes:
 
 Without `@x402/paywall` installed, the middleware returns a basic HTML page with payment instructions. This works but doesn't include wallet connections.
 
-**Option 3: Custom HTML**
+**Option 3: Builder Pattern (Advanced)**
+
+Use the builder pattern for more flexibility:
+
+```typescript
+import { createPaywall } from '@x402/paywall';
+
+const paywall = createPaywall()
+  .withConfig({
+    cdpClientKey: "your-key",
+    appName: "My App",
+    appLogo: "/logo.svg",
+    testnet: true
+  })
+  .build();
+
+// Pass the built paywall to middleware
+app.use(paymentMiddleware(
+  routes,
+  facilitators,
+  schemes,
+  undefined,  // paywallConfig (not needed when using builder)
+  paywall     // Custom paywall provider
+));
+```
+
+**Option 4: Custom HTML Template**
 
 Provide your own HTML template:
 
 ```typescript
-app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig, customHtml));
+const customHtml = `<!DOCTYPE html>...`;
+app.use(paymentMiddleware(routes, undefined, undefined, undefined, customHtml));
 ```
 
 ## Advanced Usage
