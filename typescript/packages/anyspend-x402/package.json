@@ -1,6 +1,6 @@
 {
-  "name": "@coinbase/x402",
-  "version": "0.7.1",
+  "name": "@b3-fun/anyspend-x402",
+  "version": "0.1.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -16,11 +16,29 @@
     "test:watch": "vitest",
     "postinstall": "node scripts/postinstall.js"
   },
-  "keywords": [],
+  "keywords": [
+    "x402",
+    "payment-protocol",
+    "anyspend",
+    "web3",
+    "payments",
+    "cryptocurrency",
+    "blockchain"
+  ],
   "license": "Apache-2.0",
-  "author": "Coinbase Inc.",
-  "repository": "https://github.com/coinbase/x402",
-  "description": "x402 Payment Protocol",
+  "author": "b3-fun",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/b3-fun/anyspend-x402.git"
+  },
+  "description": "AnySpend x402 Payment Protocol - Extended implementation of the x402 protocol",
+  "homepage": "https://github.com/b3-fun/anyspend-x402#readme",
+  "bugs": {
+    "url": "https://github.com/b3-fun/anyspend-x402/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@types/node": "^22.13.4",

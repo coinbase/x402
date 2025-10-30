@@ -10,6 +10,14 @@ This document describes how to integrate **Anyspend's multi-token and cross-chai
 
 By default, x402 clients pay with **USDC on the resource server's network**. Anyspend extends this to support **any token on any network**, while resource servers still receive USDC.
 
+## Published npm Package
+
+The AnySpend facilitator package is now available on npm:
+
+📦 **[@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)**
+
+This package provides pre-configured facilitator integration with Coinbase's CDP platform for seamless x402 payment processing.
+
 ---
 
 ## Table of Contents
@@ -104,6 +112,9 @@ npm install x402-fetch
 
 # For axios-based applications
 npm install x402-axios
+
+# For facilitator integration (resource servers)
+npm install @b3-fun/anyspend-x402
 ```
 
 ### Basic Usage
@@ -268,13 +279,14 @@ await daiClient.get('/analytics');
 
 Resource servers can configure their x402 middleware to accept different tokens (USDC, WETH, DAI, etc.) for payments. There are three main approaches:
 
-### Method 1: USDC (Simple String Format)
+### Method 1: USDC with Anyspend Facilitator (Simple Format)
 
-The easiest way - just specify a dollar amount, and the middleware automatically uses USDC:
+The easiest way - just specify a dollar amount with the Anyspend facilitator:
 
 ```typescript
 import express from "express";
 import { paymentMiddleware } from "x402-express";
+import { facilitator } from "@b3-fun/anyspend-x402";
 
 const app = express();
 
@@ -286,7 +298,7 @@ app.use(paymentMiddleware(
       network: "base-sepolia"
     }
   },
-  { url: "https://x402.org/facilitator" }
+  facilitator // Use Anyspend facilitator
 ));
 
 app.get("/weather", (req, res) => {
@@ -770,13 +782,69 @@ npm run start:preferences
 
 ---
 
+## Anyspend Facilitator Package
+
+The `@b3-fun/anyspend-x402` package provides:
+
+### Features
+
+- **Pre-configured Facilitator**: Ready-to-use facilitator for Coinbase CDP integration
+- **Authentication Helpers**: Built-in functions for CDP API authentication
+- **Easy Integration**: One-line setup with x402 middleware packages
+- **TypeScript Support**: Full type definitions included
+
+### API Reference
+
+```typescript
+import {
+  facilitator,                    // Pre-configured facilitator instance (https://mainnet.anyspend.com/x402)
+  createFacilitatorConfig,        // Create custom facilitator
+  createAuthHeader,               // Generate auth headers
+  createCorrelationHeader         // Generate correlation headers
+} from "@b3-fun/anyspend-x402";
+```
+
+#### Facilitator Endpoints
+
+The AnySpend facilitator is hosted at:
+
+```
+https://mainnet.anyspend.com/x402
+```
+
+Available endpoints:
+- `POST /verify` - Verify payment signatures
+- `POST /settle` - Settle payments on-chain
+- `GET /supported` - List supported networks and tokens
+- `POST /quote` - Get token conversion quotes (custom extension)
+
+### Environment Variables
+
+When using the package, you can optionally provide CDP API credentials via environment variables:
+
+```bash
+CDP_API_KEY_ID=your_key_id
+CDP_API_KEY_SECRET=your_key_secret
+```
+
+These are only required for `verify` and `settle` operations. The `list` endpoint works without credentials.
+
+### For More Information
+
+- **Package README**: [typescript/packages/anyspend-x402/README.md](./typescript/packages/anyspend-x402/README.md)
+- **npm Package**: [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)
+
+---
+
 ## References
 
 - [X402 Protocol Specification](https://www.x402.org/x402-whitepaper.pdf) - Protocol standard
 - [EIP-2612: Permit](https://eips.ethereum.org/EIPS/eip-2612) - Standard token permit
 - [EIP-3009: Transfer With Authorization](https://eips.ethereum.org/EIPS/eip-3009) - USDC authorization
+- [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402) - AnySpend facilitator package
+- [Anyspend TDD](./anyspend-docs/ANYSPEND_X402_TDD.md) - Technical design document
 
 ---
 
-**Last Updated**: 2025-01-29
-**Version**: 1.0.0
+**Last Updated**: 2025-10-30
+**Version**: 1.1.0
