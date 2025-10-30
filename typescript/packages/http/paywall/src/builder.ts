@@ -1,11 +1,28 @@
 import { getPaywallHtml } from "./paywall";
-import type { PaywallConfig, PaywallProvider, PaymentRequired } from "./types";
+import type {
+  PaywallConfig,
+  PaywallProvider,
+  PaymentRequired,
+  PaywallNetworkHandler,
+} from "./types";
 
 /**
  * Builder for creating configured paywall providers
  */
 export class PaywallBuilder {
   private config: PaywallConfig = {};
+  private handlers: PaywallNetworkHandler[] = [];
+
+  /**
+   * Register a network-specific paywall handler
+   *
+   * @param handler - Network handler to register
+   * @returns This builder instance for chaining
+   */
+  withNetwork(handler: PaywallNetworkHandler): this {
+    this.handlers.push(handler);
+    return this;
+  }
 
   /**
    * Set configuration options for the paywall
@@ -25,13 +42,25 @@ export class PaywallBuilder {
    */
   build(): PaywallProvider {
     const builderConfig = this.config;
+    const handlers = this.handlers;
 
     return {
       generateHtml: (paymentRequired: PaymentRequired, runtimeConfig?: PaywallConfig): string => {
         // Merge builder config with runtime config (runtime takes precedence)
         const finalConfig = { ...builderConfig, ...runtimeConfig };
 
-        // Calculate display amount from payment requirements
+        // If network handlers are registered, use first-match selection
+        if (handlers.length > 0) {
+          for (const requirement of paymentRequired.accepts) {
+            const handler = handlers.find(h => h.supports(requirement));
+            if (handler) {
+              return handler.generateHtml(requirement, paymentRequired, finalConfig);
+            }
+          }
+          // No handler matched, fall through to default
+        }
+
+        // Default: Use the full paywall (includes both EVM and Solana)
         const displayAmount = this.getDisplayAmount(paymentRequired);
 
         return getPaywallHtml({
@@ -79,4 +108,3 @@ export class PaywallBuilder {
 export function createPaywall(): PaywallBuilder {
   return new PaywallBuilder();
 }
-

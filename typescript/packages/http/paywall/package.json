@@ -4,11 +4,13 @@
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "start": "tsx --env-file=.env index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsup",
+    "build": "pnpm build:paywall && tsup",
+    "build:paywall": "tsx src/build.ts && tsx src/evm/build.ts && tsx src/svm/build.ts",
     "watch": "tsc --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
@@ -50,6 +52,26 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
+      }
+    },
+    "./evm": {
+      "import": {
+        "types": "./dist/esm/evm/index.d.mts",
+        "default": "./dist/esm/evm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/evm/index.d.ts",
+        "default": "./dist/cjs/evm/index.js"
+      }
+    },
+    "./svm": {
+      "import": {
+        "types": "./dist/esm/svm/index.d.mts",
+        "default": "./dist/esm/svm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/svm/index.d.ts",
+        "default": "./dist/cjs/svm/index.js"
       }
     }
   },

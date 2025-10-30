@@ -123,75 +123,29 @@ app.use(paymentMiddleware(routes));
 
 ### Paywall Configuration
 
-The middleware automatically displays a paywall UI when browsers request protected endpoints. 
+The middleware automatically displays a paywall UI when browsers request protected endpoints.
 
-**Option 1: Full Paywall UI (Recommended)**
-
-Install the optional `@x402/paywall` package for a complete wallet connection and payment UI:
-
-```bash
-pnpm add @x402/paywall
-```
-
-Then configure it:
+**Quick setup:**
 
 ```typescript
-const paywallConfig: PaywallConfig = {
-  cdpClientKey: "your-cdp-client-key",
-  appName: "Your App Name",
-  appLogo: "/path/to/logo.svg",
-  sessionTokenEndpoint: "/api/x402/session-token",
-  testnet: true
-};
-
-app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig));
+app.use(
+  paymentMiddleware(
+    routes,
+    undefined, // facilitatorClients (optional)
+    undefined, // schemes (optional)
+    {
+      // paywallConfig
+      cdpClientKey: "your-cdp-client-key",
+      appName: "Your App",
+      testnet: true,
+    },
+  ),
+);
 ```
 
-The paywall includes:
-- EVM wallet support (MetaMask, Coinbase Wallet, etc.)
-- Solana wallet support (Phantom, Solflare, etc.)
-- USDC balance checking
-- Chain switching
-- Onramp integration for mainnet
+This uses `@x402/paywall` if installed (full wallet UI), or falls back to basic HTML.
 
-**Option 2: Basic Paywall (No Installation)**
-
-Without `@x402/paywall` installed, the middleware returns a basic HTML page with payment instructions. This works but doesn't include wallet connections.
-
-**Option 3: Builder Pattern (Advanced)**
-
-Use the builder pattern for more flexibility:
-
-```typescript
-import { createPaywall } from '@x402/paywall';
-
-const paywall = createPaywall()
-  .withConfig({
-    cdpClientKey: "your-key",
-    appName: "My App",
-    appLogo: "/logo.svg",
-    testnet: true
-  })
-  .build();
-
-// Pass the built paywall to middleware
-app.use(paymentMiddleware(
-  routes,
-  facilitators,
-  schemes,
-  undefined,  // paywallConfig (not needed when using builder)
-  paywall     // Custom paywall provider
-));
-```
-
-**Option 4: Custom HTML Template**
-
-Provide your own HTML template:
-
-```typescript
-const customHtml = `<!DOCTYPE html>...`;
-app.use(paymentMiddleware(routes, undefined, undefined, undefined, customHtml));
-```
+**For advanced configuration** (builder pattern, network-specific bundles, custom handlers), see the [@x402/paywall README](../paywall/README.md).
 
 ## Advanced Usage
 

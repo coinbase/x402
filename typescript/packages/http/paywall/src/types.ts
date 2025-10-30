@@ -58,3 +58,29 @@ export interface PaywallProvider {
   generateHtml(paymentRequired: PaymentRequired, config?: PaywallConfig): string;
 }
 
+/**
+ * Network-specific paywall handler
+ */
+export interface PaywallNetworkHandler {
+  /**
+   * Check if this handler supports the given payment requirement
+   *
+   * @param requirement - Payment requirement to check
+   * @returns True if this handler can process this requirement
+   */
+  supports(requirement: PaymentRequirements): boolean;
+
+  /**
+   * Generate HTML for this network's paywall
+   *
+   * @param requirement - The selected payment requirement
+   * @param paymentRequired - Full payment required response
+   * @param config - Paywall configuration
+   * @returns HTML string for the paywall page
+   */
+  generateHtml(
+    requirement: PaymentRequirements,
+    paymentRequired: PaymentRequired,
+    config: PaywallConfig,
+  ): string;
+}
