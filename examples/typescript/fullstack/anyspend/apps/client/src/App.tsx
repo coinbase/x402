@@ -80,6 +80,10 @@ function App() {
       valueUsd?: number;
     }>
   >([]);
+  const [paymentStatus, setPaymentStatus] = useState<{
+    stage: 'idle' | 'signing' | 'verifying' | 'settling' | 'complete';
+    message: string;
+  }>({ stage: 'idle', message: '' });
 
   // Set default preset token when connected (default to B3)
   useEffect(() => {
@@ -106,14 +110,19 @@ function App() {
           if (data.success && data.tokens) {
             const balances: Record<string, string> = {};
 
+            // Filter out native ETH token (address: "native")
+            const filteredTokens = data.tokens.filter((token: any) =>
+              token.address.toLowerCase() !== "native"
+            );
+
             // Map balances by token address
-            data.tokens.forEach((token: any) => {
+            filteredTokens.forEach((token: any) => {
               const tokenAddress = token.address.toLowerCase();
               balances[tokenAddress] = token.balance;
             });
 
             setTokenBalances(balances);
-            setUserTokens(data.tokens);
+            setUserTokens(filteredTokens);
           }
         } else {
           console.error("Balance fetch failed:", response.status);
@@ -182,10 +191,36 @@ function App() {
               return "ethereum";
             case "8453":
               return "base";
+            case "84532":
+              return "base-sepolia";
             case "137":
               return "polygon";
+            case "80002":
+              return "polygon-amoy";
             case "42161":
               return "arbitrum";
+            case "10":
+              return "optimism";
+            case "56":
+              return "bsc";
+            case "43114":
+              return "avalanche";
+            case "43113":
+              return "avalanche-fuji";
+            case "2741":
+              return "abstract";
+            case "11124":
+              return "abstract-testnet";
+            case "8333":
+              return "b3";
+            case "4689":
+              return "iotex";
+            case "3338":
+              return "peaq";
+            case "1329":
+              return "sei";
+            case "1328":
+              return "sei-testnet";
             default:
               return "base";
           }
@@ -250,6 +285,8 @@ function App() {
               } else if (req.extra?.chainId && req.extra?.verifyingContract) {
                 // For cross-chain tokens, try to infer decimals from common tokens
                 const tokenAddr = (req.srcTokenAddress || req.extra.verifyingContract || "").toLowerCase();
+                const tokenName = (req.extra?.name || "").toLowerCase();
+                const chainId = req.extra?.chainId;
 
                 // Common token decimals mapping
                 if (tokenAddr === "0xdac17f958d2ee523a2206206994597c13d831ec7") {
@@ -258,8 +295,29 @@ function App() {
                 } else if (tokenAddr === "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48") {
                   // USDC on Ethereum
                   srcDecimals = 6;
-                } else if (tokenAddr.includes("usdc") || tokenAddr.includes("usdt")) {
-                  // Most stablecoins use 6 decimals
+                } else if (tokenAddr === "0xaf88d065e77c8cc2239327c5edb3a432268e5831") {
+                  // USDC on Arbitrum
+                  srcDecimals = 6;
+                } else if (tokenAddr === "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913") {
+                  // USDC on Base
+                  srcDecimals = 6;
+                } else if (tokenAddr === "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359") {
+                  // USDC on Polygon
+                  srcDecimals = 6;
+                } else if (tokenAddr === "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf") {
+                  // cbBTC on Base
+                  srcDecimals = 8;
+                } else if (tokenAddr === "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599") {
+                  // WBTC on Ethereum
+                  srcDecimals = 8;
+                } else if (tokenName.includes("wrapped btc") || tokenName.includes("wbtc") || tokenName.includes("btc")) {
+                  // Bitcoin-based tokens typically use 8 decimals
+                  srcDecimals = 8;
+                } else if (tokenName.includes("usd coin") || tokenName.includes("usdc")) {
+                  // USDC variants typically use 6 decimals
+                  srcDecimals = 6;
+                } else if (tokenName.includes("tether") || tokenName.includes("usdt")) {
+                  // USDT variants typically use 6 decimals
                   srcDecimals = 6;
                 }
               } else if (req.decimals) {
@@ -274,8 +332,11 @@ function App() {
               let srcPriceStr = srcIntegerPart.toString();
               if (srcFractionalPart > 0) {
                 const fracStr = srcFractionalPart.toString().padStart(srcDecimals, "0");
-                const displayDecimals = fracStr.slice(0, 6);
-                srcPriceStr += "." + displayDecimals.replace(/0+$/, "");
+                // Don't slice, show full precision and remove only truly trailing zeros
+                const trimmed = fracStr.replace(/0+$/, "");
+                if (trimmed.length > 0) {
+                  srcPriceStr += "." + trimmed;
+                }
               }
 
               // Get source token symbol
@@ -428,12 +489,14 @@ function App() {
     setError(null);
     setPaymentInfo(null);
     setPremiumData(null);
+    setPaymentStatus({ stage: 'idle', message: '' });
 
     try {
       addLog(`🔐 Connected wallet: ${address}`);
       addLog(`💰 Payment token: ${tokenAddress}`);
       addLog(`🌐 Network: ${chain?.name}`);
 
+      setPaymentStatus({ stage: 'signing', message: 'Preparing payment signature...' });
       addLog("🔧 Setting up payment-enabled fetch...");
       // Extend wallet client with public actions to make it compatible with Signer type
       const extendedWalletClient = walletClient.extend(publicActions);
@@ -448,10 +511,36 @@ function App() {
             return "ethereum";
           case "8453":
             return "base";
+          case "84532":
+            return "base-sepolia";
           case "137":
             return "polygon";
+          case "80002":
+            return "polygon-amoy";
           case "42161":
             return "arbitrum";
+          case "10":
+            return "optimism";
+          case "56":
+            return "bsc";
+          case "43114":
+            return "avalanche";
+          case "43113":
+            return "avalanche-fuji";
+          case "2741":
+            return "abstract";
+          case "11124":
+            return "abstract-testnet";
+          case "8333":
+            return "b3";
+          case "4689":
+            return "iotex";
+          case "3338":
+            return "peaq";
+          case "1329":
+            return "sei";
+          case "1328":
+            return "sei-testnet";
           default:
             return "base";
         }
@@ -482,16 +571,20 @@ function App() {
         paymentPreferences,
       );
 
+      setPaymentStatus({ stage: 'signing', message: 'Please sign the payment in your wallet...' });
       addLog(
         "📡 Making request to server (payment will be handled automatically)...",
       );
 
       // Make request - payment preferences are automatically added as headers
       try {
+        setPaymentStatus({ stage: 'verifying', message: 'Verifying payment signature...' });
+
         const response = await fetchWithPayment(`${API_BASE_URL}/api/premium`, {
           method: "POST",
         });
 
+        setPaymentStatus({ stage: 'settling', message: 'Settling payment on-chain...' });
         addLog(`✅ Server responded with status: ${response.status}`);
 
         if (!response.ok) {
@@ -519,6 +612,7 @@ function App() {
         }
 
         // Get the response data
+        setPaymentStatus({ stage: 'complete', message: 'Payment successful! Loading data...' });
         const data = await response.json();
         addLog("🎉 Premium content received!");
         setPremiumData(data.data);
@@ -537,6 +631,10 @@ function App() {
     } finally {
       setLoading(false);
       setShowPaymentModal(false);
+      // Reset payment status after a delay
+      setTimeout(() => {
+        setPaymentStatus({ stage: 'idle', message: '' });
+      }, 2000);
     }
   };
 
@@ -650,7 +748,7 @@ function App() {
                       </div>
                       <div className="swap-arrow">→</div>
                       <div className="price-item">
-                        <div className="price-label">Recipient Gets (Max)</div>
+                        <div className="price-label">Data Price</div>
                         <div className="price-value">
                           {maxAmountInfo === "Loading..." ? (
                             <span className="loading">⏳ Loading...</span>
@@ -832,6 +930,36 @@ function App() {
                     {log}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Payment Status Indicator */}
+          {paymentStatus.stage !== 'idle' && loading && (
+            <div className="card payment-status-card">
+              <div className="payment-status-content">
+                <div className="payment-status-spinner">
+                  <div className={`spinner stage-${paymentStatus.stage}`}></div>
+                </div>
+                <div className="payment-status-text">
+                  <h3>{paymentStatus.message}</h3>
+                  <div className="payment-status-steps">
+                    <div className={`status-step ${paymentStatus.stage === 'signing' || paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">1</span>
+                      <span className="step-label">Sign</span>
+                    </div>
+                    <div className="status-connector"></div>
+                    <div className={`status-step ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">2</span>
+                      <span className="step-label">Verify</span>
+                    </div>
+                    <div className="status-connector"></div>
+                    <div className={`status-step ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">3</span>
+                      <span className="step-label">Settle</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
