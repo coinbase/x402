@@ -206,7 +206,11 @@ export function paymentMiddleware(
     if ((preferredToken || preferredNetwork) && !paymentHeader) {
       paymentRequirements[0].srcTokenAddress = preferredToken;
       paymentRequirements[0].srcNetwork = preferredNetwork as Network;
-
+      console.log("preferredToken", preferredToken);
+      console.log("preferredNetwork", preferredNetwork);
+      console.log("asset.address", asset.address);
+      console.log("maxAmountRequired", maxAmountRequired);
+      console.log("network", network);
       const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -218,6 +222,7 @@ export function paymentMiddleware(
           dstNetwork: network,
         }),
       });
+      console.log("quoteResponse", quoteResponse);
       if (!quoteResponse.ok) {
         throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
       }

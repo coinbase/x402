@@ -29,33 +29,21 @@ interface PaymentInfo {
 }
 
 interface PremiumData {
-  marketAnalysis: {
-    trend: string;
-    confidence: number;
-    timeframe: string;
-    signals: string[];
-  };
-  predictions: {
-    [key: string]: {
-      price: string;
-      change: string;
-      timeframe: string;
-    };
-  };
-  recommendations: Array<{
-    action: string;
-    asset: string;
-    reason: string;
+  symbol: string;
+  name: string;
+  currentPrice: number;
+  priceChange: number;
+  priceChangePercent: string;
+  high24h: number;
+  low24h: number;
+  priceHistory: Array<{
+    timestamp: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
   }>;
-  whaleActivity: {
-    largeTransfers: number;
-    netFlow: string;
-    topWallets: Array<{
-      address: string;
-      balance: string;
-      change: string;
-    }>;
-  };
+  dataPoints: number;
   timestamp: string;
 }
 
@@ -74,7 +62,24 @@ function App() {
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [premiumData, setPremiumData] = useState<PremiumData | null>(null);
   const [priceInfo, setPriceInfo] = useState<string>("Loading...");
+  const [maxAmountInfo, setMaxAmountInfo] = useState<string>("Loading...");
+  const [srcNetwork, setSrcNetwork] = useState<string>("base");
+  const [dstNetwork, setDstNetwork] = useState<string>("base");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
+    {},
+  );
+  const [selectedChain, setSelectedChain] = useState<string>("8453"); // Base mainnet
+  const [userTokens, setUserTokens] = useState<
+    Array<{
+      address: string;
+      symbol: string;
+      name: string;
+      decimals: number;
+      balance: string;
+      valueUsd?: number;
+    }>
+  >([]);
 
   // Set default preset token when connected (default to B3)
   useEffect(() => {
@@ -82,6 +87,45 @@ function App() {
       setSelectedToken(BASE_TOKENS[0].address); // B3 token
     }
   }, [isConnected, selectedToken]);
+
+  // Fetch token balances from server
+  useEffect(() => {
+    const fetchBalances = async () => {
+      if (!address) return;
+
+      try {
+        const url = `${API_BASE_URL}/api/balances/${address}?chain_id=${selectedChain}`;
+        console.log("Fetching balances from:", url);
+
+        const response = await fetch(url);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Balance response:", data);
+
+          if (data.success && data.tokens) {
+            const balances: Record<string, string> = {};
+
+            // Map balances by token address
+            data.tokens.forEach((token: any) => {
+              const tokenAddress = token.address.toLowerCase();
+              balances[tokenAddress] = token.balance;
+            });
+
+            setTokenBalances(balances);
+            setUserTokens(data.tokens);
+          }
+        } else {
+          console.error("Balance fetch failed:", response.status);
+        }
+      } catch (err) {
+        console.error("Failed to fetch balances:", err);
+      }
+    };
+
+    fetchBalances();
+  }, [address, selectedChain]);
+
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -123,18 +167,38 @@ function App() {
 
         // Set loading state
         setPriceInfo("Loading...");
+        setMaxAmountInfo("Loading...");
+        setSrcNetwork("base");
+        setDstNetwork("base");
         console.log("Fetching price for token:", tokenAddress);
 
         // Make a request to get payment requirements (402 response)
         const headers: HeadersInit = {};
+
+        // Map chain ID to network name
+        const getNetworkName = (chainId: string): string => {
+          switch (chainId) {
+            case "1":
+              return "ethereum";
+            case "8453":
+              return "base";
+            case "137":
+              return "polygon";
+            case "42161":
+              return "arbitrum";
+            default:
+              return "base";
+          }
+        };
 
         // Only add X-PREFERRED-TOKEN if it's not USDC (USDC is the default)
         const usdcAddress =
           "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
         if (tokenAddress.toLowerCase() !== usdcAddress) {
           headers["X-PREFERRED-TOKEN"] = tokenAddress;
-          headers["X-PREFERRED-NETWORK"] = "base";
+          headers["X-PREFERRED-NETWORK"] = getNetworkName(selectedChain);
           console.log("Using preferred token:", tokenAddress);
+          console.log("Using preferred network:", getNetworkName(selectedChain));
         } else {
           console.log("Using default USDC (no preference header)");
         }
@@ -157,98 +221,146 @@ function App() {
           if (paymentReqs.length > 0) {
             const req = paymentReqs[0];
 
-            // Use srcAmountRequired if available, otherwise fall back to amount or maxAmountRequired
-            const amountStr =
-              req.srcAmountRequired || req.amount || req.maxAmountRequired;
+            // Check if this is a direct payment (no swap) - when srcTokenAddress is missing
+            const isDirectPayment = !req.srcTokenAddress;
 
-            if (!amountStr) {
-              console.log("No amount found in payment requirement");
-              setPriceInfo("1 USDC");
-              return;
-            }
+            // Capture networks
+            setSrcNetwork(req.srcNetwork || req.network || "base");
+            setDstNetwork(req.network || "base");
 
-            const amount = BigInt(amountStr);
+            // Process srcAmountRequired (what you pay)
+            const srcAmountStr = req.srcAmountRequired || req.amount || req.maxAmountRequired;
 
-            // Get decimals from the source token
-            let decimals = 18; // Default for most ERC-20 tokens
+            if (srcAmountStr) {
+              const srcAmount = BigInt(srcAmountStr);
 
-            // Try to get decimals from the token in our list
-            const srcToken = BASE_TOKENS.find(
-              (t) =>
-                t.address.toLowerCase() ===
-                (req.srcTokenAddress || req.asset || "").toLowerCase(),
-            );
+              // Get decimals - try multiple sources
+              let srcDecimals = 18; // Default
+              let srcTokenAddr = req.srcTokenAddress || req.asset;
 
-            if (srcToken) {
-              decimals = srcToken.decimals;
-            } else if (req.decimals) {
-              decimals = req.decimals;
-            }
-
-            console.log("Amount:", amountStr, "Decimals:", decimals);
-
-            // Convert to human-readable format with 6 decimal places
-            const divisor = BigInt(10 ** decimals);
-            const integerPart = amount / divisor;
-            const fractionalPart = amount % divisor;
-
-            // Format the price with 6 decimal places
-            let priceStr = integerPart.toString();
-            if (fractionalPart > 0) {
-              const fracStr = fractionalPart.toString().padStart(decimals, "0");
-              // Take first 6 decimals
-              const displayDecimals = fracStr.slice(0, 6);
-              priceStr += "." + displayDecimals;
-            } else {
-              // If no fractional part, still show .000000
-              priceStr += ".000000";
-            }
-
-            // Get token symbol - prioritize source token
-            let symbol = "tokens";
-
-            // First try the source token address
-            if (req.srcTokenAddress) {
-              const sourceToken = BASE_TOKENS.find(
+              // First try to find in BASE_TOKENS
+              const srcToken = BASE_TOKENS.find(
                 (t) =>
-                  t.address.toLowerCase() === req.srcTokenAddress.toLowerCase(),
+                  t.address.toLowerCase() ===
+                  (srcTokenAddr || "").toLowerCase(),
               );
-              if (sourceToken) {
-                symbol = sourceToken.symbol;
+
+              if (srcToken) {
+                srcDecimals = srcToken.decimals;
+              } else if (req.extra?.chainId && req.extra?.verifyingContract) {
+                // For cross-chain tokens, try to infer decimals from common tokens
+                const tokenAddr = (req.srcTokenAddress || req.extra.verifyingContract || "").toLowerCase();
+
+                // Common token decimals mapping
+                if (tokenAddr === "0xdac17f958d2ee523a2206206994597c13d831ec7") {
+                  // USDT on Ethereum
+                  srcDecimals = 6;
+                } else if (tokenAddr === "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48") {
+                  // USDC on Ethereum
+                  srcDecimals = 6;
+                } else if (tokenAddr.includes("usdc") || tokenAddr.includes("usdt")) {
+                  // Most stablecoins use 6 decimals
+                  srcDecimals = 6;
+                }
+              } else if (req.decimals) {
+                srcDecimals = req.decimals;
               }
-            }
 
-            // Fall back to extra.name if available
-            if (symbol === "tokens" && req.extra?.name) {
-              symbol = req.extra.name;
-            }
+              // Convert to human-readable format
+              const srcDivisor = BigInt(10 ** srcDecimals);
+              const srcIntegerPart = srcAmount / srcDivisor;
+              const srcFractionalPart = srcAmount % srcDivisor;
 
-            // Fall back to requested token
-            if (symbol === "tokens") {
-              const requestedToken = BASE_TOKENS.find(
-                (t) => t.address.toLowerCase() === tokenAddress.toLowerCase(),
-              );
-              if (requestedToken) {
-                symbol = requestedToken.symbol;
+              let srcPriceStr = srcIntegerPart.toString();
+              if (srcFractionalPart > 0) {
+                const fracStr = srcFractionalPart.toString().padStart(srcDecimals, "0");
+                const displayDecimals = fracStr.slice(0, 6);
+                srcPriceStr += "." + displayDecimals.replace(/0+$/, "");
               }
+
+              // Get source token symbol
+              let srcSymbol = "tokens";
+
+              if (req.srcTokenAddress) {
+                const sourceToken = BASE_TOKENS.find(
+                  (t) =>
+                    t.address.toLowerCase() === req.srcTokenAddress.toLowerCase(),
+                );
+                if (sourceToken) {
+                  srcSymbol = sourceToken.symbol;
+                }
+              } else if (req.asset) {
+                // For direct payment, use asset symbol
+                const assetToken = BASE_TOKENS.find(
+                  (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
+                );
+                if (assetToken) {
+                  srcSymbol = assetToken.symbol;
+                }
+              }
+
+              if (srcSymbol === "tokens" && req.extra?.name) {
+                srcSymbol = req.extra.name;
+              }
+
+              setPriceInfo(`${srcPriceStr} ${srcSymbol}`);
+            } else {
+              setPriceInfo("1 USDC");
             }
 
-            // Fall back to asset token
-            if (symbol === "tokens" && req.asset) {
+            // Process maxAmountRequired (maximum you'll pay)
+            const maxAmountStr = req.maxAmountRequired;
+
+            if (maxAmountStr) {
+              const maxAmount = BigInt(maxAmountStr);
+
+              // Get decimals for asset token
+              let assetDecimals = 18;
               const assetToken = BASE_TOKENS.find(
-                (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
+                (t) =>
+                  t.address.toLowerCase() ===
+                  (req.asset || "").toLowerCase(),
               );
-              if (assetToken) {
-                symbol = assetToken.symbol;
-              }
-            }
 
-            const priceText = `${priceStr} ${symbol}`;
-            console.log("Setting price to:", priceText);
-            setPriceInfo(priceText);
+              if (assetToken) {
+                assetDecimals = assetToken.decimals;
+              }
+
+              // Convert to human-readable format
+              const maxDivisor = BigInt(10 ** assetDecimals);
+              const maxIntegerPart = maxAmount / maxDivisor;
+              const maxFractionalPart = maxAmount % maxDivisor;
+
+              let maxPriceStr = maxIntegerPart.toString();
+              if (maxFractionalPart > 0) {
+                const fracStr = maxFractionalPart.toString().padStart(assetDecimals, "0");
+                const displayDecimals = fracStr.slice(0, 6);
+                maxPriceStr += "." + displayDecimals.replace(/0+$/, "");
+              }
+
+              // Get asset token symbol
+              let assetSymbol = "tokens";
+              if (req.asset) {
+                const assetTokenSymbol = BASE_TOKENS.find(
+                  (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
+                );
+                if (assetTokenSymbol) {
+                  assetSymbol = assetTokenSymbol.symbol;
+                }
+              }
+
+              if (assetSymbol === "tokens" && req.extra?.name) {
+                assetSymbol = req.extra.name;
+              }
+
+              setMaxAmountInfo(`${maxPriceStr} ${assetSymbol}`);
+            } else {
+              setMaxAmountInfo("N/A");
+            }
           } else {
             console.log("No payment requirements found");
             setPriceInfo("1 USDC");
+            setMaxAmountInfo("N/A");
           }
         } else {
           console.log("Non-402 response, using default");
@@ -328,12 +440,29 @@ function App() {
 
       // Only set payment preferences if not using default USDC
       const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+      // Map chain ID to network name
+      const getNetworkName = (chainId: string): string => {
+        switch (chainId) {
+          case "1":
+            return "ethereum";
+          case "8453":
+            return "base";
+          case "137":
+            return "polygon";
+          case "42161":
+            return "arbitrum";
+          default:
+            return "base";
+        }
+      };
+
       const paymentPreferences =
         tokenAddress.toLowerCase() !== usdcAddress.toLowerCase()
           ? {
               // Payment preferences - tell server which token we want to pay with
               preferredToken: tokenAddress,
-              preferredNetwork: "base" as const,
+              preferredNetwork: getNetworkName(selectedChain) as any,
             }
           : undefined; // Use default (USDC) when undefined
 
@@ -425,7 +554,7 @@ function App() {
               />
               <div className="logo-text">
                 <p className="subtitle">
-                  Pay-per-use API access with any token
+                  Premium ETH price data - Pay with any token
                 </p>
               </div>
             </div>
@@ -470,9 +599,9 @@ function App() {
           <div className="card action-card">
             <div className="action-content">
               <div className="action-text">
-                <h2>📊 Premium Market Analysis</h2>
+                <h2>📈 ETH Price History</h2>
                 <p className="subtitle">
-                  Get real-time crypto market insights powered by AI
+                  Get 24-hour ETH price history with OHLC data from CoinGecko
                 </p>
               </div>
               <button
@@ -480,7 +609,7 @@ function App() {
                 disabled={loading}
                 className="button button-large"
               >
-                🚀 Get Premium Data
+                📊 Get Price Data
               </button>
             </div>
           </div>
@@ -504,41 +633,133 @@ function App() {
                 </button>
               </div>
               <div className="modal-body">
-                {/* Token Selection */}
-                <div className="input-group">
-                  <label htmlFor="token">💰 Select Payment Token</label>
-                  <div style={{ position: "relative" }}>
-                    {selectedToken &&
-                      selectedToken !== "preset" &&
-                      selectedToken !== "custom" && (
-                        <div
-                          className={`token-icon ${getTokenIcon(selectedToken).className}`}
-                          style={{
-                            position: "absolute",
-                            left: "0.75rem",
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            zIndex: 1,
-                            pointerEvents: "none",
-                          }}
-                        >
-                          {getTokenIcon(selectedToken).symbol}
+                {/* Price Display - Show at top */}
+                {selectedToken && selectedToken !== "preset" && (
+                  <div className="price-display">
+                    <div className="price-row">
+                      <div className="price-item">
+                        <div className="price-label">You Pay</div>
+                        <div className="price-value">
+                          {priceInfo === "Loading..." ? (
+                            <span className="loading">⏳ Loading...</span>
+                          ) : (
+                            <span>{priceInfo}</span>
+                          )}
                         </div>
-                      )}
-                    <select
-                      id="token"
-                      value={selectedToken}
-                      onChange={(e) => setSelectedToken(e.target.value)}
-                      className="input token-select"
+                        <div className="price-network-small">on {srcNetwork}</div>
+                      </div>
+                      <div className="swap-arrow">→</div>
+                      <div className="price-item">
+                        <div className="price-label">Recipient Gets (Max)</div>
+                        <div className="price-value">
+                          {maxAmountInfo === "Loading..." ? (
+                            <span className="loading">⏳ Loading...</span>
+                          ) : (
+                            <span>{maxAmountInfo}</span>
+                          )}
+                        </div>
+                        <div className="price-network-small">on {dstNetwork}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Chain Selection */}
+                <div className="input-group">
+                  <label>⛓️ Select Chain</label>
+                  <div className="chain-selector">
+                    <button
+                      type="button"
+                      className={`chain-option ${selectedChain === "1" ? "selected" : ""}`}
+                      onClick={() => setSelectedChain("1")}
                       disabled={loading}
                     >
-                      {BASE_TOKENS.map((token) => (
-                        <option key={token.address} value={token.address}>
-                          {token.symbol} - {token.name}
-                        </option>
-                      ))}
-                      <option value="custom">🎨 Custom Token Address</option>
-                    </select>
+                      <span className="chain-name">Ethereum</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`chain-option ${selectedChain === "8453" ? "selected" : ""}`}
+                      onClick={() => setSelectedChain("8453")}
+                      disabled={loading}
+                    >
+                      <span className="chain-name">Base</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`chain-option ${selectedChain === "137" ? "selected" : ""}`}
+                      onClick={() => setSelectedChain("137")}
+                      disabled={loading}
+                    >
+                      <span className="chain-name">Polygon</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`chain-option ${selectedChain === "42161" ? "selected" : ""}`}
+                      onClick={() => setSelectedChain("42161")}
+                      disabled={loading}
+                    >
+                      <span className="chain-name">Arbitrum</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Token Selection - Top 5 from wallet */}
+                <div className="input-group">
+                  <label>
+                    💰 Select Payment Token
+                    {userTokens.length > 0 && (
+                      <span
+                        style={{
+                          fontWeight: "normal",
+                          fontSize: "0.8rem",
+                          marginLeft: "0.5rem",
+                        }}
+                      >
+                        (Top {userTokens.length} by value)
+                      </span>
+                    )}
+                  </label>
+                  <div className="token-grid">
+                    {userTokens.length > 0 ? (
+                      userTokens.map((token) => (
+                        <button
+                          key={token.address}
+                          type="button"
+                          className={`token-option ${selectedToken === token.address ? "selected" : ""}`}
+                          onClick={() => setSelectedToken(token.address)}
+                          disabled={loading}
+                        >
+                          <div className="token-info">
+                            <div className="token-symbol">{token.symbol}</div>
+                            <div className="token-name">
+                              {token.balance} {token.symbol}
+                            </div>
+                          </div>
+                          {selectedToken === token.address && (
+                            <div className="token-check">✓</div>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <div className="no-tokens">
+                        No tokens found. Connect your wallet or select a
+                        different chain.
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className={`token-option ${selectedToken === "custom" ? "selected" : ""}`}
+                      onClick={() => setSelectedToken("custom")}
+                      disabled={loading}
+                    >
+                      <div className="token-info">
+                        <div className="token-symbol">Custom</div>
+                        <div className="token-name">Other Token</div>
+                      </div>
+                      {selectedToken === "custom" && (
+                        <div className="token-check">✓</div>
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -558,20 +779,6 @@ function App() {
                     <p className="help-text">
                       Enter the ERC-20 token contract address on Base
                     </p>
-                  </div>
-                )}
-
-                {/* Price Display */}
-                {selectedToken && selectedToken !== "preset" && (
-                  <div className="price-display">
-                    <div className="price-label">Payment Amount</div>
-                    <div className="price-value">
-                      {priceInfo === "Loading..." ? (
-                        <span className="loading">⏳ Fetching price...</span>
-                      ) : (
-                        <span>💰 {priceInfo}</span>
-                      )}
-                    </div>
                   </div>
                 )}
               </div>
@@ -679,118 +886,80 @@ function App() {
           {premiumData && (
             <div className="card content-card">
               <div className="content-header">
-                <h2>📊 Premium Market Analysis</h2>
+                <h2>📈 {premiumData.name} ({premiumData.symbol}) Price History</h2>
                 <span className="badge">✨ PAID</span>
               </div>
 
-              {/* Market Analysis */}
+              {/* Price Overview */}
               <div className="section">
-                <h3>Market Analysis</h3>
+                <h3>💰 Current Price</h3>
                 <div className="analysis-grid">
                   <div className="stat">
-                    <span className="stat-label">Trend</span>
-                    <p className="stat-value trend">
-                      {premiumData.marketAnalysis.trend}
+                    <span className="stat-label">Price</span>
+                    <p className="stat-value">${premiumData.currentPrice.toLocaleString()}</p>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">24h Change</span>
+                    <p className={`stat-value ${parseFloat(premiumData.priceChangePercent) >= 0 ? "positive" : "negative"}`}>
+                      {premiumData.priceChangePercent}%
                     </p>
                   </div>
                   <div className="stat">
-                    <span className="stat-label">Confidence</span>
-                    <p className="stat-value">
-                      {(premiumData.marketAnalysis.confidence * 100).toFixed(0)}
-                      %
-                    </p>
+                    <span className="stat-label">24h High</span>
+                    <p className="stat-value">${premiumData.high24h.toLocaleString()}</p>
                   </div>
                   <div className="stat">
-                    <span className="stat-label">Timeframe</span>
-                    <p className="stat-value">
-                      {premiumData.marketAnalysis.timeframe}
-                    </p>
+                    <span className="stat-label">24h Low</span>
+                    <p className="stat-value">${premiumData.low24h.toLocaleString()}</p>
                   </div>
-                </div>
-                <div className="signals">
-                  <span className="stat-label">Signals</span>
-                  <ul>
-                    {premiumData.marketAnalysis.signals.map((signal, i) => (
-                      <li key={i}>{signal}</li>
-                    ))}
-                  </ul>
+                  <div className="stat">
+                    <span className="stat-label">Data Points</span>
+                    <p className="stat-value">{premiumData.dataPoints}</p>
+                  </div>
                 </div>
               </div>
 
-              {/* Price Predictions */}
+              {/* Price History Sample */}
               <div className="section">
-                <h3>Price Predictions</h3>
-                <div className="predictions-grid">
-                  {Object.entries(premiumData.predictions).map(
-                    ([symbol, pred]) => (
-                      <div key={symbol} className="prediction-card">
-                        <h4>{symbol.toUpperCase()}</h4>
-                        <p className="price">{pred.price}</p>
-                        <p className="change">{pred.change}</p>
-                        <p className="timeframe">{pred.timeframe}</p>
-                      </div>
-                    ),
-                  )}
-                </div>
-              </div>
-
-              {/* Recommendations */}
-              <div className="section">
-                <h3>Recommendations</h3>
-                <div className="recommendations">
-                  {premiumData.recommendations.map((rec, i) => (
-                    <div key={i} className="recommendation">
-                      <div className="rec-header">
-                        <span className="asset">{rec.asset}</span>
-                        <span className={`action ${rec.action.toLowerCase()}`}>
-                          {rec.action}
-                        </span>
-                      </div>
-                      <p className="reason">{rec.reason}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Whale Activity */}
-              <div className="section">
-                <h3>Whale Activity</h3>
-                <div className="whale-stats">
-                  <div className="stat">
-                    <span className="stat-label">Large Transfers (24h)</span>
-                    <p className="stat-value">
-                      {premiumData.whaleActivity.largeTransfers}
-                    </p>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-label">Net Flow</span>
-                    <p className="stat-value positive">
-                      {premiumData.whaleActivity.netFlow}
-                    </p>
-                  </div>
-                </div>
-                <div className="whale-wallets">
-                  <span className="stat-label">Top Wallets</span>
-                  {premiumData.whaleActivity.topWallets.map((wallet, i) => (
-                    <div key={i} className="wallet">
-                      <span className="wallet-address mono">
-                        {wallet.address}
-                      </span>
-                      <div className="wallet-stats">
-                        <span className="balance">{wallet.balance}</span>
-                        <span
-                          className={`change ${wallet.change.startsWith("+") ? "positive" : "negative"}`}
-                        >
-                          {wallet.change}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <h3>📊 Recent Price History (Last 10 data points)</h3>
+                <div className="price-history-table">
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--border-primary)" }}>
+                        <th style={{ padding: "0.75rem", textAlign: "left" }}>Time</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Open</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>High</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Low</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Close</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {premiumData.priceHistory.slice(-10).reverse().map((item, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border-primary)" }}>
+                          <td style={{ padding: "0.75rem", fontSize: "0.875rem" }}>
+                            {new Date(item.timestamp).toLocaleTimeString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem" }}>
+                            ${item.open.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "var(--accent-success)" }}>
+                            ${item.high.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "var(--accent-error)" }}>
+                            ${item.low.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", fontWeight: "600" }}>
+                            ${item.close.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
               <div className="timestamp">
-                Generated at {new Date(premiumData.timestamp).toLocaleString()}
+                Data fetched at {new Date(premiumData.timestamp).toLocaleString()}
               </div>
             </div>
           )}
