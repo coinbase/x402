@@ -32,9 +32,29 @@ if (!process.env.SIMDUNE_API_KEY) {
 const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY!;
 const SIMDUNE_API_KEY = process.env.SIMDUNE_API_KEY!;
 
+// USDC on Base
+// app.use(
+//   paymentMiddleware(
+//     PAYTO_ADDRESS,
+//     {
+//       "POST /api/premium": {
+//         price: PAYMENT_AMOUNT_USD,
+//         network: NETWORK,
+//         config: {
+//           description: "Access to premium market analysis data",
+//           mimeType: "application/json",
+//         },
+//       },
+//     },
+//     {
+//       url: FACILITATOR_URL,
+//     },
+//   ),
+// );
+
+// B3 on base
 // Apply payment middleware to protected routes
-app.use(
-  paymentMiddleware(
+app.use(  paymentMiddleware(
     PAYTO_ADDRESS,
     {
       "POST /api/premium": {
