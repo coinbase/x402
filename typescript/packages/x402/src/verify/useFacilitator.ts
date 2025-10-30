@@ -1,8 +1,8 @@
 import { toJsonSafe } from "../shared";
 import {
+  FacilitatorConfig,
   ListDiscoveryResourcesRequest,
   ListDiscoveryResourcesResponse,
-  FacilitatorConfig,
   SupportedPaymentKindsResponse,
 } from "../types";
 import {
@@ -46,7 +46,11 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       const authHeaders = await facilitator.createAuthHeaders();
       headers = { ...headers, ...authHeaders.verify };
     }
-
+    console.log("url", url);
+    console.log("headers", headers);
+    console.log("payload", payload);
+    console.log("paymentRequirements", paymentRequirements);
+    
     const res = await fetch(`${url}/verify`, {
       method: "POST",
       headers,

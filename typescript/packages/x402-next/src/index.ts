@@ -1,16 +1,18 @@
+import type { Address as SolanaAddress } from "@solana/kit";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address, getAddress } from "viem";
-import type { Address as SolanaAddress } from "@solana/kit";
+import { getPaywallHtml } from "x402/paywall";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
   processPriceToAtomicAmount,
+  safeBase64Encode,
   toJsonSafe,
 } from "x402/shared";
-import { getPaywallHtml } from "x402/paywall";
+import { isUsdcAddress } from "x402/shared/evm";
 import {
   ERC20TokenAmount,
   evmSignatureTypes,
@@ -19,14 +21,13 @@ import {
   Network,
   PaymentPayload,
   PaymentRequirements,
+  PaywallConfig,
   Resource,
   RoutesConfig,
-  PaywallConfig,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
-import { safeBase64Encode } from "x402/shared";
 
 import { POST } from "./api/session-token";
 
@@ -227,56 +228,75 @@ export function paymentMiddleware(
       paymentRequirements[0].srcTokenAddress = preferredToken ?? undefined;
       paymentRequirements[0].srcNetwork = (preferredNetwork as Network) ?? undefined;
 
-      const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          srcTokenAddress: preferredToken,
-          dstTokenAddress: asset.address,
-          dstAmount: maxAmountRequired.toString(),
-          srcNetwork: preferredNetwork,
-          dstNetwork: network,
-        }),
-      });
-      if (!quoteResponse.ok) {
-        throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
-      }
-      const quote = (await quoteResponse.json()) as {
-        data: {
-          paymentAmount: string;
-          facilitatorAddress?: string;
-          signatureType?: string;
-          domain?: {
-            name: string;
-            version: string;
-            chainId: number;
-            verifyingContract: string;
+      // Check if preferred token is USDC on any chain - skip quote if paying with USDC
+      // If no preferredToken is provided, default to USDC
+      const isUsdcPayment = !preferredToken || isUsdcAddress(preferredToken);
+
+      // Also check if it matches destination token on same network (for non-USDC cases)
+      const isSameTokenAndNetwork =
+        preferredToken &&
+        preferredToken.toLowerCase() === asset.address.toLowerCase() &&
+        preferredNetwork === network;
+
+      if (!isUsdcPayment || !isSameTokenAndNetwork) {
+        const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            srcTokenAddress: preferredToken,
+            dstTokenAddress: asset.address,
+            dstAmount: maxAmountRequired.toString(),
+            srcNetwork: preferredNetwork,
+            dstNetwork: network,
+          }),
+        });
+        if (!quoteResponse.ok) {
+          throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
+        }
+        const quote = (await quoteResponse.json()) as {
+          data: {
+            paymentAmount: string;
+            facilitatorAddress?: string;
+            signatureType?: string;
+            domain?: {
+              name: string;
+              version: string;
+              chainId: number;
+              verifyingContract: string;
+            };
           };
         };
-      };
 
-      paymentRequirements[0].asset = preferredToken as string;
-      paymentRequirements[0].maxAmountRequired = quote.data.paymentAmount;
+        paymentRequirements[0].asset = preferredToken as string;
+        paymentRequirements[0].maxAmountRequired = quote.data.paymentAmount;
 
-      // Replace extra field with only quote response data (remove default eip712 domain)
-      paymentRequirements[0].extra = {};
+        // Replace extra field with only quote response data (remove default eip712 domain)
+        paymentRequirements[0].extra = {};
 
-      // Add domain from quote response if provided
-      if (quote.data.domain) {
-        paymentRequirements[0].extra.name = quote.data.domain.name;
-        paymentRequirements[0].extra.version = quote.data.domain.version;
-        paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
-        paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
-      }
+        // Add domain from quote response if provided
+        if (quote.data.domain) {
+          paymentRequirements[0].extra.name = quote.data.domain.name;
+          paymentRequirements[0].extra.version = quote.data.domain.version;
+          paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
+          paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
+        }
 
-      // Add facilitatorAddress from quote response to extra field if provided
-      if (quote.data.facilitatorAddress) {
-        paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
-      }
+        // Add facilitatorAddress from quote response to extra field if provided
+        if (quote.data.facilitatorAddress) {
+          paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
+        }
 
-      if (quote.data.signatureType) {
-        paymentRequirements[0].extra.signatureType = quote.data
-          .signatureType as (typeof evmSignatureTypes)[number];
+        if (quote.data.signatureType) {
+          paymentRequirements[0].extra.signatureType = quote.data
+            .signatureType as (typeof evmSignatureTypes)[number];
+        }
+      } else {
+        if (isUsdcPayment) {
+          console.log("✓ Paying with USDC - skipping quote");
+        } else {
+          console.log("✓ Paying with destination token on same network - skipping quote");
+        }
+        paymentRequirements[0].srcAmountRequired = maxAmountRequired.toString();
       }
 
       console.log(
@@ -434,6 +454,7 @@ export function paymentMiddleware(
   };
 }
 
+export type { Address as SolanaAddress } from "@solana/kit";
 export type {
   Money,
   Network,
@@ -442,7 +463,6 @@ export type {
   RouteConfig,
   RoutesConfig,
 } from "x402/types";
-export type { Address as SolanaAddress } from "@solana/kit";
 
 // Export session token API handlers for Onramp
 export { POST };

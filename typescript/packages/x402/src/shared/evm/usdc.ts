@@ -2,6 +2,7 @@ import { Account, Address, Chain, Client, Transport } from "viem";
 import { ChainConfig, config } from "../../types/shared/evm/config";
 import { usdcABI as abi } from "../../types/shared/evm/erc20PermitABI";
 import { ConnectedClient } from "../../types/shared/evm/wallet";
+import { EvmNetworkToChainId, SvmNetworkToChainId } from "../../types/shared/network";
 
 /**
  * Gets the USDC contract address for the current chain from the client
@@ -91,4 +92,24 @@ export async function getUSDCBalance<
     args: [address],
   });
   return balance as bigint;
+}
+
+/**
+ * Checks if a given token address is USDC on any supported chain
+ *
+ * @param tokenAddress - The token address to check (case-insensitive)
+ * @returns True if the address matches USDC on any chain, false otherwise
+ */
+export function isUsdcAddress(tokenAddress: string): boolean {
+  const lowerCaseAddress = tokenAddress.toLowerCase();
+
+  // Get all chain IDs from supported networks
+  const evmChainIds = Array.from(EvmNetworkToChainId.values());
+  const svmChainIds = Array.from(SvmNetworkToChainId.values());
+  const allChainIds = [...evmChainIds, ...svmChainIds];
+
+  return allChainIds.some(chainId => {
+    const config = getUsdcChainConfigForChain(chainId);
+    return config && config.usdcAddress.toLowerCase() === lowerCaseAddress;
+  });
 }

@@ -16,11 +16,21 @@ app.use(express.json());
 
 // Payment configuration from environment
 const PAYTO_ADDRESS =
-  (process.env.PAYTO_ADDRESS as Address) || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
-const NETWORK = (process.env.NETWORK as "base-sepolia" | "base") || "base-sepolia";
-const PAYMENT_AMOUNT_USD = process.env.PAYMENT_AMOUNT_USD || "1000000"; // Default 1 USDC
+  (process.env.PAYTO_ADDRESS as Address) || "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3";
+const NETWORK = (process.env.NETWORK as "base-sepolia" | "base") || "base";
+const PAYMENT_AMOUNT_USD = process.env.PAYMENT_AMOUNT_USD || "100000000"; // Default 100 USDC (100 * 10^6)
 const FACILITATOR_URL = (process.env.FACILITATOR_URL ||
   "https://facilitator.x402.org") as `${string}://${string}`;
+
+// API Keys from environment
+if (!process.env.COINGECKO_API_KEY) {
+  console.warn("⚠️  COINGECKO_API_KEY not found in .env file");
+}
+if (!process.env.SIMDUNE_API_KEY) {
+  console.warn("⚠️  SIMDUNE_API_KEY not found in .env file");
+}
+const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY!;
+const SIMDUNE_API_KEY = process.env.SIMDUNE_API_KEY!;
 
 // Apply payment middleware to protected routes
 app.use(
@@ -28,10 +38,20 @@ app.use(
     PAYTO_ADDRESS,
     {
       "POST /api/premium": {
-        price: PAYMENT_AMOUNT_USD,
+        price: {
+          amount: "100000000000000000000", // 100 B3 tokens (100 * 10^18)
+          asset: {
+            address: "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3" as Address,
+            decimals: 18,
+            eip712: {
+              name: "B3",
+              version: "1",
+            },
+          },
+        },
         network: NETWORK,
         config: {
-          description: "Access to premium market analysis data",
+          description: "Access to premium ETH price history data from CoinGecko",
           mimeType: "application/json",
         },
       },
@@ -61,12 +81,22 @@ app.get("/health", (req: Request, res: Response) => {
  * - Settling the payment via remote facilitator
  * - Adding X-PAYMENT-RESPONSE header to successful responses
  */
-app.post("/api/premium", (req: Request, res: Response) => {
-  // Return premium data - payment middleware has already handled verification and settlement
-  return res.json({
-    success: true,
-    data: generatePremiumData(),
-  });
+app.post("/api/premium", async (req: Request, res: Response) => {
+  try {
+    // Fetch ETH price history from CoinGecko
+    const premiumData = await fetchEthPriceHistory();
+
+    return res.json({
+      success: true,
+      data: premiumData,
+    });
+  } catch (error) {
+    console.error("Error fetching premium data:", error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch premium data",
+    });
+  }
 });
 
 /**
@@ -76,98 +106,195 @@ app.get("/api/free", (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
-      message: "This is a free endpoint",
+      message: "This is a free endpoint - pay to access ETH price history",
       timestamp: new Date().toISOString(),
     },
   });
 });
 
+// Type definitions for SimDune API response
+interface SimDuneBalance {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  amount?: string;
+  price_usd?: string;
+}
+
+interface SimDuneResponse {
+  balances?: SimDuneBalance[];
+}
+
 /**
- * Generate premium data (example)
+ * Token balances endpoint - Returns user's token balances from SimDune
+ * This is a free endpoint to help users see what tokens they can pay with
  */
-function generatePremiumData() {
-  return {
-    marketAnalysis: {
-      trend: "bullish",
-      confidence: 0.87,
-      timeframe: "30d",
-      signals: [
-        "Strong institutional buying detected",
-        "Increasing on-chain activity",
-        "Positive technical indicators",
-        "Rising social sentiment",
-      ],
-      riskFactors: ["Regulatory uncertainty", "Market volatility", "Macro headwinds"],
-    },
-    predictions: {
-      btc: {
-        price: "$95,000",
-        change: "+5.5%",
-        timeframe: "7d",
-        support: "$88,000",
-        resistance: "$98,000",
+app.get("/api/balances/:address", async (req: Request, res: Response) => {
+  const { address } = req.params;
+  const chainId = req.query.chain_id || "8453"; // Default to Base
+
+  console.log(`Fetching balances for ${address} on chain ${chainId}`);
+
+  try {
+    const url = `https://api.sim.dune.com/v1/evm/balances/${address}?chain_ids=${chainId}&exclude_spam_tokens=true`;
+
+    const response = await fetch(url, {
+      headers: {
+        "X-Sim-Api-Key": SIMDUNE_API_KEY,
       },
-      eth: {
-        price: "$3,200",
-        change: "+6.7%",
-        timeframe: "7d",
-        support: "$2,900",
-        resistance: "$3,400",
+    });
+
+    if (!response.ok) {
+      console.error("SimDune API error:", response.status, await response.text());
+      return res.status(response.status).json({
+        success: false,
+        error: "Failed to fetch balances from SimDune",
+      });
+    }
+
+    const data = (await response.json()) as SimDuneResponse;
+    console.log(`SimDune returned ${data.balances?.length || 0} balances`);
+
+    // Extract balances from the response
+    const balances = data.balances || [];
+
+    // Calculate USD values and sort by value
+    const tokensWithValue = balances
+      .map((balance: any) => {
+        const rawAmount = balance.amount || "0";
+        const decimals = balance.decimals || 18;
+
+        // Convert wei to human-readable format
+        let amount: number;
+        try {
+          const weiBigInt = BigInt(rawAmount.toString().split(".")[0]);
+          amount = Number(weiBigInt) / Math.pow(10, decimals);
+        } catch (e) {
+          amount = parseFloat(rawAmount) / Math.pow(10, decimals);
+        }
+
+        const price = parseFloat(balance.price_usd || "0");
+        const valueUsd = amount * price;
+
+        // Format balance to remove trailing zeros
+        let formattedBalance: string;
+        if (amount > 0 && amount < 0.01) {
+          formattedBalance = amount.toFixed(6).replace(/\.?0+$/, "");
+        } else if (amount >= 0.01 && amount < 1) {
+          formattedBalance = amount.toFixed(4).replace(/\.?0+$/, "");
+        } else {
+          formattedBalance = amount.toFixed(2).replace(/\.?0+$/, "");
+        }
+
+        return {
+          address: balance.address,
+          symbol: balance.symbol || "UNKNOWN",
+          name: balance.name || "Unknown Token",
+          decimals: decimals,
+          balance: formattedBalance,
+          valueUsd: valueUsd,
+        };
+      })
+      .filter((token: any) => token.valueUsd > 0)
+      .sort((a: any, b: any) => b.valueUsd - a.valueUsd)
+      .slice(0, 5); // Top 5
+
+    console.log(`Returning ${tokensWithValue.length} tokens with value`);
+
+    res.json({
+      success: true,
+      tokens: tokensWithValue,
+    });
+  } catch (err) {
+    console.error("Error fetching balances:", err);
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    });
+  }
+});
+
+/**
+ * Fetch ETH price history from CoinGecko
+ */
+async function fetchEthPriceHistory() {
+  try {
+    // Fetch ETH OHLCV data for the last 24 hours (minute intervals)
+    const url =
+      "https://pro-api.coingecko.com/api/v3/coins/ethereum/ohlc?vs_currency=usd&days=1&precision=2";
+
+    console.log("Fetching ETH price history from CoinGecko...");
+
+    const response = await fetch(url, {
+      headers: {
+        "x-cg-pro-api-key": COINGECKO_API_KEY,
       },
-      sol: {
-        price: "$145",
-        change: "+8.2%",
-        timeframe: "7d",
-        support: "$130",
-        resistance: "$155",
-      },
-    },
-    recommendations: [
-      {
-        action: "ACCUMULATE",
-        asset: "BTC",
-        reason: "Strong fundamentals, institutional adoption increasing",
-        priority: "high",
-      },
-      {
-        action: "HOLD",
-        asset: "ETH",
-        reason: "Wait for confirmed breakout above resistance",
-        priority: "medium",
-      },
-      {
-        action: "TAKE_PROFIT",
-        asset: "SOL",
-        reason: "Approaching overbought levels, consider partial profit-taking",
-        priority: "medium",
-      },
-    ],
-    whaleActivity: {
-      largeTransfers: 47,
-      netFlow: "+$23.4M",
-      topWallets: [
-        { address: "0x742d...bEb0", balance: "$124.5M", change: "+2.3%" },
-        { address: "0x8f3b...c7a2", balance: "$89.2M", change: "-1.1%" },
-        { address: "0xa4d9...3fe8", balance: "$76.8M", change: "+5.7%" },
-      ],
-    },
-    timestamp: new Date().toISOString(),
-  };
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("CoinGecko API error:", response.status, errorText);
+      throw new Error(`CoinGecko API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as number[][];
+
+    // Data format: [[timestamp, open, high, low, close], ...]
+    const priceHistory = data.map((item: number[]) => ({
+      timestamp: item[0],
+      open: item[1],
+      high: item[2],
+      low: item[3],
+      close: item[4],
+    }));
+
+    // Calculate statistics
+    const prices = priceHistory.map((p: any) => p.close);
+    const currentPrice = prices[prices.length - 1];
+    const dayStartPrice = prices[0];
+    const highPrice = Math.max(...prices);
+    const lowPrice = Math.min(...prices);
+    const priceChange = currentPrice - dayStartPrice;
+    const priceChangePercent = ((priceChange / dayStartPrice) * 100).toFixed(2);
+
+    return {
+      symbol: "ETH",
+      name: "Ethereum",
+      currentPrice: currentPrice,
+      priceChange: priceChange,
+      priceChangePercent: priceChangePercent,
+      high24h: highPrice,
+      low24h: lowPrice,
+      priceHistory: priceHistory,
+      dataPoints: priceHistory.length,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("Error fetching ETH price history:", error);
+    throw error;
+  }
 }
 
 // Start server
 app.listen(PORT, () => {
-  console.log("\n🚀 AnySpend Express Server with Remote Facilitator");
-  console.log("===================================================");
+  console.log("\n🚀 AnySpend Express Server with CoinGecko Premium Data");
+  console.log("========================================================");
   console.log(`   Server running on: http://localhost:${PORT}`);
   console.log(`   Facilitator URL: ${FACILITATOR_URL}`);
   console.log(`   Network: ${NETWORK}`);
   console.log(`   Payment Amount: ${PAYMENT_AMOUNT_USD}`);
   console.log(`   Pay To: ${PAYTO_ADDRESS}`);
   console.log("\n📝 Available Endpoints:");
-  console.log("   GET  /health        - Health check (free)");
-  console.log("   GET  /api/free      - Free endpoint (no payment)");
-  console.log("   POST /api/premium   - Premium endpoint (requires payment)");
+  console.log("   GET  /health                - Health check (free)");
+  console.log("   GET  /api/free              - Free endpoint (no payment)");
+  console.log("   GET  /api/balances/:address - Token balances (free)");
+  console.log("   POST /api/premium           - ETH price history (requires payment)");
+  console.log("\n💎 Premium Data Includes:");
+  console.log("   • 24-hour ETH price history (OHLC data)");
+  console.log("   • Current price & price change");
+  console.log("   • 24h high/low prices");
+  console.log("   • Historical data points");
   console.log("\n💡 To test:");
   console.log("   Use the React client at http://localhost:3000\n");
 });
