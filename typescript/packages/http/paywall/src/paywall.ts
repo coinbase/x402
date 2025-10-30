@@ -32,6 +32,8 @@ function escapeString(str: string): string {
 /**
  * Gets the EVM chain config from window.x402.config
  * This is a placeholder that will be populated at runtime
+ *
+ * @returns The chain config
  */
 function getChainConfig() {
   // This config will come from the legacy x402 package

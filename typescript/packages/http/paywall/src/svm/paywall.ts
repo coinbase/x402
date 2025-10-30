@@ -2,6 +2,9 @@ import type { PaymentRequirements } from "../types";
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
+ *
+ * @param str - The string to escape
+ * @returns The escaped string
  */
 function escapeString(str: string): string {
   return str
@@ -26,6 +29,9 @@ interface SvmPaywallOptions {
 
 /**
  * Generates SVM-specific paywall HTML
+ *
+ * @param options - The options for generating the paywall
+ * @returns HTML string for the paywall page
  */
 export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
   let SVM_PAYWALL_TEMPLATE: string;

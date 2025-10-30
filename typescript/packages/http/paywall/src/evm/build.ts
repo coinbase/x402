@@ -49,6 +49,9 @@ const options: esbuild.BuildOptions = {
   external: ["crypto"],
 };
 
+/**
+ * Builds the EVM paywall HTML template with bundled JS and CSS.
+ */
 async function build() {
   try {
     if (!fs.existsSync(DIST_DIR)) {

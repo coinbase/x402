@@ -12,6 +12,9 @@ import { getSvmPaywallHtml } from "./paywall";
 export const svmPaywall: PaywallNetworkHandler = {
   /**
    * Check if this handler supports the given payment requirement
+   *
+   * @param requirement - The payment requirement to check
+   * @returns True if this handler can process this requirement
    */
   supports(requirement: PaymentRequirements): boolean {
     const network = requirement.network;
@@ -29,6 +32,11 @@ export const svmPaywall: PaywallNetworkHandler = {
 
   /**
    * Generate SVM-specific paywall HTML
+   *
+   * @param requirement - The selected payment requirement
+   * @param paymentRequired - Full payment required response
+   * @param config - Paywall configuration
+   * @returns HTML string for the paywall page
    */
   generateHtml(
     requirement: PaymentRequirements,

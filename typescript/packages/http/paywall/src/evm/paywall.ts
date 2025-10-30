@@ -2,6 +2,9 @@ import type { PaymentRequirements } from "../types";
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
+ *
+ * @param str - The string to escape
+ * @returns The escaped string
  */
 function escapeString(str: string): string {
   return str
@@ -15,6 +18,8 @@ function escapeString(str: string): string {
 
 /**
  * Gets the EVM chain config
+ *
+ * @returns The EVM chain config
  */
 function getChainConfig() {
   return {
@@ -42,6 +47,17 @@ interface EvmPaywallOptions {
 
 /**
  * Generates EVM-specific paywall HTML
+ *
+ * @param options - The options for generating the paywall
+ * @param options.amount - The amount to be paid in USD
+ * @param options.paymentRequirements - The payment requirements for the content
+ * @param options.currentUrl - The URL of the content being accessed
+ * @param options.testnet - Whether to use testnet or mainnet
+ * @param options.cdpClientKey - CDP client API key for OnchainKit
+ * @param options.appName - The name of the application to display in the wallet connection modal
+ * @param options.appLogo - The logo of the application to display in the wallet connection modal
+ * @param options.sessionTokenEndpoint - The API endpoint for generating session tokens for Onramp authentication
+ * @returns HTML string for the paywall page
  */
 export function getEvmPaywallHtml(options: EvmPaywallOptions): string {
   let EVM_PAYWALL_TEMPLATE: string;
