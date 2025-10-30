@@ -3,4 +3,4 @@
  * This module provides paywall functionality for the x402 payment protocol.
  */
 
-export {};
+export { getPaywallHtml } from "./paywall";
