@@ -39,6 +39,13 @@ export interface PaywallConfig {
 }
 
 /**
+ * Paywall provider interface for generating HTML
+ */
+export interface PaywallProvider {
+  generateHtml(paymentRequired: PaymentRequired, config?: PaywallConfig): string;
+}
+
+/**
  * Route configuration for HTTP endpoints
  */
 export interface RouteConfig {
@@ -114,6 +121,7 @@ export type HTTPProcessResult =
  */
 export class x402HTTPResourceService extends x402ResourceService {
   private compiledRoutes: CompiledRoute[] = [];
+  private paywallProvider?: PaywallProvider;
 
   /**
    * Creates a new x402HTTPResourceService instance.
@@ -138,6 +146,15 @@ export class x402HTTPResourceService extends x402ResourceService {
         config,
       });
     }
+  }
+
+  /**
+   * Set a custom paywall provider for generating HTML
+   *
+   * @param provider - PaywallProvider instance
+   */
+  setPaywallProvider(provider: PaywallProvider): void {
+    this.paywallProvider = provider;
   }
 
   /**
@@ -456,15 +473,19 @@ export class x402HTTPResourceService extends x402ResourceService {
       return customHtml;
     }
 
+    // Use custom paywall provider if set
+    if (this.paywallProvider) {
+      return this.paywallProvider.generateHtml(paymentRequired, paywallConfig);
+    }
+
     // Try to use @x402/paywall if available (optional dependency)
     try {
-      // @ts-ignore - Optional dependency
-      const { getPaywallHtml } = require("@x402/paywall");
-      
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const paywall = require("@x402/paywall");
       const displayAmount = this.getDisplayAmount(paymentRequired);
       const resource = paymentRequired.resource;
-      
-      return getPaywallHtml({
+
+      return paywall.getPaywallHtml({
         amount: displayAmount,
         paymentRequirements: paymentRequired.accepts,
         currentUrl: resource?.url || paywallConfig?.currentUrl || "",
@@ -474,7 +495,7 @@ export class x402HTTPResourceService extends x402ResourceService {
         appLogo: paywallConfig?.appLogo,
         sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
       });
-    } catch (error) {
+    } catch {
       // @x402/paywall not installed, fall back to basic HTML
     }
 

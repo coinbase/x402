@@ -1,17 +1,6 @@
 import { PAYWALL_TEMPLATE } from "./gen/template";
 
-// Define PaymentRequirements inline to avoid import issues during build
-interface PaymentRequirements {
-  scheme: string;
-  network: string;
-  amount: string;
-  asset: string;
-  payTo: string;
-  maxTimeoutSeconds: number;
-  extra?: Record<string, unknown>;
-  // V1 compatibility
-  maxAmountRequired?: string;
-}
+import type { PaymentRequirements } from "./types";
 
 interface PaywallOptions {
   amount: number;
