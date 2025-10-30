@@ -1,6 +1,7 @@
+import { Address as SolanaAddress } from "@solana/kit";
 import { NextFunction, Request, Response } from "express";
 import { Address, getAddress } from "viem";
-import { Address as SolanaAddress } from "@solana/kit";
+import { getPaywallHtml } from "x402/paywall";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
@@ -9,11 +10,12 @@ import {
   processPriceToAtomicAmount,
   toJsonSafe,
 } from "x402/shared";
-import { getPaywallHtml } from "x402/paywall";
 import {
-  FacilitatorConfig,
   ERC20TokenAmount,
+  evmSignatureTypes,
+  FacilitatorConfig,
   moneySchema,
+  Network,
   PaymentPayload,
   PaymentRequirements,
   PaywallConfig,
@@ -94,6 +96,7 @@ export function paymentMiddleware(
     if (!matchingRoute) {
       return next();
     }
+    console.log("matchingRoute", matchingRoute);
 
     const { price, network, config = {} } = matchingRoute.config;
     const {
@@ -106,6 +109,8 @@ export function paymentMiddleware(
       resource,
       discoverable,
     } = config;
+
+    console.log("config", config);
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
@@ -129,7 +134,7 @@ export function paymentMiddleware(
         description: description ?? "",
         mimeType: mimeType ?? "",
         payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 120,
         asset: getAddress(asset.address),
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
@@ -172,7 +177,7 @@ export function paymentMiddleware(
         description: description ?? "",
         mimeType: mimeType ?? "",
         payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? 120,
         asset: asset.address,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
@@ -190,6 +195,72 @@ export function paymentMiddleware(
       });
     } else {
       throw new Error(`Unsupported network: ${network}`);
+    }
+
+    // Read payment preference headers from client
+    const preferredToken = req.header("X-PREFERRED-TOKEN");
+    const preferredNetwork = req.header("X-PREFERRED-NETWORK");
+    const paymentHeader = req.header("X-PAYMENT");
+
+    // Add source token and network information to payment requirements, only if no payment header is present
+    if ((preferredToken || preferredNetwork) && !paymentHeader) {
+      paymentRequirements[0].srcTokenAddress = preferredToken;
+      paymentRequirements[0].srcNetwork = preferredNetwork as Network;
+
+      const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          srcTokenAddress: preferredToken,
+          dstTokenAddress: asset.address,
+          dstAmount: maxAmountRequired.toString(),
+          srcNetwork: preferredNetwork,
+          dstNetwork: network,
+        }),
+      });
+      if (!quoteResponse.ok) {
+        throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
+      }
+      const quote = (await quoteResponse.json()) as {
+        data: {
+          paymentAmount: string;
+          facilitatorAddress?: string;
+          signatureType?: string;
+          domain?: {
+            name: string;
+            version: string;
+            chainId: number;
+            verifyingContract: string;
+          };
+        };
+      };
+      console.log("quote", quote);
+      paymentRequirements[0].asset = asset.address;
+      paymentRequirements[0].maxAmountRequired = maxAmountRequired.toString();
+      paymentRequirements[0].srcAmountRequired = quote.data.paymentAmount.toString();
+
+      // Replace extra field with only quote response data (remove default eip712 domain)
+      paymentRequirements[0].extra = {};
+
+      // Add domain from quote response if provided
+      if (quote.data.domain) {
+        paymentRequirements[0].extra.name = quote.data.domain.name;
+        paymentRequirements[0].extra.version = quote.data.domain.version;
+        paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
+        paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
+      }
+
+      // Add facilitatorAddress from quote response to extra field if provided
+      if (quote.data.facilitatorAddress) {
+        paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
+      }
+
+      if (quote.data.signatureType) {
+        paymentRequirements[0].extra.signatureType = quote.data
+          .signatureType as (typeof evmSignatureTypes)[number];
+      }
+
+      console.log("paymentRequirements", paymentRequirements);
     }
 
     const payment = req.header("X-PAYMENT");
@@ -264,8 +335,23 @@ export function paymentMiddleware(
       return;
     }
 
+    // Add source token and network information from preference headers for cross-chain payments
+    // These should be set if the client originally requested to pay with a different token/network
+    const preferredTokenForVerify = req.header("X-PREFERRED-TOKEN");
+    const preferredNetworkForVerify = req.header("X-PREFERRED-NETWORK");
+
+    if (preferredTokenForVerify || preferredNetworkForVerify) {
+      selectedPaymentRequirements.srcTokenAddress = preferredTokenForVerify;
+      selectedPaymentRequirements.srcNetwork = preferredNetworkForVerify as Network;
+    }
+
+    console.log("Calling verify...");
+    console.log("decodedPayment", decodedPayment);
+    console.log("selectedPaymentRequirements", selectedPaymentRequirements);
+
     try {
       const response = await verify(decodedPayment, selectedPaymentRequirements);
+      console.log("Verify response:", response);
       if (!response.isValid) {
         res.status(402).json({
           x402Version,
@@ -346,6 +432,7 @@ export function paymentMiddleware(
   };
 }
 
+export type { Address as SolanaAddress } from "@solana/kit";
 export type {
   Money,
   Network,
@@ -354,4 +441,3 @@ export type {
   RouteConfig,
   RoutesConfig,
 } from "x402/types";
-export type { Address as SolanaAddress } from "@solana/kit";

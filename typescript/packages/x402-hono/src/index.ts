@@ -12,8 +12,10 @@ import {
 import { getPaywallHtml } from "x402/paywall";
 import {
   ERC20TokenAmount,
+  evmSignatureTypes,
   FacilitatorConfig,
   moneySchema,
+  Network,
   PaymentPayload,
   PaymentRequirements,
   Resource,
@@ -102,6 +104,7 @@ export function paymentMiddleware(
       resource,
       errorMessages,
       discoverable,
+      signatureType,
     } = config;
 
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -137,7 +140,11 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: {
+          ...(asset as ERC20TokenAmount["asset"]).eip712,
+          // Include signatureType if specified (defaults to "authorization" on client for backward compatibility)
+          ...(signatureType && { signatureType }),
+        },
       });
     }
     // svm networks
@@ -186,6 +193,72 @@ export function paymentMiddleware(
       });
     } else {
       throw new Error(`Unsupported network: ${network}`);
+    }
+
+    // Read payment preference headers from client
+    const preferredToken = c.req.header("X-PREFERRED-TOKEN");
+    const preferredNetwork = c.req.header("X-PREFERRED-NETWORK");
+
+    // Add source token and network information to payment requirements
+    if (preferredToken || preferredNetwork) {
+      paymentRequirements[0].srcTokenAddress = preferredToken;
+      paymentRequirements[0].srcNetwork = preferredNetwork as Network;
+
+      const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          srcTokenAddress: preferredToken,
+          dstTokenAddress: asset.address,
+          dstAmount: maxAmountRequired.toString(),
+          srcNetwork: preferredNetwork,
+          dstNetwork: network,
+        }),
+      });
+      if (!quoteResponse.ok) {
+        throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
+      }
+      const quote = (await quoteResponse.json()) as {
+        data: {
+          paymentAmount: string;
+          facilitatorAddress?: string;
+          signatureType?: string;
+          domain?: {
+            name: string;
+            version: string;
+            chainId: number;
+            verifyingContract: string;
+          };
+        };
+      };
+
+      paymentRequirements[0].asset = preferredToken as string;
+      paymentRequirements[0].maxAmountRequired = quote.data.paymentAmount;
+
+      // Replace extra field with only quote response data (remove default eip712 domain)
+      paymentRequirements[0].extra = {};
+
+      // Add domain from quote response if provided
+      if (quote.data.domain) {
+        paymentRequirements[0].extra.name = quote.data.domain.name;
+        paymentRequirements[0].extra.version = quote.data.domain.version;
+        paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
+        paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
+      }
+
+      // Add facilitatorAddress from quote response to extra field if provided
+      if (quote.data.facilitatorAddress) {
+        paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
+      }
+
+      if (quote.data.signatureType) {
+        paymentRequirements[0].extra.signatureType = quote.data
+          .signatureType as (typeof evmSignatureTypes)[number];
+      }
+
+      console.log(
+        `Payment preferences received - Token: ${preferredToken}, Network: ${preferredNetwork}`,
+      );
     }
 
     const payment = c.req.header("X-PAYMENT");
@@ -267,6 +340,16 @@ export function paymentMiddleware(
         },
         402,
       );
+    }
+
+    // Add source token and network information from preference headers for cross-chain payments
+    // These should be set if the client originally requested to pay with a different token/network
+    const preferredTokenForVerify = c.req.header("X-PREFERRED-TOKEN");
+    const preferredNetworkForVerify = c.req.header("X-PREFERRED-NETWORK");
+
+    if (preferredTokenForVerify || preferredNetworkForVerify) {
+      selectedPaymentRequirements.srcTokenAddress = preferredTokenForVerify;
+      selectedPaymentRequirements.srcNetwork = preferredNetworkForVerify as Network;
     }
 
     const verification = await verify(decodedPayment, selectedPaymentRequirements);

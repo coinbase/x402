@@ -61,7 +61,10 @@ describe("fetchWithPayment()", () => {
     const result = await wrappedFetch("https://api.example.com");
 
     expect(result).toBe(successResponse);
-    expect(mockFetch).toHaveBeenCalledWith("https://api.example.com", undefined);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://api.example.com",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
   });
 
   it("should handle 402 errors and retry with payment header", async () => {

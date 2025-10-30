@@ -1,9 +1,9 @@
+import { HTTPRequestStructure } from "..";
 import { CreateHeaders } from "../../verify";
+import { EvmSigner } from "./evm";
 import { Money } from "./money";
 import { Network } from "./network";
 import { Resource } from "./resource";
-import { EvmSigner } from "./evm";
-import { HTTPRequestStructure } from "..";
 
 export type FacilitatorConfig = {
   url: Resource;
@@ -26,6 +26,7 @@ export type PaymentMiddlewareConfig = {
   discoverable?: boolean;
   customPaywallHtml?: string;
   resource?: Resource;
+  signatureType?: "authorization" | "permit";
   errorMessages?: {
     paymentRequired?: string;
     invalidPayment?: string;

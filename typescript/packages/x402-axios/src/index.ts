@@ -18,6 +18,23 @@ import {
 } from "x402/client";
 
 /**
+ * Configuration options for payment preferences
+ */
+export interface PaymentPreferences {
+  /**
+   * Preferred token address to pay with (e.g., WETH, DAI, USDC)
+   * If not specified, defaults to USDC
+   */
+  preferredToken?: string;
+
+  /**
+   * Preferred network/chain to pay on (e.g., "base", "ethereum", "arbitrum")
+   * If not specified, uses the wallet's current network
+   */
+  preferredNetwork?: Network;
+}
+
+/**
  * Enables the payment of APIs using the x402 payment protocol.
  *
  * When a request receives a 402 response:
@@ -30,6 +47,7 @@ import {
  * @param walletClient - A wallet client that can sign transactions and create payment headers
  * @param paymentRequirementsSelector - A function that selects the payment requirements from the response
  * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param preferences - Optional payment preferences (preferred token and network)
  * @returns The modified Axios instance with the payment interceptor
  *
  * @example
@@ -37,6 +55,18 @@ import {
  * const client = withPaymentInterceptor(
  *   axios.create(),
  *   signer
+ * );
+ *
+ * // With payment preferences - pay with WETH on Base
+ * const client = withPaymentInterceptor(
+ *   axios.create(),
+ *   signer,
+ *   undefined,
+ *   undefined,
+ *   {
+ *     preferredToken: '0x4200000000000000000000000000000000000006', // WETH on Base
+ *     preferredNetwork: 'base'
+ *   }
  * );
  *
  * // With custom RPC configuration
@@ -56,7 +86,27 @@ export function withPaymentInterceptor(
   walletClient: Signer | MultiNetworkSigner,
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
   config?: X402Config,
+  preferences?: PaymentPreferences,
 ) {
+  // Add request interceptor to inject payment preference headers
+  if (axiosClient.interceptors?.request) {
+    axiosClient.interceptors.request.use(
+      config => {
+        if (preferences?.preferredToken) {
+          config.headers["X-PREFERRED-TOKEN"] = preferences.preferredToken;
+        }
+
+        if (preferences?.preferredNetwork) {
+          config.headers["X-PREFERRED-NETWORK"] = preferences.preferredNetwork;
+        }
+
+        return config;
+      },
+      error => Promise.reject(error),
+    );
+  }
+
+  // Add response interceptor to handle 402 payments
   axiosClient.interceptors.response.use(
     response => response,
     async (error: AxiosError) => {
@@ -101,6 +151,14 @@ export function withPaymentInterceptor(
         originalConfig.headers["X-PAYMENT"] = paymentHeader;
         originalConfig.headers["Access-Control-Expose-Headers"] = "X-PAYMENT-RESPONSE";
 
+        // Ensure preference headers are sent with payment for cross-chain support
+        if (preferences?.preferredToken) {
+          originalConfig.headers["X-PREFERRED-TOKEN"] = preferences.preferredToken;
+        }
+        if (preferences?.preferredNetwork) {
+          originalConfig.headers["X-PREFERRED-NETWORK"] = preferences.preferredNetwork;
+        }
+
         const secondResponse = await axiosClient.request(originalConfig);
         return secondResponse;
       } catch (paymentError) {
@@ -113,6 +171,12 @@ export function withPaymentInterceptor(
 }
 
 export { decodeXPaymentResponse } from "x402/shared";
-export { createSigner, type Signer, type MultiNetworkSigner, type X402Config } from "x402/types";
+export {
+  createSigner,
+  type Signer,
+  type MultiNetworkSigner,
+  type X402Config,
+  type Network,
+} from "x402/types";
 export { type PaymentRequirementsSelector } from "x402/client";
 export type { Hex } from "viem";

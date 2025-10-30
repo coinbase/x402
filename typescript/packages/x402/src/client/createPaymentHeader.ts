@@ -1,4 +1,5 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
+import { createPermitPaymentHeader as createPermitPaymentHeaderExactEVM } from "../schemes/exact/evm/permit-client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
 import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { PaymentRequirements } from "../types/verify";
@@ -29,11 +30,25 @@ export async function createPaymentHeader(
         throw new Error("Invalid evm wallet client provided");
       }
 
-      return await createPaymentHeaderExactEVM(
-        evmClient,
-        x402Version,
-        paymentRequirements,
-      );
+      // Auto-detect signature type from payment requirements
+      // Default to "authorization" (EIP-3009) for backward compatibility
+      const signatureType = paymentRequirements.extra?.signatureType || "authorization";
+
+      if (signatureType === "permit") {
+        // Use ERC-2612 Permit flow
+        return await createPermitPaymentHeaderExactEVM(
+          evmClient,
+          x402Version,
+          paymentRequirements,
+        );
+      } else {
+        // Use EIP-3009 TransferWithAuthorization flow (default)
+        return await createPaymentHeaderExactEVM(
+          evmClient,
+          x402Version,
+          paymentRequirements,
+        );
+      }
     }
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {

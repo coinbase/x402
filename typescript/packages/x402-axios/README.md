@@ -47,20 +47,49 @@ console.log(response.data);
 
 ## API
 
-### `withPaymentInterceptor(axiosClient, walletClient)`
+### `withPaymentInterceptor(axiosClient, walletClient, paymentRequirementsSelector?, config?, preferences?)`
 
-Adds a response interceptor to an Axios instance to handle 402 Payment Required responses automatically.
+Adds interceptors to an Axios instance to handle 402 Payment Required responses automatically.
 
 #### Parameters
 
 - `axiosClient`: The Axios instance to add the interceptor to
 - `walletClient`: The wallet client used to sign payment messages (must implement the x402 wallet interface)
+- `paymentRequirementsSelector`: Optional function to select payment requirements from the response
+- `config`: Optional X402 configuration (e.g., custom RPC URLs)
+- `preferences`: Optional payment preferences to specify preferred token and network
 
 #### Returns
 
-The modified Axios instance with the payment interceptor that will:
-1. Intercept 402 responses
-2. Parse the payment requirements
-3. Create a payment header using the provided wallet client
-4. Retry the original request with the payment header
-5. Expose the X-PAYMENT-RESPONSE header in the final response
+The modified Axios instance with payment interceptors that will:
+1. Add payment preference headers to requests (if preferences specified)
+2. Intercept 402 responses
+3. Parse the payment requirements
+4. Create a payment header using the provided wallet client
+5. Retry the original request with the payment header
+6. Expose the X-PAYMENT-RESPONSE header in the final response
+
+### Payment Preferences
+
+You can specify which token and network you want to pay with:
+
+```typescript
+import axios from "axios";
+import { withPaymentInterceptor, createSigner, type PaymentPreferences } from "x402-axios";
+
+const signer = await createSigner("base-sepolia", privateKey);
+
+// Pay with WETH instead of USDC
+const preferences: PaymentPreferences = {
+  preferredToken: "0x4200000000000000000000000000000000000006", // WETH on Base Sepolia
+  preferredNetwork: "base-sepolia"
+};
+
+const client = axios.create({ baseURL: "https://api.example.com" });
+withPaymentInterceptor(client, signer, undefined, undefined, preferences);
+
+// All requests with this client will use WETH
+await client.get('/data');
+```
+
+See the [Anyspend Integration Guide](../../../ANYSPEND-INTEGRATION.md) for more details on multi-token and cross-chain payments.

@@ -4,6 +4,7 @@ import {
   PaymentPayload,
   PaymentPayloadSchema,
   ExactEvmPayload,
+  ExactEvmPermitPayload,
   ExactSvmPayload,
 } from "../../../../types/verify";
 
@@ -18,20 +19,42 @@ export function encodePayment(payment: PaymentPayload): string {
 
   // evm
   if (SupportedEVMNetworks.includes(payment.network)) {
-    const evmPayload = payment.payload as ExactEvmPayload;
-    safe = {
-      ...payment,
-      payload: {
-        ...evmPayload,
-        authorization: Object.fromEntries(
-          Object.entries(evmPayload.authorization).map(([key, value]) => [
-            key,
-            typeof value === "bigint" ? (value as bigint).toString() : value,
-          ]),
-        ) as ExactEvmPayload["authorization"],
-      },
-    };
-    return safeBase64Encode(JSON.stringify(safe));
+    // Handle EIP-3009 authorization payload
+    if ("authorization" in payment.payload) {
+      const evmPayload = payment.payload as ExactEvmPayload;
+      safe = {
+        ...payment,
+        payload: {
+          ...evmPayload,
+          authorization: Object.fromEntries(
+            Object.entries(evmPayload.authorization).map(([key, value]) => [
+              key,
+              typeof value === "bigint" ? (value as bigint).toString() : value,
+            ]),
+          ) as ExactEvmPayload["authorization"],
+        },
+      };
+      return safeBase64Encode(JSON.stringify(safe));
+    }
+    // Handle ERC-2612 permit payload
+    else if ("permit" in payment.payload) {
+      const permitPayload = payment.payload as ExactEvmPermitPayload;
+      safe = {
+        ...payment,
+        payload: {
+          ...permitPayload,
+          permit: Object.fromEntries(
+            Object.entries(permitPayload.permit).map(([key, value]) => [
+              key,
+              typeof value === "bigint" ? (value as bigint).toString() : value,
+            ]),
+          ) as ExactEvmPermitPayload["permit"],
+        },
+      };
+      return safeBase64Encode(JSON.stringify(safe));
+    } else {
+      throw new Error("Invalid EVM payload: must contain either authorization or permit");
+    }
   }
 
   // svm
@@ -55,11 +78,11 @@ export function decodePayment(payment: string): PaymentPayload {
 
   let obj: PaymentPayload;
 
-  // evm
+  // evm - handles both authorization and permit payloads
   if (SupportedEVMNetworks.includes(parsed.network)) {
     obj = {
       ...parsed,
-      payload: parsed.payload as ExactEvmPayload,
+      payload: parsed.payload as ExactEvmPayload | ExactEvmPermitPayload,
     };
   }
 
@@ -73,6 +96,7 @@ export function decodePayment(payment: string): PaymentPayload {
     throw new Error("Invalid network");
   }
 
+  // PaymentPayloadSchema validates the union type correctly
   const validated = PaymentPayloadSchema.parse(obj);
   return validated;
 }

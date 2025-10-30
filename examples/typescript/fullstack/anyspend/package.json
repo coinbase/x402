@@ -1,0 +1,20 @@
+{
+  "name": "anyspend-fullstack",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter anyspend-server dev\" \"pnpm --filter anyspend-client dev\"",
+    "dev:server": "pnpm --filter anyspend-server dev",
+    "dev:client": "pnpm --filter anyspend-client dev",
+    "build": "pnpm --filter anyspend-server build && pnpm --filter anyspend-client build",
+    "build:server": "pnpm --filter anyspend-server build",
+    "build:client": "pnpm --filter anyspend-client build",
+    "start:server": "pnpm --filter anyspend-server start",
+    "preview:client": "pnpm --filter anyspend-client preview",
+    "lint": "pnpm --filter anyspend-server lint && pnpm --filter anyspend-client lint",
+    "format": "pnpm --filter anyspend-server format && pnpm --filter anyspend-client format"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
