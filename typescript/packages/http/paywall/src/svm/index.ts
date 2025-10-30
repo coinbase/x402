@@ -1,4 +1,9 @@
-import type { PaywallNetworkHandler, PaymentRequirements, PaymentRequired, PaywallConfig } from "../types";
+import type {
+  PaywallNetworkHandler,
+  PaymentRequirements,
+  PaymentRequired,
+  PaywallConfig,
+} from "../types";
 import { getSvmPaywallHtml } from "./paywall";
 
 /**
@@ -10,15 +15,15 @@ export const svmPaywall: PaywallNetworkHandler = {
    */
   supports(requirement: PaymentRequirements): boolean {
     const network = requirement.network;
-    
+
     // Support v2 CAIP-2 format (solana:*)
     if (network.startsWith("solana:")) {
       return true;
     }
-    
+
     // Support v1 legacy Solana networks
     const svmNetworks = ["solana", "solana-devnet"];
-    
+
     return svmNetworks.includes(network);
   },
 
@@ -52,4 +57,3 @@ export const svmPaywall: PaywallNetworkHandler = {
 
 // Also export components for custom UI builders
 export { SolanaPaywall } from "./SolanaPaywall";
-

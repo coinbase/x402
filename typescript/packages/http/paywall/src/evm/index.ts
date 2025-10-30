@@ -1,4 +1,9 @@
-import type { PaywallNetworkHandler, PaymentRequirements, PaymentRequired, PaywallConfig } from "../types";
+import type {
+  PaywallNetworkHandler,
+  PaymentRequirements,
+  PaymentRequired,
+  PaywallConfig,
+} from "../types";
 import { getEvmPaywallHtml } from "./paywall";
 
 /**
@@ -10,12 +15,12 @@ export const evmPaywall: PaywallNetworkHandler = {
    */
   supports(requirement: PaymentRequirements): boolean {
     const network = requirement.network;
-    
+
     // Support v2 CAIP-2 format (eip155:*)
     if (network.startsWith("eip155:")) {
       return true;
     }
-    
+
     // Support v1 legacy EVM networks
     const evmNetworks = [
       "base",
@@ -31,7 +36,7 @@ export const evmPaywall: PaywallNetworkHandler = {
       "polygon-amoy",
       "peaq",
     ];
-    
+
     return evmNetworks.includes(network);
   },
 
@@ -65,4 +70,3 @@ export const evmPaywall: PaywallNetworkHandler = {
 
 // Also export components for custom UI builders
 export { EvmPaywall } from "./EvmPaywall";
-

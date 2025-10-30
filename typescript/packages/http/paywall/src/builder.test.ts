@@ -122,7 +122,7 @@ describe("PaywallBuilder", () => {
     it("extracts amount from v2 payment requirements", () => {
       const paywall = createPaywall().build();
       const html = paywall.generateHtml(mockPaymentRequired);
-      
+
       // Amount should be parsed correctly (100000 / 1000000 = 0.1)
       expect(html).toContain("window.x402");
       expect(html).toContain("0.1");
@@ -193,13 +193,10 @@ describe("PaywallBuilder", () => {
         ],
       };
 
-      const paywall = createPaywall()
-        .withNetwork(evmPaywall)
-        .withNetwork(svmPaywall)
-        .build();
+      const paywall = createPaywall().withNetwork(evmPaywall).withNetwork(svmPaywall).build();
 
       const html = paywall.generateHtml(multiNetworkPaymentRequired);
-      
+
       // Should match first requirement in accepts array (Solana)
       expect(html).toMatch(/SVM Paywall/);
     });
@@ -207,34 +204,31 @@ describe("PaywallBuilder", () => {
     it("falls back to default when no handler matches", () => {
       const customNetworkRequired: PaymentRequired = {
         ...mockPaymentRequired,
-        accepts: [{
-          scheme: "exact",
-          network: "unknown:network",
-          asset: "0x123",
-          amount: "100000",
-          payTo: "0x456",
-          maxTimeoutSeconds: 60,
-        }],
+        accepts: [
+          {
+            scheme: "exact",
+            network: "unknown:network",
+            asset: "0x123",
+            amount: "100000",
+            payTo: "0x456",
+            maxTimeoutSeconds: 60,
+          },
+        ],
       };
 
-      const paywall = createPaywall()
-        .withNetwork(evmPaywall)
-        .withNetwork(svmPaywall)
-        .build();
+      const paywall = createPaywall().withNetwork(evmPaywall).withNetwork(svmPaywall).build();
 
       const html = paywall.generateHtml(customNetworkRequired);
-      
+
       // Should fall back to default paywall
       expect(html).toContain("<!DOCTYPE html>");
     });
 
     it("only uses network handler when registered", () => {
-      const evmOnlyPaywall = createPaywall()
-        .withNetwork(evmPaywall)
-        .build();
+      const evmOnlyPaywall = createPaywall().withNetwork(evmPaywall).build();
 
       const html = evmOnlyPaywall.generateHtml(mockPaymentRequired);
-      
+
       expect(html).toContain("<!DOCTYPE html>");
     });
 
@@ -249,4 +243,3 @@ describe("PaywallBuilder", () => {
     });
   });
 });
-

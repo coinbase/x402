@@ -84,4 +84,3 @@ export interface PaywallNetworkHandler {
     config: PaywallConfig,
   ): string;
 }
-

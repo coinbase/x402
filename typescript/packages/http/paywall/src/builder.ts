@@ -1,5 +1,10 @@
 import { getPaywallHtml } from "./paywall";
-import type { PaywallConfig, PaywallProvider, PaymentRequired, PaywallNetworkHandler } from "./types";
+import type {
+  PaywallConfig,
+  PaywallProvider,
+  PaymentRequired,
+  PaywallNetworkHandler,
+} from "./types";
 
 /**
  * Builder for creating configured paywall providers
@@ -103,4 +108,3 @@ export class PaywallBuilder {
 export function createPaywall(): PaywallBuilder {
   return new PaywallBuilder();
 }
-

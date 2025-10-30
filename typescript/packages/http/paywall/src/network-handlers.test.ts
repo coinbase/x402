@@ -64,7 +64,12 @@ describe("Network Handlers", () => {
 
   describe("svmPaywall", () => {
     it("supports v2 CAIP-2 Solana networks", () => {
-      expect(svmPaywall.supports({ ...svmRequirement, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" })).toBe(true);
+      expect(
+        svmPaywall.supports({
+          ...svmRequirement,
+          network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        }),
+      ).toBe(true);
       expect(svmPaywall.supports({ ...svmRequirement, network: "solana:devnet" })).toBe(true);
     });
 
@@ -90,4 +95,3 @@ describe("Network Handlers", () => {
     });
   });
 });
-

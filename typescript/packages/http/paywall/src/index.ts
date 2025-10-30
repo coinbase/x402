@@ -8,7 +8,13 @@ export { getPaywallHtml } from "./paywall";
 
 // Builder pattern exports (v2)
 export { createPaywall, PaywallBuilder } from "./builder";
-export type { PaywallProvider, PaywallConfig, PaymentRequired, PaywallNetworkHandler, PaymentRequirements } from "./types";
+export type {
+  PaywallProvider,
+  PaywallConfig,
+  PaymentRequired,
+  PaywallNetworkHandler,
+  PaymentRequirements,
+} from "./types";
 
 // Re-export network handlers for convenience
 export { evmPaywall } from "./evm";
