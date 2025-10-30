@@ -20,13 +20,14 @@ export const config = createConfig({
   },
 });
 
-// Common ERC-20 tokens on Base network
+// Common ERC-20 tokens on Base network that support ERC-2612 permit
 export const BASE_TOKENS = [
   {
     symbol: "USDC",
     name: "USD Coin",
     address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     decimals: 6,
+    icon: "💵",
     eip712: {
       name: "USD Coin",
       version: "2",
@@ -34,9 +35,10 @@ export const BASE_TOKENS = [
   },
   {
     symbol: "B3",
-    name: "B3",
+    name: "B3 Token",
     address: "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3",
     decimals: 18,
+    icon: "🟢",
     eip712: {
       name: "B3",
       version: "1",
@@ -47,8 +49,20 @@ export const BASE_TOKENS = [
     name: "Dai Stablecoin",
     address: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb",
     decimals: 18,
+    icon: "🟡",
     eip712: {
       name: "Dai Stablecoin",
+      version: "1",
+    },
+  },
+  {
+    symbol: "USDT",
+    name: "Tether USD",
+    address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+    decimals: 6,
+    icon: "🟢",
+    eip712: {
+      name: "Tether USD",
       version: "1",
     },
   },

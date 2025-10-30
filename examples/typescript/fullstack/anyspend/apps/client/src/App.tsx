@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { publicActions } from "viem";
 import {
   useAccount,
@@ -18,7 +18,7 @@ import "./App.css";
 import { BASE_TOKENS } from "./wagmi.config";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-const MAX_PAYMENT_VALUE = BigInt( 1 * 10 ** 25); // 1 USDC max
+const MAX_PAYMENT_VALUE = BigInt(1 * 10 ** 25); // 1 USDC max
 
 interface PaymentInfo {
   status: string;
@@ -73,16 +73,197 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [premiumData, setPremiumData] = useState<PremiumData | null>(null);
+  const [priceInfo, setPriceInfo] = useState<string>("Loading...");
 
   // Set default preset token when connected (default to B3)
-  if (isConnected && selectedToken === "preset" && BASE_TOKENS.length > 0) {
-    setSelectedToken(BASE_TOKENS[1].address); // B3 token
-  }
+  useEffect(() => {
+    if (isConnected && selectedToken === "preset" && BASE_TOKENS.length > 0) {
+      setSelectedToken(BASE_TOKENS[0].address); // B3 token
+    }
+  }, [isConnected, selectedToken]);
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs((prev) => [...prev, `${timestamp}: ${message}`]);
   };
+
+  const getTokenIcon = (address: string) => {
+    const token = BASE_TOKENS.find(
+      (t) => t.address.toLowerCase() === address.toLowerCase(),
+    );
+    if (!token) return { className: "custom", symbol: "?" };
+    return {
+      className: token.symbol.toLowerCase(),
+      symbol: token.symbol.charAt(0),
+    };
+  };
+
+  // Fetch price information from server
+  useEffect(() => {
+    const fetchPriceInfo = async () => {
+      try {
+        let tokenAddress = selectedToken;
+
+        // Handle custom token
+        if (selectedToken === "custom") {
+          tokenAddress = customTokenAddress;
+        }
+
+        // Skip if no valid token
+        if (
+          !tokenAddress ||
+          tokenAddress === "preset" ||
+          !tokenAddress.startsWith("0x")
+        ) {
+          console.log("Skipping price fetch - invalid token:", tokenAddress);
+          setPriceInfo("1 USDC");
+          return;
+        }
+
+        console.log("Fetching price for token:", tokenAddress);
+
+        // Make a request to get payment requirements (402 response)
+        const headers: HeadersInit = {};
+
+        // Only add X-PREFERRED-TOKEN if it's not USDC (USDC is the default)
+        const usdcAddress =
+          "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
+        if (tokenAddress.toLowerCase() !== usdcAddress) {
+          headers["X-PREFERRED-TOKEN"] = tokenAddress;
+          headers["X-PREFERRED-NETWORK"] = "base";
+          console.log("Using preferred token:", tokenAddress);
+        } else {
+          console.log("Using default USDC (no preference header)");
+        }
+
+        const response = await fetch(`${API_BASE_URL}/api/premium`, {
+          method: "POST",
+          headers,
+        });
+
+        console.log("Price fetch response status:", response.status);
+
+        // If 402, parse the payment requirements
+        if (response.status === 402) {
+          const data = await response.json();
+          console.log("Payment requirements:", data);
+
+          // Check for 'accepts' array (new format)
+          const paymentReqs = data.accepts || data.paymentRequirements || [];
+
+          if (paymentReqs.length > 0) {
+            const req = paymentReqs[0];
+
+            // Use srcAmountRequired if available, otherwise fall back to amount or maxAmountRequired
+            const amountStr =
+              req.srcAmountRequired || req.amount || req.maxAmountRequired;
+
+            if (!amountStr) {
+              console.log("No amount found in payment requirement");
+              setPriceInfo("1 USDC");
+              return;
+            }
+
+            const amount = BigInt(amountStr);
+
+            // Get decimals from the source token
+            let decimals = 18; // Default for most ERC-20 tokens
+
+            // Try to get decimals from the token in our list
+            const srcToken = BASE_TOKENS.find(
+              (t) =>
+                t.address.toLowerCase() ===
+                (req.srcTokenAddress || req.asset || "").toLowerCase(),
+            );
+
+            if (srcToken) {
+              decimals = srcToken.decimals;
+            } else if (req.decimals) {
+              decimals = req.decimals;
+            }
+
+            console.log("Amount:", amountStr, "Decimals:", decimals);
+
+            // Convert to human-readable format with 6 decimal places
+            const divisor = BigInt(10 ** decimals);
+            const integerPart = amount / divisor;
+            const fractionalPart = amount % divisor;
+
+            // Format the price with 6 decimal places
+            let priceStr = integerPart.toString();
+            if (fractionalPart > 0) {
+              const fracStr = fractionalPart.toString().padStart(decimals, "0");
+              // Take first 6 decimals
+              const displayDecimals = fracStr.slice(0, 6);
+              priceStr += "." + displayDecimals;
+            } else {
+              // If no fractional part, still show .000000
+              priceStr += ".000000";
+            }
+
+            // Get token symbol - prioritize source token
+            let symbol = "tokens";
+
+            // First try the source token address
+            if (req.srcTokenAddress) {
+              const sourceToken = BASE_TOKENS.find(
+                (t) =>
+                  t.address.toLowerCase() === req.srcTokenAddress.toLowerCase(),
+              );
+              if (sourceToken) {
+                symbol = sourceToken.symbol;
+              }
+            }
+
+            // Fall back to extra.name if available
+            if (symbol === "tokens" && req.extra?.name) {
+              symbol = req.extra.name;
+            }
+
+            // Fall back to requested token
+            if (symbol === "tokens") {
+              const requestedToken = BASE_TOKENS.find(
+                (t) => t.address.toLowerCase() === tokenAddress.toLowerCase(),
+              );
+              if (requestedToken) {
+                symbol = requestedToken.symbol;
+              }
+            }
+
+            // Fall back to asset token
+            if (symbol === "tokens" && req.asset) {
+              const assetToken = BASE_TOKENS.find(
+                (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
+              );
+              if (assetToken) {
+                symbol = assetToken.symbol;
+              }
+            }
+
+            const priceText = `${priceStr} ${symbol}`;
+            console.log("Setting price to:", priceText);
+            setPriceInfo(priceText);
+          } else {
+            console.log("No payment requirements found");
+            setPriceInfo("1 USDC");
+          }
+        } else {
+          console.log("Non-402 response, using default");
+          setPriceInfo("1 USDC");
+        }
+      } catch (err) {
+        console.error("Failed to fetch price info:", err);
+        setPriceInfo("1 USDC");
+      }
+    };
+
+    if (isConnected && selectedToken && selectedToken !== "preset") {
+      fetchPriceInfo();
+    } else if (!isConnected || selectedToken === "preset") {
+      // Set default when not connected or preset
+      setPriceInfo("Loading...");
+    }
+  }, [isConnected, selectedToken, customTokenAddress]);
 
   const fetchPremiumData = async () => {
     if (!isConnected || !walletClient || !address) {
@@ -129,6 +310,23 @@ function App() {
       // Extend wallet client with public actions to make it compatible with Signer type
       const extendedWalletClient = walletClient.extend(publicActions);
 
+      // Only set payment preferences if not using default USDC
+      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+      const paymentPreferences =
+        tokenAddress.toLowerCase() !== usdcAddress.toLowerCase()
+          ? {
+              // Payment preferences - tell server which token we want to pay with
+              preferredToken: tokenAddress,
+              preferredNetwork: "base" as const,
+            }
+          : undefined; // Use default (USDC) when undefined
+
+      if (paymentPreferences) {
+        addLog(`💡 Using preferred token: ${tokenAddress}`);
+      } else {
+        addLog(`💡 Using default token (USDC)`);
+      }
+
       // Wrap fetch with automatic payment handling and payment preferences
       const fetchWithPayment = wrapFetchWithPayment(
         fetch,
@@ -136,11 +334,7 @@ function App() {
         MAX_PAYMENT_VALUE, // Max 1 USDC
         undefined, // Use default payment requirements selector
         undefined, // Use default config
-        {
-          // Payment preferences - tell server which token we want to pay with
-          preferredToken: tokenAddress,
-          preferredNetwork: "base",
-        },
+        paymentPreferences,
       );
 
       addLog(
@@ -148,39 +342,49 @@ function App() {
       );
 
       // Make request - payment preferences are automatically added as headers
-      const response = await fetchWithPayment(`${API_BASE_URL}/api/premium`, {
-        method: "POST",
-      });
-
-      addLog(`Server responded with status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || errorData.error || "Request failed",
-        );
-      }
-
-      // Get payment response header if present
-      const paymentResponseHeader = response.headers.get("X-PAYMENT-RESPONSE");
-      if (paymentResponseHeader) {
-        const paymentInfo = decodeXPaymentResponse(paymentResponseHeader);
-        addLog(`✅ Payment ${paymentInfo.success ? "settled" : "verified"}`);
-        if (paymentInfo.transaction) {
-          addLog(`Transaction: ${paymentInfo.transaction}`);
-        }
-        setPaymentInfo({
-          status: paymentInfo.success ? "settled" : "verified",
-          payer: paymentInfo.payer,
-          transaction: paymentInfo.transaction,
-          network: paymentInfo.network,
+      try {
+        const response = await fetchWithPayment(`${API_BASE_URL}/api/premium`, {
+          method: "POST",
         });
-      }
 
-      // Get the response data
-      const data = await response.json();
-      addLog("🎉 Premium content received!");
-      setPremiumData(data.data);
+        addLog(`✅ Server responded with status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || errorData.error || "Request failed",
+          );
+        }
+
+        // Get payment response header if present
+        const paymentResponseHeader =
+          response.headers.get("X-PAYMENT-RESPONSE");
+        if (paymentResponseHeader) {
+          const paymentInfo = decodeXPaymentResponse(paymentResponseHeader);
+          addLog(`✅ Payment ${paymentInfo.success ? "settled" : "verified"}`);
+          if (paymentInfo.transaction) {
+            addLog(`Transaction: ${paymentInfo.transaction}`);
+          }
+          setPaymentInfo({
+            status: paymentInfo.success ? "settled" : "verified",
+            payer: paymentInfo.payer,
+            transaction: paymentInfo.transaction,
+            network: paymentInfo.network,
+          });
+        }
+
+        // Get the response data
+        const data = await response.json();
+        addLog("🎉 Premium content received!");
+        setPremiumData(data.data);
+      } catch (fetchError) {
+        // This catches errors from fetchWithPayment including signature requests
+        const message =
+          fetchError instanceof Error ? fetchError.message : "Unknown error";
+        addLog(`❌ Error during payment: ${message}`);
+        console.error("Payment error details:", fetchError);
+        throw fetchError;
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       addLog(`❌ Error: ${message}`);
@@ -195,20 +399,23 @@ function App() {
       <div className="container">
         {/* Header */}
         <div className="card">
-          <h1>AnySpend</h1>
+          <h1>✨ AnySpend</h1>
           <p className="subtitle">
-            Pay-per-use API access with crypto. Connect your wallet and select a
-            token to get started.
+            Pay-per-use API access with any token. Connect your wallet, choose
+            your preferred payment token, and unlock premium content instantly.
+            Powered by x402 payment protocol.
           </p>
         </div>
 
         {/* Wallet Connection */}
         <div className="card">
-          <h2>Your Wallet</h2>
+          <h2>🔐 Your Wallet</h2>
 
           {!isConnected ? (
             <div>
-              <p className="help-text">Connect your wallet to get started</p>
+              <p className="help-text">
+                🚀 Connect your wallet to unlock premium features
+              </p>
               <div className="connector-buttons">
                 {connectors.map((connector) => (
                   <button
@@ -251,24 +458,57 @@ function App() {
               {chain?.id === base.id && (
                 <>
                   <div className="input-group">
-                    <label htmlFor="token">Select Payment Token</label>
-                    <select
-                      id="token"
-                      value={selectedToken}
-                      onChange={(e) => setSelectedToken(e.target.value)}
-                      className="input"
-                    >
-                      {BASE_TOKENS.map((token) => (
-                        <option key={token.address} value={token.address}>
-                          {token.symbol} - {token.name}
-                        </option>
-                      ))}
-                      <option value="custom">Custom Token Address</option>
-                    </select>
+                    <label htmlFor="token">💰 Select Payment Token</label>
+                    <div style={{ position: "relative" }}>
+                      {selectedToken &&
+                        selectedToken !== "preset" &&
+                        selectedToken !== "custom" && (
+                          <div
+                            className={`token-icon ${getTokenIcon(selectedToken).className}`}
+                            style={{
+                              position: "absolute",
+                              left: "0.75rem",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              zIndex: 1,
+                              pointerEvents: "none",
+                            }}
+                          >
+                            {getTokenIcon(selectedToken).symbol}
+                          </div>
+                        )}
+                      <select
+                        id="token"
+                        value={selectedToken}
+                        onChange={(e) => setSelectedToken(e.target.value)}
+                        className="input token-select"
+                      >
+                        {BASE_TOKENS.map((token) => (
+                          <option key={token.address} value={token.address}>
+                            {token.symbol} - {token.name}
+                          </option>
+                        ))}
+                        <option value="custom">🎨 Custom Token Address</option>
+                      </select>
+                    </div>
                     <p className="help-text">
-                      Select a token or enter a custom address below
+                      Choose from popular tokens or use a custom ERC-20 address
                     </p>
                   </div>
+
+                  {/* Price Display */}
+                  {selectedToken && selectedToken !== "preset" && (
+                    <div className="price-display">
+                      <div className="price-label">Payment Amount</div>
+                      <div className="price-value">
+                        {priceInfo === "Loading..." ? (
+                          <span className="loading">⏳ Fetching price...</span>
+                        ) : (
+                          <span>💰 {priceInfo}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Custom Token Address Input */}
                   {selectedToken === "custom" && (
@@ -294,11 +534,9 @@ function App() {
                 <button
                   onClick={fetchPremiumData}
                   disabled={loading || !selectedToken}
-                  className="button"
+                  className={`button ${loading ? "loading" : ""}`}
                 >
-                  {loading
-                    ? "Processing Payment..."
-                    : "Get Premium Data (Pay 1 USDC)"}
+                  {loading ? "⏳ Processing Payment..." : "🚀 Get Premium Data"}
                 </button>
                 <button
                   onClick={() => disconnect()}
@@ -314,7 +552,7 @@ function App() {
         {/* Logs */}
         {logs.length > 0 && (
           <div className="card logs-card">
-            <h2>Transaction Log</h2>
+            <h2>📜 Transaction Log</h2>
             <div className="logs">
               {logs.map((log, i) => (
                 <div key={i} className="log-entry">
@@ -336,7 +574,7 @@ function App() {
         {/* Payment Info */}
         {paymentInfo && (
           <div className="card payment-card">
-            <h2>Payment Confirmed</h2>
+            <h2>✅ Payment Confirmed</h2>
             <div className="payment-details">
               <div className="detail">
                 <span className="label">Status:</span>
@@ -375,8 +613,8 @@ function App() {
         {premiumData && (
           <div className="card content-card">
             <div className="content-header">
-              <h2>Premium Market Analysis</h2>
-              <span className="badge">PAID</span>
+              <h2>📊 Premium Market Analysis</h2>
+              <span className="badge">✨ PAID</span>
             </div>
 
             {/* Market Analysis */}
@@ -489,6 +727,25 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Footer */}
+        <div className="footer">
+          <p>
+            Powered by{" "}
+            <a
+              href="https://x402.org"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              x402 Payment Protocol
+            </a>{" "}
+            ⚡ Pay with any token, get instant access
+          </p>
+          <p style={{ marginTop: "0.5rem", fontSize: "0.8rem" }}>
+            🔒 Your keys never leave your wallet • 🌐 Works on any chain • ✨
+            Gas-efficient permits
+          </p>
+        </div>
       </div>
     </div>
   );
