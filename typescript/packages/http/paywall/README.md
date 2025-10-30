@@ -4,7 +4,7 @@ Modular paywall UI for the x402 payment protocol with support for EVM and Solana
 
 ## Features
 
-- Beautiful, pre-built paywall UI
+- Pre-built paywall UI out of the box
 - Wallet connection (MetaMask, Coinbase Wallet, Phantom, etc.)
 - USDC balance checking
 - Multi-network support (EVM + Solana)
@@ -80,8 +80,6 @@ const paywall = createPaywall()
   })
   .build();
 ```
-
-**Bundle size: 3.5MB** (both networks included)
 
 ### Option 4: Legacy API (Backwards Compatible)
 
@@ -247,7 +245,6 @@ const html = getPaywallHtml({...});  // Same API!
 
 ### Upgrade to Builder Pattern
 
-**Reduce bundle size:**
 ```typescript
 import { createPaywall } from '@x402/paywall';
 import { evmPaywall } from '@x402/paywall/evm';  // Only EVM
