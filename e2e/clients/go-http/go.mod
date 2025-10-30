@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/coinbase/x402-go/v2 v2.0.0
+	github.com/coinbase/x402/go v0.0.0
 	github.com/ethereum/go-ethereum v1.14.11
 )
 
@@ -30,4 +30,4 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/coinbase/x402-go/v2 => ../../../go
+replace github.com/coinbase/x402/go => ../../../go

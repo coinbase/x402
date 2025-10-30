@@ -7,6 +7,8 @@
     "build": "tsc",
     "test": "tsx test.ts",
     "test:watch": "tsc --watch",
+    "setup": "./setup.sh",
+    "setup:legacy": "./setup.sh --legacy",
     "clean": "rm -rf dist",
     "clean:ports": "lsof -ti:4022,4023,4024,4025,4026,4027,4028,4029,4030 | xargs kill -9 2>/dev/null || echo 'Ports cleared'"
   },

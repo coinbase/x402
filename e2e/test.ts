@@ -389,9 +389,15 @@ async function runTest() {
   let testNumber = 0;
   let currentPort = 4022;
 
-  // Assign ports and start all facilitators and servers
+  // Assign ports and start all facilitators
   const facilitatorManagers = new Map<string, FacilitatorManager>();
-  const serverInstances = new Map<string, { proxy: any; port: number }>();
+  const serverPorts = new Map<string, number>(); // Track assigned ports for each server
+
+  // Assign ports to servers (they'll reuse these ports across restarts)
+  for (const [serverName] of uniqueServers) {
+    const port = currentPort++;
+    serverPorts.set(serverName, port);
+  }
 
   // Start all facilitators with unique ports
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
@@ -405,12 +411,6 @@ async function runTest() {
       'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'
     );
     facilitatorManagers.set(facilitatorName, manager);
-  }
-
-  // Start all servers with unique ports
-  for (const [serverName, server] of uniqueServers) {
-    const port = currentPort++;
-    serverInstances.set(serverName, { proxy: server.proxy, port });
   }
 
   // Wait for all facilitators to be ready
@@ -427,109 +427,156 @@ async function runTest() {
     log(`  ✅ Facilitator ${facilitatorName} ready at ${url}`);
   }
 
-  // Start all servers in parallel
-  log('\n⏳ Starting all servers...');
-  const serverStartPromises: Promise<void>[] = [];
+  log('\n✅ All facilitators are ready! Servers will be started/restarted as needed per test scenario.\n');
 
-  for (const [serverName, serverInfo] of serverInstances) {
-    const serverTask = async () => {
-      log(`  🚀 Starting server: ${serverName} on port ${serverInfo.port}`);
-
-      // Find which facilitator URL this server should use (from first matching scenario)
-      const serverScenario = filteredScenarios.find(s => s.server.name === serverName);
-      const facilitatorUrl = serverScenario?.facilitator ?
-        facilitatorUrls.get(serverScenario.facilitator.name) : undefined;
-
-      const serverConfig: ServerConfig = {
-        port: serverInfo.port,
-        evmPayTo: serverEvmAddress,
-        svmPayTo: serverSvmAddress,
-        evmNetwork: 'eip155:84532',
-        svmNetwork: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
-        facilitatorUrl,
-      };
-
-      const started = await startServer(serverInfo.proxy, serverConfig);
-      if (!started) {
-        log(`❌ Failed to start server ${serverName}`);
-        process.exit(1);
-      }
-      log(`  ✅ Server ${serverName} ready`);
-    };
-
-    serverStartPromises.push(serverTask());
+  // Group scenarios by server + facilitator combination
+  // This ensures we restart servers when switching facilitators
+  interface ServerFacilitatorCombo {
+    serverName: string;
+    facilitatorName: string | undefined;
+    scenarios: typeof filteredScenarios;
   }
 
-  // Wait for all servers to be ready
-  await Promise.all(serverStartPromises);
+  const serverFacilitatorCombos: ServerFacilitatorCombo[] = [];
+  const groupKey = (serverName: string, facilitatorName: string | undefined) =>
+    `${serverName}::${facilitatorName || 'none'}`;
 
-  log('\n✅ All facilitators and servers are ready! Running client tests sequentially...\n');
+  const comboMap = new Map<string, typeof filteredScenarios>();
 
-  // Run client tests sequentially to avoid nonce conflicts
   for (const scenario of filteredScenarios) {
-    testNumber++;
-    const facilitatorLabel = scenario.facilitator ? ` via ${scenario.facilitator.name}` : '';
-    const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path}${facilitatorLabel}`;
+    const key = groupKey(scenario.server.name, scenario.facilitator?.name);
+    if (!comboMap.has(key)) {
+      comboMap.set(key, []);
+    }
+    comboMap.get(key)!.push(scenario);
+  }
 
-    const serverInfo = serverInstances.get(scenario.server.name)!;
+  // Convert map to array of combos
+  for (const [key, scenarios] of comboMap) {
+    const firstScenario = scenarios[0];
+    serverFacilitatorCombos.push({
+      serverName: firstScenario.server.name,
+      facilitatorName: firstScenario.facilitator?.name,
+      scenarios,
+    });
+  }
 
-    const clientConfig: ClientConfig = {
-      evmPrivateKey: clientEvmPrivateKey,
-      svmPrivateKey: clientSvmPrivateKey,
-      serverUrl: `http://localhost:${serverInfo.port}`,
-      endpointPath: scenario.endpoint.path,
-    };
+  log(`🔧 Server/Facilitator combinations: ${serverFacilitatorCombos.length}`);
+  serverFacilitatorCombos.forEach(combo => {
+    log(`   • ${combo.serverName} + ${combo.facilitatorName || 'none'}: ${combo.scenarios.length} test(s)`);
+  });
+  log('');
 
-    try {
-      log(`🧪 Test #${testNumber}: ${testName}`);
-      const result = await runClientTest(scenario.client.proxy, clientConfig);
+  // Track running servers to stop/restart them as needed
+  const runningServers = new Map<string, any>(); // serverName -> server proxy
 
-      const detailedResult: DetailedTestResult = {
-        testNumber,
-        client: scenario.client.name,
-        server: scenario.server.name,
-        endpoint: scenario.endpoint.path,
-        facilitator: scenario.facilitator?.name || 'none',
-        protocolFamily: scenario.protocolFamily,
-        passed: result.success,
-        error: result.error,
-        transaction: result.payment_response?.transaction,
-        network: result.payment_response?.network,
-      };
+  // Run tests grouped by server+facilitator combination
+  for (const combo of serverFacilitatorCombos) {
+    const { serverName, facilitatorName, scenarios } = combo;
+    const server = uniqueServers.get(serverName)!;
+    const port = serverPorts.get(serverName)!;
 
-      if (result.success) {
-        log(`  ✅ Test passed`);
-        testResults.push(detailedResult);
-      } else {
-        log(`  ❌ Test failed: ${result.error}`);
-
-        // Print buffered verbose logs only for failed tests
-        if (result.verboseLogs && result.verboseLogs.length > 0) {
-          log(`  🔍 Verbose logs:`);
-          result.verboseLogs.forEach(logLine => log(logLine));
-        }
-
-        verboseLog(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
-        testResults.push(detailedResult);
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      log(`  ❌ Test failed with exception: ${errorMsg}`);
-      verboseLog(`  🔍 Exception details: ${error}`);
-      testResults.push({
-        testNumber,
-        client: scenario.client.name,
-        server: scenario.server.name,
-        endpoint: scenario.endpoint.path,
-        facilitator: scenario.facilitator?.name || 'none',
-        protocolFamily: scenario.protocolFamily,
-        passed: false,
-        error: errorMsg,
-      });
+    // Stop server if it's already running (from previous combo)
+    if (runningServers.has(serverName)) {
+      verboseLog(`  🔄 Restarting ${serverName} with new facilitator: ${facilitatorName || 'none'}`);
+      await runningServers.get(serverName).stop();
+      runningServers.delete(serverName);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for port to be released
     }
 
-    // Delay between tests to prevent timing/state/nonce issues
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Start server with the appropriate facilitator
+    const facilitatorUrl = facilitatorName ?
+      facilitatorUrls.get(facilitatorName) : undefined;
+
+    log(`\n🚀 Starting server: ${serverName} (port ${port}) with facilitator: ${facilitatorName || 'none'}`);
+
+    const serverConfig: ServerConfig = {
+      port,
+      evmPayTo: serverEvmAddress,
+      svmPayTo: serverSvmAddress,
+      evmNetwork: 'eip155:84532',
+      svmNetwork: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+      facilitatorUrl,
+    };
+
+    const started = await startServer(server.proxy, serverConfig);
+    if (!started) {
+      log(`❌ Failed to start server ${serverName}`);
+      process.exit(1);
+    }
+    log(`  ✅ Server ${serverName} ready\n`);
+    runningServers.set(serverName, server.proxy);
+
+    // Run all tests for this server+facilitator combination
+    for (const scenario of scenarios) {
+      testNumber++;
+      const facilitatorLabel = scenario.facilitator ? ` via ${scenario.facilitator.name}` : '';
+      const testName = `${scenario.client.name} → ${scenario.server.name} → ${scenario.endpoint.path}${facilitatorLabel}`;
+
+      const clientConfig: ClientConfig = {
+        evmPrivateKey: clientEvmPrivateKey,
+        svmPrivateKey: clientSvmPrivateKey,
+        serverUrl: `http://localhost:${port}`,
+        endpointPath: scenario.endpoint.path,
+      };
+
+      try {
+        log(`🧪 Test #${testNumber}: ${testName}`);
+        const result = await runClientTest(scenario.client.proxy, clientConfig);
+
+        const detailedResult: DetailedTestResult = {
+          testNumber,
+          client: scenario.client.name,
+          server: scenario.server.name,
+          endpoint: scenario.endpoint.path,
+          facilitator: scenario.facilitator?.name || 'none',
+          protocolFamily: scenario.protocolFamily,
+          passed: result.success,
+          error: result.error,
+          transaction: result.payment_response?.transaction,
+          network: result.payment_response?.network,
+        };
+
+        if (result.success) {
+          log(`  ✅ Test passed`);
+          testResults.push(detailedResult);
+        } else {
+          log(`  ❌ Test failed: ${result.error}`);
+
+          // Print buffered verbose logs only for failed tests
+          if (result.verboseLogs && result.verboseLogs.length > 0) {
+            log(`  🔍 Verbose logs:`);
+            result.verboseLogs.forEach(logLine => log(logLine));
+          }
+
+          verboseLog(`  🔍 Error details: ${JSON.stringify(result, null, 2)}`);
+          testResults.push(detailedResult);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`  ❌ Test failed with exception: ${errorMsg}`);
+        verboseLog(`  🔍 Exception details: ${error}`);
+        testResults.push({
+          testNumber,
+          client: scenario.client.name,
+          server: scenario.server.name,
+          endpoint: scenario.endpoint.path,
+          facilitator: scenario.facilitator?.name || 'none',
+          protocolFamily: scenario.protocolFamily,
+          passed: false,
+          error: errorMsg,
+        });
+      }
+
+      // Delay between tests to prevent timing/state/nonce issues
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+
+    // Stop server after running all tests for this combo
+    verboseLog(`  🛑 Stopping ${serverName} (finished combo)`);
+    await server.proxy.stop();
+    runningServers.delete(serverName);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for cleanup
   }
 
   // Run discovery validation before cleanup (while facilitators are still running)
@@ -539,28 +586,25 @@ async function runTest() {
   }));
 
   const serversArray = Array.from(uniqueServers.values());
-  const serverPortsMap = new Map(
-    Array.from(serverInstances.entries()).map(([name, info]) => [name, info.port])
-  );
 
   if (shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
     await handleDiscoveryValidation(
       facilitatorsWithConfig,
       serversArray,
-      serverPortsMap
+      serverPorts
     );
   }
 
-  // Clean up servers and facilitators in parallel
+  // Clean up facilitators (servers already stopped in test loop)
   log('\n🧹 Cleaning up...');
 
-  const serverStopPromises: Promise<void>[] = [];
-  for (const [serverName, serverInfo] of serverInstances) {
+  // Stop any servers that might still be running
+  for (const [serverName, serverProxy] of runningServers) {
     log(`  🛑 Stopping server: ${serverName}`);
-    serverStopPromises.push(serverInfo.proxy.stop());
+    await serverProxy.stop();
   }
-  await Promise.all(serverStopPromises);
 
+  // Stop all facilitators
   const facilitatorStopPromises: Promise<void>[] = [];
   for (const [facilitatorName, manager] of facilitatorManagers) {
     log(`  🛑 Stopping facilitator: ${facilitatorName}`);

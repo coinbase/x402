@@ -8,10 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	x402http "github.com/coinbase/x402-go/v2/http"
-	"github.com/coinbase/x402-go/v2/http/gin"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/bazaar"
+	"github.com/coinbase/x402/go/extensions/types"
+	x402http "github.com/coinbase/x402/go/http"
+	"github.com/coinbase/x402/go/http/gin"
+	"github.com/coinbase/x402/go/mechanisms/evm"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -69,14 +71,41 @@ func main() {
 	 * Configure x402 payment middleware
 	 *
 	 * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
-	 * on the Base Sepolia testnet.
+	 * on the Base Sepolia testnet with bazaar discovery extension.
 	 */
+	// Declare bazaar discovery extension for the GET endpoint
+	discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
+		bazaar.MethodGET,
+		nil, // No query params
+		nil, // No input schema
+		"",  // No body type (GET method)
+		&types.OutputConfig{
+			Example: map[string]interface{}{
+				"message":   "Protected endpoint accessed successfully",
+				"timestamp": "2024-01-01T00:00:00Z",
+			},
+			Schema: types.JSONSchema{
+				"properties": map[string]interface{}{
+					"message":   map[string]interface{}{"type": "string"},
+					"timestamp": map[string]interface{}{"type": "string"},
+				},
+				"required": []string{"message", "timestamp"},
+			},
+		},
+	)
+	if err != nil {
+		fmt.Printf("Warning: Failed to create bazaar extension: %v\n", err)
+	}
+
 	routes := x402http.RoutesConfig{
 		"GET /protected": {
 			Scheme:  "exact",
 			PayTo:   payeeAddress,
 			Price:   "$0.001",
 			Network: network,
+			Extensions: map[string]interface{}{
+				types.BAZAAR: discoveryExtension,
+			},
 		},
 	}
 

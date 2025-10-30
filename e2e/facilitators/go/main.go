@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,11 +13,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/bazaar"
+	exttypes "github.com/coinbase/x402/go/extensions/types"
+	v1 "github.com/coinbase/x402/go/extensions/v1"
+	"github.com/coinbase/x402/go/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -476,6 +481,74 @@ func getBigIntFromInterface(v interface{}) *big.Int {
 	return big.NewInt(0)
 }
 
+// ============================================================================
+// Discovery Resources Storage
+// ============================================================================
+
+// DiscoveredResource represents a discovered x402-enabled resource
+type DiscoveredResource struct {
+	Resource      string                     `json:"resource"`
+	Type          string                     `json:"type"`
+	X402Version   int                        `json:"x402Version"`
+	Accepts       []x402.PaymentRequirements `json:"accepts"`
+	DiscoveryInfo *exttypes.DiscoveryInfo    `json:"discoveryInfo,omitempty"`
+	LastUpdated   string                     `json:"lastUpdated"`
+	Metadata      map[string]interface{}     `json:"metadata,omitempty"`
+}
+
+var (
+	discoveredResources = make(map[string]DiscoveredResource)
+	discoveryMutex      = &sync.RWMutex{}
+	verifiedPayments    = make(map[string]int64)
+	verificationMutex   = &sync.RWMutex{}
+)
+
+// createPaymentHash creates a hash for tracking payments
+func createPaymentHash(paymentPayload x402.PaymentPayload) string {
+	data, _ := json.Marshal(paymentPayload)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+// addDiscoveredResource stores a discovered resource
+func addDiscoveredResource(resource string, version int, accepts []x402.PaymentRequirements, info *exttypes.DiscoveryInfo) {
+	discoveryMutex.Lock()
+	defer discoveryMutex.Unlock()
+
+	discoveredResources[resource] = DiscoveredResource{
+		Resource:      resource,
+		Type:          "http",
+		X402Version:   version,
+		Accepts:       accepts,
+		DiscoveryInfo: info,
+		LastUpdated:   time.Now().Format(time.RFC3339),
+		Metadata:      make(map[string]interface{}),
+	}
+}
+
+// getDiscoveredResources returns all discovered resources with pagination
+func getDiscoveredResources(limit, offset int) ([]DiscoveredResource, int) {
+	discoveryMutex.RLock()
+	defer discoveryMutex.RUnlock()
+
+	all := make([]DiscoveredResource, 0, len(discoveredResources))
+	for _, r := range discoveredResources {
+		all = append(all, r)
+	}
+
+	total := len(all)
+	if offset >= total {
+		return []DiscoveredResource{}, total
+	}
+
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+
+	return all[offset:end], total
+}
+
 func main() {
 	// Get configuration from environment
 	port := os.Getenv("PORT")
@@ -517,6 +590,9 @@ func main() {
 	// Register the EVM v1 scheme handler for base-sepolia
 	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(signer)
 	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+
+	// Register the Bazaar discovery extension
+	facilitator.RegisterExtension(exttypes.BAZAAR)
 
 	// Set up Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -570,6 +646,55 @@ func main() {
 			return
 		}
 
+		// Track verified payment and extract discovery info if valid
+		if response.IsValid {
+			paymentHash := createPaymentHash(req.PaymentPayload)
+			verificationMutex.Lock()
+			verifiedPayments[paymentHash] = time.Now().Unix()
+			verificationMutex.Unlock()
+
+			// Extract and store discovery info if present
+			// For v2: extensions are in paymentPayload.Extensions (client copied from PaymentRequired)
+			// For v1: discovery info is in paymentRequirements.OutputSchema
+			discoveryInfo, err := bazaar.ExtractDiscoveryInfo(req.PaymentPayload, req.PaymentRequirements, true)
+			if err != nil {
+				log.Printf("Warning: Failed to extract discovery info: %v", err)
+			}
+
+			if discoveryInfo != nil {
+				// Try to get resource URL from various sources
+				resourceURL := "http://unknown"
+				if req.PaymentRequirements.Extra != nil {
+					if url, ok := req.PaymentRequirements.Extra["resourceUrl"].(string); ok {
+						resourceURL = url
+					}
+				}
+
+				// For v1, try to extract from the requirements structure
+				if resourceURL == "http://unknown" && req.PaymentPayload.X402Version == 1 {
+					metadata := v1.ExtractResourceMetadataV1(req.PaymentRequirements)
+					if url, ok := metadata["url"]; ok && url != "" {
+						resourceURL = url
+					}
+				}
+
+				// Determine method for logging
+				method := "UNKNOWN"
+				switch input := discoveryInfo.Input.(type) {
+				case exttypes.QueryInput:
+					method = string(input.Method)
+				case exttypes.BodyInput:
+					method = string(input.Method)
+				}
+
+				log.Printf("📝 Discovered resource: %s", resourceURL)
+				log.Printf("   Method: %s", method)
+				log.Printf("   x402 Version: %d", req.PaymentPayload.X402Version)
+
+				addDiscoveredResource(resourceURL, req.PaymentPayload.X402Version, []x402.PaymentRequirements{req.PaymentRequirements}, discoveryInfo)
+			}
+		}
+
 		c.JSON(http.StatusOK, response)
 	})
 
@@ -614,6 +739,36 @@ func main() {
 		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
 		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
 
+		// Validate that payment was previously verified
+		paymentHash := createPaymentHash(req.PaymentPayload)
+		verificationMutex.RLock()
+		verificationTimestamp, verified := verifiedPayments[paymentHash]
+		verificationMutex.RUnlock()
+
+		if !verified {
+			c.JSON(http.StatusOK, x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "Payment must be verified before settlement",
+				Network:     req.PaymentPayload.Network,
+			})
+			return
+		}
+
+		// Check verification isn't too old (5 minute timeout)
+		age := time.Now().Unix() - verificationTimestamp
+		if age > 5*60 {
+			verificationMutex.Lock()
+			delete(verifiedPayments, paymentHash)
+			verificationMutex.Unlock()
+
+			c.JSON(http.StatusOK, x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "Payment verification expired (must settle within 5 minutes)",
+				Network:     req.PaymentPayload.Network,
+			})
+			return
+		}
+
 		// No transformation needed - v1 mechanisms will read MaxAmountRequired field directly
 
 		response, err := facilitator.Settle(
@@ -621,6 +776,11 @@ func main() {
 			req.PaymentPayload,
 			req.PaymentRequirements,
 		)
+
+		// Clean up verified payment after settlement (successful or not)
+		verificationMutex.Lock()
+		delete(verifiedPayments, paymentHash)
+		verificationMutex.Unlock()
 
 		// Debug: Log response
 		log.Printf("🔍 [FACILITATOR SETTLE] Response: %+v", response)
@@ -653,19 +813,50 @@ func main() {
 					Extra:       map[string]interface{}{},
 				},
 			},
-			Extensions: []string{},
+			Extensions: []string{exttypes.BAZAAR},
 		}
 
 		c.JSON(http.StatusOK, response)
 	})
 
+	// GET /discovery/resources - List all discovered resources from bazaar extensions
+	router.GET("/discovery/resources", func(c *gin.Context) {
+		limit := 100
+		if limitParam := c.Query("limit"); limitParam != "" {
+			fmt.Sscanf(limitParam, "%d", &limit)
+		}
+
+		offset := 0
+		if offsetParam := c.Query("offset"); offsetParam != "" {
+			fmt.Sscanf(offsetParam, "%d", &offset)
+		}
+
+		items, total := getDiscoveredResources(limit, offset)
+
+		c.JSON(http.StatusOK, gin.H{
+			"x402Version": 1,
+			"items":       items,
+			"pagination": gin.H{
+				"limit":  limit,
+				"offset": offset,
+				"total":  total,
+			},
+		})
+	})
+
 	// GET /health - Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
+		discoveryMutex.RLock()
+		resourceCount := len(discoveredResources)
+		discoveryMutex.RUnlock()
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "ok",
-			"network":     Network,
-			"facilitator": "go",
-			"version":     "2.0.0",
+			"status":              "ok",
+			"network":             Network,
+			"facilitator":         "go",
+			"version":             "2.0.0",
+			"extensions":          []string{exttypes.BAZAAR},
+			"discoveredResources": resourceCount,
 		})
 	})
 
@@ -691,13 +882,15 @@ func main() {
 ║  Server:     http://localhost:%s                      ║
 ║  Network:    %s                       ║
 ║  Address:    %s     ║
+║  Extensions: bazaar                                    ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • POST /verify    (verify payment)                   ║
-║  • POST /settle    (settle payment)                   ║
-║  • GET  /supported (get supported kinds)              ║
-║  • GET  /health    (health check)                     ║
-║  • POST /close     (shutdown server)                  ║
+║  • POST /verify              (verify payment)         ║
+║  • POST /settle              (settle payment)         ║
+║  • GET  /supported           (get supported kinds)    ║
+║  • GET  /discovery/resources (list discovered)        ║
+║  • GET  /health              (health check)           ║
+║  • POST /close               (shutdown server)        ║
 ╚════════════════════════════════════════════════════════╝
 `, port, Network, signer.GetAddress())
 

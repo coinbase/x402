@@ -145,7 +145,7 @@ The v2 implementation differs from v1 in several key ways:
 
 ## Dependencies
 
-- `github.com/coinbase/x402-go/v2`: x402 v2 protocol implementation
+- `github.com/coinbase/x402/go`: x402 v2 protocol implementation
 - `github.com/gin-gonic/gin`: Gin web framework
 - `github.com/joho/godotenv`: Environment variable loading
 
