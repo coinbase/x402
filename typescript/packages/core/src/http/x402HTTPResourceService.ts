@@ -456,11 +456,32 @@ export class x402HTTPResourceService extends x402ResourceService {
       return customHtml;
     }
 
-    const resource = paymentRequired.resource;
+    // Try to use @x402/paywall if available (optional dependency)
+    try {
+      // @ts-ignore - Optional dependency
+      const { getPaywallHtml } = require("@x402/paywall");
+      
+      const displayAmount = this.getDisplayAmount(paymentRequired);
+      const resource = paymentRequired.resource;
+      
+      return getPaywallHtml({
+        amount: displayAmount,
+        paymentRequirements: paymentRequired.accepts,
+        currentUrl: resource?.url || paywallConfig?.currentUrl || "",
+        testnet: paywallConfig?.testnet ?? true,
+        cdpClientKey: paywallConfig?.cdpClientKey,
+        appName: paywallConfig?.appName,
+        appLogo: paywallConfig?.appLogo,
+        sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
+      });
+    } catch (error) {
+      // @x402/paywall not installed, fall back to basic HTML
+    }
 
+    // Fallback: Basic HTML paywall
+    const resource = paymentRequired.resource;
     const displayAmount = this.getDisplayAmount(paymentRequired);
 
-    // TODO: Full paywall
     return `
       <!DOCTYPE html>
       <html>
@@ -480,7 +501,10 @@ export class x402HTTPResourceService extends x402ResourceService {
                  data-cdp-client-key="${paywallConfig?.cdpClientKey || ""}"
                  data-app-name="${paywallConfig?.appName || ""}"
                  data-testnet="${paywallConfig?.testnet || false}">
-              <!-- CDP widget would be injected here -->
+              <!-- Install @x402/paywall for full wallet integration -->
+              <p style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 0.5rem;">
+                <strong>Note:</strong> Install <code>@x402/paywall</code> for full wallet connection and payment UI.
+              </p>
             </div>
           </div>
         </body>

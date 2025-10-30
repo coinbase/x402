@@ -46,6 +46,14 @@
     "@x402/core": "workspace:^",
     "zod": "^3.24.2"
   },
+  "peerDependencies": {
+    "@x402/paywall": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@x402/paywall": {
+      "optional": true
+    }
+  },
   "exports": {
     ".": {
       "import": {
