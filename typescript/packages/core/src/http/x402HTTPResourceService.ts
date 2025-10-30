@@ -149,15 +149,6 @@ export class x402HTTPResourceService extends x402ResourceService {
   }
 
   /**
-   * Set a custom paywall provider for generating HTML
-   *
-   * @param provider - PaywallProvider instance
-   */
-  setPaywallProvider(provider: PaywallProvider): void {
-    this.paywallProvider = provider;
-  }
-
-  /**
    * Process HTTP request and return response instructions
    * This is the main entry point for framework middleware
    *

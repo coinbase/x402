@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { base, baseSepolia } from "viem/chains";
 
 import { choosePaymentRequirement, isEvmNetwork } from "./paywallUtils";
-import "./window.d.ts";
 
 type ProvidersProps = {
   children: ReactNode;

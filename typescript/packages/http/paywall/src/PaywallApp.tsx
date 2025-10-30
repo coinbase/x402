@@ -3,8 +3,8 @@
 import { useCallback, useMemo } from "react";
 import type { PaymentRequirements } from "x402/types";
 import { choosePaymentRequirement, isEvmNetwork, isSvmNetwork } from "./paywallUtils";
-import { EvmPaywall } from "./EvmPaywall";
-import { SolanaPaywall } from "./SolanaPaywall";
+import { EvmPaywall } from "./evm/EvmPaywall";
+import { SolanaPaywall } from "./svm/SolanaPaywall";
 
 /**
  * Main Paywall App Component

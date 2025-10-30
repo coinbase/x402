@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createPaywall, PaywallBuilder } from "./builder";
 import type { PaymentRequired } from "./types";
+import { evmPaywall } from "./evm";
+import { svmPaywall } from "./svm";
 
 const mockPaymentRequired: PaymentRequired = {
   x402Version: 2,
@@ -157,6 +159,93 @@ describe("PaywallBuilder", () => {
       const html = paywall.generateHtml(mockPaymentRequired);
 
       expect(html).toContain("testnet: true");
+    });
+  });
+
+  describe("withNetwork", () => {
+    it("registers network handler and returns builder for chaining", () => {
+      const builder = createPaywall();
+      const result = builder.withNetwork(evmPaywall);
+      expect(result).toBe(builder); // Same instance (chainable)
+    });
+
+    it("uses first-match selection from accepts array", () => {
+      const multiNetworkPaymentRequired: PaymentRequired = {
+        ...mockPaymentRequired,
+        accepts: [
+          // Solana is first in accepts array
+          {
+            scheme: "exact",
+            network: "solana:5eykt",
+            asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+            amount: "100000",
+            payTo: "2wKupLR9q6wXYppw8Gr2NvWxKBUqm4PPJKkQfoxHEBg4",
+            maxTimeoutSeconds: 60,
+          },
+          {
+            scheme: "exact",
+            network: "eip155:8453",
+            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            amount: "100000",
+            payTo: "0x209693Bc6afc0C5328bA36FaF04C514EF312287C",
+            maxTimeoutSeconds: 60,
+          },
+        ],
+      };
+
+      const paywall = createPaywall()
+        .withNetwork(evmPaywall)
+        .withNetwork(svmPaywall)
+        .build();
+
+      const html = paywall.generateHtml(multiNetworkPaymentRequired);
+      
+      // Should match first requirement in accepts array (Solana)
+      expect(html).toMatch(/SVM Paywall/);
+    });
+
+    it("falls back to default when no handler matches", () => {
+      const customNetworkRequired: PaymentRequired = {
+        ...mockPaymentRequired,
+        accepts: [{
+          scheme: "exact",
+          network: "unknown:network",
+          asset: "0x123",
+          amount: "100000",
+          payTo: "0x456",
+          maxTimeoutSeconds: 60,
+        }],
+      };
+
+      const paywall = createPaywall()
+        .withNetwork(evmPaywall)
+        .withNetwork(svmPaywall)
+        .build();
+
+      const html = paywall.generateHtml(customNetworkRequired);
+      
+      // Should fall back to default paywall
+      expect(html).toContain("<!DOCTYPE html>");
+    });
+
+    it("only uses network handler when registered", () => {
+      const evmOnlyPaywall = createPaywall()
+        .withNetwork(evmPaywall)
+        .build();
+
+      const html = evmOnlyPaywall.generateHtml(mockPaymentRequired);
+      
+      expect(html).toContain("<!DOCTYPE html>");
+    });
+
+    it("can chain multiple networks", () => {
+      const paywall = createPaywall()
+        .withNetwork(evmPaywall)
+        .withNetwork(svmPaywall)
+        .withConfig({ appName: "Multi-chain App" })
+        .build();
+
+      expect(paywall).toHaveProperty("generateHtml");
     });
   });
 });

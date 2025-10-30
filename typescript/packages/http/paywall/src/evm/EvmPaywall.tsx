@@ -17,8 +17,8 @@ import type { PaymentRequirements } from "x402/types";
 
 import { Spinner } from "./Spinner";
 import { useOnrampSessionToken } from "./useOnrampSessionToken";
-import { ensureValidAmount } from "./utils";
-import { getNetworkDisplayName, isTestnetNetwork } from "./paywallUtils";
+import { ensureValidAmount } from "./evm-utils";
+import { getNetworkDisplayName, isTestnetNetwork } from "../paywallUtils";
 
 type EvmPaywallProps = {
   paymentRequirement: PaymentRequirements;

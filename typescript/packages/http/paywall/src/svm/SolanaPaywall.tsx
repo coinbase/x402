@@ -6,8 +6,8 @@ import { exact } from "x402/schemes";
 import type { PaymentRequirements } from "x402/types";
 
 import { Spinner } from "./Spinner";
-import { ensureValidAmount } from "./utils";
-import { getNetworkDisplayName } from "./paywallUtils";
+import { ensureValidAmount } from "./svm-utils";
+import { getNetworkDisplayName } from "../paywallUtils";
 import { getStandardConnectFeature, getStandardDisconnectFeature } from "./solana/features";
 import { useSolanaBalance } from "./solana/useSolanaBalance";
 import { useSolanaSigner } from "./solana/useSolanaSigner";
