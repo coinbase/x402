@@ -425,7 +425,7 @@ describe("processPriceToAtomicAmount", () => {
   it("should handle invalid price format", () => {
     const result = processPriceToAtomicAmount("invalid", "base-sepolia");
     expect(result).toEqual({
-      error: expect.stringContaining("Invalid price"),
+      error: expect.stringContaining("Invalid wei amount"),
     });
   });
 

@@ -1,8 +1,13 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import { PaymentPayload, PaymentRequirements, ExactEvmPayload } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
+
+// Type for unsigned EIP-3009 authorization payload
+type UnsignedAuthorizationPayload = Omit<PaymentPayload, "payload"> & {
+  payload: Omit<ExactEvmPayload, "signature"> & { signature: undefined };
+};
 
 /**
  * Prepares an unsigned payment header with the given sender address and payment requirements.
@@ -16,7 +21,7 @@ export function preparePaymentHeader(
   from: Address,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-): UnsignedPaymentPayload {
+): UnsignedAuthorizationPayload {
   const nonce = createNonce();
 
   const validAfter = BigInt(
@@ -35,7 +40,7 @@ export function preparePaymentHeader(
       authorization: {
         from,
         to: paymentRequirements.payTo as Address,
-        value: paymentRequirements.maxAmountRequired,
+        value: paymentRequirements.srcAmountRequired || paymentRequirements.maxAmountRequired,
         validAfter: validAfter.toString(),
         validBefore: validBefore.toString(),
         nonce,
@@ -55,7 +60,7 @@ export function preparePaymentHeader(
 export async function signPaymentHeader<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | LocalAccount,
   paymentRequirements: PaymentRequirements,
-  unsignedPaymentHeader: UnsignedPaymentPayload,
+  unsignedPaymentHeader: UnsignedAuthorizationPayload,
 ): Promise<PaymentPayload> {
   const { signature } = await signAuthorization(
     client,

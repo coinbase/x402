@@ -37,7 +37,7 @@ const data = await response.json();
 
 ## API
 
-### `wrapFetchWithPayment(fetch, walletClient, maxValue?, paymentRequirementsSelector?)`
+### `wrapFetchWithPayment(fetch, walletClient, maxValue?, paymentRequirementsSelector?, config?, preferences?)`
 
 Wraps the native fetch API to handle 402 Payment Required responses automatically.
 
@@ -47,15 +47,46 @@ Wraps the native fetch API to handle 402 Payment Required responses automaticall
 - `walletClient`: The wallet client used to sign payment messages (must implement the x402 wallet interface)
 - `maxValue`: Optional maximum allowed payment amount in base units (defaults to 0.1 USDC)
 - `paymentRequirementsSelector`: Optional function to select payment requirements from the response (defaults to `selectPaymentRequirements`)
+- `config`: Optional X402 configuration (e.g., custom RPC URLs)
+- `preferences`: Optional payment preferences to specify preferred token and network
 
 #### Returns
 
 A wrapped fetch function that automatically handles 402 responses by:
-1. Making the initial request
+1. Making the initial request (with optional payment preferences)
 2. If a 402 response is received, parsing the payment requirements
 3. Verifying the payment amount is within the allowed maximum
 4. Creating a payment header using the provided wallet client
 5. Retrying the request with the payment header
+
+### Payment Preferences
+
+You can specify which token and network you want to pay with:
+
+```typescript
+import { wrapFetchWithPayment, createSigner, type PaymentPreferences } from "x402-fetch";
+
+const signer = await createSigner("base-sepolia", privateKey);
+
+// Pay with WETH instead of USDC
+const preferences: PaymentPreferences = {
+  preferredToken: "0x4200000000000000000000000000000000000006", // WETH on Base Sepolia
+  preferredNetwork: "base-sepolia"
+};
+
+const fetchWithPayment = wrapFetchWithPayment(
+  fetch,
+  signer,
+  undefined, // maxValue
+  undefined, // paymentRequirementsSelector
+  undefined, // config
+  preferences
+);
+
+await fetchWithPayment('https://api.example.com/data');
+```
+
+See the [Anyspend Integration Guide](../../../ANYSPEND-INTEGRATION.md) for more details on multi-token and cross-chain payments.
 
 ## Example
 

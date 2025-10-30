@@ -1,7 +1,9 @@
 import { config } from "dotenv";
 import express from "express";
 import { exact } from "x402/schemes";
+import { findMatchingPaymentRequirements, processPriceToAtomicAmount } from "x402/shared";
 import {
+  ERC20TokenAmount,
   Network,
   PaymentPayload,
   PaymentRequirements,
@@ -10,7 +12,6 @@ import {
   settleResponseHeader,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
-import { processPriceToAtomicAmount, findMatchingPaymentRequirements } from "x402/shared";
 
 config();
 
@@ -59,8 +60,8 @@ function createExactPaymentRequirements(
     asset: asset.address,
     outputSchema: undefined,
     extra: {
-      name: asset.eip712.name,
-      version: asset.eip712.version,
+      name: (asset as ERC20TokenAmount["asset"]).eip712.name,
+      version: (asset as ERC20TokenAmount["asset"]).eip712.version,
     },
   };
 }

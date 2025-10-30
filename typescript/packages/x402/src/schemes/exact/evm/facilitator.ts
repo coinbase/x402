@@ -14,26 +14,93 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  ExactEvmPermitPayload,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
+import { verifyPermit, settlePermit } from "./permit-facilitator";
+
+/**
+ * Type guard to check if payload is ERC-2612 permit payload
+ *
+ * @param payload - The payload to check
+ * @returns True if the payload is an ERC-2612 permit payload
+ */
+function isPermitPayload(payload: unknown): payload is ExactEvmPermitPayload {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "permit" in payload &&
+    typeof (payload as ExactEvmPermitPayload).permit === "object"
+  );
+}
+
+/**
+ * Type guard to check if payload is EIP-3009 authorization payload
+ *
+ * @param payload - The payload to check
+ * @returns True if the payload is an EIP-3009 authorization payload
+ */
+function isAuthorizationPayload(payload: unknown): payload is ExactEvmPayload {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "authorization" in payload &&
+    typeof (payload as ExactEvmPayload).authorization === "object"
+  );
+}
 
 /**
  * Verifies a payment payload against the required payment details
  *
+ * Routes to the appropriate verification function based on payload type:
+ * - EIP-3009 TransferWithAuthorization (authorization field)
+ * - ERC-2612 Permit (permit field)
+ *
+ * @param client - The public client used for blockchain interactions
+ * @param payload - The signed payment payload containing transfer parameters and signature
+ * @param paymentRequirements - The payment requirements that the payload must satisfy
+ * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
+ */
+export async function verify<
+  transport extends Transport,
+  chain extends Chain,
+  account extends Account | undefined,
+>(
+  client: ConnectedClient<transport, chain, account>,
+  payload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<VerifyResponse> {
+  // Route to appropriate verify function based on payload type
+  if (isPermitPayload(payload.payload)) {
+    return verifyPermit(client, payload, paymentRequirements);
+  } else if (isAuthorizationPayload(payload.payload)) {
+    return verifyAuthorization(client, payload, paymentRequirements);
+  } else {
+    return {
+      isValid: false,
+      invalidReason: "invalid_payload",
+      payer: undefined,
+    };
+  }
+}
+
+/**
+ * Verifies an EIP-3009 TransferWithAuthorization payment payload
+ *
  * This function performs several verification steps:
  * - Verifies protocol version compatibility
- * - Validates the permit signature
- * - Confirms USDC contract address is correct for the chain
- * - Checks permit deadline is sufficiently in the future
- * - Verifies client has sufficient USDC balance
+ * - Validates the authorization signature
+ * - Confirms token contract address is correct for the chain
+ * - Checks authorization deadline is sufficiently in the future
+ * - Verifies client has sufficient token balance
  * - Ensures payment amount meets required minimum
  *
  * @param client - The public client used for blockchain interactions
  * @param payload - The signed payment payload containing transfer parameters and signature
  * @param paymentRequirements - The payment requirements that the payload must satisfy
- * @returns A ValidPaymentRequest indicating if the payment is valid and any invalidation reason
+ * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
-export async function verify<
+async function verifyAuthorization<
   transport extends Transport,
   chain extends Chain,
   account extends Account | undefined,
@@ -171,17 +238,51 @@ export async function verify<
 }
 
 /**
- * Settles a payment by executing a USDC transferWithAuthorization transaction
+ * Settles a payment by executing the appropriate on-chain transaction
  *
- * This function executes the actual USDC transfer using the signed authorization from the user.
+ * Routes to the appropriate settlement function based on payload type:
+ * - EIP-3009 TransferWithAuthorization (authorization field)
+ * - ERC-2612 Permit (permit field)
+ *
+ * @param wallet - The facilitator wallet that will submit the transaction
+ * @param paymentPayload - The signed payment payload containing the transfer parameters and signature
+ * @param paymentRequirements - The original payment details that were used to create the payload
+ * @returns A SettleResponse containing the transaction status and hash
+ */
+export async function settle<transport extends Transport, chain extends Chain>(
+  wallet: SignerWallet<chain, transport>,
+  paymentPayload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<SettleResponse> {
+  // Route to appropriate settle function based on payload type
+  if (isPermitPayload(paymentPayload.payload)) {
+    return settlePermit(wallet, paymentPayload, paymentRequirements);
+  } else if (isAuthorizationPayload(paymentPayload.payload)) {
+    return settleAuthorization(wallet, paymentPayload, paymentRequirements);
+  } else {
+    // Payload is neither permit nor authorization (could be SVM or invalid)
+    return {
+      success: false,
+      errorReason: "invalid_payload",
+      transaction: "",
+      network: paymentPayload.network,
+      payer: undefined,
+    };
+  }
+}
+
+/**
+ * Settles an EIP-3009 TransferWithAuthorization payment
+ *
+ * This function executes the actual token transfer using the signed authorization from the user.
  * The facilitator wallet submits the transaction but does not need to hold or transfer any tokens itself.
  *
  * @param wallet - The facilitator wallet that will submit the transaction
  * @param paymentPayload - The signed payment payload containing the transfer parameters and signature
  * @param paymentRequirements - The original payment details that were used to create the payload
- * @returns A PaymentExecutionResponse containing the transaction status and hash
+ * @returns A SettleResponse containing the transaction status and hash
  */
-export async function settle<transport extends Transport, chain extends Chain>(
+async function settleAuthorization<transport extends Transport, chain extends Chain>(
   wallet: SignerWallet<chain, transport>,
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
@@ -189,7 +290,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
   const payload = paymentPayload.payload as ExactEvmPayload;
 
   // re-verify to ensure the payment is still valid
-  const valid = await verify(wallet, paymentPayload, paymentRequirements);
+  const valid = await verifyAuthorization(wallet, paymentPayload, paymentRequirements);
 
   if (!valid.isValid) {
     return {

@@ -143,6 +143,14 @@ export function getDefaultAsset(network: Network) {
  * @param price - The price to parse
  * @param network - The network to get the default asset for
  * @returns The parsed amount or an error message
+ *
+ * Supports multiple price formats:
+ * - Dollar amount with $ prefix: "$1.2" → 1,200,000 atomic units (1.2 USDC)
+ * - Wei/atomic units (string without $): "1000000" → 1,000,000 atomic units (1 USDC)
+ * - Numeric dollar amount: 0.10 → 100,000 atomic units (0.10 USDC)
+ *
+ * Note: String prices without a $ prefix are interpreted as wei/atomic units.
+ * To specify dollar amounts, either use the $ prefix (e.g., "$1.2") or pass a number (e.g., 1.2).
  */
 export function processPriceToAtomicAmount(
   price: Price,
@@ -155,16 +163,31 @@ export function processPriceToAtomicAmount(
   let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
-    // USDC amount in dollars
-    const parsedAmount = moneySchema.safeParse(price);
-    if (!parsedAmount.success) {
-      return {
-        error: `Invalid price (price: ${price}). Must be in the form "$3.10", 0.10, "0.001", ${parsedAmount.error}`,
-      };
+    // Check if it's a wei/atomic amount (string without dollar sign)
+    const isWeiFormat = typeof price === "string" && !price.includes("$");
+
+    if (isWeiFormat) {
+      // Wei/atomic amount format (e.g., "1000000" for 1 USDC)
+      // Validate it's a valid integer string
+      if (!/^\d+$/.test(price)) {
+        return {
+          error: `Invalid wei amount (price: ${price}). Must be a valid integer string like "1000000" or use dollar format like "$1.2"`,
+        };
+      }
+      asset = getDefaultAsset(network);
+      maxAmountRequired = price;
+    } else {
+      // USDC amount in dollars (e.g., "$1.2", 0.10, "0.001")
+      const parsedAmount = moneySchema.safeParse(price);
+      if (!parsedAmount.success) {
+        return {
+          error: `Invalid price (price: ${price}). Must be in the form "$3.10", 0.10, "0.001", or wei amount like "1000000", ${parsedAmount.error}`,
+        };
+      }
+      const parsedUsdAmount = parsedAmount.data;
+      asset = getDefaultAsset(network);
+      maxAmountRequired = (parsedUsdAmount * 10 ** asset.decimals).toString();
     }
-    const parsedUsdAmount = parsedAmount.data;
-    asset = getDefaultAsset(network);
-    maxAmountRequired = (parsedUsdAmount * 10 ** asset.decimals).toString();
   } else {
     // Token amount in atomic units
     maxAmountRequired = price.amount;

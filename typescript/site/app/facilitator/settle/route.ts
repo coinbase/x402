@@ -48,12 +48,20 @@ export async function POST(req: Request) {
     paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
   } catch (error) {
     console.error("Invalid payment payload:", error);
+    // Extract payer from either authorization or permit payload
+    const payer =
+      body.paymentPayload?.payload && "authorization" in body.paymentPayload.payload
+        ? body.paymentPayload.payload.authorization.from
+        : body.paymentPayload?.payload && "permit" in body.paymentPayload.payload
+          ? body.paymentPayload.payload.permit.owner
+          : "";
     return Response.json(
       {
         success: false,
         errorReason: "invalid_payload",
         transaction: "",
         network: body.paymentPayload?.network || "",
+        payer,
       } as SettleResponse,
       { status: 400 },
     );
@@ -64,12 +72,20 @@ export async function POST(req: Request) {
     paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
   } catch (error) {
     console.error("Invalid payment requirements:", error);
+    // Extract payer from either authorization or permit payload
+    const payer =
+      "authorization" in paymentPayload.payload
+        ? paymentPayload.payload.authorization.from
+        : "permit" in paymentPayload.payload
+          ? paymentPayload.payload.permit.owner
+          : "";
     return Response.json(
       {
         success: false,
         errorReason: "invalid_payment_requirements",
         transaction: "",
         network: paymentPayload.network,
+        payer,
       } as SettleResponse,
       { status: 400 },
     );
@@ -80,12 +96,20 @@ export async function POST(req: Request) {
     return Response.json(response);
   } catch (error) {
     console.error("Error settling payment:", error);
+    // Extract payer from either authorization or permit payload
+    const payer =
+      "authorization" in paymentPayload.payload
+        ? paymentPayload.payload.authorization.from
+        : "permit" in paymentPayload.payload
+          ? paymentPayload.payload.permit.owner
+          : "";
     return Response.json(
       {
         success: false,
         errorReason: "unexpected_settle_error",
         transaction: "",
         network: paymentPayload.network,
+        payer,
       } as SettleResponse,
       { status: 500 },
     );

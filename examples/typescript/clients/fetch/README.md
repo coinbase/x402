@@ -37,6 +37,21 @@ The example demonstrates how to:
 3. Make a request to a paid endpoint
 4. Handle the response or any errors
 
+## Payment Preferences (Multi-Token Support)
+
+See `index-with-preferences.ts` for examples of how to specify which token and network you want to pay with:
+
+```bash
+pnpm dev:preferences
+```
+
+This demonstrates:
+- Paying with WETH instead of USDC
+- Cross-chain payments (pay on Ethereum, settle on Base)
+- Paying with DAI or other ERC-20 tokens
+
+For more details, see the [Anyspend Integration Guide](../../../../ANYSPEND-INTEGRATION.md).
+
 ## Example Code
 
 ```typescript
