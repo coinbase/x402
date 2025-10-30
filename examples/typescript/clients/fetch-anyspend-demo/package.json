@@ -1,0 +1,28 @@
+{
+  "name": "x402-fetch-anyspend-demo",
+  "version": "1.0.0",
+  "description": "CLI demo for x402-fetch with AnySpend server",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "keywords": [
+    "x402",
+    "fetch",
+    "payment",
+    "anyspend",
+    "demo"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "x402-fetch": "workspace:*",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
