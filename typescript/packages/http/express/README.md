@@ -123,17 +123,47 @@ app.use(paymentMiddleware(routes));
 
 ### Paywall Configuration
 
-Optional configuration for the built-in paywall UI (third parameter):
+The middleware automatically displays a paywall UI when browsers request protected endpoints. 
+
+**Option 1: Full Paywall UI (Recommended)**
+
+Install the optional `@x402/paywall` package for a complete wallet connection and payment UI:
+
+```bash
+pnpm add @x402/paywall
+```
+
+Then configure it:
 
 ```typescript
 const paywallConfig: PaywallConfig = {
   cdpClientKey: "your-cdp-client-key",
   appName: "Your App Name",
   appLogo: "/path/to/logo.svg",
-  sessionTokenEndpoint: "/api/x402/session-token"
+  sessionTokenEndpoint: "/api/x402/session-token",
+  testnet: true
 };
 
-app.use(paymentMiddleware(routes, undefined, paywallConfig));
+app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig));
+```
+
+The paywall includes:
+- EVM wallet support (MetaMask, Coinbase Wallet, etc.)
+- Solana wallet support (Phantom, Solflare, etc.)
+- USDC balance checking
+- Chain switching
+- Onramp integration for mainnet
+
+**Option 2: Basic Paywall (No Installation)**
+
+Without `@x402/paywall` installed, the middleware returns a basic HTML page with payment instructions. This works but doesn't include wallet connections.
+
+**Option 3: Custom HTML**
+
+Provide your own HTML template:
+
+```typescript
+app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig, customHtml));
 ```
 
 ## Advanced Usage
