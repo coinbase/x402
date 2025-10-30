@@ -1,14 +1,46 @@
-# x402 payments protocol
+# AnySpend x402 - Payment Protocol
 
 > "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.001 minimum payment."
 
-```typescript
-app.use(
-  // How much you want to charge, and where you want the funds to land
-  paymentMiddleware("0xYourAddress", { "/your-endpoint": "$0.01" })
-);
-// That's it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
+**This is a fork of the [Coinbase x402 protocol](https://github.com/coinbase/x402) with extended functionality for the AnySpend ecosystem.**
+
+## Quick Links
+
+- 📦 **npm Package**: [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)
+- 🌐 **Original Protocol**: [x402.org](https://x402.org)
+- 📚 **Documentation**: [x402.org/docs](https://x402.org/docs)
+- 🔗 **Upstream**: [coinbase/x402](https://github.com/coinbase/x402)
+
+## Installation
+
+```bash
+npm install @b3-fun/anyspend-x402
 ```
+
+## Quick Start
+
+```typescript
+import { paymentMiddleware } from "x402-express";
+import { facilitator } from "@b3-fun/anyspend-x402";
+
+app.use(
+  paymentMiddleware(
+    "0xYourAddress",
+    { "/your-endpoint": { price: "$0.01", network: "base-sepolia" } },
+    facilitator
+  )
+);
+// That's it! See examples/typescript/servers/express.ts for a complete example.
+```
+
+## What is AnySpend x402?
+
+This repository is a fork of the original Coinbase x402 protocol with additional features and integrations for the AnySpend ecosystem. It maintains full compatibility with the base x402 protocol while adding:
+
+- 🔧 **Extended Facilitator Support**: Pre-configured integration with Coinbase's CDP platform
+- 🎯 **Easy Integration**: Drop-in replacement for `@coinbase/x402` with additional utilities
+- 🚀 **Enhanced Examples**: Additional demos and use cases for various frameworks
+- 🔄 **Regular Updates**: Tracking upstream x402 protocol developments
 
 ## Philosophy
 
@@ -19,7 +51,7 @@ It's time for an open, internet-native form of payments. A payment rail that doe
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
 - **HTTP Native:** x402 is meant to seamlessly complement the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
-- **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria laid out in [CONTRIBUTING.md](https://github.com/coinbase/x402/blob/main/CONTRIBUTING.md)
+- **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
 - **Easy to use:** x402 needs to be 10x better than existing ways to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
 
@@ -32,9 +64,9 @@ The x402 ecosystem is growing! Check out our [ecosystem page](https://x402.org/e
 - Ecosystem infrastructure and tooling
 - Learning and community resources
 
-Want to add your project to the ecosystem? See our [demo site README](https://github.com/coinbase/x402/tree/main/typescript/site#adding-your-project-to-the-ecosystem) for detailed instructions on how to submit your project.
+Want to add your project to the ecosystem? Visit [x402.org](https://x402.org/ecosystem) to learn more.
 
-**Roadmap:** see [ROADMAP.md](https://github.com/coinbase/x402/blob/main/ROADMAP.md)
+**Upstream Roadmap:** see [Coinbase x402 ROADMAP.md](https://github.com/coinbase/x402/blob/main/ROADMAP.md)
 
 ## Terms:
 
@@ -273,3 +305,69 @@ You should see activities in the client terminal, which will display a weather r
 3. Run the unit tests: `pnpm test`
 
 This will run the unit tests for the x402 packages.
+
+---
+
+## AnySpend-Specific Information
+
+### Published Package
+
+This repository publishes the [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402) npm package, which provides:
+
+- Pre-configured facilitator for Coinbase's CDP platform
+- Helper functions for authentication and authorization
+- Easy integration with x402 middleware packages
+
+See the [package README](./typescript/packages/anyspend-x402/README.md) for detailed usage instructions.
+
+### Repository Structure
+
+```
+anyspend-x402/
+├── typescript/
+│   ├── packages/
+│   │   ├── anyspend-x402/     # Published npm package
+│   │   ├── x402/              # Core x402 protocol
+│   │   ├── x402-express/      # Express middleware
+│   │   ├── x402-hono/         # Hono middleware
+│   │   ├── x402-next/         # Next.js middleware
+│   │   └── ...
+│   └── examples/              # Example implementations
+├── e2e/                       # End-to-end tests
+└── examples/                  # Additional examples
+```
+
+### Contributing to AnySpend x402
+
+We welcome contributions! To contribute:
+
+1. Fork this repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+For major changes to the core protocol, please consider contributing to the [upstream Coinbase x402 repository](https://github.com/coinbase/x402).
+
+### Syncing with Upstream
+
+This fork tracks the upstream Coinbase x402 repository. To stay updated:
+
+```bash
+git remote add upstream https://github.com/coinbase/x402.git
+git fetch upstream
+git merge upstream/main
+```
+
+### License
+
+Apache-2.0 (same as upstream)
+
+### Support & Community
+
+- **Issues**: [Report bugs](https://github.com/b3-fun/anyspend-x402/issues)
+- **Documentation**: [x402.org/docs](https://x402.org/docs)
+- **Upstream Repository**: [coinbase/x402](https://github.com/coinbase/x402)
+
+---
+
+*This project is a fork maintained by the b3-fun team. For questions about the core x402 protocol, please refer to the [official x402 documentation](https://x402.org).*
