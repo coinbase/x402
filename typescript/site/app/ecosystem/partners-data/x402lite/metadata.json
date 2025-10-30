@@ -1,8 +1,8 @@
 {
   "name": "x402 Lite",
-  "url": "https://x402lite.com",
+  "description": "Discover how x402 revolutionizes internet payments with instant cryptocurrency transactions built on HTTP. Perfect for AI agents, APIs, and micropayments.",
+  "logoUrl": "/logos/x402lite-logo.png",
+  "websiteUrl": "https://x402lite.com",
   "serverId": "cb472571-a8cd-4257-9705-9403238e6add",
-  "description": "Built for the new era of AI payments and cross-chain automation.",
-  "category": "Payments / AI Agents / Learning"
+   "category": "Learning & Community Resources"
 }
-
