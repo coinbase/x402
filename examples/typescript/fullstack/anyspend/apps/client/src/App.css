@@ -1708,6 +1708,16 @@ h1 {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Modal Payment Status */
+.modal-payment-status {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border: 2px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  animation: fadeIn 0.3s ease-out;
+}
+
 .payment-status-content {
   display: flex;
   align-items: center;

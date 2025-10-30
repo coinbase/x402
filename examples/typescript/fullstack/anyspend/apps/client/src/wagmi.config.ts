@@ -1,5 +1,13 @@
 import { http, createConfig } from "wagmi";
-import { base } from "wagmi/chains";
+import {
+  base,
+  mainnet,
+  polygon,
+  arbitrum,
+  optimism,
+  avalanche,
+  bsc,
+} from "wagmi/chains";
 import {
   injected,
   metaMask,
@@ -8,7 +16,7 @@ import {
 } from "wagmi/connectors";
 
 export const config = createConfig({
-  chains: [base],
+  chains: [base, mainnet, polygon, arbitrum, optimism, avalanche, bsc],
   connectors: [
     injected(),
     metaMask(),
@@ -17,6 +25,12 @@ export const config = createConfig({
   ],
   transports: {
     [base.id]: http(),
+    [mainnet.id]: http(),
+    [polygon.id]: http(),
+    [arbitrum.id]: http(),
+    [optimism.id]: http(),
+    [avalanche.id]: http(),
+    [bsc.id]: http(),
   },
 });
 

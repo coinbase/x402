@@ -141,16 +141,6 @@ function App() {
     setLogs((prev) => [...prev, `${timestamp}: ${message}`]);
   };
 
-  const getTokenIcon = (address: string) => {
-    const token = BASE_TOKENS.find(
-      (t) => t.address.toLowerCase() === address.toLowerCase(),
-    );
-    if (!token) return { className: "custom", symbol: "?" };
-    return {
-      className: token.symbol.toLowerCase(),
-      symbol: token.symbol.charAt(0),
-    };
-  };
 
   // Fetch price information from server
   useEffect(() => {
@@ -226,17 +216,11 @@ function App() {
           }
         };
 
-        // Only add X-PREFERRED-TOKEN if it's not USDC (USDC is the default)
-        const usdcAddress =
-          "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".toLowerCase();
-        if (tokenAddress.toLowerCase() !== usdcAddress) {
-          headers["X-PREFERRED-TOKEN"] = tokenAddress;
-          headers["X-PREFERRED-NETWORK"] = getNetworkName(selectedChain);
-          console.log("Using preferred token:", tokenAddress);
-          console.log("Using preferred network:", getNetworkName(selectedChain));
-        } else {
-          console.log("Using default USDC (no preference header)");
-        }
+        // Always include payment preferences - tell server which token we want to pay with
+        headers["X-PREFERRED-TOKEN"] = tokenAddress;
+        headers["X-PREFERRED-NETWORK"] = getNetworkName(selectedChain);
+        console.log("Using preferred token:", tokenAddress);
+        console.log("Using preferred network:", getNetworkName(selectedChain));
 
         const response = await fetch(`${API_BASE_URL}/api/premium`, {
           method: "POST",
@@ -446,10 +430,7 @@ function App() {
       setError("Please connect your wallet first");
       return;
     }
-    if (chain?.id !== base.id) {
-      setError("Please switch to Base network");
-      return;
-    }
+    // Note: We don't check network here because we automatically switch chains before payment
     setShowPaymentModal(true);
   };
 
@@ -478,11 +459,8 @@ function App() {
       return;
     }
 
-    // Check if on correct network
-    if (chain?.id !== base.id) {
-      setError("Please switch to Base network");
-      return;
-    }
+    // Note: We don't check network here because we support cross-chain payments
+    // The user can pay from any chain, not just Base
 
     setLoading(true);
     setLogs([]);
@@ -495,6 +473,19 @@ function App() {
       addLog(`🔐 Connected wallet: ${address}`);
       addLog(`💰 Payment token: ${tokenAddress}`);
       addLog(`🌐 Network: ${chain?.name}`);
+
+      // Switch to the correct chain if the selected token is on a different chain
+      const targetChainId = Number(selectedChain);
+      if (chain?.id !== targetChainId) {
+        addLog(`🔄 Switching to chain ${selectedChain}...`);
+        setPaymentStatus({ stage: 'signing', message: `Switching to chain ${selectedChain}...` });
+        try {
+          await switchChain({ chainId: targetChainId });
+          addLog(`✅ Switched to chain ${selectedChain}`);
+        } catch (switchError) {
+          throw new Error(`Failed to switch chain: ${switchError instanceof Error ? switchError.message : 'Unknown error'}`);
+        }
+      }
 
       setPaymentStatus({ stage: 'signing', message: 'Preparing payment signature...' });
       addLog("🔧 Setting up payment-enabled fetch...");
@@ -546,20 +537,13 @@ function App() {
         }
       };
 
-      const paymentPreferences =
-        tokenAddress.toLowerCase() !== usdcAddress.toLowerCase()
-          ? {
-              // Payment preferences - tell server which token we want to pay with
-              preferredToken: tokenAddress,
-              preferredNetwork: getNetworkName(selectedChain) as any,
-            }
-          : undefined; // Use default (USDC) when undefined
+      // Always include payment preferences - tell server which token we want to pay with
+      const paymentPreferences = {
+        preferredToken: tokenAddress,
+        preferredNetwork: getNetworkName(selectedChain) as any,
+      };
 
-      if (paymentPreferences) {
-        addLog(`💡 Using preferred token: ${tokenAddress}`);
-      } else {
-        addLog(`💡 Using default token (USDC)`);
-      }
+      addLog(`💡 Using preferred token: ${tokenAddress} on ${getNetworkName(selectedChain)}`);
 
       // Wrap fetch with automatic payment handling and payment preferences
       const fetchWithPayment = wrapFetchWithPayment(
@@ -626,8 +610,16 @@ function App() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
-      addLog(`❌ Error: ${message}`);
-      setError(message);
+
+      // Check if error is due to nonces function not existing (non-permit token)
+      if (message.includes('nonces') && (message.includes('reverted') || message.includes('returned no data'))) {
+        const friendlyMessage = "This token doesn't support gasless signatures (EIP-2612 permit). Please select a different token like USDC or DAI.";
+        addLog(`❌ Error: ${friendlyMessage}`);
+        setError(friendlyMessage);
+      } else {
+        addLog(`❌ Error: ${message}`);
+        setError(message);
+      }
     } finally {
       setLoading(false);
       setShowPaymentModal(false);
@@ -659,27 +651,19 @@ function App() {
             <div className="wallet-section">
               {!isConnected ? (
                 <div className="connector-buttons-header">
-                  {connectors.map((connector) => (
-                    <button
-                      key={connector.id}
-                      onClick={() => connect({ connector })}
-                      className="button button-small"
-                    >
-                      Connect Wallet
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => connect({ connector: connectors[0] })}
+                    className="button button-small"
+                  >
+                    Connect Wallet
+                  </button>
                 </div>
               ) : (
                 <div className="wallet-header-info">
-                  {chain?.id === base.id ? (
-                    <span className="status-badge">
-                      ✅ {address?.slice(0, 6)}...{address?.slice(-4)}
-                    </span>
-                  ) : (
-                    <span className="status-badge warning">
-                      ⚠️ Wrong Network
-                    </span>
-                  )}
+                  <span className="status-badge">
+                    ✅ {address?.slice(0, 6)}...{address?.slice(-4)}
+                    {chain?.name && <span style={{ marginLeft: '8px', fontSize: '0.85em' }}>({chain.name})</span>}
+                  </span>
                   <button
                     onClick={() => disconnect()}
                     className="button button-small button-secondary"
@@ -693,7 +677,7 @@ function App() {
         </div>
 
         {/* Main Action Card */}
-        {isConnected && chain?.id === base.id && (
+        {isConnected && (
           <div className="card action-card">
             <div className="action-content">
               <div className="action-text">
@@ -880,6 +864,37 @@ function App() {
                   </div>
                 )}
               </div>
+
+              {/* Payment Status Indicator - shown inside modal during payment */}
+              {paymentStatus.stage !== 'idle' && loading && (
+                <div className="modal-payment-status">
+                  <div className="payment-status-content">
+                    <div className="payment-status-spinner">
+                      <div className={`spinner stage-${paymentStatus.stage}`}></div>
+                    </div>
+                    <div className="payment-status-text">
+                      <h3>{paymentStatus.message}</h3>
+                      <div className="payment-status-steps">
+                        <div className={`status-step ${paymentStatus.stage === 'signing' || paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                          <span className="step-number">1</span>
+                          <span className="step-label">Sign</span>
+                        </div>
+                        <div className="status-arrow">→</div>
+                        <div className={`status-step ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                          <span className="step-number">2</span>
+                          <span className="step-label">Verify</span>
+                        </div>
+                        <div className="status-arrow">→</div>
+                        <div className={`status-step ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                          <span className="step-number">3</span>
+                          <span className="step-label">Settle</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="modal-footer">
                 <button
                   onClick={() => setShowPaymentModal(false)}
@@ -902,21 +917,7 @@ function App() {
           </div>
         )}
 
-        {/* Network Switcher Card */}
-        {isConnected && chain?.id !== base.id && (
-          <div className="card error-card">
-            <h3>⚠️ Wrong Network</h3>
-            <p style={{ marginBottom: "1rem" }}>
-              Please switch to Base network to continue
-            </p>
-            <button
-              onClick={() => switchChain({ chainId: base.id })}
-              className="button"
-            >
-              Switch to Base
-            </button>
-          </div>
-        )}
+        {/* Network Switcher Card - Removed: We now support cross-chain payments */}
 
         {/* Results Section */}
         <div className="results-section">

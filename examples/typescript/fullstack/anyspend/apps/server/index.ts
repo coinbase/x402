@@ -16,9 +16,9 @@ app.use(express.json());
 
 // Payment configuration from environment
 const PAYTO_ADDRESS =
-  (process.env.PAYTO_ADDRESS as Address) || "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0";
-const NETWORK = (process.env.NETWORK as "base-sepolia" | "base") || "base-sepolia";
-const PAYMENT_AMOUNT_USD = process.env.PAYMENT_AMOUNT_USD || "1000000"; // Default 1 USDC
+  (process.env.PAYTO_ADDRESS as Address) || "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3";
+const NETWORK = (process.env.NETWORK as "base-sepolia" | "base") || "base";
+const PAYMENT_AMOUNT_USD = process.env.PAYMENT_AMOUNT_USD || "100000000"; // Default 100 USDC (100 * 10^6)
 const FACILITATOR_URL = (process.env.FACILITATOR_URL ||
   "https://facilitator.x402.org") as `${string}://${string}`;
 
@@ -38,7 +38,17 @@ app.use(
     PAYTO_ADDRESS,
     {
       "POST /api/premium": {
-        price: PAYMENT_AMOUNT_USD,
+        price: {
+          amount: "100000000000000000000", // 100 B3 tokens (100 * 10^18)
+          asset: {
+            address: "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3" as Address,
+            decimals: 18,
+            eip712: {
+              name: "B3",
+              version: "1",
+            },
+          },
+        },
         network: NETWORK,
         config: {
           description: "Access to premium ETH price history data from CoinGecko",
@@ -102,6 +112,20 @@ app.get("/api/free", (req: Request, res: Response) => {
   });
 });
 
+// Type definitions for SimDune API response
+interface SimDuneBalance {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  amount?: string;
+  price_usd?: string;
+}
+
+interface SimDuneResponse {
+  balances?: SimDuneBalance[];
+}
+
 /**
  * Token balances endpoint - Returns user's token balances from SimDune
  * This is a free endpoint to help users see what tokens they can pay with
@@ -129,7 +153,7 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
       });
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as SimDuneResponse;
     console.log(`SimDune returned ${data.balances?.length || 0} balances`);
 
     // Extract balances from the response
@@ -197,7 +221,8 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 async function fetchEthPriceHistory() {
   try {
     // Fetch ETH OHLCV data for the last 24 hours (minute intervals)
-    const url = "https://pro-api.coingecko.com/api/v3/coins/ethereum/ohlc?vs_currency=usd&days=1&precision=2";
+    const url =
+      "https://pro-api.coingecko.com/api/v3/coins/ethereum/ohlc?vs_currency=usd&days=1&precision=2";
 
     console.log("Fetching ETH price history from CoinGecko...");
 
@@ -213,7 +238,7 @@ async function fetchEthPriceHistory() {
       throw new Error(`CoinGecko API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as number[][];
 
     // Data format: [[timestamp, open, high, low, close], ...]
     const priceHistory = data.map((item: number[]) => ({

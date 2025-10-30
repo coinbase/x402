@@ -26,6 +26,7 @@ import {
   SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
+import { isUsdcAddress } from "x402/shared/evm";
 
 /**
  * Creates a payment middleware factory for Express
@@ -211,58 +212,78 @@ export function paymentMiddleware(
       console.log("asset.address", asset.address);
       console.log("maxAmountRequired", maxAmountRequired);
       console.log("network", network);
-      const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          srcTokenAddress: preferredToken,
-          dstTokenAddress: asset.address,
-          dstAmount: maxAmountRequired.toString(),
-          srcNetwork: preferredNetwork,
-          dstNetwork: network,
-        }),
-      });
-      console.log("quoteResponse", quoteResponse);
-      if (!quoteResponse.ok) {
-        throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
-      }
-      const quote = (await quoteResponse.json()) as {
-        data: {
-          paymentAmount: string;
-          facilitatorAddress?: string;
-          signatureType?: string;
-          domain?: {
-            name: string;
-            version: string;
-            chainId: number;
-            verifyingContract: string;
+
+      // Check if preferred token is USDC on any chain - skip quote if paying with USDC
+      // If no preferredToken is provided, default to USDC
+      const isUsdcPayment = !preferredToken || isUsdcAddress(preferredToken);
+
+      // Also check if it matches destination token on same network (for non-USDC cases)
+      const isSameTokenAndNetwork =
+        preferredToken &&
+        preferredToken.toLowerCase() === asset.address.toLowerCase() &&
+        preferredNetwork === network;
+
+      if (!isUsdcPayment || !isSameTokenAndNetwork) {
+        const quoteResponse = await fetch(`${facilitator?.url}/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            srcTokenAddress: preferredToken,
+            dstTokenAddress: asset.address,
+            dstAmount: maxAmountRequired.toString(),
+            srcNetwork: preferredNetwork,
+            dstNetwork: network,
+          }),
+        });
+        console.log("quoteResponse", quoteResponse);
+        if (!quoteResponse.ok) {
+          throw new Error(`Failed to get quote: ${quoteResponse.statusText}`);
+        }
+        const quote = (await quoteResponse.json()) as {
+          data: {
+            paymentAmount: string;
+            facilitatorAddress?: string;
+            signatureType?: string;
+            domain?: {
+              name: string;
+              version: string;
+              chainId: number;
+              verifyingContract: string;
+            };
           };
         };
-      };
-      console.log("quote", quote);
-      paymentRequirements[0].asset = asset.address;
-      paymentRequirements[0].maxAmountRequired = maxAmountRequired.toString();
-      paymentRequirements[0].srcAmountRequired = quote.data.paymentAmount.toString();
+        console.log("quote", quote);
+        paymentRequirements[0].asset = asset.address;
+        paymentRequirements[0].maxAmountRequired = maxAmountRequired.toString();
+        paymentRequirements[0].srcAmountRequired = quote.data.paymentAmount.toString();
 
-      // Replace extra field with only quote response data (remove default eip712 domain)
-      paymentRequirements[0].extra = {};
+        // Replace extra field with only quote response data (remove default eip712 domain)
+        paymentRequirements[0].extra = {};
 
-      // Add domain from quote response if provided
-      if (quote.data.domain) {
-        paymentRequirements[0].extra.name = quote.data.domain.name;
-        paymentRequirements[0].extra.version = quote.data.domain.version;
-        paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
-        paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
-      }
+        // Add domain from quote response if provided
+        if (quote.data.domain) {
+          paymentRequirements[0].extra.name = quote.data.domain.name;
+          paymentRequirements[0].extra.version = quote.data.domain.version;
+          paymentRequirements[0].extra.chainId = quote.data.domain.chainId;
+          paymentRequirements[0].extra.verifyingContract = quote.data.domain.verifyingContract;
+        }
 
-      // Add facilitatorAddress from quote response to extra field if provided
-      if (quote.data.facilitatorAddress) {
-        paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
-      }
+        // Add facilitatorAddress from quote response to extra field if provided
+        if (quote.data.facilitatorAddress) {
+          paymentRequirements[0].extra.facilitatorAddress = quote.data.facilitatorAddress;
+        }
 
-      if (quote.data.signatureType) {
-        paymentRequirements[0].extra.signatureType = quote.data
-          .signatureType as (typeof evmSignatureTypes)[number];
+        if (quote.data.signatureType) {
+          paymentRequirements[0].extra.signatureType = quote.data
+            .signatureType as (typeof evmSignatureTypes)[number];
+        }
+      } else {
+        if (isUsdcPayment) {
+          console.log("✓ Paying with USDC - skipping quote");
+        } else {
+          console.log("✓ Paying with destination token on same network - skipping quote");
+        }
+        paymentRequirements[0].srcAmountRequired = maxAmountRequired.toString();
       }
 
       console.log("paymentRequirements", paymentRequirements);
