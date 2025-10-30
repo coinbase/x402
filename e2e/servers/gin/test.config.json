@@ -2,7 +2,8 @@
   "name": "gin",
   "type": "server",
   "language": "go",
-  "description": "Go Gin server with x402 payment middleware",
+  "x402Version": 2,
+  "description": "Go Gin server with x402 v2 payment middleware",
   "endpoints": [
     {
       "path": "/protected",
@@ -26,14 +27,10 @@
   ],
   "environment": {
     "required": [
-      "EVM_ADDRESS"
-    ],
-    "optional": [
       "PORT",
-      "USE_CDP_FACILITATOR",
-      "EVM_NETWORK",
-      "CDP_API_KEY_ID",
-      "CDP_API_KEY_SECRET"
-    ]
+      "EVM_ADDRESS",
+      "FACILITATOR_URL"
+    ],
+    "optional": []
   }
 }

@@ -1,0 +1,20 @@
+{
+  "name": "go-http",
+  "type": "client",
+  "language": "go",
+  "protocolFamilies": [
+    "evm"
+  ],
+  "x402Versions": [
+    1,
+    2
+  ],
+  "environment": {
+    "required": [
+      "EVM_PRIVATE_KEY",
+      "RESOURCE_SERVER_URL",
+      "ENDPOINT_PATH"
+    ],
+    "optional": []
+  }
+}

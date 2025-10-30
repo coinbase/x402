@@ -173,20 +173,28 @@ export abstract class BaseProxy {
       });
 
       childProcess.on('close', (code: number | null) => {
-        if (code === 0) {
-          try {
-            // Find JSON result in stdout
-            const lines = stdout.split('\n');
-            const jsonLine = lines.find(line => line.trim().startsWith('{'));
-            if (jsonLine) {
-              const result = JSON.parse(jsonLine);
+        // Try to find JSON in stdout regardless of exit code
+        try {
+          const lines = stdout.split('\n');
+          const jsonLine = lines.find(line => line.trim().startsWith('{'));
+          if (jsonLine) {
+            const result = JSON.parse(jsonLine);
+            if (code === 0) {
               resolve({ success: true, data: result, exitCode: code });
             } else {
-              resolve({ success: false, error: 'No JSON result found', exitCode: code });
+              // Non-zero exit but we have JSON error details
+              const errorMsg = result.error || `Process exited with code ${code}`;
+              resolve({ success: false, error: errorMsg, exitCode: code || undefined });
             }
-          } catch (error) {
-            resolve({ success: false, error: `Failed to parse result: ${error}`, exitCode: code });
+            return;
           }
+        } catch (error) {
+          // Failed to parse JSON, fall through to default error handling
+        }
+
+        // No JSON found or parse failed
+        if (code === 0) {
+          resolve({ success: false, error: 'No JSON result found', exitCode: code });
         } else {
           resolve({ success: false, error: stderr || `Process exited with code ${code}`, exitCode: code || undefined });
         }

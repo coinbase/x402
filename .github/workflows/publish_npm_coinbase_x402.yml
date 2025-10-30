@@ -32,7 +32,7 @@ jobs:
           pnpm -r --filter=x402 --filter=@coinbase/x402 run build
       
       - name: Publish coinbase-x402 package
-        working-directory: ./typescript/packages/coinbase-x402
+        working-directory: ./typescript/packages/legacy/coinbase-x402
         run: |
           # Get package information directly
           PACKAGE_NAME=$(node -p "require('./package.json').name")

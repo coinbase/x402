@@ -2,6 +2,10 @@
   "name": "express",
   "type": "server",
   "language": "typescript",
+  "x402Version": 2,
+  "extensions": [
+    "bazaar"
+  ],
   "endpoints": [
     {
       "path": "/protected",
@@ -9,13 +13,6 @@
       "description": "Protected endpoint requiring payment",
       "requiresPayment": true,
       "protocolFamily": "evm"
-    },
-    {
-      "path": "/protected-svm",
-      "method": "GET",
-      "description": "Protected endpoint requiring payment on SVM network",
-      "requiresPayment": true,
-      "protocolFamily": "svm"
     },
     {
       "path": "/health",
@@ -33,15 +30,9 @@
   "environment": {
     "required": [
       "PORT",
-      "USE_CDP_FACILITATOR",
-      "EVM_NETWORK",
-      "SVM_NETWORK",
       "EVM_ADDRESS",
-      "SVM_ADDRESS"
+      "FACILITATOR_URL"
     ],
-    "optional": [
-      "CDP_API_KEY_ID",
-      "CDP_API_KEY_SECRET"
-    ]
+    "optional": []
   }
 }

@@ -22,6 +22,10 @@ pnpm test -d -v               # Test with verbose logging
 pnpm test -d -ts              # Test TypeScript implementations
 pnpm test -d -py              # Test Python implementations
 pnpm test -d -go              # Test Go implementations
+
+# Legacy compatibility testing
+pnpm test --legacy            # Include legacy implementations
+pnpm test --legacy -d -ts     # Test legacy + new TypeScript implementations
 ```
 
 ## Filtering Tests
@@ -74,9 +78,27 @@ pnpm test -d -py --client=httpx      # Python httpx client development
 pnpm test -ts -py                    # Test TypeScript/Python compatibility
 pnpm test -d -py -go                 # Test Python/Go on testnet
 
+# Legacy Compatibility Testing
+pnpm test --legacy -d                # Test both new and legacy implementations
+pnpm test --legacy --client=legacy-axios # Test specific legacy client with new servers
+pnpm test --legacy --server=legacy-express # Test specific legacy server with new clients
+
 # Production Testing
 pnpm test --prod=true -ts            # Test TypeScript in production
 pnpm test --network=base -py         # Test Python on base network
+```
+
+### Environment Variables
+
+Required environment variables (set in `.env` file):
+```bash
+CLIENT_EVM_PRIVATE_KEY=0x...  # Private key for client wallet
+CLIENT_SVM_PRIVATE_KEY=...    # Solana private key for client
+SERVER_EVM_ADDRESS=0x...      # Server's EVM payment address
+SERVER_SVM_ADDRESS=...        # Server's Solana payment address
+
+# Optional (for real blockchain facilitator)
+EVM_RPC_URL=https://sepolia.base.org  # RPC endpoint for blockchain access (defaults to Base Sepolia)
 ```
 
 ### Environment Options
@@ -84,5 +106,6 @@ pnpm test --network=base -py         # Test Python on base network
 ```bash
 -d, --dev                  # Development mode (testnet, no CDP)
 -v, --verbose              # Detailed logging
+--legacy                   # Include legacy implementations from /legacy directory
 --log-file=<path>          # Save output to file
 ```

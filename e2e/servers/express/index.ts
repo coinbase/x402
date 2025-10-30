@@ -1,50 +1,97 @@
 import express from "express";
-import { Network, paymentMiddleware, SolanaAddress } from "x402-express";
-import { facilitator } from "@coinbase/x402";
+import { paymentMiddleware } from "@x402/express";
+import { ExactEvmService } from "@x402/evm";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { declareDiscoveryExtension, BAZAAR } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
-const evmNetwork = process.env.EVM_NETWORK as Network;
-const svmNetwork = process.env.SVM_NETWORK as Network;
-const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
-const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
-const port = process.env.PORT || "4021";
+/**
+ * Express E2E Test Server with x402 Payment Middleware
+ *
+ * This server demonstrates how to integrate x402 payment middleware
+ * with an Express application for end-to-end testing.
+ */
 
-if (!payToEvm || !evmNetwork) {
-  console.error("Missing required environment variables");
+const PORT = process.env.PORT || "4021";
+const NETWORK = "eip155:84532" as const;
+const PAYEE_ADDRESS = process.env.EVM_ADDRESS as `0x${string}`;
+const facilitatorUrl = process.env.FACILITATOR_URL;
+
+if (!PAYEE_ADDRESS) {
+  console.error("❌ EVM_ADDRESS environment variable is required");
   process.exit(1);
 }
 
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+
+// Initialize Express app
 const app = express();
 
+// Create HTTP facilitator client
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
+console.log(`Using remote facilitator at: ${facilitatorUrl}`);
+
+/**
+ * Configure x402 payment middleware
+ *
+ * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
+ * on the Base Sepolia testnet with bazaar discovery extension.
+ */
 app.use(
   paymentMiddleware(
-    payToEvm,
     {
+      // Route-specific payment configuration
       "GET /protected": {
+        payTo: PAYEE_ADDRESS,
+        scheme: "exact",
         price: "$0.001",
-        network: evmNetwork,
+        network: NETWORK,
+        extensions: {
+          [BAZAAR]: declareDiscoveryExtension({
+            method: "GET",
+            output: {
+              example: {
+                message: "Protected endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
       },
     },
-    useCdpFacilitator ? facilitator : undefined
+    // Use facilitator (either remote or local)
+    facilitatorClient,
+    // Register the EVM server for handling exact payments
+    [
+      {
+        network: NETWORK,
+        server: new ExactEvmService(),
+      },
+    ],
+    // No custom paywall configuration (uses defaults)
+    undefined,
   ),
 );
 
-app.use(
-  paymentMiddleware(
-    payToSvm,
-    {
-      "GET /protected-svm": {
-        price: "$0.001",
-        network: svmNetwork,
-      },
-    },
-    useCdpFacilitator ? facilitator : undefined
-  ),
-);
-
+/**
+ * Protected endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware.
+ * Clients must provide a valid payment signature to access this endpoint.
+ */
 app.get("/protected", (req, res) => {
   res.json({
     message: "Protected endpoint accessed successfully",
@@ -52,23 +99,49 @@ app.get("/protected", (req, res) => {
   });
 });
 
-app.get("/protected-svm", (req, res) => {
+/**
+ * Health check endpoint - no payment required
+ *
+ * Used to verify the server is running and responsive.
+ */
+app.get("/health", (req, res) => {
   res.json({
-    message: "Protected endpoint #2 accessed successfully",
-    timestamp: new Date().toISOString(),
+    status: "ok",
+    network: NETWORK,
+    payee: PAYEE_ADDRESS,
+    version: "2.0.0",
   });
 });
 
-app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
-});
-
+/**
+ * Shutdown endpoint - used by e2e tests
+ *
+ * Allows graceful shutdown of the server during testing.
+ */
 app.post("/close", (req, res) => {
-  res.json({ message: "Server shutting down" });
+  res.json({ message: "Server shutting down gracefully" });
   console.log("Received shutdown request");
-  process.exit(0);
+
+  // Give time for response to be sent
+  setTimeout(() => {
+    process.exit(0);
+  }, 100);
 });
 
-app.listen(parseInt(port), () => {
-  console.log(`Server listening at http://localhost:${port}`);
-}); 
+// Start the server
+app.listen(parseInt(PORT), () => {
+  console.log(`
+╔════════════════════════════════════════════════════════╗
+║           x402 Express E2E Test Server                 ║
+╠════════════════════════════════════════════════════════╣
+║  Server:     http://localhost:${PORT}                      ║
+║  Network:    ${NETWORK}                       ║
+║  Payee:      ${PAYEE_ADDRESS}     ║
+║                                                        ║
+║  Endpoints:                                            ║
+║  • GET  /protected  (requires $0.001 USDC payment)    ║
+║  • GET  /health     (no payment required)             ║
+║  • POST /close      (shutdown server)                 ║
+╚════════════════════════════════════════════════════════╝
+  `);
+});

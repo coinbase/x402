@@ -1,47 +1,143 @@
-# Go x402
+# x402 Go SDK
+
+Go implementation of the x402 payment protocol for HTTP 402 Payment Required responses with cryptocurrency payments.
 
 ## Installation
 
 ```bash
-go get github.com/coinbase/x402/go
+go get github.com/coinbase/x402-go/v2
 ```
 
-## Usage
+## Quick Start
 
-### Accepting x402 Payments with a [Gin](https://github.com/gin-gonic/gin) Resource Server
+### Client Usage
 
 ```go
 package main
 
 import (
-	"math/big"
-
-	x402gin "github.com/coinbase/x402/go/pkg/gin"
-	"github.com/gin-gonic/gin"
+    "context"
+    "fmt"
+    "net/http"
+    
+    x402 "github.com/coinbase/x402-go/v2"
+    "github.com/coinbase/x402-go/v2/http"
+    "github.com/coinbase/x402-go/v2/mechanisms/evm"
 )
 
 func main() {
-	r := gin.Default()
-
-	facilitatorConfig := &types.FacilitatorConfig{
-		URL: "http://localhost:3000",
-	}
-
-	r.GET(
-		"/joke",
-		x402gin.PaymentMiddleware(
-			big.NewFloat(0.0001),
-			"0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-			x402gin.WithFacilitatorConfig(facilitatorConfig),
-			x402gin.WithResource("http://localhost:4021/joke"),
-		),
-		func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"joke": "Why do programmers prefer dark mode? Because light attracts bugs!",
-			})
-		},
-	)
-
-	r.Run(":4021") // Start the server on 0.0.0.0:4021 (for windows "localhost:4021")
+    // Create EVM signer
+    signer := evm.NewSigner(privateKey)
+    
+    // Create x402 HTTP client
+    client := x402http.NewHTTPClient(
+        x402http.WithScheme("eip155:8453", evm.NewExactClient(signer)),
+    )
+    
+    // Wrap standard HTTP client
+    httpClient := x402http.WrapHTTPClient(http.DefaultClient, client)
+    
+    // Make request - payment handled automatically
+    resp, err := httpClient.Get("https://api.example.com/protected")
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+    
+    fmt.Println("Response:", resp.Status)
 }
 ```
+
+### Server Usage (Gin)
+
+```go
+package main
+
+import (
+    "github.com/gin-gonic/gin"
+    x402 "github.com/coinbase/x402-go/v2"
+    "github.com/coinbase/x402-go/v2/middleware/gin"
+    "github.com/coinbase/x402-go/v2/mechanisms/evm"
+)
+
+func main() {
+    r := gin.Default()
+    
+    // Configure payment routes
+    routes := x402gin.Routes{
+        "GET /protected": {
+            Scheme:  "exact",
+            PayTo:   "0x...",
+            Price:   "$0.001",
+            Network: "eip155:8453",
+        },
+    }
+    
+    // Add payment middleware
+    r.Use(x402gin.PaymentMiddleware(routes,
+        x402gin.WithFacilitatorURL("https://facilitator.example.com"),
+        x402gin.WithScheme("eip155:8453", evm.NewExactService()),
+    ))
+    
+    r.GET("/protected", func(c *gin.Context) {
+        c.JSON(200, gin.H{"data": "protected resource"})
+    })
+    
+    r.Run(":8080")
+}
+```
+
+## Features
+
+- ✅ **Protocol v2 Support** - Full implementation of x402 protocol v2
+- ✅ **EVM Support** - Built-in EVM blockchain support with EIP-3009
+- ✅ **Framework Agnostic** - Core functionality with optional framework middleware
+- ✅ **Tree-Shakeable** - Import only what you need
+- ✅ **Type Safe** - Strong typing with Go generics
+- ✅ **Context Support** - Proper context handling for cancellation
+- ✅ **Concurrent Safe** - Thread-safe operations
+
+## Documentation
+
+- [Architecture](SDK_ARCHITECTURE.md)
+- [Module Structure](MODULE_STRUCTURE.md)
+- [API Reference](https://pkg.go.dev/github.com/coinbase/x402-go/v2)
+
+## Supported Frameworks
+
+- [x] Gin
+- [ ] Echo
+- [x] net/http (standard library)
+- [ ] Fiber
+- [ ] Chi
+
+## Supported Mechanisms
+
+- [x] EVM (Ethereum, Base, etc.)
+  - [x] Exact payment scheme (EIP-3009)
+- [ ] Solana
+- [ ] Bitcoin Lightning
+
+## Testing
+
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cover
+
+# Run integration tests
+make test-integration
+
+# Run e2e tests
+make test-e2e
+```
+
+## Contributing
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md)
+
+## License
+
+MIT License - see [LICENSE](../LICENSE) for details

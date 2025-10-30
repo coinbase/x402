@@ -1,4 +1,10 @@
 packages:
+  - "facilitators/*"
   - "servers/*"
   - "clients/*"
+  - "legacy/servers/*"
+  - "legacy/clients/*"
   - "../typescript/packages/*"
+  - "../typescript/packages/http/*"
+  - "../typescript/packages/mechanisms/*"
+  - "../typescript/packages/legacy/*"
