@@ -2,8 +2,8 @@
 package v1
 
 import (
-	x402 "github.com/coinbase/x402-go/v2"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 // RegisterClient registers the V1 EVM client with an x402Client

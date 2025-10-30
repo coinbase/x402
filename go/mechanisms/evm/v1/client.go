@@ -6,8 +6,8 @@ import (
 	"math/big"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 // ExactEvmClientV1 implements the SchemeNetworkClient interface for EVM exact payments (V1)

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	x402http "github.com/coinbase/x402-go/v2/http"
+	x402 "github.com/coinbase/x402/go"
+	x402http "github.com/coinbase/x402/go/http"
 	"github.com/gin-gonic/gin"
 )
 

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	x402 "github.com/coinbase/x402-go/v2"
+	x402 "github.com/coinbase/x402/go"
 )
 
 // ============================================================================
@@ -53,13 +53,14 @@ type RouteConfig struct {
 	Extra             map[string]interface{} `json:"extra,omitempty"`
 
 	// HTTP-specific metadata
-	Resource          string      `json:"resource,omitempty"`
-	Description       string      `json:"description,omitempty"`
-	MimeType          string      `json:"mimeType,omitempty"`
-	CustomPaywallHTML string      `json:"customPaywallHtml,omitempty"`
-	Discoverable      bool        `json:"discoverable,omitempty"`
-	InputSchema       interface{} `json:"inputSchema,omitempty"`
-	OutputSchema      interface{} `json:"outputSchema,omitempty"`
+	Resource          string                 `json:"resource,omitempty"`
+	Description       string                 `json:"description,omitempty"`
+	MimeType          string                 `json:"mimeType,omitempty"`
+	CustomPaywallHTML string                 `json:"customPaywallHtml,omitempty"`
+	Discoverable      bool                   `json:"discoverable,omitempty"`
+	InputSchema       interface{}            `json:"inputSchema,omitempty"`
+	OutputSchema      interface{}            `json:"outputSchema,omitempty"`
+	Extensions        map[string]interface{} `json:"extensions,omitempty"`
 }
 
 // RoutesConfig maps route patterns to configurations
@@ -181,13 +182,22 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		MimeType:    routeConfig.MimeType,
 	}
 
+	// Add resource URL to all payment requirements for discovery
+	// This allows facilitators to catalog the resource correctly
+	for i := range requirements {
+		if requirements[i].Extra == nil {
+			requirements[i].Extra = make(map[string]interface{})
+		}
+		requirements[i].Extra["resourceUrl"] = resourceInfo.URL
+	}
+
 	// If no payment provided
 	if paymentPayload == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
 			resourceInfo,
 			"Payment required",
-			nil,
+			routeConfig.Extensions,
 		)
 
 		return HTTPProcessResult{
@@ -208,7 +218,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 			requirements,
 			resourceInfo,
 			"No matching payment requirements",
-			nil,
+			routeConfig.Extensions,
 		)
 
 		return HTTPProcessResult{
@@ -231,7 +241,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 			requirements,
 			resourceInfo,
 			errorMsg,
-			nil,
+			routeConfig.Extensions,
 		)
 
 		return HTTPProcessResult{

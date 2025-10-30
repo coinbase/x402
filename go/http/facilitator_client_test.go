@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	x402 "github.com/coinbase/x402-go/v2"
+	x402 "github.com/coinbase/x402/go"
 )
 
 func TestNewHTTPFacilitatorClient(t *testing.T) {

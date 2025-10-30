@@ -5,7 +5,7 @@ Go implementation of the x402 payment protocol for HTTP 402 Payment Required res
 ## Installation
 
 ```bash
-go get github.com/coinbase/x402-go/v2
+go get github.com/coinbase/x402/go
 ```
 
 ## Quick Start
@@ -20,9 +20,9 @@ import (
     "fmt"
     "net/http"
     
-    x402 "github.com/coinbase/x402-go/v2"
-    "github.com/coinbase/x402-go/v2/http"
-    "github.com/coinbase/x402-go/v2/mechanisms/evm"
+    x402 "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/http"
+    "github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 func main() {
@@ -55,9 +55,9 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    x402 "github.com/coinbase/x402-go/v2"
-    "github.com/coinbase/x402-go/v2/middleware/gin"
-    "github.com/coinbase/x402-go/v2/mechanisms/evm"
+    x402 "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/middleware/gin"
+    "github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 func main() {
@@ -101,7 +101,7 @@ func main() {
 
 - [Architecture](SDK_ARCHITECTURE.md)
 - [Module Structure](MODULE_STRUCTURE.md)
-- [API Reference](https://pkg.go.dev/github.com/coinbase/x402-go/v2)
+- [API Reference](https://pkg.go.dev/github.com/coinbase/x402/go)
 
 ## Supported Frameworks
 

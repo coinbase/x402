@@ -6,7 +6,7 @@ import (
 	"math/big"
 	"strings"
 
-	x402 "github.com/coinbase/x402-go/v2"
+	x402 "github.com/coinbase/x402/go"
 )
 
 // ExactEvmFacilitator implements the SchemeNetworkFacilitator interface for EVM exact payments (V2)

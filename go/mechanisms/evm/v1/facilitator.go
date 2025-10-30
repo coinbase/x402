@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 // ExactEvmFacilitatorV1 implements the SchemeNetworkFacilitator interface for EVM exact payments (V1)

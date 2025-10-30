@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	x402 "github.com/coinbase/x402-go/v2"
+	x402 "github.com/coinbase/x402/go"
 )
 
 // ============================================================================
@@ -202,6 +202,10 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	if err != nil {
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("failed to create payment: %w", err)
+	}
+
+	if paymentRequired.Extensions != nil {
+		payload.Extensions = paymentRequired.Extensions
 	}
 
 	// Create new request with payment header

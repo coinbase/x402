@@ -16,10 +16,10 @@ This package provides V2 EVM blockchain support for the x402 payment protocol. I
 
 ```go
 // For V2 (default, recommended)
-import "github.com/coinbase/x402-go/v2/mechanisms/evm"
+import "github.com/coinbase/x402/go/mechanisms/evm"
 
 // For V1 (legacy support)
-import evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
+import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 ```
 
 ## Usage
@@ -28,8 +28,8 @@ import evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
 
 ```go
 import (
-    x402 "github.com/coinbase/x402-go/v2"
-    "github.com/coinbase/x402-go/v2/mechanisms/evm"
+    x402 "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/mechanisms/evm"
 )
 
 // Implement the ClientEvmSigner interface
@@ -141,7 +141,7 @@ go test -v
 ## Dependencies
 
 - `github.com/ethereum/go-ethereum`: Ethereum Go implementation
-- `github.com/coinbase/x402-go/v2`: Core x402 protocol
+- `github.com/coinbase/x402/go`: Core x402 protocol
 
 ## Version Differences
 
@@ -159,7 +159,7 @@ go test -v
 
 For backward compatibility with existing V1 integrations, use:
 ```go
-import evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
+import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 ```
 
 ## License

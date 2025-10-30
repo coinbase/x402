@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	x402 "github.com/coinbase/x402-go/v2"
+	x402 "github.com/coinbase/x402/go"
 )
 
 // ============================================================================

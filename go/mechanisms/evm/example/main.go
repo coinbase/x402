@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log"
 
-	x402 "github.com/coinbase/x402-go/v2"
-	"github.com/coinbase/x402-go/v2/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
+	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/mechanisms/evm"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 )
 
 // Example showing how to use both V1 and V2 EVM implementations

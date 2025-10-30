@@ -16,8 +16,8 @@ This package contains the V1 implementation of the EVM mechanism for x402.
 
 ```go
 import (
-    x402 "github.com/coinbase/x402-go/v2"
-    evmv1 "github.com/coinbase/x402-go/v2/mechanisms/evm/v1"
+    x402 "github.com/coinbase/x402/go"
+    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 )
 
 // Register V1 client
