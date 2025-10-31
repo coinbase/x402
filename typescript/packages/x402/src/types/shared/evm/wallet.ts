@@ -20,7 +20,7 @@ import {
   polygonAmoy,
   peaq,
   avalanche,
-  iotexTestnet,
+  // iotexTestnet,
   iotex,
   abstract,
   abstractTestnet,
@@ -29,6 +29,8 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { eip712WalletActions } from "viem/zksync";
+import { X402Config } from "../../config";
+import { Network } from "../network";
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -55,16 +57,18 @@ export type EvmSigner = SignerWallet<Chain, Transport, Account> | LocalAccount;
  * Creates a public client configured for the specified network
  *
  * @param network - The network to connect to
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A public client instance connected to the specified chain
  */
 export function createConnectedClient(
-  network: string,
+  network: Network,
+  x402Config?: X402Config,
 ): ConnectedClient<Transport, Chain, undefined> {
   const chain = getChainFromNetwork(network);
 
   return createPublicClient({
     chain,
-    transport: http(),
+    transport: http(x402Config?.evmConfig?.[network]?.rpcUrl),
   }).extend(publicActions);
 }
 
@@ -105,14 +109,19 @@ export function createClientAvalancheFuji(): ConnectedClient<
  *
  * @param network - The network to connect to
  * @param privateKey - The private key to use for signing transactions
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A wallet client instance connected to the specified chain with the provided private key
  */
-export function createSigner(network: string, privateKey: Hex): SignerWallet<Chain> {
+export function createSigner(
+  network: Network,
+  privateKey: Hex,
+  x402Config?: X402Config,
+): SignerWallet<Chain> {
   const chain = getChainFromNetwork(network);
 
   const walletClient = createWalletClient({
     chain,
-    transport: http(),
+    transport: http(x402Config?.evmConfig?.[network]?.rpcUrl),
     account: privateKeyToAccount(privateKey),
   });
 
@@ -195,7 +204,7 @@ export function isAccount<
  * @param network - The network string to convert to a Chain object
  * @returns The corresponding Chain object
  */
-export function getChainFromNetwork(network: string | undefined): Chain {
+export function getChainFromNetwork(network: Network | undefined): Chain {
   if (!network) {
     throw new Error("NETWORK environment variable is not set");
   }
@@ -227,8 +236,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return story;
     case "iotex":
       return iotex;
-    case "iotex-testnet":
-      return iotexTestnet;
+    // case "iotex-testnet":
+    //   return iotexTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

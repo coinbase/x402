@@ -36,20 +36,20 @@ import { getRpcClient } from "../../../shared/svm/rpc";
  * @param client - The signer instance used to create the payment header
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements containing scheme and network information
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A promise that resolves to a base64 encoded payment header string
  */
 export async function createPaymentHeader(
   client: TransactionSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<string> {
   const paymentPayload = await createAndSignPayment(
     client,
     x402Version,
     paymentRequirements,
-    config,
+    x402Config,
   );
   return encodePayment(paymentPayload);
 }
@@ -60,19 +60,19 @@ export async function createPaymentHeader(
  * @param client - The signer instance used to create and sign the payment tx
  * @param x402Version - The version of the X402 protocol to use
  * @param paymentRequirements - The payment requirements
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A promise that resolves to a payment payload containing a base64 encoded solana token transfer tx
  */
 export async function createAndSignPayment(
   client: TransactionSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<PaymentPayload> {
   const transactionMessage = await createTransferTransactionMessage(
     client,
     paymentRequirements,
-    config,
+    x402Config,
   );
   const signedTransaction = await partiallySignTransactionMessageWithSigners(transactionMessage);
   const base64EncodedWireTransaction = getBase64EncodedWireTransaction(signedTransaction);
@@ -93,21 +93,24 @@ export async function createAndSignPayment(
  *
  * @param client - The signer instance used to create the transfer transaction message
  * @param paymentRequirements - The payment requirements
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A promise that resolves to the transaction message with the transfer instruction
  */
 async function createTransferTransactionMessage(
   client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ) {
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+  const rpc = getRpcClient(
+    paymentRequirements.network,
+    x402Config?.svmConfig?.[paymentRequirements.network]?.rpcUrl,
+  );
 
   // create the transfer instruction
   const transferInstructions = await createAtaAndTransferInstructions(
     client,
     paymentRequirements,
-    config,
+    x402Config,
   );
 
   // create tx to simulate
@@ -145,17 +148,20 @@ async function createTransferTransactionMessage(
  *
  * @param client - The signer instance used to create the transfer instruction
  * @param paymentRequirements - The payment requirements
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A promise that resolves to the create ATA (if needed) and transfer instruction
  */
 async function createAtaAndTransferInstructions(
   client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<Instruction[]> {
   const { asset } = paymentRequirements;
 
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+  const rpc = getRpcClient(
+    paymentRequirements.network,
+    x402Config?.svmConfig?.[paymentRequirements.network]?.rpcUrl,
+  );
   const tokenMint = await fetchMint(rpc, asset as Address);
   const tokenProgramAddress = tokenMint.programAddress;
 
@@ -173,7 +179,7 @@ async function createAtaAndTransferInstructions(
   const createAtaIx = await createAtaInstructionOrUndefined(
     paymentRequirements,
     tokenProgramAddress,
-    config,
+    x402Config,
   );
   if (createAtaIx) {
     instructions.push(createAtaIx);
@@ -201,14 +207,14 @@ async function createAtaAndTransferInstructions(
  *
  * @param paymentRequirements - The payment requirements
  * @param tokenProgramAddress - The address of the token program
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A promise that resolves to the create ATA instruction or undefined if the ATA account already exists
  * @throws an error if the feePayer is not provided in the payment requirements
  */
 async function createAtaInstructionOrUndefined(
   paymentRequirements: PaymentRequirements,
   tokenProgramAddress: Address,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<Instruction | undefined> {
   const { asset, payTo, extra } = paymentRequirements;
   const feePayer = extra?.feePayer as Address;
@@ -229,7 +235,10 @@ async function createAtaInstructionOrUndefined(
   });
 
   // check if the ATA exists
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+  const rpc = getRpcClient(
+    paymentRequirements.network,
+    x402Config?.svmConfig?.[paymentRequirements.network]?.rpcUrl,
+  );
   const maybeAccount = await fetchEncodedAccount(rpc, destinationATAAddress);
 
   // if the ATA does not exist, return an instruction to create it

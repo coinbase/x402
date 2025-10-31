@@ -29,7 +29,7 @@ import {
  * @param axiosClient - The Axios instance to add the interceptor to
  * @param walletClient - A wallet client that can sign transactions and create payment headers
  * @param paymentRequirementsSelector - A function that selects the payment requirements from the response
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns The modified Axios instance with the payment interceptor
  *
  * @example
@@ -44,7 +44,7 @@ import {
  *   axios.create(),
  *   signer,
  *   undefined,
- *   { svmConfig: { rpcUrl: "http://localhost:8899" } }
+ *   svmConfig: { "solana-devnet": { rpcUrl: "http://localhost:8899"} }
  * );
  *
  * // The client will automatically handle 402 responses
@@ -55,7 +55,7 @@ export function withPaymentInterceptor(
   axiosClient: AxiosInstance,
   walletClient: Signer | MultiNetworkSigner,
   paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ) {
   axiosClient.interceptors.response.use(
     response => response,
@@ -93,7 +93,7 @@ export function withPaymentInterceptor(
           walletClient,
           x402Version,
           selectedPaymentRequirements,
-          config,
+          x402Config,
         );
 
         (originalConfig as { __is402Retry?: boolean }).__is402Retry = true;

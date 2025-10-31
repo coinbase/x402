@@ -58,14 +58,14 @@ import { SCHEME } from "../../";
  * @param signer - The signer that will sign and simulate the transaction
  * @param payload - The payment payload to verify
  * @param paymentRequirements - The payment requirements to verify against
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
 export async function verify(
   signer: TransactionSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<VerifyResponse> {
   try {
     // verify that the scheme and network are supported
@@ -74,10 +74,13 @@ export async function verify(
     // decode the base64 encoded transaction
     const svmPayload = payload.payload as ExactSvmPayload;
     const decodedTransaction = decodeTransactionFromPayload(svmPayload);
-    const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+    const rpc = getRpcClient(
+      paymentRequirements.network,
+      x402Config?.svmConfig?.[paymentRequirements.network]?.rpcUrl,
+    );
 
     // perform transaction introspection to validate the transaction structure and details
-    await transactionIntrospection(svmPayload, paymentRequirements, signer, config);
+    await transactionIntrospection(svmPayload, paymentRequirements, signer, x402Config);
 
     // simulate the transaction to ensure it will execute successfully
     const simulateResult = await signAndSimulateTransaction(signer, decodedTransaction, rpc);
@@ -156,15 +159,18 @@ export function verifySchemesAndNetworks(
  * @param svmPayload - The SVM payload containing the transaction
  * @param paymentRequirements - The payment requirements to verify against
  * @param signer - The signer that will sign the transaction
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  */
 export async function transactionIntrospection(
   svmPayload: ExactSvmPayload,
   paymentRequirements: PaymentRequirements,
   signer: TransactionSigner,
-  config?: X402Config,
+  x402Config?: X402Config,
 ): Promise<void> {
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+  const rpc = getRpcClient(
+    paymentRequirements.network,
+    x402Config?.svmConfig?.[paymentRequirements.network]?.rpcUrl,
+  );
   const decodedTransaction = decodeTransactionFromPayload(svmPayload);
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,

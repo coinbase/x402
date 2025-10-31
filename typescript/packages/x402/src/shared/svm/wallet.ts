@@ -11,6 +11,7 @@ import {
 import { base58 } from "@scure/base";
 import { getRpcClient } from "./rpc";
 import { Network, SupportedSVMNetworks } from "../../types/shared";
+import { X402Config } from "../../types";
 export type { KeyPairSigner } from "@solana/kit";
 
 export type SvmConnectedClient = RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>;
@@ -20,13 +21,17 @@ export type SvmSigner = TransactionSigner;
  * Creates a public client configured for the specified SVM network
  *
  * @param network - The network to connect to
+ * @param x402Config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A public client instance connected to the specified chain
  */
-export function createSvmConnectedClient(network: string): SvmConnectedClient {
+export function createSvmConnectedClient(
+  network: Network,
+  x402Config?: X402Config,
+): SvmConnectedClient {
   if (!SupportedSVMNetworks.find(n => n === network)) {
     throw new Error(`Unsupported SVM network: ${network}`);
   }
-  return getRpcClient(network as Network);
+  return getRpcClient(network, x402Config?.svmConfig?.[network]?.rpcUrl);
 }
 
 /**
