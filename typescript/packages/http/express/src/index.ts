@@ -122,9 +122,9 @@ export function paymentMiddleware(
     });
   }
 
-  // Set custom paywall provider if provided
+  // Register custom paywall provider if provided
   if (paywall) {
-    server.setPaywallProvider(paywall);
+    server.registerPaywallProvider(paywall);
   }
 
   if (initializeOnStart) {
