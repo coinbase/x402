@@ -3,6 +3,7 @@ import { generateKeyPairSigner, type TransactionSigner } from "@solana/kit";
 import { createPaymentHeader } from "./createPaymentHeader";
 import { PaymentRequirements } from "../types/verify";
 import * as exactSvmClient from "../schemes/exact/svm/client";
+import { X402Config } from "../types";
 
 vi.mock("../schemes/exact/svm/client", () => ({
   createPaymentHeader: vi.fn(),
@@ -37,18 +38,18 @@ describe("createPaymentHeader", () => {
     it("should propagate config to exact SVM client", async () => {
       // Arrange
       const customRpcUrl = "http://localhost:8899";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
+      const x402Config: X402Config = { svmConfig: { "solana-devnet": { rpcUrl: customRpcUrl } } };
       vi.mocked(exactSvmClient.createPaymentHeader).mockResolvedValue("mock_payment_header");
 
       // Act
-      await createPaymentHeader(svmSigner, 1, paymentRequirements, config);
+      await createPaymentHeader(svmSigner, 1, paymentRequirements, x402Config);
 
       // Assert
       expect(exactSvmClient.createPaymentHeader).toHaveBeenCalledWith(
         svmSigner,
         1,
         paymentRequirements,
-        config,
+        x402Config,
       );
     });
 
@@ -70,18 +71,18 @@ describe("createPaymentHeader", () => {
 
     it("should call exact SVM client with empty config object", async () => {
       // Arrange
-      const config = {};
+      const x402Config: X402Config = {};
       vi.mocked(exactSvmClient.createPaymentHeader).mockResolvedValue("mock_payment_header");
 
       // Act
-      await createPaymentHeader(svmSigner, 1, paymentRequirements, config);
+      await createPaymentHeader(svmSigner, 1, paymentRequirements, x402Config);
 
       // Assert
       expect(exactSvmClient.createPaymentHeader).toHaveBeenCalledWith(
         svmSigner,
         1,
         paymentRequirements,
-        config,
+        x402Config,
       );
     });
   });

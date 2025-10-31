@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { base, baseSepolia, avalancheFuji, abstract } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createConnectedClient, createSigner } from "./wallet";
+import { Network } from "../network";
 
 // Mock viem modules
 const mockExtend = vi.fn();
@@ -85,17 +86,19 @@ describe("createConnectedClient", () => {
   });
 
   it("should throw an error for unsupported network", () => {
-    expect(() => createConnectedClient("unsupported-network")).toThrow(
+    expect(() => createConnectedClient("unsupported-network" as Network)).toThrow(
       "Unsupported network: unsupported-network",
     );
   });
 
   it("should throw an error for empty network", () => {
-    expect(() => createConnectedClient("")).toThrow("NETWORK environment variable is not set");
+    expect(() => createConnectedClient("" as Network)).toThrow(
+      "NETWORK environment variable is not set",
+    );
   });
 
   it("should throw an error for undefined network", () => {
-    expect(() => createConnectedClient(undefined as unknown as string)).toThrow(
+    expect(() => createConnectedClient(undefined as unknown as Network)).toThrow(
       "NETWORK environment variable is not set",
     );
   });
@@ -136,19 +139,19 @@ describe("createSigner", () => {
   });
 
   it("should throw an error for unsupported network", () => {
-    expect(() => createSigner("unsupported-network", mockPrivateKey)).toThrow(
+    expect(() => createSigner("unsupported-network" as Network, mockPrivateKey)).toThrow(
       "Unsupported network: unsupported-network",
     );
   });
 
   it("should throw an error for empty network", () => {
-    expect(() => createSigner("", mockPrivateKey)).toThrow(
+    expect(() => createSigner("" as Network, mockPrivateKey)).toThrow(
       "NETWORK environment variable is not set",
     );
   });
 
   it("should throw an error for undefined network", () => {
-    expect(() => createSigner(undefined as unknown as string, mockPrivateKey)).toThrow(
+    expect(() => createSigner(undefined as unknown as Network, mockPrivateKey)).toThrow(
       "NETWORK environment variable is not set",
     );
   });

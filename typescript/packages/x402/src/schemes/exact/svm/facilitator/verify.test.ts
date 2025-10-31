@@ -19,7 +19,7 @@ import {
   generateKeyPairSigner,
 } from "@solana/kit";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
-import { Network } from "../../../../types";
+import { Network, X402Config } from "../../../../types";
 import { SCHEME } from "../../";
 import * as SvmShared from "../../../../shared/svm";
 import * as rpc from "../../../../shared/svm/rpc";
@@ -1040,7 +1040,7 @@ describe("verify", () => {
     it("should use custom RPC URL from config during verification", async () => {
       // Arrange
       const customRpcUrl = "http://localhost:8899";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
+      const x402Config: X402Config = { svmConfig: { "solana-devnet": { rpcUrl: customRpcUrl } } };
 
       const mockRpcClient = {
         getLatestBlockhash: vi.fn().mockReturnValue({
@@ -1097,7 +1097,7 @@ describe("verify", () => {
       ] as any);
 
       // Act
-      await verify(mockSigner, mockPayload, mockPaymentRequirements, config);
+      await verify(mockSigner, mockPayload, mockPaymentRequirements, x402Config);
 
       // Assert
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
@@ -1106,7 +1106,7 @@ describe("verify", () => {
     it("should use custom RPC URL during transaction introspection", async () => {
       // Arrange
       const customRpcUrl = "https://custom-mainnet.com";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
+      const x402Config: X402Config = { svmConfig: { solana: { rpcUrl: customRpcUrl } } };
       const mainnetRequirements = { ...mockPaymentRequirements, network: "solana" as Network };
       const mainnetPayload = { ...mockPayload, network: "solana" as Network };
 
@@ -1165,7 +1165,7 @@ describe("verify", () => {
       ] as any);
 
       // Act
-      await verify(mockSigner, mainnetPayload, mainnetRequirements, config);
+      await verify(mockSigner, mainnetPayload, mainnetRequirements, x402Config);
 
       // Assert
       expect(rpc.getRpcClient).toHaveBeenCalledWith("solana", customRpcUrl);
