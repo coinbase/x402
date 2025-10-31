@@ -1,6 +1,6 @@
 {
   "name": "Bino",
-  "description": "DePIN AI agent pwr by @iotex_io and quicksilver.",
+  "description": "DePIN AI agent powered by IoTeX and QuickSilver. Uses x402 to both receive payments for IoTeX ecosystem queries and pay other agents for their services.",
   "logoUrl": "/logos/bino.png",
   "websiteUrl": "https://x.com/Bino_AI",
   "category": "Client-Side Integrations"
