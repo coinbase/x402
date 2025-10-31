@@ -7,7 +7,6 @@ import {
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
-import { base } from "wagmi/chains";
 import {
   decodeXPaymentResponse,
   MultiNetworkSigner,
@@ -222,7 +221,7 @@ function App() {
         console.log("Using preferred token:", tokenAddress);
         console.log("Using preferred network:", getNetworkName(selectedChain));
 
-        const response = await fetch(`${API_BASE_URL}/api/premium`, {
+        const response = await fetch(`${API_BASE_URL}/api/b3/premium`, {
           method: "POST",
           headers,
         });
@@ -564,7 +563,7 @@ function App() {
       try {
         setPaymentStatus({ stage: 'verifying', message: 'Verifying payment signature...' });
 
-        const response = await fetchWithPayment(`${API_BASE_URL}/api/premium`, {
+        const response = await fetchWithPayment(`${API_BASE_URL}/api/b3/premium`, {
           method: "POST",
         });
 

@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, publicActions } from "viem";
+import { createPublicClient, createWalletClient, http, publicActions, defineChain } from "viem";
 import type {
   Chain,
   Transport,
@@ -24,10 +24,27 @@ import {
   iotex,
   abstract,
   abstractTestnet,
+  arbitrum,
+  bsc,
+  mainnet,
+  optimism,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { eip712WalletActions } from "viem/zksync";
+
+// Define B3 chain (not yet in viem/chains)
+const b3 = defineChain({
+  id: 8333,
+  name: "B3",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://mainnet-rpc.b3.fun"] },
+  },
+  blockExplorers: {
+    default: { name: "B3Scan", url: "https://explorer.b3.fun" },
+  },
+});
 
 // Create a public client for reading data
 export type SignerWallet<
@@ -204,28 +221,38 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return abstract;
     case "abstract-testnet":
       return abstractTestnet;
-    case "base":
-      return base;
-    case "base-sepolia":
-      return baseSepolia;
+    case "arbitrum":
+      return arbitrum;
     case "avalanche":
       return avalanche;
     case "avalanche-fuji":
       return avalancheFuji;
-    case "sei":
-      return sei;
-    case "sei-testnet":
-      return seiTestnet;
-    case "polygon":
-      return polygon;
-    case "polygon-amoy":
-      return polygonAmoy;
-    case "peaq":
-      return peaq;
+    case "b3":
+      return b3;
+    case "base":
+      return base;
+    case "base-sepolia":
+      return baseSepolia;
+    case "bsc":
+      return bsc;
+    case "ethereum":
+      return mainnet;
     case "iotex":
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "optimism":
+      return optimism;
+    case "peaq":
+      return peaq;
+    case "polygon":
+      return polygon;
+    case "polygon-amoy":
+      return polygonAmoy;
+    case "sei":
+      return sei;
+    case "sei-testnet":
+      return seiTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
