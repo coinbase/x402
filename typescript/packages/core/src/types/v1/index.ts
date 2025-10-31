@@ -56,3 +56,24 @@ export type SupportedResponseV1 = {
   }[];
   extensions: string[];
 };
+
+export const EVM_NETWORKS = [
+  "abstract",
+  "abstract-testnet",
+  "base-sepolia",
+  "base",
+  "avalanche-fuji",
+  "avalanche",
+  "iotex",
+  "sei",
+  "sei-testnet",
+  "polygon",
+  "polygon-amoy",
+  "peaq",
+];
+
+export type EVMNetworkV1 = (typeof EVM_NETWORKS)[number];
+
+export const SVM_NETWORKS = ["solana", "solana-devnet"];
+
+export type SVMNetworkV1 = (typeof SVM_NETWORKS)[number];

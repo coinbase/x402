@@ -65,10 +65,11 @@ export interface PaywallNetworkHandler {
   /**
    * Check if this handler supports the given payment requirement
    *
+   * @param x402Version - The x402 protocol version
    * @param requirement - Payment requirement to check
    * @returns True if this handler can process this requirement
    */
-  supports(requirement: PaymentRequirements): boolean;
+  supports(x402Version: number, requirement: PaymentRequirements): boolean;
 
   /**
    * Generate HTML for this network's paywall

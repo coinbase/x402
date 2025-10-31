@@ -5,6 +5,7 @@ import type {
   PaywallConfig,
 } from "../types";
 import { getSvmPaywallHtml } from "./paywall";
+import { SVM_NETWORKS, type SVMNetworkV1 } from "@x402/core/types";
 
 /**
  * SVM paywall handler that supports Solana-based networks
@@ -13,21 +14,24 @@ export const svmPaywall: PaywallNetworkHandler = {
   /**
    * Check if this handler supports the given payment requirement
    *
-   * @param requirement - The payment requirement to check
+   * @param x402Version - The x402 protocol version
+   * @param requirement - Payment requirement to check
    * @returns True if this handler can process this requirement
    */
-  supports(requirement: PaymentRequirements): boolean {
+  supports(x402Version: number, requirement: PaymentRequirements): boolean {
     const network = requirement.network;
 
-    // Support v2 CAIP-2 format (solana:*)
-    if (network.startsWith("solana:")) {
-      return true;
+    if (x402Version === 2) {
+      // v2: CAIP-2 format (solana:*)
+      return network.startsWith("solana:");
     }
 
-    // Support v1 legacy Solana networks
-    const svmNetworks = ["solana", "solana-devnet"];
+    if (x402Version === 1) {
+      // v1: legacy network names
+      return SVM_NETWORKS.includes(network as SVMNetworkV1);
+    }
 
-    return svmNetworks.includes(network);
+    return false;
   },
 
   /**

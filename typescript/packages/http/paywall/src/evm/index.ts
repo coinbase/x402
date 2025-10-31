@@ -5,6 +5,7 @@ import type {
   PaywallConfig,
 } from "../types";
 import { getEvmPaywallHtml } from "./paywall";
+import { EVM_NETWORKS, type EVMNetworkV1 } from "@x402/core/types";
 
 /**
  * EVM paywall handler that supports EVM-based networks
@@ -13,34 +14,24 @@ export const evmPaywall: PaywallNetworkHandler = {
   /**
    * Check if this handler supports the given payment requirement
    *
+   * @param x402Version - The x402 protocol version
    * @param requirement - Payment requirement to check
    * @returns True if this handler can process this requirement
    */
-  supports(requirement: PaymentRequirements): boolean {
+  supports(x402Version: number, requirement: PaymentRequirements): boolean {
     const network = requirement.network;
 
-    // Support v2 CAIP-2 format (eip155:*)
-    if (network.startsWith("eip155:")) {
-      return true;
+    if (x402Version === 2) {
+      // v2: CAIP-2 format (eip155:*)
+      return network.startsWith("eip155:");
     }
 
-    // Support v1 legacy EVM networks
-    const evmNetworks = [
-      "base",
-      "base-sepolia",
-      "abstract",
-      "abstract-testnet",
-      "avalanche",
-      "avalanche-fuji",
-      "iotex",
-      "sei",
-      "sei-testnet",
-      "polygon",
-      "polygon-amoy",
-      "peaq",
-    ];
+    if (x402Version === 1) {
+      // v1: legacy network names
+      return EVM_NETWORKS.includes(network as EVMNetworkV1);
+    }
 
-    return evmNetworks.includes(network);
+    return false;
   },
 
   /**

@@ -34,20 +34,20 @@ const mockPaymentRequired: PaymentRequired = {
 describe("Network Handlers", () => {
   describe("evmPaywall", () => {
     it("supports v2 CAIP-2 EVM networks", () => {
-      expect(evmPaywall.supports({ ...evmRequirement, network: "eip155:8453" })).toBe(true);
-      expect(evmPaywall.supports({ ...evmRequirement, network: "eip155:84532" })).toBe(true);
-      expect(evmPaywall.supports({ ...evmRequirement, network: "eip155:1" })).toBe(true);
+      expect(evmPaywall.supports(2, { ...evmRequirement, network: "eip155:8453" })).toBe(true);
+      expect(evmPaywall.supports(2, { ...evmRequirement, network: "eip155:84532" })).toBe(true);
+      expect(evmPaywall.supports(2, { ...evmRequirement, network: "eip155:1" })).toBe(true);
     });
 
     it("supports v1 legacy EVM networks", () => {
-      expect(evmPaywall.supports({ ...evmRequirement, network: "base" })).toBe(true);
-      expect(evmPaywall.supports({ ...evmRequirement, network: "base-sepolia" })).toBe(true);
-      expect(evmPaywall.supports({ ...evmRequirement, network: "polygon" })).toBe(true);
+      expect(evmPaywall.supports(1, { ...evmRequirement, network: "base" })).toBe(true);
+      expect(evmPaywall.supports(1, { ...evmRequirement, network: "base-sepolia" })).toBe(true);
+      expect(evmPaywall.supports(1, { ...evmRequirement, network: "polygon" })).toBe(true);
     });
 
     it("rejects non-EVM networks", () => {
-      expect(evmPaywall.supports({ ...evmRequirement, network: "solana:5eykt" })).toBe(false);
-      expect(evmPaywall.supports({ ...evmRequirement, network: "solana-devnet" })).toBe(false);
+      expect(evmPaywall.supports(2, { ...evmRequirement, network: "solana:5eykt" })).toBe(false);
+      expect(evmPaywall.supports(1, { ...evmRequirement, network: "solana-devnet" })).toBe(false);
     });
 
     it("generates HTML for EVM networks", () => {
@@ -64,23 +64,18 @@ describe("Network Handlers", () => {
 
   describe("svmPaywall", () => {
     it("supports v2 CAIP-2 Solana networks", () => {
-      expect(
-        svmPaywall.supports({
-          ...svmRequirement,
-          network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-        }),
-      ).toBe(true);
-      expect(svmPaywall.supports({ ...svmRequirement, network: "solana:devnet" })).toBe(true);
+      expect(svmPaywall.supports(2, { ...svmRequirement, network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" })).toBe(true);
+      expect(svmPaywall.supports(2, { ...svmRequirement, network: "solana:devnet" })).toBe(true);
     });
 
     it("supports v1 legacy Solana networks", () => {
-      expect(svmPaywall.supports({ ...svmRequirement, network: "solana" })).toBe(true);
-      expect(svmPaywall.supports({ ...svmRequirement, network: "solana-devnet" })).toBe(true);
+      expect(svmPaywall.supports(1, { ...svmRequirement, network: "solana" })).toBe(true);
+      expect(svmPaywall.supports(1, { ...svmRequirement, network: "solana-devnet" })).toBe(true);
     });
 
     it("rejects non-Solana networks", () => {
-      expect(svmPaywall.supports({ ...svmRequirement, network: "eip155:8453" })).toBe(false);
-      expect(svmPaywall.supports({ ...svmRequirement, network: "base" })).toBe(false);
+      expect(svmPaywall.supports(2, { ...svmRequirement, network: "eip155:8453" })).toBe(false);
+      expect(svmPaywall.supports(1, { ...svmRequirement, network: "base" })).toBe(false);
     });
 
     it("generates HTML for Solana networks", () => {

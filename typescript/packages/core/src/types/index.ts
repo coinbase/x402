@@ -11,7 +11,14 @@ export type {
   SchemeNetworkFacilitator,
   SchemeNetworkService,
 } from "./mechanisms";
-export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
+export type {
+  PaymentRequirementsV1,
+  PaymentRequiredV1,
+  PaymentPayloadV1,
+  EVMNetworkV1,
+  SVMNetworkV1,
+} from "./v1";
+export { EVM_NETWORKS, SVM_NETWORKS } from "./v1";
 
 export type Network = `${string}:${string}`;
 

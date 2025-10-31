@@ -52,7 +52,9 @@ export class PaywallBuilder {
         // If network handlers are registered, use first-match selection
         if (handlers.length > 0) {
           for (const requirement of paymentRequired.accepts) {
-            const handler = handlers.find(h => h.supports(requirement));
+            const handler = handlers.find(h =>
+              h.supports(paymentRequired.x402Version, requirement),
+            );
             if (handler) {
               return handler.generateHtml(requirement, paymentRequired, finalConfig);
             }
