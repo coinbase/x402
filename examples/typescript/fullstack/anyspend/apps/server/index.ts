@@ -2,7 +2,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express, { Request, Response } from "express";
 import { Address } from "viem";
-import { paymentMiddleware } from "x402-express";
+import { paymentMiddleware } from "@b3dotfun/anyspend-x402-express";
 
 // Load environment variables
 dotenv.config();
@@ -251,6 +251,7 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 
     // Calculate USD values and sort by value
     const tokensWithValue = balances
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((balance: any) => {
         const rawAmount = balance.amount || "0";
         const decimals = balance.decimals || 18;
@@ -260,7 +261,7 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
         try {
           const weiBigInt = BigInt(rawAmount.toString().split(".")[0]);
           amount = Number(weiBigInt) / Math.pow(10, decimals);
-        } catch (e) {
+        } catch {
           amount = parseFloat(rawAmount) / Math.pow(10, decimals);
         }
 
@@ -286,7 +287,9 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
           valueUsd: valueUsd,
         };
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((token: any) => token.valueUsd > 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .sort((a: any, b: any) => b.valueUsd - a.valueUsd)
       .slice(0, 5); // Top 5
 
@@ -307,6 +310,8 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 
 /**
  * Fetch ETH price history from CoinGecko
+ *
+ * @returns {Promise} Promise resolving to price history data
  */
 async function fetchEthPriceHistory() {
   try {
@@ -331,7 +336,8 @@ async function fetchEthPriceHistory() {
     const data = (await response.json()) as number[][];
 
     // Data format: [[timestamp, open, high, low, close], ...]
-    const priceHistory = data.map((item: number[]) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const priceHistory = data.map((item: any) => ({
       timestamp: item[0],
       open: item[1],
       high: item[2],
@@ -340,6 +346,7 @@ async function fetchEthPriceHistory() {
     }));
 
     // Calculate statistics
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prices = priceHistory.map((p: any) => p.close);
     const currentPrice = prices[prices.length - 1];
     const dayStartPrice = prices[0];
@@ -368,6 +375,8 @@ async function fetchEthPriceHistory() {
 
 /**
  * Fetch BTC price history from CoinGecko
+ *
+ * @returns {Promise} Promise resolving to price history data
  */
 async function fetchBtcPriceHistory() {
   try {
@@ -392,7 +401,8 @@ async function fetchBtcPriceHistory() {
     const data = (await response.json()) as number[][];
 
     // Data format: [[timestamp, open, high, low, close], ...]
-    const priceHistory = data.map((item: number[]) => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const priceHistory = data.map((item: any) => ({
       timestamp: item[0],
       open: item[1],
       high: item[2],
@@ -401,6 +411,7 @@ async function fetchBtcPriceHistory() {
     }));
 
     // Calculate statistics
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prices = priceHistory.map((p: any) => p.close);
     const currentPrice = prices[prices.length - 1];
     const dayStartPrice = prices[0];

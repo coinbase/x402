@@ -1,5 +1,5 @@
 import { useFacilitator } from "x402/verify";
-import { facilitator } from "@coinbase/x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 const { list } = useFacilitator(facilitator);
 

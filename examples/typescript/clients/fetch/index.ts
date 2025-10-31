@@ -1,5 +1,10 @@
 import { config } from "dotenv";
-import { createSigner, decodeXPaymentResponse, wrapFetchWithPayment, type Hex } from "x402-fetch";
+import {
+  createSigner,
+  decodeXPaymentResponse,
+  wrapFetchWithPayment,
+  type Hex,
+} from "@b3dotfun/anyspend-x402-fetch";
 
 config();
 

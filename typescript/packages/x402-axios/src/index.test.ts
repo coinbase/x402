@@ -6,11 +6,17 @@ import {
   InternalAxiosRequestConfig,
 } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evm, PaymentRequirements, ChainIdToNetwork, Signer, MultiNetworkSigner } from "x402/types";
+import {
+  evm,
+  PaymentRequirements,
+  ChainIdToNetwork,
+  Signer,
+  MultiNetworkSigner,
+} from "@b3dotfun/anyspend-x402/types";
 import { withPaymentInterceptor } from "./index";
 
 // Mock the createPaymentHeader function
-vi.mock("x402/client", () => ({
+vi.mock("@b3dotfun/anyspend-x402/client", () => ({
   createPaymentHeader: vi.fn(),
   selectPaymentRequirements: vi.fn(),
 }));
@@ -82,7 +88,7 @@ describe("withPaymentInterceptor()", () => {
     } as unknown as typeof evm.SignerWallet;
 
     // Mock payment requirements selector
-    const { selectPaymentRequirements } = await import("x402/client");
+    const { selectPaymentRequirements } = await import("@b3dotfun/anyspend-x402/client");
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
       (requirements, _) => requirements[0],
     );
@@ -111,7 +117,9 @@ describe("withPaymentInterceptor()", () => {
     const paymentHeader = "payment-header-value";
     const successResponse = { data: "success" } as AxiosResponse;
 
-    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    const { createPaymentHeader, selectPaymentRequirements } = await import(
+      "@b3dotfun/anyspend-x402/client"
+    );
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
       (requirements, _) => requirements[0],
@@ -165,7 +173,7 @@ describe("withPaymentInterceptor()", () => {
 
   it("should reject if payment header creation fails", async () => {
     const paymentError = new Error("Payment failed");
-    const { createPaymentHeader } = await import("x402/client");
+    const { createPaymentHeader } = await import("@b3dotfun/anyspend-x402/client");
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockRejectedValue(paymentError);
 
     const error = createAxiosError(402, createErrorConfig(), {
@@ -179,7 +187,9 @@ describe("withPaymentInterceptor()", () => {
     const paymentHeader = "payment-header-value";
     const successResponse = { data: "success" } as AxiosResponse;
 
-    const { createPaymentHeader, selectPaymentRequirements } = await import("x402/client");
+    const { createPaymentHeader, selectPaymentRequirements } = await import(
+      "@b3dotfun/anyspend-x402/client"
+    );
     (createPaymentHeader as ReturnType<typeof vi.fn>).mockResolvedValue(paymentHeader);
     (selectPaymentRequirements as ReturnType<typeof vi.fn>).mockImplementation(
       (requirements, _) => requirements[0],
@@ -219,8 +229,8 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
   });
 
   it("passes [solana, solana-devnet] for SVM-only signers", async () => {
-    vi.doMock("x402/types", async () => {
-      const actual = await vi.importActual("x402/types");
+    vi.doMock("@b3dotfun/anyspend-x402/types", async () => {
+      const actual = await vi.importActual("@b3dotfun/anyspend-x402/types");
       return {
         ...actual,
         isEvmSignerWallet: vi.fn().mockReturnValue(false),
@@ -229,13 +239,13 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
       };
     });
 
-    vi.doMock("x402/client", () => ({
+    vi.doMock("@b3dotfun/anyspend-x402/client", () => ({
       createPaymentHeader: vi.fn().mockResolvedValue("payment-header-value"),
       selectPaymentRequirements: vi.fn((reqs: PaymentRequirements[]) => reqs[0]),
     }));
 
     const { withPaymentInterceptor } = await import("./index");
-    const { selectPaymentRequirements } = await import("x402/client");
+    const { selectPaymentRequirements } = await import("@b3dotfun/anyspend-x402/client");
 
     const mockAxiosClient: AxiosInstance = {
       interceptors: { response: { use: vi.fn() } },
@@ -289,8 +299,8 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
 
   // TODO: this test should be updated once support is added for multi-network signers in selectPaymentRequirements
   it("passes undefined for MultiNetwork signers", async () => {
-    vi.doMock("x402/types", async () => {
-      const actual = await vi.importActual("x402/types");
+    vi.doMock("@b3dotfun/anyspend-x402/types", async () => {
+      const actual = await vi.importActual("@b3dotfun/anyspend-x402/types");
       return {
         ...actual,
         isEvmSignerWallet: vi.fn().mockReturnValue(false),
@@ -299,13 +309,13 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
       };
     });
 
-    vi.doMock("x402/client", () => ({
+    vi.doMock("@b3dotfun/anyspend-x402/client", () => ({
       createPaymentHeader: vi.fn().mockResolvedValue("payment-header-value"),
       selectPaymentRequirements: vi.fn((reqs: PaymentRequirements[]) => reqs[0]),
     }));
 
     const { withPaymentInterceptor } = await import("./index");
-    const { selectPaymentRequirements } = await import("x402/client");
+    const { selectPaymentRequirements } = await import("@b3dotfun/anyspend-x402/client");
 
     const mockAxiosClient: AxiosInstance = {
       interceptors: { response: { use: vi.fn() } },

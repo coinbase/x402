@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
-import { paymentMiddleware, Network, Resource } from "x402-hono";
+import { paymentMiddleware, Network, Resource } from "@b3dotfun/anyspend-x402-hono";
 import { v4 as uuidv4 } from "uuid";
 
 config();

@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
 import type { WalletClient } from "viem";
-import { withPaymentInterceptor } from "x402-axios";
+import { withPaymentInterceptor } from "@b3dotfun/anyspend-x402-axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3001";
 

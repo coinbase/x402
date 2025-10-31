@@ -2,8 +2,8 @@ import type { Address as SolanaAddress } from "@solana/kit";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address, getAddress } from "viem";
-import { getPaywallHtml } from "x402/paywall";
-import { exact } from "x402/schemes";
+import { getPaywallHtml } from "@b3dotfun/anyspend-x402/paywall";
+import { exact } from "@b3dotfun/anyspend-x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
@@ -11,8 +11,8 @@ import {
   processPriceToAtomicAmount,
   safeBase64Encode,
   toJsonSafe,
-} from "x402/shared";
-import { isUsdcAddress } from "x402/shared/evm";
+} from "@b3dotfun/anyspend-x402/shared";
+import { isUsdcAddress } from "@b3dotfun/anyspend-x402/shared/evm";
 import {
   ERC20TokenAmount,
   evmSignatureTypes,
@@ -26,8 +26,8 @@ import {
   RoutesConfig,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
-} from "x402/types";
-import { useFacilitator } from "x402/verify";
+} from "@b3dotfun/anyspend-x402/types";
+import { useFacilitator } from "@b3dotfun/anyspend-x402/verify";
 
 import { POST } from "./api/session-token";
 
@@ -462,7 +462,7 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "x402/types";
+} from "@b3dotfun/anyspend-x402/types";
 
 // Export session token API handlers for Onramp
 export { POST };

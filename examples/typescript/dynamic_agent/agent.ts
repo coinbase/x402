@@ -2,7 +2,7 @@
  * Example of an agent that has dynamic, discoverable tools, enabled by x402 payments.
  */
 import axios from "axios";
-import { withPaymentInterceptor } from "x402-axios";
+import { withPaymentInterceptor } from "@b3dotfun/anyspend-x402-axios";
 import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";

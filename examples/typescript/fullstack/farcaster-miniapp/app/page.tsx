@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAccount } from "wagmi";
 import { sdk } from "@farcaster/frame-sdk";
-import { wrapFetchWithPayment } from "x402-fetch";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 import { getWalletClient } from "wagmi/actions";
 import { createConfig, http } from "@wagmi/core";
 import { base, baseSepolia } from "@wagmi/core/chains";

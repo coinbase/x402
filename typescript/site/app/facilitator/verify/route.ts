@@ -8,8 +8,8 @@ import {
   VerifyResponse,
   createConnectedClient,
   createSigner,
-} from "x402/types";
-import { verify } from "x402/facilitator";
+} from "@b3dotfun/anyspend-x402/types";
+import { verify } from "@b3dotfun/anyspend-x402/facilitator";
 
 type VerifyRequest = {
   paymentPayload: PaymentPayload;

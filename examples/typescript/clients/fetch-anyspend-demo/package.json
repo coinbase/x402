@@ -18,7 +18,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "x402-fetch": "workspace:*",
+    "@b3dotfun/anyspend-x402-fetch": "workspace:*",
     "dotenv": "^16.4.7"
   },
   "devDependencies": {

@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { paymentMiddleware, Network, Resource, SolanaAddress } from "x402-hono";
+import { paymentMiddleware, Network, Resource, SolanaAddress } from "@b3dotfun/anyspend-x402-hono";
 
 config();
 

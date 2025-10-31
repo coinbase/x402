@@ -2,7 +2,7 @@ import { CdpClient } from "@coinbase/cdp-sdk";
 import axios from "axios";
 import { config } from "dotenv";
 import { toAccount } from "viem/accounts";
-import { decodeXPaymentResponse, withPaymentInterceptor } from "x402-axios";
+import { decodeXPaymentResponse, withPaymentInterceptor } from "@b3dotfun/anyspend-x402-axios";
 
 config();
 

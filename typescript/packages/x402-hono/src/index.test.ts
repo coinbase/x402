@@ -1,8 +1,8 @@
 import { Context } from "hono";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exact } from "x402/schemes";
-import { findMatchingRoute, findMatchingPaymentRequirements } from "x402/shared";
-import { getPaywallHtml } from "x402/paywall";
+import { exact } from "@b3dotfun/anyspend-x402/schemes";
+import { findMatchingRoute, findMatchingPaymentRequirements } from "@b3dotfun/anyspend-x402/shared";
+import { getPaywallHtml } from "@b3dotfun/anyspend-x402/paywall";
 import {
   FacilitatorConfig,
   Network,
@@ -10,21 +10,21 @@ import {
   PaymentPayload,
   RouteConfig,
   RoutesConfig,
-} from "x402/types";
-import { useFacilitator } from "x402/verify";
+} from "@b3dotfun/anyspend-x402/types";
+import { useFacilitator } from "@b3dotfun/anyspend-x402/verify";
 import { paymentMiddleware } from "./index";
 import { Address as SolanaAddress } from "@solana/kit";
 
 // Mock dependencies
-vi.mock("x402/verify", () => ({
+vi.mock("@b3dotfun/anyspend-x402/verify", () => ({
   useFacilitator: vi.fn(),
 }));
 
-vi.mock("x402/paywall", () => ({
+vi.mock("@b3dotfun/anyspend-x402/paywall", () => ({
   getPaywallHtml: vi.fn(),
 }));
 
-vi.mock("x402/shared", async importOriginal => {
+vi.mock("@b3dotfun/anyspend-x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -73,12 +73,12 @@ vi.mock("x402/shared", async importOriginal => {
   };
 });
 
-vi.mock("x402/shared/evm", () => ({
+vi.mock("@b3dotfun/anyspend-x402/shared/evm", () => ({
   getUsdcAddressForChain: vi.fn().mockReturnValue("0x036CbD53842c5426634e7929541eC2318f3dCF7e"),
 }));
 
 // Mock exact.evm.decodePayment
-vi.mock("x402/schemes", () => ({
+vi.mock("@b3dotfun/anyspend-x402/schemes", () => ({
   exact: {
     evm: {
       encodePayment: vi.fn(),
