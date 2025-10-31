@@ -60,10 +60,9 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [premiumData, setPremiumData] = useState<PremiumData | null>(null);
+  const [btcData, setBtcData] = useState<PremiumData | null>(null);
   const [priceInfo, setPriceInfo] = useState<string>("Loading...");
-  const [maxAmountInfo, setMaxAmountInfo] = useState<string>("Loading...");
   const [srcNetwork, setSrcNetwork] = useState<string>("base");
-  const [dstNetwork, setDstNetwork] = useState<string>("base");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
     {},
@@ -79,10 +78,12 @@ function App() {
       valueUsd?: number;
     }>
   >([]);
+  const [availableChains, setAvailableChains] = useState<string[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<{
     stage: 'idle' | 'signing' | 'verifying' | 'settling' | 'complete';
     message: string;
   }>({ stage: 'idle', message: '' });
+  const [dataType, setDataType] = useState<'eth' | 'btc'>('eth');
 
   // Set default preset token when connected (default to B3)
   useEffect(() => {
@@ -91,8 +92,57 @@ function App() {
     }
   }, [isConnected, selectedToken]);
 
-  // Fetch token balances from server
+  // Fetch token balances from server and detect available chains
   useEffect(() => {
+    const fetchBalancesForAllChains = async () => {
+      if (!address) return;
+
+      const chains = ["1", "8453", "137", "42161"]; // Ethereum, Base, Polygon, Arbitrum
+      const chainsWithTokens: string[] = [];
+
+      try {
+        // Fetch balances for all chains in parallel
+        const promises = chains.map(async (chainId) => {
+          try {
+            const url = `${API_BASE_URL}/api/balances/${address}?chain_id=${chainId}`;
+            const response = await fetch(url);
+
+            if (response.ok) {
+              const data = await response.json();
+              if (data.success && data.tokens && data.tokens.length > 0) {
+                // Check if there are any non-native tokens
+                const hasTokens = data.tokens.some((token: any) =>
+                  token.address.toLowerCase() !== "native"
+                );
+                if (hasTokens) {
+                  return chainId;
+                }
+              }
+            }
+          } catch (err) {
+            console.error(`Failed to fetch balances for chain ${chainId}:`, err);
+          }
+          return null;
+        });
+
+        const results = await Promise.all(promises);
+        const validChains = results.filter((chain): chain is string => chain !== null);
+
+        // If no chains have tokens, show all chains by default
+        if (validChains.length === 0) {
+          setAvailableChains(chains);
+        } else {
+          setAvailableChains(validChains);
+          // If current selected chain has no tokens, switch to first available chain
+          if (!validChains.includes(selectedChain)) {
+            setSelectedChain(validChains[0]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch balances for all chains:", err);
+      }
+    };
+
     const fetchBalances = async () => {
       if (!address) return;
 
@@ -109,10 +159,15 @@ function App() {
           if (data.success && data.tokens) {
             const balances: Record<string, string> = {};
 
-            // Filter out native ETH token (address: "native")
-            const filteredTokens = data.tokens.filter((token: any) =>
-              token.address.toLowerCase() !== "native"
-            );
+            // Filter out native ETH token (address: "native") and WETH tokens
+            const filteredTokens = data.tokens.filter((token: any) => {
+              const address = token.address.toLowerCase();
+              const symbol = token.symbol?.toUpperCase() || "";
+
+              return address !== "native" &&
+                     symbol !== "WETH" &&
+                     !symbol.includes("WETH");
+            });
 
             // Map balances by token address
             filteredTokens.forEach((token: any) => {
@@ -131,7 +186,12 @@ function App() {
       }
     };
 
-    fetchBalances();
+    if (address) {
+      // First fetch available chains
+      fetchBalancesForAllChains();
+      // Then fetch balances for selected chain
+      fetchBalances();
+    }
   }, [address, selectedChain]);
 
 
@@ -140,8 +200,7 @@ function App() {
     setLogs((prev) => [...prev, `${timestamp}: ${message}`]);
   };
 
-
-  // Fetch price information from server
+  // Fetch price information from server for "You Pay" display
   useEffect(() => {
     const fetchPriceInfo = async () => {
       try {
@@ -159,19 +218,14 @@ function App() {
           !tokenAddress.startsWith("0x")
         ) {
           console.log("Skipping price fetch - invalid token:", tokenAddress);
-          setPriceInfo("1 USDC");
+          setPriceInfo("Loading...");
           return;
         }
 
         // Set loading state
         setPriceInfo("Loading...");
-        setMaxAmountInfo("Loading...");
         setSrcNetwork("base");
-        setDstNetwork("base");
         console.log("Fetching price for token:", tokenAddress);
-
-        // Make a request to get payment requirements (402 response)
-        const headers: HeadersInit = {};
 
         // Map chain ID to network name
         const getNetworkName = (chainId: string): string => {
@@ -215,13 +269,14 @@ function App() {
           }
         };
 
-        // Always include payment preferences - tell server which token we want to pay with
+        // Make a request to get payment requirements (402 response)
+        const headers: HeadersInit = {};
         headers["X-PREFERRED-TOKEN"] = tokenAddress;
         headers["X-PREFERRED-NETWORK"] = getNetworkName(selectedChain);
-        console.log("Using preferred token:", tokenAddress);
-        console.log("Using preferred network:", getNetworkName(selectedChain));
 
-        const response = await fetch(`${API_BASE_URL}/api/b3/premium`, {
+        // Use the appropriate endpoint based on dataType
+        const endpoint = dataType === 'btc' ? `${API_BASE_URL}/api/btc` : `${API_BASE_URL}/api/b3/premium`;
+        const response = await fetch(endpoint, {
           method: "POST",
           headers,
         });
@@ -233,18 +288,13 @@ function App() {
           const data = await response.json();
           console.log("Payment requirements:", data);
 
-          // Check for 'accepts' array (new format)
           const paymentReqs = data.accepts || data.paymentRequirements || [];
 
           if (paymentReqs.length > 0) {
             const req = paymentReqs[0];
 
-            // Check if this is a direct payment (no swap) - when srcTokenAddress is missing
-            const isDirectPayment = !req.srcTokenAddress;
-
-            // Capture networks
+            // Capture source network
             setSrcNetwork(req.srcNetwork || req.network || "base");
-            setDstNetwork(req.network || "base");
 
             // Process srcAmountRequired (what you pay)
             const srcAmountStr = req.srcAmountRequired || req.amount || req.maxAmountRequired;
@@ -269,38 +319,22 @@ function App() {
                 // For cross-chain tokens, try to infer decimals from common tokens
                 const tokenAddr = (req.srcTokenAddress || req.extra.verifyingContract || "").toLowerCase();
                 const tokenName = (req.extra?.name || "").toLowerCase();
-                const chainId = req.extra?.chainId;
 
                 // Common token decimals mapping
-                if (tokenAddr === "0xdac17f958d2ee523a2206206994597c13d831ec7") {
-                  // USDT on Ethereum
+                if (tokenAddr === "0xdac17f958d2ee523a2206206994597c13d831ec7" ||
+                    tokenAddr === "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48" ||
+                    tokenAddr === "0xaf88d065e77c8cc2239327c5edb3a432268e5831" ||
+                    tokenAddr === "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" ||
+                    tokenAddr === "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359") {
+                  // USDT/USDC on various chains
                   srcDecimals = 6;
-                } else if (tokenAddr === "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48") {
-                  // USDC on Ethereum
-                  srcDecimals = 6;
-                } else if (tokenAddr === "0xaf88d065e77c8cc2239327c5edb3a432268e5831") {
-                  // USDC on Arbitrum
-                  srcDecimals = 6;
-                } else if (tokenAddr === "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913") {
-                  // USDC on Base
-                  srcDecimals = 6;
-                } else if (tokenAddr === "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359") {
-                  // USDC on Polygon
-                  srcDecimals = 6;
-                } else if (tokenAddr === "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf") {
-                  // cbBTC on Base
-                  srcDecimals = 8;
-                } else if (tokenAddr === "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599") {
-                  // WBTC on Ethereum
+                } else if (tokenAddr === "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf" ||
+                           tokenAddr === "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599") {
+                  // cbBTC/WBTC
                   srcDecimals = 8;
                 } else if (tokenName.includes("wrapped btc") || tokenName.includes("wbtc") || tokenName.includes("btc")) {
-                  // Bitcoin-based tokens typically use 8 decimals
                   srcDecimals = 8;
-                } else if (tokenName.includes("usd coin") || tokenName.includes("usdc")) {
-                  // USDC variants typically use 6 decimals
-                  srcDecimals = 6;
-                } else if (tokenName.includes("tether") || tokenName.includes("usdt")) {
-                  // USDT variants typically use 6 decimals
+                } else if (tokenName.includes("usd coin") || tokenName.includes("usdc") || tokenName.includes("tether") || tokenName.includes("usdt")) {
                   srcDecimals = 6;
                 }
               } else if (req.decimals) {
@@ -315,7 +349,6 @@ function App() {
               let srcPriceStr = srcIntegerPart.toString();
               if (srcFractionalPart > 0) {
                 const fracStr = srcFractionalPart.toString().padStart(srcDecimals, "0");
-                // Don't slice, show full precision and remove only truly trailing zeros
                 const trimmed = fracStr.replace(/0+$/, "");
                 if (trimmed.length > 0) {
                   srcPriceStr += "." + trimmed;
@@ -334,7 +367,6 @@ function App() {
                   srcSymbol = sourceToken.symbol;
                 }
               } else if (req.asset) {
-                // For direct payment, use asset symbol
                 const assetToken = BASE_TOKENS.find(
                   (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
                 );
@@ -349,80 +381,28 @@ function App() {
 
               setPriceInfo(`${srcPriceStr} ${srcSymbol}`);
             } else {
-              setPriceInfo("1 USDC");
-            }
-
-            // Process maxAmountRequired (maximum you'll pay)
-            const maxAmountStr = req.maxAmountRequired;
-
-            if (maxAmountStr) {
-              const maxAmount = BigInt(maxAmountStr);
-
-              // Get decimals for asset token
-              let assetDecimals = 18;
-              const assetToken = BASE_TOKENS.find(
-                (t) =>
-                  t.address.toLowerCase() ===
-                  (req.asset || "").toLowerCase(),
-              );
-
-              if (assetToken) {
-                assetDecimals = assetToken.decimals;
-              }
-
-              // Convert to human-readable format
-              const maxDivisor = BigInt(10 ** assetDecimals);
-              const maxIntegerPart = maxAmount / maxDivisor;
-              const maxFractionalPart = maxAmount % maxDivisor;
-
-              let maxPriceStr = maxIntegerPart.toString();
-              if (maxFractionalPart > 0) {
-                const fracStr = maxFractionalPart.toString().padStart(assetDecimals, "0");
-                const displayDecimals = fracStr.slice(0, 6);
-                maxPriceStr += "." + displayDecimals.replace(/0+$/, "");
-              }
-
-              // Get asset token symbol
-              let assetSymbol = "tokens";
-              if (req.asset) {
-                const assetTokenSymbol = BASE_TOKENS.find(
-                  (t) => t.address.toLowerCase() === req.asset.toLowerCase(),
-                );
-                if (assetTokenSymbol) {
-                  assetSymbol = assetTokenSymbol.symbol;
-                }
-              }
-
-              if (assetSymbol === "tokens" && req.extra?.name) {
-                assetSymbol = req.extra.name;
-              }
-
-              setMaxAmountInfo(`${maxPriceStr} ${assetSymbol}`);
-            } else {
-              setMaxAmountInfo("N/A");
+              setPriceInfo("Loading...");
             }
           } else {
             console.log("No payment requirements found");
-            setPriceInfo("1 USDC");
-            setMaxAmountInfo("N/A");
+            setPriceInfo("Loading...");
           }
         } else {
           console.log("Non-402 response, using default");
-          setPriceInfo("1 USDC");
+          setPriceInfo("Loading...");
         }
       } catch (err) {
         console.error("Failed to fetch price info:", err);
-        setPriceInfo("1 USDC");
+        setPriceInfo("Loading...");
       }
     };
 
     if (isConnected && selectedToken && selectedToken !== "preset") {
       fetchPriceInfo();
     } else if (!isConnected || selectedToken === "preset") {
-      // Set default when not connected or preset
       setPriceInfo("Loading...");
     }
-  }, [isConnected, selectedToken, customTokenAddress]);
+  }, [isConnected, selectedToken, customTokenAddress, selectedChain, dataType]);
 
   const openPaymentModal = () => {
     if (!isConnected) {
@@ -433,7 +413,7 @@ function App() {
     setShowPaymentModal(true);
   };
 
-  const fetchPremiumData = async () => {
+  const fetchData = async (type: 'eth' | 'btc') => {
     if (!isConnected || !walletClient || !address) {
       setError("Please connect your wallet first");
       setShowPaymentModal(false);
@@ -461,11 +441,18 @@ function App() {
     // Note: We don't check network here because we support cross-chain payments
     // The user can pay from any chain, not just Base
 
+    // Close the payment configuration modal immediately
+    setShowPaymentModal(false);
+
     setLoading(true);
     setLogs([]);
     setError(null);
     setPaymentInfo(null);
-    setPremiumData(null);
+    if (type === 'btc') {
+      setBtcData(null);
+    } else {
+      setPremiumData(null);
+    }
     setPaymentStatus({ stage: 'idle', message: '' });
 
     try {
@@ -563,7 +550,9 @@ function App() {
       try {
         setPaymentStatus({ stage: 'verifying', message: 'Verifying payment signature...' });
 
-        const response = await fetchWithPayment(`${API_BASE_URL}/api/b3/premium`, {
+        // Determine the API endpoint based on type
+        const endpoint = type === 'btc' ? `${API_BASE_URL}/api/btc` : `${API_BASE_URL}/api/b3/premium`;
+        const response = await fetchWithPayment(endpoint, {
           method: "POST",
         });
 
@@ -597,8 +586,15 @@ function App() {
         // Get the response data
         setPaymentStatus({ stage: 'complete', message: 'Payment successful! Loading data...' });
         const data = await response.json();
-        addLog("🎉 Premium content received!");
-        setPremiumData(data.data);
+        const dataLabel = type === 'btc' ? 'BTC' : 'Premium';
+        addLog(`🎉 ${dataLabel} content received!`);
+
+        // Set the appropriate data state
+        if (type === 'btc') {
+          setBtcData(data.data);
+        } else {
+          setPremiumData(data.data);
+        }
       } catch (fetchError) {
         // This catches errors from fetchWithPayment including signature requests
         const message =
@@ -621,7 +617,6 @@ function App() {
       }
     } finally {
       setLoading(false);
-      setShowPaymentModal(false);
       // Reset payment status after a delay
       setTimeout(() => {
         setPaymentStatus({ stage: 'idle', message: '' });
@@ -629,9 +624,31 @@ function App() {
     }
   };
 
+  // Wrapper functions for convenience
+  const fetchPremiumData = () => fetchData('eth');
+  const fetchBtcData = () => fetchData('btc');
+
   return (
     <div className="app">
       <div className="container">
+        {/* Demo Banner */}
+        <div className="demo-banner">
+          <div className="demo-banner-content">
+            <span className="demo-badge">DEMO</span>
+            <p className="demo-text">
+              This is a demo application showcasing <strong>x402</strong> - Pay with any token for HTTP APIs
+            </p>
+            <a
+              href="https://anyspend.com/x402"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="demo-link"
+            >
+              Learn More →
+            </a>
+          </div>
+        </div>
+
         {/* Header with Wallet Status */}
         <div className="header">
           <div className="header-content">
@@ -675,25 +692,51 @@ function App() {
           </div>
         </div>
 
-        {/* Main Action Card */}
+        {/* Main Action Cards */}
         {isConnected && (
-          <div className="card action-card">
-            <div className="action-content">
-              <div className="action-text">
-                <h2>📈 ETH Price History</h2>
-                <p className="subtitle">
-                  Get 24-hour ETH price history with OHLC data from CoinGecko
-                </p>
+          <>
+            <div className="card action-card">
+              <div className="action-content">
+                <div className="action-text">
+                  <h2>📈 ETH Price History</h2>
+                  <p className="subtitle">
+                    Get 24-hour ETH price history with OHLC data from CoinGecko
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setDataType('eth');
+                    openPaymentModal();
+                  }}
+                  disabled={loading}
+                  className="button button-large"
+                >
+                  📊 Get ETH Data
+                </button>
               </div>
-              <button
-                onClick={openPaymentModal}
-                disabled={loading}
-                className="button button-large"
-              >
-                📊 Get Price Data
-              </button>
             </div>
-          </div>
+
+            <div className="card action-card">
+              <div className="action-content">
+                <div className="action-text">
+                  <h2>₿ BTC Price History</h2>
+                  <p className="subtitle">
+                    Get 24-hour BTC price history with OHLC data - Only 0.01 USDC!
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setDataType('btc');
+                    setShowPaymentModal(true);
+                  }}
+                  disabled={loading}
+                  className="button button-large"
+                >
+                  ₿ Get BTC Data
+                </button>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Payment Modal */}
@@ -714,7 +757,7 @@ function App() {
                 </button>
               </div>
               <div className="modal-body">
-                {/* Price Display - Show at top */}
+                {/* Price Display - Show dynamic "You Pay" and fixed "Data Price" */}
                 {selectedToken && selectedToken !== "preset" && (
                   <div className="price-display">
                     <div className="price-row">
@@ -733,55 +776,67 @@ function App() {
                       <div className="price-item">
                         <div className="price-label">Data Price</div>
                         <div className="price-value">
-                          {maxAmountInfo === "Loading..." ? (
-                            <span className="loading">⏳ Loading...</span>
-                          ) : (
-                            <span>{maxAmountInfo}</span>
-                          )}
+                          <span>{dataType === 'btc' ? '0.01 USDC' : '100 B3'}</span>
                         </div>
-                        <div className="price-network-small">on {dstNetwork}</div>
+                        <div className="price-network-small">on base</div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Chain Selection */}
+                {/* Chain Selection - Only show chains with tokens */}
                 <div className="input-group">
                   <label>⛓️ Select Chain</label>
-                  <div className="chain-selector">
-                    <button
-                      type="button"
-                      className={`chain-option ${selectedChain === "1" ? "selected" : ""}`}
-                      onClick={() => setSelectedChain("1")}
-                      disabled={loading}
-                    >
-                      <span className="chain-name">Ethereum</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`chain-option ${selectedChain === "8453" ? "selected" : ""}`}
-                      onClick={() => setSelectedChain("8453")}
-                      disabled={loading}
-                    >
-                      <span className="chain-name">Base</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`chain-option ${selectedChain === "137" ? "selected" : ""}`}
-                      onClick={() => setSelectedChain("137")}
-                      disabled={loading}
-                    >
-                      <span className="chain-name">Polygon</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`chain-option ${selectedChain === "42161" ? "selected" : ""}`}
-                      onClick={() => setSelectedChain("42161")}
-                      disabled={loading}
-                    >
-                      <span className="chain-name">Arbitrum</span>
-                    </button>
-                  </div>
+                  {availableChains.length > 0 ? (
+                    <div className="chain-selector">
+                      {availableChains.includes("1") && (
+                        <button
+                          type="button"
+                          className={`chain-option ${selectedChain === "1" ? "selected" : ""}`}
+                          onClick={() => setSelectedChain("1")}
+                          disabled={loading}
+                        >
+                          <span className="chain-name">Ethereum</span>
+                        </button>
+                      )}
+                      {availableChains.includes("8453") && (
+                        <button
+                          type="button"
+                          className={`chain-option ${selectedChain === "8453" ? "selected" : ""}`}
+                          onClick={() => setSelectedChain("8453")}
+                          disabled={loading}
+                        >
+                          <span className="chain-name">Base</span>
+                        </button>
+                      )}
+                      {availableChains.includes("137") && (
+                        <button
+                          type="button"
+                          className={`chain-option ${selectedChain === "137" ? "selected" : ""}`}
+                          onClick={() => setSelectedChain("137")}
+                          disabled={loading}
+                        >
+                          <span className="chain-name">Polygon</span>
+                        </button>
+                      )}
+                      {availableChains.includes("42161") && (
+                        <button
+                          type="button"
+                          className={`chain-option ${selectedChain === "42161" ? "selected" : ""}`}
+                          onClick={() => setSelectedChain("42161")}
+                          disabled={loading}
+                        >
+                          <span className="chain-name">Arbitrum</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="chain-selector">
+                      <div className="no-tokens">
+                        Loading chains...
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Token Selection - Top 5 from wallet */}
@@ -864,35 +919,6 @@ function App() {
                 )}
               </div>
 
-              {/* Payment Status Indicator - shown inside modal during payment */}
-              {paymentStatus.stage !== 'idle' && loading && (
-                <div className="modal-payment-status">
-                  <div className="payment-status-content">
-                    <div className="payment-status-spinner">
-                      <div className={`spinner stage-${paymentStatus.stage}`}></div>
-                    </div>
-                    <div className="payment-status-text">
-                      <h3>{paymentStatus.message}</h3>
-                      <div className="payment-status-steps">
-                        <div className={`status-step ${paymentStatus.stage === 'signing' || paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                          <span className="step-number">1</span>
-                          <span className="step-label">Sign</span>
-                        </div>
-                        <div className="status-arrow">→</div>
-                        <div className={`status-step ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                          <span className="step-number">2</span>
-                          <span className="step-label">Verify</span>
-                        </div>
-                        <div className="status-arrow">→</div>
-                        <div className={`status-step ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                          <span className="step-number">3</span>
-                          <span className="step-label">Settle</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="modal-footer">
                 <button
@@ -903,14 +929,49 @@ function App() {
                   Cancel
                 </button>
                 <button
-                  onClick={fetchPremiumData}
+                  onClick={() => dataType === 'btc' ? fetchBtcData() : fetchPremiumData()}
                   disabled={
-                    loading || !selectedToken || selectedToken === "preset"
+                    loading ||
+                    !selectedToken ||
+                    selectedToken === "preset" ||
+                    priceInfo === "Loading..."
                   }
                   className={`button ${loading ? "loading" : ""}`}
                 >
-                  {loading ? "⏳ Processing..." : "✓ Confirm Payment"}
+                  {loading ? "⏳ Processing..." : priceInfo === "Loading..." ? "⏳ Loading Price..." : "✓ Confirm Payment"}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading Modal - Separate from payment configuration */}
+        {loading && (
+          <div className="modal-overlay">
+            <div className="modal loading-modal">
+              <div className="loading-modal-content">
+                <div className="payment-status-spinner">
+                  <div className={`spinner stage-${paymentStatus.stage}`}></div>
+                </div>
+                <div className="payment-status-text">
+                  <h2>{paymentStatus.message || 'Processing payment...'}</h2>
+                  <div className="payment-status-steps">
+                    <div className={`status-step ${paymentStatus.stage === 'signing' || paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">1</span>
+                      <span className="step-label">Sign</span>
+                    </div>
+                    <div className="status-connector"></div>
+                    <div className={`status-step ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">2</span>
+                      <span className="step-label">Verify</span>
+                    </div>
+                    <div className="status-connector"></div>
+                    <div className={`status-step ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
+                      <span className="step-number">3</span>
+                      <span className="step-label">Settle</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -930,36 +991,6 @@ function App() {
                     {log}
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Payment Status Indicator */}
-          {paymentStatus.stage !== 'idle' && loading && (
-            <div className="card payment-status-card">
-              <div className="payment-status-content">
-                <div className="payment-status-spinner">
-                  <div className={`spinner stage-${paymentStatus.stage}`}></div>
-                </div>
-                <div className="payment-status-text">
-                  <h3>{paymentStatus.message}</h3>
-                  <div className="payment-status-steps">
-                    <div className={`status-step ${paymentStatus.stage === 'signing' || paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                      <span className="step-number">1</span>
-                      <span className="step-label">Sign</span>
-                    </div>
-                    <div className="status-connector"></div>
-                    <div className={`status-step ${paymentStatus.stage === 'verifying' || paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                      <span className="step-number">2</span>
-                      <span className="step-label">Verify</span>
-                    </div>
-                    <div className="status-connector"></div>
-                    <div className={`status-step ${paymentStatus.stage === 'settling' || paymentStatus.stage === 'complete' ? 'active' : ''} ${paymentStatus.stage === 'complete' ? 'completed' : ''}`}>
-                      <span className="step-number">3</span>
-                      <span className="step-label">Settle</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -1091,19 +1122,193 @@ function App() {
               </div>
             </div>
           )}
+
+          {/* BTC Content */}
+          {btcData && (
+            <div className="card content-card">
+              <div className="content-header">
+                <h2>₿ {btcData.name} ({btcData.symbol}) Price History</h2>
+                <span className="badge">✨ PAID</span>
+              </div>
+
+              {/* Price Overview */}
+              <div className="section">
+                <h3>💰 Current Price</h3>
+                <div className="analysis-grid">
+                  <div className="stat">
+                    <span className="stat-label">Price</span>
+                    <p className="stat-value">${btcData.currentPrice.toLocaleString()}</p>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">24h Change</span>
+                    <p className={`stat-value ${parseFloat(btcData.priceChangePercent) >= 0 ? "positive" : "negative"}`}>
+                      {btcData.priceChangePercent}%
+                    </p>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">24h High</span>
+                    <p className="stat-value">${btcData.high24h.toLocaleString()}</p>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">24h Low</span>
+                    <p className="stat-value">${btcData.low24h.toLocaleString()}</p>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Data Points</span>
+                    <p className="stat-value">{btcData.dataPoints}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price History Sample */}
+              <div className="section">
+                <h3>📊 Recent Price History (Last 10 data points)</h3>
+                <div className="price-history-table">
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "2px solid var(--border-primary)" }}>
+                        <th style={{ padding: "0.75rem", textAlign: "left" }}>Time</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Open</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>High</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Low</th>
+                        <th style={{ padding: "0.75rem", textAlign: "right" }}>Close</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {btcData.priceHistory.slice(-10).reverse().map((item, i) => (
+                        <tr key={i} style={{ borderBottom: "1px solid var(--border-primary)" }}>
+                          <td style={{ padding: "0.75rem", fontSize: "0.875rem" }}>
+                            {new Date(item.timestamp).toLocaleTimeString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem" }}>
+                            ${item.open.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "var(--accent-success)" }}>
+                            ${item.high.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "var(--accent-error)" }}>
+                            ${item.low.toLocaleString()}
+                          </td>
+                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", fontWeight: "600" }}>
+                            ${item.close.toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="timestamp">
+                Data fetched at {new Date(btcData.timestamp).toLocaleString()}
+              </div>
+            </div>
+          )}
         </div>
         {/* End Results Section */}
+
+        {/* Code Example Section */}
+        <div className="code-example-section">
+          <div className="code-example-header">
+            <h2>💻 How to Pay with Any Token</h2>
+            <p className="code-example-description">
+              Use the x402-fetch library to enable payments with any token in your application.
+              This example shows how to pay with B3 token on Base, which gets automatically swapped to USDC.
+            </p>
+          </div>
+
+          <div className="code-example-card">
+            <div className="code-example-tabs">
+              <span className="code-tab active">TypeScript</span>
+            </div>
+            <pre className="code-block">
+              <code>{`import { config } from "dotenv";
+import {
+  createSigner,
+  decodeXPaymentResponse,
+  wrapFetchWithPayment,
+  type Hex,
+  type PaymentPreferences,
+} from "anyspend-x402-fetch";
+
+config();
+
+const privateKey = process.env.PRIVATE_KEY as Hex | string;
+const baseURL = process.env.RESOURCE_SERVER_URL as string;
+const endpointPath = process.env.ENDPOINT_PATH as string;
+const url = \`\${baseURL}\${endpointPath}\`;
+
+/**
+ * This example demonstrates payments with any token:
+ * - Client pays with B3 token on Base
+ * - Anyspend facilitator swaps B3 → USDC
+ * - Resource server receives USDC on Base
+ */
+async function main(): Promise<void> {
+  // Create signer for Base mainnet
+  const signer = await createSigner("base", privateKey);
+
+  // Specify payment preferences
+  const paymentPreferences: PaymentPreferences = {
+    preferredToken: "0xB3B32F9f8827D4634fE7d973Fa1034Ec9fdDB3B3",
+    preferredNetwork: "base",
+  };
+
+  // Set max payment value (with buffer)
+  const maxValue = BigInt("1000000000000000000000");
+
+  // Wrap fetch with payment capability
+  const fetchWithPayment = wrapFetchWithPayment(
+    fetch,
+    signer,
+    maxValue,
+    undefined, // Use default payment selector
+    undefined, // Use default config
+    paymentPreferences,
+  );
+
+  // Make the request - payment handled automatically
+  const response = await fetchWithPayment(url, {
+    method: "POST",
+  });
+
+  const data = await response.json();
+  console.log("Premium data:", data);
+}
+
+main();`}</code>
+            </pre>
+            <div className="code-example-footer">
+              <a
+                href="https://www.npmjs.com/package/@b3dotfun/anyspend-x402"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="code-link"
+              >
+                📦 View on NPM
+              </a>
+              <a
+                href="https://github.com/b3-fun/anyspend-x402"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="code-link"
+              >
+                🔗 View on GitHub
+              </a>
+            </div>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="footer">
           <p>
             Powered by{" "}
             <a
-              href="https://x402.org"
+              href="https://www.npmjs.com/package/@b3dotfun/anyspend-x402"
               target="_blank"
               rel="noopener noreferrer"
             >
-              x402 Payment Protocol
+              Anyspend-x402
             </a>{" "}
             ⚡ Pay with any token, get instant access
           </p>
