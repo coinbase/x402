@@ -127,7 +127,7 @@ account = Account.from_key("your_private_key")
 async with httpx.AsyncClient(base_url="https://api.example.com") as client:
     # Add payment hooks directly to client
     client.event_hooks = x402_payment_hooks(account)
-    
+
     # Make request - payment handling is automatic
     response = await client.get("/protected-endpoint")
     print(await response.aread())
@@ -167,22 +167,25 @@ If you're not using the FastAPI middleware, you can implement the x402 protocol 
 Here's an example of manual integration:
 
 ```py
+import base64
+import json
 from typing import Annotated
-from fastapi import FastAPI, Request
-from x402.types import PaymentRequiredResponse, PaymentRequirements
+from fastapi import FastAPI, Request, Response, JSONResponse
+from x402.types import PaymentRequiredResponse, PaymentRequirements, PaymentPayload
 from x402.encoding import safe_base64_decode
+from x402.facilitator import FacilitatorClient
 
 payment_requirements = PaymentRequirements(...)
 facilitator = FacilitatorClient(facilitator_url)
 
 @app.get("/foo")
-async def foo(req: request: Request):
+async def foo(request: Request, response: Response):
     payment_required = PaymentRequiredResponse(
-        x402_version: 1,
+        x402_version=1,
         accepts=[payment_requirements],
         error="",
     )
-    payment_header = req.headers.get("X-PAYMENT", "")
+    payment_header = request.headers.get("X-PAYMENT", "")
 
     if payment_header == "":
         payment_required.error = "X-PAYMENT header not set"
@@ -190,7 +193,7 @@ async def foo(req: request: Request):
             content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
-    
+
     payment = PaymentPayload(**json.loads(safe_base64_decode(payment_header)))
 
     verify_response = await facilitator.verify(payment, payment_requirements)
@@ -206,6 +209,7 @@ async def foo(req: request: Request):
         response.headers["X-PAYMENT-RESPONSE"] = base64.b64encode(
             settle_response.model_dump_json().encode("utf-8")
         ).decode("utf-8")
+        return {"message": "Payment successful"}
     else:
         payment_required.error = "Settle failed: " + settle_response.error
         return JSONResponse(
