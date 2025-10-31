@@ -1,6 +1,12 @@
 # AnySpend x402 - Payment Protocol
 
-> "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.001 minimum payment."
+[![npm version](https://img.shields.io/npm/v/@b3dotfun/anyspend-x402.svg?style=flat-square)](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+[![npm downloads](https://img.shields.io/npm/dm/@b3dotfun/anyspend-x402.svg?style=flat-square)](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+[![License](https://img.shields.io/npm/l/@b3dotfun/anyspend-x402.svg?style=flat-square)](https://github.com/b3-fun/anyspend-x402/blob/main/LICENSE)
+
+> **ANYX402 - Pay with anything. Settle in any token.**
+>
+> The universal payments layer for the X402 economy
 
 **This is a fork of the [Coinbase x402 protocol](https://github.com/coinbase/x402) with extended functionality for the AnySpend ecosystem.**
 
@@ -35,12 +41,45 @@ app.use(
 
 ## What is AnySpend x402?
 
+AnySpend X402 is B3's implementation of the X402 payment protocol that enables instant, automatic cryptocurrency payments directly over HTTP. Unlike standard X402 systems, **AnySpend supports multi-token transactions** - customers can pay with any token (ETH, DAI, and other ERC-20 tokens) while sellers receive payments in USDC.
+
 This repository is a fork of the original Coinbase x402 protocol with additional features and integrations for the AnySpend ecosystem. It maintains full compatibility with the base x402 protocol while adding:
 
 - 🔧 **Extended Facilitator Support**: Pre-configured integration with Coinbase's CDP platform
 - 🎯 **Easy Integration**: Drop-in replacement for `@coinbase/x402` with additional utilities
 - 🚀 **Enhanced Examples**: Additional demos and use cases for various frameworks
 - 🔄 **Regular Updates**: Tracking upstream x402 protocol developments
+
+### Key Features
+
+**For Buyers:**
+- Pay with any token including ETH, DAI, and ERC-20 tokens
+- Automatic conversion to seller's preferred denomination
+- Single SDK compatible across all X402-enabled services
+- Perfect for accessing premium APIs, computational resources, paywalled content, and autonomous agent interactions
+
+**For Sellers:**
+- Receive payments in USDC regardless of customer's token choice
+- Add payments to your API with just a few lines of code
+- No blockchain infrastructure, wallets, or token conversion management needed
+- Monetize APIs and build paid AI workflows without cryptocurrency expertise
+
+### Architecture
+
+The AnySpend transaction flow:
+1. Client requests a resource
+2. Receives a 402 status with payment details
+3. Specifies their token preference
+4. Receives an AnySpend quote
+5. Signs authorization
+6. Facilitator swaps tokens to USDC
+7. Resource is delivered
+
+**AnySpend Facilitator**: Processes all payments with multi-token support across 19+ networks, automatic swaps, gasless transactions, and standards compliance.
+
+**Production endpoint**: `https://mainnet.anyspend.com/x402`
+
+📚 **Full Documentation**: [docs.b3.fun/anyspend/x402-overview](https://docs.b3.fun/anyspend/x402-overview)
 
 ## Philosophy
 

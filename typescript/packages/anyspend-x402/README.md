@@ -1,5 +1,10 @@
 # @b3dotfun/anyspend-x402
 
+[![npm version](https://img.shields.io/npm/v/@b3dotfun/anyspend-x402.svg)](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+[![npm downloads](https://img.shields.io/npm/dm/@b3dotfun/anyspend-x402.svg)](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+[![License](https://img.shields.io/npm/l/@b3dotfun/anyspend-x402.svg)](https://github.com/b3-fun/anyspend-x402/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-b3--fun%2Fanyspend--x402-blue)](https://github.com/b3-fun/anyspend-x402)
+
 AnySpend implementation of the x402 Payment Protocol. This package provides facilitator access for the x402 protocol, enabling payment verification and settlement.
 
 **🌐 Facilitator URL**: `https://mainnet.anyspend.com/x402`
