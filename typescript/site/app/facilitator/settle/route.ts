@@ -1,4 +1,4 @@
-import { settle } from "x402/facilitator";
+import { settle } from "@b3dotfun/anyspend-x402/facilitator";
 import {
   PaymentPayload,
   PaymentPayloadSchema,
@@ -8,7 +8,7 @@ import {
   SupportedEVMNetworks,
   SupportedSVMNetworks,
   createSigner,
-} from "x402/types";
+} from "@b3dotfun/anyspend-x402/types";
 
 type SettleRequest = {
   paymentPayload: PaymentPayload;

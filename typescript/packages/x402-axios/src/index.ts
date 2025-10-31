@@ -10,12 +10,12 @@ import {
   Network,
   evm,
   X402Config,
-} from "x402/types";
+} from "@b3dotfun/anyspend-x402/types";
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
-} from "x402/client";
+} from "@b3dotfun/anyspend-x402/client";
 
 /**
  * Configuration options for payment preferences
@@ -170,13 +170,13 @@ export function withPaymentInterceptor(
   return axiosClient;
 }
 
-export { decodeXPaymentResponse } from "x402/shared";
+export { decodeXPaymentResponse } from "@b3dotfun/anyspend-x402/shared";
 export {
   createSigner,
   type Signer,
   type MultiNetworkSigner,
   type X402Config,
   type Network,
-} from "x402/types";
-export { type PaymentRequirementsSelector } from "x402/client";
+} from "@b3dotfun/anyspend-x402/types";
+export { type PaymentRequirementsSelector } from "@b3dotfun/anyspend-x402/client";
 export type { Hex } from "viem";
