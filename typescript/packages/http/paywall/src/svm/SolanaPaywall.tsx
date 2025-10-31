@@ -176,7 +176,8 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       }
 
       setStatus("Creating payment transaction...");
-      const validPaymentRequirements = ensureValidAmount(paymentRequirement);
+      const version = 1; // SolanaPaywall uses v1 protocol
+      const validPaymentRequirements = ensureValidAmount(version, paymentRequirement);
 
       const createHeader = async (version: number) =>
         exact.svm.createPaymentHeader(walletSigner, version, validPaymentRequirements);

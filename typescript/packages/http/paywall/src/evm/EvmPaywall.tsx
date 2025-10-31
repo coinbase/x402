@@ -147,10 +147,11 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
       }
 
       setStatus("Creating payment signature...");
-      const validPaymentRequirements = ensureValidAmount(paymentRequirement);
+      const version = 1; // EvmPaywall uses v1 protocol
+      const validPaymentRequirements = ensureValidAmount(version, paymentRequirement);
       const initialPayment = await exact.evm.createPayment(
         walletClient,
-        1,
+        version,
         validPaymentRequirements,
       );
 

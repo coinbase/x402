@@ -1,4 +1,4 @@
-import type { PaymentRequirements } from "x402/types";
+import type { PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
 
 /**
  * Safely clones an object without prototype pollution
@@ -33,52 +33,83 @@ function safeClone<T>(obj: T): T {
 }
 
 /**
- * Ensures a valid amount is set in payment requirements
+ * Ensures a valid amount is set in payment requirements (v2)
  *
  * @param paymentRequirements - The payment requirements to validate and update
  * @returns Updated payment requirements with valid amount
  */
-export function ensureValidAmount(paymentRequirements: PaymentRequirements): PaymentRequirements {
+function ensureValidAmountV2(paymentRequirements: PaymentRequirements): PaymentRequirements {
   const updatedRequirements = safeClone(paymentRequirements);
 
   if (window.x402?.amount) {
     try {
       const amountInBaseUnits = Math.round(window.x402.amount * 1_000_000);
-      // Support both v1 (maxAmountRequired) and v2 (amount)
-      const amountStr = amountInBaseUnits.toString();
-      if ("maxAmountRequired" in updatedRequirements) {
-        updatedRequirements.maxAmountRequired = amountStr;
-      }
-      if ("amount" in updatedRequirements) {
-        updatedRequirements.amount = amountStr;
-      }
+      updatedRequirements.amount = amountInBaseUnits.toString();
     } catch (error) {
       console.error("Failed to parse amount:", error);
     }
   }
 
-  // Validate amount field (v1 or v2)
   const hasValidAmount =
-    ("maxAmountRequired" in updatedRequirements &&
-      updatedRequirements.maxAmountRequired &&
-      typeof updatedRequirements.maxAmountRequired === "string" &&
-      /^\d+$/.test(updatedRequirements.maxAmountRequired)) ||
-    ("amount" in updatedRequirements &&
-      updatedRequirements.amount &&
-      typeof updatedRequirements.amount === "string" &&
-      /^\d+$/.test(updatedRequirements.amount));
+    updatedRequirements.amount &&
+    typeof updatedRequirements.amount === "string" &&
+    /^\d+$/.test(updatedRequirements.amount);
 
   if (!hasValidAmount) {
-    const defaultAmount = "10000";
-    if ("maxAmountRequired" in updatedRequirements) {
-      updatedRequirements.maxAmountRequired = defaultAmount;
-    }
-    if ("amount" in updatedRequirements) {
-      updatedRequirements.amount = defaultAmount;
-    }
+    updatedRequirements.amount = "10000";
   }
 
   return updatedRequirements;
+}
+
+/**
+ * Ensures a valid amount is set in payment requirements (v1)
+ *
+ * @param paymentRequirements - The payment requirements to validate and update
+ * @returns Updated payment requirements with valid amount
+ */
+function ensureValidAmountV1(paymentRequirements: PaymentRequirementsV1): PaymentRequirementsV1 {
+  const updatedRequirements = safeClone(paymentRequirements);
+
+  if (window.x402?.amount) {
+    try {
+      const amountInBaseUnits = Math.round(window.x402.amount * 1_000_000);
+      updatedRequirements.maxAmountRequired = amountInBaseUnits.toString();
+    } catch (error) {
+      console.error("Failed to parse amount:", error);
+    }
+  }
+
+  const hasValidAmount =
+    updatedRequirements.maxAmountRequired &&
+    typeof updatedRequirements.maxAmountRequired === "string" &&
+    /^\d+$/.test(updatedRequirements.maxAmountRequired);
+
+  if (!hasValidAmount) {
+    updatedRequirements.maxAmountRequired = "10000";
+  }
+
+  return updatedRequirements;
+}
+
+/**
+ * Ensures a valid amount is set in payment requirements
+ *
+ * @param x402Version - The x402 protocol version
+ * @param paymentRequirements - The payment requirements to validate and update
+ * @returns Updated payment requirements with valid amount
+ */
+export function ensureValidAmount(
+  x402Version: number,
+  paymentRequirements: PaymentRequirements | PaymentRequirementsV1,
+): PaymentRequirements | PaymentRequirementsV1 {
+  switch (x402Version) {
+    case 1:
+      return ensureValidAmountV1(paymentRequirements as PaymentRequirementsV1);
+    case 2:
+    default:
+      return ensureValidAmountV2(paymentRequirements as PaymentRequirements);
+  }
 }
 
 /**
