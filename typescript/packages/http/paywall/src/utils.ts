@@ -56,7 +56,7 @@ function ensureValidAmountV2(paymentRequirements: PaymentRequirements): PaymentR
     /^\d+$/.test(updatedRequirements.amount);
 
   if (!hasValidAmount) {
-    updatedRequirements.amount = "10000";
+    throw new Error("Invalid or missing amount in payment requirements");
   }
 
   return updatedRequirements;
@@ -86,7 +86,7 @@ function ensureValidAmountV1(paymentRequirements: PaymentRequirementsV1): Paymen
     /^\d+$/.test(updatedRequirements.maxAmountRequired);
 
   if (!hasValidAmount) {
-    updatedRequirements.maxAmountRequired = "10000";
+    throw new Error("Invalid or missing maxAmountRequired in payment requirements");
   }
 
   return updatedRequirements;
