@@ -10,6 +10,7 @@ export type {
   HTTPResponseInstructions,
   HTTPProcessResult,
   PaywallConfig,
+  PaywallProvider,
   RouteConfig,
   CompiledRoute,
   HTTPAdapter,

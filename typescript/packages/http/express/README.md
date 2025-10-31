@@ -123,18 +123,29 @@ app.use(paymentMiddleware(routes));
 
 ### Paywall Configuration
 
-Optional configuration for the built-in paywall UI (third parameter):
+The middleware automatically displays a paywall UI when browsers request protected endpoints.
+
+**Quick setup:**
 
 ```typescript
-const paywallConfig: PaywallConfig = {
-  cdpClientKey: "your-cdp-client-key",
-  appName: "Your App Name",
-  appLogo: "/path/to/logo.svg",
-  sessionTokenEndpoint: "/api/x402/session-token"
-};
-
-app.use(paymentMiddleware(routes, undefined, paywallConfig));
+app.use(
+  paymentMiddleware(
+    routes,
+    undefined, // facilitatorClients (optional)
+    undefined, // schemes (optional)
+    {
+      // paywallConfig
+      cdpClientKey: "your-cdp-client-key",
+      appName: "Your App",
+      testnet: true,
+    },
+  ),
+);
 ```
+
+This uses `@x402/paywall` if installed (full wallet UI), or falls back to basic HTML.
+
+**For advanced configuration** (builder pattern, network-specific bundles, custom handlers), see the [@x402/paywall README](../paywall/README.md).
 
 ## Advanced Usage
 

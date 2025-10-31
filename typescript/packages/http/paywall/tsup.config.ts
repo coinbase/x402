@@ -1,27 +1,16 @@
 import { defineConfig } from "tsup";
 
-const baseConfig = {
+export default defineConfig({
   entry: {
     index: "src/index.ts",
+    "evm/index": "src/evm/index.ts",
+    "svm/index": "src/svm/index.ts",
   },
-  dts: {
-    resolve: true,
-  },
+  format: ["cjs", "esm"],
+  dts: true,
+  splitting: false,
   sourcemap: true,
-  target: "node16",
-};
-
-export default defineConfig([
-  {
-    ...baseConfig,
-    format: "esm",
-    outDir: "dist/esm",
-    clean: true,
-  },
-  {
-    ...baseConfig,
-    format: "cjs",
-    outDir: "dist/cjs",
-    clean: false,
-  },
-]);
+  clean: true,
+  external: ["react", "react-dom"],
+  treeshake: true,
+});

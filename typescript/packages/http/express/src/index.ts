@@ -2,6 +2,7 @@ import {
   HTTPAdapter,
   HTTPRequestContext,
   PaywallConfig,
+  PaywallProvider,
   x402HTTPResourceService,
   RoutesConfig,
   FacilitatorClient,
@@ -99,6 +100,7 @@ export interface SchemeRegistration {
  * @param facilitatorClients - Optional facilitator client(s) for payment processing
  * @param schemes - Optional array of scheme registrations for server-side payment processing
  * @param paywallConfig - Optional configuration for the built-in paywall UI
+ * @param paywall - Optional custom paywall provider (overrides default)
  * @param initializeOnStart - Whether to initialize the server on startup
  * @returns Express middleware handler
  */
@@ -107,6 +109,7 @@ export function paymentMiddleware(
   facilitatorClients?: FacilitatorClient | FacilitatorClient[],
   schemes?: SchemeRegistration[],
   paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
   // Create the x402 HTTP server instance
@@ -117,6 +120,11 @@ export function paymentMiddleware(
     schemes.forEach(({ network, server: schemeServer }) => {
       server.registerScheme(network, schemeServer);
     });
+  }
+
+  // Register custom paywall provider if provided
+  if (paywall) {
+    server.registerPaywallProvider(paywall);
   }
 
   if (initializeOnStart) {
@@ -229,3 +237,5 @@ export type {
   Network,
   SchemeNetworkService,
 } from "@x402/core/types";
+
+export type { PaywallProvider, PaywallConfig } from "@x402/core/server";
