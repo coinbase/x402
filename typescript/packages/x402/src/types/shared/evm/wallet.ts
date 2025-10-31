@@ -24,6 +24,7 @@ import {
   iotex,
   abstract,
   abstractTestnet,
+  story,
   flowMainnet,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -223,6 +224,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return polygonAmoy;
     case "peaq":
       return peaq;
+    case "story":
+      return story;
     case "iotex":
       return iotex;
     case "iotex-testnet":
