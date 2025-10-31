@@ -25,9 +25,12 @@
 
   /* Light glass shadows with soft glow */
   --shadow-sm: 0 2px 8px rgba(59, 130, 246, 0.1), 0 1px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 8px 16px rgba(59, 130, 246, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 16px 32px rgba(59, 130, 246, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
-  --shadow-glow: 0 0 40px rgba(96, 165, 250, 0.3), 0 0 80px rgba(139, 92, 246, 0.15);
+  --shadow-md:
+    0 8px 16px rgba(59, 130, 246, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg:
+    0 16px 32px rgba(59, 130, 246, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-glow:
+    0 0 40px rgba(96, 165, 250, 0.3), 0 0 80px rgba(139, 92, 246, 0.15);
 
   --radius-sm: 12px;
   --radius-md: 16px;
@@ -83,7 +86,8 @@
 }
 
 @keyframes progressPulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
   }
   50% {
@@ -129,15 +133,24 @@ body::before {
   width: 100%;
   height: 100%;
   background:
-    radial-gradient(ellipse at top, rgba(147, 197, 253, 0.25) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom, rgba(59, 130, 246, 0.2) 0%, transparent 50%);
+    radial-gradient(
+      ellipse at top,
+      rgba(147, 197, 253, 0.25) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at bottom,
+      rgba(59, 130, 246, 0.2) 0%,
+      transparent 50%
+    );
   animation: gradientShift 15s ease infinite;
   pointer-events: none;
   z-index: 0;
 }
 
 @keyframes gradientShift {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
@@ -161,7 +174,11 @@ body::before {
 
 /* Demo Banner */
 .demo-banner {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(245, 158, 11, 0.15) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.2) 0%,
+    rgba(245, 158, 11, 0.15) 100%
+  );
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 2px solid rgba(251, 191, 36, 0.4);
@@ -183,7 +200,11 @@ body::before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.3) 0%, rgba(245, 158, 11, 0.2) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.3) 0%,
+    rgba(245, 158, 11, 0.2) 100%
+  );
   opacity: 0.6;
   z-index: 0;
   pointer-events: none;
@@ -200,7 +221,11 @@ body::before {
 }
 
 .demo-badge {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.9) 0%, rgba(245, 158, 11, 0.9) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.9) 0%,
+    rgba(245, 158, 11, 0.9) 100%
+  );
   color: #78350f;
   font-size: 0.7rem;
   font-weight: 700;
@@ -227,7 +252,11 @@ body::before {
 }
 
 .demo-link {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.9) 0%,
+    rgba(37, 99, 235, 0.9) 100%
+  );
   color: white;
   padding: 0.5rem 1.25rem;
   border-radius: var(--radius-md);
@@ -243,7 +272,11 @@ body::before {
 .demo-link:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.95) 0%, rgba(29, 78, 216, 0.95) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.95) 0%,
+    rgba(29, 78, 216, 0.95) 100%
+  );
 }
 
 /* Header */
@@ -267,7 +300,11 @@ body::before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.4) 0%, rgba(96, 165, 250, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.4) 0%,
+    rgba(96, 165, 250, 0.3) 100%
+  );
   opacity: 0.6;
   z-index: 0;
   pointer-events: none;
@@ -346,7 +383,11 @@ body::before {
 }
 
 .action-card::before {
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.5) 0%, rgba(59, 130, 246, 0.4) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.5) 0%,
+    rgba(59, 130, 246, 0.4) 100%
+  );
 }
 
 .action-content {
@@ -407,7 +448,11 @@ body::before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.3) 0%, rgba(59, 130, 246, 0.25) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.3) 0%,
+    rgba(59, 130, 246, 0.25) 100%
+  );
   opacity: 0.7;
   z-index: 0;
   pointer-events: none;
@@ -512,7 +557,11 @@ body::before {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.2) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.2) 100%
+  );
   opacity: 0.8;
   z-index: 0;
   pointer-events: none;
@@ -685,7 +734,11 @@ select {
 
 .button {
   width: 100%;
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.8) 0%, rgba(59, 130, 246, 0.8) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.8) 0%,
+    rgba(59, 130, 246, 0.8) 100%
+  );
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: white;
@@ -926,7 +979,11 @@ select {
 }
 
 .badge {
-  background: linear-gradient(135deg, rgba(52, 211, 153, 0.8) 0%, rgba(16, 185, 129, 0.8) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(52, 211, 153, 0.8) 0%,
+    rgba(16, 185, 129, 0.8) 100%
+  );
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: white;
@@ -1391,7 +1448,11 @@ select {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.4) 0%, rgba(59, 130, 246, 0.35) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.4) 0%,
+    rgba(59, 130, 246, 0.35) 100%
+  );
   opacity: 0.7;
   z-index: 0;
   pointer-events: none;
@@ -1763,7 +1824,11 @@ h1 {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.3) 0%, rgba(59, 130, 246, 0.2) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.3) 0%,
+    rgba(59, 130, 246, 0.2) 100%
+  );
   opacity: 0.5;
   z-index: 0;
   pointer-events: none;
@@ -1791,7 +1856,11 @@ h1 {
 }
 
 .code-tab.active {
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.9) 0%, rgba(59, 130, 246, 0.9) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(96, 165, 250, 0.9) 0%,
+    rgba(59, 130, 246, 0.9) 100%
+  );
   color: white;
   border-color: transparent;
   box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
@@ -1806,7 +1875,9 @@ h1 {
   padding: 1.5rem;
   margin: 0;
   overflow-x: auto;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-family:
+    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New",
+    monospace;
   font-size: 0.875rem;
   line-height: 1.6;
   color: #e2e8f0;
@@ -1858,7 +1929,11 @@ h1 {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.9) 0%,
+    rgba(37, 99, 235, 0.9) 100%
+  );
   color: white;
   text-decoration: none;
   border-radius: var(--radius-md);
@@ -1872,7 +1947,11 @@ h1 {
 .code-link:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.95) 0%, rgba(29, 78, 216, 0.95) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(37, 99, 235, 0.95) 0%,
+    rgba(29, 78, 216, 0.95) 100%
+  );
 }
 
 /* Footer */
@@ -2505,7 +2584,9 @@ h1 {
 }
 
 .activity-address {
-  font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+  font-family:
+    "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New",
+    monospace;
 }
 
 .activity-arrow {
@@ -2717,7 +2798,11 @@ h1 {
 }
 
 .loading-modal::before {
-  background: linear-gradient(135deg, rgba(147, 197, 253, 0.5) 0%, rgba(96, 165, 250, 0.4) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(147, 197, 253, 0.5) 0%,
+    rgba(96, 165, 250, 0.4) 100%
+  );
   opacity: 0.8;
 }
 

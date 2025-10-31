@@ -1,4 +1,12 @@
-import { Address, Chain, LocalAccount, Transport, createPublicClient, http } from "viem";
+import {
+  Address,
+  Chain,
+  LocalAccount,
+  PublicClient,
+  Transport,
+  createPublicClient,
+  http,
+} from "viem";
 import { getNetworkId } from "../../../shared";
 import { isSignerWallet, SignerWallet, getChainFromNetwork } from "../../../types/shared/evm";
 import { ChainIdToNetwork } from "../../../types/shared";
@@ -29,7 +37,7 @@ export async function getPermitNonce<transport extends Transport, chain extends 
   // If chainId is provided and differs from the wallet's chain, create a temporary client
   const walletClient = isSignerWallet(client) ? client : null;
 
-  let queryClient: any;
+  let queryClient: PublicClient | SignerWallet<chain, transport>;
   if (chainId && walletClient && walletClient.chain?.id !== chainId) {
     // Cross-chain case: create a temporary public client for the source chain
     const network = ChainIdToNetwork[chainId];
