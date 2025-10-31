@@ -149,12 +149,14 @@ export class x402HTTPResourceService extends x402ResourceService {
   }
 
   /**
-   * Set a custom paywall provider for generating HTML
+   * Register a custom paywall provider for generating HTML
    *
    * @param provider - PaywallProvider instance
+   * @returns This service instance for chaining
    */
-  setPaywallProvider(provider: PaywallProvider): void {
+  registerPaywallProvider(provider: PaywallProvider): this {
     this.paywallProvider = provider;
+    return this;
   }
 
   /**
