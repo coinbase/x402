@@ -26,6 +26,7 @@ import {
   liskSepolia,
   abstract,
   abstractTestnet,
+  story,
 } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
@@ -224,6 +225,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return polygonAmoy;
     case "peaq":
       return peaq;
+    case "story":
+      return story;
     case "iotex":
       return iotex;
     case "iotex-testnet":
