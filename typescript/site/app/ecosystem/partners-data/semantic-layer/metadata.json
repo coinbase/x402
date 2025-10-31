@@ -1,0 +1,7 @@
+{
+  "name": "Semantic Layer",
+  "description": "The execution layer that lets AI agents create wallets, trade, and interact with any dApp across chains, standardized through x402 and ERC8004.",
+  "logoUrl": "/logos/semanticlayer.png",
+  "websiteUrl": "https://www.semanticlayer.io/",
+  "category": "Services/Endpoints"
+}
