@@ -1,11 +1,11 @@
-# x402-fetch
+# @b3dotfun/anyspend-x402-fetch
 
-A utility package that extends the native `fetch` API to automatically handle 402 Payment Required responses using the x402 payment protocol. This package enables seamless integration of payment functionality into your applications when making HTTP requests.
+AnySpend-enhanced fetch client for the x402 Payment Protocol. This package extends the native `fetch` API to automatically handle 402 Payment Required responses with multi-token and cross-chain payment support through the AnySpend facilitator.
 
 ## Installation
 
 ```bash
-npm install x402-fetch
+npm install @b3dotfun/anyspend-x402-fetch
 ```
 
 ## Quick Start
@@ -13,7 +13,7 @@ npm install x402-fetch
 ```typescript
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment } from "x402-fetch";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 import { baseSepolia } from "viem/chains";
 
 // Create a wallet client
@@ -34,6 +34,15 @@ const response = await fetchWithPay("https://api.example.com/paid-endpoint", {
 
 const data = await response.json();
 ```
+
+## What Makes AnySpend Different?
+
+Unlike standard x402 implementations, AnySpend x402 enables:
+
+- ✨ **Multi-token payments** - Pay with various ERC-20 tokens, not just USDC
+- 🌉 **Cross-chain payments** - Pay on one network while the server receives on another
+- 🔄 **Automatic conversion** - Token swaps and bridging handled seamlessly by the facilitator
+- 🎯 **Standard compatibility** - Works with standard x402 servers (no custom server code needed)
 
 ## API
 
@@ -64,7 +73,7 @@ A wrapped fetch function that automatically handles 402 responses by:
 You can specify which token and network you want to pay with:
 
 ```typescript
-import { wrapFetchWithPayment, createSigner, type PaymentPreferences } from "x402-fetch";
+import { wrapFetchWithPayment, createSigner, type PaymentPreferences } from "@b3dotfun/anyspend-x402-fetch";
 
 const signer = await createSigner("base-sepolia", privateKey);
 
@@ -86,7 +95,19 @@ const fetchWithPayment = wrapFetchWithPayment(
 await fetchWithPayment('https://api.example.com/data');
 ```
 
-See the [Anyspend Integration Guide](../../../ANYSPEND-INTEGRATION.md) for more details on multi-token and cross-chain payments.
+### Supported Networks
+
+AnySpend facilitator supports multiple networks:
+
+- Base / Base Sepolia
+- Ethereum / Ethereum Sepolia
+- Arbitrum / Arbitrum Sepolia
+- Optimism / Optimism Sepolia
+- Polygon / Polygon Amoy
+
+**Primary Settlement Token**: USDC across all supported networks
+
+For the latest list of supported tokens and networks, query: `https://mainnet.anyspend.com/x402/supported`
 
 ## Example
 
@@ -94,7 +115,7 @@ See the [Anyspend Integration Guide](../../../ANYSPEND-INTEGRATION.md) for more 
 import { config } from "dotenv";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment } from "x402-fetch";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 import { baseSepolia } from "viem/chains";
 
 config();
@@ -122,4 +143,43 @@ fetchWithPay(API_URL, {
     console.error(error);
   });
 ```
+
+## Related Packages
+
+- [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402) - AnySpend facilitator configuration
+- [@b3dotfun/anyspend-x402-express](https://www.npmjs.com/package/@b3dotfun/anyspend-x402-express) - AnySpend Express middleware
+- [x402](https://www.npmjs.com/package/x402) - Core x402 protocol implementation
+- [x402-express](https://www.npmjs.com/package/x402-express) - Standard Coinbase x402 Express middleware
+- [x402-hono](https://www.npmjs.com/package/x402-hono) - Hono middleware
+- [x402-next](https://www.npmjs.com/package/x402-next) - Next.js middleware
+- [x402-fetch](https://www.npmjs.com/package/x402-fetch) - Standard Coinbase x402 Fetch client
+- [x402-axios](https://www.npmjs.com/package/x402-axios) - Client for Axios
+
+## About x402
+
+The x402 protocol is an open standard for HTTP-native payments. It enables:
+
+- **Low fees**: No percentage-based fees, just network costs
+- **Instant settlement**: ~2 second finality on supported networks
+- **Micro-payments**: Accept payments as low as $0.001
+- **Chain agnostic**: Works across multiple blockchain networks
+- **Easy integration**: One line of code for servers, one function for clients
+
+Learn more at [x402.org](https://x402.org)
+
+## Resources
+
+- [x402 Protocol](https://x402.org)
+- [AnySpend GitHub](https://github.com/b3-fun/anyspend-x402)
+- [AnySpend Facilitator](https://mainnet.anyspend.com/x402)
+- [CDP Documentation](https://docs.cdp.coinbase.com)
+- [CDP Discord](https://discord.com/invite/cdp)
+
+## License
+
+Apache-2.0
+
+## Contributing
+
+Contributions are welcome! This is an extended version of the Coinbase x402-fetch client with AnySpend ecosystem integration.
 
