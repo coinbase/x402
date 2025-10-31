@@ -45,6 +45,7 @@ export async function getPermitNonce<transport extends Transport, chain extends 
       throw new Error(`Unsupported chain ID: ${chainId}`);
     }
     const sourceChain = getChainFromNetwork(network);
+    // @ts-expect-error - Type mismatch between PublicClient and SignerWallet, but both support readContract
     queryClient = createPublicClient({
       chain: sourceChain,
       transport: http(),

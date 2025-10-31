@@ -3,7 +3,8 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
-    "lib": ["DOM"]
+    "lib": ["DOM"],
+    "moduleResolution": "node"
   },
   "include": ["src"]
 }

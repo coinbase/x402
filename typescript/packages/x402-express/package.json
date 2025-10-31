@@ -1,6 +1,6 @@
 {
   "name": "@b3dotfun/anyspend-x402-express",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -56,12 +56,9 @@
   },
   "dependencies": {
     "@solana/kit": "^2.1.1",
-    "@coinbase/cdp-sdk": "^1.22.0",
-    "@b3dotfun/anyspend-x402": "^0.1.3",
+    "@b3dotfun/anyspend-x402": "workspace:^",
     "express": "^4.18.2",
-    "viem": "^2.21.26",
-    "x402": "workspace:^",
-    "zod": "^3.24.2"
+    "viem": "^2.21.26"
   },
   "publishConfig": {
     "access": "public"

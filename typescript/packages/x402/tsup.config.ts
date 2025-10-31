@@ -14,6 +14,9 @@ const baseConfig = {
   },
   dts: {
     resolve: true,
+    compilerOptions: {
+      skipLibCheck: true,
+    },
   },
   sourcemap: true,
   target: "es2020",

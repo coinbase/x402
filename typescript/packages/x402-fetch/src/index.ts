@@ -2,7 +2,7 @@ import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
-} from "x402/client";
+} from "@b3dotfun/anyspend-x402/client";
 import {
   ChainIdToNetwork,
   evm,
@@ -13,7 +13,7 @@ import {
   PaymentRequirementsSchema,
   Signer,
   X402Config,
-} from "x402/types";
+} from "@b3dotfun/anyspend-x402/types";
 
 /**
  * Configuration options for payment preferences
@@ -164,12 +164,12 @@ export function wrapFetchWithPayment(
 }
 
 export type { Hex } from "viem";
-export { type PaymentRequirementsSelector } from "x402/client";
-export { decodeXPaymentResponse } from "x402/shared";
+export { type PaymentRequirementsSelector } from "@b3dotfun/anyspend-x402/client";
+export { decodeXPaymentResponse } from "@b3dotfun/anyspend-x402/shared";
 export {
   createSigner,
   type MultiNetworkSigner,
   type Network,
   type Signer,
   type X402Config,
-} from "x402/types";
+} from "@b3dotfun/anyspend-x402/types";

@@ -38,10 +38,10 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@coinbase/cdp-sdk": "^1.22.0",
+    "@coinbase/cdp-sdk": "^1.29.0",
     "@solana/kit": "^2.1.1",
     "viem": "^2.21.26",
-    "x402": "workspace:^",
+    "@b3dotfun/anyspend-x402": "workspace:^",
     "zod": "^3.24.2"
   },
   "peerDependencies": {

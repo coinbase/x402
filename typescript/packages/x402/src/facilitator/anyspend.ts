@@ -1,6 +1,6 @@
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
-import { FacilitatorConfig } from "x402/types";
-import { CreateHeaders } from "x402/verify";
+import { FacilitatorConfig } from "../types";
+import { CreateHeaders } from "../verify";
 
 const ANYSPEND_FACILITATOR_BASE_URL = "https://mainnet.anyspend.com";
 const ANYSPEND_FACILITATOR_ROUTE = "/x402";

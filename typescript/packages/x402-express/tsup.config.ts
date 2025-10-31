@@ -6,6 +6,9 @@ const baseConfig = {
   },
   dts: {
     resolve: true,
+    compilerOptions: {
+      skipLibCheck: true,
+    },
   },
   sourcemap: true,
   target: "node16",
