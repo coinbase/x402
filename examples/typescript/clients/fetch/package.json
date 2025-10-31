@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7",
-    "x402-fetch": "workspace:*"
+    "@b3dotfun/anyspend-x402-fetch": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

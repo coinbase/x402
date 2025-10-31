@@ -5,7 +5,7 @@ import {
   wrapFetchWithPayment,
   type Hex,
   type PaymentPreferences,
-} from "x402-fetch";
+} from "@b3dotfun/anyspend-x402-fetch";
 
 config();
 
@@ -97,6 +97,7 @@ async function main(): Promise<void> {
         console.log(`   Explorer: https://basescan.org/tx/${paymentResponse.transaction}`);
       }
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error("❌ Error with B3 payment:", error.message || error);
     if (error.response) {

@@ -12,7 +12,7 @@ import {
   MultiNetworkSigner,
   Signer,
   wrapFetchWithPayment,
-} from "x402-fetch";
+} from "@b3dotfun/anyspend-x402-fetch";
 import "./App.css";
 import { BASE_TOKENS } from "./wagmi.config";
 

@@ -18,69 +18,11 @@ importers:
         specifier: ^5.8.3
         version: 5.9.2
 
-  ../../typescript/packages/coinbase-x402:
+  ../../typescript/packages/x402:
     dependencies:
       '@coinbase/cdp-sdk':
         specifier: ^1.29.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      viem:
-        specifier: ^2.21.26
-        version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.76
-    devDependencies:
-      '@eslint/js':
-        specifier: ^9.24.0
-        version: 9.33.0
-      '@types/node':
-        specifier: ^22.13.4
-        version: 22.17.2
-      '@typescript-eslint/eslint-plugin':
-        specifier: ^8.29.1
-        version: 8.40.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2))(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2)
-      '@typescript-eslint/parser':
-        specifier: ^8.29.1
-        version: 8.40.0(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2)
-      eslint:
-        specifier: ^9.24.0
-        version: 9.33.0(jiti@1.21.7)
-      eslint-plugin-import:
-        specifier: ^2.31.0
-        version: 2.32.0(@typescript-eslint/parser@8.40.0(eslint@9.33.0(jiti@1.21.7))(typescript@5.9.2))(eslint-import-resolver-typescript@3.10.1)(eslint@9.33.0(jiti@1.21.7))
-      eslint-plugin-jsdoc:
-        specifier: ^50.6.9
-        version: 50.8.0(eslint@9.33.0(jiti@1.21.7))
-      eslint-plugin-prettier:
-        specifier: ^5.2.6
-        version: 5.5.4(eslint-config-prettier@10.1.8(eslint@9.33.0(jiti@1.21.7)))(eslint@9.33.0(jiti@1.21.7))(prettier@3.5.2)
-      prettier:
-        specifier: 3.5.2
-        version: 3.5.2
-      tsup:
-        specifier: ^8.4.0
-        version: 8.5.0(jiti@1.21.7)(postcss@8.5.6)(tsx@4.20.4)(typescript@5.9.2)(yaml@2.8.1)
-      tsx:
-        specifier: ^4.19.2
-        version: 4.20.4
-      typescript:
-        specifier: ^5.7.3
-        version: 5.9.2
-      vite:
-        specifier: ^6.2.6
-        version: 6.3.5(@types/node@22.17.2)(jiti@1.21.7)(tsx@4.20.4)(yaml@2.8.1)
-      vite-tsconfig-paths:
-        specifier: ^5.1.4
-        version: 5.1.4(typescript@5.9.2)(vite@6.3.5(@types/node@22.17.2)(jiti@1.21.7)(tsx@4.20.4)(yaml@2.8.1))
-      vitest:
-        specifier: ^3.0.5
-        version: 3.2.4(@types/debug@4.1.12)(@types/node@22.17.2)(jiti@1.21.7)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(tsx@4.20.4)(yaml@2.8.1)
-
-  ../../typescript/packages/x402:
-    dependencies:
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
@@ -199,15 +141,15 @@ importers:
 
   ../../typescript/packages/x402-axios:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:^
+        version: link:../x402
       axios:
         specifier: ^1.7.9
         version: 1.11.0
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -260,9 +202,9 @@ importers:
 
   ../../typescript/packages/x402-express:
     dependencies:
-      '@coinbase/cdp-sdk':
-        specifier: ^1.22.0
-        version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:^
+        version: link:../x402
       '@solana/kit':
         specifier: ^2.1.1
         version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
@@ -272,12 +214,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
-      zod:
-        specifier: ^3.24.2
-        version: 3.25.76
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -330,12 +266,12 @@ importers:
 
   ../../typescript/packages/x402-fetch:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:^
+        version: link:../x402
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -388,8 +324,11 @@ importers:
 
   ../../typescript/packages/x402-hono:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:^
+        version: link:../x402
       '@coinbase/cdp-sdk':
-        specifier: ^1.22.0
+        specifier: ^1.29.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@solana/kit':
         specifier: ^2.1.1
@@ -400,9 +339,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -455,8 +391,11 @@ importers:
 
   ../../typescript/packages/x402-next:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:^
+        version: link:../x402
       '@coinbase/cdp-sdk':
-        specifier: ^1.22.0
+        specifier: ^1.29.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@solana/kit':
         specifier: ^2.1.1
@@ -467,9 +406,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -525,6 +461,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
         version: 0.39.0(encoding@0.1.13)
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402-fetch
       '@coinbase/agentkit':
         specifier: ^0.5.0
         version: 0.5.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
@@ -546,9 +485,6 @@ importers:
       viem:
         specifier: ^2.26.2
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402-fetch
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -589,15 +525,15 @@ importers:
 
   clients/axios:
     dependencies:
+      '@b3dotfun/anyspend-x402-axios':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-axios
       axios:
         specifier: ^1.7.9
         version: 1.11.0
       dotenv:
         specifier: ^16.5.0
         version: 16.6.1
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-axios
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -632,6 +568,9 @@ importers:
 
   clients/cdp-sdk:
     dependencies:
+      '@b3dotfun/anyspend-x402-axios':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-axios
       '@coinbase/cdp-sdk':
         specifier: ^1.16.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
@@ -644,9 +583,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-axios
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -681,6 +617,9 @@ importers:
 
   clients/chainlink-vrf-nft:
     dependencies:
+      '@b3dotfun/anyspend-x402-axios':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-axios
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.19.0(hono@4.9.2)
@@ -698,10 +637,7 @@ importers:
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
       x402:
         specifier: file:../../../../typescript/packages/x402
-        version: file:../../typescript/packages/x402(@solana/sysvars@2.3.0(typescript@5.9.2))(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-axios
+        version: '@b3dotfun/anyspend-x402@file:../../typescript/packages/x402(@solana/sysvars@2.3.0(typescript@5.9.2))(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)'
     devDependencies:
       '@types/node':
         specifier: ^22.13.5
@@ -712,12 +648,12 @@ importers:
 
   clients/fetch:
     dependencies:
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-fetch
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-fetch
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -752,12 +688,12 @@ importers:
 
   clients/fetch-anyspend-demo:
     dependencies:
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-fetch
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-fetch
     devDependencies:
       tsx:
         specifier: ^4.19.2
@@ -768,18 +704,15 @@ importers:
 
   discovery:
     dependencies:
-      '@coinbase/x402':
+      '@b3dotfun/anyspend-x402':
         specifier: workspace:*
-        version: link:../../../typescript/packages/coinbase-x402
+        version: link:../../../typescript/packages/x402
       axios:
         specifier: ^1.7.9
         version: 1.11.0
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -817,6 +750,15 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.39.0
         version: 0.39.0(encoding@0.1.13)
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-axios':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402-axios
+      '@b3dotfun/anyspend-x402-hono':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402-hono
       '@hono/node-server':
         specifier: ^1.14.1
         version: 1.19.0(hono@4.9.2)
@@ -838,15 +780,6 @@ importers:
       viem:
         specifier: ^2.28.3
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: ^0.2.0
-        version: 0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-axios:
-        specifier: ^0.1.0
-        version: 0.1.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-hono:
-        specifier: ^0.1.0
-        version: 0.1.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
       zod:
         specifier: ^3.24.3
         version: 3.25.76
@@ -887,15 +820,15 @@ importers:
 
   facilitator:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -936,6 +869,12 @@ importers:
 
   fullstack/anyspend/apps/client:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../../../../typescript/packages/x402-fetch
       '@tanstack/react-query':
         specifier: ^5.62.15
         version: 5.85.5(react@18.3.1)
@@ -951,12 +890,6 @@ importers:
       wagmi:
         specifier: ^2.15.6
         version: 2.16.4(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@18.3.1))(@types/react@18.3.26)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      x402:
-        specifier: workspace:*
-        version: link:../../../../../../typescript/packages/x402
-      x402-fetch:
-        specifier: workspace:*
-        version: link:../../../../../../typescript/packages/x402-fetch
     devDependencies:
       '@types/react':
         specifier: ^18.2.43
@@ -994,6 +927,12 @@ importers:
 
   fullstack/anyspend/apps/server:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-express':
+        specifier: workspace:*
+        version: link:../../../../../../typescript/packages/x402-express
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -1006,12 +945,6 @@ importers:
       viem:
         specifier: ^2.38.5
         version: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:*
-        version: link:../../../../../../typescript/packages/x402
-      x402-express:
-        specifier: workspace:*
-        version: link:../../../../../../typescript/packages/x402-express
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1058,9 +991,15 @@ importers:
 
   fullstack/auth_based_pricing:
     dependencies:
-      '@coinbase/x402':
-        specifier: ^0.3.3
-        version: 0.3.8(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-fetch
+      '@b3dotfun/anyspend-x402-hono':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-hono
       '@hono/node-server':
         specifier: ^1.11.2
         version: 1.19.0(hono@4.9.2)
@@ -1079,15 +1018,6 @@ importers:
       viem:
         specifier: ^2.13.8
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: ^0.3.2
-        version: 0.3.7(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-fetch:
-        specifier: ^0.3.2
-        version: 0.3.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-hono:
-        specifier: ^0.3.2
-        version: 0.3.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
     devDependencies:
       '@types/node':
         specifier: ^20.14.2
@@ -1110,12 +1040,18 @@ importers:
 
   fullstack/farcaster-miniapp:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-fetch
+      '@b3dotfun/anyspend-x402-next':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-next
       '@coinbase/onchainkit':
         specifier: latest
         version: 0.38.19(@farcaster/miniapp-sdk@0.1.9(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(@tanstack/query-core@5.85.5)(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(typescript@5.9.2)(use-sync-external-store@1.5.0(react@19.1.1))(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@coinbase/x402':
-        specifier: latest
-        version: 0.5.1(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@farcaster/frame-sdk':
         specifier: ^0.0.60
         version: 0.0.60(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1146,12 +1082,6 @@ importers:
       wagmi:
         specifier: ^2.14.11
         version: 2.16.4(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      x402-fetch:
-        specifier: ^0.4.1
-        version: 0.4.2(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-next:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-next
     devDependencies:
       '@types/node':
         specifier: ^20.17.30
@@ -1195,9 +1125,12 @@ importers:
 
   fullstack/mainnet:
     dependencies:
-      '@coinbase/x402':
+      '@b3dotfun/anyspend-x402':
         specifier: workspace:*
-        version: link:../../../../typescript/packages/coinbase-x402
+        version: link:../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-next':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-next
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.1)
@@ -1213,9 +1146,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402-next:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-next
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1268,9 +1198,12 @@ importers:
 
   fullstack/next:
     dependencies:
-      '@coinbase/x402':
+      '@b3dotfun/anyspend-x402':
         specifier: workspace:*
-        version: link:../../../../typescript/packages/coinbase-x402
+        version: link:../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-next':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-next
       '@heroicons/react':
         specifier: ^2.2.0
         version: 2.2.0(react@19.1.1)
@@ -1286,9 +1219,6 @@ importers:
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402-next:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-next
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1341,6 +1271,9 @@ importers:
 
   fullstack/next-advanced:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402
       '@coinbase/onchainkit':
         specifier: latest
         version: 0.38.19(@farcaster/miniapp-sdk@0.1.9(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(@tanstack/query-core@5.85.5)(@types/react@19.1.10)(bufferutil@4.0.9)(encoding@0.1.13)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1362,9 +1295,6 @@ importers:
       wagmi:
         specifier: ^2.15.6
         version: 2.16.4(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      x402:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402
     devDependencies:
       '@types/node':
         specifier: ^20
@@ -1393,6 +1323,12 @@ importers:
 
   mcp-embedded-wallet:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-axios':
+        specifier: workspace:*
+        version: link:../../../typescript/packages/x402-axios
       '@coinbase/cdp-core':
         specifier: ^0.0.18
         version: 0.0.18(@types/react@19.1.10)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -1402,9 +1338,6 @@ importers:
       '@coinbase/cdp-react':
         specifier: ^0.0.18
         version: 0.0.18(@coinbase/cdp-core@0.0.18(@types/react@19.1.10)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.25.76))(@coinbase/cdp-hooks@0.0.18(@coinbase/cdp-core@0.0.18(@types/react@19.1.10)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.5.0(react@18.3.1))(utf-8-validate@5.0.10)(zod@3.25.76))(react@18.3.1))(@types/react-dom@19.1.7(@types/react@19.1.10))(@types/react@19.1.10)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@coinbase/x402':
-        specifier: workspace:*
-        version: link:../../../typescript/packages/coinbase-x402
       '@modelcontextprotocol/sdk':
         specifier: ^1.15.1
         version: 1.17.3
@@ -1441,12 +1374,6 @@ importers:
       winston:
         specifier: ^3.17.0
         version: 3.17.0
-      x402:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402
-      x402-axios:
-        specifier: workspace:*
-        version: link:../../../typescript/packages/x402-axios
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -1511,15 +1438,15 @@ importers:
 
   servers/advanced:
     dependencies:
+      '@b3dotfun/anyspend-x402':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1560,15 +1487,15 @@ importers:
 
   servers/express:
     dependencies:
+      '@b3dotfun/anyspend-x402-express':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-express
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402-express:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-express
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1609,6 +1536,9 @@ importers:
 
   servers/hono:
     dependencies:
+      '@b3dotfun/anyspend-x402-hono':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-hono
       '@hono/node-server':
         specifier: ^1.13.8
         version: 1.19.0(hono@4.9.2)
@@ -1618,9 +1548,6 @@ importers:
       hono:
         specifier: ^4.7.1
         version: 4.9.2
-      x402-hono:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-hono
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1658,18 +1585,18 @@ importers:
 
   servers/mainnet:
     dependencies:
-      '@coinbase/x402':
+      '@b3dotfun/anyspend-x402':
         specifier: workspace:*
-        version: link:../../../../typescript/packages/coinbase-x402
+        version: link:../../../../typescript/packages/x402
+      '@b3dotfun/anyspend-x402-express':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/x402-express
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
       express:
         specifier: ^4.18.2
         version: 4.21.2
-      x402-express:
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/x402-express
     devDependencies:
       '@eslint/js':
         specifier: ^9.24.0
@@ -1757,6 +1684,9 @@ packages:
   '@aws-sdk/types@3.862.0':
     resolution: {integrity: sha512-Bei+RL0cDxxV+lW2UezLbCYYNeJm6Nzee0TpW0FfyTRBhH9C1XQh4+x+IClriXvgBnRquTMMYsmJfvx8iyLKrg==}
     engines: {node: '>=18.0.0'}
+
+  '@b3dotfun/anyspend-x402@file:../../typescript/packages/x402':
+    resolution: {directory: ../../typescript/packages/x402, type: directory}
 
   '@babel/code-frame@7.27.1':
     resolution: {integrity: sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg==}
@@ -2375,12 +2305,6 @@ packages:
 
   '@coinbase/wallet-sdk@4.3.6':
     resolution: {integrity: sha512-4q8BNG1ViL4mSAAvPAtpwlOs1gpC+67eQtgIwNvT3xyeyFFd+guwkc8bcX5rTmQhXpqnhzC4f0obACbP9CqMSA==}
-
-  '@coinbase/x402@0.3.8':
-    resolution: {integrity: sha512-qEjxQRefXCyTfxXf4LJtB5CQZAVqjVulbol5fjcYMrA6buA1ZCq7J+l2IJVVYfeJTv70s5atLEi35xxWNobLTQ==}
-
-  '@coinbase/x402@0.5.1':
-    resolution: {integrity: sha512-zKT0gFQ6LR8UKasVtUeAnJVHEdJUAHOicxd3VumR0rxKYWnRU/yaXVQ6iq5XZvtMAs+rfpyTUbKAgIyPfV9VxQ==}
 
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
@@ -10168,36 +10092,6 @@ packages:
       utf-8-validate:
         optional: true
 
-  x402-axios@0.1.0:
-    resolution: {integrity: sha512-PGr2MZrMBP2c2yJ+2zxTMotBJkZ1yPNe+Bme2IVZ+z4XZjTJ5tybuO2g1k2dppp2rkidL1m2swq7yHeKldhBDg==}
-
-  x402-fetch@0.3.3:
-    resolution: {integrity: sha512-gOVOm1gT+ViHY/oL8UHU6mC2DPDpC3pxBHaaAMcDGSb1myht26tYxYBPTKARuxXpyZEnZ4Us6+WDgNKZ5rze+A==}
-
-  x402-fetch@0.4.2:
-    resolution: {integrity: sha512-UvRpO8OE2sB/pK+EpW68J2pe1p8ObwLptmg2HY8hWRz0/sij7o9kcHns1eEM5ZtzJnaUQrP2WgPLp2oMBjG7XA==}
-
-  x402-hono@0.1.0:
-    resolution: {integrity: sha512-+mWs07lgGAmba49i66ltkhc2a/fUTxi1Z+MmVVzXhXe2FL9iWrOnOhMjQDTNi45g74oqnc9d9MmUjSxRFtIZZw==}
-
-  x402-hono@0.3.4:
-    resolution: {integrity: sha512-pSl2a+fXViWYnrP7EpgW26MDyKE9OaarjOsR4dOy7OI4a9FKM5edc6Eyf8LszH98r/ElIfgw42CNIl/fSrzH1Q==}
-
-  x402@0.2.0:
-    resolution: {integrity: sha512-PbQ0APTVtwkBxHyAb6+wc8X4LWTolj2zF3dkMul2UUNlDgnXQmYdj0K1MNv0VtG6girBHbENv5gxNxws/aZXXQ==}
-
-  x402@0.3.7:
-    resolution: {integrity: sha512-8g2sXjWX7UbUNg9wJqgSBoYP7QV3/7qYYssdfPiQM5XDDThuVy7+MnH4cCuQ4UGGn2SVz1hpzWpwxMC3nwp+zA==}
-
-  x402@0.4.3:
-    resolution: {integrity: sha512-GbIgX2EZYAOZX1ZrEYIVXtjDKLtNuwp7lUlM3dCJAF5TqELP+bDrLy3UsypzNcJoHPVvNa+jB4BPZ83/W2nZDA==}
-
-  x402@0.5.3:
-    resolution: {integrity: sha512-2cML/exWWnusJjmrzanILGAtSoatVR5U8w4Xf6RNpqpOO1xCakyEDgoSCKWAu+KAYoO27xmCXmbIy/ao2sBCMw==}
-
-  x402@file:../../typescript/packages/x402:
-    resolution: {directory: ../../typescript/packages/x402, type: directory}
-
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==}
     engines: {node: '>=18'}
@@ -10385,6 +10279,56 @@ snapshots:
     dependencies:
       '@smithy/types': 4.3.2
       tslib: 2.8.1
+
+  '@b3dotfun/anyspend-x402@file:../../typescript/packages/x402(@solana/sysvars@2.3.0(typescript@5.9.2))(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)':
+    dependencies:
+      '@coinbase/cdp-sdk': 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
+      '@scure/base': 1.2.6
+      '@solana-program/compute-budget': 0.8.0(@solana/kit@2.3.0(typescript@5.9.2))
+      '@solana-program/token': 0.5.1(@solana/kit@2.3.0(typescript@5.9.2))
+      '@solana-program/token-2022': 0.4.2(@solana/kit@2.3.0(typescript@5.9.2))(@solana/sysvars@2.3.0(typescript@5.9.2))
+      '@solana/kit': 2.3.0(typescript@5.9.2)
+      '@solana/transaction-confirmation': 2.3.0(typescript@5.9.2)
+      '@solana/wallet-standard-features': 1.3.0
+      '@wallet-standard/app': 1.1.0
+      '@wallet-standard/base': 1.1.0
+      '@wallet-standard/features': 1.1.0
+      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
+      wagmi: 2.16.4(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@react-native-async-storage/async-storage'
+      - '@solana/sysvars'
+      - '@tanstack/query-core'
+      - '@tanstack/react-query'
+      - '@types/react'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/kv'
+      - aws4fetch
+      - bufferutil
+      - db0
+      - debug
+      - encoding
+      - fastestsmallesttextencoderdecoder
+      - immer
+      - ioredis
+      - react
+      - supports-color
+      - typescript
+      - uploadthing
+      - utf-8-validate
+      - ws
 
   '@babel/code-frame@7.27.1':
     dependencies:
@@ -11290,26 +11234,6 @@ snapshots:
       - typescript
       - utf-8-validate
 
-  '@coinbase/cdp-sdk@1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@solana/spl-token': 0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      abitype: 1.0.6(typescript@5.9.2)(zod@3.25.76)
-      axios: 1.11.0
-      axios-retry: 4.5.0(axios@1.11.0)
-      jose: 6.0.12
-      md5: 2.3.0
-      uncrypto: 0.1.3
-      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
   '@coinbase/coinbase-sdk@0.20.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@scure/bip32': 1.7.0
@@ -11498,58 +11422,6 @@ snapshots:
       - use-sync-external-store
       - utf-8-validate
       - zod
-
-  '@coinbase/x402@0.3.8(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coinbase/cdp-sdk': 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.3.7(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
-  '@coinbase/x402@0.5.1(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@coinbase/cdp-sdk': 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.5.3(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@tanstack/query-core'
-      - '@tanstack/react-query'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - supports-color
-      - typescript
-      - uploadthing
-      - utf-8-validate
 
   '@colors/colors@1.6.0': {}
 
@@ -15103,23 +14975,7 @@ snapshots:
       - fastestsmallesttextencoderdecoder
       - typescript
 
-  '@solana/spl-token-group@0.0.7(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(typescript@5.9.2)':
-    dependencies:
-      '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-      - typescript
-
   '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)':
-    dependencies:
-      '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-    transitivePeerDependencies:
-      - fastestsmallesttextencoderdecoder
-      - typescript
-
-  '@solana/spl-token-metadata@0.1.6(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(typescript@5.9.2)':
     dependencies:
       '@solana/codecs': 2.0.0-rc.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
@@ -15133,21 +14989,6 @@ snapshots:
       '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)
       '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)
-      '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      buffer: 6.0.3
-    transitivePeerDependencies:
-      - bufferutil
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
-  '@solana/spl-token@0.4.13(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@solana/buffer-layout': 4.0.1
-      '@solana/buffer-layout-utils': 0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      '@solana/spl-token-group': 0.0.7(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(typescript@5.9.2)
-      '@solana/spl-token-metadata': 0.1.6(@solana/web3.js@1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10))(typescript@5.9.2)
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
       buffer: 6.0.3
     transitivePeerDependencies:
@@ -22901,231 +22742,6 @@ snapshots:
     optionalDependencies:
       bufferutil: 4.0.9
       utf-8-validate: 5.0.10
-
-  x402-axios@0.1.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      axios: 1.11.0
-      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
-  x402-fetch@0.3.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.3.7(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-
-  x402-fetch@0.4.2(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.4.3(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@tanstack/query-core'
-      - '@tanstack/react-query'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - encoding
-      - immer
-      - ioredis
-      - react
-      - supports-color
-      - typescript
-      - uploadthing
-      - utf-8-validate
-
-  x402-hono@0.1.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      hono: 4.9.2
-      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
-  x402-hono@0.3.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      hono: 4.9.2
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402: 0.3.7(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-
-  x402@0.2.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      '@coinbase/cdp-sdk': 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      axios: 1.11.0
-      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - typescript
-      - utf-8-validate
-
-  x402@0.3.7(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - bufferutil
-      - typescript
-      - utf-8-validate
-
-  x402@0.4.3(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      wagmi: 2.16.4(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@tanstack/query-core'
-      - '@tanstack/react-query'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - encoding
-      - immer
-      - ioredis
-      - react
-      - supports-color
-      - typescript
-      - uploadthing
-      - utf-8-validate
-
-  x402@0.5.3(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      viem: 2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      wagmi: 2.16.4(@tanstack/query-core@5.85.5)(@tanstack/react-query@5.85.5(react@19.1.1))(@types/react@19.1.10)(@upstash/redis@1.35.3)(bufferutil@4.0.9)(encoding@0.1.13)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.5(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@tanstack/query-core'
-      - '@tanstack/react-query'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - encoding
-      - immer
-      - ioredis
-      - react
-      - supports-color
-      - typescript
-      - uploadthing
-      - utf-8-validate
-
-  x402@file:../../typescript/packages/x402(@solana/sysvars@2.3.0(typescript@5.9.2))(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10):
-    dependencies:
-      '@scure/base': 1.2.6
-      '@solana-program/compute-budget': 0.8.0(@solana/kit@2.3.0(typescript@5.9.2))
-      '@solana-program/token': 0.5.1(@solana/kit@2.3.0(typescript@5.9.2))
-      '@solana-program/token-2022': 0.4.2(@solana/kit@2.3.0(typescript@5.9.2))(@solana/sysvars@2.3.0(typescript@5.9.2))
-      '@solana/kit': 2.3.0(typescript@5.9.2)
-      '@solana/transaction-confirmation': 2.3.0(typescript@5.9.2)
-      '@solana/wallet-standard-features': 1.3.0
-      '@wallet-standard/app': 1.1.0
-      '@wallet-standard/base': 1.1.0
-      '@wallet-standard/features': 1.1.0
-      viem: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      wagmi: 2.16.4(@tanstack/react-query@5.85.5(react@19.1.1))(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@azure/app-configuration'
-      - '@azure/cosmos'
-      - '@azure/data-tables'
-      - '@azure/identity'
-      - '@azure/keyvault-secrets'
-      - '@azure/storage-blob'
-      - '@capacitor/preferences'
-      - '@deno/kv'
-      - '@netlify/blobs'
-      - '@planetscale/database'
-      - '@react-native-async-storage/async-storage'
-      - '@solana/sysvars'
-      - '@tanstack/query-core'
-      - '@tanstack/react-query'
-      - '@types/react'
-      - '@upstash/redis'
-      - '@vercel/blob'
-      - '@vercel/kv'
-      - aws4fetch
-      - bufferutil
-      - db0
-      - encoding
-      - fastestsmallesttextencoderdecoder
-      - immer
-      - ioredis
-      - react
-      - supports-color
-      - typescript
-      - uploadthing
-      - utf-8-validate
-      - ws
 
   xml-name-validator@5.0.0: {}
 

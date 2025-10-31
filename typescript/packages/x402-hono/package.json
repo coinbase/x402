@@ -1,5 +1,5 @@
 {
-  "name": "x402-hono",
+  "name": "@b3dotfun/anyspend-x402-hono",
   "version": "0.7.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -15,11 +15,27 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   },
-  "keywords": [],
+  "keywords": [
+    "x402",
+    "anyspend",
+    "hono",
+    "middleware",
+    "payment-protocol",
+    "web3",
+    "payments",
+    "cryptocurrency"
+  ],
   "license": "Apache-2.0",
-  "author": "Coinbase Inc.",
-  "repository": "https://github.com/coinbase/x402",
-  "description": "x402 Payment Protocol",
+  "author": "b3-fun",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/b3-fun/anyspend-x402.git"
+  },
+  "description": "AnySpend x402 Hono middleware - Extended x402 payment protocol integration for Hono with multi-token support",
+  "homepage": "https://github.com/b3-fun/anyspend-x402#readme",
+  "bugs": {
+    "url": "https://github.com/b3-fun/anyspend-x402/issues"
+  },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@types/node": "^22.13.4",
@@ -59,5 +75,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

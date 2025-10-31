@@ -4,7 +4,7 @@ import { z } from "zod";
 import { focusApp, operations } from "./electron";
 import { logger } from "./logger";
 import { useFacilitator } from "x402/verify";
-import { createFacilitatorConfig } from "@coinbase/x402";
+import { createFacilitatorConfig } from "@b3dotfun/anyspend-x402";
 import { ipcMain } from "electron";
 
 // Create an MCP server

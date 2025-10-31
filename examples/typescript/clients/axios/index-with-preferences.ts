@@ -6,7 +6,7 @@ import {
   createSigner,
   type Hex,
   type PaymentPreferences,
-} from "x402-axios";
+} from "@b3dotfun/anyspend-x402-axios";
 
 config();
 

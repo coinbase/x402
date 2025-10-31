@@ -17,7 +17,7 @@ import { useFacilitator } from 'x402/verify';
 import { exact } from 'x402/schemes';
 import { processPriceToAtomicAmount } from 'x402/shared';
 // uncomment to use the CDP Base mainnet facilitator
-//import { facilitator } from "@coinbase/x402"; 
+//import { facilitator } from "@b3dotfun/anyspend-x402"; 
 
 
 // --- Environment Variable Loading ---

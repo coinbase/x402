@@ -15,8 +15,8 @@
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
     "@tanstack/react-query": "^5.62.15",
-    "x402": "workspace:*",
-    "x402-fetch": "workspace:*"
+    "@b3dotfun/anyspend-x402": "workspace:*",
+    "@b3dotfun/anyspend-x402-fetch": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

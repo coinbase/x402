@@ -12,8 +12,7 @@
   "dependencies": {
     "axios": "^1.7.9",
     "viem": "^2.21.26",
-    "x402": "workspace:*",
-    "@coinbase/x402": "workspace:*"
+    "@b3dotfun/anyspend-x402": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

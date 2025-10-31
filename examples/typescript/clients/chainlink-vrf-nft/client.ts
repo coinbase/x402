@@ -5,7 +5,7 @@ import { baseSepolia } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient, Hex } from "viem";
 import axios from "axios";
-import { withPaymentInterceptor } from "x402-axios";
+import { withPaymentInterceptor } from "@b3dotfun/anyspend-x402-axios";
 
 // --- Load .env ---
 const __filename_env = fileURLToPath(import.meta.url);

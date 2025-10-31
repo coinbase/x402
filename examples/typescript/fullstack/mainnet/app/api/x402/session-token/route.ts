@@ -1,1 +1,1 @@
-export { POST } from "x402-next";
+export { POST } from "@b3dotfun/anyspend-x402-next";

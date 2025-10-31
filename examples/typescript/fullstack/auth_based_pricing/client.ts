@@ -4,7 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { baseSepolia, base } from 'viem/chains';
 import { SiweMessage } from 'siwe';
 import _fetch from 'node-fetch'; // Using ESM-compatible import for node-fetch
-import { wrapFetchWithPayment, decodeXPaymentResponse } from 'x402-fetch';
+import { wrapFetchWithPayment, decodeXPaymentResponse } from '@b3dotfun/anyspend-x402-fetch';
 import { fileURLToPath } from 'url';
 
 // --- Environment Variable Loading ---

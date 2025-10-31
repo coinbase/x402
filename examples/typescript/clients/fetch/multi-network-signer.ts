@@ -5,7 +5,7 @@ import {
   createSigner,
   type Hex,
   type MultiNetworkSigner,
-} from "x402-fetch";
+} from "@b3dotfun/anyspend-x402-fetch";
 
 config();
 
