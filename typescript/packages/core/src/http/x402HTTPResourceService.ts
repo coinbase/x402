@@ -149,14 +149,14 @@ export class x402HTTPResourceService extends x402ResourceService {
   }
 
   /**
-   * Register a custom paywall provider for generating HTML
+   * Register a custom paywall provider for generating HTML. If no provider is provided, the default paywall provider will be used.
    *
-   * @param provider - PaywallProvider instance
+   * @param provider - Optional PaywallProvider instance
    * @returns This service instance for chaining
    */
-  registerPaywallProvider(provider: PaywallProvider): this {
+  registerPaywallProvider(provider?: PaywallProvider): this {
     this.paywallProvider = provider;
-    return this;
+    return this; // typing `this` instead of `x402HTTPResourceService` allows for extending the service class
   }
 
   /**
