@@ -10,10 +10,10 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/x402": "workspace:*",
+    "@b3dotfun/anyspend-x402": "workspace:*",
     "dotenv": "^16.6.1",
     "express": "^4.18.2",
-    "x402-express": "workspace:*"
+    "@b3dotfun/anyspend-x402-express": "workspace:*"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",

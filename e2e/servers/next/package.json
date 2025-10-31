@@ -13,7 +13,7 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/x402": "workspace:*",
+    "@b3dotfun/anyspend-x402": "workspace:*",
     "@heroicons/react": "^2.2.0",
     "next": "canary",
     "react": "^19.0.0",
