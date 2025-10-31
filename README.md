@@ -6,7 +6,7 @@
 
 ## Quick Links
 
-- 📦 **npm Package**: [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)
+- 📦 **npm Package**: [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
 - 🌐 **Original Protocol**: [x402.org](https://x402.org)
 - 📚 **Documentation**: [x402.org/docs](https://x402.org/docs)
 - 🔗 **Upstream**: [coinbase/x402](https://github.com/coinbase/x402)
@@ -14,14 +14,14 @@
 ## Installation
 
 ```bash
-npm install @b3-fun/anyspend-x402
+npm install @b3dotfun/anyspend-x402
 ```
 
 ## Quick Start
 
 ```typescript
 import { paymentMiddleware } from "x402-express";
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 app.use(
   paymentMiddleware(
@@ -312,7 +312,7 @@ This will run the unit tests for the x402 packages.
 
 ### Published Package
 
-This repository publishes the [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402) npm package, which provides:
+This repository publishes the [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402) npm package, which provides:
 
 - Pre-configured facilitator for Coinbase's CDP platform
 - Helper functions for authentication and authorization

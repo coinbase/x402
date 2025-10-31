@@ -14,7 +14,7 @@ By default, x402 clients pay with **USDC on the resource server's network**. Any
 
 The AnySpend facilitator package is now available on npm:
 
-📦 **[@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)**
+📦 **[@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)**
 
 This package provides pre-configured facilitator integration with Coinbase's CDP platform for seamless x402 payment processing.
 
@@ -114,7 +114,7 @@ npm install x402-fetch
 npm install x402-axios
 
 # For facilitator integration (resource servers)
-npm install @b3-fun/anyspend-x402
+npm install @b3dotfun/anyspend-x402
 ```
 
 ### Basic Usage
@@ -286,7 +286,7 @@ The easiest way - just specify a dollar amount with the Anyspend facilitator:
 ```typescript
 import express from "express";
 import { paymentMiddleware } from "x402-express";
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 const app = express();
 
@@ -784,7 +784,7 @@ npm run start:preferences
 
 ## Anyspend Facilitator Package
 
-The `@b3-fun/anyspend-x402` package provides:
+The `@b3dotfun/anyspend-x402` package provides:
 
 ### Features
 
@@ -801,7 +801,7 @@ import {
   createFacilitatorConfig,        // Create custom facilitator
   createAuthHeader,               // Generate auth headers
   createCorrelationHeader         // Generate correlation headers
-} from "@b3-fun/anyspend-x402";
+} from "@b3dotfun/anyspend-x402";
 ```
 
 #### Facilitator Endpoints
@@ -832,7 +832,7 @@ These are only required for `verify` and `settle` operations. The `list` endpoin
 ### For More Information
 
 - **Package README**: [typescript/packages/anyspend-x402/README.md](./typescript/packages/anyspend-x402/README.md)
-- **npm Package**: [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402)
+- **npm Package**: [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
 
 ---
 
@@ -841,7 +841,7 @@ These are only required for `verify` and `settle` operations. The `list` endpoin
 - [X402 Protocol Specification](https://www.x402.org/x402-whitepaper.pdf) - Protocol standard
 - [EIP-2612: Permit](https://eips.ethereum.org/EIPS/eip-2612) - Standard token permit
 - [EIP-3009: Transfer With Authorization](https://eips.ethereum.org/EIPS/eip-3009) - USDC authorization
-- [@b3-fun/anyspend-x402](https://www.npmjs.com/package/@b3-fun/anyspend-x402) - AnySpend facilitator package
+- [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402) - AnySpend facilitator package
 - [Anyspend TDD](./anyspend-docs/ANYSPEND_X402_TDD.md) - Technical design document
 
 ---
