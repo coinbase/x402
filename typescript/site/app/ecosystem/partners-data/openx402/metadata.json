@@ -14,10 +14,7 @@
       "avalanche",
       "avalanche-fuji",
       "polygon",
-      "polygon-amoy",
-      "sei",
-      "sei-testnet",
-      "xdc"
+      "polygon-amoy"
     ],
     "schemes": [
       "exact"
