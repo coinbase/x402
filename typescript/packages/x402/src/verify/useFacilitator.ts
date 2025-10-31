@@ -50,7 +50,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     console.log("headers", headers);
     console.log("payload", payload);
     console.log("paymentRequirements", paymentRequirements);
-    
+
     const res = await fetch(`${url}/verify`, {
       method: "POST",
       headers,

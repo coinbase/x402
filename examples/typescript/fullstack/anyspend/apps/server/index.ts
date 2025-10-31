@@ -37,7 +37,7 @@ app.use(
   paymentMiddleware(
     PAYTO_ADDRESS,
     {
-      "POST /api/premium": {
+      "POST /api/b3/premium": {
         price: {
           amount: "100000000000000000000", // 100 B3 tokens (100 * 10^18)
           asset: {
@@ -52,6 +52,44 @@ app.use(
         network: NETWORK,
         config: {
           description: "Access to premium ETH price history data from CoinGecko",
+          mimeType: "application/json",
+        },
+      },
+    },
+    {
+      url: FACILITATOR_URL,
+    },
+  ),
+);
+
+app.use(
+  paymentMiddleware(
+    PAYTO_ADDRESS,
+    {
+      "POST /api/usdc/premium": {
+        price: PAYMENT_AMOUNT_USD,
+        network: NETWORK,
+        config: {
+          description: "Access to premium market analysis data",
+          mimeType: "application/json",
+        },
+      },
+    },
+    {
+      url: FACILITATOR_URL,
+    },
+  ),
+);
+
+app.use(
+  paymentMiddleware(
+    PAYTO_ADDRESS,
+    {
+      "POST /api/btc": {
+        price: "10000", // 0.01 USDC (0.01 * 10^6)
+        network: NETWORK,
+        config: {
+          description: "Access to premium BTC price history data",
           mimeType: "application/json",
         },
       },
@@ -81,7 +119,7 @@ app.get("/health", (req: Request, res: Response) => {
  * - Settling the payment via remote facilitator
  * - Adding X-PAYMENT-RESPONSE header to successful responses
  */
-app.post("/api/premium", async (req: Request, res: Response) => {
+app.post("/api/b3/premium", async (req: Request, res: Response) => {
   try {
     // Fetch ETH price history from CoinGecko
     const premiumData = await fetchEthPriceHistory();
@@ -95,6 +133,58 @@ app.post("/api/premium", async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Failed to fetch premium data",
+    });
+  }
+});
+
+/**
+ * Premium API endpoint - Protected by payment middleware
+ * The payment middleware automatically handles:
+ * - Returning 402 when no payment header is provided
+ * - Decoding and verifying the payment
+ * - Settling the payment via remote facilitator
+ * - Adding X-PAYMENT-RESPONSE header to successful responses
+ */
+app.post("/api/usdc/premium", async (req: Request, res: Response) => {
+  try {
+    // Fetch ETH price history from CoinGecko
+    const premiumData = await fetchEthPriceHistory();
+
+    return res.json({
+      success: true,
+      data: premiumData,
+    });
+  } catch (error) {
+    console.error("Error fetching premium data:", error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch premium data",
+    });
+  }
+});
+
+/**
+ * BTC API endpoint - Protected by payment middleware (0.01 USDC)
+ * The payment middleware automatically handles:
+ * - Returning 402 when no payment header is provided
+ * - Decoding and verifying the payment
+ * - Settling the payment via remote facilitator
+ * - Adding X-PAYMENT-RESPONSE header to successful responses
+ */
+app.post("/api/btc", async (req: Request, res: Response) => {
+  try {
+    // Fetch BTC price history from CoinGecko
+    const btcData = await fetchBtcPriceHistory();
+
+    return res.json({
+      success: true,
+      data: btcData,
+    });
+  } catch (error) {
+    console.error("Error fetching BTC data:", error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to fetch BTC data",
     });
   }
 });
@@ -276,6 +366,67 @@ async function fetchEthPriceHistory() {
   }
 }
 
+/**
+ * Fetch BTC price history from CoinGecko
+ */
+async function fetchBtcPriceHistory() {
+  try {
+    // Fetch BTC OHLCV data for the last 24 hours (minute intervals)
+    const url =
+      "https://pro-api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=usd&days=1&precision=2";
+
+    console.log("Fetching BTC price history from CoinGecko...");
+
+    const response = await fetch(url, {
+      headers: {
+        "x-cg-pro-api-key": COINGECKO_API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("CoinGecko API error:", response.status, errorText);
+      throw new Error(`CoinGecko API error: ${response.status}`);
+    }
+
+    const data = (await response.json()) as number[][];
+
+    // Data format: [[timestamp, open, high, low, close], ...]
+    const priceHistory = data.map((item: number[]) => ({
+      timestamp: item[0],
+      open: item[1],
+      high: item[2],
+      low: item[3],
+      close: item[4],
+    }));
+
+    // Calculate statistics
+    const prices = priceHistory.map((p: any) => p.close);
+    const currentPrice = prices[prices.length - 1];
+    const dayStartPrice = prices[0];
+    const highPrice = Math.max(...prices);
+    const lowPrice = Math.min(...prices);
+    const priceChange = currentPrice - dayStartPrice;
+    const priceChangePercent = ((priceChange / dayStartPrice) * 100).toFixed(2);
+
+    return {
+      symbol: "BTC",
+      name: "Bitcoin",
+      currentPrice: currentPrice,
+      priceChange: priceChange,
+      priceChangePercent: priceChangePercent,
+      high24h: highPrice,
+      low24h: lowPrice,
+      priceHistory: priceHistory,
+      dataPoints: priceHistory.length,
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error("Error fetching BTC price history:", error);
+    throw error;
+  }
+}
+
 // Start server
 app.listen(PORT, () => {
   console.log("\n🚀 AnySpend Express Server with CoinGecko Premium Data");
@@ -283,15 +434,19 @@ app.listen(PORT, () => {
   console.log(`   Server running on: http://localhost:${PORT}`);
   console.log(`   Facilitator URL: ${FACILITATOR_URL}`);
   console.log(`   Network: ${NETWORK}`);
-  console.log(`   Payment Amount: ${PAYMENT_AMOUNT_USD}`);
-  console.log(`   Pay To: ${PAYTO_ADDRESS}`);
+  console.log(`   Payment USDC Amount: 0.001 USDC (1 * 10^6) to api/usdc/premium`);
+  console.log(`   Payment B3 Amount: 100 B3 tokens (100 * 10^18) to api/b3/premium`);
+  console.log(`   Payment for BTC: 0.01 USDC (10000 * 10^-6) to api/btc`);
+  console.log(`   Pay To Address: ${PAYTO_ADDRESS}`);
   console.log("\n📝 Available Endpoints:");
   console.log("   GET  /health                - Health check (free)");
   console.log("   GET  /api/free              - Free endpoint (no payment)");
   console.log("   GET  /api/balances/:address - Token balances (free)");
-  console.log("   POST /api/premium           - ETH price history (requires payment)");
+  console.log("   POST /api/b3/premium       - B3 premium data (requires payment)");
+  console.log("   POST /api/usdc/premium     - USDC premium data (requires payment)");
+  console.log("   POST /api/btc              - BTC premium data (0.01 USDC)");
   console.log("\n💎 Premium Data Includes:");
-  console.log("   • 24-hour ETH price history (OHLC data)");
+  console.log("   • 24-hour ETH/BTC price history (OHLC data)");
   console.log("   • Current price & price change");
   console.log("   • 24h high/low prices");
   console.log("   • Historical data points");

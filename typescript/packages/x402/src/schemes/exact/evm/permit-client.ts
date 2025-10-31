@@ -1,6 +1,15 @@
-import { Address, Chain, LocalAccount, Transport } from "viem";
+import {
+  Address,
+  Chain,
+  LocalAccount,
+  PublicClient,
+  Transport,
+  createPublicClient,
+  http,
+} from "viem";
 import { getNetworkId } from "../../../shared";
-import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
+import { isSignerWallet, SignerWallet, getChainFromNetwork } from "../../../types/shared/evm";
+import { ChainIdToNetwork } from "../../../types/shared";
 import {
   ExactEvmPermitPayload,
   PaymentPayload,
@@ -16,19 +25,39 @@ import { encodePayment } from "./utils/paymentUtils";
  * @param client - The wallet client to query the contract
  * @param asset - The ERC-20 token contract address
  * @param owner - The owner address
+ * @param chainId - Optional chain ID to query the nonce from (for cross-chain payments)
  * @returns The current nonce as a string
  */
 export async function getPermitNonce<transport extends Transport, chain extends Chain>(
   client: SignerWallet<chain, transport> | LocalAccount,
   asset: Address,
   owner: Address,
+  chainId?: number,
 ): Promise<string> {
+  // If chainId is provided and differs from the wallet's chain, create a temporary client
   const walletClient = isSignerWallet(client) ? client : null;
-  if (!walletClient) {
-    throw new Error("Permit nonce query requires a connected wallet client");
+
+  let queryClient: PublicClient | SignerWallet<chain, transport>;
+  if (chainId && walletClient && walletClient.chain?.id !== chainId) {
+    // Cross-chain case: create a temporary public client for the source chain
+    const network = ChainIdToNetwork[chainId];
+    if (!network) {
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+    }
+    const sourceChain = getChainFromNetwork(network);
+    queryClient = createPublicClient({
+      chain: sourceChain,
+      transport: http(),
+    });
+  } else {
+    // Same-chain case: use the wallet client
+    if (!walletClient) {
+      throw new Error("Permit nonce query requires a connected wallet client");
+    }
+    queryClient = walletClient;
   }
 
-  const nonce = await walletClient.readContract({
+  const nonce = await queryClient.readContract({
     address: asset,
     abi: [
       {
@@ -163,7 +192,10 @@ export async function createPermitPayment<transport extends Transport, chain ext
   console.log("owner", owner);
   console.log("tokenAddress for nonce query", tokenAddress);
   console.log("paymentRequirements.asset (destination)", paymentRequirements.asset);
-  const nonce = await getPermitNonce(client, tokenAddress, owner);
+
+  // Pass the chainId from payment requirements for cross-chain queries
+  const chainId = paymentRequirements.extra?.chainId ?? getNetworkId(paymentRequirements.network);
+  const nonce = await getPermitNonce(client, tokenAddress, owner, chainId);
   console.log("nonce", nonce);
   const unsignedPaymentHeader = preparePermitPaymentHeader(
     owner,

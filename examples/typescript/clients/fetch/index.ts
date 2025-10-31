@@ -1,5 +1,5 @@
 import { config } from "dotenv";
-import { decodeXPaymentResponse, wrapFetchWithPayment, createSigner, type Hex } from "x402-fetch";
+import { createSigner, decodeXPaymentResponse, wrapFetchWithPayment, type Hex } from "x402-fetch";
 
 config();
 
@@ -23,10 +23,10 @@ if (!baseURL || !privateKey || !endpointPath) {
  */
 async function main(): Promise<void> {
   // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
+  const signer = await createSigner("base", privateKey);
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
-  const response = await fetchWithPayment(url, { method: "GET" });
+  const response = await fetchWithPayment(url, { method: "POST" });
   const body = await response.json();
   console.log(body);
 

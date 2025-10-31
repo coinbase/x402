@@ -1,8 +1,8 @@
 import { config } from "dotenv";
 import {
+  createSigner,
   decodeXPaymentResponse,
   wrapFetchWithPayment,
-  createSigner,
   type Hex,
   type PaymentPreferences,
 } from "x402-fetch";
@@ -11,8 +11,8 @@ config();
 
 const privateKey = process.env.PRIVATE_KEY as Hex | string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
-const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
-const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
+const endpointPath = process.env.B3_ENDPOINT_PATH as string; // e.g. /api/b3/premium
+const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/api/b3/premium
 
 if (!baseURL || !privateKey || !endpointPath) {
   console.error("Missing required environment variables");
@@ -35,105 +35,73 @@ if (!baseURL || !privateKey || !endpointPath) {
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  */
 async function main(): Promise<void> {
-  // Create signer for Base network
-  const signer = await createSigner("base-sepolia", privateKey);
+  // Create signer for Base mainnet
+  const signer = await createSigner("base", privateKey);
 
-  // Example 1: Default behavior (pays with USDC)
-  console.log("=== Example 1: Default Payment (USDC) ===");
-  const fetchWithDefaultPayment = wrapFetchWithPayment(fetch, signer);
+  // Pay with B3 token on Base mainnet
+  console.log("=== Paying with B3 Token ===");
+  console.log(`Endpoint: ${url}\n`);
 
-  try {
-    const response1 = await fetchWithDefaultPayment(url, { method: "GET" });
-    const body1 = await response1.json();
-    console.log("Response:", body1);
-
-    const paymentResponse1 = decodeXPaymentResponse(response1.headers.get("x-payment-response")!);
-    console.log("Payment details:", paymentResponse1);
-  } catch (error) {
-    console.error("Error with default payment:", error);
-  }
-
-  // Example 2: Pay with WETH on Base
-  console.log("\n=== Example 2: Pay with WETH on Base ===");
-  const wethPreferences: PaymentPreferences = {
-    preferredToken: "0x4200000000000000000000000000000000000006", // WETH on Base Sepolia
-    preferredNetwork: "base-sepolia",
+  const b3Preferences: PaymentPreferences = {
+    preferredToken: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // B3 token on Base
+    preferredNetwork: "arbitrum",
   };
 
-  const fetchWithWethPayment = wrapFetchWithPayment(
+  // Set max payment to 1000 tokens (100 tokens required + buffer)
+  const maxValue = BigInt("1000000000000000000000"); // 1000 tokens with 18 decimals
+
+  const fetchWithB3Payment = wrapFetchWithPayment(
     fetch,
     signer,
-    undefined, // maxValue - use default
+    maxValue,
     undefined, // paymentRequirementsSelector - use default
     undefined, // config - use default
-    wethPreferences,
+    b3Preferences,
   );
 
   try {
-    const response2 = await fetchWithWethPayment(url, { method: "GET" });
-    const body2 = await response2.json();
-    console.log("Response:", body2);
+    console.log("Making POST request with B3 payment...\n");
+    const response = await fetchWithB3Payment(url, { method: "POST" });
 
-    const paymentResponse2 = decodeXPaymentResponse(response2.headers.get("x-payment-response")!);
-    console.log("Payment details (paid with WETH):", paymentResponse2);
-  } catch (error) {
-    console.error("Error with WETH payment:", error);
-  }
+    // Check if we got another 402 response (payment failed)
+    if (response.status === 402) {
+      const body = await response.json();
+      console.error("❌ Payment was rejected! Server returned 402 again.");
+      console.error("Response:", JSON.stringify(body, null, 2));
+      process.exit(1);
+    }
 
-  // Example 3: Cross-chain payment - Pay on Ethereum mainnet instead of Base
-  console.log("\n=== Example 3: Cross-Chain Payment (Ethereum) ===");
-  const ethereumSigner = await createSigner("ethereum-sepolia", privateKey);
+    // Check for other error status codes
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(`❌ Request failed with status ${response.status}`);
+      console.error("Response:", body);
+      process.exit(1);
+    }
 
-  const ethereumPreferences: PaymentPreferences = {
-    preferredToken: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14", // WETH on Ethereum Sepolia
-    preferredNetwork: "ethereum-sepolia",
-  };
+    const body = await response.json();
 
-  const fetchWithEthereumPayment = wrapFetchWithPayment(
-    fetch,
-    ethereumSigner,
-    undefined,
-    undefined,
-    undefined,
-    ethereumPreferences,
-  );
+    console.log("✅ Success! Response data:");
+    console.log(JSON.stringify(body, null, 2));
+    console.log();
 
-  try {
-    const response3 = await fetchWithEthereumPayment(url, { method: "GET" });
-    const body3 = await response3.json();
-    console.log("Response:", body3);
-
-    const paymentResponse3 = decodeXPaymentResponse(response3.headers.get("x-payment-response")!);
-    console.log("Payment details (cross-chain from Ethereum):", paymentResponse3);
-  } catch (error) {
-    console.error("Error with cross-chain payment:", error);
-  }
-
-  // Example 4: Pay with DAI
-  console.log("\n=== Example 4: Pay with DAI ===");
-  const daiPreferences: PaymentPreferences = {
-    preferredToken: "0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb", // DAI on Base Sepolia
-    preferredNetwork: "base-sepolia",
-  };
-
-  const fetchWithDaiPayment = wrapFetchWithPayment(
-    fetch,
-    signer,
-    undefined,
-    undefined,
-    undefined,
-    daiPreferences,
-  );
-
-  try {
-    const response4 = await fetchWithDaiPayment(url, { method: "GET" });
-    const body4 = await response4.json();
-    console.log("Response:", body4);
-
-    const paymentResponse4 = decodeXPaymentResponse(response4.headers.get("x-payment-response")!);
-    console.log("Payment details (paid with DAI):", paymentResponse4);
-  } catch (error) {
-    console.error("Error with DAI payment:", error);
+    const paymentResponseHeader = response.headers.get("x-payment-response");
+    if (paymentResponseHeader) {
+      const paymentResponse = decodeXPaymentResponse(paymentResponseHeader);
+      console.log("💳 Payment details:");
+      console.log(`   Status: ${paymentResponse.success ? "✅ Settled" : "⏳ Verified"}`);
+      console.log(`   Payer: ${paymentResponse.payer}`);
+      if (paymentResponse.transaction) {
+        console.log(`   Transaction: ${paymentResponse.transaction}`);
+        console.log(`   Network: ${paymentResponse.network}`);
+        console.log(`   Explorer: https://basescan.org/tx/${paymentResponse.transaction}`);
+      }
+    }
+  } catch (error: any) {
+    console.error("❌ Error with B3 payment:", error.message || error);
+    if (error.response) {
+      console.error("Response data:", error.response.data);
+    }
   }
 }
 
