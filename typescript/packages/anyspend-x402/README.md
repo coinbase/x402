@@ -1,4 +1,4 @@
-# @b3-fun/anyspend-x402
+# @b3dotfun/anyspend-x402
 
 AnySpend implementation of the x402 Payment Protocol. This package provides facilitator access for the x402 protocol, enabling payment verification and settlement.
 
@@ -7,7 +7,7 @@ Based on the original [@coinbase/x402](https://www.npmjs.com/package/@coinbase/x
 ## Installation
 
 ```bash
-npm install @b3-fun/anyspend-x402
+npm install @b3dotfun/anyspend-x402
 ```
 
 ## Environment Variables
@@ -32,10 +32,10 @@ This package optionally uses CDP API keys from the [Coinbase Developer Platform]
 ```typescript
 // Option 1: Import the default facilitator config
 // Works for list endpoint without credentials, or with CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables for verify/settle
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 // Option 2: Create a facilitator config, passing in credentials directly
-import { createFacilitatorConfig } from "@b3-fun/anyspend-x402";
+import { createFacilitatorConfig } from "@b3dotfun/anyspend-x402";
 
 const facilitator = createFacilitatorConfig("your-cdp-api-key-id", "your-cdp-api-key-secret"); // Pass in directly from preferred secret management
 
@@ -49,7 +49,7 @@ const facilitator = createFacilitatorConfig("your-cdp-api-key-id", "your-cdp-api
 ```typescript
 import express from "express";
 import { paymentMiddleware } from "x402-express";
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 const app = express();
 
@@ -72,7 +72,7 @@ app.use(paymentMiddleware(
 ```typescript
 import { Hono } from "hono";
 import { paymentMiddleware } from "x402-hono";
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 const app = new Hono();
 
@@ -92,7 +92,7 @@ app.use("*", paymentMiddleware(
 
 ```typescript
 import { paymentMiddleware } from "x402-next";
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 export default paymentMiddleware(
   handler,
@@ -109,7 +109,7 @@ export default paymentMiddleware(
 Pre-configured facilitator instance using Coinbase's hosted service at `https://mainnet.anyspend.com/x402`. Reads credentials from environment variables if available.
 
 ```typescript
-import { facilitator } from "@b3-fun/anyspend-x402";
+import { facilitator } from "@b3dotfun/anyspend-x402";
 
 // Facilitator is configured to use:
 // - URL: https://mainnet.anyspend.com/x402
@@ -127,7 +127,7 @@ Creates a custom facilitator configuration.
 **Returns:** `FacilitatorConfig` object compatible with x402 middleware
 
 ```typescript
-import { createFacilitatorConfig } from "@b3-fun/anyspend-x402";
+import { createFacilitatorConfig } from "@b3dotfun/anyspend-x402";
 
 const customFacilitator = createFacilitatorConfig(
   process.env.MY_CDP_KEY_ID,

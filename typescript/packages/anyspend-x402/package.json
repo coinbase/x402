@@ -1,5 +1,5 @@
 {
-  "name": "@b3-fun/anyspend-x402",
+  "name": "@b3dotfun/anyspend-x402",
   "version": "0.1.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
