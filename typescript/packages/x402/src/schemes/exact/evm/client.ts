@@ -1,6 +1,6 @@
 import { Address, Chain, LocalAccount, Transport } from "viem";
 import { isSignerWallet, SignerWallet } from "../../../types/shared/evm";
-import { PaymentPayload, PaymentRequirements, ExactEvmPayload } from "../../../types/verify";
+import { ExactEvmPayload, PaymentPayload, PaymentRequirements } from "../../../types/verify";
 import { createNonce, signAuthorization } from "./sign";
 import { encodePayment } from "./utils/paymentUtils";
 
@@ -34,7 +34,7 @@ export function preparePaymentHeader(
   return {
     x402Version,
     scheme: paymentRequirements.scheme,
-    network: paymentRequirements.network,
+    network: paymentRequirements.srcNetwork ?? paymentRequirements.network,
     payload: {
       signature: undefined,
       authorization: {
