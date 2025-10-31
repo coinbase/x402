@@ -29,11 +29,10 @@ This package provides pre-configured facilitator integration with Coinbase's CDP
 5. [Server-Side Configuration](#server-side-configuration)
 6. [Supported Tokens & Networks](#supported-tokens--networks)
 7. [HTTP Headers](#http-headers)
-8. [Fee Structure](#fee-structure)
-9. [TypeScript API](#typescript-api)
-10. [Security](#security)
-11. [Troubleshooting](#troubleshooting)
-12. [References](#references)
+8. [TypeScript API](#typescript-api)
+9. [Security](#security)
+10. [Troubleshooting](#troubleshooting)
+11. [References](#references)
 
 ---
 
@@ -399,7 +398,7 @@ app.listen(4021);
 1. Middleware reads `X-PREFERRED-TOKEN` header from client
 2. Calls facilitator's `supported()` endpoint to verify token support
 3. Updates payment requirements to use preferred token if supported
-4. Facilitator handles token swaps automatically (e.g., WETH → USDC via Relay Protocol)
+4. Facilitator handles token swaps automatically (e.g., WETH → USDC via AnySpend infrastructure)
 5. Resource server receives USDC settlement
 
 ### Complete Multi-Token Example
@@ -515,7 +514,7 @@ When a client pays with a non-native token (e.g., WETH):
 3. **Middleware** updates payment requirements with WETH address
 4. **Client** signs payment authorization with WETH
 5. **Facilitator** verifies WETH signature
-6. **Facilitator** swaps WETH → USDC (via Relay Protocol)
+6. **Facilitator** swaps WETH → USDC (via AnySpend infrastructure)
 7. **Facilitator** settles USDC to resource server's address
 
 ### Example Reference
@@ -538,7 +537,7 @@ See complete working example at:
 ### Requirements for Token Support
 
 Any ERC-20 token can be used if:
-1. **Supported by Relay Protocol** for swapping to USDC
+1. **Supported by AnySpend infrastructure** for swapping to USDC
 2. **Has sufficient liquidity** for the swap amount
 3. **Implements ERC-2612 permit** or is USDC (EIP-3009)
 
@@ -554,7 +553,7 @@ Any ERC-20 token can be used if:
 
 ### Cross-Chain Support
 
-Clients can pay on **any supported network**, and Anyspend will bridge/swap to the resource server's network via Relay Protocol.
+Clients can pay on **any supported network**, and Anyspend will bridge/swap to the resource server's network via AnySpend infrastructure.
 
 **Example**: Client pays WETH on Ethereum → Anyspend bridges to Base → Resource server receives USDC on Base
 
@@ -583,27 +582,6 @@ These headers are sent in the **initial request** (before 402 response).
 |--------|-----------|---------|
 | `X-PAYMENT` | Client → Server | Payment signature and authorization |
 | `X-PAYMENT-RESPONSE` | Server → Client | Payment confirmation with tx hash |
-
----
-
-## Fee Structure
-
-### Direct USDC Payment
-- **Anyspend Fee**: 0.25% (25 bps)
-- **Minimum Fee**: $0.01
-- **No swap fees** (direct transfer)
-
-### Multi-Token Payment (with swap)
-- **Anyspend Fee**: 0.25% (25 bps)
-- **Relay Protocol Fee**: ~0.10% (10 bps)
-- **Total Fee**: ~0.35% (35 bps)
-- **Minimum Fee**: $0.01
-
-### Cross-Chain Payment (with bridge + swap)
-- **Anyspend Fee**: 0.25% (25 bps)
-- **Relay Protocol Fee**: ~0.10-0.30% (varies by route)
-- **Total Fee**: ~0.35-0.55%
-- **Gas costs**: Paid separately on each chain
 
 ---
 
@@ -710,7 +688,7 @@ const fetchWithPayment = wrapFetchWithPayment(
 
 #### Token not supported
 **Solution:**
-- Verify token is supported by Relay Protocol
+- Verify token is supported by AnySpend infrastructure
 - Check token has sufficient liquidity for swap
 - Ensure token implements ERC-2612 permit or is USDC
 

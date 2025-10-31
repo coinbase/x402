@@ -2,7 +2,18 @@
 
 AnySpend implementation of the x402 Payment Protocol. This package provides facilitator access for the x402 protocol, enabling payment verification and settlement.
 
+**🌐 Facilitator URL**: `https://mainnet.anyspend.com/x402`
+
 Based on the original [@coinbase/x402](https://www.npmjs.com/package/@coinbase/x402) package with extended functionality.
+
+## What Makes AnySpend x402 Special?
+
+Unlike standard x402 implementations, AnySpend x402 enables:
+
+- ✨ **Multi-token payments** - Pay with various supported ERC-20 tokens
+- 🌉 **Cross-chain payments** - Pay on one network, settle on another
+- 🔄 **Automatic conversion** - Token swaps handled seamlessly
+- 🎯 **Standard compatibility** - Works with any x402 client (no AnySpend-specific code needed)
 
 ## Installation
 
@@ -10,36 +21,30 @@ Based on the original [@coinbase/x402](https://www.npmjs.com/package/@coinbase/x
 npm install @b3dotfun/anyspend-x402
 ```
 
-## Environment Variables
+## Features
 
-This package optionally uses CDP API keys from the [Coinbase Developer Platform](https://www.coinbase.com/developer-platform) for authenticated operations:
-
-- `CDP_API_KEY_ID`: Your CDP API key ID
-- `CDP_API_KEY_SECRET`: Your CDP API key secret
-
-### Endpoint Authentication Requirements
-
-| Endpoint | Authentication Required | Purpose |
-|----------|------------------------|---------|
-| `list` | ❌ No | Discover available bazaar items and payment options |
-| `verify` | ✅ Yes | Verify payment transactions |
-| `settle` | ✅ Yes | Settle completed payments |
-
-**Note:** Environment variables are only required when using the `verify` and `settle` endpoints. The `list` endpoint can be used without authentication to discover bazaar items.
+- ✅ Pre-configured facilitator for x402 payments
+- ✅ Support for Coinbase Developer Platform (CDP) integration
+- ✅ Multi-token and cross-chain payment support
+- ✅ TypeScript-first with full type definitions
 
 ## Quick Start
 
 ```typescript
-// Option 1: Import the default facilitator config
-// Works for list endpoint without credentials, or with CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables for verify/settle
 import { facilitator } from "@b3dotfun/anyspend-x402";
+import { paymentMiddleware } from "x402-express";
 
-// Option 2: Create a facilitator config, passing in credentials directly
-import { createFacilitatorConfig } from "@b3dotfun/anyspend-x402";
-
-const facilitator = createFacilitatorConfig("your-cdp-api-key-id", "your-cdp-api-key-secret"); // Pass in directly from preferred secret management
-
-// Use the facilitator config in your x402 integration
+// Use the pre-configured facilitator in your x402 integration
+app.use(paymentMiddleware(
+  "0xYourAddress",
+  {
+    "/protected": {
+      price: "$0.10",
+      network: "base-sepolia"
+    }
+  },
+  facilitator
+));
 ```
 
 ## Integration Examples
@@ -53,8 +58,6 @@ import { facilitator } from "@b3dotfun/anyspend-x402";
 
 const app = express();
 
-// Requires CDP_API_KEY_ID and CDP_API_KEY_SECRET environment variables
-// for payment verification and settlement
 app.use(paymentMiddleware(
   "0xYourAddress",
   {
@@ -63,7 +66,7 @@ app.use(paymentMiddleware(
       network: "base-sepolia"
     }
   },
-  facilitator // Use Coinbase's facilitator
+  facilitator
 ));
 ```
 
@@ -106,53 +109,64 @@ export default paymentMiddleware(
 
 ### `facilitator`
 
-Pre-configured facilitator instance using Coinbase's hosted service at `https://mainnet.anyspend.com/x402`. Reads credentials from environment variables if available.
+Pre-configured facilitator instance connected to `https://mainnet.anyspend.com/x402`.
 
 ```typescript
 import { facilitator } from "@b3dotfun/anyspend-x402";
 
-// Facilitator is configured to use:
-// - URL: https://mainnet.anyspend.com/x402
-// - Credentials: CDP_API_KEY_ID and CDP_API_KEY_SECRET from environment
+// Use directly with x402 middleware
+app.use(paymentMiddleware("0xYourAddress", routes, facilitator));
 ```
 
 ### `createFacilitatorConfig(apiKeyId?, apiKeySecret?)`
 
-Creates a custom facilitator configuration.
-
-**Parameters:**
-- `apiKeyId` (optional): Your CDP API key ID. Falls back to `CDP_API_KEY_ID` env var
-- `apiKeySecret` (optional): Your CDP API key secret. Falls back to `CDP_API_KEY_SECRET` env var
+Creates a custom facilitator configuration with optional authentication.
 
 **Returns:** `FacilitatorConfig` object compatible with x402 middleware
 
 ```typescript
 import { createFacilitatorConfig } from "@b3dotfun/anyspend-x402";
 
-const customFacilitator = createFacilitatorConfig(
-  process.env.MY_CDP_KEY_ID,
-  process.env.MY_CDP_KEY_SECRET
-);
+const customFacilitator = createFacilitatorConfig();
 ```
 
-### `createAuthHeader(apiKeyId, apiKeySecret, requestMethod, requestHost, requestPath)`
+## Facilitator Endpoints
 
-Creates an authorization header for Coinbase API requests.
+The AnySpend facilitator is hosted at **`https://mainnet.anyspend.com/x402`**
 
-**Parameters:**
-- `apiKeyId`: The API key ID
-- `apiKeySecret`: The API key secret
-- `requestMethod`: HTTP method (e.g., 'POST', 'GET')
-- `requestHost`: Request host (e.g., 'api.cdp.coinbase.com')
-- `requestPath`: Request path (e.g., '/platform/v2/x402/verify')
+Standard x402 endpoints:
+- `POST /verify` - Verify payment signatures
+- `POST /settle` - Settle payments on-chain
+- `GET /supported` - List supported networks and tokens
 
-**Returns:** Promise<string> - The authorization header string
+## How It Works
 
-### `createCorrelationHeader()`
+AnySpend x402 extends the standard protocol to support flexible payment options:
 
-Creates a correlation header for tracking requests.
+1. **Client** makes request to resource server
+2. **Server** responds with 402 Payment Required
+3. **Client** signs payment with supported token
+4. **Facilitator** handles verification and settlement
+5. **Resource server** receives USDC
 
-**Returns:** string - The correlation header string
+### Key Benefits
+
+✅ **Standard x402 protocol** - no custom integration needed
+✅ **Flexible payment options** - support for multiple tokens
+✅ **Automatic handling** - facilitator manages the complexity
+✅ **Cross-chain support** - payments across different networks
+
+## Supported Networks
+
+- Base / Base Sepolia
+- Ethereum / Ethereum Sepolia
+- Arbitrum / Arbitrum Sepolia
+- Optimism / Optimism Sepolia
+- Polygon / Polygon Amoy
+
+**Primary Token**: USDC across all supported networks
+
+For the latest list of supported tokens and networks, query the `/supported` endpoint at `https://mainnet.anyspend.com/x402/supported`
 
 ## About x402
 
@@ -183,8 +197,29 @@ Contributions are welcome! This is a fork of the original Coinbase x402 implemen
 
 Apache-2.0
 
-## Support
+## Advanced Features
 
-- Documentation: [x402.org/docs](https://x402.org/docs)
-- GitHub: [b3-fun/anyspend-x402](https://github.com/b3-fun/anyspend-x402)
-- Issues: [Report bugs](https://github.com/b3-fun/anyspend-x402/issues)
+For advanced usage including:
+- Multi-token payment integration
+- Cross-chain payment flows
+- Client-side implementation with payment preferences
+- Server-side token acceptance configuration
+
+See the complete [AnySpend Integration Guide](https://github.com/b3-fun/anyspend-x402/blob/main/ANYSPEND-INTEGRATION.md)
+
+## Resources
+
+### Documentation
+- **x402 Protocol**: [x402.org/docs](https://x402.org/docs)
+- **Integration Guide**: [ANYSPEND-INTEGRATION.md](https://github.com/b3-fun/anyspend-x402/blob/main/ANYSPEND-INTEGRATION.md)
+- **Technical Design**: [TDD Document](https://github.com/b3-fun/anyspend-x402/blob/main/anyspend-docs/ANYSPEND_X402_TDD.md)
+
+### Links
+- **npm Package**: [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+- **GitHub**: [b3-fun/anyspend-x402](https://github.com/b3-fun/anyspend-x402)
+- **Issues**: [Report bugs](https://github.com/b3-fun/anyspend-x402/issues)
+- **Facilitator**: https://mainnet.anyspend.com/x402
+
+### Community
+- **Upstream**: [coinbase/x402](https://github.com/coinbase/x402)
+- **x402 Website**: [x402.org](https://x402.org)
