@@ -2,6 +2,9 @@ import { generateJwt } from "@coinbase/cdp-sdk/auth";
 import { FacilitatorConfig } from "x402/types";
 import { CreateHeaders } from "x402/verify";
 
+const ANYSPEND_FACILITATOR_BASE_URL = "https://mainnet.anyspend.com";
+const ANYSPEND_FACILITATOR_ROUTE = "/x402";
+
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
@@ -110,13 +113,13 @@ export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): 
 }
 
 /**
- * Creates a facilitator config for the Coinbase X402 facilitator
+ * Creates a facilitator config for the Coinbase CDP X402 facilitator
  *
  * @param apiKeyId - The CDP API key ID
  * @param apiKeySecret - The CDP API key secret
- * @returns A facilitator config
+ * @returns A facilitator config for CDP
  */
-export function createFacilitatorConfig(
+export function createCdpFacilitatorConfig(
   apiKeyId?: string,
   apiKeySecret?: string,
 ): FacilitatorConfig {
@@ -126,4 +129,24 @@ export function createFacilitatorConfig(
   };
 }
 
+/**
+ * Creates a facilitator config for the AnySpend X402 facilitator
+ * AnySpend does not require authentication headers
+ *
+ * @returns A facilitator config for AnySpend
+ */
+export function createFacilitatorConfig(): FacilitatorConfig {
+  return {
+    url: `${ANYSPEND_FACILITATOR_BASE_URL}${ANYSPEND_FACILITATOR_ROUTE}`,
+  };
+}
+
+/**
+ * Default facilitator using AnySpend (no auth required)
+ */
 export const facilitator = createFacilitatorConfig();
+
+/**
+ * CDP facilitator (requires CDP API keys)
+ */
+export const cdpFacilitator = createCdpFacilitatorConfig();
