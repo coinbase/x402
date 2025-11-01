@@ -22,6 +22,8 @@ import {
   avalanche,
   iotexTestnet,
   iotex,
+  lisk,
+  liskSepolia,
   abstract,
   abstractTestnet,
   story,
@@ -229,6 +231,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "lisk":
+      return lisk;
+    case "lisk-sepolia":
+      return liskSepolia;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
