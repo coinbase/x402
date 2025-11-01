@@ -2,6 +2,7 @@ package facilitatorclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -40,7 +41,7 @@ func NewFacilitatorClient(config *types.FacilitatorConfig) *FacilitatorClient {
 }
 
 // Verify sends a payment verification request to the facilitator
-func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.VerifyResponse, error) {
+func (c *FacilitatorClient) Verify(ctx context.Context, payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.VerifyResponse, error) {
 	reqBody := map[string]any{
 		"x402Version":         1,
 		"paymentPayload":      payload,
@@ -52,7 +53,7 @@ func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/verify", c.URL), bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/verify", c.URL), bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -90,7 +91,7 @@ func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *
 }
 
 // Settle sends a payment settlement request to the facilitator
-func (c *FacilitatorClient) Settle(payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.SettleResponse, error) {
+func (c *FacilitatorClient) Settle(ctx context.Context, payload *types.PaymentPayload, requirements *types.PaymentRequirements) (*types.SettleResponse, error) {
 	reqBody := map[string]any{
 		"x402Version":         1,
 		"paymentPayload":      payload,
@@ -102,7 +103,7 @@ func (c *FacilitatorClient) Settle(payload *types.PaymentPayload, requirements *
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/settle", c.URL), bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/settle", c.URL), bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

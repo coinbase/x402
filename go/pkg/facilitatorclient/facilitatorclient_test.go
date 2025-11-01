@@ -66,7 +66,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	// Test verify
-	resp, err := client.Verify(paymentPayload, paymentRequirements)
+	resp, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestSettle(t *testing.T) {
 	}
 
 	// Test settle
-	resp, err := client.Settle(paymentPayload, paymentRequirements)
+	resp, err := client.Settle(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestTimeout(t *testing.T) {
 	paymentRequirements := &types.PaymentRequirements{}
 
 	// Test verify with timeout
-	_, err := client.Verify(paymentPayload, paymentRequirements)
+	_, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	t.Log(err)
 	if err == nil {
 		t.Error("Expected timeout error, got err == nil")
@@ -237,7 +237,7 @@ func TestVerifyWithAuthHeaders(t *testing.T) {
 		Asset:             "0xusdcAddress",
 	}
 
-	_, err := client.Verify(paymentPayload, paymentRequirements)
+	_, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 		Asset:             "0xusdcAddress",
 	}
 
-	_, err := client.Settle(paymentPayload, paymentRequirements)
+	_, err := client.Settle(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
