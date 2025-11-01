@@ -10,6 +10,8 @@ app.use(
 // That's it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
 ```
 
+test
+
 ## Philosophy
 
 Payments on the internet are fundamentally flawed. Credit Cards are high friction, hard to accept, have minimum payments that are far too high, and don't fit into the programmatic nature of the internet.
