@@ -229,6 +229,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "taiko":
+      return "taiko"
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
