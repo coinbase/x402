@@ -2,6 +2,6 @@
   "name": "xEcho",
   "category": "Infrastructure & Tooling",
   "logoUrl": "/logos/xecho.png",
-  "description": "xEcho enables pay & reward through an ERC-3009 relay proxy contract — payment and reward completed in one settlement.",
+  "description": "xEcho Facilitator implements on-chain settlement callbacks, enabling on-chain post-payment programmability to support pay-to-earn and outcome-based payment scenarios.",
   "websiteUrl": "https://www.xechoai.xyz"
 }
