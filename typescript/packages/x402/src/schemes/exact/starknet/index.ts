@@ -62,11 +62,8 @@ export {
   approveUsdc,
 } from "../../../shared/starknet/usdc";
 
-// State management
-export {
-  StateManager,
-  globalStateManager,
-} from "../../../shared/starknet/state-manager";
+// NOTE: State management exports removed - x402 is stateless by design
+// Replay protection happens at the blockchain level, not via server-side state
 
 // Facilitator
 export {

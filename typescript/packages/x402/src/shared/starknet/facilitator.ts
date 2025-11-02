@@ -4,6 +4,9 @@
  * This module provides the facilitator interface compatibility layer that bridges
  * the Starknet-specific implementation with the standard x402 facilitator interface.
  * It extends the existing StarknetPaymentProvider with additional x402-compliant methods.
+ *
+ * STATELESS DESIGN: This facilitator does NOT maintain any server-side state.
+ * All replay protection happens at the blockchain level via Starknet account nonces.
  */
 
 import type {
@@ -21,13 +24,15 @@ import {
   PaymentSettlementError,
 } from "./provider";
 import { createStarknetConnectedClient } from "./client";
-import type { StateManager } from "./state-manager";
 
 /**
  * x402-compliant Starknet Facilitator
  *
  * This class extends the base StarknetPaymentProvider to provide the standard
  * x402 facilitator interface (/verify and /settle endpoints functionality).
+ *
+ * STATELESS: This facilitator can be horizontally scaled without any coordination
+ * between instances. All state is managed on-chain.
  */
 export class X402StarknetFacilitator {
   private starknetFacilitator: StarknetPaymentProvider;
@@ -38,32 +43,13 @@ export class X402StarknetFacilitator {
    *
    * @param network - The Starknet network to use
    * @param facilitatorSigner - The facilitator's signer
-   * @param config - Configuration options
-   * @param config.maxAmountPerDay - Maximum daily amount limit
-   * @param config.maxTransactionsPerDay - Maximum daily transaction limit
-   * @param config.enableRateLimiting - Enable rate limiting feature
-   * @param config.enableSessionKeys - Enable session keys feature
-   * @param config.stateManager - Custom state manager instance
    */
   constructor(
-    private network: "starknet" | "starknet-sepolia",
-    private facilitatorSigner: StarknetSigner,
-    private config?: {
-      maxAmountPerDay?: string;
-      maxTransactionsPerDay?: number;
-      enableRateLimiting?: boolean;
-      enableSessionKeys?: boolean;
-      stateManager?: StateManager;
-    },
+    network: "starknet" | "starknet-sepolia",
+    facilitatorSigner: StarknetSigner,
   ) {
     this.client = createStarknetConnectedClient(network);
-
-    this.starknetFacilitator = new StarknetPaymentProvider(this.client, facilitatorSigner, {
-      maxAmountPerDay: config?.maxAmountPerDay,
-      maxTransactionsPerDay: config?.maxTransactionsPerDay,
-      enableRateLimiting: config?.enableRateLimiting,
-      enableSessionKeys: config?.enableSessionKeys,
-    });
+    this.starknetFacilitator = new StarknetPaymentProvider(this.client, facilitatorSigner);
   }
 
   /**
@@ -203,16 +189,9 @@ export class X402StarknetFacilitator {
   }
 
   /**
-   * Creates a session key for delegated payments
-   *
-   * @param sessionKeyConfig - Session key configuration
-   * @returns Created session key
+   * NOTE: Session keys should be managed ON-CHAIN.
+   * This method has been removed to maintain stateless architecture.
    */
-  async createSessionKey(
-    sessionKeyConfig: Parameters<StarknetPaymentProvider["createSessionKey"]>[0],
-  ) {
-    return await this.starknetFacilitator.createSessionKey(sessionKeyConfig);
-  }
 
   /**
    * Gets the next nonce for an account
@@ -365,25 +344,8 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
     },
 
     /**
-     * POST /session-key endpoint handler
-     *
-     * @param req - Express request object
-     * @param res - Express response object
-     * @param _ - Express next function (unused)
-     * @returns Promise that resolves when response is sent
+     * NOTE: Session key endpoint removed - manage session keys on-chain
      */
-    sessionKey: async (req: any, res: any, _: any) => {
-      try {
-        const sessionKeyConfig = req.body;
-        const result = await facilitator.createSessionKey(sessionKeyConfig);
-        res.json(result);
-      } catch (error) {
-        console.error("Session key endpoint error:", error);
-        res.status(500).json({
-          error: "Failed to create session key",
-        });
-      }
-    },
 
     /**
      * GET /nonce/:account endpoint handler
@@ -413,20 +375,13 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
  *
  * @param network - The Starknet network to use
  * @param facilitatorSigner - The facilitator's signer
- * @param config - Configuration options
  * @returns X402StarknetFacilitator instance
  */
 export function createStarknetFacilitator(
   network: "starknet" | "starknet-sepolia",
   facilitatorSigner: StarknetSigner,
-  config?: {
-    maxAmountPerDay?: string;
-    maxTransactionsPerDay?: number;
-    enableRateLimiting?: boolean;
-    enableSessionKeys?: boolean;
-  },
 ): X402StarknetFacilitator {
-  return new X402StarknetFacilitator(network, facilitatorSigner, config);
+  return new X402StarknetFacilitator(network, facilitatorSigner);
 }
 
 /**

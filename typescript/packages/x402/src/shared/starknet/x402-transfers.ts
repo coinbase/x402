@@ -12,7 +12,6 @@ import type { StarknetConnectedClient } from "./client";
 import { getUsdcContractAddress } from "./usdc";
 import { uint256 } from "starknet";
 import { callContract } from "./client";
-import { globalStateManager } from "./state-manager";
 // import { supportsX402, createX402AccountContract } from "./account-contract";
 
 /**

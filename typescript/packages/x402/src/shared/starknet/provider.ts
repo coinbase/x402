@@ -5,7 +5,6 @@
  * that handles verification and settlement of x402 payments.
  */
 
-import { hash } from "starknet";
 import type { StarknetSigner } from "./wallet";
 import type { StarknetConnectedClient } from "./client";
 import { getAccountNonce } from "./client";
@@ -14,8 +13,6 @@ import {
   executeTransferWithAuthorization,
   type StarknetTransferAuthorization,
 } from "./x402-transfers";
-import { globalStateManager } from "./state-manager";
-import { X402RateLimiter } from "./account-contract";
 
 /**
  * Error class for payment verification failures
@@ -40,25 +37,15 @@ export class PaymentSettlementError extends Error {
 /**
  * Starknet Payment Provider
  *
- * Handles verification and settlement of x402 payments on Starknet
+ * Handles verification and settlement of x402 payments on Starknet.
+ * This implementation is STATELESS by design - all replay protection
+ * happens at the blockchain level via Starknet account nonces.
  */
 export class StarknetPaymentProvider {
-  private rateLimiter?: X402RateLimiter;
-
   constructor(
     private client: StarknetConnectedClient,
     private facilitatorSigner: StarknetSigner,
-    private config?: {
-      maxAmountPerDay?: string;
-      maxTransactionsPerDay?: number;
-      enableRateLimiting?: boolean;
-      enableSessionKeys?: boolean;
-    },
-  ) {
-    if (config?.enableRateLimiting) {
-      this.rateLimiter = new X402RateLimiter();
-    }
-  }
+  ) {}
 
   /**
    * Verify a payment authorization
@@ -131,34 +118,9 @@ export class StarknetPaymentProvider {
         };
       }
 
-      // Check nonce
-      const nonceKey = `${authorization.from}:${authorization.nonce}`;
-      const nonceState = globalStateManager.getState<{ used: boolean }>(nonceKey);
-      if (nonceState?.used) {
-        return {
-          valid: false,
-          reason: "nonce_already_used",
-        };
-      }
-      globalStateManager.setState(nonceKey, { used: true });
-
-      // Check rate limiting
-      if (this.rateLimiter && this.config?.maxAmountPerDay && this.config?.maxTransactionsPerDay) {
-        const rateLimitResult = await this.rateLimiter.checkRateLimit(
-          authorization.from,
-          authorization.tokenAddress,
-          authorization.amount,
-          this.config.maxAmountPerDay,
-          this.config.maxTransactionsPerDay,
-        );
-
-        if (!rateLimitResult.allowed) {
-          return {
-            valid: false,
-            reason: `rate_limit_exceeded: ${rateLimitResult.reason}`,
-          };
-        }
-      }
+      // ✅ STATELESS: No nonce checking at application level
+      // Nonce validation happens on-chain via Starknet account contracts
+      // The blockchain will reject transactions with invalid/duplicate nonces
 
       return {
         valid: true,
@@ -284,41 +246,10 @@ export class StarknetPaymentProvider {
   }
 
   /**
-   * Create a session key for delegated payments
-   *
-   * @param config - Session key configuration
-   * @returns Session key details
+   * NOTE: Session keys should be managed ON-CHAIN via Starknet account contracts.
+   * This method has been removed to maintain stateless architecture.
+   * Implement session keys in your Starknet account contract instead.
    */
-  async createSessionKey(config: {
-    publicKey?: string;
-    expiresAt: number;
-    maxAmountPerTx: string;
-    maxTotalAmount?: string;
-    allowedRecipients?: string[];
-    allowedTokens?: string[];
-  }) {
-    // Generate a new key pair if not provided
-    const publicKey = config.publicKey || hash.computeHashOnElements([Math.random()]);
-
-    const sessionKey = {
-      sessionKey: hash.computeHashOnElements([
-        publicKey,
-        config.expiresAt,
-        config.maxAmountPerTx,
-      ]),
-      publicKey,
-      expiresAt: config.expiresAt,
-      maxAmountPerTx: config.maxAmountPerTx,
-      maxTotalAmount: config.maxTotalAmount,
-      allowedRecipients: config.allowedRecipients,
-      allowedTokens: config.allowedTokens,
-    };
-
-    // Store session key in state
-    globalStateManager.setState(`session:${sessionKey.sessionKey}`, sessionKey);
-
-    return sessionKey;
-  }
 
   /**
    * Get next nonce for an account
@@ -362,7 +293,7 @@ export class StarknetPaymentProvider {
  * @param authorization - Transfer authorization
  * @param signature - Signature
  * @param network - Network
- * @param sessionKeyPublicKey - Optional session key
+ * @param x402Version - Protocol version
  * @returns Payment header string
  */
 export function createPaymentHeader(
@@ -370,7 +301,6 @@ export function createPaymentHeader(
   signature: string | string[],
   network: "starknet" | "starknet-sepolia",
   x402Version = 1,
-  sessionKeyPublicKey?: string,
 ): string {
   const payload = {
     x402Version,
