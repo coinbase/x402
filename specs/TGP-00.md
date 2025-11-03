@@ -186,7 +186,7 @@ X-TGP-Proof: zkp:0xabc123...
 - [x402 Specification](https://github.com/murrlincoln/x402)  
 - [Usage-Based Payment Scheme (Draft)](https://github.com/murrlincoln/x402#readme)  
 - [ERC-8004 Trustless Agents (Draft EIP)](https://eips.ethereum.org/)  
-
+— Reference Implementation: [Ledger of Earth / Transaction Gateway Protocol](https://github.com/ledgerofearth/transaction-gateway-protocol)
 ---
 
 *This document is an open community proposal and does not modify x402 core functionality without CDP approval.*
