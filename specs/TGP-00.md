@@ -39,7 +39,7 @@ TGP is designed to be compatible with the **Usage-Based Payment Scheme**, **Arbi
 
 | Term | Definition |
 |------|-------------|
-| **Transaction Gateway Controller (TGC)** | A trusted intermediary/facilitator that enforces domain-specific policy and logs settlement records. |
+| **Transaction Border Controller (TBC)** | A facilitator that enforces domain-specific policy and logs settlement records. |
 | **Transaction Area (TxA)** | An administrative or economic domain sharing a common policy root, similar to an Autonomous System in BGP. |
 | **Policy Header** | A structured metadata object defining allowed tokens, pricing models, and settlement rules. |
 | **Transaction Detail Record (TDR)** | A verifiable log entry describing the transaction flow, response codes, and settlement results. |
@@ -53,7 +53,7 @@ The following optional HTTP-style headers extend the standard x402 `X-PAYMENT` e
 | Header | Description | Example |
 |---------|--------------|---------|
 | `X-TGP-Area` | Identifier of the originating Transaction Area | `X-TGP-Area: 65001` |
-| `X-TGP-Route` | Route vector or path across multiple gateways | `X-TGP-Route: 65001,65002,65003` |
+| `X-TGP-Path` | Route vector or path across multiple gateways | `X-TGP-Path: 65001,65002,65003` |
 | `X-TGP-Policy` | JSON object describing compliance, pricing, or token limits | `X-TGP-Policy: {"maxValue":"$5","allowedTokens":["USDC","PLSX"],"expiry":"600s"}` |
 | `X-TGP-Proof` | Optional zero-knowledge or hash proof of policy compliance | `X-TGP-Proof: zkp:0xabc123...` |
 
