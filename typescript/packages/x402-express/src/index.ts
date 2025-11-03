@@ -186,6 +186,9 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+          ...(paywall?.solanaRpcUrl && {
+            rpcUrl: paywall.solanaRpcUrl,
+          }),
         },
       });
     } else {
