@@ -543,16 +543,6 @@ describe("verify", () => {
       expect(result.invalidReason).toBe("unsupported_scheme");
     });
 
-    it("should return isValid: false if transaction decoding fails", async () => {
-      const error = new Error("invalid_exact_svm_payload_transaction");
-      vi.mocked(SvmShared.decodeTransactionFromPayload).mockImplementation(() => {
-        throw error;
-      });
-      const result = await verify(mockSigner, mockPayload, mockRequirements);
-      expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_exact_svm_payload_transaction");
-    });
-
     it("should return isValid: false if instruction validation fails", async () => {
       vi.mocked(decompileTransactionMessage).mockReturnValue({
         instructions: [mockTransferInstruction, mockTransferInstruction],

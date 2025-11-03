@@ -5,9 +5,9 @@ import {
   PaymentRequirementsSchema,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
-  VerifyResponse,
   createConnectedClient,
   createSigner,
+  createVerifyResponse,
 } from "x402/types";
 import { verify } from "x402/facilitator";
 
@@ -34,46 +34,52 @@ export async function POST(req: Request) {
 
   if (!client) {
     return Response.json(
-      {
-        isValid: false,
+      createVerifyResponse({
         invalidReason: "invalid_network",
-      } as VerifyResponse,
-      { status: 400 },
+        context: {
+          network,
+        },
+      }),
+      {
+        status: 400,
+      },
     );
   }
 
-  let paymentPayload: PaymentPayload;
-  try {
-    paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-  } catch (error) {
-    console.error("Invalid payment payload:", error);
+  const paymentPayload = PaymentPayloadSchema.safeParse(body.paymentPayload);
+  if (!paymentPayload.success) {
+    console.error("Invalid payment payload:", paymentPayload.error);
     return Response.json(
-      {
-        isValid: false,
+      createVerifyResponse({
         invalidReason: "invalid_payload",
+        context: {
+          expected: paymentPayload.error.toString(),
+          value: JSON.stringify(body.paymentPayload),
+        },
         payer:
           body.paymentPayload?.payload && "authorization" in body.paymentPayload.payload
             ? body.paymentPayload.payload.authorization.from
             : "",
-      } as VerifyResponse,
+      }),
       { status: 400 },
     );
   }
 
-  let paymentRequirements: PaymentRequirements;
-  try {
-    paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-  } catch (error) {
-    console.error("Invalid payment requirements:", error);
+  const paymentRequirements = PaymentRequirementsSchema.safeParse(body.paymentRequirements);
+  if (!paymentRequirements.success) {
+    console.error("Invalid payment requirements:", paymentRequirements.error);
     return Response.json(
-      {
-        isValid: false,
+      createVerifyResponse({
         invalidReason: "invalid_payment_requirements",
+        context: {
+          expected: paymentRequirements.error.toString(),
+          value: JSON.stringify(body.paymentRequirements),
+        },
         payer:
-          "authorization" in paymentPayload.payload
-            ? paymentPayload.payload.authorization.from
+          "authorization" in paymentPayload.data.payload
+            ? paymentPayload.data.payload.authorization.from
             : "",
-      } as VerifyResponse,
+      }),
       { status: 400 },
     );
   }
@@ -84,14 +90,13 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error verifying payment:", error);
     return Response.json(
-      {
-        isValid: false,
+      createVerifyResponse({
         invalidReason: "unexpected_verify_error",
         payer:
-          "authorization" in paymentPayload.payload
-            ? paymentPayload.payload.authorization.from
+          "authorization" in paymentPayload.data.payload
+            ? paymentPayload.data.payload.authorization.from
             : "",
-      } as VerifyResponse,
+      }),
       { status: 500 },
     );
   }

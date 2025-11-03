@@ -115,7 +115,7 @@ describe("SVM Settle", () => {
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
-      };
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
@@ -163,8 +163,9 @@ describe("SVM Settle", () => {
       // Arrange
       const mockVerifyResponse = {
         isValid: false,
-        invalidReason: "invalid_exact_svm_payload_transaction_simulation_failed" as const,
-      };
+        invalidReason: "invalid_exact_svm_payload_transaction_simulation_failed",
+        invalidDescription: "",
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
 
       // Act
@@ -185,7 +186,7 @@ describe("SVM Settle", () => {
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
-      };
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getTokenPayerFromTransaction).mockReturnValue(payerAddress);
@@ -430,7 +431,7 @@ describe("SVM Settle", () => {
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
-      };
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
@@ -469,7 +470,7 @@ describe("SVM Settle", () => {
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
-      };
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
@@ -505,7 +506,7 @@ describe("SVM Settle", () => {
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
-      };
+      } as const;
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
