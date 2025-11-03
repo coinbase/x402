@@ -39,7 +39,7 @@ TGP is designed to be compatible with the **Usage-Based Payment Scheme**, **Arbi
 
 | Term | Definition |
 |------|-------------|
-| **Transaction Gateway (TGC)** | A trusted intermediary that enforces domain-specific policy and logs settlement records. |
+| **Transaction Gateway Controller (TGC)** | A trusted intermediary/facilitator that enforces domain-specific policy and logs settlement records. |
 | **Transaction Area (TxA)** | An administrative or economic domain sharing a common policy root, similar to an Autonomous System in BGP. |
 | **Policy Header** | A structured metadata object defining allowed tokens, pricing models, and settlement rules. |
 | **Transaction Detail Record (TDR)** | A verifiable log entry describing the transaction flow, response codes, and settlement results. |
