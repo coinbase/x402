@@ -12,6 +12,7 @@ import {
 import { getRpcClient, getRpcSubscriptions } from "../../../../shared/svm/rpc";
 import { verify } from "./verify";
 import * as settleModule from "./settle";
+import { X402Config } from "../../../../types";
 
 // Mocking dependencies
 vi.mock("../../../../shared/svm");
@@ -426,7 +427,7 @@ describe("SVM Settle", () => {
     it("should use custom RPC URL from config for both client and subscriptions", async () => {
       // Arrange
       const customRpcUrl = "http://localhost:8899";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
+      const x402Config: X402Config = { svmConfig: { "solana-devnet": { rpcUrl: customRpcUrl } } };
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
@@ -455,7 +456,7 @@ describe("SVM Settle", () => {
       );
 
       // Act
-      await settleModule.settle(signer, paymentPayload, paymentRequirements, config);
+      await settleModule.settle(signer, paymentPayload, paymentRequirements, x402Config);
 
       // Assert
       expect(getRpcClient).toHaveBeenCalledWith("solana-devnet", customRpcUrl);
@@ -465,7 +466,7 @@ describe("SVM Settle", () => {
     it("should propagate config to verify() call", async () => {
       // Arrange
       const customRpcUrl = "https://api.mainnet-beta.solana.com";
-      const config = { svmConfig: { rpcUrl: customRpcUrl } };
+      const x402Config: X402Config = { svmConfig: { solana: { rpcUrl: customRpcUrl } } };
       const mockVerifyResponse = {
         isValid: true,
         invalidReason: undefined,
@@ -494,10 +495,10 @@ describe("SVM Settle", () => {
       );
 
       // Act
-      await settleModule.settle(signer, paymentPayload, paymentRequirements, config);
+      await settleModule.settle(signer, paymentPayload, paymentRequirements, x402Config);
 
       // Assert
-      expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements, config);
+      expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements, x402Config);
     });
 
     it("should work without config (backward compatibility)", async () => {
