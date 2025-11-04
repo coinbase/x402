@@ -1,14 +1,14 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { Address, getAddress } from "viem";
+import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaymentRequirements,
 } from "x402/shared";
 import { getPaywallHtml } from "x402/paywall";
 import {
@@ -19,9 +19,6 @@ import {
   Resource,
   RoutesConfig,
   PaywallConfig,
-  ERC20TokenAmount,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 import { safeBase64Encode } from "x402/shared";
@@ -126,89 +123,33 @@ export function paymentMiddleware(
       discoverable,
     } = config;
 
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      return new NextResponse(atomicAmountForAsset.error, { status: 500 });
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
-
-    let paymentRequirements: PaymentRequirements[] = [];
-
-    // TODO: create a shared middleware function to build payment requirements
-    // evm networks
-    if (SupportedEVMNetworks.includes(network)) {
-      paymentRequirements.push({
-        scheme: "exact",
+    let paymentRequirements: PaymentRequirements[];
+    try {
+      paymentRequirements = await buildPaymentRequirements({
+        price,
         network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        method,
+        resourceUrl,
+        payTo,
+        description,
+        mimeType,
+        maxTimeoutSeconds,
+        inputSchema,
+        outputSchema,
+        discoverable,
+        getSupportedKinds: supported,
+        defaultEvmTimeoutSeconds: 300,
+        defaultSvmTimeoutSeconds: 60,
+        defaultMimeType: "application/json",
       });
-    }
-    // svm networks
-    else if (SupportedSVMNetworks.includes(network)) {
-      // network call to get the supported payments from the facilitator
-      const paymentKinds = await supported();
-
-      // find the payment kind that matches the network and scheme
-      let feePayer: string | undefined;
-      for (const kind of paymentKinds.kinds) {
-        if (kind.network === network && kind.scheme === "exact") {
-          feePayer = kind?.extra?.feePayer;
-          break;
-        }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (typeof msg === "string" && msg.startsWith("Unsupported network:")) {
+        throw e instanceof Error ? e : new Error(msg);
       }
-
-      // svm networks require a fee payer
-      if (!feePayer) {
-        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
-      }
-
-      // build the payment requirements for svm
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: {
-          feePayer,
-        },
-      });
-    } else {
-      throw new Error(`Unsupported network: ${network}`);
+      return new NextResponse(msg, { status: 500 });
     }
 
     // Check for payment header

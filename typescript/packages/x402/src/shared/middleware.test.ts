@@ -4,8 +4,12 @@ import {
   findMatchingRoute,
   getDefaultAsset,
   processPriceToAtomicAmount,
+  buildPaymentRequirements,
 } from "./middleware";
-import type { RoutesConfig, Network } from "../types";
+import { getAddress } from "viem";
+import type { RoutesConfig, Network, Resource, SupportedPaymentKindsResponse } from "../types";
+import { getUsdcChainConfigForChain } from "../shared/evm";
+import { getNetworkId } from "./network";
 
 describe("computeRoutePatterns", () => {
   it("should handle simple string price routes", () => {
@@ -441,5 +445,109 @@ describe("processPriceToAtomicAmount", () => {
     expect(result).toEqual({
       error: expect.stringContaining("Number must be greater than or equal to 0.0001"),
     });
+  });
+});
+
+describe("buildPaymentRequirements", () => {
+  // shared fixtures
+  const EVM_PAYTO = "0x0000000000000000000000000000000000000001";
+  const SVM_PAYTO = "SoLaNaAddre55";
+  const PROTECTED_URL = "https://example.com/protected" as Resource;
+  const SOLANA_URL = "https://example.com/solana" as Resource;
+  const X_TEST_URL = "https://x.test" as Resource;
+  const EVM_TEST_NETWORK = "base" as Network;
+  const SVM_TEST_NETWORK = "solana-devnet" as Network;
+  const SVM_TOKEN_ADDRESS = getUsdcChainConfigForChain(getNetworkId(SVM_TEST_NETWORK))!
+    .usdcAddress as string;
+  const USDC_DECIMALS = 6;
+  const SVM_FEEPAYER_ID = "FeEpaYer111";
+
+  /**
+   * Helper function.
+   *
+   * @param feePayer - Optional fee payer public key to include in the response
+   * @returns SupportedPaymentKindsResponse containing a single SVM kind entry
+   */
+  function makeSvmSupportedKinds(feePayer?: string): SupportedPaymentKindsResponse {
+    return {
+      kinds: [
+        {
+          x402Version: 1,
+          network: SVM_TEST_NETWORK,
+          scheme: "exact",
+          extra: feePayer ? { feePayer } : {},
+        },
+      ],
+    };
+  }
+
+  it("builds EVM payment requirements from USD price", async () => {
+    const paymentRequirements = await buildPaymentRequirements({
+      price: "$0.01",
+      network: EVM_TEST_NETWORK,
+      method: "GET",
+      resourceUrl: PROTECTED_URL,
+      payTo: EVM_PAYTO,
+      description: "desc",
+      inputSchema: { a: 1 },
+      outputSchema: { b: 2 },
+      defaultEvmTimeoutSeconds: 300,
+      defaultMimeType: "application/json",
+    });
+    const paymentRequirement = paymentRequirements[0];
+    expect(paymentRequirement.scheme).toBe("exact");
+    expect(paymentRequirement.network).toBe(EVM_TEST_NETWORK);
+    expect(paymentRequirement.maxAmountRequired).toBe("10000");
+    expect(paymentRequirement.payTo).toBe(getAddress(EVM_PAYTO));
+    expect(paymentRequirement.mimeType).toBe("application/json");
+    expect(paymentRequirement.maxTimeoutSeconds).toBe(300);
+    expect(paymentRequirement.outputSchema?.input).toMatchObject({
+      type: "http",
+      method: "GET",
+      discoverable: true,
+    });
+  });
+
+  it("builds SVM payment requirements and includes feePayer", async () => {
+    const supportedKindsResponse = makeSvmSupportedKinds(SVM_FEEPAYER_ID);
+    const paymentRequirements = await buildPaymentRequirements({
+      price: { amount: "1000", asset: { address: SVM_TOKEN_ADDRESS, decimals: USDC_DECIMALS } },
+      network: SVM_TEST_NETWORK,
+      method: "POST",
+      resourceUrl: SOLANA_URL,
+      payTo: SVM_PAYTO,
+      getSupportedKinds: async () => supportedKindsResponse,
+    });
+    const paymentRequirement = paymentRequirements[0];
+    expect(paymentRequirement.extra?.feePayer).toBe(SVM_FEEPAYER_ID);
+    expect(paymentRequirement.asset).toBe(SVM_TOKEN_ADDRESS);
+    expect(paymentRequirement.maxTimeoutSeconds).toBe(60);
+  });
+
+  it("throws when SVM feePayer is not provided", async () => {
+    await expect(
+      buildPaymentRequirements({
+        price: { amount: "1000", asset: { address: SVM_TOKEN_ADDRESS, decimals: USDC_DECIMALS } },
+        network: SVM_TEST_NETWORK,
+        method: "GET",
+        resourceUrl: X_TEST_URL,
+        payTo: SVM_PAYTO,
+        getSupportedKinds: async () => makeSvmSupportedKinds(),
+      }),
+    ).rejects.toThrow(
+      `The facilitator did not provide a fee payer for network: ${SVM_TEST_NETWORK}.`,
+    );
+  });
+
+  it("throws on unsupported network", async () => {
+    await expect(
+      buildPaymentRequirements({
+        price: "$0.01",
+        network: "unknown" as unknown as Network,
+        method: "GET",
+        resourceUrl: X_TEST_URL,
+        payTo: EVM_PAYTO,
+      }),
+    ).rejects.toThrow("Unsupported network: unknown");
   });
 });
