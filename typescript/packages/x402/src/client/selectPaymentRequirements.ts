@@ -13,17 +13,6 @@ import { getNetworkId } from "../shared/network";
  * @returns The payment requirement that is the most appropriate for the user.
  */
 export function selectPaymentRequirements(paymentRequirements: PaymentRequirements[], network?: Network | Network[], scheme?: "exact"): PaymentRequirements {
-  // Sort `base` payment requirements to the front of the list. This is to ensure that base is preferred if available.
-  paymentRequirements.sort((a, b) => {
-    if (a.network === "base" && b.network !== "base") {
-      return -1;
-    }
-    if (a.network !== "base" && b.network === "base") {
-      return 1;
-    }
-    return 0;
-  });
-
   // Filter down to the scheme/network if provided
   const broadlyAcceptedPaymentRequirements = paymentRequirements.filter(requirement => {
     // If the scheme is not provided, we accept any scheme.
