@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>x402 NEAR – NEP-366 Skeleton</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <h1>x402 NEAR – NEP-366 End-to-End (Skeleton)</h1>
+  <p>This page will: fetch paymentRequirements → build SignedDelegateAction → send X-PAYMENT → show result.</p>
+  <button id="run">Run (stub)</button>
+  <pre id="out"></pre>
+
+  <!-- If you already expose IIFE builds locally, you can load them here -->
+  <script type="module">
+    const $ = id => document.getElementById(id);
+    $('run').onclick = async () => {
+      $('out').textContent = 'TODO: wire to your dev server endpoints /verify and /settle';
+      // TODO:
+      //  1) GET /paywall -> paymentRequirements
+      //  2) Build NEP-366 SignedDelegateAction (client)
+      //  3) POST /verify -> show decision
+      //  4) POST /settle -> show tx hash
+    };
+  </script>
+</body>
+</html>
