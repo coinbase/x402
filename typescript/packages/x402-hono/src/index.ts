@@ -1,17 +1,16 @@
 import type { Context } from "hono";
-import { Address, getAddress } from "viem";
+import { Address } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaymentRequirements,
 } from "x402/shared";
 import { getPaywallHtml } from "x402/paywall";
 import {
-  ERC20TokenAmount,
   FacilitatorConfig,
   moneySchema,
   PaymentPayload,
@@ -20,8 +19,6 @@ import {
   RoutesConfig,
   settleResponseHeader,
   PaywallConfig,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -104,6 +101,7 @@ export function paymentMiddleware(
       discoverable,
     } = config;
 
+<<<<<<< HEAD
     const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
     if ("error" in atomicAmountForAsset) {
       throw new Error(atomicAmountForAsset.error);
@@ -201,6 +199,26 @@ export function paymentMiddleware(
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }
+=======
+    const resourceUrl: Resource = resource || (c.req.url as Resource);
+    const paymentRequirements: PaymentRequirements[] = await buildPaymentRequirements({
+      price,
+      network,
+      method,
+      resourceUrl,
+      payTo,
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      discoverable,
+      getSupportedKinds: supported,
+      defaultEvmTimeoutSeconds: 300,
+      defaultSvmTimeoutSeconds: 60,
+      defaultMimeType: "application/json",
+    });
+>>>>>>> 2875a3f (feat: shared middleware function to build payment requirements)
 
     const payment = c.req.header("X-PAYMENT");
     const userAgent = c.req.header("User-Agent") || "";

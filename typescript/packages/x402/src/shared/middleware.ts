@@ -1,4 +1,4 @@
-import { Address, Hex } from "viem";
+import { Address, Hex, getAddress } from "viem";
 import {
   moneySchema,
   Network,
@@ -9,6 +9,10 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  Resource,
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  SupportedPaymentKindsResponse,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
@@ -207,4 +211,145 @@ export function decodeXPaymentResponse(header: string) {
     network: Network;
     payer: Address;
   };
+}
+
+/**
+ * Builds PaymentRequirements for the given route configuration in a single, shared helper.
+ * (to consolidates EVM/SVM branching)
+ *
+ * @param params - Parameters object
+ * @param params.price - Price in USD (string/number) or token amount object
+ * @param params.network - Target network (e.g., "base", "base-sepolia", "solana-devnet")
+ * @param params.method - HTTP verb to embed in request structure
+ * @param params.resourceUrl - Fully-qualified resource URL for the protected endpoint
+ * @param params.payTo - Recipient address (EVM or SVM)
+ * @param params.description - Optional human-readable description
+ * @param params.mimeType - Optional mime type for the protected response
+ * @param params.maxTimeoutSeconds - Optional payment validity window in seconds
+ * @param params.inputSchema - Optional input schema metadata to include in outputSchema.input
+ * @param params.outputSchema - Optional output schema metadata
+ * @param params.discoverable - Whether the resource should be discoverable
+ * @param params.getSupportedKinds - Callback to fetch supported kinds (used to obtain SVM fee payer)
+ * @param params.defaultEvmTimeoutSeconds - Default EVM timeout when not provided
+ * @param params.defaultSvmTimeoutSeconds - Default SVM timeout when not provided
+ * @param params.defaultMimeType - Default mime type when not provided
+ * @returns A single-element array containing the constructed PaymentRequirements
+ */
+export async function buildPaymentRequirements(params: {
+  price: Price;
+  network: Network;
+  method: string;
+  resourceUrl: Resource;
+  payTo: string;
+  description?: string;
+  mimeType?: string;
+  maxTimeoutSeconds?: number;
+  inputSchema?: Record<string, unknown> | object;
+  outputSchema?: Record<string, unknown> | object;
+  discoverable?: boolean;
+  getSupportedKinds?: () => Promise<SupportedPaymentKindsResponse>;
+  defaultEvmTimeoutSeconds?: number;
+  defaultSvmTimeoutSeconds?: number;
+  defaultMimeType?: string;
+}): Promise<PaymentRequirements[]> {
+  const {
+    price,
+    network,
+    method,
+    resourceUrl,
+    payTo,
+    description,
+    mimeType,
+    maxTimeoutSeconds,
+    inputSchema,
+    outputSchema,
+    discoverable,
+    getSupportedKinds,
+    defaultEvmTimeoutSeconds = 60,
+    defaultSvmTimeoutSeconds = 60,
+    defaultMimeType = "",
+  } = params;
+
+  const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
+  if ("error" in atomicAmountForAsset) {
+    throw new Error(atomicAmountForAsset.error);
+  }
+
+  const { maxAmountRequired, asset } = atomicAmountForAsset;
+
+  // EVM networks
+  if (SupportedEVMNetworks.includes(network)) {
+    return [
+      {
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? defaultMimeType,
+        payTo: getAddress(payTo),
+        maxTimeoutSeconds: maxTimeoutSeconds ?? defaultEvmTimeoutSeconds,
+        asset: getAddress((asset as ERC20TokenAmount["asset"]).address),
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            discoverable: discoverable ?? true,
+            ...((inputSchema as Record<string, unknown> | undefined) || {}),
+          },
+          output: outputSchema as Record<string, unknown> | undefined,
+        },
+        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+      },
+    ];
+  }
+
+  // SVM networks
+  if (SupportedSVMNetworks.includes(network)) {
+    if (!getSupportedKinds) {
+      throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
+    }
+    const kinds = await getSupportedKinds();
+    let feePayer: string | undefined;
+    for (const kind of kinds.kinds) {
+      if (kind.network === network && kind.scheme === "exact") {
+        const extra = (kind as { extra?: Record<string, unknown> }).extra;
+        const maybeFeePayer = extra?.["feePayer"];
+        if (typeof maybeFeePayer === "string") {
+          feePayer = maybeFeePayer;
+        }
+        break;
+      }
+    }
+
+    if (!feePayer) {
+      throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
+    }
+
+    return [
+      {
+        scheme: "exact",
+        network,
+        maxAmountRequired,
+        resource: resourceUrl,
+        description: description ?? "",
+        mimeType: mimeType ?? defaultMimeType,
+        payTo: payTo,
+        maxTimeoutSeconds: maxTimeoutSeconds ?? defaultSvmTimeoutSeconds,
+        asset: (asset as { address: string }).address,
+        outputSchema: {
+          input: {
+            type: "http",
+            method,
+            discoverable: discoverable ?? true,
+            ...((inputSchema as Record<string, unknown> | undefined) || {}),
+          },
+          output: outputSchema as Record<string, unknown> | undefined,
+        },
+        extra: { feePayer },
+      },
+    ];
+  }
+
+  throw new Error(`Unsupported network: ${network}`);
 }

@@ -2,8 +2,29 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
+<<<<<<< HEAD
 import { computeRoutePatterns, findMatchingRoute } from "x402/shared";
 import { FacilitatorConfig, Resource, RoutesConfig, RouteConfig, PaywallConfig } from "x402/types";
+=======
+import { exact } from "x402/schemes";
+import {
+  computeRoutePatterns,
+  findMatchingPaymentRequirements,
+  findMatchingRoute,
+  toJsonSafe,
+  buildPaymentRequirements,
+} from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
+import {
+  FacilitatorConfig,
+  moneySchema,
+  PaymentPayload,
+  PaymentRequirements,
+  Resource,
+  RoutesConfig,
+  PaywallConfig,
+} from "x402/types";
+>>>>>>> 2875a3f (feat: shared middleware function to build payment requirements)
 import { useFacilitator } from "x402/verify";
 
 import { POST } from "./api/session-token";
@@ -100,6 +121,7 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
+<<<<<<< HEAD
     const { customPaywallHtml, resource, errorMessages } = config;
 
     const resourceUrl =
@@ -115,6 +137,48 @@ export function paymentMiddleware(
       method,
       supported,
     );
+=======
+    const {
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      outputSchema,
+      customPaywallHtml,
+      resource,
+      errorMessages,
+      discoverable,
+    } = config;
+
+    const resourceUrl =
+      resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
+    let paymentRequirements: PaymentRequirements[];
+    try {
+      paymentRequirements = await buildPaymentRequirements({
+        price,
+        network,
+        method,
+        resourceUrl,
+        payTo,
+        description,
+        mimeType,
+        maxTimeoutSeconds,
+        inputSchema,
+        outputSchema,
+        discoverable,
+        getSupportedKinds: supported,
+        defaultEvmTimeoutSeconds: 300,
+        defaultSvmTimeoutSeconds: 60,
+        defaultMimeType: "application/json",
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (typeof msg === "string" && msg.startsWith("Unsupported network:")) {
+        throw e instanceof Error ? e : new Error(msg);
+      }
+      return new NextResponse(msg, { status: 500 });
+    }
+>>>>>>> 2875a3f (feat: shared middleware function to build payment requirements)
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");
