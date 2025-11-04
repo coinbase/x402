@@ -336,10 +336,14 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 			nil,
 		)
 
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		paymentPayload := x402.PaymentPayload{
 			X402Version: 2,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    requirements,
 			Payload:     map[string]interface{}{},
 			Extensions: map[string]interface{}{
 				bazaar.BAZAAR: extension,
@@ -380,10 +384,14 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 			"extra":             map[string]interface{}{},
 		}
 
+		v1ReqStruct := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		v1Payload := x402.PaymentPayload{
 			X402Version: 1,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    v1ReqStruct,
 			Payload:     map[string]interface{}{},
 		}
 
@@ -398,10 +406,14 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 	})
 
 	t.Run("should return nil when no discovery info is present", func(t *testing.T) {
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		paymentPayload := x402.PaymentPayload{
 			X402Version: 2,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    requirements,
 			Payload:     map[string]interface{}{},
 		}
 
@@ -825,10 +837,14 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			"extra":             map[string]interface{}{},
 		}
 
+		v1ReqStruct := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		v1Payload := x402.PaymentPayload{
 			X402Version: 1,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    v1ReqStruct,
 			Payload:     map[string]interface{}{},
 		}
 
@@ -864,10 +880,14 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			nil,
 		)
 
+		v2Requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		v2Payload := x402.PaymentPayload{
 			X402Version: 2,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    v2Requirements,
 			Payload:     map[string]interface{}{},
 			Extensions: map[string]interface{}{
 				bazaar.BAZAAR: v2Extension,
@@ -894,10 +914,14 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			},
 		}
 
+		v1ReqStructSecond := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
 		v1Payload := x402.PaymentPayload{
 			X402Version: 1,
-			Scheme:      "exact",
-			Network:     "eip155:8453",
+			Accepted:    v1ReqStructSecond,
 			Payload:     map[string]interface{}{},
 		}
 

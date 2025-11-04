@@ -35,7 +35,7 @@ func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload Payme
 		Success:     true,
 		Transaction: "0xmocktx",
 		Payer:       "0xmockpayer",
-		Network:     payload.Network,
+		Network:     payload.Accepted.Network,
 	}, nil
 }
 
@@ -109,7 +109,7 @@ func TestFacilitatorVerify(t *testing.T) {
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
 		verify: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
-			if payload.Scheme != requirements.Scheme {
+			if payload.Accepted.Scheme != requirements.Scheme {
 				return VerifyResponse{
 					IsValid:       false,
 					InvalidReason: "scheme mismatch",
@@ -124,21 +124,20 @@ func TestFacilitatorVerify(t *testing.T) {
 
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload: map[string]interface{}{
-			"signature": "test",
-		},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload: map[string]interface{}{
+			"signature": "test",
+		},
 	}
 
 	response, err := facilitator.Verify(ctx, payload, requirements)
@@ -159,19 +158,26 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
-	// Test invalid payload (missing scheme)
-	invalidPayload := PaymentPayload{
-		X402Version: 2,
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	// Test invalid payload (missing scheme in accepted)
+	invalidRequirements := PaymentRequirements{
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	invalidPayload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    invalidRequirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := facilitator.Verify(ctx, invalidPayload, requirements)
@@ -183,18 +189,17 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 	}
 
 	// Test invalid requirements
-	validPayload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	invalidReqs := PaymentRequirements{
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	validPayload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err = facilitator.Verify(ctx, validPayload, invalidReqs)
@@ -212,19 +217,26 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "transfer", // Different scheme
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	mismatchedRequirements := PaymentRequirements{
+		Scheme:  "transfer", // Different scheme
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    mismatchedRequirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := facilitator.Verify(ctx, payload, requirements)
@@ -247,19 +259,26 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:8453", // Different network
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	mismatchedNetworkRequirements := PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:8453", // Different network
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    mismatchedNetworkRequirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := facilitator.Verify(ctx, payload, requirements)
@@ -287,21 +306,12 @@ func TestFacilitatorSettle(t *testing.T) {
 				Success:     true,
 				Transaction: "0xsettledtx",
 				Payer:       "0xpayer",
-				Network:     payload.Network,
+				Network:     payload.Accepted.Network,
 			}, nil
 		},
 	}
 
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
-
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload: map[string]interface{}{
-			"signature": "test",
-		},
-	}
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -309,6 +319,14 @@ func TestFacilitatorSettle(t *testing.T) {
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload: map[string]interface{}{
+			"signature": "test",
+		},
 	}
 
 	response, err := facilitator.Settle(ctx, payload, requirements)
@@ -341,19 +359,18 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := facilitator.Settle(ctx, payload, requirements)
@@ -443,19 +460,18 @@ func TestLocalFacilitatorClient(t *testing.T) {
 	}
 
 	// Test Verify
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	verifyResp, err := client.Verify(ctx, payload, requirements)
@@ -493,19 +509,18 @@ func TestFacilitatorNetworkPatternMatching(t *testing.T) {
 	// Register with wildcard
 	facilitator.RegisterScheme("eip155:*", mockFacilitator)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:8453", // Specific network
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:8453",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	// Should match the wildcard pattern

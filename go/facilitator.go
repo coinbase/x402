@@ -117,23 +117,23 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 	}
 
 	// Verify basic compatibility
-	if payload.Scheme != requirements.Scheme {
+	if payload.Accepted.Scheme != requirements.Scheme {
 		return VerifyResponse{
 				IsValid:       false,
 				InvalidReason: "scheme mismatch",
 			}, &PaymentError{
 				Code:    ErrCodeSchemeMismatch,
-				Message: fmt.Sprintf("payment scheme %s does not match requirement %s", payload.Scheme, requirements.Scheme),
+				Message: fmt.Sprintf("payment scheme %s does not match requirement %s", payload.Accepted.Scheme, requirements.Scheme),
 			}
 	}
 
-	if !Network(payload.Network).Match(requirements.Network) {
+	if !Network(payload.Accepted.Network).Match(requirements.Network) {
 		return VerifyResponse{
 				IsValid:       false,
 				InvalidReason: "network mismatch",
 			}, &PaymentError{
 				Code:    ErrCodeNetworkMismatch,
-				Message: fmt.Sprintf("payment network %s does not match requirement %s", payload.Network, requirements.Network),
+				Message: fmt.Sprintf("payment network %s does not match requirement %s", payload.Accepted.Network, requirements.Network),
 			}
 	}
 
@@ -153,7 +153,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		return SettleResponse{
 				Success:     false,
 				ErrorReason: fmt.Sprintf("unsupported x402 version: %d", payload.X402Version),
-				Network:     payload.Network,
+				Network:     payload.Accepted.Network,
 			}, &PaymentError{
 				Code:    ErrCodeInvalidPayment,
 				Message: fmt.Sprintf("x402 version %d not supported", payload.X402Version),
@@ -166,7 +166,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		return SettleResponse{
 				Success:     false,
 				ErrorReason: fmt.Sprintf("unsupported scheme %s on network %s", requirements.Scheme, requirements.Network),
-				Network:     payload.Network,
+				Network:     payload.Accepted.Network,
 			}, &PaymentError{
 				Code:    ErrCodeUnsupportedScheme,
 				Message: fmt.Sprintf("no facilitator for scheme %s on network %s", requirements.Scheme, requirements.Network),
@@ -179,7 +179,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		return SettleResponse{
 			Success:     false,
 			ErrorReason: fmt.Sprintf("verification failed: %v", err),
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, err
 	}
 
@@ -188,7 +188,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 				Success:     false,
 				ErrorReason: verifyResp.InvalidReason,
 				Payer:       verifyResp.Payer,
-				Network:     payload.Network,
+				Network:     payload.Accepted.Network,
 			}, &PaymentError{
 				Code:    ErrCodeInvalidPayment,
 				Message: verifyResp.InvalidReason,

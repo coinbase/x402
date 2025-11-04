@@ -15,9 +15,11 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "valid v2 payload",
 			payload: PaymentPayload{
 				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			wantErr: false,
 		},
@@ -25,9 +27,11 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "valid v1 payload",
 			payload: PaymentPayload{
 				X402Version: 1,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			wantErr: false,
 		},
@@ -35,9 +39,11 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "invalid version",
 			payload: PaymentPayload{
 				X402Version: 3,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			wantErr: true,
 			errMsg:  "unsupported x402 version",
@@ -46,8 +52,10 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "missing scheme",
 			payload: PaymentPayload{
 				X402Version: 2,
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: PaymentRequirements{
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			wantErr: true,
 			errMsg:  "payment scheme is required",
@@ -56,8 +64,10 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "missing network",
 			payload: PaymentPayload{
 				X402Version: 2,
-				Scheme:      "exact",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: PaymentRequirements{
+					Scheme: "exact",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			wantErr: true,
 			errMsg:  "payment network is required",
@@ -66,8 +76,10 @@ func TestValidatePaymentPayload(t *testing.T) {
 			name: "missing payload",
 			payload: PaymentPayload{
 				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1",
+				Accepted: PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
 			},
 			wantErr: true,
 			errMsg:  "payment payload is required",

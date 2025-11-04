@@ -41,7 +41,7 @@ func (f *ExactEvmFacilitator) Verify(
 	}
 
 	// Validate scheme
-	if payload.Scheme != SchemeExact {
+	if payload.Accepted.Scheme != SchemeExact {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: "invalid scheme",
@@ -49,7 +49,7 @@ func (f *ExactEvmFacilitator) Verify(
 	}
 
 	// Validate network
-	if payload.Network != requirements.Network {
+	if payload.Accepted.Network != requirements.Network {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: "network mismatch",
@@ -205,7 +205,7 @@ func (f *ExactEvmFacilitator) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: verifyResp.InvalidReason,
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, nil
 	}
 
@@ -293,7 +293,7 @@ func (f *ExactEvmFacilitator) Settle(
 	return x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,
-		Network:     payload.Network,
+		Network:     payload.Accepted.Network,
 		Payer:       evmPayload.Authorization.From,
 	}, nil
 }

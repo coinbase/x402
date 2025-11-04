@@ -35,9 +35,11 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 			name: "v2 payload",
 			payload: x402.PaymentPayload{
 				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: x402.PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			expected: "PAYMENT-SIGNATURE",
 		},
@@ -45,9 +47,11 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 			name: "v1 payload",
 			payload: x402.PaymentPayload{
 				X402Version: 1,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-				Payload:     map[string]interface{}{"sig": "test"},
+				Accepted: x402.PaymentRequirements{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				Payload: map[string]interface{}{"sig": "test"},
 			},
 			expected: "X-PAYMENT",
 		},
@@ -242,11 +246,9 @@ func TestPaymentRoundTripper(t *testing.T) {
 	// Create mock scheme client
 	mockClient := &mockSchemeClient{
 		scheme: "mock",
-		createPayload: func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PaymentPayload, error) {
-			return x402.PaymentPayload{
+		createPayload: func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error) {
+			return x402.PartialPaymentPayload{
 				X402Version: version,
-				Scheme:      "mock",
-				Network:     requirements.Network,
 				Payload:     map[string]interface{}{"sig": "test"},
 			}, nil
 		},
@@ -369,21 +371,19 @@ func TestPostWithPayment(t *testing.T) {
 // Mock scheme client for testing
 type mockSchemeClient struct {
 	scheme        string
-	createPayload func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PaymentPayload, error)
+	createPayload func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error)
 }
 
 func (m *mockSchemeClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PaymentPayload, error) {
+func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error) {
 	if m.createPayload != nil {
 		return m.createPayload(ctx, version, requirements)
 	}
-	return x402.PaymentPayload{
+	return x402.PartialPaymentPayload{
 		X402Version: version,
-		Scheme:      m.scheme,
-		Network:     requirements.Network,
 		Payload:     map[string]interface{}{},
 	}, nil
 }

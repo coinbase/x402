@@ -265,6 +265,7 @@ func TestExactEvmClient_CreatePaymentPayload(t *testing.T) {
 	client := NewExactEvmClient(signer)
 
 	requirements := x402.PaymentRequirements{
+		Scheme:  SchemeExact,
 		Network: "base",
 		Asset:   "USDC",
 		PayTo:   "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -283,12 +284,6 @@ func TestExactEvmClient_CreatePaymentPayload(t *testing.T) {
 	// Check basic fields
 	if payload.X402Version != 2 {
 		t.Errorf("Expected version 2, got %d", payload.X402Version)
-	}
-	if payload.Scheme != SchemeExact {
-		t.Errorf("Expected scheme %s, got %s", SchemeExact, payload.Scheme)
-	}
-	if payload.Network != requirements.Network {
-		t.Errorf("Expected network %s, got %s", requirements.Network, payload.Network)
 	}
 
 	// Check payload structure
@@ -337,14 +332,8 @@ func TestExactEvmFacilitator_Verify(t *testing.T) {
 		},
 	}
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      SchemeExact,
-		Network:     "base",
-		Payload:     evmPayload.ToMap(),
-	}
-
 	requirements := x402.PaymentRequirements{
+		Scheme:  SchemeExact,
 		Network: "base",
 		Asset:   "USDC",
 		PayTo:   "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -353,6 +342,12 @@ func TestExactEvmFacilitator_Verify(t *testing.T) {
 			"name":    "USD Coin",
 			"version": "2",
 		},
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     evmPayload.ToMap(),
 	}
 
 	result, err := facilitator.Verify(ctx, payload, requirements)
@@ -396,14 +391,8 @@ func TestExactEvmFacilitator_Settle(t *testing.T) {
 		},
 	}
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      SchemeExact,
-		Network:     "base",
-		Payload:     evmPayload.ToMap(),
-	}
-
 	requirements := x402.PaymentRequirements{
+		Scheme:  SchemeExact,
 		Network: "base",
 		Asset:   "USDC",
 		PayTo:   "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -412,6 +401,12 @@ func TestExactEvmFacilitator_Settle(t *testing.T) {
 			"name":    "USD Coin",
 			"version": "2",
 		},
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     evmPayload.ToMap(),
 	}
 
 	result, err := facilitator.Settle(ctx, payload, requirements)
@@ -521,9 +516,9 @@ func TestExactEvmService_EnhancePaymentRequirements(t *testing.T) {
 		t.Errorf("Expected asset %s, got %s", expectedAsset, enhanced.Asset)
 	}
 
-	// Check extra fields were added
-	if enhanced.Extra["name"] != "USDC" {
-		t.Errorf("Expected name 'USDC', got %v", enhanced.Extra["name"])
+	// Check extra fields were added (name is "USD Coin" for Base network in constants.go)
+	if enhanced.Extra["name"] != "USD Coin" {
+		t.Errorf("Expected name 'USD Coin', got %v", enhanced.Extra["name"])
 	}
 	if enhanced.Extra["version"] != "2" {
 		t.Errorf("Expected version '2', got %v", enhanced.Extra["version"])

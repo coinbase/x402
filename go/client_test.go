@@ -9,21 +9,20 @@ import (
 // Mock client for testing
 type mockSchemeNetworkClient struct {
 	scheme        string
-	createPayload func(ctx context.Context, version int, requirements PaymentRequirements) (PaymentPayload, error)
+	createPayload func(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error)
+	version       int
 }
 
 func (m *mockSchemeNetworkClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirements PaymentRequirements) (PaymentPayload, error) {
+func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error) {
 	if m.createPayload != nil {
 		return m.createPayload(ctx, version, requirements)
 	}
-	return PaymentPayload{
+	return PartialPaymentPayload{
 		X402Version: version,
-		Scheme:      m.scheme,
-		Network:     requirements.Network,
 		Payload: map[string]interface{}{
 			"signature": "mock_signature",
 			"from":      "0xmock",
@@ -189,12 +188,11 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 	client := Newx402Client()
 
 	mockClient := &mockSchemeNetworkClient{
-		scheme: "exact",
-		createPayload: func(ctx context.Context, version int, requirements PaymentRequirements) (PaymentPayload, error) {
-			return PaymentPayload{
+		scheme:  "exact",
+		version: 2,
+		createPayload: func(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error) {
+			return PartialPaymentPayload{
 				X402Version: version,
-				Scheme:      "exact",
-				Network:     requirements.Network,
 				Payload: map[string]interface{}{
 					"signature": "test_sig",
 					"from":      "0xsender",
@@ -213,21 +211,37 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	payload, err := client.CreatePaymentPayload(ctx, 2, requirements)
+	resource := &ResourceInfo{
+		URL:         "https://example.com/api",
+		Description: "Test API",
+		MimeType:    "application/json",
+	}
+
+	extensions := map[string]interface{}{
+		"test": "value",
+	}
+
+	payload, err := client.CreatePaymentPayload(ctx, 2, requirements, resource, extensions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
-	if payload.Scheme != "exact" {
-		t.Fatalf("Expected scheme 'exact', got %s", payload.Scheme)
+	if payload.Accepted.Scheme != "exact" {
+		t.Fatalf("Expected accepted scheme 'exact', got %s", payload.Accepted.Scheme)
 	}
-	if payload.Network != "eip155:1" {
-		t.Fatalf("Expected network 'eip155:1', got %s", payload.Network)
+	if payload.Accepted.Network != "eip155:1" {
+		t.Fatalf("Expected accepted network 'eip155:1', got %s", payload.Accepted.Network)
 	}
 	if payload.Payload == nil {
 		t.Fatal("Expected payload to be set")
+	}
+	if payload.Resource == nil {
+		t.Fatal("Expected resource to be set")
+	}
+	if payload.Extensions == nil {
+		t.Fatal("Expected extensions to be set")
 	}
 }
 
@@ -243,7 +257,7 @@ func TestClientCreatePaymentPayloadValidation(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	_, err := client.CreatePaymentPayload(ctx, 2, invalidReqs)
+	_, err := client.CreatePaymentPayload(ctx, 2, invalidReqs, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for invalid requirements")
 	}
@@ -254,7 +268,7 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 	client := Newx402Client()
 
 	// Register a different scheme so we get past the version check
-	mockClient := &mockSchemeNetworkClient{scheme: "different"}
+	mockClient := &mockSchemeNetworkClient{scheme: "different", version: 2}
 	client.RegisterScheme("eip155:1", mockClient)
 
 	requirements := PaymentRequirements{
@@ -265,7 +279,7 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	_, err := client.CreatePaymentPayload(ctx, 2, requirements)
+	_, err := client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for unregistered scheme")
 	}
@@ -343,6 +357,11 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 	required := PaymentRequired{
 		X402Version: 2,
 		Error:       "Payment required",
+		Resource: &ResourceInfo{
+			URL:         "https://example.com/api",
+			Description: "Test API",
+			MimeType:    "application/json",
+		},
 		Accepts: []PaymentRequirements{
 			{
 				Scheme:  "exact",
@@ -351,6 +370,9 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 				Amount:  "1000000",
 				PayTo:   "0xrecipient",
 			},
+		},
+		Extensions: map[string]interface{}{
+			"test": "value",
 		},
 	}
 
@@ -361,14 +383,20 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
-	if payload.Scheme != "exact" {
-		t.Fatalf("Expected scheme 'exact', got %s", payload.Scheme)
+	if payload.Accepted.Scheme != "exact" {
+		t.Fatalf("Expected accepted scheme 'exact', got %s", payload.Accepted.Scheme)
+	}
+	if payload.Resource == nil {
+		t.Fatal("Expected resource to be set from PaymentRequired")
+	}
+	if payload.Extensions == nil {
+		t.Fatal("Expected extensions to be set from PaymentRequired")
 	}
 }
 
 func TestClientNetworkPatternMatching(t *testing.T) {
 	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
+	mockClient := &mockSchemeNetworkClient{scheme: "exact", version: 2}
 
 	// Register with wildcard
 	client.RegisterScheme("eip155:*", mockClient)
@@ -383,11 +411,11 @@ func TestClientNetworkPatternMatching(t *testing.T) {
 
 	// Should match the wildcard pattern
 	ctx := context.Background()
-	payload, err := client.CreatePaymentPayload(ctx, 2, requirements)
+	payload, err := client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected pattern match to work: %v", err)
 	}
-	if payload.Scheme != "exact" {
+	if payload.Accepted.Scheme != "exact" {
 		t.Fatal("Expected payload to be created with pattern match")
 	}
 }

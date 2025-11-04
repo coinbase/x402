@@ -264,9 +264,15 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 
 	mockService := &mockSchemeService{
 		scheme: "exact",
+		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
+			return x402.AssetAmount{
+				Asset:  "USDC",
+				Amount: "1000000",
+				Extra:  map[string]interface{}{},
+			}, nil
+		},
 		enhanceReqs: func(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error) {
-			// Make sure the enhanced requirements match what we'll send
-			base.PayTo = "0xtest"
+			// Return the base requirements as-is
 			return base, nil
 		},
 	}
@@ -275,6 +281,13 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 			return x402.VerifyResponse{
 				IsValid: true,
 				Payer:   "0xpayer",
+			}, nil
+		},
+		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
+			return x402.SupportedResponse{
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				},
 			}, nil
 		},
 	}
@@ -286,21 +299,23 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 	)
 	service.Initialize(ctx)
 
-	// Create payment payload
-	// First build the actual requirements
-	builtReqs, _ := service.BuildPaymentRequirements(ctx, x402.ResourceConfig{
-		Scheme:  "exact",
-		PayTo:   "0xtest",
-		Price:   "$1.00",
-		Network: "eip155:1",
-	})
+	// Create payment payload that matches the route requirements exactly
+	acceptedRequirements := x402.PaymentRequirements{
+		Scheme:            "exact",
+		Network:           "eip155:1",
+		Asset:             "USDC",
+		Amount:            "1000000",
+		PayTo:             "0xtest",
+		MaxTimeoutSeconds: 300,
+		Extra: map[string]interface{}{
+			"resourceUrl": "http://example.com/api",
+		},
+	}
 
 	paymentPayload := x402.PaymentPayload{
 		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
 		Payload:     map[string]interface{}{"sig": "test"},
-		Accepted:    builtReqs[0], // Use the actual built requirements
+		Accepted:    acceptedRequirements,
 	}
 
 	payloadJSON, _ := json.Marshal(paymentPayload)
@@ -325,7 +340,19 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 	result := service.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 	if result.Type != ResultPaymentVerified {
-		t.Errorf("Expected payment verified, got %s", result.Type)
+		errMsg := ""
+		if result.Response != nil {
+			if result.Response.Body != nil {
+				if bodyStr, ok := result.Response.Body.(string); ok {
+					errMsg = bodyStr
+				} else if bodyJSON, ok := result.Response.Body.(map[string]interface{}); ok {
+					if jsonBytes, err := json.Marshal(bodyJSON); err == nil {
+						errMsg = string(jsonBytes)
+					}
+				}
+			}
+		}
+		t.Errorf("Expected payment verified, got %s. Response body: %v, Full response: %+v", result.Type, errMsg, result.Response)
 	}
 	if result.PaymentPayload == nil {
 		t.Error("Expected payment payload")
@@ -354,19 +381,18 @@ func TestProcessSettlement(t *testing.T) {
 	)
 	service.Initialize(ctx)
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xtest",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	// Test successful response (should settle)

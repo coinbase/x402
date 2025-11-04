@@ -309,7 +309,7 @@ func (s *x402ResourceService) FindMatchingRequirements(available []PaymentRequir
 	case 1:
 		// V1: match by scheme and network
 		for _, req := range available {
-			if req.Scheme == payload.Scheme && req.Network == payload.Network {
+			if req.Scheme == payload.Accepted.Scheme && req.Network == payload.Accepted.Network {
 				return &req
 			}
 		}

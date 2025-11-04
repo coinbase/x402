@@ -32,20 +32,16 @@ func (c *SchemeNetworkClient) Scheme() string {
 }
 
 // CreatePaymentPayload creates a payment payload for the cash scheme
-func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PaymentPayload, error) {
+func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error) {
 	validUntil := time.Now().Add(time.Duration(requirements.MaxTimeoutSeconds) * time.Second).Unix()
 
-	return x402.PaymentPayload{
+	return x402.PartialPaymentPayload{
 		X402Version: version,
-		Scheme:      requirements.Scheme,
-		Network:     requirements.Network,
 		Payload: map[string]interface{}{
 			"signature":  fmt.Sprintf("~%s", c.payer),
 			"validUntil": strconv.FormatInt(validUntil, 10),
 			"name":       c.payer,
 		},
-		Accepted:   requirements,
-		Extensions: nil,
 	}, nil
 }
 

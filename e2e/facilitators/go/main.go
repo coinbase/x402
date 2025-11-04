@@ -746,11 +746,11 @@ func main() {
 		verificationMutex.RUnlock()
 
 		if !verified {
-			c.JSON(http.StatusOK, x402.SettleResponse{
-				Success:     false,
-				ErrorReason: "Payment must be verified before settlement",
-				Network:     req.PaymentPayload.Network,
-			})
+		c.JSON(http.StatusOK, x402.SettleResponse{
+			Success:     false,
+			ErrorReason: "Payment must be verified before settlement",
+			Network:     req.PaymentPayload.Accepted.Network,
+		})
 			return
 		}
 
@@ -761,11 +761,11 @@ func main() {
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
 
-			c.JSON(http.StatusOK, x402.SettleResponse{
-				Success:     false,
-				ErrorReason: "Payment verification expired (must settle within 5 minutes)",
-				Network:     req.PaymentPayload.Network,
-			})
+		c.JSON(http.StatusOK, x402.SettleResponse{
+			Success:     false,
+			ErrorReason: "Payment verification expired (must settle within 5 minutes)",
+			Network:     req.PaymentPayload.Accepted.Network,
+		})
 			return
 		}
 

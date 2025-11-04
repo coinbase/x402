@@ -209,6 +209,8 @@ func TestHTTPIntegration(t *testing.T) {
 			ctx,
 			paymentRequired.X402Version,
 			selected,
+			paymentRequired.Resource,
+			paymentRequired.Extensions,
 		)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)

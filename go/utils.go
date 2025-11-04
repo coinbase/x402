@@ -7,10 +7,10 @@ func ValidatePaymentPayload(p PaymentPayload) error {
 	if p.X402Version < 1 || p.X402Version > 2 {
 		return fmt.Errorf("unsupported x402 version: %d", p.X402Version)
 	}
-	if p.Scheme == "" {
+	if p.Accepted.Scheme == "" {
 		return fmt.Errorf("payment scheme is required")
 	}
-	if p.Network == "" {
+	if p.Accepted.Network == "" {
 		return fmt.Errorf("payment network is required")
 	}
 	if p.Payload == nil {

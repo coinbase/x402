@@ -53,7 +53,7 @@ func TestCoreIntegration(t *testing.T) {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected)
+		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected, paymentRequiredResponse.Resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}

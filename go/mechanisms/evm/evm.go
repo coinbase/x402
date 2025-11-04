@@ -95,13 +95,14 @@ func RegisterService(networks ...string) []x402.ResourceServiceOption {
 	return opts
 }
 
-// CreateExactPayload is a helper to create a V2 exact EVM payment payload
+// CreateExactPayload is a helper to create a V2 exact EVM payment payload (partial)
+// Returns only x402Version and payload - use x402Client to construct full PaymentPayload
 func CreateExactPayload(
 	ctx context.Context,
 	signer ClientEvmSigner,
 	requirements x402.PaymentRequirements,
 	version int,
-) (x402.PaymentPayload, error) {
+) (x402.PartialPaymentPayload, error) {
 	client := NewExactEvmClient(signer)
 	return client.CreatePaymentPayload(ctx, version, requirements)
 }

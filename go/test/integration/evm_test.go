@@ -202,7 +202,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected)
+		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected, paymentRequiredResponse.Resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
@@ -213,8 +213,8 @@ func TestEVMIntegrationV2(t *testing.T) {
 		}
 
 		// Verify payload structure
-		if paymentPayload.Scheme != evm.SchemeExact {
-			t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, paymentPayload.Scheme)
+		if paymentPayload.Accepted.Scheme != evm.SchemeExact {
+			t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, paymentPayload.Accepted.Scheme)
 		}
 
 		evmPayload, err := evm.PayloadFromMap(paymentPayload.Payload)
@@ -347,7 +347,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected)
+		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected, paymentRequiredResponse.Resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
@@ -358,8 +358,8 @@ func TestEVMIntegrationV1(t *testing.T) {
 		}
 
 		// Verify payload structure
-		if paymentPayload.Scheme != evm.SchemeExact {
-			t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, paymentPayload.Scheme)
+		if paymentPayload.Accepted.Scheme != evm.SchemeExact {
+			t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, paymentPayload.Accepted.Scheme)
 		}
 
 		evmPayload, err := evm.PayloadFromMap(paymentPayload.Payload)
@@ -452,13 +452,21 @@ func TestEVMVersionMismatch(t *testing.T) {
 			PayTo:   "0x9876543210987654321098765432109876543210",
 		}
 
-		// Try to create V2 payload with V1 client - should fail
-		_, err := client.CreatePaymentPayload(ctx, 2, requirements)
-		if err == nil {
-			t.Error("Expected error when using V1 client with version 2")
+		// V1 client should succeed when explicitly requesting v1
+		payload, err := client.CreatePaymentPayload(ctx, 1, requirements, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create payment: %v", err)
 		}
-		// The error could be either "no schemes registered" or "v1 only supports version 1"
-		// depending on how the client handles version mismatches
+		// Verify it created a V1 payload
+		if payload.X402Version != 1 {
+			t.Errorf("Expected V1 payload from V1 client, got v%d", payload.X402Version)
+		}
+
+		// V1 client should fail when explicitly requesting v2
+		_, err = client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
+		if err == nil {
+			t.Error("Expected error when V1 client is asked to create v2 payload")
+		}
 	})
 
 	t.Run("V2 Client with V1 Requirements Should Fail", func(t *testing.T) {
@@ -479,13 +487,21 @@ func TestEVMVersionMismatch(t *testing.T) {
 			PayTo:   "0x9876543210987654321098765432109876543210",
 		}
 
-		// Try to create V1 payload with V2 client - should fail
-		_, err := client.CreatePaymentPayload(ctx, 1, requirements)
-		if err == nil {
-			t.Error("Expected error when using V2 client with version 1")
+		// V2 client should succeed when explicitly requesting v2
+		payload, err := client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
+		if err != nil {
+			t.Fatalf("Failed to create payment: %v", err)
 		}
-		// The error could be either "no schemes registered" or "v2 only supports version 2"
-		// depending on how the client handles version mismatches
+		// Verify it created a V2 payload
+		if payload.X402Version != 2 {
+			t.Errorf("Expected V2 payload from V2 client, got v%d", payload.X402Version)
+		}
+
+		// V2 client should fail when explicitly requesting v1
+		_, err = client.CreatePaymentPayload(ctx, 1, requirements, nil, nil)
+		if err == nil {
+			t.Error("Expected error when V2 client is asked to create v1 payload")
+		}
 	})
 }
 
@@ -521,8 +537,13 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			},
 		}
 
-		// Create V1 payload - should succeed
-		paymentPayload, err := client.CreatePaymentPayload(ctx, 1, requirements)
+		// Create V1 payload via PaymentRequired (version specified in request)
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 1,
+			Accepts:     []x402.PaymentRequirements{requirements},
+		}
+
+		paymentPayload, err := client.CreatePaymentForRequired(ctx, paymentRequired)
 		if err != nil {
 			t.Fatalf("Failed to create V1 payment payload with dual-registered client: %v", err)
 		}
@@ -554,9 +575,9 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			t.Error("Expected validBefore to be set for V1")
 		}
 
-		// V1 doesn't set Accepted field
-		if paymentPayload.Accepted.Scheme != "" {
-			t.Error("V1 payload should not have Accepted field populated")
+		// V1 also sets Accepted field (contains the requirements that were accepted)
+		if paymentPayload.Accepted.Scheme != evm.SchemeExact {
+			t.Errorf("Expected Accepted.Scheme to be set for V1, got %s", paymentPayload.Accepted.Scheme)
 		}
 	})
 
@@ -588,8 +609,13 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			},
 		}
 
-		// Create V2 payload - should succeed
-		paymentPayload, err := client.CreatePaymentPayload(ctx, 2, requirements)
+		// Create V2 payload via PaymentRequired (version specified in request)
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Accepts:     []x402.PaymentRequirements{requirements},
+		}
+
+		paymentPayload, err := client.CreatePaymentForRequired(ctx, paymentRequired)
 		if err != nil {
 			t.Fatalf("Failed to create V2 payment payload with dual-registered client: %v", err)
 		}

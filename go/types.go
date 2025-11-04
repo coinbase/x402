@@ -66,13 +66,19 @@ type PaymentRequirements struct {
 	Extra             map[string]interface{} `json:"extra,omitempty"`
 }
 
+// PartialPaymentPayload contains the minimal payment data from mechanism clients
+// This is what SchemeNetworkClient.CreatePaymentPayload returns
+type PartialPaymentPayload struct {
+	X402Version int                    `json:"x402Version"`
+	Payload     map[string]interface{} `json:"payload"`
+}
+
 // PaymentPayload contains the signed payment authorization from a client
 type PaymentPayload struct {
 	X402Version int                    `json:"x402Version"`
-	Scheme      string                 `json:"scheme"`
-	Network     Network                `json:"network"`
 	Payload     map[string]interface{} `json:"payload"`
 	Accepted    PaymentRequirements    `json:"accepted"`
+	Resource    *ResourceInfo          `json:"resource,omitempty"`
 	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 

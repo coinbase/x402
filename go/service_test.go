@@ -366,19 +366,18 @@ func TestServiceVerifyPayment(t *testing.T) {
 	service := Newx402ResourceService(WithFacilitatorClient(mockClient))
 	service.Initialize(ctx)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := service.VerifyPayment(ctx, payload, requirements)
@@ -409,19 +408,18 @@ func TestServiceSettlePayment(t *testing.T) {
 	service := Newx402ResourceService(WithFacilitatorClient(mockClient))
 	service.Initialize(ctx)
 
-	payload := PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := service.SettlePayment(ctx, payload, requirements)
@@ -479,8 +477,10 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 	// Test v1 matching (by scheme/network)
 	payloadV1 := PaymentPayload{
 		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "eip155:1",
+		Accepted: PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:1",
+		},
 	}
 
 	matched = service.FindMatchingRequirements(available, payloadV1)
@@ -551,8 +551,6 @@ func TestServiceProcessPaymentRequest(t *testing.T) {
 
 	payload := &PaymentPayload{
 		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
 		Payload:     map[string]interface{}{},
 		Accepted:    builtReqs[0], // Use the actual built requirements
 	}

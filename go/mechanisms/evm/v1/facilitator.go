@@ -43,7 +43,7 @@ func (f *ExactEvmFacilitatorV1) Verify(
 	}
 
 	// Validate scheme
-	if payload.Scheme != evm.SchemeExact || requirements.Scheme != evm.SchemeExact {
+	if payload.Accepted.Scheme != evm.SchemeExact || requirements.Scheme != evm.SchemeExact {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: "unsupported_scheme",
@@ -51,7 +51,7 @@ func (f *ExactEvmFacilitatorV1) Verify(
 	}
 
 	// Validate network
-	if payload.Network != requirements.Network {
+	if payload.Accepted.Network != requirements.Network {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: "network_mismatch",
@@ -226,7 +226,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: verifyResp.InvalidReason,
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, nil
 	}
 
@@ -236,7 +236,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: fmt.Sprintf("invalid payload: %v", err),
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, nil
 	}
 
@@ -253,7 +253,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: "invalid signature format",
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, nil
 	}
 
@@ -261,7 +261,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: "invalid signature length",
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 		}, nil
 	}
 
@@ -294,7 +294,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 		return x402.SettleResponse{
 			Success:     false,
 			ErrorReason: fmt.Sprintf("transaction_failed: %v", err),
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 			Payer:       evmPayload.Authorization.From,
 		}, nil
 	}
@@ -306,7 +306,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 			Success:     false,
 			ErrorReason: fmt.Sprintf("failed to get receipt: %v", err),
 			Transaction: txHash,
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 			Payer:       evmPayload.Authorization.From,
 		}, nil
 	}
@@ -316,7 +316,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 			Success:     false,
 			ErrorReason: "invalid_transaction_state",
 			Transaction: txHash,
-			Network:     payload.Network,
+			Network:     payload.Accepted.Network,
 			Payer:       evmPayload.Authorization.From,
 		}, nil
 	}
@@ -324,7 +324,7 @@ func (f *ExactEvmFacilitatorV1) Settle(
 	return x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,
-		Network:     payload.Network,
+		Network:     payload.Accepted.Network,
 		Payer:       evmPayload.Authorization.From,
 	}, nil
 }

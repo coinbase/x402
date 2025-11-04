@@ -102,15 +102,6 @@ func TestV1ClientCreatePaymentPayload(t *testing.T) {
 	if payload.X402Version != 1 {
 		t.Errorf("Expected X402Version 1, got %d", payload.X402Version)
 	}
-
-	// Try with version 2 - should fail
-	_, err = client.CreatePaymentPayload(context.Background(), 2, requirements)
-	if err == nil {
-		t.Error("Expected error when using version 2 with V1 client")
-	}
-	if err.Error() != "v1 only supports x402 version 1, got 2" {
-		t.Errorf("Unexpected error message: %v", err)
-	}
 }
 
 func TestV1FacilitatorVerify(t *testing.T) {
@@ -131,8 +122,7 @@ func TestV1FacilitatorVerify(t *testing.T) {
 	// Create a v1 payload
 	payload := x402.PaymentPayload{
 		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base",
+		Accepted:    requirements,
 		Payload: map[string]interface{}{
 			"signature": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", // 65 bytes hex encoded
 			"authorization": map[string]interface{}{

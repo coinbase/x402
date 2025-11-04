@@ -75,19 +75,18 @@ func TestHTTPFacilitatorClientVerify(t *testing.T) {
 		URL: server.URL,
 	})
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{"sig": "test"},
-	}
-
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{"sig": "test"},
 	}
 
 	response, err := client.Verify(ctx, payload, requirements)
@@ -129,19 +128,18 @@ func TestHTTPFacilitatorClientSettle(t *testing.T) {
 		URL: server.URL,
 	})
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := client.Settle(ctx, payload, requirements)
@@ -238,19 +236,18 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 	})
 
 	// Test all endpoints with auth
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	// Verify
@@ -286,19 +283,18 @@ func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 		URL: server.URL,
 	})
 
-	payload := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
 	}
 
 	// Test Verify error
@@ -374,7 +370,7 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	client1 := &mockMultiFacilitatorClient{
 		id: "client1",
 		verifyFunc: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.VerifyResponse, error) {
-			if p.Scheme == "exact" {
+			if p.Accepted.Scheme == "exact" {
 				return x402.VerifyResponse{IsValid: true, Payer: "client1"}, nil
 			}
 			return x402.VerifyResponse{}, &x402.PaymentError{Message: "unsupported"}
@@ -392,7 +388,7 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	client2 := &mockMultiFacilitatorClient{
 		id: "client2",
 		verifyFunc: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.VerifyResponse, error) {
-			if p.Scheme == "transfer" {
+			if p.Accepted.Scheme == "transfer" {
 				return x402.VerifyResponse{IsValid: true, Payer: "client2"}, nil
 			}
 			return x402.VerifyResponse{}, &x402.PaymentError{Message: "unsupported"}
@@ -410,19 +406,18 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	multiClient := NewMultiFacilitatorClient(client1, client2)
 
 	// Test Verify - should use client1 for "exact"
-	payload1 := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements1 := x402.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload1 := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements1,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err := multiClient.Verify(ctx, payload1, requirements1)
@@ -434,19 +429,18 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	}
 
 	// Test Verify - should use client2 for "transfer"
-	payload2 := x402.PaymentPayload{
-		X402Version: 2,
-		Scheme:      "transfer",
-		Network:     "eip155:8453",
-		Payload:     map[string]interface{}{},
-	}
-
 	requirements2 := x402.PaymentRequirements{
 		Scheme:  "transfer",
 		Network: "eip155:8453",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+	}
+
+	payload2 := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements2,
+		Payload:     map[string]interface{}{},
 	}
 
 	response, err = multiClient.Verify(ctx, payload2, requirements2)

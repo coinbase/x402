@@ -198,14 +198,10 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		ctx = context.Background()
 	}
 
-	payload, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selected)
+	payload, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selected, paymentRequired.Resource, paymentRequired.Extensions)
 	if err != nil {
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("failed to create payment: %w", err)
-	}
-
-	if paymentRequired.Extensions != nil {
-		payload.Extensions = paymentRequired.Extensions
 	}
 
 	// Create new request with payment header

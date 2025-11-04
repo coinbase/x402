@@ -19,6 +19,7 @@ import {
   VerifyResponse,
   SettleResponse,
   SupportedResponse,
+  PaymentRequirementsV1,
 } from "@x402/core/types";
 import { ExactEvmFacilitator, toFacilitatorEvmSigner } from "@x402/evm";
 import { createWalletClient, http, publicActions } from "viem";
@@ -145,7 +146,7 @@ app.use(express.json());
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body;
+    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -154,8 +155,8 @@ app.post("/verify", async (req, res) => {
     }
 
     const response: VerifyResponse = await facilitator.verify(
-      paymentPayload as PaymentPayload,
-      paymentRequirements as PaymentRequirements,
+      paymentPayload,
+      paymentRequirements,
     );
 
     // Track verified payment for settle validation
@@ -172,11 +173,7 @@ app.post("/verify", async (req, res) => {
       );
 
       if (discoveryInfo) {
-        // Try to get resource URL from various sources
-        const resourceUrl =
-          paymentRequirements.extra?.resourceUrl ||
-          (paymentRequirements as any).resource || // v1 has resource field
-          `http://unknown${discoveryInfo.input.method === 'GET' ? '/get' : '/post'}`;
+        const resourceUrl = paymentPayload.resource?.url ?? (paymentRequirements as unknown as PaymentRequirementsV1).resource;
 
         console.log(`📝 Discovered resource: ${resourceUrl}`);
         console.log(`   Method: ${discoveryInfo.input.method}`);

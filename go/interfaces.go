@@ -7,10 +7,11 @@ import "context"
 type SchemeNetworkClient interface {
 	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
-	
+
 	// CreatePaymentPayload creates a signed payment for the given requirements
-	// This is where wallet/signer interaction happens
-	CreatePaymentPayload(ctx context.Context, version int, requirements PaymentRequirements) (PaymentPayload, error)
+	// Returns only the minimal payload (x402Version and payload fields)
+	// The x402Client will add accepted, resource, and extensions for v2+
+	CreatePaymentPayload(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error)
 }
 
 // SchemeNetworkFacilitator is implemented by facilitator-side payment mechanisms
@@ -18,10 +19,10 @@ type SchemeNetworkClient interface {
 type SchemeNetworkFacilitator interface {
 	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
-	
+
 	// Verify checks if a payment is valid without executing it
 	Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error)
-	
+
 	// Settle executes the payment on-chain
 	Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error)
 }
@@ -31,10 +32,10 @@ type SchemeNetworkFacilitator interface {
 type SchemeNetworkService interface {
 	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
-	
+
 	// ParsePrice converts a user-friendly price to asset/amount format
 	ParsePrice(price Price, network Network) (AssetAmount, error)
-	
+
 	// EnhancePaymentRequirements adds scheme-specific details to requirements
 	EnhancePaymentRequirements(
 		ctx context.Context,
@@ -48,10 +49,10 @@ type SchemeNetworkService interface {
 type FacilitatorClient interface {
 	// Verify a payment against requirements
 	Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error)
-	
+
 	// Settle a payment
 	Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error)
-	
+
 	// Get supported payment kinds
 	GetSupported(ctx context.Context) (SupportedResponse, error)
 }
