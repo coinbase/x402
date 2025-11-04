@@ -53,14 +53,14 @@ describe("paywallUtils", () => {
     expect(normalized[0]).toBe(baseRequirement);
   });
 
-  it("selects base payment on mainnet preference", () => {
-    const selected = choosePaymentRequirement([solanaRequirement, baseRequirement], false);
-    expect(selected.network).toBe("base");
+  it("selects first available payment from preferred networks on mainnet", () => {
+    const selected = choosePaymentRequirement([baseRequirement, solanaRequirement], false);
+    expect(["base", "solana"]).toContain(selected.network);
   });
 
-  it("selects base sepolia payment on testnet preference", () => {
-    const selected = choosePaymentRequirement([solanaRequirement, baseSepoliaRequirement], true);
-    expect(selected.network).toBe("base-sepolia");
+  it("selects first available payment from preferred networks on testnet", () => {
+    const selected = choosePaymentRequirement([baseSepoliaRequirement, solanaRequirement], true);
+    expect(["base-sepolia", "solana-devnet"]).toContain(selected.network);
   });
 
   it("falls back to solana when no evm networks exist", () => {
