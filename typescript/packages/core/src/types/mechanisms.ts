@@ -8,8 +8,8 @@ export interface SchemeNetworkClient {
 
   createPaymentPayload(
     x402Version: number,
-    requirements: PaymentRequirements,
-  ): Promise<PaymentPayload>;
+    paymentRequirements: PaymentRequirements,
+  ): Promise<Pick<PaymentPayload, "x402Version" | "payload">>;
 }
 
 export interface SchemeNetworkFacilitator {

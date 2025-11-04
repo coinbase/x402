@@ -133,7 +133,7 @@ export function extractDiscoveryInfo(
   }
 
   // Try v1 format - discovery info is in PaymentRequirements.outputSchema
-  if (paymentPayload.x402Version === 1 || paymentPayload.x402Version === 2) {
+  if (paymentPayload.x402Version === 1) {
     // Cast to v1 format and try to extract
     const requirementsV1 = paymentRequirements as PaymentRequirementsV1;
     const infoV1 = extractDiscoveryInfoV1(requirementsV1);

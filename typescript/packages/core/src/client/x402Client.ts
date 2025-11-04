@@ -1,7 +1,7 @@
 import { x402Version } from "..";
 import { SchemeNetworkClient } from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
-import { Network } from "../types";
+import { Network, PaymentRequired } from "../types";
 import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
@@ -45,13 +45,53 @@ export class x402Client {
   }
 
   /**
+   * Creates a payment payload based on a PaymentRequired response.
+   *
+   * Automatically extracts x402Version, resource, and extensions from the PaymentRequired
+   * response and constructs a complete PaymentPayload with the accepted requirements.
+   *
+   * @param paymentRequired - The PaymentRequired response from the server
+   * @returns Promise resolving to the complete payment payload
+   */
+  async createPaymentPayload(
+    paymentRequired: PaymentRequired,
+  ): Promise<PaymentPayload> {
+    const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
+    if (!clientSchemesByNetwork) {
+      throw new Error(`No client registered for x402 version: ${x402Version}`);
+    }
+
+    const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);
+
+    const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
+    if (schemeNetworkClient) {
+      const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
+
+      if (partialPayload.x402Version == 1) {
+        return partialPayload as PaymentPayload;
+      }
+
+      return {
+        ...partialPayload,
+        extensions: paymentRequired.extensions,
+        resource: paymentRequired.resource,
+        accepted: requirements,
+      }
+    }
+
+    throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
+  }
+
+
+
+  /**
    * Selects appropriate payment requirements based on registered clients.
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - Array of available payment requirements
    * @returns The selected payment requirements
    */
-  selectPaymentRequirements(x402Version: number, paymentRequirements: PaymentRequirements[]): PaymentRequirements {
+  private selectPaymentRequirements(x402Version: number, paymentRequirements: PaymentRequirements[]): PaymentRequirements {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
       throw new Error(`No client registered for x402 version: ${x402Version}`);
@@ -77,39 +117,6 @@ export class x402Client {
     }
 
     return this.paymentRequirementsSelector(x402Version, supportedPaymentRequirements);
-  }
-
-  /**
-   * Creates a payment payload based on the requirements.
-   *
-   * @param x402Version - The x402 protocol version
-   * @param requirements - The payment requirements
-   * @param extensions - Optional extensions to include in the payload (from PaymentRequired)
-   * @returns Promise resolving to the payment payload
-   */
-  async createPaymentPayload(
-    x402Version: number,
-    requirements: PaymentRequirements,
-    extensions?: Record<string, unknown>
-  ): Promise<PaymentPayload> {
-    const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
-    if (!clientSchemesByNetwork) {
-      throw new Error(`No client registered for x402 version: ${x402Version}`);
-    }
-
-    const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
-    if (schemeNetworkClient) {
-      const payload = await schemeNetworkClient.createPaymentPayload(x402Version, requirements);
-
-      // Copy extensions from PaymentRequired into PaymentPayload
-      if (extensions && Object.keys(extensions).length > 0) {
-        payload.extensions = extensions;
-      }
-
-      return payload;
-    }
-
-    throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
   }
 
   /**

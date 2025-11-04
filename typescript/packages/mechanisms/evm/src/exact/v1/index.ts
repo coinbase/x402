@@ -1,5 +1,7 @@
 import {
+  Network,
   PaymentPayload,
+  PaymentPayloadV1,
   PaymentRequirements,
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
@@ -29,29 +31,31 @@ export class ExactEvmClientV1 implements SchemeNetworkClient {
   /**
    * Creates a payment payload for the Exact scheme (V1).
    *
-   * @param _ - The x402 version (unused)
-   * @param requirements - The payment requirements
+   * @param x402Version - The x402 protocol version
+   * @param paymentRequirements - The payment requirements
    * @returns Promise resolving to a payment payload
    */
   async createPaymentPayload(
-    _: number,
-    requirements: PaymentRequirements,
-  ): Promise<PaymentPayload> {
-    const requirementsV1 = requirements as unknown as PaymentRequirementsV1;
+    x402Version: number,
+    paymentRequirements: PaymentRequirements,
+  ): Promise<
+    Pick<PaymentPayload, "x402Version" | "payload"> & { scheme: string; network: Network }
+  > {
+    const selectedV1 = paymentRequirements as unknown as PaymentRequirementsV1;
     const nonce = createNonce();
     const now = Math.floor(Date.now() / 1000);
 
     const authorization: ExactEvmPayloadV1["authorization"] = {
       from: this.signer.address,
-      to: getAddress(requirements.payTo),
-      value: requirementsV1.maxAmountRequired,
+      to: getAddress(selectedV1.payTo),
+      value: selectedV1.maxAmountRequired,
       validAfter: (now - 600).toString(), // 10 minutes before
-      validBefore: (now + requirements.maxTimeoutSeconds).toString(),
+      validBefore: (now + selectedV1.maxTimeoutSeconds).toString(),
       nonce,
     };
 
     // Sign the authorization
-    const signature = await this.signAuthorization(authorization, requirementsV1);
+    const signature = await this.signAuthorization(authorization, selectedV1);
 
     const payload: ExactEvmPayloadV1 = {
       authorization,
@@ -59,11 +63,11 @@ export class ExactEvmClientV1 implements SchemeNetworkClient {
     };
 
     return {
-      x402Version: 1,
-      scheme: requirements.scheme,
-      network: requirements.network,
+      x402Version,
+      scheme: selectedV1.scheme,
+      network: selectedV1.network,
       payload,
-    } as unknown as PaymentPayload;
+    };
   }
 
   /**
@@ -137,10 +141,11 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
     const requirementsV1 = requirements as unknown as PaymentRequirementsV1;
+    const payloadV1 = payload as unknown as PaymentPayloadV1;
     const exactEvmPayload = payload.payload as ExactEvmPayloadV1;
 
     // Verify scheme matches
-    if (payload.scheme !== "exact" || requirements.scheme !== "exact") {
+    if (payloadV1.scheme !== "exact" || requirements.scheme !== "exact") {
       return {
         isValid: false,
         invalidReason: "unsupported_scheme",
@@ -149,7 +154,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     }
 
     // Get chain configuration
-    const chainId = getEvmChainId(payload.network);
+    const chainId = getEvmChainId(payloadV1.network);
 
     if (!requirements.extra?.name || !requirements.extra?.version) {
       return {
@@ -163,7 +168,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     const erc20Address = getAddress(requirements.asset);
 
     // Verify network matches
-    if (payload.network !== requirements.network) {
+    if (payloadV1.network !== requirements.network) {
       return {
         isValid: false,
         invalidReason: "network_mismatch",
@@ -289,6 +294,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<SettleResponse> {
+    const payloadV1 = payload as unknown as PaymentPayloadV1;
     const exactEvmPayload = payload.payload as ExactEvmPayloadV1;
 
     // Re-verify before settling
@@ -296,7 +302,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
     if (!valid.isValid) {
       return {
         success: false,
-        network: payload.network,
+        network: payloadV1.network,
         transaction: "",
         errorReason: valid.invalidReason ?? "invalid_scheme",
         payer: exactEvmPayload.authorization.from,
@@ -331,7 +337,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
           success: false,
           errorReason: "invalid_transaction_state",
           transaction: tx,
-          network: payload.network,
+          network: payloadV1.network,
           payer: exactEvmPayload.authorization.from,
         };
       }
@@ -339,7 +345,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
       return {
         success: true,
         transaction: tx,
-        network: payload.network,
+        network: payloadV1.network,
         payer: exactEvmPayload.authorization.from,
       };
     } catch (error) {
@@ -348,7 +354,7 @@ export class ExactEvmFacilitatorV1 implements SchemeNetworkFacilitator {
         success: false,
         errorReason: "transaction_failed",
         transaction: "",
-        network: payload.network,
+        network: payloadV1.network,
         payer: exactEvmPayload.authorization.from,
       };
     }

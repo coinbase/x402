@@ -129,20 +129,10 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: Fet
       );
     }
 
-    // Select payment requirements using the client's logic
-    const selectedPaymentRequirements = client.selectPaymentRequirements(
-      paymentRequired.x402Version,
-      paymentRequired.accepts,
-    );
-
     // Create payment payload (copy extensions from PaymentRequired)
     let paymentPayload;
     try {
-      paymentPayload = await client.createPaymentPayload(
-        paymentRequired.x402Version,
-        selectedPaymentRequirements,
-        paymentRequired.extensions,
-      );
+      paymentPayload = await client.createPaymentPayload(paymentRequired);
     } catch (error) {
       throw new Error(
         `Failed to create payment payload: ${error instanceof Error ? error.message : "Unknown error"}`,

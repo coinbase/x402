@@ -43,17 +43,10 @@ describe("Core Integration Tests", () => {
         description: "Company Co. resource",
         mimeType: "application/json",
       };
-      const paymentRequiredResponse = server.createPaymentRequiredResponse(accepts, resource);
+      const paymentRequired = server.createPaymentRequiredResponse(accepts, resource);
 
       // Client - responds with PaymentPayload response
-      const selected = client.selectPaymentRequirements(
-        paymentRequiredResponse.x402Version,
-        accepts,
-      );
-      const paymentPayload = await client.createPaymentPayload(
-        paymentRequiredResponse.x402Version,
-        selected,
-      );
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
 
       // Server - maps payment payload to payment requirements
       const accepted = server.findMatchingRequirements(accepts, paymentPayload);
@@ -145,14 +138,7 @@ describe("Core Integration Tests", () => {
         initial402Response.headers,
         initial402Response.body,
       );
-      const selected = client.selectPaymentRequirements(
-        paymentRequired.x402Version,
-        paymentRequired.accepts,
-      );
-      const paymentPayload = await client.createPaymentPayload(
-        paymentRequired.x402Version,
-        selected,
-      );
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
       const requestHeaders = await client.encodePaymentSignatureHeader(paymentPayload);
 
       // Middleware handles PAYMENT-SIGNATURE request

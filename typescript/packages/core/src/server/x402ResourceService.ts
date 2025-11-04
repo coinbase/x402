@@ -401,7 +401,9 @@ export class x402ResourceService {
       case 1:
         // For v1, match by scheme and network
         return availableRequirements.find(
-          req => req.scheme === paymentPayload.scheme && req.network === paymentPayload.network,
+          req =>
+            req.scheme === paymentPayload.accepted.scheme &&
+            req.network === paymentPayload.accepted.network,
         );
       default:
         throw new Error(

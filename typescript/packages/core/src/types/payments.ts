@@ -1,5 +1,11 @@
 import { Network } from "./";
 
+export interface ResourceInfo {
+  url: string;
+  description: string;
+  mimeType: string;
+}
+
 export type PaymentRequirements = {
   scheme: string;
   network: Network;
@@ -13,20 +19,15 @@ export type PaymentRequirements = {
 export type PaymentRequired = {
   x402Version: number;
   error?: string;
-  resource: {
-    url: string;
-    description: string;
-    mimeType: string;
-  };
+  resource: ResourceInfo;
   accepts: PaymentRequirements[];
   extensions?: Record<string, unknown>;
 };
 
 export type PaymentPayload = {
   x402Version: number;
-  scheme: string;
-  network: Network;
-  payload: Record<string, unknown>;
+  resource: ResourceInfo;
   accepted: PaymentRequirements;
+  payload: Record<string, unknown>;
   extensions?: Record<string, unknown>;
 };
