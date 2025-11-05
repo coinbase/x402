@@ -15,7 +15,7 @@ Example:
 ```json
 {
   "scheme": "exact",
-  "network": "icp-ogkpr-lyaaa-aaaap-an5fq-cai",
+  "network": "icp",
   "maxAmountRequired": "100000000",
   "asset": "druyg-tyaaa-aaaaq-aactq-cai",
   "payTo": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
@@ -25,7 +25,7 @@ Example:
 }
 ```
 
-The `network` field specifies the canister ID of the facilitator on ICP, constructed in `icp-CANISTER_ID`.
+The `network` should be `icp`, since there is no testnet for ICP.
 
 ## `X-Payment` header payload
 
@@ -56,7 +56,7 @@ Full `X-PAYMENT` header:
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "icp-ogkpr-lyaaa-aaaap-an5fq-cai",
+  "network": "icp",
   "payload": {
     "signature": "o2Fk92FwWCwwKjAFBgMrZXADIQBLRapCR7X0Q5-C7bXiAmeYjX2E5q_g7k3uIaI3hBlvPGFzWEAPj4lw96yz4NBuPgluhZs2Squup9SZU7IOk8P1vzQ2Ox1WeKxBt88CJHCzU38NzpeXH3JhII_dEP1aQ0IN8j8K",
     "authorization": {
