@@ -1,6 +1,6 @@
 {
   "name": "OpenX402.ai Facilitator",
-  "description": "The first open x402 facilitator that any x402 server can use without keys or KYC.",
+  "description": "The first permissionless, gasless and omnichain x402 facilitator that any x402 server can use without login",
   "logoUrl": "/logos/openx402.png",
   "websiteUrl": "https://openx402.ai",
   "category": "Facilitators",
