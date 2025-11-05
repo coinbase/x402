@@ -189,7 +189,7 @@ export function paymentMiddleware(
         maxAmountRequired,
         resource: resourceUrl,
         description: description ?? "",
-        mimeType: mimeType ?? "",
+        mimeType: mimeType ?? "application/json",
         payTo: payTo,
         maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
         asset: asset.address,
