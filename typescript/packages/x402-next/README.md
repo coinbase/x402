@@ -1,11 +1,11 @@
-# x402-next
+# @b3dotfun/anyspend-x402-next
 
-Next.js middleware integration for the x402 Payment Protocol. This package allows you to easily add paywall functionality to your Next.js applications using the x402 protocol.
+AnySpend-enhanced Next.js middleware for the x402 Payment Protocol. This package extends the standard x402-next middleware with multi-token and cross-chain payment support through the AnySpend facilitator.
 
 ## Installation
 
 ```bash
-npm install x402-next
+npm install @b3dotfun/anyspend-x402-next
 ```
 
 ## Quick Start
@@ -13,7 +13,8 @@ npm install x402-next
 Create a middleware file in your Next.js project (e.g., `middleware.ts`):
 
 ```typescript
-import { paymentMiddleware, Network } from 'x402-next';
+import { paymentMiddleware } from '@b3dotfun/anyspend-x402-next';
+import { facilitator } from '@b3dotfun/anyspend-x402';
 
 export const middleware = paymentMiddleware(
   "0xYourAddress",
@@ -25,7 +26,8 @@ export const middleware = paymentMiddleware(
         description: 'Access to protected content'
       }
     },
-  }
+  },
+  facilitator  // Use AnySpend facilitator for multi-token support
 );
 
 // Configure which paths the middleware should run on
@@ -35,6 +37,17 @@ export const config = {
   ]
 };
 ```
+
+## What Makes AnySpend Different?
+
+Unlike standard x402 implementations, AnySpend x402 enables:
+
+- ✨ **Multi-token payments** - Accept payments in various ERC-20 tokens, not just USDC
+- 🌉 **Cross-chain payments** - Users pay on one network, you receive on another
+- 🔄 **Automatic conversion** - AnySpend handles token swaps and bridging seamlessly
+- 🎯 **Same developer experience** - Drop-in replacement for standard x402 middleware
+
+Users can pay with any supported token on any supported network, while you receive payments in your preferred token on your preferred network.
 
 ## Configuration
 
@@ -128,7 +141,7 @@ export default nextConfig;
 
 ```ts
 // middleware.ts
-import { paymentMiddleware } from "x402-next";
+import { paymentMiddleware } from "@b3dotfun/anyspend-x402-next";
 import { facilitator } from "@coinbase/x402";
 
 export const middleware = paymentMiddleware(
@@ -156,7 +169,7 @@ export const config = {
 {
   "dependencies": {
     "next": "canary", // TEMPORARY: Only needed until Edge runtime support is added
-    "x402-next": "^1.0.0",
+    "@b3dotfun/anyspend-x402-next": "^0.7.0",
     "@coinbase/x402": "^1.0.0"
     // other dependencies
   }
@@ -206,10 +219,10 @@ Create an API route that matches the path you configured above:
 
 ```typescript
 // app/api/x402/session-token/route.ts
-export { POST } from "x402-next";
+export { POST } from "@b3dotfun/anyspend-x402-next";
 ```
 
-That's it! The `x402-next` package provides the complete session token implementation.
+That's it! The `@b3dotfun/anyspend-x402-next` package provides the complete session token implementation.
 
 #### 3. Get CDP API Keys
 
@@ -257,7 +270,7 @@ Once set up, your x402 paywall will automatically show a "Get more USDC" button 
 3. **API route not found**
     - Ensure you've created your session token API route at the path you configured
     - Check that your API route path matches your `sessionTokenEndpoint` configuration
-    - Verify the export: `export { POST } from "x402-next";`
+    - Verify the export: `export { POST } from "@b3dotfun/anyspend-x402-next";`
     - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, create `app/api/custom/onramp/route.ts`
 
 

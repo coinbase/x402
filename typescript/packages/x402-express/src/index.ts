@@ -9,6 +9,7 @@ import {
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
+  validateTokenCompatibility,
 } from "@b3dotfun/anyspend-x402/shared";
 import { isUsdcAddress } from "@b3dotfun/anyspend-x402/shared/evm";
 import {
@@ -109,6 +110,7 @@ export function paymentMiddleware(
       customPaywallHtml,
       resource,
       discoverable,
+      signatureType,
     } = config;
 
     console.log("config", config);
@@ -127,6 +129,8 @@ export function paymentMiddleware(
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
     if (SupportedEVMNetworks.includes(network)) {
+      const tokenAddress = getAddress(asset.address);
+
       paymentRequirements.push({
         scheme: "exact",
         network,
@@ -136,7 +140,7 @@ export function paymentMiddleware(
         mimeType: mimeType ?? "",
         payTo: getAddress(payTo),
         maxTimeoutSeconds: maxTimeoutSeconds ?? 120,
-        asset: getAddress(asset.address),
+        asset: tokenAddress,
         // TODO: Rename outputSchema to requestStructure
         outputSchema: {
           input: {
@@ -147,7 +151,11 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: {
+          ...(asset as ERC20TokenAmount["asset"]).eip712,
+          // Include signatureType if specified by facilitator
+          ...(signatureType && { signatureType }),
+        },
       });
     }
 
@@ -205,6 +213,29 @@ export function paymentMiddleware(
 
     // Add source token and network information to payment requirements, only if no payment header is present
     if ((preferredToken || preferredNetwork) && !paymentHeader) {
+      // Validate token compatibility first (only if preferredToken is provided)
+      if (preferredToken && preferredNetwork) {
+        const preferredTokenValidation = await validateTokenCompatibility(
+          preferredNetwork as Network,
+          preferredToken,
+        );
+
+        if (!preferredTokenValidation.isCompatible) {
+          const errorMessage =
+            preferredTokenValidation.reason ||
+            "Preferred token does not support gasless transactions";
+          console.error(`Token compatibility check failed for preferred token: ${errorMessage}`);
+
+          res.status(400).json({
+            error: "token_not_supported",
+            message: errorMessage,
+            tokenAddress: preferredToken,
+            network: preferredNetwork,
+          });
+          return;
+        }
+      }
+
       paymentRequirements[0].srcTokenAddress = preferredToken;
       paymentRequirements[0].srcNetwork = preferredNetwork as Network;
       console.log("preferredToken", preferredToken);
@@ -253,6 +284,7 @@ export function paymentMiddleware(
           };
         };
         console.log("quote", quote);
+
         paymentRequirements[0].asset = asset.address;
         paymentRequirements[0].maxAmountRequired = maxAmountRequired.toString();
         paymentRequirements[0].srcAmountRequired = quote.data.paymentAmount.toString();

@@ -80,6 +80,7 @@
     "@wallet-standard/app": "^1.1.0",
     "@wallet-standard/base": "^1.1.0",
     "@wallet-standard/features": "^1.1.0",
+    "@b3dotfun/anyspend-x402-token-compat": "workspace:^",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
     "zod": "^3.24.2"
