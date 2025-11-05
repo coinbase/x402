@@ -3,7 +3,8 @@
   "type": "client",
   "language": "typescript",
   "protocolFamilies": [
-    "evm"
+    "evm",
+    "svm"
   ],
   "x402Versions": [
     1,
@@ -12,6 +13,7 @@
   "environment": {
     "required": [
       "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY",
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],

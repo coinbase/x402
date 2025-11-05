@@ -3,29 +3,49 @@ import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmClient } from "@x402/evm";
 import { ExactEvmClientV1 } from "@x402/evm/v1";
+import { ExactSvmClientV1 } from "@x402/svm/v1";
+import { base58 } from "@scure/base";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { ExactSvmClient } from "@x402/svm";
 
 config();
 
 const baseURL = process.env.RESOURCE_SERVER_URL as string;
 const endpointPath = process.env.ENDPOINT_PATH as string;
 const url = `${baseURL}${endpointPath}`;
-const account = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, {
   schemes: [
     {
       network: "eip155:*",
-      client: new ExactEvmClient(account),
+      client: new ExactEvmClient(evmAccount),
     },
     {
       network: "base-sepolia" as `${string}:${string}`,
       x402Version: 1,
-      client: new ExactEvmClientV1(account),
+      client: new ExactEvmClientV1(evmAccount),
     },
     {
       network: "base" as `${string}:${string}`,
       x402Version: 1,
-      client: new ExactEvmClientV1(account),
+      client: new ExactEvmClientV1(evmAccount),
+    },
+    {
+      network: "solana:*",
+      x402Version: 2,
+      client: new ExactSvmClient(svmSigner),
+    },
+    {
+      network: "solana-devnet" as `${string}:${string}`,
+      x402Version: 1,
+      client: new ExactSvmClientV1(svmSigner),
+    },
+    {
+      network: "solana" as `${string}:${string}`,
+      x402Version: 1,
+      client: new ExactSvmClientV1(svmSigner),
     },
   ],
 });

@@ -96,6 +96,8 @@ CLIENT_EVM_PRIVATE_KEY=0x...  # Private key for client wallet
 CLIENT_SVM_PRIVATE_KEY=...    # Solana private key for client
 SERVER_EVM_ADDRESS=0x...      # Server's EVM payment address
 SERVER_SVM_ADDRESS=...        # Server's Solana payment address
+FACILITATOR_EVM_PRIVATE_KEY=...  # EVM private key for facilitator
+FACILITATOR_SVM_PRIVATE_KEY=...  # Solana private key for facilitator
 
 # Optional (for real blockchain facilitator)
 EVM_RPC_URL=https://sepolia.base.org  # RPC endpoint for blockchain access (defaults to Base Sepolia)

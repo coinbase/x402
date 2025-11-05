@@ -118,19 +118,14 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       port: config.port,
       env: {
         EVM_NETWORK: evmNetwork,
-        EVM_ADDRESS: config.evmPayTo,
+        EVM_PAYEE_ADDRESS: config.evmPayTo,
         SVM_NETWORK: svmNetwork,
-        SVM_ADDRESS: config.svmPayTo,
+        SVM_PAYEE_ADDRESS: config.svmPayTo,
         PORT: config.port.toString(),
         EVM_RPC_URL: getNetwork(config.evmNetwork)?.rpcUrl || '',
 
         // Use facilitator URL if provided
         FACILITATOR_URL: config.facilitatorUrl || '',
-
-        // TODO: Include private keys for servers temporarily until we have a facilitator for e2e tests to call directly. Until then, they act as their own facilitator
-        EVM_PRIVATE_KEY: process.env.CLIENT_EVM_PRIVATE_KEY || '',
-        SVM_PRIVATE_KEY: process.env.CLIENT_SVM_PRIVATE_KEY || '',
-
       }
     };
 

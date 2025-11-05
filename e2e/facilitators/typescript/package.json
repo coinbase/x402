@@ -12,9 +12,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@scure/base": "^1.2.6",
+    "@solana/kit": "^2.1.1",
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
     "@x402/extensions": "workspace:*",
+    "@x402/svm": "workspace:*",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "viem": "^2.21.54"

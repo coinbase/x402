@@ -8,8 +8,8 @@
 /**
  * Environment variables
  * - PORT: Port to listen on
- * - EVM_ADDRESS: EVM address to receive payments
- * - SVM_ADDRESS: SVM address to receive payments
+ * - EVM_PAYEE_ADDRESS: EVM address to receive payments
+ * - SVM_PAYEE_ADDRESS: SVM address to receive payments
  * - FACILITATOR_URL: URL of the facilitator
  */
 

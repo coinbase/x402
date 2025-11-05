@@ -78,8 +78,8 @@ class FacilitatorManager {
 
     await this.facilitator.start({
       port: this.port,
-      evmPrivateKey: process.env.CLIENT_EVM_PRIVATE_KEY,
-      svmPrivateKey: process.env.CLIENT_SVM_PRIVATE_KEY,
+      evmPrivateKey: process.env.FACILITATOR_EVM_PRIVATE_KEY,
+      svmPrivateKey: process.env.FACILITATOR_SVM_PRIVATE_KEY,
       evmNetwork,
       svmNetwork,
     });
@@ -286,10 +286,12 @@ async function runTest() {
   const serverSvmAddress = process.env.SERVER_SVM_ADDRESS;
   const clientEvmPrivateKey = process.env.CLIENT_EVM_PRIVATE_KEY;
   const clientSvmPrivateKey = process.env.CLIENT_SVM_PRIVATE_KEY;
+  const facilitatorEvmPrivateKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
+  const facilitatorSvmPrivateKey = process.env.FACILITATOR_SVM_PRIVATE_KEY;
 
-  if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey) {
+  if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey || !facilitatorEvmPrivateKey || !facilitatorSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
-    errorLog('   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set');
+    errorLog('   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY, CLIENT_SVM_PRIVATE_KEY, FACILITATOR_EVM_PRIVATE_KEY, and FACILITATOR_SVM_PRIVATE_KEY must be set');
     process.exit(1);
   }
 

@@ -39,9 +39,9 @@ func main() {
 		port = "4021"
 	}
 
-	payeeAddress := os.Getenv("EVM_ADDRESS")
+	payeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if payeeAddress == "" {
-		fmt.Println("❌ EVM_ADDRESS environment variable is required")
+		fmt.Println("❌ EVM_PAYEE_ADDRESS environment variable is required")
 		os.Exit(1)
 	}
 

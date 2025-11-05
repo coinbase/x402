@@ -18,7 +18,7 @@ The server demonstrates how to integrate x402 payment protection into an Express
 2. Environment variables configured:
    ```bash
    EVM_PRIVATE_KEY=0x...  # Private key for facilitator account
-   EVM_ADDRESS=0x...      # Address to receive payments
+   EVM_PAYEE_ADDRESS=0x...      # Address to receive payments
    PORT=4021              # Optional: server port (defaults to 4021)
    ```
 

@@ -11,28 +11,32 @@
  * - Discovery resource cataloging
  */
 
-import express from "express";
+import { base58 } from "@scure/base";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
   PaymentPayload,
   PaymentRequirements,
-  VerifyResponse,
+  PaymentRequirementsV1,
   SettleResponse,
   SupportedResponse,
-  PaymentRequirementsV1,
+  VerifyResponse,
 } from "@x402/core/types";
 import { ExactEvmFacilitator, toFacilitatorEvmSigner } from "@x402/evm";
-import { createWalletClient, http, publicActions } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
-import dotenv from "dotenv";
 import { ExactEvmFacilitatorV1 } from "@x402/evm/v1";
 import {
   BAZAAR,
   extractDiscoveryInfo,
   type DiscoveryInfo,
 } from "@x402/extensions/bazaar";
+import { ExactSvmFacilitator, toFacilitatorSvmSigner } from "@x402/svm";
+import { ExactSvmFacilitatorV1 } from "@x402/svm/v1";
 import crypto from "crypto";
+import dotenv from "dotenv";
+import express from "express";
+import { createWalletClient, http, publicActions } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 
 dotenv.config();
 
@@ -45,20 +49,30 @@ if (!process.env.EVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
+if (!process.env.SVM_PRIVATE_KEY) {
+  console.error("❌ SVM_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
+
 // Initialize the EVM account from private key
-const account = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
-console.info(`Facilitator account: ${account.address}`);
+const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+console.info(`EVM Facilitator account: ${evmAccount.address}`);
+
+
+// Initialize the EVM account from private key
+const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
-  account,
+  account: evmAccount,
   chain: baseSepolia,
   transport: http(),
 }).extend(publicActions);
 
-// Initialize the x402 Facilitator with EVM support
+// Initialize the x402 Facilitator with EVM and SVM support
 
-const signer = toFacilitatorEvmSigner({
+const evmSigner = toFacilitatorEvmSigner({
   readContract: (args: {
     address: `0x${string}`;
     abi: readonly unknown[];
@@ -91,15 +105,20 @@ const signer = toFacilitatorEvmSigner({
     viemClient.waitForTransactionReceipt(args),
 });
 
+// Facilitator can now handle all Solana networks with automatic RPC creation
+const svmSigner = toFacilitatorSvmSigner(svmAccount);
+
 // Register the EVM scheme handler for v2
 const facilitator = new x402Facilitator()
   .registerScheme(
     "eip155:*",
     new ExactEvmFacilitator(
-      signer
+      evmSigner
     )
   )
-  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(signer))
+  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(evmSigner))
+  .registerScheme("solana:*" as `${string}:${string}`, new ExactSvmFacilitator(svmSigner))
+  .registerSchemeV1("solana-devnet" as `${string}:${string}`, new ExactSvmFacilitatorV1(svmSigner))
   .registerExtension(BAZAAR);
 
 /**
@@ -277,6 +296,22 @@ app.get("/supported", async (req, res) => {
           network: "base-sepolia" as `${string}:${string}`,
           extra: {},
         },
+        {
+          x402Version: 1,
+          scheme: "exact",
+          network: "solana-devnet" as `${string}:${string}`,
+          extra: {
+            feePayer: svmAccount.address,
+          },
+        },
+        {
+          x402Version: 2,
+          scheme: "exact",
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`,
+          extra: {
+            feePayer: svmAccount.address,
+          },
+        },
       ],
       extensions: [BAZAAR],
     };
@@ -357,7 +392,7 @@ app.listen(parseInt(PORT), () => {
 ╠════════════════════════════════════════════════════════╣
 ║  Server:     http://localhost:${PORT}                  ║
 ║  Network:    eip155:84532                              ║
-║  Address:    ${account.address}                        ║
+║  Address:    ${evmAccount.address}                        ║
 ║  Extensions: bazaar                                    ║
 ║                                                        ║
 ║  Endpoints:                                            ║

@@ -32,8 +32,8 @@
   "environment": {
     "required": [
       "PORT",
-      "EVM_ADDRESS",
-      "SVM_ADDRESS",
+      "EVM_PAYEE_ADDRESS",
+      "SVM_PAYEE_ADDRESS",
       "FACILITATOR_URL"
     ],
     "optional": []

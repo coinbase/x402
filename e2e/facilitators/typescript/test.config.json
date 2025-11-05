@@ -3,7 +3,8 @@
   "type": "facilitator",
   "language": "typescript",
   "protocolFamilies": [
-    "evm"
+    "evm",
+    "svm"
   ],
   "x402Versions": [
     2
@@ -14,10 +15,12 @@
   "environment": {
     "required": [
       "PORT",
-      "EVM_PRIVATE_KEY"
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
     ],
     "optional": [
-      "EVM_NETWORK"
+      "EVM_NETWORK",
+      "SVM_NETWORK"
     ]
   }
 }

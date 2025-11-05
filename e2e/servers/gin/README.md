@@ -43,7 +43,7 @@ This server demonstrates how to integrate x402 v2 payment middleware with a Gin 
 ### Environment Variables
 
 - `PORT`: Server port (default: 4021)
-- `EVM_ADDRESS`: Ethereum address to receive payments (required)
+- `EVM_PAYEE_ADDRESS`: Ethereum address to receive payments (required)
 - `FACILITATOR_URL`: URL of the facilitator service (required)
 
 ### Endpoints
@@ -89,7 +89,7 @@ Graceful shutdown endpoint for testing cleanup.
 ```bash
 # Set environment variables
 export PORT=4021
-export EVM_ADDRESS=0x1234567890123456789012345678901234567890
+export EVM_PAYEE_ADDRESS=0x1234567890123456789012345678901234567890
 export FACILITATOR_URL=http://localhost:4022
 
 # Run the server

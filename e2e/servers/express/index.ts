@@ -1,6 +1,7 @@
 import express from "express";
 import { paymentMiddleware } from "@x402/express";
 import { ExactEvmService } from "@x402/evm";
+import { ExactSvmService } from "@x402/svm";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { declareDiscoveryExtension, BAZAAR } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
@@ -15,12 +16,19 @@ dotenv.config();
  */
 
 const PORT = process.env.PORT || "4021";
-const NETWORK = "eip155:84532" as const;
-const PAYEE_ADDRESS = process.env.EVM_ADDRESS as `0x${string}`;
+const EVM_NETWORK = "eip155:84532" as const;
+const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`;
+const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
+const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
-if (!PAYEE_ADDRESS) {
-  console.error("❌ EVM_ADDRESS environment variable is required");
+if (!EVM_PAYEE_ADDRESS) {
+  console.error("❌ EVM_PAYEE_ADDRESS environment variable is required");
+  process.exit(1);
+}
+
+if (!SVM_PAYEE_ADDRESS) {
+  console.error("❌ SVM_PAYEE_ADDRESS environment variable is required");
   process.exit(1);
 }
 
@@ -48,10 +56,34 @@ app.use(
     {
       // Route-specific payment configuration
       "GET /protected": {
-        payTo: PAYEE_ADDRESS,
+        payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
         price: "$0.001",
-        network: NETWORK,
+        network: EVM_NETWORK,
+        extensions: {
+          [BAZAAR]: declareDiscoveryExtension({
+            method: "GET",
+            output: {
+              example: {
+                message: "Protected endpoint accessed successfully",
+                timestamp: "2024-01-01T00:00:00Z",
+              },
+              schema: {
+                properties: {
+                  message: { type: "string" },
+                  timestamp: { type: "string" },
+                },
+                required: ["message", "timestamp"],
+              },
+            },
+          }),
+        },
+      },
+      "GET /protected-svm": {
+        payTo: SVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        price: "$0.001",
+        network: SVM_NETWORK,
         extensions: {
           [BAZAAR]: declareDiscoveryExtension({
             method: "GET",
@@ -77,8 +109,12 @@ app.use(
     // Register the EVM server for handling exact payments
     [
       {
-        network: NETWORK,
+        network: EVM_NETWORK,
         server: new ExactEvmService(),
+      },
+      {
+        network: SVM_NETWORK,
+        server: new ExactSvmService(),
       },
     ],
     // No custom paywall configuration (uses defaults)
@@ -100,6 +136,19 @@ app.get("/protected", (req, res) => {
 });
 
 /**
+ * Protected SVM endpoint - requires payment to access
+ *
+ * This endpoint demonstrates a resource protected by x402 payment middleware for SVM.
+ * Clients must provide a valid payment signature to access this endpoint.
+ */
+app.get("/protected-svm", (req, res) => {
+  res.json({
+    message: "Protected endpoint accessed successfully",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Health check endpoint - no payment required
  *
  * Used to verify the server is running and responsive.
@@ -107,8 +156,8 @@ app.get("/protected", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    network: NETWORK,
-    payee: PAYEE_ADDRESS,
+    network: EVM_NETWORK,
+    payee: EVM_PAYEE_ADDRESS,
     version: "2.0.0",
   });
 });
@@ -134,12 +183,15 @@ app.listen(parseInt(PORT), () => {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Express E2E Test Server                 ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:${PORT}                      ║
-║  Network:    ${NETWORK}                       ║
-║  Payee:      ${PAYEE_ADDRESS}     ║
+║  Server:     http://localhost:${PORT}                  ║
+║  EVM Network:    ${EVM_NETWORK}                         ║
+║  SVM Network:    ${SVM_NETWORK}                         ║
+║  EVM Payee:      ${EVM_PAYEE_ADDRESS}                   ║
+║  SVM Payee:      ${SVM_PAYEE_ADDRESS}                   ║
 ║                                                        ║
 ║  Endpoints:                                            ║
 ║  • GET  /protected  (requires $0.001 USDC payment)    ║
+║  • GET  /protected-svm (requires $0.001 USDC payment) ║
 ║  • GET  /health     (no payment required)             ║
 ║  • POST /close      (shutdown server)                 ║
 ╚════════════════════════════════════════════════════════╝
