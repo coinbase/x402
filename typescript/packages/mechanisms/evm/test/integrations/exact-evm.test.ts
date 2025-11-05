@@ -20,7 +20,6 @@ import {
   ExactEvmClient,
   ExactEvmFacilitator,
   ExactEvmService,
-  toClientEvmSigner,
   toFacilitatorEvmSigner,
 } from "../../src";
 import type { ExactEvmPayloadV2 } from "../../src/types";
@@ -52,7 +51,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    *
    * @param facilitator - The x402 facilitator to wrap
    */
-  constructor(private readonly facilitator: x402Facilitator) { }
+  constructor(private readonly facilitator: x402Facilitator) {}
 
   /**
    * Verifies a payment payload
