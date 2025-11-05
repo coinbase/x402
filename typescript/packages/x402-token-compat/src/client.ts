@@ -31,7 +31,8 @@ export class TokenCompatClient {
   constructor(options: TokenCompatOptions = {}) {
     this.apiBaseUrl = options.apiBaseUrl ?? "https://tokens.anyspend.com";
     this.timeout = options.timeout ?? 10000;
-    this.fetchFn = options.fetch ?? fetch;
+    // Bind fetch to globalThis to avoid "Illegal invocation" errors in browser environments
+    this.fetchFn = options.fetch ?? fetch.bind(globalThis);
   }
 
   /**
