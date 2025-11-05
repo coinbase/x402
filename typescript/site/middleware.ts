@@ -1,5 +1,5 @@
 import { Address } from "viem";
-import { paymentMiddleware, Resource, Network } from "x402-next";
+import { paymentMiddleware, Resource, Network } from "@b3dotfun/anyspend-x402-next";
 import { NextRequest, NextResponse } from "next/server";
 
 const address = process.env.RESOURCE_WALLET_ADDRESS as Address;

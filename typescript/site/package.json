@@ -24,7 +24,7 @@
     "wagmi": "^2.15.6",
     "@b3dotfun/anyspend-x402": "workspace:*",
     "x402-legacy": "npm:x402@0.1.2",
-    "x402-next": "workspace:*"
+    "@b3dotfun/anyspend-x402-next": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
