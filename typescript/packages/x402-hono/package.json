@@ -59,6 +59,7 @@
     "hono": "^4.7.1",
     "viem": "^2.21.26",
     "@b3dotfun/anyspend-x402": "workspace:^",
+    "@b3dotfun/anyspend-x402-token-compat": "workspace:^",
     "zod": "^3.24.2"
   },
   "exports": {
