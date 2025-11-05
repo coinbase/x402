@@ -84,14 +84,19 @@ class x402Client:
         # Support legacy single account parameter
         if account is not None:
             # Check if it's an EVM account or SVM keypair
-            if hasattr(account, "address") and isinstance(account.address, str):
+            # EVM Account has sign_message method, SVM Keypair has pubkey attribute
+            if hasattr(account, "sign_message"):
                 # EVM Account
                 self.evm_account = account
                 self.svm_keypair = None
-            else:
-                # Assume SVM Keypair
+            elif hasattr(account, "pubkey"):
+                # SVM Keypair
                 self.evm_account = None
                 self.svm_keypair = account
+            else:
+                # Fallback: assume EVM account
+                self.evm_account = account
+                self.svm_keypair = None
         else:
             self.evm_account = evm_account
             self.svm_keypair = svm_keypair
@@ -177,7 +182,7 @@ class x402Client:
         payment_requirements: PaymentRequirements,
         x402_version: int = x402_VERSION,
     ) -> str:
-        """Create a payment header for the given requirements.
+        """Create a payment header for the given requirements (synchronous version).
 
         Args:
             payment_requirements: Selected payment requirements
@@ -189,6 +194,26 @@ class x402Client:
         # Check if this is an SVM network
         if payment_requirements.network in SUPPORTED_SVM_NETWORKS:
             return self._create_svm_payment_header(payment_requirements, x402_version)
+        else:
+            return self._create_evm_payment_header(payment_requirements, x402_version)
+
+    async def create_payment_header_async(
+        self,
+        payment_requirements: PaymentRequirements,
+        x402_version: int = x402_VERSION,
+    ) -> str:
+        """Create a payment header for the given requirements (async version).
+
+        Args:
+            payment_requirements: Selected payment requirements
+            x402_version: x402 protocol version
+
+        Returns:
+            Signed payment header
+        """
+        # Check if this is an SVM network
+        if payment_requirements.network in SUPPORTED_SVM_NETWORKS:
+            return await self._create_svm_payment_header_async(payment_requirements, x402_version)
         else:
             return self._create_evm_payment_header(payment_requirements, x402_version)
 
@@ -232,7 +257,7 @@ class x402Client:
         payment_requirements: PaymentRequirements,
         x402_version: int,
     ) -> str:
-        """Create an SVM payment header."""
+        """Create an SVM payment header (synchronous version)."""
         if not self.svm_keypair:
             raise ValueError("SVM keypair required for SVM payment")
 
@@ -253,6 +278,25 @@ class x402Client:
             return header
         finally:
             loop.close()
+
+    async def _create_svm_payment_header_async(
+        self,
+        payment_requirements: PaymentRequirements,
+        x402_version: int,
+    ) -> str:
+        """Create an SVM payment header (async version)."""
+        if not self.svm_keypair:
+            raise ValueError("SVM keypair required for SVM payment")
+
+        from x402.exact_svm import create_payment_header
+
+        # Directly await the async function
+        header = await create_payment_header(
+            self.svm_keypair,
+            x402_version,
+            payment_requirements,
+        )
+        return header
 
     def generate_nonce(self):
         # Generate a random nonce (32 bytes = 64 hex chars)
