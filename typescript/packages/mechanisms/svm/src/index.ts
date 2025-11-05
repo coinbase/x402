@@ -4,4 +4,24 @@
  * This module provides the SVM-specific implementation of the x402 payment protocol.
  */
 
-export {};
+// Export V2 implementations (default)
+export { ExactSvmClient, ExactSvmFacilitator, ExactSvmService } from "./exact";
+
+// Export signer utilities and types
+export { toClientSvmSigner, toFacilitatorSvmSigner } from "./signer";
+export type {
+  ClientSvmSigner,
+  FacilitatorSvmSigner,
+  FacilitatorRpcClient,
+  FacilitatorRpcConfig,
+  ClientSvmConfig,
+} from "./signer";
+
+// Export payload types
+export type { ExactSvmPayloadV1, ExactSvmPayloadV2 } from "./types";
+
+// Export constants
+export * from "./constants";
+
+// Export utilities
+export * from "./utils";

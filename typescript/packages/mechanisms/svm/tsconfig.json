@@ -5,5 +5,5 @@
     "allowJs": false,
     "checkJs": false
   },
-  "include": ["src"]
+  "include": ["src", "test/unit/index.test.ts"]
 }
