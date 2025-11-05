@@ -1,11 +1,11 @@
 {
-  "name": "openx402 facilitator",
+  "name": "OpenX402.ai Facilitator",
   "description": "The first open x402 facilitator that any x402 server can use without keys or KYC.",
   "logoUrl": "/logos/openx402.png",
-  "websiteUrl": "https://open.x402.host",
+  "websiteUrl": "https://openx402.ai",
   "category": "Facilitators",
   "facilitator": {
-    "baseUrl": "https://open.x402.host",
+    "baseUrl": "https://openx402.ai",
     "networks": [
       "base",
       "base-sepolia",
