@@ -217,11 +217,13 @@ export function paymentMiddleware(
       if (preferredToken && preferredNetwork) {
         const preferredTokenValidation = await validateTokenCompatibility(
           preferredNetwork as Network,
-          preferredToken
+          preferredToken,
         );
 
         if (!preferredTokenValidation.isCompatible) {
-          const errorMessage = preferredTokenValidation.reason || "Preferred token does not support gasless transactions";
+          const errorMessage =
+            preferredTokenValidation.reason ||
+            "Preferred token does not support gasless transactions";
           console.error(`Token compatibility check failed for preferred token: ${errorMessage}`);
 
           res.status(400).json({

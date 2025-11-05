@@ -24,6 +24,8 @@ let tokenCompatClient: TokenCompatClient | null = null;
 
 /**
  * Get or create the token compatibility client
+ *
+ * @returns The token compatibility client instance
  */
 function getTokenCompatClient(): TokenCompatClient {
   if (!tokenCompatClient) {
@@ -37,26 +39,29 @@ function getTokenCompatClient(): TokenCompatClient {
 
 /**
  * Map x402 network to token-compat chain name
+ *
+ * @param network - The x402 network identifier
+ * @returns The corresponding chain name or undefined if not supported
  */
 function networkToChainName(network: Network): ChainName | undefined {
   const chainMapping: Record<string, ChainName> = {
-    "base": "base",
+    base: "base",
     "base-sepolia": "base", // Use mainnet metadata for testnet
-    "ethereum": "ethereum",
+    ethereum: "ethereum",
     "ethereum-sepolia": "ethereum",
-    "polygon": "polygon",
+    polygon: "polygon",
     "polygon-amoy": "polygon",
-    "arbitrum": "arbitrum",
+    arbitrum: "arbitrum",
     "arbitrum-sepolia": "arbitrum",
-    "optimism": "optimism",
+    optimism: "optimism",
     "optimism-sepolia": "optimism",
-    "avalanche": "avalanche",
+    avalanche: "avalanche",
     "avalanche-fuji": "avalanche",
-    "bsc": "bsc",
+    bsc: "bsc",
     "bsc-testnet": "bsc",
-    "b3": "b3",
+    b3: "b3",
     "b3-sepolia": "b3",
-    "abstract": "abstract",
+    abstract: "abstract",
     "abstract-testnet": "abstract",
   };
 
@@ -74,7 +79,7 @@ function networkToChainName(network: Network): ChainName | undefined {
  */
 export async function checkTokenCompatibility(
   network: Network,
-  tokenAddress: string
+  tokenAddress: string,
 ): Promise<{
   supportsEip2612: boolean;
   supportsEip3009: boolean;
@@ -139,7 +144,7 @@ export async function checkTokenCompatibility(
 export async function validateTokenCompatibility(
   network: Network,
   tokenAddress: string,
-  requiredType?: "authorization" | "permit"
+  requiredType?: "authorization" | "permit",
 ): Promise<{
   isCompatible: boolean;
   reason?: string;
@@ -177,9 +182,7 @@ export async function validateTokenCompatibility(
   if (requiredType === "permit") {
     return {
       isCompatible: compat.supportsEip2612,
-      reason: compat.supportsEip2612
-        ? undefined
-        : "Token does not support EIP-2612 (Permit)",
+      reason: compat.supportsEip2612 ? undefined : "Token does not support EIP-2612 (Permit)",
     };
   }
 
@@ -200,6 +203,8 @@ export function clearCompatibilityCache(): void {
 /**
  * Get cache statistics
  * Useful for monitoring and debugging
+ *
+ * @returns Object containing cache size and entry details
  */
 export function getCacheStats(): {
   size: number;
