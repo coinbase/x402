@@ -16,6 +16,8 @@ PACKAGES=(
   "packages/x402"
   "packages/x402-fetch"
   "packages/x402-express"
+  "packages/x402-next"
+  "packages/x402-hono"
   "packages/x402-token-compat"
 )
 
