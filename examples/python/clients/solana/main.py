@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Disable proxy for localhost connections
+os.environ['NO_PROXY'] = '*'
+os.environ['no_proxy'] = '*'
+
 
 async def main():
     # Load Solana keypair from environment

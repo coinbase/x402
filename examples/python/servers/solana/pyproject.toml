@@ -8,10 +8,10 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "python-dotenv>=1.0.1",
     "uvicorn>=0.32.1",
-    "x402>=0.2.1",
+    "x402",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.uv.sources]
+x402 = { path = "../../../../python/x402", editable = true }
+
 
