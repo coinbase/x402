@@ -7,7 +7,7 @@
   "facilitator": {
     "baseUrl": "https://ogkpr-lyaaa-aaaap-an5fq-cai.icp0.io",
     "networks": [
-      "icp-ogkpr-lyaaa-aaaap-an5fq-cai"
+      "icp"
     ],
     "schemes": [
       "exact"
