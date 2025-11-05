@@ -100,14 +100,26 @@ async def create_and_sign_payment(
     # Create instructions
     instructions = []
 
-    # Check if destination ATA needs to be created
+    # 1. Add compute budget instructions (required by x402 protocol)
+    from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+
+    # Set compute unit limit (200k units is reasonable for transfer + optional ATA creation)
+    compute_limit_ix = set_compute_unit_limit(200_000)
+    instructions.append(compute_limit_ix)
+
+    # Set compute unit price (1 microlamport per unit, matching TypeScript implementation)
+    # This is well below the 5_000_000 microlamport (5 lamport) max set by the server
+    compute_price_ix = set_compute_unit_price(1)  # 1 microlamport per compute unit
+    instructions.append(compute_price_ix)
+
+    # 2. Check if destination ATA needs to be created
     ata_instruction = await create_ata_instruction_if_needed(
         client, fee_payer, pay_to, mint
     )
     if ata_instruction:
         instructions.append(ata_instruction)
 
-    # Create transfer instruction
+    # 3. Create transfer instruction
     transfer_ix = create_transfer_instruction(
         source=source_ata,
         dest=dest_ata,
