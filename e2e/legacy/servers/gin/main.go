@@ -28,7 +28,7 @@ func main() {
 	if network == "" {
 		network = "base-sepolia"
 	}
-	address := os.Getenv("EVM_ADDRESS")
+	address := os.Getenv("EVM_PAYEE_ADDRESS")
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "4021"
@@ -36,7 +36,7 @@ func main() {
 	facilitatorURL := os.Getenv("FACILITATOR_URL")
 
 	if address == "" {
-		fmt.Println("Error: Missing required environment variable ADDRESS")
+		fmt.Println("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
 		os.Exit(1)
 	}
 

@@ -56,9 +56,9 @@ export class x402Client {
   async createPaymentPayload(
     paymentRequired: PaymentRequired,
   ): Promise<PaymentPayload> {
-    const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
+    const clientSchemesByNetwork = this.registeredClientSchemes.get(paymentRequired.x402Version);
     if (!clientSchemesByNetwork) {
-      throw new Error(`No client registered for x402 version: ${x402Version}`);
+      throw new Error(`No client registered for x402 version: ${paymentRequired.x402Version}`);
     }
 
     const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);

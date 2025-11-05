@@ -6,8 +6,8 @@ dotenv.config();
 
 const evmNetwork = process.env.EVM_NETWORK as Network;
 const svmNetwork = process.env.SVM_NETWORK as Network;
-const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
-const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
+const payToEvm = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
+const payToSvm = process.env.SVM_PAYEE_ADDRESS as SolanaAddress;
 const port = process.env.PORT || "4021";
 const facilitatorUrl = process.env.FACILITATOR_URL;
 

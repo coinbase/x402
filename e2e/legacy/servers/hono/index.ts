@@ -5,7 +5,7 @@ import { paymentMiddleware, Network, Resource, FacilitatorConfig } from "x402-ho
 
 config();
 
-const payTo = process.env.EVM_ADDRESS as `0x${string}`;
+const payTo = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const network = process.env.EVM_NETWORK as Network;
 const port = parseInt(process.env.PORT || '4021');
 const facilitatorUrl = process.env.FACILITATOR_URL;

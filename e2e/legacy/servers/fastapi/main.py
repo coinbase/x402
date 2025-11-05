@@ -22,7 +22,7 @@ load_dotenv()
 
 # Get configuration from environment
 NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
-ADDRESS = os.getenv("EVM_ADDRESS")
+ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
 FACILITATOR_URL = os.getenv("FACILITATOR_URL")
 

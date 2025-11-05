@@ -34,7 +34,7 @@
   ],
   "environment": {
     "required": [
-      "EVM_ADDRESS"
+      "EVM_PAYEE_ADDRESS"
     ],
     "optional": [
       "PORT",
