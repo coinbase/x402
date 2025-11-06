@@ -1,6 +1,6 @@
-# x402 Hedera Hackathon Starter
+# x402 Hedera
 
-> Build and demo paywalled experiences on Hedera testnet in minutes. Local development only – not production ready.
+> Build and demo paywalled experiences on Hedera testnet in minutes. This fork is in alpha.
 
 This repo packages everything you need to stand up the x402 payment flow on Hedera during a hackathon: a facilitator, a token-gated resource server, and a sample client that pays for access.
 
