@@ -30,7 +30,7 @@ export interface V2Transaction {
  * Signature function from wallet adapter
  */
 type SignAllTransactions = (
-  transactions: VersionedTransaction[]
+  transactions: VersionedTransaction[],
 ) => Promise<VersionedTransaction[]>;
 
 /**
@@ -44,7 +44,7 @@ type SignableTransaction = V2Transaction | VersionedTransaction;
 export interface TransactionSigner {
   address: string;
   signTransactions: (
-    transactions: SignableTransaction[]
+    transactions: SignableTransaction[],
   ) => Promise<Array<{ [address: string]: Uint8Array }>>;
 }
 
@@ -95,22 +95,20 @@ function convertToVersionedTransaction(tx: SignableTransaction): VersionedTransa
  */
 function extractSignature(
   signedTx: VersionedTransaction,
-  walletAddress: string
+  walletAddress: string,
 ): { [address: string]: Uint8Array } {
   const signerIndex = signedTx.message.staticAccountKeys.findIndex(
-    (key: PublicKey) => key.toBase58() === walletAddress
+    (key: PublicKey) => key.toBase58() === walletAddress,
   );
 
   if (signerIndex === -1) {
-    throw new Error(
-      `Wallet address ${walletAddress} not found in transaction signers`
-    );
+    throw new Error(`Wallet address ${walletAddress} not found in transaction signers`);
   }
 
   const signature = signedTx.signatures[signerIndex];
   if (!signature) {
     throw new Error(
-      `Signature not found for wallet address ${walletAddress} at index ${signerIndex}`
+      `Signature not found for wallet address ${walletAddress} at index ${signerIndex}`,
     );
   }
 
@@ -149,7 +147,7 @@ function extractSignature(
 export function createWalletAdapterSigner(
   walletAddress: string,
   signAllTransactions: SignAllTransactions,
-  onSign?: (count: number) => void
+  onSign?: (count: number) => void,
 ): TransactionSigner {
   return {
     address: walletAddress,
@@ -163,9 +161,7 @@ export function createWalletAdapterSigner(
       const signedTxs = await signAllTransactions(txsToSign);
 
       // Extract and return only the 64-byte signatures
-      return signedTxs.map((signedTx) =>
-        extractSignature(signedTx, walletAddress)
-      );
+      return signedTxs.map(signedTx => extractSignature(signedTx, walletAddress));
     },
   };
 }

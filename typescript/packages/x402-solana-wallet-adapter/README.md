@@ -17,6 +17,7 @@ yarn add @b3dotfun/anyspend-x402-solana-wallet-adapter
 ```
 
 **Peer Dependencies** (usually already installed in browser apps):
+
 ```bash
 npm install @solana/wallet-adapter-base @solana/web3.js
 ```
@@ -26,25 +27,22 @@ npm install @solana/wallet-adapter-base @solana/web3.js
 ### Basic Example
 
 ```typescript
-import { useWallet } from '@solana/wallet-adapter-react';
-import { createWalletAdapterSigner } from '@b3dotfun/anyspend-x402-solana-wallet-adapter';
-import { wrapFetchWithPayment } from '@b3dotfun/anyspend-x402-fetch';
+import { useWallet } from "@solana/wallet-adapter-react";
+import { createWalletAdapterSigner } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 
 function MyComponent() {
   const { publicKey, signAllTransactions } = useWallet();
 
   // Create a signer adapter for the connected wallet
-  const signer = createWalletAdapterSigner(
-    publicKey.toBase58(),
-    signAllTransactions
-  );
+  const signer = createWalletAdapterSigner(publicKey.toBase58(), signAllTransactions);
 
   // Wrap fetch with payment capability
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
 
   // Use fetchWithPayment for x402 payment requests
   const fetchData = async () => {
-    const response = await fetchWithPayment('https://api.example.com/premium-data');
+    const response = await fetchWithPayment("https://api.example.com/premium-data");
     const data = await response.json();
     return data;
   };
@@ -54,13 +52,11 @@ function MyComponent() {
 ### With Custom RPC and Callbacks
 
 ```typescript
-import { createWalletAdapterSigner } from '@b3dotfun/anyspend-x402-solana-wallet-adapter';
-import { wrapFetchWithPayment } from '@b3dotfun/anyspend-x402-fetch';
+import { createWalletAdapterSigner } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 
-const signer = createWalletAdapterSigner(
-  publicKey.toBase58(),
-  signAllTransactions,
-  (count) => console.log(`Signing ${count} transaction(s)...`)
+const signer = createWalletAdapterSigner(publicKey.toBase58(), signAllTransactions, count =>
+  console.log(`Signing ${count} transaction(s)...`),
 );
 
 const fetchWithPayment = wrapFetchWithPayment(
@@ -68,7 +64,7 @@ const fetchWithPayment = wrapFetchWithPayment(
   signer,
   undefined, // maxValue - let server determine
   undefined, // payment selector
-  { svmConfig: { rpcUrl: 'https://api.mainnet-beta.solana.com' } }
+  { svmConfig: { rpcUrl: "https://api.mainnet-beta.solana.com" } },
 );
 ```
 
@@ -147,19 +143,20 @@ export function PremiumContent() {
 Creates a `TransactionSigner` compatible with x402 from a wallet adapter.
 
 **Parameters:**
+
 - `walletAddress` (string): The wallet's public key as base58 string (e.g., `publicKey.toBase58()`)
 - `signAllTransactions` (function): The wallet adapter's `signAllTransactions` function
 - `onSign` (optional function): Callback invoked when signing starts, receives transaction count
 
 **Returns:**
+
 - `TransactionSigner`: Signer instance for use with `wrapFetchWithPayment`
 
 **Example:**
+
 ```typescript
-const signer = createWalletAdapterSigner(
-  publicKey.toBase58(),
-  signAllTransactions,
-  (count) => setStatus(`Signing ${count} transaction(s)...`)
+const signer = createWalletAdapterSigner(publicKey.toBase58(), signAllTransactions, count =>
+  setStatus(`Signing ${count} transaction(s)...`),
 );
 ```
 
@@ -212,8 +209,8 @@ Full TypeScript support with exported types:
 ```typescript
 import {
   createWalletAdapterSigner,
-  type TransactionSigner
-} from '@b3dotfun/anyspend-x402-solana-wallet-adapter';
+  type TransactionSigner,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
 ```
 
 ## Related Packages
