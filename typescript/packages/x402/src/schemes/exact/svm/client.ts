@@ -9,7 +9,6 @@ import {
   partiallySignTransactionMessageWithSigners,
   prependTransactionMessageInstruction,
   getBase64EncodedWireTransaction,
-  fetchEncodedAccount,
   TransactionSigner,
   Instruction,
 } from "@solana/kit";
@@ -18,7 +17,6 @@ import { X402Config } from "../../../types/config";
 import {
   fetchMint,
   findAssociatedTokenPda,
-  getCreateAssociatedTokenInstruction,
   getTransferCheckedInstruction,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
@@ -104,7 +102,7 @@ async function createTransferTransactionMessage(
   const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
 
   // create the transfer instruction
-  const transferInstructions = await createAtaAndTransferInstructions(
+  const transferInstructions = await createTransferInstructions(
     client,
     paymentRequirements,
     config,
@@ -146,9 +144,9 @@ async function createTransferTransactionMessage(
  * @param client - The signer instance used to create the transfer instruction
  * @param paymentRequirements - The payment requirements
  * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
- * @returns A promise that resolves to the create ATA (if needed) and transfer instruction
+ * @returns A promise that resolves to the transfer instruction array
  */
-async function createAtaAndTransferInstructions(
+async function createTransferInstructions(
   client: TransactionSigner,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
@@ -167,104 +165,7 @@ async function createAtaAndTransferInstructions(
     throw new Error("Asset was not created by a known token program");
   }
 
-  const instructions: Instruction[] = [];
-
-  // create the ATA (if needed)
-  const createAtaIx = await createAtaInstructionOrUndefined(
-    paymentRequirements,
-    tokenProgramAddress,
-    config,
-  );
-  if (createAtaIx) {
-    instructions.push(createAtaIx);
-  }
-
-  // create the transfer instruction
-  const transferIx = await createTransferInstruction(
-    client,
-    paymentRequirements,
-    tokenMint.data.decimals,
-    tokenProgramAddress,
-  );
-  instructions.push(transferIx);
-
-  return instructions;
-}
-
-/**
- * Returns a create ATA instruction for the payTo address if the ATA account does not exist.
- * The create ATA instruction will be paid for by the feePayer in the payment requirements.
- *
- * This function will work for both spl-token and token-2022.
- *
- * Returns undefined if the ATA account already exists.
- *
- * @param paymentRequirements - The payment requirements
- * @param tokenProgramAddress - The address of the token program
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
- * @returns A promise that resolves to the create ATA instruction or undefined if the ATA account already exists
- * @throws an error if the feePayer is not provided in the payment requirements
- */
-async function createAtaInstructionOrUndefined(
-  paymentRequirements: PaymentRequirements,
-  tokenProgramAddress: Address,
-  config?: X402Config,
-): Promise<Instruction | undefined> {
-  const { asset, payTo, extra } = paymentRequirements;
-  const feePayer = extra?.feePayer as Address;
-
-  // feePayer is required
-  if (!feePayer) {
-    throw new Error(
-      "feePayer is required in paymentRequirements.extra in order to set the " +
-        "facilitator as the fee payer for the create associated token account instruction",
-    );
-  }
-
-  // derive the ATA of the payTo address
-  const [destinationATAAddress] = await findAssociatedTokenPda({
-    mint: asset as Address,
-    owner: payTo as Address,
-    tokenProgram: tokenProgramAddress,
-  });
-
-  // check if the ATA exists
-  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
-  const maybeAccount = await fetchEncodedAccount(rpc, destinationATAAddress);
-
-  // if the ATA does not exist, return an instruction to create it
-  if (!maybeAccount.exists) {
-    return getCreateAssociatedTokenInstruction({
-      payer: paymentRequirements.extra?.feePayer as TransactionSigner<string>,
-      ata: destinationATAAddress,
-      owner: payTo as Address,
-      mint: asset as Address,
-      tokenProgram: tokenProgramAddress,
-    });
-  }
-
-  // if the ATA exists, return undefined
-  return undefined;
-}
-
-/**
- * Creates a transfer instruction for the given client and payment requirements.
- * This function will create a transfer instruction for a token created by either
- * the token program or the token-2022 program.
- *
- * @param client - The signer instance who's tokens will be debited from
- * @param paymentRequirements - The payment requirements
- * @param decimals - The decimals of the token
- * @param tokenProgramAddress - The address of the token program
- * @returns A promise that resolves to the transfer instruction
- */
-async function createTransferInstruction(
-  client: TransactionSigner,
-  paymentRequirements: PaymentRequirements,
-  decimals: number,
-  tokenProgramAddress: Address,
-): Promise<Instruction> {
-  const { asset, maxAmountRequired: amount, payTo } = paymentRequirements;
+  const { maxAmountRequired: amount, payTo } = paymentRequirements;
 
   const [sourceATA] = await findAssociatedTokenPda({
     mint: asset as Address,
@@ -278,15 +179,16 @@ async function createTransferInstruction(
     tokenProgram: tokenProgramAddress,
   });
 
-  return getTransferCheckedInstruction(
+  const transferIx = getTransferCheckedInstruction(
     {
       source: sourceATA,
       mint: asset as Address,
       destination: destinationATA,
       authority: client,
       amount: BigInt(amount),
-      decimals: decimals,
+      decimals: tokenMint.data.decimals,
     },
     { programAddress: tokenProgramAddress },
   );
+  return [transferIx];
 }
