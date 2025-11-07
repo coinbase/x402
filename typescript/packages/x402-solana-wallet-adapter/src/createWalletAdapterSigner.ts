@@ -50,6 +50,9 @@ export interface TransactionSigner {
 
 /**
  * Type guard to check if a transaction is a V2Transaction
+ *
+ * @param tx - Transaction to check
+ * @returns True if transaction is V2Transaction format
  */
 function isV2Transaction(tx: SignableTransaction): tx is V2Transaction {
   return (
