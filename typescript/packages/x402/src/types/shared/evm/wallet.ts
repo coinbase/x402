@@ -27,6 +27,7 @@ import {
   zircuit,
   story,
 } from "viem/chains";
+import { skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { eip712WalletActions } from "viem/zksync";
@@ -232,6 +233,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotexTestnet;
     case "48900":
       return zircuit;
+    case "skale-base-sepolia":
+      return skaleBaseSepolia;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
