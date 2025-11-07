@@ -15,9 +15,44 @@ import {
   walletConnect,
 } from "wagmi/connectors";
 
+// Type declarations for Binance wallet providers
+declare global {
+  interface Window {
+    BinanceChain?: any;
+    ethereum?: any;
+  }
+}
+
 export const config = createConfig({
   chains: [base, mainnet, polygon, arbitrum, optimism, avalanche, bsc],
   connectors: [
+    injected({
+      target() {
+        return {
+          id: "binance",
+          name: "Binance Wallet",
+          provider(window) {
+            return (window as any)?.BinanceChain;
+          },
+        };
+      },
+    }),
+    injected({
+      target() {
+        return {
+          id: "bnbSmartWallet",
+          name: "BNB Smart Wallet",
+          provider(window) {
+            // BNB Smart Wallet uses the ethereum provider with specific detection
+            const eth = (window as any)?.ethereum;
+            if (eth?.isBinance || eth?.isBNBSmartWallet) {
+              return eth;
+            }
+            return undefined;
+          },
+        };
+      },
+    }),
     injected(),
     metaMask(),
     coinbaseWallet({ appName: "AnySpend" }),

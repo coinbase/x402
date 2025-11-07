@@ -4,7 +4,8 @@
     "allowJs": false,
     "checkJs": false,
     "lib": ["ES2021", "DOM"],
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "jsx": "react-jsx"
   },
   "include": ["src"]
 }

@@ -13,6 +13,14 @@
  */
 
 import { VersionedTransaction, PublicKey } from "@solana/web3.js";
+import type {
+  TransactionSigner,
+  Address,
+  TransactionMessageBytes,
+  SignaturesMap,
+  BaseTransactionSignerConfig,
+  SignatureBytes,
+} from "@solana/kit";
 
 /**
  * Transaction format used by x402 library (@solana/web3.js v2)
@@ -38,15 +46,6 @@ type SignAllTransactions = (
  */
 type SignableTransaction = V2Transaction | VersionedTransaction;
 
-/**
- * TransactionSigner interface compatible with @solana/kit
- */
-export interface TransactionSigner {
-  address: string;
-  signTransactions: (
-    transactions: SignableTransaction[],
-  ) => Promise<Array<{ [address: string]: Uint8Array }>>;
-}
 
 /**
  * Type guard to check if a transaction is a V2Transaction
@@ -99,7 +98,7 @@ function convertToVersionedTransaction(tx: SignableTransaction): VersionedTransa
 function extractSignature(
   signedTx: VersionedTransaction,
   walletAddress: string,
-): { [address: string]: Uint8Array } {
+): Readonly<Record<Address, SignatureBytes>> {
   const signerIndex = signedTx.message.staticAccountKeys.findIndex(
     (key: PublicKey) => key.toBase58() === walletAddress,
   );
@@ -115,7 +114,9 @@ function extractSignature(
     );
   }
 
-  return { [walletAddress]: signature };
+  return { [walletAddress as Address]: signature as SignatureBytes } as Readonly<
+    Record<Address, SignatureBytes>
+  >;
 }
 
 /**
@@ -153,12 +154,15 @@ export function createWalletAdapterSigner(
   onSign?: (count: number) => void,
 ): TransactionSigner {
   return {
-    address: walletAddress,
-    signTransactions: async (transactions: SignableTransaction[]) => {
+    address: walletAddress as Address<string>,
+    signTransactions: async (
+      transactions: readonly Readonly<{ messageBytes: TransactionMessageBytes; signatures: SignaturesMap }>[],
+      config?: BaseTransactionSignerConfig,
+    ) => {
       onSign?.(transactions.length);
 
       // Convert v2 format to VersionedTransaction
-      const txsToSign = transactions.map(convertToVersionedTransaction);
+      const txsToSign = (transactions as unknown as SignableTransaction[]).map(convertToVersionedTransaction);
 
       // Sign with wallet adapter
       const signedTxs = await signAllTransactions(txsToSign);

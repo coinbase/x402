@@ -14,8 +14,18 @@
  * ```
  */
 
+export { createWalletAdapterSigner, type V2Transaction } from "./createWalletAdapterSigner";
+export type { TransactionSigner } from "@solana/kit";
+
+// Export React components with proper types
 export {
-  createWalletAdapterSigner,
-  type TransactionSigner,
-  type V2Transaction,
-} from "./createWalletAdapterSigner";
+  ConnectionProvider,
+  WalletProvider,
+  WalletModalProvider,
+  WalletMultiButton,
+  useWallet,
+  type ConnectionProviderProps,
+  type WalletProviderProps,
+  type WalletModalProviderProps,
+  type WalletMultiButtonProps,
+} from "./components";
