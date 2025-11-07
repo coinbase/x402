@@ -15,9 +15,55 @@ import {
   walletConnect,
 } from "wagmi/connectors";
 
+// Type declarations for Binance wallet providers
+interface BinanceChainProvider {
+  request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  removeListener?: (
+    event: string,
+    handler: (...args: unknown[]) => void,
+  ) => void;
+  isBinance?: boolean;
+  isBNBSmartWallet?: boolean;
+}
+
+interface ExtendedWindow extends Window {
+  BinanceChain?: BinanceChainProvider;
+  ethereum?: BinanceChainProvider & { [key: string]: unknown };
+}
+
 export const config = createConfig({
   chains: [base, mainnet, polygon, arbitrum, optimism, avalanche, bsc],
   connectors: [
+    injected({
+      target() {
+        return {
+          id: "binance",
+          name: "Binance Wallet",
+          provider(window) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (window as ExtendedWindow)?.BinanceChain as any;
+          },
+        };
+      },
+    }),
+    injected({
+      target() {
+        return {
+          id: "bnbSmartWallet",
+          name: "BNB Smart Wallet",
+          provider(window) {
+            // BNB Smart Wallet uses the ethereum provider with specific detection
+            const eth = (window as ExtendedWindow)?.ethereum;
+            if (eth?.isBinance || eth?.isBNBSmartWallet) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              return eth as any;
+            }
+            return undefined;
+          },
+        };
+      },
+    }),
     injected(),
     metaMask(),
     coinbaseWallet({ appName: "AnySpend" }),

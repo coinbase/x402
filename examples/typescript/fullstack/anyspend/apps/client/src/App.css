@@ -2920,3 +2920,677 @@ h1 {
     width: 25px;
   }
 }
+
+/* Network Selector Styles */
+.network-selector-modal {
+  max-width: 800px;
+  width: 90%;
+}
+
+.network-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.network-selection-card {
+  background: var(--bg-card);
+  border: 2px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-md);
+}
+
+.network-selection-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.network-selection-card:active {
+  transform: translateY(-2px);
+}
+
+.network-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  animation: fadeIn 0.6s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 80px;
+}
+
+.network-icon img {
+  transition: transform 0.3s ease;
+}
+
+.network-selection-card:hover .network-icon img {
+  transform: scale(1.1);
+}
+
+.network-selection-card h3 {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+}
+
+.network-description {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+  min-height: 60px;
+}
+
+.network-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.feature-tag {
+  background: var(--gradient-primary);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 768px) {
+  .network-selection-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .network-selector-modal {
+    width: 95%;
+  }
+
+  .network-selection-card {
+    padding: 1.5rem;
+  }
+
+  .network-icon {
+    font-size: 3rem;
+    min-height: 60px;
+  }
+
+  .network-icon img {
+    width: 60px !important;
+    height: 60px !important;
+  }
+}
+
+/* Solana Purple Theme */
+.theme-solana {
+  /* Purple glassmorphism backgrounds - more subtle and refined */
+  --bg-primary: rgba(255, 255, 255, 0.5);
+  --bg-secondary: rgba(255, 255, 255, 0.65);
+  --bg-tertiary: rgba(255, 255, 255, 0.55);
+  --bg-card: rgba(255, 255, 255, 0.65);
+  --bg-hover: rgba(255, 255, 255, 0.8);
+
+  --accent-primary: #9945ff;
+  --accent-primary-hover: #7d2de8;
+  --accent-success: #14f195;
+  --accent-warning: #f59e0b;
+  --accent-error: #ef4444;
+
+  --border-primary: rgba(153, 69, 255, 0.15);
+  --border-secondary: rgba(153, 69, 255, 0.25);
+
+  --gradient-primary: linear-gradient(135deg, #9945ff 0%, #7d2de8 100%);
+  --gradient-success: linear-gradient(135deg, #14f195 0%, #00d18c 100%);
+  --gradient-blue: linear-gradient(135deg, #9945ff 0%, #7d2de8 100%);
+
+  /* Purple glow shadows */
+  --shadow-sm: 0 2px 8px rgba(153, 69, 255, 0.1), 0 1px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md:
+    0 8px 16px rgba(153, 69, 255, 0.12), 0 4px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg:
+    0 16px 32px rgba(153, 69, 255, 0.15), 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-glow:
+    0 0 40px rgba(153, 69, 255, 0.3), 0 0 80px rgba(125, 45, 232, 0.15);
+}
+
+/* Solana background - override body background */
+body:has(.theme-solana) {
+  background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 50%, #ede9fe 100%);
+  background-image:
+    radial-gradient(at 20% 30%, rgba(153, 69, 255, 0.15) 0, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(125, 45, 232, 0.12) 0, transparent 50%),
+    radial-gradient(at 40% 70%, rgba(168, 85, 247, 0.15) 0, transparent 50%),
+    radial-gradient(at 90% 80%, rgba(147, 51, 234, 0.12) 0, transparent 50%),
+    radial-gradient(at 10% 90%, rgba(20, 241, 149, 0.08) 0, transparent 50%);
+}
+
+body:has(.theme-solana)::before {
+  background:
+    radial-gradient(
+      ellipse at top,
+      rgba(153, 69, 255, 0.08) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at bottom,
+      rgba(125, 45, 232, 0.06) 0%,
+      transparent 50%
+    );
+}
+
+.theme-solana .button {
+  background: var(--gradient-primary);
+}
+
+.theme-solana .button:hover {
+  background: linear-gradient(135deg, #7d2de8 0%, #6b1fd6 100%);
+}
+
+.theme-solana .status-badge {
+  background: var(--gradient-primary);
+}
+
+.theme-solana .demo-badge {
+  background: var(--gradient-primary);
+}
+
+.theme-solana .badge {
+  background: var(--gradient-primary);
+}
+
+.theme-solana .feature-tag {
+  background: var(--gradient-primary);
+}
+
+.theme-solana .network-selection-card:hover {
+  border-color: var(--accent-primary);
+}
+
+/* Solana-specific animations */
+@keyframes solanaGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(153, 69, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(153, 69, 255, 0.5);
+  }
+}
+
+.theme-solana .card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.theme-solana .spinner {
+  border-top-color: var(--accent-primary);
+}
+
+.theme-solana .status-step.active .step-number,
+.theme-solana .status-step.completed .step-number {
+  background: var(--gradient-primary);
+}
+
+@keyframes solanaPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(153, 69, 255, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(153, 69, 255, 0);
+  }
+}
+
+.theme-solana .status-step.active .step-number {
+  animation: solanaPulse 2s infinite;
+}
+
+/* Fix all purple theme elements */
+.theme-solana .demo-link {
+  background: var(--gradient-primary);
+  color: white;
+  box-shadow: 0 4px 12px rgba(153, 69, 255, 0.3);
+}
+
+.theme-solana .demo-link:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(125, 45, 232, 0.95) 0%,
+    rgba(107, 31, 214, 0.95) 100%
+  );
+  box-shadow: 0 6px 20px rgba(153, 69, 255, 0.4);
+  color: white;
+}
+
+.theme-solana .code-example-section h2 {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.theme-solana .action-card {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .action-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 8px 24px rgba(153, 69, 255, 0.15);
+}
+
+.theme-solana .header {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .demo-banner {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .card {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .modal {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .token-option {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .token-option.selected {
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+}
+
+.theme-solana .chain-option {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .chain-option.selected {
+  border-color: var(--accent-primary);
+  background: var(--gradient-primary);
+  color: white;
+}
+
+.theme-solana .price-display {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .input {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .input:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(153, 69, 255, 0.1);
+}
+
+/* More Solana theme refinements */
+.theme-solana .demo-banner {
+  background: linear-gradient(
+    135deg,
+    rgba(153, 69, 255, 0.15) 0%,
+    rgba(168, 85, 247, 0.12) 100%
+  );
+  border-color: rgba(153, 69, 255, 0.3);
+  box-shadow:
+    0 8px 32px rgba(153, 69, 255, 0.15),
+    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.theme-solana .demo-banner::before {
+  background: linear-gradient(
+    135deg,
+    rgba(153, 69, 255, 0.2) 0%,
+    rgba(168, 85, 247, 0.15) 100%
+  );
+}
+
+.theme-solana .demo-badge {
+  background: var(--gradient-primary);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(153, 69, 255, 0.3);
+}
+
+.theme-solana .demo-text strong {
+  color: var(--accent-primary);
+}
+
+.theme-solana .header {
+  background: var(--bg-card);
+  border-color: var(--border-primary);
+}
+
+.theme-solana .header::before {
+  background: linear-gradient(
+    135deg,
+    rgba(153, 69, 255, 0.15) 0%,
+    rgba(168, 85, 247, 0.1) 100%
+  );
+  opacity: 0.6;
+}
+
+.theme-solana .footer a {
+  color: var(--accent-primary);
+}
+
+.theme-solana .footer a:hover {
+  color: var(--accent-primary-hover);
+}
+
+.theme-solana .code-link {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.theme-solana .code-link:hover {
+  background: var(--gradient-primary);
+  border-color: var(--accent-primary-hover);
+}
+
+.theme-solana .log-entry {
+  border-left-color: var(--accent-primary);
+}
+
+.theme-solana .payment-card {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .content-card {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .error-card {
+  border-left-color: var(--accent-error);
+}
+
+.theme-solana .logs-card {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .price-row {
+  border-color: var(--border-primary);
+}
+
+.theme-solana .swap-arrow {
+  color: var(--accent-primary);
+}
+
+.theme-solana .stat-value.positive {
+  color: var(--accent-success);
+}
+
+.theme-solana .link {
+  color: var(--accent-primary);
+}
+
+.theme-solana .link:hover {
+  color: var(--accent-primary-hover);
+}
+
+.theme-solana .mono {
+  background: rgba(153, 69, 255, 0.05);
+  border: 1px solid rgba(153, 69, 255, 0.1);
+}
+
+.theme-solana .help-text {
+  color: var(--text-secondary);
+}
+
+.theme-solana .subtitle {
+  color: var(--text-secondary);
+}
+
+.theme-solana .timestamp {
+  color: var(--text-muted);
+}
+
+/* Make the code example section header better */
+.theme-solana .code-example-header h2 {
+  color: var(--accent-primary);
+}
+
+/* Improve table styling for Solana theme */
+.theme-solana table thead tr {
+  border-bottom-color: var(--border-primary);
+}
+
+.theme-solana table tbody tr {
+  border-bottom-color: var(--border-primary);
+}
+
+/* Better progress indicators */
+.theme-solana .status-connector {
+  background: rgba(153, 69, 255, 0.2);
+}
+
+.theme-solana .status-step.completed .status-connector {
+  background: var(--gradient-primary);
+}
+
+/* Button improvements for Solana theme */
+.theme-solana .button-secondary {
+  background: rgba(153, 69, 255, 0.1);
+  border: 2px solid var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.theme-solana .button-secondary:hover {
+  background: var(--gradient-primary);
+  color: white;
+  border-color: var(--accent-primary-hover);
+}
+
+.theme-solana .button-small {
+  box-shadow: 0 4px 12px rgba(153, 69, 255, 0.2);
+}
+
+.theme-solana .button-large {
+  box-shadow: 0 8px 24px rgba(153, 69, 255, 0.25);
+}
+
+.theme-solana .button-large:hover {
+  box-shadow: 0 12px 32px rgba(153, 69, 255, 0.35);
+}
+
+/* Improve action cards for Solana */
+.theme-solana .action-card {
+  background: var(--bg-card);
+}
+
+.theme-solana .action-card h2 {
+  color: var(--text-primary);
+}
+
+.theme-solana .action-content {
+  gap: 1.5rem;
+}
+
+/* Status badge improvements */
+.theme-solana .status-badge {
+  box-shadow: 0 4px 12px rgba(153, 69, 255, 0.2);
+}
+
+/* Better code example section */
+.theme-solana .code-example-card {
+  border-color: var(--border-primary);
+  background: var(--bg-card);
+}
+
+.theme-solana .code-block {
+  background: rgba(153, 69, 255, 0.03);
+  border-color: var(--border-primary);
+}
+
+/* Network selection improvements */
+.theme-solana .network-selection-card {
+  background: var(--bg-card);
+}
+
+/* Ensure no blue artifacts in Solana theme */
+.theme-solana .header {
+  box-shadow: 0 4px 16px rgba(153, 69, 255, 0.08);
+}
+
+.theme-solana .card::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.3) 100%
+  );
+}
+
+/* Override any remaining blue gradients */
+.theme-solana .gradient-primary {
+  background: var(--gradient-primary) !important;
+}
+
+/* Change Anyspend logo to purple in Solana theme */
+.theme-solana .logo-section .logo {
+  filter: hue-rotate(40deg) saturate(1.2) brightness(1);
+}
+
+/* Change Network button styling */
+.change-network-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+}
+
+.change-network-btn:hover svg {
+  animation: rotate 1s ease-in-out;
+}
+
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Solana Wallet Adapter Button Styling */
+.wallet-adapter-button {
+  background: var(--gradient-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.wallet-adapter-button:not([disabled]):hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.wallet-adapter-button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Solana theme specific overrides */
+.theme-solana .wallet-adapter-button {
+  background: var(--gradient-primary) !important;
+  border: 1px solid var(--border-primary) !important;
+  box-shadow: 0 4px 12px rgba(153, 69, 255, 0.3) !important;
+}
+
+.theme-solana .wallet-adapter-button:not([disabled]):hover {
+  box-shadow: 0 8px 24px rgba(153, 69, 255, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+.theme-solana .wallet-adapter-button:not([disabled]):focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Wallet adapter modal styling */
+.theme-solana .wallet-adapter-modal-wrapper {
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(153, 69, 255, 0.2) !important;
+  box-shadow: 0 20px 60px rgba(153, 69, 255, 0.3) !important;
+  padding: 2rem !important;
+}
+
+.theme-solana .wallet-adapter-modal-title {
+  color: #1a1a1a !important;
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 1.5rem !important;
+}
+
+.theme-solana .wallet-adapter-modal-list {
+  gap: 0.75rem !important;
+}
+
+.theme-solana .wallet-adapter-modal-list .wallet-adapter-button {
+  background: white !important;
+  border: 2px solid rgba(153, 69, 255, 0.15) !important;
+  border-radius: 12px !important;
+  padding: 1rem !important;
+  color: #1a1a1a !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+}
+
+.theme-solana .wallet-adapter-modal-list .wallet-adapter-button:hover {
+  border-color: #9945ff !important;
+  background: rgba(153, 69, 255, 0.05) !important;
+  transform: translateY(-1px) !important;
+}
+
+.theme-solana .wallet-adapter-modal-list .wallet-adapter-button img {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+}
+
+.theme-solana .wallet-adapter-modal-button-close {
+  background: transparent !important;
+  color: #666 !important;
+  transition: color 0.2s ease !important;
+}
+
+.theme-solana .wallet-adapter-modal-button-close:hover {
+  color: #9945ff !important;
+}
+
+.theme-solana .wallet-adapter-modal-list-more button {
+  background: transparent !important;
+  color: #9945ff !important;
+  border: 2px solid rgba(153, 69, 255, 0.15) !important;
+  border-radius: 12px !important;
+  padding: 0.75rem !important;
+  font-weight: 600 !important;
+}
+
+.theme-solana .wallet-adapter-modal-list-more button:hover {
+  background: rgba(153, 69, 255, 0.05) !important;
+  border-color: #9945ff !important;
+}
+
+.theme-solana .wallet-adapter-button-trigger {
+  background: var(--gradient-primary) !important;
+}
