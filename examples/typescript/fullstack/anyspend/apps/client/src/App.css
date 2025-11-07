@@ -3455,7 +3455,6 @@ body:has(.theme-solana)::before {
   background: var(--gradient-primary) !important;
 }
 
-
 /* Change Anyspend logo to purple in Solana theme */
 .theme-solana .logo-section .logo {
   filter: hue-rotate(40deg) saturate(1.2) brightness(1);

@@ -1,6 +1,7 @@
 import {
   decodeXPaymentResponse,
   MultiNetworkSigner,
+  Network,
   Signer,
   wrapFetchWithPayment,
 } from "@b3dotfun/anyspend-x402-fetch";
@@ -50,6 +51,15 @@ interface EvmWalletProps {
   onDisconnect?: () => void;
 }
 
+interface TokenData {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  valueUsd?: number;
+}
+
 export function EvmWallet({ onDisconnect }: EvmWalletProps) {
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors } = useConnect();
@@ -68,7 +78,6 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
   const [priceInfo, setPriceInfo] = useState<string>("Loading...");
   const [srcNetwork, setSrcNetwork] = useState<string>("base");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [_tokenBalances, setTokenBalances] = useState<Record<string, string>>({});
   const [selectedChain, setSelectedChain] = useState<string>("8453"); // Base mainnet
   const [userTokens, setUserTokens] = useState<
     Array<{
@@ -112,7 +121,8 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               const data = await response.json();
               if (data.success && data.tokens && data.tokens.length > 0) {
                 const hasTokens = data.tokens.some(
-                  (token: any) => token.address.toLowerCase() !== "native",
+                  (token: TokenData) =>
+                    token.address.toLowerCase() !== "native",
                 );
                 if (hasTokens) {
                   return chainId;
@@ -120,13 +130,18 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               }
             }
           } catch (err) {
-            console.error(`Failed to fetch balances for chain ${chainId}:`, err);
+            console.error(
+              `Failed to fetch balances for chain ${chainId}:`,
+              err,
+            );
           }
           return null;
         });
 
         const results = await Promise.all(promises);
-        const validChains = results.filter((chain): chain is string => chain !== null);
+        const validChains = results.filter(
+          (chain): chain is string => chain !== null,
+        );
 
         if (validChains.length === 0) {
           setAvailableChains(chains);
@@ -152,28 +167,32 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
           const data = await response.json();
 
           if (data.success && data.tokens) {
-            const balances: Record<string, string> = {};
+            const basicFilteredTokens = data.tokens.filter(
+              (token: TokenData) => {
+                const address = token.address.toLowerCase();
+                const symbol = token.symbol?.toUpperCase() || "";
 
-            const basicFilteredTokens = data.tokens.filter((token: any) => {
-              const address = token.address.toLowerCase();
-              const symbol = token.symbol?.toUpperCase() || "";
+                return (
+                  address !== "native" &&
+                  symbol !== "WETH" &&
+                  !symbol.includes("WETH")
+                );
+              },
+            );
 
-              return (
-                address !== "native" &&
-                symbol !== "WETH" &&
-                !symbol.includes("WETH")
-              );
-            });
-
-            const compatibleTokens: any[] = [];
+            const compatibleTokens: TokenData[] = [];
             const compatClient = new TokenCompatClient();
             const chainId = parseInt(selectedChain);
 
             for (const token of basicFilteredTokens) {
               try {
-                const metadata = await compatClient.getTokenMetadata(chainId, token.address);
+                const metadata = await compatClient.getTokenMetadata(
+                  chainId,
+                  token.address,
+                );
                 const supportsPermit = metadata.supportsEip2612 === true;
-                const supportsTransferWithAuth = metadata.supportsEip3009 === true;
+                const supportsTransferWithAuth =
+                  metadata.supportsEip3009 === true;
 
                 if (supportsPermit || supportsTransferWithAuth) {
                   compatibleTokens.push(token);
@@ -183,12 +202,6 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               }
             }
 
-            compatibleTokens.forEach((token: any) => {
-              const tokenAddress = token.address.toLowerCase();
-              balances[tokenAddress] = token.balance;
-            });
-
-            setTokenBalances(balances);
             setUserTokens(compatibleTokens);
           }
         }
@@ -218,7 +231,11 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
           tokenAddress = customTokenAddress;
         }
 
-        if (!tokenAddress || tokenAddress === "preset" || !tokenAddress.startsWith("0x")) {
+        if (
+          !tokenAddress ||
+          tokenAddress === "preset" ||
+          !tokenAddress.startsWith("0x")
+        ) {
           setPriceInfo("Loading...");
           return;
         }
@@ -267,21 +284,28 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
             const req = paymentReqs[0];
             setSrcNetwork(req.srcNetwork || req.network || "base");
 
-            const srcAmountStr = req.srcAmountRequired || req.amount || req.maxAmountRequired;
+            const srcAmountStr =
+              req.srcAmountRequired || req.amount || req.maxAmountRequired;
 
             if (srcAmountStr) {
               const srcAmount = BigInt(srcAmountStr);
               let srcDecimals = 18;
-              let srcTokenAddr = req.srcTokenAddress || req.asset;
+              const srcTokenAddr = req.srcTokenAddress || req.asset;
 
               const srcToken = BASE_TOKENS.find(
-                (t) => t.address.toLowerCase() === (srcTokenAddr || "").toLowerCase(),
+                (t) =>
+                  t.address.toLowerCase() ===
+                  (srcTokenAddr || "").toLowerCase(),
               );
 
               if (srcToken) {
                 srcDecimals = srcToken.decimals;
               } else if (req.extra?.chainId && req.extra?.verifyingContract) {
-                const tokenAddr = (req.srcTokenAddress || req.extra.verifyingContract || "").toLowerCase();
+                const tokenAddr = (
+                  req.srcTokenAddress ||
+                  req.extra.verifyingContract ||
+                  ""
+                ).toLowerCase();
                 const tokenName = (req.extra?.name || "").toLowerCase();
 
                 if (
@@ -297,9 +321,18 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                   tokenAddr === "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
                 ) {
                   srcDecimals = 8;
-                } else if (tokenName.includes("wrapped btc") || tokenName.includes("wbtc") || tokenName.includes("btc")) {
+                } else if (
+                  tokenName.includes("wrapped btc") ||
+                  tokenName.includes("wbtc") ||
+                  tokenName.includes("btc")
+                ) {
                   srcDecimals = 8;
-                } else if (tokenName.includes("usd coin") || tokenName.includes("usdc") || tokenName.includes("tether") || tokenName.includes("usdt")) {
+                } else if (
+                  tokenName.includes("usd coin") ||
+                  tokenName.includes("usdc") ||
+                  tokenName.includes("tether") ||
+                  tokenName.includes("usdt")
+                ) {
                   srcDecimals = 6;
                 }
               } else if (req.decimals) {
@@ -312,7 +345,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
               let srcPriceStr = srcIntegerPart.toString();
               if (srcFractionalPart > 0) {
-                const fracStr = srcFractionalPart.toString().padStart(srcDecimals, "0");
+                const fracStr = srcFractionalPart
+                  .toString()
+                  .padStart(srcDecimals, "0");
                 const trimmed = fracStr.replace(/0+$/, "");
                 if (trimmed.length > 0) {
                   srcPriceStr += "." + trimmed;
@@ -323,7 +358,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
               if (req.srcTokenAddress) {
                 const sourceToken = BASE_TOKENS.find(
-                  (t) => t.address.toLowerCase() === req.srcTokenAddress.toLowerCase(),
+                  (t) =>
+                    t.address.toLowerCase() ===
+                    req.srcTokenAddress.toLowerCase(),
                 );
                 if (sourceToken) {
                   srcSymbol = sourceToken.symbol;
@@ -379,14 +416,18 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
       return;
     }
 
-    const tokenAddress = selectedToken === "custom" ? customTokenAddress : selectedToken;
+    const tokenAddress =
+      selectedToken === "custom" ? customTokenAddress : selectedToken;
 
     if (!tokenAddress || tokenAddress === "preset") {
       setError("Please select or enter a token address");
       return;
     }
 
-    if (selectedToken === "custom" && !customTokenAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+    if (
+      selectedToken === "custom" &&
+      !customTokenAddress.match(/^0x[a-fA-F0-9]{40}$/)
+    ) {
       setError("Invalid token address format");
       return;
     }
@@ -458,10 +499,12 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
       const paymentPreferences = {
         preferredToken: tokenAddress,
-        preferredNetwork: getNetworkName(selectedChain) as any,
+        preferredNetwork: getNetworkName(selectedChain) as Network | undefined,
       };
 
-      addLog(`💡 Using preferred token: ${tokenAddress} on ${getNetworkName(selectedChain)}`);
+      addLog(
+        `💡 Using preferred token: ${tokenAddress} on ${getNetworkName(selectedChain)}`,
+      );
 
       const fetchWithPayment = wrapFetchWithPayment(
         fetch,
@@ -476,7 +519,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
         stage: "signing",
         message: "Please sign the payment in your wallet...",
       });
-      addLog("📡 Making request to server (payment will be handled automatically)...");
+      addLog(
+        "📡 Making request to server (payment will be handled automatically)...",
+      );
 
       try {
         setPaymentStatus({
@@ -485,7 +530,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
         });
 
         const endpoint =
-          type === "btc" ? `${API_BASE_URL}/api/btc` : `${API_BASE_URL}/api/b3/premium`;
+          type === "btc"
+            ? `${API_BASE_URL}/api/btc`
+            : `${API_BASE_URL}/api/b3/premium`;
         const response = await fetchWithPayment(endpoint, { method: "POST" });
 
         setPaymentStatus({
@@ -496,10 +543,13 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || errorData.error || "Request failed");
+          throw new Error(
+            errorData.message || errorData.error || "Request failed",
+          );
         }
 
-        const paymentResponseHeader = response.headers.get("X-PAYMENT-RESPONSE");
+        const paymentResponseHeader =
+          response.headers.get("X-PAYMENT-RESPONSE");
         if (paymentResponseHeader) {
           const paymentInfo = decodeXPaymentResponse(paymentResponseHeader);
           addLog(`✅ Payment ${paymentInfo.success ? "settled" : "verified"}`);
@@ -528,7 +578,8 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
           setPremiumData(data.data);
         }
       } catch (fetchError) {
-        const message = fetchError instanceof Error ? fetchError.message : "Unknown error";
+        const message =
+          fetchError instanceof Error ? fetchError.message : "Unknown error";
         addLog(`❌ Error during payment: ${message}`);
         throw fetchError;
       }
@@ -538,21 +589,33 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
       if (err instanceof Error) {
         message = err.message;
       } else if (typeof err === "object" && err !== null) {
-        const errObj = err as any;
-        if (errObj.shortMessage) message = errObj.shortMessage;
-        else if (errObj.reason) message = errObj.reason;
-        else if (errObj.message) message = errObj.message;
-        else if (errObj.error?.message) message = errObj.error.message;
+        const errObj = err as Record<string, unknown>;
+        if (typeof errObj.shortMessage === "string")
+          message = errObj.shortMessage;
+        else if (typeof errObj.reason === "string") message = errObj.reason;
+        else if (typeof errObj.message === "string") message = errObj.message;
+        else if (
+          typeof errObj.error === "object" &&
+          errObj.error !== null &&
+          typeof (errObj.error as Record<string, unknown>).message === "string"
+        )
+          message = (errObj.error as Record<string, unknown>).message as string;
       } else {
         message = String(err);
       }
 
-      if (message.includes("nonces") && (message.includes("reverted") || message.includes("returned no data"))) {
+      if (
+        message.includes("nonces") &&
+        (message.includes("reverted") || message.includes("returned no data"))
+      ) {
         const friendlyMessage =
           "This token doesn't support gasless signatures (EIP-2612 permit). Please select a different token like USDC or DAI.";
         addLog(`❌ Error: ${friendlyMessage}`);
         setError(friendlyMessage);
-      } else if (message.includes("User rejected") || message.includes("User denied")) {
+      } else if (
+        message.includes("User rejected") ||
+        message.includes("User denied")
+      ) {
         addLog(`❌ Error: Signature request was rejected`);
         setError("Signature request was rejected by user");
       } else {
@@ -589,7 +652,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               className="logo"
             />
             <div className="logo-text">
-              <p className="subtitle">Premium ETH price data - Pay with any token</p>
+              <p className="subtitle">
+                Premium ETH price data - Pay with any token
+              </p>
             </div>
           </div>
           <div className="wallet-section">
@@ -612,7 +677,10 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                     </span>
                   )}
                 </span>
-                <button onClick={handleDisconnect} className="button button-small button-secondary">
+                <button
+                  onClick={handleDisconnect}
+                  className="button button-small button-secondary"
+                >
                   Disconnect
                 </button>
               </div>
@@ -626,7 +694,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
         <div className="action-content">
           <div className="action-text">
             <h2>📈 ETH Price History</h2>
-            <p className="subtitle">Get 24-hour ETH price history with OHLC data from CoinGecko</p>
+            <p className="subtitle">
+              Get 24-hour ETH price history with OHLC data from CoinGecko
+            </p>
           </div>
           <button
             onClick={() => {
@@ -645,7 +715,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
         <div className="action-content">
           <div className="action-text">
             <h2>₿ BTC Price History</h2>
-            <p className="subtitle">Get 24-hour BTC price history with OHLC data - Only 0.01 USDC!</p>
+            <p className="subtitle">
+              Get 24-hour BTC price history with OHLC data - Only 0.01 USDC!
+            </p>
           </div>
           <button
             onClick={() => {
@@ -662,11 +734,17 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
       {/* Wallet Selection Modal */}
       {showWalletModal && (
-        <div className="modal-overlay" onClick={() => setShowWalletModal(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => setShowWalletModal(false)}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>🔗 Select Wallet</h2>
-              <button className="modal-close" onClick={() => setShowWalletModal(false)}>
+              <button
+                className="modal-close"
+                onClick={() => setShowWalletModal(false)}
+              >
                 ✕
               </button>
             </div>
@@ -711,7 +789,10 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => setShowPaymentModal(false)}
+        >
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>💳 Payment Configuration</h2>
@@ -742,7 +823,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                     <div className="price-item">
                       <div className="price-label">Data Price</div>
                       <div className="price-value">
-                        <span>{dataType === "btc" ? "0.01 USDC" : "100 B3"}</span>
+                        <span>
+                          {dataType === "btc" ? "0.01 USDC" : "100 B3"}
+                        </span>
                       </div>
                       <div className="price-network-small">on base</div>
                     </div>
@@ -816,7 +899,13 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                 <label>
                   💰 Select Payment Token
                   {userTokens.length > 0 && (
-                    <span style={{ fontWeight: "normal", fontSize: "0.8rem", marginLeft: "0.5rem" }}>
+                    <span
+                      style={{
+                        fontWeight: "normal",
+                        fontSize: "0.8rem",
+                        marginLeft: "0.5rem",
+                      }}
+                    >
                       (Top {userTokens.length} by value)
                     </span>
                   )}
@@ -837,12 +926,15 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                             {token.balance} {token.symbol}
                           </div>
                         </div>
-                        {selectedToken === token.address && <div className="token-check">✓</div>}
+                        {selectedToken === token.address && (
+                          <div className="token-check">✓</div>
+                        )}
                       </button>
                     ))
                   ) : (
                     <div className="no-tokens">
-                      No tokens found. Connect your wallet or select a different chain.
+                      No tokens found. Connect your wallet or select a different
+                      chain.
                     </div>
                   )}
                   <button
@@ -855,7 +947,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                       <div className="token-symbol">Custom</div>
                       <div className="token-name">Other Token</div>
                     </div>
-                    {selectedToken === "custom" && <div className="token-check">✓</div>}
+                    {selectedToken === "custom" && (
+                      <div className="token-check">✓</div>
+                    )}
                   </button>
                 </div>
               </div>
@@ -872,7 +966,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                     className="input"
                     disabled={loading}
                   />
-                  <p className="help-text">Enter the ERC-20 token contract address on Base</p>
+                  <p className="help-text">
+                    Enter the ERC-20 token contract address on Base
+                  </p>
                 </div>
               )}
             </div>
@@ -886,7 +982,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                 Cancel
               </button>
               <button
-                onClick={() => (dataType === "btc" ? fetchBtcData() : fetchPremiumData())}
+                onClick={() =>
+                  dataType === "btc" ? fetchBtcData() : fetchPremiumData()
+                }
                 disabled={
                   loading ||
                   !selectedToken ||
@@ -1017,7 +1115,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               <div className="analysis-grid">
                 <div className="stat">
                   <span className="stat-label">Price</span>
-                  <p className="stat-value">${premiumData.currentPrice.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${premiumData.currentPrice.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Change</span>
@@ -1029,11 +1129,15 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h High</span>
-                  <p className="stat-value">${premiumData.high24h.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${premiumData.high24h.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Low</span>
-                  <p className="stat-value">${premiumData.low24h.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${premiumData.low24h.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">Data Points</span>
@@ -1047,12 +1151,26 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               <div className="price-history-table">
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ borderBottom: "2px solid var(--border-primary)" }}>
-                      <th style={{ padding: "0.75rem", textAlign: "left" }}>Time</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Open</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>High</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Low</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Close</th>
+                    <tr
+                      style={{
+                        borderBottom: "2px solid var(--border-primary)",
+                      }}
+                    >
+                      <th style={{ padding: "0.75rem", textAlign: "left" }}>
+                        Time
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Open
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        High
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Low
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Close
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1060,11 +1178,24 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                       .slice(-10)
                       .reverse()
                       .map((item, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border-primary)" }}>
-                          <td style={{ padding: "0.75rem", fontSize: "0.875rem" }}>
+                        <tr
+                          key={i}
+                          style={{
+                            borderBottom: "1px solid var(--border-primary)",
+                          }}
+                        >
+                          <td
+                            style={{ padding: "0.75rem", fontSize: "0.875rem" }}
+                          >
                             {new Date(item.timestamp).toLocaleTimeString()}
                           </td>
-                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem" }}>
+                          <td
+                            style={{
+                              padding: "0.75rem",
+                              textAlign: "right",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             ${item.open.toLocaleString()}
                           </td>
                           <td
@@ -1124,7 +1255,9 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               <div className="analysis-grid">
                 <div className="stat">
                   <span className="stat-label">Price</span>
-                  <p className="stat-value">${btcData.currentPrice.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${btcData.currentPrice.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Change</span>
@@ -1136,11 +1269,15 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h High</span>
-                  <p className="stat-value">${btcData.high24h.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${btcData.high24h.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Low</span>
-                  <p className="stat-value">${btcData.low24h.toLocaleString()}</p>
+                  <p className="stat-value">
+                    ${btcData.low24h.toLocaleString()}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">Data Points</span>
@@ -1154,12 +1291,26 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
               <div className="price-history-table">
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ borderBottom: "2px solid var(--border-primary)" }}>
-                      <th style={{ padding: "0.75rem", textAlign: "left" }}>Time</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Open</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>High</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Low</th>
-                      <th style={{ padding: "0.75rem", textAlign: "right" }}>Close</th>
+                    <tr
+                      style={{
+                        borderBottom: "2px solid var(--border-primary)",
+                      }}
+                    >
+                      <th style={{ padding: "0.75rem", textAlign: "left" }}>
+                        Time
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Open
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        High
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Low
+                      </th>
+                      <th style={{ padding: "0.75rem", textAlign: "right" }}>
+                        Close
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1167,11 +1318,24 @@ export function EvmWallet({ onDisconnect }: EvmWalletProps) {
                       .slice(-10)
                       .reverse()
                       .map((item, i) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--border-primary)" }}>
-                          <td style={{ padding: "0.75rem", fontSize: "0.875rem" }}>
+                        <tr
+                          key={i}
+                          style={{
+                            borderBottom: "1px solid var(--border-primary)",
+                          }}
+                        >
+                          <td
+                            style={{ padding: "0.75rem", fontSize: "0.875rem" }}
+                          >
                             {new Date(item.timestamp).toLocaleTimeString()}
                           </td>
-                          <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem" }}>
+                          <td
+                            style={{
+                              padding: "0.75rem",
+                              textAlign: "right",
+                              fontSize: "0.875rem",
+                            }}
+                          >
                             ${item.open.toLocaleString()}
                           </td>
                           <td

@@ -22,7 +22,13 @@ function App() {
             <div className="modal network-selector-modal">
               <div className="modal-header">
                 <h2>🌐 Select Network</h2>
-                <p style={{ marginTop: "0.5rem", fontSize: "0.9rem", opacity: 0.8 }}>
+                <p
+                  style={{
+                    marginTop: "0.5rem",
+                    fontSize: "0.9rem",
+                    opacity: 0.8,
+                  }}
+                >
                   Choose which blockchain network to use for this demo
                 </p>
               </div>
@@ -44,7 +50,8 @@ function App() {
                     </div>
                     <h3>EVM Chains</h3>
                     <p className="network-description">
-                      Use Ethereum, Base, Polygon, Arbitrum, BSC and other EVM-compatible chains
+                      Use Ethereum, Base, Polygon, Arbitrum, BSC and other
+                      EVM-compatible chains
                     </p>
                     <div className="network-features">
                       <span className="feature-tag">🔗 Multi-chain</span>
@@ -87,22 +94,40 @@ function App() {
             <div className="demo-banner-content">
               <span className="demo-badge">DEMO</span>
               <p className="demo-text">
-                This is a demo application showcasing <strong>x402</strong> - Pay
-                with any token for HTTP APIs
+                This is a demo application showcasing <strong>x402</strong> -
+                Pay with any token for HTTP APIs
                 {networkType && (
                   <span style={{ marginLeft: "0.5rem" }}>
-                    • Using <strong>{networkType === "ETH" ? "EVM Chains" : "Solana"}</strong>
+                    • Using{" "}
+                    <strong>
+                      {networkType === "ETH" ? "EVM Chains" : "Solana"}
+                    </strong>
                   </span>
                 )}
               </p>
-              <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+              <div
+                style={{ display: "flex", gap: "1rem", alignItems: "center" }}
+              >
                 <button
                   onClick={handleNetworkChange}
                   className="demo-link change-network-btn"
                 >
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
                     </svg>
                     Change Network
                   </span>
@@ -121,14 +146,24 @@ function App() {
         )}
 
         {/* Render appropriate wallet component */}
-        {networkType === "ETH" && <EvmWallet onDisconnect={handleNetworkChange} />}
-        {networkType === "SOL" && <SolanaWallet onDisconnect={handleNetworkChange} />}
+        {networkType === "ETH" && (
+          <EvmWallet onDisconnect={handleNetworkChange} />
+        )}
+        {networkType === "SOL" && (
+          <SolanaWallet onDisconnect={handleNetworkChange} />
+        )}
 
         {/* Code Example Section - Only show for EVM chains */}
         {networkType === "ETH" && (
           <div className="code-example-section">
             <div className="code-example-header">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <h2>💻 How to Pay with Any Token</h2>
                 <button
                   onClick={() => setShowCodeExample(!showCodeExample)}

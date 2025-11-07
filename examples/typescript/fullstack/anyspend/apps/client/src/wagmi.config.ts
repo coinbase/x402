@@ -16,11 +16,20 @@ import {
 } from "wagmi/connectors";
 
 // Type declarations for Binance wallet providers
-declare global {
-  interface Window {
-    BinanceChain?: any;
-    ethereum?: any;
-  }
+interface BinanceChainProvider {
+  request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  removeListener?: (
+    event: string,
+    handler: (...args: unknown[]) => void,
+  ) => void;
+  isBinance?: boolean;
+  isBNBSmartWallet?: boolean;
+}
+
+interface ExtendedWindow extends Window {
+  BinanceChain?: BinanceChainProvider;
+  ethereum?: BinanceChainProvider & { [key: string]: unknown };
 }
 
 export const config = createConfig({
@@ -32,7 +41,8 @@ export const config = createConfig({
           id: "binance",
           name: "Binance Wallet",
           provider(window) {
-            return (window as any)?.BinanceChain;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return (window as ExtendedWindow)?.BinanceChain as any;
           },
         };
       },
@@ -44,9 +54,10 @@ export const config = createConfig({
           name: "BNB Smart Wallet",
           provider(window) {
             // BNB Smart Wallet uses the ethereum provider with specific detection
-            const eth = (window as any)?.ethereum;
+            const eth = (window as ExtendedWindow)?.ethereum;
             if (eth?.isBinance || eth?.isBNBSmartWallet) {
-              return eth;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              return eth as any;
             }
             return undefined;
           },

@@ -2,11 +2,11 @@ import {
   ConnectionProvider,
   WalletProvider,
   WalletModalProvider,
-} from '@b3dotfun/anyspend-x402-solana-wallet-adapter';
-import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
-import { useMemo, type ReactNode } from 'react';
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { useMemo, type ReactNode } from "react";
 
-import '@solana/wallet-adapter-react-ui/styles.css';
+import "@solana/wallet-adapter-react-ui/styles.css";
 
 interface SolanaWalletProviderProps {
   children: ReactNode;
@@ -20,8 +20,10 @@ interface SolanaWalletProviderProps {
  */
 export function SolanaWalletProvider({ children }: SolanaWalletProviderProps) {
   const endpoint = useMemo(
-    () => import.meta.env.VITE_SOLANA_RPC_URL || "https://solana-rpc.publicnode.com",
-    []
+    () =>
+      import.meta.env.VITE_SOLANA_RPC_URL ||
+      "https://solana-rpc.publicnode.com",
+    [],
   );
 
   const wallets = useMemo(() => [new PhantomWalletAdapter()], []);

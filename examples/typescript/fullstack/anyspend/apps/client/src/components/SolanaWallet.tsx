@@ -25,12 +25,12 @@ import {
 import { useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-const SOLANA_RPC_URL  = "https://solana-rpc.publicnode.com";
+const SOLANA_RPC_URL = "https://solana-rpc.publicnode.com";
 
 interface SolanaWalletProps {
   onDisconnect?: () => void;
 }
-  
+
 interface PaymentInfo {
   status: string;
   payer?: string;
@@ -126,7 +126,7 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
       const solanaSigner = createWalletAdapterSigner(
         solanaPublicKey.toBase58(),
         signAllTransactions!,
-        (count) => addLog(`Signing ${count} transaction(s)...`)
+        (count) => addLog(`Signing ${count} transaction(s)...`),
       );
 
       // Wrap fetch with payment capability
@@ -135,14 +135,16 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
         solanaSigner,
         undefined, // Let server determine max amount
         undefined, // Use default payment selector
-        { svmConfig: { rpcUrl: SOLANA_RPC_URL } }
+        { svmConfig: { rpcUrl: SOLANA_RPC_URL } },
       );
 
       setPaymentStatus({
         stage: "signing",
         message: "Please sign the payment in your wallet...",
       });
-      addLog("📡 Making request to server (payment will be handled automatically)...");
+      addLog(
+        "📡 Making request to server (payment will be handled automatically)...",
+      );
 
       try {
         setPaymentStatus({
@@ -162,11 +164,14 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || errorData.error || "Request failed");
+          throw new Error(
+            errorData.message || errorData.error || "Request failed",
+          );
         }
 
         // Decode payment confirmation from response header
-        const paymentResponseHeader = response.headers.get("X-PAYMENT-RESPONSE");
+        const paymentResponseHeader =
+          response.headers.get("X-PAYMENT-RESPONSE");
         if (paymentResponseHeader) {
           const paymentInfo = decodeXPaymentResponse(paymentResponseHeader);
           addLog(`✅ Payment ${paymentInfo.success ? "settled" : "verified"}`);
@@ -190,7 +195,8 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
 
         setPremiumData(data.data);
       } catch (fetchError) {
-        const message = fetchError instanceof Error ? fetchError.message : "Unknown error";
+        const message =
+          fetchError instanceof Error ? fetchError.message : "Unknown error";
         addLog(`❌ Error during payment: ${message}`);
         throw fetchError;
       }
@@ -200,16 +206,25 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
       if (err instanceof Error) {
         message = err.message;
       } else if (typeof err === "object" && err !== null) {
-        const errObj = err as any;
-        if (errObj.shortMessage) message = errObj.shortMessage;
-        else if (errObj.reason) message = errObj.reason;
-        else if (errObj.message) message = errObj.message;
-        else if (errObj.error?.message) message = errObj.error.message;
+        const errObj = err as Record<string, unknown>;
+        if (typeof errObj.shortMessage === "string")
+          message = errObj.shortMessage;
+        else if (typeof errObj.reason === "string") message = errObj.reason;
+        else if (typeof errObj.message === "string") message = errObj.message;
+        else if (
+          typeof errObj.error === "object" &&
+          errObj.error !== null &&
+          typeof (errObj.error as Record<string, unknown>).message === "string"
+        )
+          message = (errObj.error as Record<string, unknown>).message as string;
       } else {
         message = String(err);
       }
 
-      if (message.includes("User rejected") || message.includes("User denied")) {
+      if (
+        message.includes("User rejected") ||
+        message.includes("User denied")
+      ) {
         addLog(`❌ Error: Signature request was rejected`);
         setError("Signature request was rejected by user");
       } else {
@@ -401,80 +416,150 @@ export function SolanaWallet({ onDisconnect }: SolanaWalletProps) {
               <div className="analysis-grid">
                 <div className="stat">
                   <span className="stat-label">Current Price</span>
-                  <p className="stat-value">${premiumData.currentPrice?.toFixed(2) ?? 'N/A'}</p>
+                  <p className="stat-value">
+                    ${premiumData.currentPrice?.toFixed(2) ?? "N/A"}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Change</span>
-                  <p className={`stat-value ${parseFloat(premiumData.priceChangePercent || '0') >= 0 ? 'positive' : 'negative'}`}>
-                    {parseFloat(premiumData.priceChangePercent || '0') >= 0 ? '▲' : '▼'} {premiumData.priceChangePercent}%
+                  <p
+                    className={`stat-value ${parseFloat(premiumData.priceChangePercent || "0") >= 0 ? "positive" : "negative"}`}
+                  >
+                    {parseFloat(premiumData.priceChangePercent || "0") >= 0
+                      ? "▲"
+                      : "▼"}{" "}
+                    {premiumData.priceChangePercent}%
                   </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h High</span>
-                  <p className="stat-value">${premiumData.high24h?.toFixed(2) ?? 'N/A'}</p>
+                  <p className="stat-value">
+                    ${premiumData.high24h?.toFixed(2) ?? "N/A"}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">24h Low</span>
-                  <p className="stat-value">${premiumData.low24h?.toFixed(2) ?? 'N/A'}</p>
+                  <p className="stat-value">
+                    ${premiumData.low24h?.toFixed(2) ?? "N/A"}
+                  </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">Price Range</span>
                   <p className="stat-value">
-                    ${((premiumData.high24h ?? 0) - (premiumData.low24h ?? 0)).toFixed(2)}
+                    $
+                    {(
+                      (premiumData.high24h ?? 0) - (premiumData.low24h ?? 0)
+                    ).toFixed(2)}
                   </p>
                 </div>
                 <div className="stat">
                   <span className="stat-label">Data Points</span>
-                  <p className="stat-value">{premiumData.dataPoints ?? 'N/A'} OHLC bars</p>
+                  <p className="stat-value">
+                    {premiumData.dataPoints ?? "N/A"} OHLC bars
+                  </p>
                 </div>
               </div>
             </div>
 
-            {premiumData.priceHistory && premiumData.priceHistory.length > 0 && (
-              <div className="section">
-                <h3>📈 Recent OHLC Data (Last 5 Periods)</h3>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    fontSize: '0.9rem',
-                    marginTop: '1rem'
-                  }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>Time</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Open</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>High</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Low</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Close</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {premiumData.priceHistory.slice(-5).reverse().map((bar, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '0.5rem' }}>
-                            {new Date(bar.timestamp).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right' }}>${bar.open.toFixed(2)}</td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', color: '#4ade80' }}>
-                            ${bar.high.toFixed(2)}
-                          </td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', color: '#f87171' }}>
-                            ${bar.low.toFixed(2)}
-                          </td>
-                          <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>
-                            ${bar.close.toFixed(2)}
-                          </td>
+            {premiumData.priceHistory &&
+              premiumData.priceHistory.length > 0 && (
+                <div className="section">
+                  <h3>📈 Recent OHLC Data (Last 5 Periods)</h3>
+                  <div style={{ overflowX: "auto" }}>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.9rem",
+                        marginTop: "1rem",
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            borderBottom: "1px solid rgba(255,255,255,0.1)",
+                          }}
+                        >
+                          <th style={{ padding: "0.5rem", textAlign: "left" }}>
+                            Time
+                          </th>
+                          <th style={{ padding: "0.5rem", textAlign: "right" }}>
+                            Open
+                          </th>
+                          <th style={{ padding: "0.5rem", textAlign: "right" }}>
+                            High
+                          </th>
+                          <th style={{ padding: "0.5rem", textAlign: "right" }}>
+                            Low
+                          </th>
+                          <th style={{ padding: "0.5rem", textAlign: "right" }}>
+                            Close
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {premiumData.priceHistory
+                          .slice(-5)
+                          .reverse()
+                          .map((bar, idx) => (
+                            <tr
+                              key={idx}
+                              style={{
+                                borderBottom:
+                                  "1px solid rgba(255,255,255,0.05)",
+                              }}
+                            >
+                              <td style={{ padding: "0.5rem" }}>
+                                {new Date(bar.timestamp).toLocaleTimeString(
+                                  [],
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.5rem",
+                                  textAlign: "right",
+                                }}
+                              >
+                                ${bar.open.toFixed(2)}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.5rem",
+                                  textAlign: "right",
+                                  color: "#4ade80",
+                                }}
+                              >
+                                ${bar.high.toFixed(2)}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.5rem",
+                                  textAlign: "right",
+                                  color: "#f87171",
+                                }}
+                              >
+                                ${bar.low.toFixed(2)}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.5rem",
+                                  textAlign: "right",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                ${bar.close.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             <div className="timestamp">
               Data fetched at {new Date(premiumData.timestamp).toLocaleString()}
