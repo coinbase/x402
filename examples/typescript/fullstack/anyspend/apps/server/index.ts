@@ -45,9 +45,11 @@ const SIMDUNE_API_KEY = process.env.SIMDUNE_API_KEY!;
 
 // Solana Configuration
 const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
-const SOLANA_USDC_MINT = process.env.SOLANA_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_USDC_MINT =
+  process.env.SOLANA_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const SOLANA_PAYMENT_AMOUNT = process.env.SOLANA_PAYMENT_AMOUNT || "10000"; // 0.01 USDC (6 decimals)
-const SOLANA_PAYTO_ADDRESS = process.env.SOLANA_PAYTO_ADDRESS || "8Bw4C9cgFvMSsH3bdqJ1hpWPNdxknrawBPGzrHuYZR32";
+const SOLANA_PAYTO_ADDRESS =
+  process.env.SOLANA_PAYTO_ADDRESS || "8Bw4C9cgFvMSsH3bdqJ1hpWPNdxknrawBPGzrHuYZR32";
 
 // Apply payment middleware to protected routes
 app.use(
@@ -322,7 +324,7 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 
     // Calculate USD values and sort by value
     const tokensWithValue = balances
-      .map((balance: any) => {
+      .map((balance: SimDuneBalance) => {
         try {
           const rawAmount = balance.amount || "0";
           const decimals = balance.decimals || 18;
@@ -363,8 +365,19 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
           return null;
         }
       })
-      .filter((token: any) => token !== null && token.valueUsd > 0)
-      .sort((a: any, b: any) => b.valueUsd - a.valueUsd)
+      .filter(
+        (
+          token,
+        ): token is {
+          address: string;
+          symbol: string;
+          name: string;
+          decimals: number;
+          balance: string;
+          valueUsd: number;
+        } => token !== null && token.valueUsd > 0,
+      )
+      .sort((a, b) => b.valueUsd - a.valueUsd)
       .slice(0, 5); // Top 5
 
     console.log(`Returning ${tokensWithValue.length} tokens with value`);
@@ -384,6 +397,8 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 
 /**
  * Fetch ETH price history from CoinGecko
+ *
+ * @returns Promise with ETH price history data
  */
 async function fetchEthPriceHistory() {
   try {
@@ -422,7 +437,9 @@ async function fetchEthPriceHistory() {
     }));
 
     // Calculate statistics
-    const prices = priceHistory.map((p: any) => p.close);
+    const prices = priceHistory.map(
+      (p: { timestamp: number; open: number; high: number; low: number; close: number }) => p.close,
+    );
 
     if (prices.length === 0) {
       throw new Error("No price data available");
@@ -455,6 +472,8 @@ async function fetchEthPriceHistory() {
 
 /**
  * Fetch BTC price history from CoinGecko
+ *
+ * @returns Promise with BTC price history data
  */
 async function fetchBtcPriceHistory() {
   try {
@@ -493,7 +512,9 @@ async function fetchBtcPriceHistory() {
     }));
 
     // Calculate statistics
-    const prices = priceHistory.map((p: any) => p.close);
+    const prices = priceHistory.map(
+      (p: { timestamp: number; open: number; high: number; low: number; close: number }) => p.close,
+    );
 
     if (prices.length === 0) {
       throw new Error("No price data available");
@@ -525,7 +546,7 @@ async function fetchBtcPriceHistory() {
 }
 
 // Global Express error handler (must be last middleware)
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: Error, req: Request, res: Response, next: (err: Error) => void) => {
   console.error("❌ Express error handler caught:", err);
 
   if (res.headersSent) {

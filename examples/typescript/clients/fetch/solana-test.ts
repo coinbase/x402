@@ -3,7 +3,6 @@ import {
   createSigner,
   decodeXPaymentResponse,
   wrapFetchWithPayment,
-  type Hex,
 } from "@b3dotfun/anyspend-x402-fetch";
 
 config();
@@ -82,20 +81,23 @@ async function main(): Promise<void> {
     }
 
     console.log("\n✅ Payment test completed successfully!");
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("\n❌ Payment test failed:");
 
-    if (error.response) {
-      console.error(`Status: ${error.response.status}`);
-      console.error(`Data:`, error.response.data);
-    } else if (error.message) {
+    if (error && typeof error === "object" && "response" in error) {
+      const errorWithResponse = error as { response: { status: number; data: unknown } };
+      console.error(`Status: ${errorWithResponse.response.status}`);
+      console.error(`Data:`, errorWithResponse.response.data);
+    } else if (error instanceof Error) {
       console.error(`Error: ${error.message}`);
     } else {
       console.error(error);
     }
 
     console.log("\n💡 Troubleshooting:");
-    console.log("1. Ensure the server is running: cd ../../../fullstack/anyspend/apps/server && npm run dev");
+    console.log(
+      "1. Ensure the server is running: cd ../../../fullstack/anyspend/apps/server && npm run dev",
+    );
     console.log("2. Check your USDC balance on Solana mainnet");
     console.log("3. Verify your Solana private key is correct");
     console.log("4. Ensure the facilitator is running at http://localhost:8080/x402");
