@@ -151,7 +151,7 @@ async function createTransferInstructions(
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<Instruction[]> {
-  const { asset } = paymentRequirements;
+  const { asset, maxAmountRequired: amount, payTo } = paymentRequirements;
 
   const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
   const tokenMint = await fetchMint(rpc, asset as Address);
@@ -164,8 +164,6 @@ async function createTransferInstructions(
   ) {
     throw new Error("Asset was not created by a known token program");
   }
-
-  const { maxAmountRequired: amount, payTo } = paymentRequirements;
 
   const [sourceATA] = await findAssociatedTokenPda({
     mint: asset as Address,
