@@ -19,33 +19,86 @@ yarn add @b3dotfun/anyspend-x402-solana-wallet-adapter
 **Peer Dependencies** (usually already installed in browser apps):
 
 ```bash
-npm install @solana/wallet-adapter-base @solana/web3.js
+npm install @solana/wallet-adapter-base @solana/wallet-adapter-react @solana/wallet-adapter-react-ui @solana/web3.js react
 ```
+
+## Features
+
+- ✅ **Transaction Signer Bridge** - Converts between wallet-adapter v1 and x402 v2 formats
+- ✅ **Type-Safe React Components** - Properly typed wallet adapter components with fixed React type compatibility
+- ✅ **Full TypeScript Support** - Complete type definitions for all exports
+- ✅ **All Wallets Supported** - Works with any `@solana/wallet-adapter` compatible wallet
 
 ## Usage
 
-### Basic Example
+### Setting Up Wallet Provider
+
+This package exports properly-typed React components that fix TypeScript compatibility issues with newer React versions:
 
 ```typescript
-import { useWallet } from "@solana/wallet-adapter-react";
-import { createWalletAdapterSigner } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import {
+  ConnectionProvider,
+  WalletProvider,
+  WalletModalProvider,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import { useMemo } from "react";
+
+function App() {
+  const endpoint = useMemo(() => "https://api.mainnet-beta.solana.com", []);
+  const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider wallets={wallets} autoConnect={false}>
+        <WalletModalProvider>
+          {/* Your app components */}
+        </WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+}
+```
+
+### Making Payments
+
+```typescript
+import {
+  createWalletAdapterSigner,
+  useWallet,
+  WalletMultiButton,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
 import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
 
 function MyComponent() {
-  const { publicKey, signAllTransactions } = useWallet();
+  const { publicKey, signAllTransactions, connected } = useWallet();
 
-  // Create a signer adapter for the connected wallet
-  const signer = createWalletAdapterSigner(publicKey.toBase58(), signAllTransactions);
-
-  // Wrap fetch with payment capability
-  const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
-
-  // Use fetchWithPayment for x402 payment requests
   const fetchData = async () => {
+    if (!connected || !publicKey || !signAllTransactions) return;
+
+    // Create a signer adapter for the connected wallet
+    const signer = createWalletAdapterSigner(
+      publicKey.toBase58(),
+      signAllTransactions
+    );
+
+    // Wrap fetch with payment capability
+    const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
+
+    // Make payment request
     const response = await fetchWithPayment("https://api.example.com/premium-data");
     const data = await response.json();
     return data;
   };
+
+  return (
+    <div>
+      <WalletMultiButton />
+      <button onClick={fetchData} disabled={!connected}>
+        Get Premium Data
+      </button>
+    </div>
+  );
 }
 ```
 
@@ -71,11 +124,13 @@ const fetchWithPayment = wrapFetchWithPayment(
 ### Complete React Example
 
 ```typescript
-import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { createWalletAdapterSigner } from '@b3dotfun/anyspend-x402-solana-wallet-adapter';
-import { wrapFetchWithPayment } from '@b3dotfun/anyspend-x402-fetch';
-import { useState } from 'react';
+import {
+  createWalletAdapterSigner,
+  useWallet,
+  WalletMultiButton,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
+import { useState } from "react";
 
 export function PremiumContent() {
   const { publicKey, signAllTransactions, connected } = useWallet();
@@ -138,7 +193,9 @@ export function PremiumContent() {
 
 ## API Reference
 
-### `createWalletAdapterSigner(walletAddress, signAllTransactions, onSign?)`
+### Core Function
+
+#### `createWalletAdapterSigner(walletAddress, signAllTransactions, onSign?)`
 
 Creates a `TransactionSigner` compatible with x402 from a wallet adapter.
 
@@ -158,6 +215,64 @@ Creates a `TransactionSigner` compatible with x402 from a wallet adapter.
 const signer = createWalletAdapterSigner(publicKey.toBase58(), signAllTransactions, count =>
   setStatus(`Signing ${count} transaction(s)...`),
 );
+```
+
+### React Components
+
+This package re-exports properly-typed React components from `@solana/wallet-adapter-react` and `@solana/wallet-adapter-react-ui` with fixed TypeScript compatibility:
+
+#### `ConnectionProvider`
+
+Provides Solana RPC connection context to child components.
+
+```typescript
+import { ConnectionProvider } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+
+<ConnectionProvider endpoint="https://api.mainnet-beta.solana.com">
+  {children}
+</ConnectionProvider>;
+```
+
+#### `WalletProvider`
+
+Provides wallet connection and management to child components.
+
+```typescript
+import { WalletProvider } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+
+<WalletProvider wallets={wallets} autoConnect={false}>
+  {children}
+</WalletProvider>;
+```
+
+#### `WalletModalProvider`
+
+Provides modal UI for wallet selection.
+
+```typescript
+import { WalletModalProvider } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+
+<WalletModalProvider>{children}</WalletModalProvider>;
+```
+
+#### `WalletMultiButton`
+
+Pre-built wallet connect/disconnect button component.
+
+```typescript
+import { WalletMultiButton } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+
+<WalletMultiButton className="my-wallet-button" />;
+```
+
+#### `useWallet()`
+
+React hook to access wallet connection state and functions.
+
+```typescript
+import { useWallet } from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+
+const { publicKey, connected, signAllTransactions } = useWallet();
 ```
 
 ## How It Works
