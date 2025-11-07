@@ -46,7 +46,6 @@ type SignAllTransactions = (
  */
 type SignableTransaction = V2Transaction | VersionedTransaction;
 
-
 /**
  * Type guard to check if a transaction is a V2Transaction
  *
@@ -156,13 +155,18 @@ export function createWalletAdapterSigner(
   return {
     address: walletAddress as Address<string>,
     signTransactions: async (
-      transactions: readonly Readonly<{ messageBytes: TransactionMessageBytes; signatures: SignaturesMap }>[],
-      config?: BaseTransactionSignerConfig,
+      transactions: readonly Readonly<{
+        messageBytes: TransactionMessageBytes;
+        signatures: SignaturesMap;
+      }>[],
+      _?: BaseTransactionSignerConfig,
     ) => {
       onSign?.(transactions.length);
 
       // Convert v2 format to VersionedTransaction
-      const txsToSign = (transactions as unknown as SignableTransaction[]).map(convertToVersionedTransaction);
+      const txsToSign = (transactions as unknown as SignableTransaction[]).map(
+        convertToVersionedTransaction,
+      );
 
       // Sign with wallet adapter
       const signedTxs = await signAllTransactions(txsToSign);
