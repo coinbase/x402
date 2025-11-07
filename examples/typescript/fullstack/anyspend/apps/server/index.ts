@@ -1,14 +1,25 @@
+import { paymentMiddleware } from "@b3dotfun/anyspend-x402-express";
 import cors from "cors";
 import dotenv from "dotenv";
 import express, { Request, Response } from "express";
 import { Address } from "viem";
-import { paymentMiddleware } from "@b3dotfun/anyspend-x402-express";
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Global error handlers to prevent crashes
+process.on("uncaughtException", error => {
+  console.error("❌ Uncaught Exception:", error);
+  // Don't exit the process, just log the error
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't exit the process, just log the error
+});
 
 // Basic middleware
 app.use(cors());
@@ -20,7 +31,7 @@ const PAYTO_ADDRESS =
 const NETWORK = (process.env.NETWORK as "base-sepolia" | "base") || "base";
 const PAYMENT_AMOUNT_USD = process.env.PAYMENT_AMOUNT_USD || "100000000"; // Default 100 USDC (100 * 10^6)
 const FACILITATOR_URL = (process.env.FACILITATOR_URL ||
-  "https://facilitator.x402.org") as `${string}://${string}`;
+  "https://mainnet.anyspend.com/x402") as `${string}://${string}`;
 
 // API Keys from environment
 if (!process.env.COINGECKO_API_KEY) {
@@ -31,6 +42,14 @@ if (!process.env.SIMDUNE_API_KEY) {
 }
 const COINGECKO_API_KEY = process.env.COINGECKO_API_KEY!;
 const SIMDUNE_API_KEY = process.env.SIMDUNE_API_KEY!;
+
+// Solana Configuration
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+const SOLANA_USDC_MINT =
+  process.env.SOLANA_USDC_MINT || "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+const SOLANA_PAYMENT_AMOUNT = process.env.SOLANA_PAYMENT_AMOUNT || "10000"; // 0.01 USDC (6 decimals)
+const SOLANA_PAYTO_ADDRESS =
+  process.env.SOLANA_PAYTO_ADDRESS || "8Bw4C9cgFvMSsH3bdqJ1hpWPNdxknrawBPGzrHuYZR32";
 
 // Apply payment middleware to protected routes
 app.use(
@@ -90,6 +109,31 @@ app.use(
         network: NETWORK,
         config: {
           description: "Access to premium BTC price history data",
+          mimeType: "application/json",
+        },
+      },
+    },
+    {
+      url: FACILITATOR_URL,
+    },
+  ),
+);
+
+app.use(
+  paymentMiddleware(
+    SOLANA_PAYTO_ADDRESS,
+    {
+      "POST /api/solana/premium": {
+        price: {
+          amount: SOLANA_PAYMENT_AMOUNT,
+          asset: {
+            address: SOLANA_USDC_MINT,
+            decimals: 6,
+          },
+        },
+        network: "solana",
+        config: {
+          description: "Access to Solana premium data via USDC payment",
           mimeType: "application/json",
         },
       },
@@ -190,6 +234,35 @@ app.post("/api/btc", async (req: Request, res: Response) => {
 });
 
 /**
+ * Solana premium API endpoint - Protected by payment middleware (USDC on Solana)
+ * The payment middleware automatically handles:
+ * - Returning 402 when no payment header is provided
+ * - Decoding and verifying the payment
+ * - Settling the payment via remote facilitator
+ * - Adding X-PAYMENT-RESPONSE header to successful responses
+ */
+app.post("/api/solana/premium", async (req: Request, res: Response) => {
+  try {
+    return res.json({
+      success: true,
+      data: {
+        message: "Payment received successfully on Solana!",
+        network: "solana",
+        paymentToken: "USDC",
+        amount: SOLANA_PAYMENT_AMOUNT,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error processing Solana payment:", error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to process Solana payment",
+    });
+  }
+});
+
+/**
  * Free API endpoint - No payment required
  */
 app.get("/api/free", (req: Request, res: Response) => {
@@ -251,46 +324,60 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 
     // Calculate USD values and sort by value
     const tokensWithValue = balances
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((balance: any) => {
-        const rawAmount = balance.amount || "0";
-        const decimals = balance.decimals || 18;
-
-        // Convert wei to human-readable format
-        let amount: number;
+      .map((balance: SimDuneBalance) => {
         try {
-          const weiBigInt = BigInt(rawAmount.toString().split(".")[0]);
-          amount = Number(weiBigInt) / Math.pow(10, decimals);
-        } catch {
-          amount = parseFloat(rawAmount) / Math.pow(10, decimals);
+          const rawAmount = balance.amount || "0";
+          const decimals = balance.decimals || 18;
+
+          // Convert wei to human-readable format
+          let amount: number;
+          try {
+            const weiBigInt = BigInt(rawAmount.toString().split(".")[0]);
+            amount = Number(weiBigInt) / Math.pow(10, decimals);
+          } catch (e) {
+            console.warn(`Failed to parse amount for token ${balance.symbol}:`, e);
+            amount = parseFloat(rawAmount) / Math.pow(10, decimals);
+          }
+
+          const price = parseFloat(balance.price_usd || "0");
+          const valueUsd = amount * price;
+
+          // Format balance to remove trailing zeros
+          let formattedBalance: string;
+          if (amount > 0 && amount < 0.01) {
+            formattedBalance = amount.toFixed(6).replace(/\.?0+$/, "");
+          } else if (amount >= 0.01 && amount < 1) {
+            formattedBalance = amount.toFixed(4).replace(/\.?0+$/, "");
+          } else {
+            formattedBalance = amount.toFixed(2).replace(/\.?0+$/, "");
+          }
+
+          return {
+            address: balance.address,
+            symbol: balance.symbol || "UNKNOWN",
+            name: balance.name || "Unknown Token",
+            decimals: decimals,
+            balance: formattedBalance,
+            valueUsd: valueUsd,
+          };
+        } catch (error) {
+          console.warn(`Error processing balance for token ${balance?.symbol}:`, error);
+          return null;
         }
-
-        const price = parseFloat(balance.price_usd || "0");
-        const valueUsd = amount * price;
-
-        // Format balance to remove trailing zeros
-        let formattedBalance: string;
-        if (amount > 0 && amount < 0.01) {
-          formattedBalance = amount.toFixed(6).replace(/\.?0+$/, "");
-        } else if (amount >= 0.01 && amount < 1) {
-          formattedBalance = amount.toFixed(4).replace(/\.?0+$/, "");
-        } else {
-          formattedBalance = amount.toFixed(2).replace(/\.?0+$/, "");
-        }
-
-        return {
-          address: balance.address,
-          symbol: balance.symbol || "UNKNOWN",
-          name: balance.name || "Unknown Token",
-          decimals: decimals,
-          balance: formattedBalance,
-          valueUsd: valueUsd,
-        };
       })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((token: any) => token.valueUsd > 0)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .sort((a: any, b: any) => b.valueUsd - a.valueUsd)
+      .filter(
+        (
+          token,
+        ): token is {
+          address: string;
+          symbol: string;
+          name: string;
+          decimals: number;
+          balance: string;
+          valueUsd: number;
+        } => token !== null && token.valueUsd > 0,
+      )
+      .sort((a, b) => b.valueUsd - a.valueUsd)
       .slice(0, 5); // Top 5
 
     console.log(`Returning ${tokensWithValue.length} tokens with value`);
@@ -311,7 +398,7 @@ app.get("/api/balances/:address", async (req: Request, res: Response) => {
 /**
  * Fetch ETH price history from CoinGecko
  *
- * @returns {Promise} Promise resolving to price history data
+ * @returns Promise with ETH price history data
  */
 async function fetchEthPriceHistory() {
   try {
@@ -335,9 +422,13 @@ async function fetchEthPriceHistory() {
 
     const data = (await response.json()) as number[][];
 
+    // Validate data
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error("Invalid or empty price data from CoinGecko");
+    }
+
     // Data format: [[timestamp, open, high, low, close], ...]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const priceHistory = data.map((item: any) => ({
+    const priceHistory = data.map((item: number[]) => ({
       timestamp: item[0],
       open: item[1],
       high: item[2],
@@ -346,8 +437,14 @@ async function fetchEthPriceHistory() {
     }));
 
     // Calculate statistics
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prices = priceHistory.map((p: any) => p.close);
+    const prices = priceHistory.map(
+      (p: { timestamp: number; open: number; high: number; low: number; close: number }) => p.close,
+    );
+
+    if (prices.length === 0) {
+      throw new Error("No price data available");
+    }
+
     const currentPrice = prices[prices.length - 1];
     const dayStartPrice = prices[0];
     const highPrice = Math.max(...prices);
@@ -376,7 +473,7 @@ async function fetchEthPriceHistory() {
 /**
  * Fetch BTC price history from CoinGecko
  *
- * @returns {Promise} Promise resolving to price history data
+ * @returns Promise with BTC price history data
  */
 async function fetchBtcPriceHistory() {
   try {
@@ -400,9 +497,13 @@ async function fetchBtcPriceHistory() {
 
     const data = (await response.json()) as number[][];
 
+    // Validate data
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error("Invalid or empty price data from CoinGecko");
+    }
+
     // Data format: [[timestamp, open, high, low, close], ...]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const priceHistory = data.map((item: any) => ({
+    const priceHistory = data.map((item: number[]) => ({
       timestamp: item[0],
       open: item[1],
       high: item[2],
@@ -411,8 +512,14 @@ async function fetchBtcPriceHistory() {
     }));
 
     // Calculate statistics
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prices = priceHistory.map((p: any) => p.close);
+    const prices = priceHistory.map(
+      (p: { timestamp: number; open: number; high: number; low: number; close: number }) => p.close,
+    );
+
+    if (prices.length === 0) {
+      throw new Error("No price data available");
+    }
+
     const currentPrice = prices[prices.length - 1];
     const dayStartPrice = prices[0];
     const highPrice = Math.max(...prices);
@@ -438,6 +545,20 @@ async function fetchBtcPriceHistory() {
   }
 }
 
+// Global Express error handler (must be last middleware)
+app.use((err: Error, req: Request, res: Response, next: (err: Error) => void) => {
+  console.error("❌ Express error handler caught:", err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(500).json({
+    success: false,
+    error: err.message || "Internal server error",
+  });
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log("\n🚀 AnySpend Express Server with CoinGecko Premium Data");
@@ -453,14 +574,21 @@ app.listen(PORT, () => {
   console.log("   GET  /health                - Health check (free)");
   console.log("   GET  /api/free              - Free endpoint (no payment)");
   console.log("   GET  /api/balances/:address - Token balances (free)");
-  console.log("   POST /api/b3/premium       - B3 premium data (requires payment)");
-  console.log("   POST /api/usdc/premium     - USDC premium data (requires payment)");
-  console.log("   POST /api/btc              - BTC premium data (0.01 USDC)");
+  console.log("   POST /api/b3/premium        - B3 premium data (requires payment)");
+  console.log("   POST /api/usdc/premium      - USDC premium data (requires payment)");
+  console.log("   POST /api/btc               - BTC premium data (0.01 USDC)");
+  console.log("   POST /api/solana/premium    - Solana premium (0.01 USDC on Solana)");
   console.log("\n💎 Premium Data Includes:");
   console.log("   • 24-hour ETH/BTC price history (OHLC data)");
   console.log("   • Current price & price change");
   console.log("   • 24h high/low prices");
   console.log("   • Historical data points");
+  console.log("\n🌐 Solana Configuration:");
+  console.log(`   • Network: solana (mainnet)`);
+  console.log(`   • RPC URL: ${SOLANA_RPC_URL}`);
+  console.log(`   • USDC Mint: ${SOLANA_USDC_MINT}`);
+  console.log(`   • Payment Amount: ${SOLANA_PAYMENT_AMOUNT} (0.01 USDC)`);
+  console.log(`   • Pay To Address: ${SOLANA_PAYTO_ADDRESS}`);
   console.log("\n💡 To test:");
   console.log("   Use the React client at http://localhost:3000\n");
 });
