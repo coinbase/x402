@@ -19,16 +19,25 @@
 
 ## Installation
 
+### Core Package
 ```bash
 npm install @b3dotfun/anyspend-x402
 ```
 
+### For Solana Browser Wallets
+```bash
+npm install @b3dotfun/anyspend-x402-solana-wallet-adapter
+```
+
 ## Quick Start
+
+### Express Server (EVM or Solana)
 
 ```typescript
 import { paymentMiddleware } from "x402-express";
 import { facilitator } from "@b3dotfun/anyspend-x402";
 
+// EVM example
 app.use(
   paymentMiddleware(
     "0xYourAddress",
@@ -36,30 +45,75 @@ app.use(
     facilitator
   )
 );
-// That's it! See examples/typescript/servers/express.ts for a complete example.
+
+// Solana example
+app.use(
+  paymentMiddleware(
+    "YourSolanaAddress",
+    { "/your-endpoint": { price: "1000000", network: "solana" } }, // 1 USDC (6 decimals)
+    facilitator
+  )
+);
+// That's it! See examples/typescript/servers/express.ts for complete examples.
+```
+
+### React Client with Solana Wallet
+
+```typescript
+import {
+  createWalletAdapterSigner,
+  useWallet,
+  WalletMultiButton,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
+
+function App() {
+  const { publicKey, signAllTransactions, connected } = useWallet();
+
+  const fetchData = async () => {
+    const signer = createWalletAdapterSigner(
+      publicKey.toBase58(),
+      signAllTransactions
+    );
+    const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
+    const response = await fetchWithPayment("https://api.example.com/data");
+    return await response.json();
+  };
+
+  return (
+    <>
+      <WalletMultiButton />
+      <button onClick={fetchData} disabled={!connected}>Pay & Get Data</button>
+    </>
+  );
+}
 ```
 
 ## What is AnySpend x402?
 
-AnySpend X402 is B3's implementation of the X402 payment protocol that enables instant, automatic cryptocurrency payments directly over HTTP. Unlike standard X402 systems, **AnySpend supports multi-token transactions** - customers can pay with any token (ETH, DAI, and other ERC-20 tokens) while sellers receive payments in USDC.
+AnySpend X402 is B3's implementation of the X402 payment protocol that enables instant, automatic cryptocurrency payments directly over HTTP. Unlike standard X402 systems, **AnySpend supports multi-token and multi-chain transactions** - customers can pay with any token (ETH, DAI, ERC-20 tokens on EVM chains, or SPL tokens on Solana) while sellers receive payments in their preferred denomination like USDC.
 
 This repository is a fork of the original Coinbase x402 protocol with additional features and integrations for the AnySpend ecosystem. It maintains full compatibility with the base x402 protocol while adding:
 
 - 🔧 **Extended Facilitator Support**: Pre-configured integration with Coinbase's CDP platform
 - 🎯 **Easy Integration**: Drop-in replacement for `@coinbase/x402` with additional utilities
+- ⛓️ **Multi-Chain Support**: Full EVM and Solana Virtual Machine (SVM) support
+- 💳 **Solana Wallet Integration**: Browser wallet adapter for Phantom, Solflare, and more
 - 🚀 **Enhanced Examples**: Additional demos and use cases for various frameworks
 - 🔄 **Regular Updates**: Tracking upstream x402 protocol developments
 
 ### Key Features
 
 **For Buyers:**
-- Pay with any token including ETH, DAI, and ERC-20 tokens
+- Pay with any token including ETH, DAI, ERC-20 tokens (EVM), and SPL tokens (Solana)
+- Support for popular Solana wallets: Phantom, Solflare, Ledger, and more
 - Automatic conversion to seller's preferred denomination
 - Single SDK compatible across all X402-enabled services
 - Perfect for accessing premium APIs, computational resources, paywalled content, and autonomous agent interactions
 
 **For Sellers:**
-- Receive payments in USDC regardless of customer's token choice
+- Receive payments in USDC regardless of customer's token choice or blockchain
+- Support for both EVM chains (Ethereum, Base, etc.) and Solana
 - Add payments to your API with just a few lines of code
 - No blockchain infrastructure, wallets, or token conversion management needed
 - Monetize APIs and build paid AI workflows without cryptocurrency expertise
@@ -69,15 +123,17 @@ This repository is a fork of the original Coinbase x402 protocol with additional
 The AnySpend transaction flow:
 1. Client requests a resource
 2. Receives a 402 status with payment details
-3. Specifies their token preference
+3. Specifies their token preference (ERC-20 or SPL)
 4. Receives an AnySpend quote
-5. Signs authorization
-6. Facilitator swaps tokens to USDC
+5. Signs authorization (EIP-3009/ERC-2612 on EVM, or Transaction signature on Solana)
+6. Facilitator swaps tokens to USDC (if needed)
 7. Resource is delivered
 
-**AnySpend Facilitator**: Processes all payments with multi-token support across 19+ networks, automatic swaps, gasless transactions, and standards compliance.
+**AnySpend Facilitator**: Processes all payments with multi-token and multi-chain support across 19+ networks (including Solana), automatic swaps, gasless transactions, and standards compliance.
 
 **Production endpoint**: `https://mainnet.anyspend.com/x402`
+
+**Supported Networks**: EVM chains (Ethereum, Base, Polygon, Arbitrum, Optimism, etc.) and Solana (mainnet-beta, devnet)
 
 📚 **Full Documentation**: [docs.b3.fun/anyspend/x402-overview](https://docs.b3.fun/anyspend/x402-overview)
 
@@ -90,7 +146,7 @@ It's time for an open, internet-native form of payments. A payment rail that doe
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
 - **HTTP Native:** x402 is meant to seamlessly complement the existing HTTP request made by traditional web services, it should not mandate additional requests outside the scope of a typical client / server flow.
-- **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria
+- **Chain and token agnostic:** we welcome contributions that add support for new chains, signing standards, or schemes, so long as they meet our acceptance criteria. Currently supports both EVM and Solana Virtual Machine (SVM).
 - **Trust minimizing:** all payment schemes must not allow for the facilitator or resource server to move funds, other than in accordance with client intentions
 - **Easy to use:** x402 needs to be 10x better than existing ways to pay on the internet. This means abstracting as many details of crypto as possible away from the client and resource server, and into the facilitator. This means the client/server should not need to think about gas, rpc, etc.
 
@@ -325,6 +381,12 @@ Because a scheme is a logical way of moving money, the way a scheme is implement
 
 Clients and facilitators must explicitly support different `(scheme, network)` pairs in order to be able to create proper payloads and verify / settle payments.
 
+**Supported Scheme-Network Pairs:**
+- **`exact` + EVM networks**: Uses EIP-3009 (TransferWithAuthorization) or ERC-2612 (Permit) for ERC-20 tokens
+- **`exact` + Solana (SVM)**: Uses SPL Token TransferChecked instructions with gasless, facilitator-sponsored transactions
+
+See `specs/schemes/exact/scheme_exact_evm.md` and `specs/schemes/exact/scheme_exact_svm.md` for detailed specifications.
+
 ## Running example
 
 **Requirements:** Node.js v24 or higher
@@ -349,15 +411,60 @@ This will run the unit tests for the x402 packages.
 
 ## AnySpend-Specific Information
 
-### Published Package
+### Published Packages
 
-This repository publishes the [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402) npm package, which provides:
+This repository publishes the following npm packages:
 
+#### [@b3dotfun/anyspend-x402](https://www.npmjs.com/package/@b3dotfun/anyspend-x402)
+
+Core package providing:
 - Pre-configured facilitator for Coinbase's CDP platform
 - Helper functions for authentication and authorization
 - Easy integration with x402 middleware packages
+- Support for both EVM and Solana networks
 
-See the [package README](./typescript/packages/anyspend-x402/README.md) for detailed usage instructions.
+#### [@b3dotfun/anyspend-x402-solana-wallet-adapter](https://www.npmjs.com/package/@b3dotfun/anyspend-x402-solana-wallet-adapter)
+
+Solana-specific package providing:
+- Bridge between `@solana/wallet-adapter` (v1) and x402 library (v2)
+- Support for popular Solana wallets (Phantom, Solflare, Ledger, Trust Wallet, etc.)
+- Type-safe React components with fixed TypeScript compatibility
+- Transaction signer adapter for seamless integration
+
+**Quick Example:**
+```typescript
+import {
+  createWalletAdapterSigner,
+  useWallet,
+  WalletMultiButton,
+} from "@b3dotfun/anyspend-x402-solana-wallet-adapter";
+import { wrapFetchWithPayment } from "@b3dotfun/anyspend-x402-fetch";
+
+function MyComponent() {
+  const { publicKey, signAllTransactions, connected } = useWallet();
+
+  const fetchData = async () => {
+    const signer = createWalletAdapterSigner(
+      publicKey.toBase58(),
+      signAllTransactions
+    );
+    const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
+    const response = await fetchWithPayment("https://api.example.com/premium-data");
+    return await response.json();
+  };
+
+  return (
+    <div>
+      <WalletMultiButton />
+      <button onClick={fetchData} disabled={!connected}>
+        Get Premium Data
+      </button>
+    </div>
+  );
+}
+```
+
+See the [Solana wallet adapter README](./typescript/packages/x402-solana-wallet-adapter/README.md) for detailed usage instructions.
 
 ### Repository Structure
 
@@ -365,15 +472,21 @@ See the [package README](./typescript/packages/anyspend-x402/README.md) for deta
 anyspend-x402/
 ├── typescript/
 │   ├── packages/
-│   │   ├── anyspend-x402/     # Published npm package
-│   │   ├── x402/              # Core x402 protocol
-│   │   ├── x402-express/      # Express middleware
-│   │   ├── x402-hono/         # Hono middleware
-│   │   ├── x402-next/         # Next.js middleware
+│   │   ├── anyspend-x402/                  # Published npm package
+│   │   ├── x402/                           # Core x402 protocol
+│   │   ├── x402-express/                   # Express middleware
+│   │   ├── x402-hono/                      # Hono middleware
+│   │   ├── x402-next/                      # Next.js middleware
+│   │   ├── x402-solana-wallet-adapter/     # Solana wallet integration
 │   │   └── ...
-│   └── examples/              # Example implementations
-├── e2e/                       # End-to-end tests
-└── examples/                  # Additional examples
+│   └── examples/                           # Example implementations
+├── specs/
+│   └── schemes/
+│       └── exact/
+│           ├── scheme_exact_evm.md         # EVM implementation spec
+│           └── scheme_exact_svm.md         # Solana implementation spec
+├── e2e/                                    # End-to-end tests
+└── examples/                               # Additional examples
 ```
 
 ### Contributing to AnySpend x402
