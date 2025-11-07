@@ -1,3 +1,10 @@
+import {
+  decodeXPaymentResponse,
+  MultiNetworkSigner,
+  Signer,
+  wrapFetchWithPayment,
+} from "@b3dotfun/anyspend-x402-fetch";
+import { TokenCompatClient } from "@b3dotfun/anyspend-x402-token-compat";
 import { useEffect, useState } from "react";
 import { publicActions } from "viem";
 import {
@@ -7,13 +14,6 @@ import {
   useSwitchChain,
   useWalletClient,
 } from "wagmi";
-import {
-  decodeXPaymentResponse,
-  MultiNetworkSigner,
-  Signer,
-  wrapFetchWithPayment,
-} from "@b3dotfun/anyspend-x402-fetch";
-import { TokenCompatClient } from "@b3dotfun/anyspend-x402-token-compat";
 import "./App.css";
 import { BASE_TOKENS } from "./wagmi.config";
 
@@ -65,7 +65,7 @@ function App() {
   const [priceInfo, setPriceInfo] = useState<string>("Loading...");
   const [srcNetwork, setSrcNetwork] = useState<string>("base");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [tokenBalances, setTokenBalances] = useState<Record<string, string>>(
+  const [_tokenBalances, setTokenBalances] = useState<Record<string, string>>(
     {},
   );
   const [selectedChain, setSelectedChain] = useState<string>("8453"); // Base mainnet
@@ -85,6 +85,7 @@ function App() {
     message: string;
   }>({ stage: "idle", message: "" });
   const [dataType, setDataType] = useState<"eth" | "btc">("eth");
+  const [showWalletModal, setShowWalletModal] = useState(false);
 
   // Set default preset token when connected (default to B3)
   useEffect(() => {
@@ -98,8 +99,7 @@ function App() {
     const fetchBalancesForAllChains = async () => {
       if (!address) return;
 
-      const chains = ["1", "8453", "137", "42161"]; // Ethereum, Base, Polygon, Arbitrum
-      const chainsWithTokens: string[] = [];
+      const chains = ["1", "8453", "137", "42161", "56"]; // Ethereum, Base, Polygon, Arbitrum, BSC
 
       try {
         // Fetch balances for all chains in parallel
@@ -166,7 +166,7 @@ function App() {
             const balances: Record<string, string> = {};
 
             // Filter out native ETH token (address: "native") and WETH tokens
-            const filteredTokens = data.tokens.filter((token: any) => {
+            const basicFilteredTokens = data.tokens.filter((token: any) => {
               const address = token.address.toLowerCase();
               const symbol = token.symbol?.toUpperCase() || "";
 
@@ -177,35 +177,72 @@ function App() {
               );
             });
 
-            // Check compatibility for each token using the fixed TokenCompatClient
-            const compatClient = new TokenCompatClient();
-            const compatibilityChecks = await Promise.all(
-              filteredTokens.map(async (token: any) => {
-                try {
-                  const chainIdNum = Number(selectedChain);
-                  const supportsPermit = await compatClient.supportsEip2612(
-                    chainIdNum,
-                    token.address,
-                  );
-                  return { token, supportsPermit };
-                } catch (err) {
-                  console.error(
-                    `Failed to check compatibility for ${token.symbol}:`,
-                    err,
-                  );
-                  // If we can't check, exclude the token to be safe
-                  return { token, supportsPermit: false };
-                }
-              }),
+            // Check token compatibility using metadata API
+            console.log(
+              `Checking compatibility for ${basicFilteredTokens.length} tokens...`,
             );
+            const compatibleTokens: any[] = [];
 
-            // Filter to only compatible tokens (EIP-2612 support)
-            const compatibleTokens = compatibilityChecks
-              .filter((result) => result.supportsPermit)
-              .map((result) => result.token);
+            // Initialize TokenCompatClient
+            const compatClient = new TokenCompatClient();
+            const chainId = parseInt(selectedChain);
 
             console.log(
-              `Filtered to ${compatibleTokens.length} compatible tokens out of ${filteredTokens.length} total`,
+              `Using TokenCompatClient with chainId: ${chainId} for ${basicFilteredTokens.length} tokens`,
+            );
+
+            for (const token of basicFilteredTokens) {
+              try {
+                console.log(
+                  `Checking token: ${token.symbol} (${token.address}) on chain ${chainId}`,
+                );
+
+                // Check using TokenCompatClient
+                const metadata = await compatClient.getTokenMetadata(
+                  chainId,
+                  token.address,
+                );
+
+                console.log(`Metadata received for ${token.symbol}:`, metadata);
+
+                // Check if token supports EIP-2612 or EIP-3009
+                const supportsPermit = metadata.supportsEip2612 === true;
+                const supportsTransferWithAuth =
+                  metadata.supportsEip3009 === true;
+
+                if (supportsPermit || supportsTransferWithAuth) {
+                  compatibleTokens.push(token);
+                  const supportedStandards = [
+                    supportsPermit && "EIP-2612",
+                    supportsTransferWithAuth && "EIP-3009",
+                  ]
+                    .filter(Boolean)
+                    .join(", ");
+                  console.log(
+                    `✓ ${token.symbol} (${token.address}) supports ${supportedStandards}`,
+                  );
+                } else {
+                  console.log(
+                    `✗ ${token.symbol} (${token.address}) does not support gasless signatures`,
+                  );
+                }
+              } catch (err) {
+                console.error(
+                  `❌ Error checking compatibility for ${token.symbol} (${token.address}):`,
+                );
+                console.error("Error details:", {
+                  message: err instanceof Error ? err.message : String(err),
+                  statusCode: (err as any)?.statusCode,
+                  responseBody: (err as any)?.responseBody,
+                  stack: err instanceof Error ? err.stack : undefined,
+                  fullError: err,
+                });
+                // Skip tokens that error during compatibility check
+              }
+            }
+
+            console.log(
+              `Found ${compatibleTokens.length} compatible tokens out of ${basicFilteredTokens.length}`,
             );
 
             // Map balances by token address
@@ -548,9 +585,6 @@ function App() {
       // Extend wallet client with public actions to make it compatible with Signer type
       const extendedWalletClient = walletClient.extend(publicActions);
 
-      // Only set payment preferences if not using default USDC
-      const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-
       // Map chain ID to network name
       const getNetworkName = (chainId: string): string => {
         switch (chainId) {
@@ -686,12 +720,51 @@ function App() {
         // This catches errors from fetchWithPayment including signature requests
         const message =
           fetchError instanceof Error ? fetchError.message : "Unknown error";
+
+        // Detailed error logging for debugging
+        console.error("Payment error details:", {
+          error: fetchError,
+          message: message,
+          stack: fetchError instanceof Error ? fetchError.stack : undefined,
+          cause:
+            fetchError instanceof Error ? (fetchError as any).cause : undefined,
+          type: typeof fetchError,
+          stringified: JSON.stringify(fetchError, null, 2),
+        });
+
         addLog(`❌ Error during payment: ${message}`);
-        console.error("Payment error details:", fetchError);
         throw fetchError;
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
+      // Enhanced error parsing
+      let message = "Unknown error";
+      let errorDetails = "";
+
+      if (err instanceof Error) {
+        message = err.message;
+        errorDetails = err.stack || "";
+      } else if (typeof err === "object" && err !== null) {
+        // Try to extract useful info from error object
+        const errObj = err as any;
+        if (errObj.shortMessage) message = errObj.shortMessage;
+        else if (errObj.reason) message = errObj.reason;
+        else if (errObj.message) message = errObj.message;
+        else if (errObj.error?.message) message = errObj.error.message;
+
+        // Log the full error object for debugging
+        console.error("Detailed error object:", {
+          error: err,
+          keys: Object.keys(err),
+          stringified: JSON.stringify(err, null, 2),
+        });
+
+        errorDetails = JSON.stringify(err, null, 2);
+      } else {
+        message = String(err);
+      }
+
+      console.error("Final error message:", message);
+      console.error("Full error details:", errorDetails);
 
       // Check if error is due to nonces function not existing (non-permit token)
       if (
@@ -702,6 +775,12 @@ function App() {
           "This token doesn't support gasless signatures (EIP-2612 permit). Please select a different token like USDC or DAI.";
         addLog(`❌ Error: ${friendlyMessage}`);
         setError(friendlyMessage);
+      } else if (
+        message.includes("User rejected") ||
+        message.includes("User denied")
+      ) {
+        addLog(`❌ Error: Signature request was rejected`);
+        setError("Signature request was rejected by user");
       } else {
         addLog(`❌ Error: ${message}`);
         setError(message);
@@ -760,7 +839,7 @@ function App() {
               {!isConnected ? (
                 <div className="connector-buttons-header">
                   <button
-                    onClick={() => connect({ connector: connectors[0] })}
+                    onClick={() => setShowWalletModal(true)}
                     className="button button-small"
                   >
                     Connect Wallet
@@ -789,51 +868,101 @@ function App() {
         </div>
 
         {/* Main Action Cards */}
-        {isConnected && (
-          <>
-            <div className="card action-card">
-              <div className="action-content">
-                <div className="action-text">
-                  <h2>📈 ETH Price History</h2>
-                  <p className="subtitle">
-                    Get 24-hour ETH price history with OHLC data from CoinGecko
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setDataType("eth");
-                    openPaymentModal();
-                  }}
-                  disabled={loading}
-                  className="button button-large"
-                >
-                  📊 Get ETH Data
-                </button>
-              </div>
+        <div className="card action-card">
+          <div className="action-content">
+            <div className="action-text">
+              <h2>📈 ETH Price History</h2>
+              <p className="subtitle">
+                Get 24-hour ETH price history with OHLC data from CoinGecko
+              </p>
             </div>
+            <button
+              onClick={() => {
+                setDataType("eth");
+                openPaymentModal();
+              }}
+              disabled={loading}
+              className="button button-large"
+            >
+              📊 Get ETH Data
+            </button>
+          </div>
+        </div>
 
-            <div className="card action-card">
-              <div className="action-content">
-                <div className="action-text">
-                  <h2>₿ BTC Price History</h2>
-                  <p className="subtitle">
-                    Get 24-hour BTC price history with OHLC data - Only 0.01
-                    USDC!
-                  </p>
-                </div>
+        <div className="card action-card">
+          <div className="action-content">
+            <div className="action-text">
+              <h2>₿ BTC Price History</h2>
+              <p className="subtitle">
+                Get 24-hour BTC price history with OHLC data - Only 0.01 USDC!
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setDataType("btc");
+                openPaymentModal();
+              }}
+              disabled={loading}
+              className="button button-large"
+            >
+              ₿ Get BTC Data
+            </button>
+          </div>
+        </div>
+
+        {/* Wallet Selection Modal */}
+        {showWalletModal && (
+          <div
+            className="modal-overlay"
+            onClick={() => setShowWalletModal(false)}
+          >
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>🔗 Select Wallet</h2>
                 <button
-                  onClick={() => {
-                    setDataType("btc");
-                    setShowPaymentModal(true);
-                  }}
-                  disabled={loading}
-                  className="button button-large"
+                  className="modal-close"
+                  onClick={() => setShowWalletModal(false)}
                 >
-                  ₿ Get BTC Data
+                  ✕
                 </button>
               </div>
+              <div className="modal-body">
+                <div className="input-group">
+                  <label>Choose your wallet to connect</label>
+                  <div className="token-grid">
+                    {connectors.map((connector) => (
+                      <button
+                        key={connector.id}
+                        type="button"
+                        className="token-option"
+                        onClick={() => {
+                          connect({ connector });
+                          setShowWalletModal(false);
+                        }}
+                      >
+                        <div className="token-info">
+                          <div className="token-symbol">{connector.name}</div>
+                          <div className="token-name">
+                            {connector.id === "binance"
+                              ? "Binance Chain Wallet"
+                              : connector.id === "bnbSmartWallet"
+                                ? "BNB Smart Wallet"
+                                : connector.id === "metaMask"
+                                  ? "MetaMask Browser Extension"
+                                  : connector.id === "coinbaseWalletSDK"
+                                    ? "Coinbase Wallet"
+                                    : connector.id === "walletConnect"
+                                      ? "WalletConnect"
+                                      : "Browser Wallet"}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* Payment Modal */}
@@ -928,6 +1057,16 @@ function App() {
                           disabled={loading}
                         >
                           <span className="chain-name">Arbitrum</span>
+                        </button>
+                      )}
+                      {availableChains.includes("56") && (
+                        <button
+                          type="button"
+                          className={`chain-option ${selectedChain === "56" ? "selected" : ""}`}
+                          onClick={() => setSelectedChain("56")}
+                          disabled={loading}
+                        >
+                          <span className="chain-name">BSC</span>
                         </button>
                       )}
                     </div>

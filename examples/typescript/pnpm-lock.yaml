@@ -939,6 +939,9 @@ importers:
       '@b3dotfun/anyspend-x402-fetch':
         specifier: workspace:*
         version: link:../../../../../../typescript/packages/x402-fetch
+      '@b3dotfun/anyspend-x402-token-compat':
+        specifier: workspace:*
+        version: link:../../../../../../typescript/packages/x402-token-compat
       '@tanstack/react-query':
         specifier: ^5.62.15
         version: 5.85.5(react@18.3.1)

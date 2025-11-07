@@ -16,7 +16,8 @@
     "wagmi": "^2.15.6",
     "@tanstack/react-query": "^5.62.15",
     "@b3dotfun/anyspend-x402": "workspace:*",
-    "@b3dotfun/anyspend-x402-fetch": "workspace:*"
+    "@b3dotfun/anyspend-x402-fetch": "workspace:*",
+    "@b3dotfun/anyspend-x402-token-compat": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
