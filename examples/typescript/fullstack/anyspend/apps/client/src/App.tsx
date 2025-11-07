@@ -191,55 +191,72 @@ function App() {
               `Using TokenCompatClient with chainId: ${chainId} for ${basicFilteredTokens.length} tokens`,
             );
 
-            for (const token of basicFilteredTokens) {
-              try {
-                console.log(
-                  `Checking token: ${token.symbol} (${token.address}) on chain ${chainId}`,
-                );
-
-                // Check using TokenCompatClient
-                const metadata = await compatClient.getTokenMetadata(
-                  chainId,
-                  token.address,
-                );
-
-                console.log(`Metadata received for ${token.symbol}:`, metadata);
-
-                // Check if token supports EIP-2612 or EIP-3009
-                const supportsPermit = metadata.supportsEip2612 === true;
-                const supportsTransferWithAuth =
-                  metadata.supportsEip3009 === true;
-
-                if (supportsPermit || supportsTransferWithAuth) {
-                  compatibleTokens.push(token);
-                  const supportedStandards = [
-                    supportsPermit && "EIP-2612",
-                    supportsTransferWithAuth && "EIP-3009",
-                  ]
-                    .filter(Boolean)
-                    .join(", ");
+            // Check all tokens in parallel for better performance
+            const tokenCheckPromises = basicFilteredTokens.map(
+              async (token) => {
+                try {
                   console.log(
-                    `✓ ${token.symbol} (${token.address}) supports ${supportedStandards}`,
+                    `Checking token: ${token.symbol} (${token.address}) on chain ${chainId}`,
                   );
-                } else {
+
+                  // Check using TokenCompatClient
+                  const metadata = await compatClient.getTokenMetadata(
+                    chainId,
+                    token.address,
+                  );
+
                   console.log(
-                    `✗ ${token.symbol} (${token.address}) does not support gasless signatures`,
+                    `Metadata received for ${token.symbol}:`,
+                    metadata,
                   );
+
+                  // Check if token supports EIP-2612 or EIP-3009
+                  const supportsPermit = metadata.supportsEip2612 === true;
+                  const supportsTransferWithAuth =
+                    metadata.supportsEip3009 === true;
+
+                  if (supportsPermit || supportsTransferWithAuth) {
+                    const supportedStandards = [
+                      supportsPermit && "EIP-2612",
+                      supportsTransferWithAuth && "EIP-3009",
+                    ]
+                      .filter(Boolean)
+                      .join(", ");
+                    console.log(
+                      `✓ ${token.symbol} (${token.address}) supports ${supportedStandards}`,
+                    );
+                    return token; // Return token if compatible
+                  } else {
+                    console.log(
+                      `✗ ${token.symbol} (${token.address}) does not support gasless signatures`,
+                    );
+                    return null; // Return null if not compatible
+                  }
+                } catch (err) {
+                  console.error(
+                    `❌ Error checking compatibility for ${token.symbol} (${token.address}):`,
+                  );
+                  console.error("Error details:", {
+                    message: err instanceof Error ? err.message : String(err),
+                    statusCode: (err as any)?.statusCode,
+                    responseBody: (err as any)?.responseBody,
+                    stack: err instanceof Error ? err.stack : undefined,
+                    fullError: err,
+                  });
+                  // Return null for tokens that error during compatibility check
+                  return null;
                 }
-              } catch (err) {
-                console.error(
-                  `❌ Error checking compatibility for ${token.symbol} (${token.address}):`,
-                );
-                console.error("Error details:", {
-                  message: err instanceof Error ? err.message : String(err),
-                  statusCode: (err as any)?.statusCode,
-                  responseBody: (err as any)?.responseBody,
-                  stack: err instanceof Error ? err.stack : undefined,
-                  fullError: err,
-                });
-                // Skip tokens that error during compatibility check
-              }
-            }
+              },
+            );
+
+            // Wait for all checks to complete in parallel
+            const tokenCheckResults = await Promise.all(tokenCheckPromises);
+
+            // Filter out null results (incompatible or errored tokens)
+            compatibleTokens = tokenCheckResults.filter(
+              (token): token is (typeof basicFilteredTokens)[0] =>
+                token !== null,
+            );
 
             console.log(
               `Found ${compatibleTokens.length} compatible tokens out of ${basicFilteredTokens.length}`,
