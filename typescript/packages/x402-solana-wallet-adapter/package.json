@@ -1,0 +1,79 @@
+{
+  "name": "@b3dotfun/anyspend-x402-solana-wallet-adapter",
+  "version": "0.1.0",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "watch": "tsc --watch",
+    "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
+    "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
+    "lint": "eslint . --ext .ts --fix",
+    "lint:check": "eslint . --ext .ts"
+  },
+  "keywords": [
+    "x402",
+    "anyspend",
+    "solana",
+    "wallet-adapter",
+    "payment-protocol",
+    "web3",
+    "payments",
+    "cryptocurrency",
+    "browser-wallet"
+  ],
+  "license": "Apache-2.0",
+  "author": "b3-fun",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/b3-fun/anyspend-x402.git"
+  },
+  "description": "Solana wallet-adapter bridge for x402 payment protocol - Connects @solana/wallet-adapter (v1) with x402 library (v2)",
+  "homepage": "https://github.com/b3-fun/anyspend-x402#readme",
+  "bugs": {
+    "url": "https://github.com/b3-fun/anyspend-x402/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@eslint/js": "^9.24.0",
+    "eslint": "^9.24.0",
+    "eslint-plugin-jsdoc": "^50.6.9",
+    "eslint-plugin-prettier": "^5.2.6",
+    "@typescript-eslint/eslint-plugin": "^8.29.1",
+    "@typescript-eslint/parser": "^8.29.1",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "3.5.2",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "@solana/wallet-adapter-base": "^0.9.23",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "dependencies": {
+    "@b3dotfun/anyspend-x402": "workspace:^"
+  },
+  "peerDependencies": {
+    "@solana/wallet-adapter-base": "^0.9.0",
+    "@solana/web3.js": "^1.90.0"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.mts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

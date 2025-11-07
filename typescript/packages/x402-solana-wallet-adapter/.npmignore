@@ -1,0 +1,7 @@
+src/
+tsconfig.json
+tsup.config.ts
+*.test.ts
+*.spec.ts
+.env
+node_modules/
