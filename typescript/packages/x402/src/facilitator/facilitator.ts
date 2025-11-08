@@ -13,6 +13,7 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  createVerifyResponse,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { TransactionSigner } from "@solana/kit";
@@ -60,13 +61,16 @@ export async function verify<
   }
 
   // unsupported scheme
-  return {
-    isValid: false,
+  return createVerifyResponse({
     invalidReason: "invalid_scheme",
     payer: SupportedEVMNetworks.includes(paymentRequirements.network)
       ? (payload.payload as ExactEvmPayload).authorization.from
       : "",
-  };
+    context: {
+      value: paymentRequirements.scheme,
+      expected: `[${SupportedEVMNetworks.join(", ")}] or [${SupportedSVMNetworks.join(", ")}]`,
+    },
+  });
 }
 
 /**

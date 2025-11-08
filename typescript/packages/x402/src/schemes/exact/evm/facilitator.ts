@@ -14,6 +14,7 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  createVerifyResponse,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
 
@@ -59,11 +60,14 @@ export async function verify<
 
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
-    return {
-      isValid: false,
+    return createVerifyResponse({
       invalidReason: `unsupported_scheme`,
+      context: {
+        expected: SCHEME,
+        value: `payload scheme: ${payload.scheme}, payment requirements scheme: ${paymentRequirements.scheme}`,
+      },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
 
   let name: string;
@@ -76,11 +80,11 @@ export async function verify<
     erc20Address = paymentRequirements.asset as Address;
     version = paymentRequirements.extra?.version ?? (await getVersion(client));
   } catch {
-    return {
-      isValid: false,
+    return createVerifyResponse({
       invalidReason: `invalid_network`,
+      context: { network: payload.network },
       payer: (payload.payload as ExactEvmPayload).authorization.from,
-    };
+    });
   }
   // Verify permit signature is recoverable for the owner address
   const permitTypedData = {
@@ -107,40 +111,45 @@ export async function verify<
     signature: exactEvmPayload.signature as Hex,
   });
   if (!recoveredAddress) {
-    return {
-      isValid: false,
+    return createVerifyResponse({
       invalidReason: "invalid_exact_evm_payload_signature", //"Invalid permit signature",
+      context: { signature: exactEvmPayload.signature },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
 
   // Verify that payment was made to the correct address
-  if (getAddress(exactEvmPayload.authorization.to) !== getAddress(paymentRequirements.payTo)) {
-    return {
-      isValid: false,
+  const payloadTo = getAddress(exactEvmPayload.authorization.to);
+  const requirementTo = getAddress(paymentRequirements.payTo);
+  if (payloadTo !== requirementTo) {
+    return createVerifyResponse({
       invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
+      context: { expected: requirementTo, value: payloadTo },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
 
   // Verify deadline is not yet expired
   // Pad 3 block to account for round tripping
-  if (
-    BigInt(exactEvmPayload.authorization.validBefore) < BigInt(Math.floor(Date.now() / 1000) + 6)
-  ) {
-    return {
-      isValid: false,
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const payloadDate = BigInt(exactEvmPayload.authorization.validBefore);
+  const expectedDate = BigInt(nowSeconds + 6);
+  if (payloadDate < expectedDate) {
+    return createVerifyResponse({
       invalidReason: "invalid_exact_evm_payload_authorization_valid_before", //"Deadline on permit isn't far enough in the future",
+      context: { expected: expectedDate, value: payloadDate },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
   // Verify deadline is not yet valid
-  if (BigInt(exactEvmPayload.authorization.validAfter) > BigInt(Math.floor(Date.now() / 1000))) {
-    return {
-      isValid: false,
+  const validAfterDate = BigInt(exactEvmPayload.authorization.validAfter);
+  const expectedValidDate = BigInt(nowSeconds);
+  if (validAfterDate > expectedValidDate) {
+    return createVerifyResponse({
       invalidReason: "invalid_exact_evm_payload_authorization_valid_after", //"Deadline on permit is in the future",
+      context: { expected: expectedValidDate, value: validAfterDate },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
   // Verify client has enough funds to cover paymentRequirements.maxAmountRequired
   const balance = await getERC20Balance(
@@ -148,20 +157,22 @@ export async function verify<
     erc20Address,
     exactEvmPayload.authorization.from as Address,
   );
-  if (balance < BigInt(paymentRequirements.maxAmountRequired)) {
-    return {
-      isValid: false,
+  const required = BigInt(paymentRequirements.maxAmountRequired);
+  if (balance < required) {
+    return createVerifyResponse({
       invalidReason: "insufficient_funds", //"Client does not have enough funds",
+      context: { available: balance, cost: required, unit: name },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
   // Verify value in payload is enough to cover paymentRequirements.maxAmountRequired
-  if (BigInt(exactEvmPayload.authorization.value) < BigInt(paymentRequirements.maxAmountRequired)) {
-    return {
-      isValid: false,
+  const exactEvmPayloadValue = BigInt(exactEvmPayload.authorization.value);
+  if (exactEvmPayloadValue < required) {
+    return createVerifyResponse({
       invalidReason: "invalid_exact_evm_payload_authorization_value", //"Value in payload is not enough to cover paymentRequirements.maxAmountRequired",
+      context: { available: exactEvmPayloadValue, cost: required, unit: name },
       payer: exactEvmPayload.authorization.from,
-    };
+    });
   }
   return {
     isValid: true,

@@ -3,7 +3,8 @@ import {
   PaymentPayload,
   PaymentRequirements,
   ExactSvmPayload,
-  ErrorReasons,
+  createVerifyResponse,
+  VerifyError,
 } from "../../../../types/verify";
 import { SupportedSVMNetworks } from "../../../../types/shared";
 import { X402Config } from "../../../../types/config";
@@ -82,7 +83,9 @@ export async function verify(
     // simulate the transaction to ensure it will execute successfully
     const simulateResult = await signAndSimulateTransaction(signer, decodedTransaction, rpc);
     if (simulateResult.value?.err) {
-      throw new Error(`invalid_exact_svm_payload_transaction_simulation_failed`);
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_simulation_failed`,
+      });
     }
 
     return {
@@ -91,38 +94,26 @@ export async function verify(
       payer: getTokenPayerFromTransaction(decodedTransaction),
     };
   } catch (error) {
-    // if the error is one of the known error reasons, return the error reason
-    if (error instanceof Error) {
-      if (ErrorReasons.includes(error.message as (typeof ErrorReasons)[number])) {
-        return {
-          isValid: false,
-          invalidReason: error.message as (typeof ErrorReasons)[number],
-          payer: (() => {
-            try {
-              const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
-              return getTokenPayerFromTransaction(tx);
-            } catch {
-              return undefined;
-            }
-          })(),
-        };
+    const payer = (() => {
+      try {
+        const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
+        return getTokenPayerFromTransaction(tx);
+      } catch {
+        return undefined;
       }
+    })();
+
+    // if the error is one of the known error reasons, return the error reason
+    if (error instanceof VerifyError) {
+      return error.response;
     }
 
     // if the error is not one of the known error reasons, return an unexpected error reason
     console.error(error);
-    return {
-      isValid: false,
+    return createVerifyResponse({
       invalidReason: "unexpected_verify_error",
-      payer: (() => {
-        try {
-          const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
-          return getTokenPayerFromTransaction(tx);
-        } catch {
-          return undefined;
-        }
-      })(),
-    };
+      payer,
+    });
   }
 }
 
@@ -137,14 +128,23 @@ export function verifySchemesAndNetworks(
   paymentRequirements: PaymentRequirements,
 ): void {
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
-    throw new Error("unsupported_scheme");
+    throw new VerifyError({
+      invalidReason: "unsupported_scheme",
+      context: {
+        expected: SCHEME,
+        value: `payload scheme: ${payload.scheme}, requirements scheme: ${paymentRequirements.scheme}`,
+      },
+    });
   }
 
   if (
     payload.network !== paymentRequirements.network ||
     !SupportedSVMNetworks.includes(paymentRequirements.network)
   ) {
-    throw new Error("invalid_network");
+    throw new VerifyError({
+      invalidReason: "invalid_network",
+      context: { network: payload.network },
+    });
   }
 }
 
@@ -196,7 +196,10 @@ export async function verifyTransactionInstructions(
     transactionMessage.instructions.length !== 3 &&
     transactionMessage.instructions.length !== 4
   ) {
-    throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_instructions_length`,
+      context: { expected: "3 or 4", value: transactionMessage.instructions.length.toString() },
+    });
   }
 
   // verify that the compute limit and price instructions are valid
@@ -206,9 +209,9 @@ export async function verifyTransactionInstructions(
   // verify that the fee payer is not included in any instruction's accounts
   transactionMessage.instructions.forEach(instruction => {
     if (instruction.accounts?.some(account => account.address === signer.address)) {
-      throw new Error(
-        `invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts`,
-      );
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts`,
+      });
     }
   });
 
@@ -259,16 +262,18 @@ export function verifyComputeLimitInstruction(
       instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
       instruction.data?.[0] !== 2 // discriminator of set compute unit limit instruction
     ) {
-      throw new Error(
-        `invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`,
-      );
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`,
+      });
     }
     parseSetComputeUnitLimitInstruction(
       instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
     );
   } catch (error) {
     console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction`,
+    });
   }
 }
 
@@ -290,17 +295,24 @@ export function verifyComputePriceInstruction(
     instruction.programAddress.toString() !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
     instruction.data?.[0] !== 3 // discriminator of set compute unit price instruction
   ) {
-    throw new Error(`invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction`,
+    });
   }
   const parsedInstruction = parseSetComputeUnitPriceInstruction(
     instruction as InstructionWithData<Uint8Array<ArrayBufferLike>>,
   );
 
   // TODO: allow the facilitator to pass in an optional max compute unit price
-  if (parsedInstruction.data.microLamports > 5 * 1_000_000) {
-    throw new Error(
-      `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high`,
-    );
+  const maxComputePrice = BigInt(5 * 1_000_000);
+  if (parsedInstruction.data.microLamports > maxComputePrice) {
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high`,
+      context: {
+        expected: maxComputePrice,
+        value: parsedInstruction.data.microLamports,
+      },
+    });
   }
 }
 
@@ -332,17 +344,31 @@ export function verifyCreateATAInstruction(
     });
   } catch (error) {
     console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_create_ata_instruction`,
+    });
   }
 
   // verify that the ATA is created for the expected payee
   if (createATAInstruction.accounts.owner.address !== paymentRequirements.payTo) {
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_payee`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_payee`,
+      context: {
+        expected: paymentRequirements.payTo,
+        value: createATAInstruction.accounts.owner.address,
+      },
+    });
   }
 
   // verify that the ATA is created for the expected asset
   if (createATAInstruction.accounts.mint.address !== paymentRequirements.asset) {
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_asset`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_asset`,
+      context: {
+        expected: paymentRequirements.asset,
+        value: createATAInstruction.accounts.mint.address,
+      },
+    });
   }
 }
 
@@ -406,7 +432,13 @@ export async function verifyTransferCheckedInstruction(
 
   // verify that the fee payer is not transferring funds
   if (parsedInstruction.accounts.authority.address === signer.address) {
-    throw new Error(`invalid_exact_svm_payload_transaction_fee_payer_transferring_funds`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_fee_payer_transferring_funds`,
+      context: {
+        feePayer: parsedInstruction.accounts.authority.address,
+        signer: signer.address,
+      },
+    });
   }
 
   // get the expected receiver's ATA
@@ -418,7 +450,13 @@ export async function verifyTransferCheckedInstruction(
 
   // verify that the transfer is to the expected ATA
   if (parsedInstruction.accounts.destination.address !== payToATA[0]) {
-    throw new Error(`invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_transfer_to_incorrect_ata`,
+      context: {
+        expected: payToATA[0],
+        value: parsedInstruction.accounts.destination.address,
+      },
+    });
   }
 
   // verify that the source and destination ATAs exist
@@ -427,10 +465,20 @@ export async function verifyTransferCheckedInstruction(
   const missingAccounts = maybeAccounts.filter(a => !a.exists);
   for (const missingAccount of missingAccounts) {
     if (missingAccount.address === parsedInstruction.accounts.source.address) {
-      throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_sender_ata_not_found`,
+        context: {
+          sender: missingAccount.address,
+        },
+      });
     }
     if (missingAccount.address === payToATA[0] && !txHasCreateDestATAInstruction) {
-      throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_receiver_ata_not_found`,
+        context: {
+          receiver: missingAccount.address,
+        },
+      });
     }
   }
 
@@ -438,7 +486,13 @@ export async function verifyTransferCheckedInstruction(
   const instructionAmount = parsedInstruction.data.amount;
   const paymentRequirementsAmount = BigInt(paymentRequirements.maxAmountRequired);
   if (instructionAmount !== paymentRequirementsAmount) {
-    throw new Error(`invalid_exact_svm_payload_transaction_amount_mismatch`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_amount_mismatch`,
+      context: {
+        expected: paymentRequirementsAmount,
+        value: instructionAmount,
+      },
+    });
   }
 }
 
@@ -461,18 +515,19 @@ export function getValidatedTransferCheckedInstruction(
     assertIsInstructionWithAccounts(instruction);
   } catch (error) {
     console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_instructions`);
+    throw new VerifyError({ invalidReason: `invalid_exact_svm_payload_transaction_instructions` });
   }
 
   let tokenInstruction;
 
   // spl-token program
-  if (instruction.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()) {
+  const instructionAddress = instruction.programAddress.toString();
+  if (instructionAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
     const identifiedInstruction = identifyTokenInstruction(instruction);
     if (identifiedInstruction !== TokenInstruction.TransferChecked) {
-      throw new Error(
-        `invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked`,
-      );
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_instruction_not_spl_token_transfer_checked`,
+      });
     }
     tokenInstruction = parseTransferCheckedInstructionToken({
       ...instruction,
@@ -480,12 +535,12 @@ export function getValidatedTransferCheckedInstruction(
     });
   }
   // token-2022 program
-  else if (instruction.programAddress.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
+  else if (instructionAddress === TOKEN_2022_PROGRAM_ADDRESS.toString()) {
     const identifiedInstruction = identifyToken2022Instruction(instruction);
     if (identifiedInstruction !== Token2022Instruction.TransferChecked) {
-      throw new Error(
-        `invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked`,
-      );
+      throw new VerifyError({
+        invalidReason: `invalid_exact_svm_payload_transaction_instruction_not_token_2022_transfer_checked`,
+      });
     }
     tokenInstruction = parseTransferCheckedInstruction2022({
       ...instruction,
@@ -494,7 +549,13 @@ export function getValidatedTransferCheckedInstruction(
   }
   // invalid instruction
   else {
-    throw new Error(`invalid_exact_svm_payload_transaction_not_a_transfer_instruction`);
+    throw new VerifyError({
+      invalidReason: `invalid_exact_svm_payload_transaction_not_a_transfer_instruction`,
+      context: {
+        value: instructionAddress,
+        expected: `${TOKEN_PROGRAM_ADDRESS} or ${TOKEN_2022_PROGRAM_ADDRESS}`,
+      },
+    });
   }
 
   return tokenInstruction;

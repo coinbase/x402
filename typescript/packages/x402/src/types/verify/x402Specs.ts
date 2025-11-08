@@ -190,11 +190,19 @@ export const VerifyRequestSchema = z.object({
 export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
 
 // x402VerifyResponse
-export const VerifyResponseSchema = z.object({
-  isValid: z.boolean(),
-  invalidReason: z.enum(ErrorReasons).optional(),
-  payer: EvmOrSvmAddress.optional(),
-});
+export const VerifyResponseSchema = z.union([
+  z.object({
+    isValid: z.literal(true),
+    invalidReason: z.undefined(),
+    payer: EvmOrSvmAddress.optional(),
+  }),
+  z.object({
+    isValid: z.literal(false),
+    invalidReason: z.enum(ErrorReasons),
+    invalidDescription: z.string(),
+    payer: EvmOrSvmAddress.optional(),
+  }),
+]);
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
 // x402SettleResponse
