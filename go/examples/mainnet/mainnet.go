@@ -46,7 +46,7 @@ func main() {
 			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithDescription("A premium programming joke"),
 			x402gin.WithResource("https://api.example.com/premium-joke"),
-			x402gin.WithTestnet(false), // Use mainnet!
+			x402gin.WithNetwork("base"),
 		),
 		func(c *gin.Context) {
 			c.JSON(200, gin.H{

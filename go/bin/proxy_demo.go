@@ -43,7 +43,7 @@ func main() {
 			config.PayTo,
 			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithResource(config.TargetURL),
-			x402gin.WithTestnet(config.Testnet),
+			x402gin.WithNetwork(config.Network),
 			x402gin.WithDescription(config.Description),
 			x402gin.WithMimeType(config.MimeType),
 			x402gin.WithMaxTimeoutSeconds(config.MaxTimeoutSeconds),
@@ -62,10 +62,10 @@ type ProxyConfig struct {
 	Amount            float64                                      `json:"amount"`
 	PayTo             string                                       `json:"payTo"`
 	Description       string                                       `json:"description"`
+	Network           string                                       `json:"network"`
 	FacilitatorURL    string                                       `json:"facilitatorURL"`
 	MimeType          string                                       `json:"mimeType"`
 	MaxTimeoutSeconds int                                          `json:"maxTimeoutSeconds"`
-	Testnet           bool                                         `json:"testnet"`
 	Headers           map[string]string                            `json:"headers"`
 	CreateAuthHeaders func() (map[string]map[string]string, error) `json:"-"`
 }
@@ -115,7 +115,6 @@ func loadConfig(configPath string) (*ProxyConfig, error) {
 	config := &ProxyConfig{
 		// default values
 		FacilitatorURL:    "https://x402.org/facilitator",
-		Testnet:           true,
 		MaxTimeoutSeconds: 60,
 	}
 
@@ -128,7 +127,7 @@ func loadConfig(configPath string) (*ProxyConfig, error) {
 		return nil, fmt.Errorf("error parsing config file: %w", err)
 	}
 
-	if config.TargetURL == "" || config.Amount == 0 || config.PayTo == "" {
+	if config.TargetURL == "" || config.Amount == 0 || config.PayTo == "" || config.Network == "" {
 		return nil, fmt.Errorf("config is missing required fields")
 	}
 
