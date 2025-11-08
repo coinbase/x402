@@ -19,17 +19,18 @@ const SDKVersion = "0.0.0"
 //   - apiKeySecret: The api key secret
 //   - requestHost: The host for the request (e.g. 'https://x402.org/facilitator')
 //   - requestPath: The path for the request (e.g. '/verify')
+//   - requestMethod: The HTTP method to sign (e.g. 'GET', 'POST')
 //
 // Returns:
 //   - The authorization header string and any error that occurred
-func CreateAuthHeader(apiKeyId, apiKeySecret, requestHost, requestPath string) (string, error) {
+func CreateAuthHeader(apiKeyId, apiKeySecret, requestHost, requestPath, requestMethod string) (string, error) {
 	// Remove https:// if present
 	requestHost = strings.TrimPrefix(requestHost, "https://")
 
 	jwt, err := auth.GenerateJWT(auth.JwtOptions{
 		KeyID:         apiKeyId,
 		KeySecret:     apiKeySecret,
-		RequestMethod: "POST",
+		RequestMethod: requestMethod,
 		RequestHost:   requestHost,
 		RequestPath:   requestPath,
 	})
