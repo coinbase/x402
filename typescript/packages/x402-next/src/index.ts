@@ -28,13 +28,31 @@ import { safeBase64Encode } from "x402/shared";
 
 import { POST } from "./api/session-token";
 
+export interface PaymentMiddlewareOptions {
+  facilitator?: FacilitatorConfig;
+  paywall?: PaywallConfig;
+  /**
+   * Controls when payment settlement occurs relative to the request handler.
+   * 
+   * - 'after' (default): Verifies payment, executes handler, then settles. Lower latency but creates
+   *   an authorization replay risk window where multiple concurrent requests can execute with the same
+   *   signed payment authorization before settlement confirms payment on-chain.
+   * 
+   * - 'before': Settles payment on-chain first, then executes handler. Eliminates authorization replay
+   *   risk but adds blockchain confirmation latency to every request.
+   * 
+   * Use 'before' for endpoints that perform irreversible side effects (token issuance, account creation,
+   * inventory updates). Use 'after' for read-only or idempotent endpoints.
+   */
+  settlementTiming?: 'before' | 'after';
+}
+
 /**
  * Creates a payment middleware factory for Next.js
  *
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
- * @param facilitator - Optional configuration for the payment facilitator service
- * @param paywall - Optional configuration for the default paywall
+ * @param options - Optional configuration including facilitator, paywall, and settlement timing
  * @returns A Next.js middleware handler
  *
  * @example
@@ -93,9 +111,25 @@ import { POST } from "./api/session-token";
 export function paymentMiddleware(
   payTo: Address | SolanaAddress,
   routes: RoutesConfig,
-  facilitator?: FacilitatorConfig,
+  facilitatorOrOptions?: FacilitatorConfig | PaymentMiddlewareOptions,
   paywall?: PaywallConfig,
 ) {
+  // Handle both old and new API signatures for backward compatibility
+  let facilitator: FacilitatorConfig | undefined;
+  let paywallConfig: PaywallConfig | undefined;
+  let settlementTiming: 'before' | 'after' = 'after';
+
+  if (facilitatorOrOptions && typeof facilitatorOrOptions === 'object' && 'facilitator' in facilitatorOrOptions) {
+    // New API with options object
+    facilitator = facilitatorOrOptions.facilitator;
+    paywallConfig = facilitatorOrOptions.paywall;
+    settlementTiming = facilitatorOrOptions.settlementTiming ?? 'after';
+  } else {
+    // Legacy API: third param is facilitator, fourth is paywall
+    facilitator = facilitatorOrOptions as FacilitatorConfig | undefined;
+    paywallConfig = paywall;
+  }
+
   const { verify, settle, supported } = useFacilitator(facilitator);
   const x402Version = 1;
 
@@ -240,10 +274,10 @@ export function paymentMiddleware(
               >[0]["paymentRequirements"],
               currentUrl: request.url,
               testnet: network === "base-sepolia",
-              cdpClientKey: paywall?.cdpClientKey,
-              appLogo: paywall?.appLogo,
-              appName: paywall?.appName,
-              sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
+              cdpClientKey: paywallConfig?.cdpClientKey,
+              appLogo: paywallConfig?.appLogo,
+              appName: paywallConfig?.appName,
+              sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
             });
           return new NextResponse(html, {
             status: 402,
@@ -295,6 +329,7 @@ export function paymentMiddleware(
       );
     }
 
+    // Verify the payment authorization signature and requirements
     const verification = await verify(decodedPayment, selectedPaymentRequirements);
 
     if (!verification.isValid) {
@@ -309,6 +344,55 @@ export function paymentMiddleware(
       );
     }
 
+    // IMPORTANT: Authorization Replay Risk
+    // At this point, the payment authorization is cryptographically valid but NOT yet settled on-chain.
+    // Multiple concurrent requests can pass verification using the same signed authorization before
+    // settlement confirms the payment. This creates a window where side effects (token minting, account
+    // creation, inventory updates) could execute multiple times for a single payment.
+    //
+    // To eliminate this risk for critical operations, use settlementTiming: 'before' in the middleware
+    // configuration. This settles the payment on-chain BEFORE executing your handler, ensuring the
+    // payment is confirmed before any side effects occur.
+    //
+    // For read-only or idempotent endpoints, the default 'after' timing provides lower latency.
+
+    if (settlementTiming === 'before') {
+      // Settle payment BEFORE executing the handler to eliminate authorization replay risk
+      try {
+        const settlement = await settle(decodedPayment, selectedPaymentRequirements);
+
+        if (settlement.success) {
+          const settlementHeader = safeBase64Encode(
+            JSON.stringify({
+              success: true,
+              transaction: settlement.transaction,
+              network: settlement.network,
+              payer: settlement.payer,
+            }),
+          );
+          // Payment is confirmed on-chain, safe to proceed with handler
+          const response = await NextResponse.next();
+          response.headers.set("X-PAYMENT-RESPONSE", settlementHeader);
+          return response;
+        } else {
+          throw new Error(settlement.errorReason);
+        }
+      } catch (error) {
+        return new NextResponse(
+          JSON.stringify({
+            x402Version,
+            error:
+              errorMessages?.settlementFailed ||
+              (error instanceof Error ? error.message : "Settlement failed"),
+            accepts: paymentRequirements,
+          }),
+          { status: 402, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    // Default 'after' settlement timing: verify → execute handler → settle
+    // This provides lower latency but creates an authorization replay risk window
     // Proceed with request
     const response = await NextResponse.next();
 
