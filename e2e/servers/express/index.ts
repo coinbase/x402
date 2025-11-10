@@ -42,6 +42,7 @@ const app = express();
 
 // Create HTTP facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+
 console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 

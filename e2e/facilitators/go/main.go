@@ -22,6 +22,8 @@ import (
 	v1 "github.com/coinbase/x402/go/extensions/v1"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+	"github.com/coinbase/x402/go/mechanisms/svm"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -30,6 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
+	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/gin-gonic/gin"
 )
 
@@ -549,6 +553,143 @@ func getDiscoveredResources(limit, offset int) ([]DiscoveredResource, int) {
 	return all[offset:end], total
 }
 
+// Real SVM facilitator signer
+type realFacilitatorSvmSigner struct {
+	privateKey solana.PrivateKey
+	rpcClients map[string]*rpc.Client
+	rpcURL     string
+}
+
+func newRealFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*realFacilitatorSvmSigner, error) {
+	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Solana private key: %w", err)
+	}
+
+	return &realFacilitatorSvmSigner{
+		privateKey: privateKey,
+		rpcClients: make(map[string]*rpc.Client),
+		rpcURL:     rpcURL,
+	}, nil
+}
+
+func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
+	if client, ok := s.rpcClients[network]; ok {
+		return client, nil
+	}
+
+	rpcURL := s.rpcURL
+	if rpcURL == "" {
+		config, err := svm.GetNetworkConfig(network)
+		if err != nil {
+			return nil, err
+		}
+		rpcURL = config.RPCURL
+	}
+
+	client := rpc.New(rpcURL)
+	s.rpcClients[network] = client
+	return client, nil
+}
+
+func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
+	messageBytes, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	signature, err := s.privateKey.Sign(messageBytes)
+	if err != nil {
+		return fmt.Errorf("failed to sign: %w", err)
+	}
+
+	accountIndex, err := tx.GetAccountIndex(s.privateKey.PublicKey())
+	if err != nil {
+		return fmt.Errorf("failed to get account index: %w", err)
+	}
+
+	if len(tx.Signatures) <= int(accountIndex) {
+		newSignatures := make([]solana.Signature, accountIndex+1)
+		copy(newSignatures, tx.Signatures)
+		tx.Signatures = newSignatures
+	}
+
+	tx.Signatures[accountIndex] = signature
+	return nil
+}
+
+func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
+	rpcClient, err := s.GetRPC(network)
+	if err != nil {
+		return solana.Signature{}, err
+	}
+
+	sig, err := rpcClient.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
+		SkipPreflight:       true,
+		PreflightCommitment: svm.DefaultCommitment,
+	})
+	if err != nil {
+		return solana.Signature{}, fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return sig, nil
+}
+
+func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
+	rpcClient, err := s.GetRPC(network)
+	if err != nil {
+		return err
+	}
+
+	for attempt := 0; attempt < svm.MaxConfirmAttempts; attempt++ {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Try getSignatureStatuses first (faster)
+		statuses, err := rpcClient.GetSignatureStatuses(ctx, true, signature)
+		if err == nil && statuses != nil && statuses.Value != nil && len(statuses.Value) > 0 {
+			status := statuses.Value[0]
+			if status != nil {
+				if status.Err != nil {
+					return fmt.Errorf("transaction failed on-chain")
+				}
+				if status.ConfirmationStatus == rpc.ConfirmationStatusConfirmed ||
+					status.ConfirmationStatus == rpc.ConfirmationStatusFinalized {
+					return nil
+				}
+			}
+		}
+
+		// Fallback to getTransaction
+		if err != nil {
+			txResult, txErr := rpcClient.GetTransaction(ctx, signature, &rpc.GetTransactionOpts{
+				Encoding:   solana.EncodingBase58,
+				Commitment: svm.DefaultCommitment,
+			})
+
+			if txErr == nil && txResult != nil && txResult.Meta != nil {
+				if txResult.Meta.Err != nil {
+					return fmt.Errorf("transaction failed on-chain")
+				}
+				return nil
+			}
+		}
+
+		// Wait before retrying
+		time.Sleep(svm.ConfirmRetryDelay)
+	}
+
+	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
+}
+
+func (s *realFacilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
+	return s.privateKey.PublicKey()
+}
+
 func main() {
 	// Get configuration from environment
 	port := os.Getenv("PORT")
@@ -561,35 +702,45 @@ func main() {
 		log.Fatal("❌ EVM_PRIVATE_KEY environment variable is required")
 	}
 
-	// Get RPC URL from environment, default to Base Sepolia public RPC
-	rpcURL := os.Getenv("EVM_RPC_URL")
-	if rpcURL == "" {
-		rpcURL = "https://sepolia.base.org"
-		log.Printf("⚠️  Using default RPC URL: %s", rpcURL)
-	} else {
-		log.Printf("✅ Using RPC URL from EVM_RPC_URL: %s", rpcURL)
+	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
+	if svmPrivateKey == "" {
+		log.Fatal("❌ SVM_PRIVATE_KEY environment variable is required")
 	}
 
-	// Initialize the real blockchain signer
-	signer, err := newRealFacilitatorEvmSigner(evmPrivateKey, rpcURL)
+	// Initialize the real EVM blockchain signer (uses default Base Sepolia RPC)
+	evmSigner, err := newRealFacilitatorEvmSigner(evmPrivateKey, "https://sepolia.base.org")
 	if err != nil {
-		log.Fatalf("Failed to create signer: %v", err)
+		log.Fatalf("Failed to create EVM signer: %v", err)
 	}
 
-	chainID, _ := signer.GetChainID()
-	log.Printf("Facilitator account: %s", signer.GetAddress())
+	chainID, _ := evmSigner.GetChainID()
+	log.Printf("EVM Facilitator account: %s", evmSigner.GetAddress())
 	log.Printf("Connected to chain ID: %s (expected: 84532 for Base Sepolia)", chainID.String())
 
-	// Initialize the x402 Facilitator with EVM support
+	// Initialize the real SVM blockchain signer (uses default Solana Devnet RPC)
+	svmSigner, err := newRealFacilitatorSvmSigner(svmPrivateKey, "https://api.devnet.solana.com")
+	if err != nil {
+		log.Fatalf("Failed to create SVM signer: %v", err)
+	}
+
+	log.Printf("SVM Facilitator account: %s", svmSigner.GetAddress("solana-devnet").String())
+
+	// Initialize the x402 Facilitator with EVM and SVM support
 	facilitator := x402.Newx402Facilitator()
 
-	// Register the EVM scheme handler for v2
-	evmFacilitator := evm.NewExactEvmFacilitator(signer)
-	facilitator.RegisterScheme(Network, evmFacilitator)
+	// Register EVM schemes
+	evmFacilitator := evm.NewExactEvmFacilitator(evmSigner)
+	facilitator.RegisterScheme("eip155:84532", evmFacilitator)
 
-	// Register the EVM v1 scheme handler for base-sepolia
-	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(signer)
+	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
 	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+
+	// Register SVM schemes
+	svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
+	facilitator.RegisterScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitator) // Devnet
+
+	svmFacilitatorV1 := svmv1.NewExactSvmFacilitatorV1(svmSigner)
+	facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1)
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
@@ -746,11 +897,11 @@ func main() {
 		verificationMutex.RUnlock()
 
 		if !verified {
-		c.JSON(http.StatusOK, x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "Payment must be verified before settlement",
-			Network:     req.PaymentPayload.Accepted.Network,
-		})
+			c.JSON(http.StatusOK, x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "Payment must be verified before settlement",
+				Network:     req.PaymentPayload.Accepted.Network,
+			})
 			return
 		}
 
@@ -761,11 +912,11 @@ func main() {
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
 
-		c.JSON(http.StatusOK, x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "Payment verification expired (must settle within 5 minutes)",
-			Network:     req.PaymentPayload.Accepted.Network,
-		})
+			c.JSON(http.StatusOK, x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "Payment verification expired (must settle within 5 minutes)",
+				Network:     req.PaymentPayload.Accepted.Network,
+			})
 			return
 		}
 
@@ -800,17 +951,37 @@ func main() {
 	router.GET("/supported", func(c *gin.Context) {
 		response := x402.SupportedResponse{
 			Kinds: []x402.SupportedKind{
+				// EVM V2
 				{
 					X402Version: 2,
 					Scheme:      Scheme,
 					Network:     Network,
 					Extra:       map[string]interface{}{},
 				},
+				// EVM V1
 				{
 					X402Version: 1,
 					Scheme:      Scheme,
 					Network:     "base-sepolia",
 					Extra:       map[string]interface{}{},
+				},
+				// SVM V2 (Devnet)
+				{
+					X402Version: 2,
+					Scheme:      Scheme,
+					Network:     "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet CAIP-2
+					Extra: map[string]interface{}{
+						"feePayer": svmSigner.GetAddress("solana-devnet").String(),
+					},
+				},
+				// SVM V1 (Devnet)
+				{
+					X402Version: 1,
+					Scheme:      Scheme,
+					Network:     "solana-devnet",
+					Extra: map[string]interface{}{
+						"feePayer": svmSigner.GetAddress("solana-devnet").String(),
+					},
 				},
 			},
 			Extensions: []string{exttypes.BAZAAR},
@@ -892,7 +1063,7 @@ func main() {
 ║  • GET  /health              (health check)           ║
 ║  • POST /close               (shutdown server)        ║
 ╚════════════════════════════════════════════════════════╝
-`, port, Network, signer.GetAddress())
+`, port, Network, evmSigner.GetAddress())
 
 	// Log that facilitator is ready (needed for e2e test discovery)
 	log.Println("Facilitator listening")

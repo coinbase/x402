@@ -15,10 +15,13 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+	"github.com/coinbase/x402/go/mechanisms/svm"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"
+	solana "github.com/gagliardetto/solana-go"
 )
 
 // Result structure for e2e test output
@@ -157,6 +160,53 @@ func getBigIntFromInterface(v interface{}) *math.HexOrDecimal256 {
 	}
 }
 
+// Real SVM signer for client
+type clientSvmSigner struct {
+	privateKey solana.PrivateKey
+}
+
+func newClientSvmSigner(privateKeyBase58 string) (*clientSvmSigner, error) {
+	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Solana private key: %w", err)
+	}
+
+	return &clientSvmSigner{
+		privateKey: privateKey,
+	}, nil
+}
+
+func (s *clientSvmSigner) Address() solana.PublicKey {
+	return s.privateKey.PublicKey()
+}
+
+func (s *clientSvmSigner) SignTransaction(tx *solana.Transaction) error {
+	// Partially sign - only sign for our own key
+	messageBytes, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	signature, err := s.privateKey.Sign(messageBytes)
+	if err != nil {
+		return fmt.Errorf("failed to sign: %w", err)
+	}
+
+	accountIndex, err := tx.GetAccountIndex(s.privateKey.PublicKey())
+	if err != nil {
+		return fmt.Errorf("failed to get account index: %w", err)
+	}
+
+	if len(tx.Signatures) <= int(accountIndex) {
+		newSignatures := make([]solana.Signature, accountIndex+1)
+		copy(newSignatures, tx.Signatures)
+		tx.Signatures = newSignatures
+	}
+
+	tx.Signatures[accountIndex] = signature
+	return nil
+}
+
 func main() {
 	// Get configuration from environment
 	serverURL := os.Getenv("RESOURCE_SERVER_URL")
@@ -171,26 +221,50 @@ func main() {
 
 	evmPrivateKey := os.Getenv("EVM_PRIVATE_KEY")
 	if evmPrivateKey == "" {
-		log.Fatal("EVM_PRIVATE_KEY is required")
+		log.Fatal("❌ EVM_PRIVATE_KEY environment variable is required")
 	}
 
-	// Create the signer
-	signer, err := newClientEvmSigner(evmPrivateKey)
+	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
+	if svmPrivateKey == "" {
+		log.Fatal("❌ SVM_PRIVATE_KEY environment variable is required")
+	}
+
+	// Create EVM signer
+	evmSigner, err := newClientEvmSigner(evmPrivateKey)
 	if err != nil {
-		outputError(fmt.Sprintf("Failed to create signer: %v", err))
+		outputError(fmt.Sprintf("Failed to create EVM signer: %v", err))
 		return
 	}
 
-	// Create x402 HTTP client
+	// Create SVM signer
+	svmSigner, err := newClientSvmSigner(svmPrivateKey)
+	if err != nil {
+		outputError(fmt.Sprintf("Failed to create SVM signer: %v", err))
+		return
+	}
+
+	// Create x402 HTTP client with both EVM and SVM support
 	httpClient := x402http.Newx402HTTPClient()
 
 	// Register EVM v2 client for all EIP155 networks
-	evmClient := evm.NewExactEvmClient(signer)
+	evmClient := evm.NewExactEvmClient(evmSigner)
 	httpClient.RegisterScheme("eip155:*", evmClient)
 
 	// Register EVM v1 client for base-sepolia (v1 network name)
-	evmClientV1 := evmv1.NewExactEvmClientV1(signer)
+	evmClientV1 := evmv1.NewExactEvmClientV1(evmSigner)
 	httpClient.RegisterSchemeV1("base-sepolia", evmClientV1)
+
+	// Register SVM v2 client for Solana networks
+	svmClient := svm.NewExactSvmClient(svmSigner, &svm.ClientConfig{
+		RPCURL: "https://api.devnet.solana.com",
+	})
+	httpClient.RegisterScheme("solana:*", svmClient)
+
+	// Register SVM v1 client for solana-devnet (v1 network name)
+	svmClientV1 := svmv1.NewExactSvmClientV1(svmSigner, &svm.ClientConfig{
+		RPCURL: "https://api.devnet.solana.com",
+	})
+	httpClient.RegisterSchemeV1("solana-devnet", svmClientV1)
 
 	// Wrap standard HTTP client with payment handling
 	client := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)

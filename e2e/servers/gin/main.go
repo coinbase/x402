@@ -14,6 +14,7 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/coinbase/x402/go/http/gin"
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	"github.com/coinbase/x402/go/mechanisms/svm"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -39,9 +40,15 @@ func main() {
 		port = "4021"
 	}
 
-	payeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
-	if payeeAddress == "" {
+	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
+	if evmPayeeAddress == "" {
 		fmt.Println("❌ EVM_PAYEE_ADDRESS environment variable is required")
+		os.Exit(1)
+	}
+
+	svmPayeeAddress := os.Getenv("SVM_PAYEE_ADDRESS")
+	if svmPayeeAddress == "" {
+		fmt.Println("❌ SVM_PAYEE_ADDRESS environment variable is required")
 		os.Exit(1)
 	}
 
@@ -51,10 +58,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Network configuration
-	network := x402.Network("eip155:84532") // Base Sepolia
+	// Network configurations
+	evmNetwork := x402.Network("eip155:84532")                            // Base Sepolia
+	svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") // Solana Devnet
 
-	fmt.Printf("Facilitator account: %s\n", maskPrivateKey(os.Getenv("EVM_PRIVATE_KEY")))
+	fmt.Printf("EVM Payee address: %s\n", evmPayeeAddress)
+	fmt.Printf("SVM Payee address: %s\n", svmPayeeAddress)
 	fmt.Printf("Using remote facilitator at: %s\n", facilitatorURL)
 
 	// Set Gin to release mode to reduce logs
@@ -100,23 +109,34 @@ func main() {
 	routes := x402http.RoutesConfig{
 		"GET /protected": {
 			Scheme:  "exact",
-			PayTo:   payeeAddress,
+			PayTo:   evmPayeeAddress,
 			Price:   "$0.001",
-			Network: network,
+			Network: evmNetwork,
+			Extensions: map[string]interface{}{
+				types.BAZAAR: discoveryExtension,
+			},
+		},
+		"GET /protected-svm": {
+			Scheme:  "exact",
+			PayTo:   svmPayeeAddress,
+			Price:   "$0.001",
+			Network: svmNetwork,
 			Extensions: map[string]interface{}{
 				types.BAZAAR: discoveryExtension,
 			},
 		},
 	}
 
-	// Create EVM service for handling exact payments
+	// Create services for handling payments
 	evmService := evm.NewExactEvmService()
+	svmService := svm.NewExactSvmService()
 
-	// Apply payment middleware
+	// Apply payment middleware with both EVM and SVM support
 	r.Use(gin.PaymentMiddleware(
 		routes,
 		gin.WithFacilitatorClient(facilitatorClient),
-		gin.WithScheme(network, evmService),
+		gin.WithScheme(evmNetwork, evmService),
+		gin.WithScheme(svmNetwork, svmService),
 		gin.WithInitializeOnStart(true),
 		gin.WithTimeout(30*time.Second),
 	))
@@ -136,8 +156,30 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, ginfw.H{
-			"message":   "Protected endpoint accessed successfully",
+			"message":   "Protected endpoint accessed successfully (EVM)",
 			"timestamp": time.Now().Format(time.RFC3339),
+			"network":   "eip155:84532",
+		})
+	})
+
+	/**
+	 * Protected SVM endpoint - requires payment to access
+	 *
+	 * This endpoint demonstrates a Solana payment protected resource.
+	 * Clients must provide a valid payment signature to access this endpoint.
+	 */
+	r.GET("/protected-svm", func(c *ginfw.Context) {
+		if shutdownRequested {
+			c.JSON(http.StatusServiceUnavailable, ginfw.H{
+				"error": "Server shutting down",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, ginfw.H{
+			"message":   "Protected endpoint accessed successfully (SVM)",
+			"timestamp": time.Now().Format(time.RFC3339),
+			"network":   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
 		})
 	})
 
@@ -148,10 +190,12 @@ func main() {
 	 */
 	r.GET("/health", func(c *ginfw.Context) {
 		c.JSON(http.StatusOK, ginfw.H{
-			"status":  "ok",
-			"network": string(network),
-			"payee":   payeeAddress,
-			"version": "2.0.0",
+			"status":      "ok",
+			"version":     "2.0.0",
+			"evm_network": string(evmNetwork),
+			"evm_payee":   evmPayeeAddress,
+			"svm_network": string(svmNetwork),
+			"svm_payee":   svmPayeeAddress,
 		})
 	})
 
@@ -190,16 +234,19 @@ func main() {
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Gin E2E Test Server                     ║
 ╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:%s                      ║
-║  Network:    %s                       ║
-║  Payee:      %s     ║
+║  Server:     http://localhost:%-29s ║
+║  EVM Network: %-40s ║
+║  EVM Payee:   %-40s ║
+║  SVM Network: %-40s ║
+║  SVM Payee:   %-40s ║
 ║                                                        ║
 ║  Endpoints:                                            ║
-║  • GET  /protected  (requires $0.001 USDC payment)    ║
-║  • GET  /health     (no payment required)             ║
-║  • POST /close      (shutdown server)                 ║
+║  • GET  /protected      (requires $0.001 EVM payment) ║
+║  • GET  /protected-svm  (requires $0.001 SVM payment) ║
+║  • GET  /health         (no payment required)         ║
+║  • POST /close          (shutdown server)             ║
 ╚════════════════════════════════════════════════════════╝
-`, port, network, payeeAddress)
+`, port, evmNetwork, evmPayeeAddress, svmNetwork, svmPayeeAddress)
 
 	server := &http.Server{
 		Addr:    ":" + port,

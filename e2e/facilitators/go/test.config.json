@@ -3,9 +3,11 @@
   "type": "facilitator",
   "language": "go",
   "protocolFamilies": [
-    "evm"
+    "evm",
+    "svm"
   ],
   "x402Versions": [
+    1,
     2
   ],
   "extensions": [
@@ -14,10 +16,9 @@
   "environment": {
     "required": [
       "PORT",
-      "EVM_PRIVATE_KEY"
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
     ],
-    "optional": [
-      "EVM_NETWORK"
-    ]
+    "optional": []
   }
 }

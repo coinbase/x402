@@ -121,6 +121,7 @@ const facilitator = new x402Facilitator()
   .registerSchemeV1("solana-devnet" as `${string}:${string}`, new ExactSvmFacilitatorV1(svmSigner))
   .registerExtension(BAZAAR);
 
+
 /**
  * Verified Payments Tracking
  * Maps payment hash → timestamp for verify → settle flow validation
