@@ -1,0 +1,47 @@
+@import 'tailwindcss';
+
+body {
+	@apply antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+	width: 10px;
+}
+
+::-webkit-scrollbar-track {
+	@apply bg-slate-900;
+}
+
+::-webkit-scrollbar-thumb {
+	@apply bg-purple-500/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	@apply bg-purple-500/70;
+}
+
+/* Animations */
+@keyframes shimmer {
+	0% {
+		background-position: -1000px 0;
+	}
+	100% {
+		background-position: 1000px 0;
+	}
+}
+
+.animate-shimmer {
+	animation: shimmer 2s infinite linear;
+	background: linear-gradient(
+		to right,
+		transparent 0%,
+		rgba(255, 255, 255, 0.1) 50%,
+		transparent 100%
+	);
+	background-size: 1000px 100%;
+}
+
+button {
+	cursor: pointer !important;
+}
