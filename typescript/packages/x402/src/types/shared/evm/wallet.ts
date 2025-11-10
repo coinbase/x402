@@ -25,6 +25,7 @@ import {
   abstract,
   abstractTestnet,
   story,
+  eduChain,
   flowMainnet,
 } from "viem/chains";
 import { skaleBaseSepolia } from "../custom-chains";
@@ -227,6 +228,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return peaq;
     case "story":
       return story;
+    case "educhain":
+      return eduChain;
     case "iotex":
       return iotex;
     case "iotex-testnet":

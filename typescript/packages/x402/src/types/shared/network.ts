@@ -16,6 +16,7 @@ export const NetworkSchema = z.enum([
   "polygon-amoy",
   "peaq",
   "story",
+  "educhain",
   "skale-base-sepolia",
   "flow-evm",
 ]);
@@ -36,6 +37,7 @@ export const SupportedEVMNetworks: Network[] = [
   "polygon-amoy",
   "peaq",
   "story",
+  "educhain",
   "skale-base-sepolia",
   "flow-evm",
 ];
@@ -53,6 +55,7 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["polygon-amoy", 80002],
   ["peaq", 3338],
   ["story", 1514],
+  ["educhain", 41923],
   ["skale-base-sepolia", 324705682],
   ["flow-evm", 747],
 ]);
