@@ -3,6 +3,9 @@ import { TestDiscovery } from './src/discovery';
 import { ClientConfig, ScenarioResult } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
 import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
+import { parseArgs, printHelp } from './src/cli/args';
+import { runInteractiveMode } from './src/cli/interactive';
+import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
 
 export interface ServerConfig {
   port: number;
@@ -17,39 +20,7 @@ export interface ServerConfig {
 config();
 
 // Parse command line arguments
-const args = process.argv.slice(2);
-
-// Parse verbose flag
-const isVerbose = args.includes('-v') || args.includes('--verbose');
-
-// Parse legacy flag (includes /legacy directory in discovery)
-const includeLegacy = args.includes('--legacy');
-
-// Parse language flags
-const languageFilters: string[] = [];
-if (args.includes('-ts') || args.includes('--typescript')) languageFilters.push('typescript');
-if (args.includes('-py') || args.includes('--python')) languageFilters.push('python');
-if (args.includes('-go') || args.includes('--go')) languageFilters.push('go');
-
-// Parse protocol family flags
-const protocolFamilyFilters: string[] = [];
-args.forEach((arg, index) => {
-  if ((arg === '--family' || arg === '-f') && index + 1 < args.length) {
-    protocolFamilyFilters.push(args[index + 1]);
-  } else if (arg.startsWith('--family=')) {
-    protocolFamilyFilters.push(arg.split('=')[1]);
-  }
-});
-
-// Parse filter arguments
-const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
-const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-
-// Parse log file argument
-const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
-
-// Initialize logger
-loggerConfig({ logFile, verbose: isVerbose });
+const parsedArgs = parseArgs();
 
 interface Facilitator {
   start: (config: { port: number; evmPrivateKey: string; svmPrivateKey: string; evmNetwork: string; svmNetwork: string; }) => Promise<void>;
@@ -248,35 +219,13 @@ async function runClientTest(
 
 async function runTest() {
   // Show help if requested
-  if (args.includes('-h') || args.includes('--help')) {
-    console.log('Usage: npm test [options]');
-    console.log('');
-    console.log('Options:');
-    console.log('Environment:');
-    console.log('  -v, --verbose              Enable verbose logging');
-    console.log('  --legacy                   Include legacy implementations from /legacy directory');
-    console.log('  -ts, --typescript          Include TypeScript implementations');
-    console.log('  -py, --python              Include Python implementations');
-    console.log('  -go, --go                  Include Go implementations');
-    console.log('');
-    console.log('Filters:');
-    console.log('  --log-file=<path>          Save verbose output to file');
-    console.log('  --client=<n>               Filter by client name (e.g., httpx, axios)');
-    console.log('  --server=<n>               Filter by server name (e.g., express, fastapi)');
-    console.log('  -f, --family=<protocol>    Filter by protocol family (evm, svm) - can be used multiple times');
-    console.log('  -h, --help                 Show this help message');
-    console.log('');
-    console.log('Examples:');
-    console.log('  pnpm test                         # Run all v2 tests');
-    console.log('  pnpm test -v                      # Run with verbose logging');
-    console.log('  pnpm test --legacy                # Include v1 legacy implementations');
-    console.log('  pnpm test --legacy -ts            # Test legacy + new TypeScript implementations');
-    console.log('  pnpm test -py -go                 # Test Python and Go implementations');
-    console.log('  pnpm test -ts --client=fetch      # Test TypeScript fetch client');
-    console.log('  pnpm test -f evm                  # Test EVM protocol family only');
-    console.log('');
+  if (parsedArgs.showHelp) {
+    printHelp();
     return;
   }
+
+  // Initialize logger
+  loggerConfig({ logFile: parsedArgs.logFile, verbose: parsedArgs.verbose });
 
   log('🚀 Starting X402 E2E Test Suite');
   log('===============================');
@@ -295,72 +244,75 @@ async function runTest() {
     process.exit(1);
   }
 
-  // Discover all servers and clients
-  const discovery = new TestDiscovery('.', includeLegacy);
+  // Discover all servers, clients, and facilitators (always include legacy)
+  const discovery = new TestDiscovery('.', true); // Always discover legacy
+  
+  const allClients = discovery.discoverClients();
+  const allServers = discovery.discoverServers();
+  const allFacilitators = discovery.discoverFacilitators();
+
   discovery.printDiscoverySummary();
 
-  const scenarios = discovery.generateTestScenarios();
+  // Generate all possible scenarios
+  const allScenarios = discovery.generateTestScenarios();
 
-  if (scenarios.length === 0) {
+  if (allScenarios.length === 0) {
     log('❌ No test scenarios found');
     return;
   }
 
-  // Count active filters
-  interface FilterInfo {
-    name: string;
-    value: string;
-  }
+  let filters: TestFilters;
+  let selectedExtensions: string[] | undefined;
 
-  const activeFilters: FilterInfo[] = [
-    languageFilters.length > 0 && { name: 'Languages', value: languageFilters.join(', ') },
-    clientFilter && { name: 'Client', value: clientFilter },
-    serverFilter && { name: 'Server', value: serverFilter },
-    protocolFamilyFilters.length > 0 && { name: 'Protocol Families', value: protocolFamilyFilters.join(', ') }
-  ].filter((f): f is FilterInfo => typeof f === 'object' && f !== null && 'name' in f && 'value' in f);
+  // Interactive or programmatic mode
+  if (parsedArgs.mode === 'interactive') {
+    const selections = await runInteractiveMode(
+      allClients,
+      allServers,
+      allFacilitators,
+      allScenarios
+    );
 
-  log('📊 Test Scenarios');
-  log('===============');
-  log(`Total unfiltered scenarios: ${scenarios.length}`);
-  if (activeFilters.length > 0) {
-    log(`Active filters (${activeFilters.length}):`);
-    activeFilters.forEach(filter => {
-      log(`   - ${filter.name}: ${filter.value}`);
-    });
-  } else {
-    log('No active filters');
-  }
-
-  // Filter scenarios based on command line arguments
-  const filteredScenarios = scenarios.filter(scenario => {
-    // Language filter - if languages specified, client, server, AND facilitator must match one of them
-    if (languageFilters.length > 0) {
-      const matchesLanguage = languageFilters.some(lang =>
-        scenario.client.config.language.includes(lang) &&
-        scenario.server.config.language.includes(lang) &&
-        (!scenario.facilitator || scenario.facilitator.config.language.includes(lang))
-      );
-      if (!matchesLanguage) return false;
+    if (!selections) {
+      log('\n❌ Cancelled by user');
+      return;
     }
 
-    // Client filter - if set, only run tests for this client
-    if (clientFilter && scenario.client.name !== clientFilter) return false;
+    filters = selections;
+    selectedExtensions = selections.extensions;
+  } else {
+    log('\n🤖 Programmatic Mode');
+    log('===================\n');
+    
+    filters = parsedArgs.filters;
+    selectedExtensions = parsedArgs.filters.extensions;
+    
+    // Print active filters
+    const filterEntries = Object.entries(filters).filter(([_, v]) => v && (Array.isArray(v) ? v.length > 0 : true));
+    if (filterEntries.length > 0) {
+      log('Active filters:');
+      filterEntries.forEach(([key, value]) => {
+        if (Array.isArray(value) && value.length > 0) {
+          log(`  - ${key}: ${value.join(', ')}`);
+        }
+      });
+      log('');
+    }
+  }
 
-    // Server filter - if set, only run tests for this server
-    if (serverFilter && scenario.server.name !== serverFilter) return false;
-
-    // Protocol family filter - if set, only run tests for these protocol families
-    if (protocolFamilyFilters.length > 0 && !protocolFamilyFilters.includes(scenario.protocolFamily)) return false;
-
-    return true;
-  });
+  // Apply filters to scenarios
+  const filteredScenarios = filterScenarios(allScenarios, filters);
 
   if (filteredScenarios.length === 0) {
-    log('❌ No scenarios match the active filters');
+    log('❌ No scenarios match the selections');
+    log('💡 Try selecting more options or run without filters\n');
     return;
   }
 
-  log(`Scenarios to run: ${filteredScenarios.length}`);
+  log(`\n✅ ${filteredScenarios.length} scenarios selected`);
+  if (selectedExtensions && selectedExtensions.length > 0) {
+    log(`🎁 Extensions enabled: ${selectedExtensions.join(', ')}`);
+  }
   log('');
 
   // Collect unique facilitators and servers
@@ -589,7 +541,10 @@ async function runTest() {
 
   const serversArray = Array.from(uniqueServers.values());
 
-  if (shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+  // Run discovery validation if bazaar extension is enabled
+  const showBazaarOutput = shouldShowExtensionOutput('bazaar', selectedExtensions);
+  if (showBazaarOutput && shouldRunDiscoveryValidation(facilitatorsWithConfig, serversArray)) {
+    log('\n🔍 Running Bazaar Discovery Validation...\n');
     await handleDiscoveryValidation(
       facilitatorsWithConfig,
       serversArray,
