@@ -72,6 +72,11 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0x2e08028E3C4c2356572E096d8EF835cD5C6030bD",
     usdcName: "Bridged USDC (SKALE Bridge)",
   },
+  "5042002": {
+    // Arc Testnet chain ID
+    usdcAddress: "0x3600000000000000000000000000000000000000",
+    usdcName: "USDC",
+  },
 };
 
 export type ChainConfig = {

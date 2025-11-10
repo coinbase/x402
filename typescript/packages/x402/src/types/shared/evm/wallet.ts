@@ -13,6 +13,7 @@ import type {
 import {
   baseSepolia,
   avalancheFuji,
+  arcTestnet,
   base,
   sei,
   seiTestnet,
@@ -207,6 +208,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return abstract;
     case "abstract-testnet":
       return abstractTestnet;
+    case "arc-testnet":
+      return arcTestnet;
     case "base":
       return base;
     case "base-sepolia":
