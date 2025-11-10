@@ -355,3 +355,6 @@ export type {
   RoutesConfig,
 } from "x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
+
+export { negotiatedPayment } from "./negotiated-middleware";
+export type { NegotiatedPaymentOptions, PricingStrategy, RangeBasedStrategy, VolumeBasedStrategy } from "./negotiated-middleware";
