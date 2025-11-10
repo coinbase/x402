@@ -17,6 +17,7 @@ export const NetworkSchema = z.enum([
   "peaq",
   "zircuit",
   "story",
+  "educhain",
   "skale-base-sepolia",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
@@ -37,6 +38,7 @@ export const SupportedEVMNetworks: Network[] = [
   "peaq",
   "zircuit",
   "story",
+  "educhain",
   "skale-base-sepolia",
 ];
 export const EvmNetworkToChainId = new Map<Network, number>([
@@ -54,6 +56,7 @@ export const EvmNetworkToChainId = new Map<Network, number>([
   ["peaq", 3338],
   ["zircuit", 48900],
   ["story", 1514],
+  ["educhain", 41923],
   ["skale-base-sepolia", 324705682],
 ]);
 
