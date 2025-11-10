@@ -6,6 +6,6 @@ packages:
   - "dynamic_agent"
   - "agent"
   - "mcp-embedded-wallet"
-  - "mpc"
+  - "mcp"
   - "discovery"
   - "../../typescript/packages/*"
