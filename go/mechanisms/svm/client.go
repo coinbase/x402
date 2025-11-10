@@ -1,0 +1,252 @@
+package svm
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
+
+	bin "github.com/gagliardetto/binary"
+	solana "github.com/gagliardetto/solana-go"
+	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
+	"github.com/gagliardetto/solana-go/programs/token"
+	"github.com/gagliardetto/solana-go/rpc"
+
+	"github.com/coinbase/x402/go/types"
+)
+
+// ExactSvmClient implements the SchemeNetworkClient interface for SVM (Solana) exact payments (V2)
+type ExactSvmClient struct {
+	signer ClientSvmSigner
+	config *ClientConfig // Optional custom RPC configuration
+}
+
+// NewExactSvmClient creates a new ExactSvmClient
+func NewExactSvmClient(signer ClientSvmSigner, config *ClientConfig) *ExactSvmClient {
+	return &ExactSvmClient{
+		signer: signer,
+		config: config,
+	}
+}
+
+// Scheme returns the scheme identifier
+func (c *ExactSvmClient) Scheme() string {
+	return SchemeExact
+}
+
+// CreatePaymentPayload creates a payment payload for the Exact scheme (V2)
+// Returns partial payload (x402Version + payload), core wraps with accepted/resource/extensions
+func (c *ExactSvmClient) CreatePaymentPayload(
+	ctx context.Context,
+	version int,
+	requirementsBytes []byte,
+) ([]byte, error) {
+	// Unmarshal to v2 requirements using helper
+	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal v2 requirements: %w", err)
+	}
+
+	// Validate network
+	networkStr := requirements.Network
+	if !IsValidNetwork(networkStr) {
+		return nil, fmt.Errorf("unsupported network: %s", requirements.Network)
+	}
+
+	// Get network configuration
+	config, err := GetNetworkConfig(networkStr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get RPC URL (custom or default)
+	rpcURL := config.RPCURL
+	if c.config != nil && c.config.RPCURL != "" {
+		rpcURL = c.config.RPCURL
+	}
+
+	// Create RPC client
+	rpcClient := rpc.New(rpcURL)
+
+	// Parse mint address
+	mintPubkey, err := solana.PublicKeyFromBase58(requirements.Asset)
+	if err != nil {
+		return nil, fmt.Errorf("invalid asset address: %w", err)
+	}
+
+	// Get mint account to determine token program
+	mintAccount, err := rpcClient.GetAccountInfo(ctx, mintPubkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get mint account: %w", err)
+	}
+
+	// Determine token program (Token or Token-2022)
+	tokenProgramID := mintAccount.Value.Owner
+	if tokenProgramID != solana.TokenProgramID && tokenProgramID != solana.Token2022ProgramID {
+		return nil, fmt.Errorf("asset was not created by a known token program")
+	}
+
+	// Parse payTo address
+	payToPubkey, err := solana.PublicKeyFromBase58(requirements.PayTo)
+	if err != nil {
+		return nil, fmt.Errorf("invalid payTo address: %w", err)
+	}
+
+	// Find source ATA (client's token account)
+	sourceATA, _, err := solana.FindAssociatedTokenAddress(c.signer.Address(), mintPubkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive source ATA: %w", err)
+	}
+
+	// Find destination ATA (recipient's token account)
+	destinationATA, _, err := solana.FindAssociatedTokenAddress(payToPubkey, mintPubkey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive destination ATA: %w", err)
+	}
+
+	// Check that source ATA exists
+	sourceAccount, err := rpcClient.GetAccountInfo(ctx, sourceATA)
+	if err != nil || sourceAccount == nil || sourceAccount.Value == nil {
+		return nil, fmt.Errorf(
+			"invalid_exact_solana_payload_ata_not_found: Source ATA does not exist for client %s",
+			c.signer.Address(),
+		)
+	}
+
+	// Check that destination ATA exists
+	destAccount, err := rpcClient.GetAccountInfo(ctx, destinationATA)
+	if err != nil || destAccount == nil || destAccount.Value == nil {
+		return nil, fmt.Errorf(
+			"invalid_exact_solana_payload_ata_not_found: Destination ATA does not exist for recipient %s",
+			requirements.PayTo,
+		)
+	}
+
+	// Parse amount
+	amount, err := strconv.ParseUint(requirements.Amount, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
+
+	// Get fee payer from requirements.extra
+	feePayerAddr, ok := requirements.Extra["feePayer"].(string)
+	if !ok {
+		return nil, fmt.Errorf("feePayer is required in paymentRequirements.extra for Solana transactions")
+	}
+
+	feePayer, err := solana.PublicKeyFromBase58(feePayerAddr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid feePayer address: %w", err)
+	}
+
+	// Get mint account data to get decimals
+	var mintData token.Mint
+	err = bin.NewBinDecoder(mintAccount.Value.Data.GetBinary()).Decode(&mintData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode mint data: %w", err)
+	}
+
+	// Get latest blockhash
+	latestBlockhash, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get latest blockhash: %w", err)
+	}
+	recentBlockhash := latestBlockhash.Value.Blockhash
+
+	// Build temporary transfer instruction for compute unit estimation
+	tempTransferIx, err := token.NewTransferCheckedInstructionBuilder().
+		SetAmount(amount).
+		SetDecimals(mintData.Decimals).
+		SetSourceAccount(sourceATA).
+		SetMintAccount(mintPubkey).
+		SetDestinationAccount(destinationATA).
+		SetOwnerAccount(c.signer.Address()).
+		ValidateAndBuild()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transfer instruction: %w", err)
+	}
+
+	// Estimate compute units by simulating
+	tempTx, err := solana.NewTransactionBuilder().
+		AddInstruction(tempTransferIx).
+		SetRecentBlockHash(recentBlockhash).
+		SetFeePayer(feePayer).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp transaction: %w", err)
+	}
+
+	// Simulate to estimate compute units
+	simResult, err := rpcClient.SimulateTransaction(ctx, tempTx)
+	var estimatedUnits uint32 = 200000 // Default fallback
+	if err == nil && simResult != nil && simResult.Value != nil && simResult.Value.UnitsConsumed != nil {
+		estimatedUnits = uint32(*simResult.Value.UnitsConsumed)
+		// Add 20% buffer to avoid boundary issues
+		estimatedUnits = uint32(float64(estimatedUnits) * 1.2)
+	}
+
+	// Build compute budget instructions
+	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
+		SetUnits(estimatedUnits).
+		ValidateAndBuild()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build compute limit instruction: %w", err)
+	}
+
+	cuPrice, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
+		SetMicroLamports(DefaultComputeUnitPrice).
+		ValidateAndBuild()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build compute price instruction: %w", err)
+	}
+
+	// Build final transfer instruction
+	transferIx, err := token.NewTransferCheckedInstructionBuilder().
+		SetAmount(amount).
+		SetDecimals(mintData.Decimals).
+		SetSourceAccount(sourceATA).
+		SetMintAccount(mintPubkey).
+		SetDestinationAccount(destinationATA).
+		SetOwnerAccount(c.signer.Address()).
+		ValidateAndBuild()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transfer instruction: %w", err)
+	}
+
+	// Create final transaction
+	tx, err := solana.NewTransactionBuilder().
+		AddInstruction(cuLimit).
+		AddInstruction(cuPrice).
+		AddInstruction(transferIx).
+		SetRecentBlockHash(recentBlockhash).
+		SetFeePayer(feePayer).
+		Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// Partially sign with client's key
+	if err := c.signer.SignTransaction(tx); err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Encode transaction to base64
+	base64Tx, err := EncodeTransaction(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode transaction: %w", err)
+	}
+
+	// Create SVM payload
+	svmPayload := &ExactSvmPayload{
+		Transaction: base64Tx,
+	}
+
+	// Return PARTIAL v2 payload (just version + payload)
+	// Core will wrap with accepted/resource/extensions
+	partial := types.PayloadBase{
+		X402Version: version,
+		Payload:     svmPayload.ToMap(),
+	}
+
+	return json.Marshal(partial)
+}
