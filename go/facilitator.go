@@ -2,8 +2,11 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
+	
+	"github.com/coinbase/x402/go/types"
 )
 
 // x402Facilitator manages payment verification and settlement
@@ -72,131 +75,118 @@ func (f *x402Facilitator) RegisterExtension(extension string) *x402Facilitator {
 }
 
 // Verify checks if a payment is valid without executing it
-// This validates signatures, checks balances, etc.
+// Bridge method: keeps struct API, uses bytes internally
 func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// Validate inputs
-	if err := ValidatePaymentPayload(payload); err != nil {
-		return VerifyResponse{
-			IsValid:       false,
-			InvalidReason: err.Error(),
-		}, err
+	// Marshal to bytes for mechanism
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
 	}
 
-	if err := ValidatePaymentRequirements(requirements); err != nil {
-		return VerifyResponse{
-			IsValid:       false,
-			InvalidReason: err.Error(),
-		}, err
+	requirementsBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
 	}
 
-	// Check version compatibility
-	versionSchemes, exists := f.schemes[payload.X402Version]
+	// Detect version
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+
+	// Extract scheme/network from requirements for routing
+	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+
+	// Find facilitator for this version
+	versionSchemes, exists := f.schemes[version]
 	if !exists {
 		return VerifyResponse{
 				IsValid:       false,
-				InvalidReason: fmt.Sprintf("unsupported x402 version: %d", payload.X402Version),
+			InvalidReason: fmt.Sprintf("unsupported x402 version: %d", version),
 			}, &PaymentError{
 				Code:    ErrCodeInvalidPayment,
-				Message: fmt.Sprintf("x402 version %d not supported", payload.X402Version),
+			Message: fmt.Sprintf("x402 version %d not supported", version),
 			}
 	}
 
-	// Find the appropriate facilitator
-	facilitator := findByNetworkAndScheme(versionSchemes, requirements.Scheme, requirements.Network)
+	// Find the appropriate facilitator by scheme/network
+	facilitator := findByNetworkAndScheme(versionSchemes, reqInfo.Scheme, Network(reqInfo.Network))
 	if facilitator == nil {
 		return VerifyResponse{
 				IsValid:       false,
-				InvalidReason: fmt.Sprintf("unsupported scheme %s on network %s", requirements.Scheme, requirements.Network),
+			InvalidReason: fmt.Sprintf("unsupported scheme %s on network %s", reqInfo.Scheme, reqInfo.Network),
 			}, &PaymentError{
 				Code:    ErrCodeUnsupportedScheme,
-				Message: fmt.Sprintf("no facilitator for scheme %s on network %s", requirements.Scheme, requirements.Network),
+			Message: fmt.Sprintf("no facilitator for scheme %s on network %s", reqInfo.Scheme, reqInfo.Network),
 			}
 	}
 
-	// Verify basic compatibility
-	if payload.Accepted.Scheme != requirements.Scheme {
-		return VerifyResponse{
-				IsValid:       false,
-				InvalidReason: "scheme mismatch",
-			}, &PaymentError{
-				Code:    ErrCodeSchemeMismatch,
-				Message: fmt.Sprintf("payment scheme %s does not match requirement %s", payload.Accepted.Scheme, requirements.Scheme),
-			}
-	}
-
-	if !Network(payload.Accepted.Network).Match(requirements.Network) {
-		return VerifyResponse{
-				IsValid:       false,
-				InvalidReason: "network mismatch",
-			}, &PaymentError{
-				Code:    ErrCodeNetworkMismatch,
-				Message: fmt.Sprintf("payment network %s does not match requirement %s", payload.Accepted.Network, requirements.Network),
-			}
-	}
-
-	// Delegate to mechanism-specific verification
-	return facilitator.Verify(ctx, payload, requirements)
+	// Delegate to mechanism (mechanism unmarshals to version-specific types)
+	return facilitator.Verify(ctx, version, payloadBytes, requirementsBytes)
 }
 
 // Settle executes a payment on-chain
-// This is where the actual blockchain transaction happens
+// Bridge method: keeps struct API, uses bytes internally
 func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	// Check version compatibility
-	versionSchemes, exists := f.schemes[payload.X402Version]
+	// Marshal to bytes for mechanism
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+
+	requirementsBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+
+	// Detect version
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+
+	// Extract scheme/network for routing
+	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+
+	// Find facilitator
+	versionSchemes, exists := f.schemes[version]
 	if !exists {
 		return SettleResponse{
 				Success:     false,
-				ErrorReason: fmt.Sprintf("unsupported x402 version: %d", payload.X402Version),
+			ErrorReason: fmt.Sprintf("unsupported x402 version: %d", version),
 				Network:     payload.Accepted.Network,
 			}, &PaymentError{
 				Code:    ErrCodeInvalidPayment,
-				Message: fmt.Sprintf("x402 version %d not supported", payload.X402Version),
+			Message: fmt.Sprintf("x402 version %d not supported", version),
 			}
 	}
 
-	// Find the appropriate facilitator
-	facilitator := findByNetworkAndScheme(versionSchemes, requirements.Scheme, requirements.Network)
+	facilitator := findByNetworkAndScheme(versionSchemes, reqInfo.Scheme, Network(reqInfo.Network))
 	if facilitator == nil {
 		return SettleResponse{
-				Success:     false,
-				ErrorReason: fmt.Sprintf("unsupported scheme %s on network %s", requirements.Scheme, requirements.Network),
-				Network:     payload.Accepted.Network,
-			}, &PaymentError{
-				Code:    ErrCodeUnsupportedScheme,
-				Message: fmt.Sprintf("no facilitator for scheme %s on network %s", requirements.Scheme, requirements.Network),
-			}
-	}
-
-	// Always verify before settling
-	verifyResp, err := facilitator.Verify(ctx, payload, requirements)
-	if err != nil {
-		return SettleResponse{
 			Success:     false,
-			ErrorReason: fmt.Sprintf("verification failed: %v", err),
-			Network:     payload.Accepted.Network,
-		}, err
-	}
-
-	if !verifyResp.IsValid {
-		return SettleResponse{
-				Success:     false,
-				ErrorReason: verifyResp.InvalidReason,
-				Payer:       verifyResp.Payer,
+			ErrorReason: fmt.Sprintf("unsupported scheme %s on network %s", reqInfo.Scheme, reqInfo.Network),
 				Network:     payload.Accepted.Network,
 			}, &PaymentError{
-				Code:    ErrCodeInvalidPayment,
-				Message: verifyResp.InvalidReason,
+			Code:    ErrCodeUnsupportedScheme,
+			Message: fmt.Sprintf("no facilitator for scheme %s on network %s", reqInfo.Scheme, reqInfo.Network),
 			}
 	}
 
-	// Delegate to mechanism-specific settlement
-	return facilitator.Settle(ctx, payload, requirements)
+	// Delegate to mechanism
+	return facilitator.Settle(ctx, version, payloadBytes, requirementsBytes)
 }
 
 // GetSupported returns the payment kinds this facilitator supports
@@ -255,12 +245,36 @@ func NewLocalFacilitatorClient(facilitator *x402Facilitator) *LocalFacilitatorCl
 }
 
 // Verify implements FacilitatorClient
-func (c *LocalFacilitatorClient) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+// Bridge: converts bytes to structs for x402Facilitator
+func (c *LocalFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+	// Unmarshal to structs (x402Facilitator uses struct API)
+	var payload PaymentPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+	
+	var requirements PaymentRequirements
+	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+	
 	return c.facilitator.Verify(ctx, payload, requirements)
 }
 
 // Settle implements FacilitatorClient
-func (c *LocalFacilitatorClient) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
+// Bridge: converts bytes to structs for x402Facilitator
+func (c *LocalFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+	// Unmarshal to structs (x402Facilitator uses struct API)
+	var payload PaymentPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		return SettleResponse{Success: false}, err
+	}
+	
+	var requirements PaymentRequirements
+	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
+		return SettleResponse{Success: false}, err
+	}
+	
 	return c.facilitator.Settle(ctx, payload, requirements)
 }
 

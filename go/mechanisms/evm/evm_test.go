@@ -2,11 +2,13 @@ package evm
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 	"strings"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // Mock implementations for testing
@@ -276,18 +278,25 @@ func TestExactEvmClient_CreatePaymentPayload(t *testing.T) {
 		},
 	}
 
-	payload, err := client.CreatePaymentPayload(ctx, 2, requirements)
+	requirementsBytes, _ := json.Marshal(requirements)
+	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes)
 	if err != nil {
 		t.Fatalf("CreatePaymentPayload() error = %v", err)
 	}
 
+	// Unmarshal to check - v2 client returns partial, so use PayloadBase
+	var partialPayload types.PayloadBase
+	if err := json.Unmarshal(payloadBytes, &partialPayload); err != nil {
+		t.Fatalf("Failed to unmarshal payload: %v", err)
+	}
+
 	// Check basic fields
-	if payload.X402Version != 2 {
-		t.Errorf("Expected version 2, got %d", payload.X402Version)
+	if partialPayload.X402Version != 2 {
+		t.Errorf("Expected version 2, got %d", partialPayload.X402Version)
 	}
 
 	// Check payload structure
-	evmPayload, err := PayloadFromMap(payload.Payload)
+	evmPayload, err := PayloadFromMap(partialPayload.Payload)
 	if err != nil {
 		t.Fatalf("Failed to parse payload: %v", err)
 	}
@@ -350,7 +359,11 @@ func TestExactEvmFacilitator_Verify(t *testing.T) {
 		Payload:     evmPayload.ToMap(),
 	}
 
-	result, err := facilitator.Verify(ctx, payload, requirements)
+	// Marshal to bytes for facilitator call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	result, err := facilitator.Verify(ctx, 2, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Verify() error = %v", err)
 	}
@@ -409,7 +422,11 @@ func TestExactEvmFacilitator_Settle(t *testing.T) {
 		Payload:     evmPayload.ToMap(),
 	}
 
-	result, err := facilitator.Settle(ctx, payload, requirements)
+	// Marshal to bytes for facilitator call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	result, err := facilitator.Settle(ctx, 2, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Settle() error = %v", err)
 	}

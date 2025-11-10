@@ -2,10 +2,12 @@ package v1
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
@@ -82,20 +84,27 @@ func TestV1ClientCreatePaymentPayload(t *testing.T) {
 	client := NewExactEvmClientV1(&mockClientSigner{})
 
 	requirements := x402.PaymentRequirements{
-		Scheme:  "exact",
-		Network: "base",
-		Asset:   "USDC",
-		Amount:  "1000000",
-		PayTo:   "0x9876543210987654321098765432109876543210",
+		Scheme:            "exact",
+		Network:           "base",
+		Asset:             "USDC",
+		MaxAmountRequired: "1000000", // V1 uses MaxAmountRequired, not Amount
+		PayTo:             "0x9876543210987654321098765432109876543210",
 		Extra: map[string]interface{}{
 			"name":    "USD Coin",
 			"version": "2",
 		},
 	}
 
-	payload, err := client.CreatePaymentPayload(context.Background(), 1, requirements)
+	requirementsBytes, _ := json.Marshal(requirements)
+	payloadBytes, err := client.CreatePaymentPayload(context.Background(), 1, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Failed to create payment payload: %v", err)
+	}
+
+	// Unmarshal to check fields
+	payload, err := types.ToPaymentPayloadV1(payloadBytes)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal payload: %v", err)
 	}
 
 	// V1 specific: should only accept version 1
@@ -108,27 +117,28 @@ func TestV1FacilitatorVerify(t *testing.T) {
 	facilitator := NewExactEvmFacilitatorV1(&mockFacilitatorSigner{})
 
 	requirements := x402.PaymentRequirements{
-		Scheme:  "exact",
-		Network: "base",
-		Asset:   "USDC",
-		Amount:  "1000000",
-		PayTo:   "0x9876543210987654321098765432109876543210",
+		Scheme:            "exact",
+		Network:           "base",
+		Asset:             "USDC",
+		MaxAmountRequired: "1000000", // V1 uses MaxAmountRequired
+		PayTo:             "0x9876543210987654321098765432109876543210",
 		Extra: map[string]interface{}{
 			"name":    "USD Coin",
 			"version": "2",
 		},
 	}
 
-	// Create a v1 payload
-	payload := x402.PaymentPayload{
+	// Create a v1 payload (scheme/network at top level, not in Accepted)
+	payload := types.PaymentPayloadV1{
 		X402Version: 1,
-		Accepted:    requirements,
+		Scheme:      "exact",
+		Network:     "base",
 		Payload: map[string]interface{}{
 			"signature": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000", // 65 bytes hex encoded
 			"authorization": map[string]interface{}{
 				"from":        "0x1234567890123456789012345678901234567890",
 				"to":          requirements.PayTo,
-				"value":       requirements.Amount,
+				"value":       requirements.MaxAmountRequired,
 				"validAfter":  "0",
 				"validBefore": "9999999999",
 				"nonce":       "0x0000000000000000000000000000000000000000000000000000000000000000", // 32 bytes hex encoded
@@ -136,7 +146,11 @@ func TestV1FacilitatorVerify(t *testing.T) {
 		},
 	}
 
-	resp, err := facilitator.Verify(context.Background(), payload, requirements)
+	// Marshal to bytes for facilitator call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	resp, err := facilitator.Verify(context.Background(), 1, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Failed to verify payment: %v", err)
 	}
@@ -147,7 +161,8 @@ func TestV1FacilitatorVerify(t *testing.T) {
 
 	// Test with v2 payload - should fail
 	payload.X402Version = 2
-	resp, err = facilitator.Verify(context.Background(), payload, requirements)
+	payloadBytesV2, _ := json.Marshal(payload)
+	resp, err = facilitator.Verify(context.Background(), 2, payloadBytesV2, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Failed to verify payment: %v", err)
 	}

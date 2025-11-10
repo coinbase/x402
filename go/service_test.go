@@ -2,6 +2,7 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -43,21 +44,21 @@ func (m *mockSchemeNetworkService) EnhancePaymentRequirements(ctx context.Contex
 // Mock facilitator client for testing
 type mockFacilitatorClient struct {
 	identifier string
-	verify     func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error)
-	settle     func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error)
+	verify     func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
+	settle     func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
 	supported  func(ctx context.Context) (SupportedResponse, error)
 }
 
-func (m *mockFacilitatorClient) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
 	if m.verify != nil {
-		return m.verify(ctx, payload, requirements)
+		return m.verify(ctx, payloadBytes, requirementsBytes)
 	}
 	return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 }
 
-func (m *mockFacilitatorClient) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
+func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
 	if m.settle != nil {
-		return m.settle(ctx, payload, requirements)
+		return m.settle(ctx, payloadBytes, requirementsBytes)
 	}
 	return SettleResponse{Success: true, Transaction: "0xtx"}, nil
 }
@@ -355,7 +356,7 @@ func TestServiceVerifyPayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
 			return VerifyResponse{
 				IsValid: true,
 				Payer:   "0xverifiedpayer",
@@ -380,7 +381,11 @@ func TestServiceVerifyPayment(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	response, err := service.VerifyPayment(ctx, payload, requirements)
+	// Marshal to bytes for service call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	response, err := service.VerifyPayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -396,7 +401,7 @@ func TestServiceSettlePayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		settle: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
 			return SettleResponse{
 				Success:     true,
 				Transaction: "0xsettledtx",
@@ -422,7 +427,11 @@ func TestServiceSettlePayment(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	response, err := service.SettlePayment(ctx, payload, requirements)
+	// Marshal to bytes for service call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	response, err := service.SettlePayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -466,7 +475,8 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 		},
 	}
 
-	matched := service.FindMatchingRequirements(available, payloadV2)
+	payloadV2Bytes, _ := json.Marshal(payloadV2)
+	matched := service.FindMatchingRequirements(available, payloadV2Bytes)
 	if matched == nil {
 		t.Fatal("Expected match for v2")
 	}
@@ -474,16 +484,16 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 		t.Fatal("Expected transfer scheme to match")
 	}
 
-	// Test v1 matching (by scheme/network)
-	payloadV1 := PaymentPayload{
-		X402Version: 1,
-		Accepted: PaymentRequirements{
-			Scheme:  "exact",
-			Network: "eip155:1",
-		},
+	// Test v1 matching (by scheme/network at top level)
+	payloadV1 := map[string]interface{}{
+		"x402Version": 1,
+		"scheme":      "exact",
+		"network":     "eip155:1",
+		"payload":     map[string]interface{}{},
 	}
 
-	matched = service.FindMatchingRequirements(available, payloadV1)
+	payloadV1Bytes, _ := json.Marshal(payloadV1)
+	matched = service.FindMatchingRequirements(available, payloadV1Bytes)
 	if matched == nil {
 		t.Fatal("Expected match for v1")
 	}
@@ -503,7 +513,8 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 		},
 	}
 
-	matched = service.FindMatchingRequirements(available, payloadNoMatch)
+	payloadNoMatchBytes, _ := json.Marshal(payloadNoMatch)
+	matched = service.FindMatchingRequirements(available, payloadNoMatchBytes)
 	if matched != nil {
 		t.Fatal("Expected no match")
 	}

@@ -89,7 +89,11 @@ func TestHTTPFacilitatorClientVerify(t *testing.T) {
 		Payload:     map[string]interface{}{"sig": "test"},
 	}
 
-	response, err := client.Verify(ctx, payload, requirements)
+	// Marshal to bytes for client call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	response, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -142,7 +146,11 @@ func TestHTTPFacilitatorClientSettle(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	response, err := client.Settle(ctx, payload, requirements)
+	// Marshal to bytes for client call
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	response, err := client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -250,14 +258,18 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
+	// Marshal to bytes for client calls
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
 	// Verify
-	_, err := client.Verify(ctx, payload, requirements)
+	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Verify failed: %v", err)
 	}
 
 	// Settle
-	_, err = client.Settle(ctx, payload, requirements)
+	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Settle failed: %v", err)
 	}
@@ -297,14 +309,18 @@ func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
+	// Marshal to bytes for client calls
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
 	// Test Verify error
-	_, err := client.Verify(ctx, payload, requirements)
+	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
 		t.Error("Expected error for verify")
 	}
 
 	// Test Settle error
-	_, err = client.Settle(ctx, payload, requirements)
+	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
 		t.Error("Expected error for settle")
 	}
@@ -369,7 +385,9 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	// Create mock facilitator clients
 	client1 := &mockMultiFacilitatorClient{
 		id: "client1",
-		verifyFunc: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+			var p x402.PaymentPayload
+			json.Unmarshal(payloadBytes, &p)
 			if p.Accepted.Scheme == "exact" {
 				return x402.VerifyResponse{IsValid: true, Payer: "client1"}, nil
 			}
@@ -387,7 +405,9 @@ func TestMultiFacilitatorClient(t *testing.T) {
 
 	client2 := &mockMultiFacilitatorClient{
 		id: "client2",
-		verifyFunc: func(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+			var p x402.PaymentPayload
+			json.Unmarshal(payloadBytes, &p)
 			if p.Accepted.Scheme == "transfer" {
 				return x402.VerifyResponse{IsValid: true, Payer: "client2"}, nil
 			}
@@ -420,7 +440,11 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	response, err := multiClient.Verify(ctx, payload1, requirements1)
+	// Marshal to bytes for client call
+	payload1Bytes, _ := json.Marshal(payload1)
+	requirements1Bytes, _ := json.Marshal(requirements1)
+
+	response, err := multiClient.Verify(ctx, payload1Bytes, requirements1Bytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -443,7 +467,11 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	response, err = multiClient.Verify(ctx, payload2, requirements2)
+	// Marshal to bytes for client call
+	payload2Bytes, _ := json.Marshal(payload2)
+	requirements2Bytes, _ := json.Marshal(requirements2)
+
+	response, err = multiClient.Verify(ctx, payload2Bytes, requirements2Bytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -467,21 +495,21 @@ func TestMultiFacilitatorClient(t *testing.T) {
 // Mock facilitator client for multi-client testing
 type mockMultiFacilitatorClient struct {
 	id            string
-	verifyFunc    func(context.Context, x402.PaymentPayload, x402.PaymentRequirements) (x402.VerifyResponse, error)
-	settleFunc    func(context.Context, x402.PaymentPayload, x402.PaymentRequirements) (x402.SettleResponse, error)
+	verifyFunc    func(context.Context, []byte, []byte) (x402.VerifyResponse, error)
+	settleFunc    func(context.Context, []byte, []byte) (x402.SettleResponse, error)
 	supportedFunc func(context.Context) (x402.SupportedResponse, error)
 }
 
-func (m *mockMultiFacilitatorClient) Verify(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.VerifyResponse, error) {
+func (m *mockMultiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
 	if m.verifyFunc != nil {
-		return m.verifyFunc(ctx, p, r)
+		return m.verifyFunc(ctx, payloadBytes, requirementsBytes)
 	}
 	return x402.VerifyResponse{}, nil
 }
 
-func (m *mockMultiFacilitatorClient) Settle(ctx context.Context, p x402.PaymentPayload, r x402.PaymentRequirements) (x402.SettleResponse, error) {
+func (m *mockMultiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
 	if m.settleFunc != nil {
-		return m.settleFunc(ctx, p, r)
+		return m.settleFunc(ctx, payloadBytes, requirementsBytes)
 	}
 	return x402.SettleResponse{}, nil
 }

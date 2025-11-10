@@ -34,7 +34,13 @@ test-cover:
 ## test-integration: Run integration tests
 test-integration:
 	@echo "Running integration tests..."
-	@go test -race -tags=integration ./test/integration/...
+	@if [ -f .env ]; then \
+		echo "Loading environment variables from .env..."; \
+		export $$(grep -v '^#' .env | xargs) && go test -v -race -tags=integration ./test/integration/...; \
+	else \
+		echo "No .env file found, running without environment variables..."; \
+		go test -v -race -tags=integration ./test/integration/...; \
+	fi
 
 ## test-e2e: Run end-to-end tests
 test-e2e:

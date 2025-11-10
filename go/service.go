@@ -2,9 +2,12 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/coinbase/x402/go/types"
 )
 
 // x402ResourceService manages payment requirements and verification for protected resources
@@ -238,22 +241,26 @@ func (s *x402ResourceService) CreatePaymentRequiredResponse(
 }
 
 // VerifyPayment verifies a payment against requirements
-func (s *x402ResourceService) VerifyPayment(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
-	// Validate inputs
-	if err := ValidatePaymentPayload(payload); err != nil {
-		return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+// Service is boundary: accepts bytes (from client), routes to facilitator
+func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+	// Detect version
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return VerifyResponse{IsValid: false, InvalidReason: "invalid version"}, err
 	}
 
-	if err := ValidatePaymentRequirements(requirements); err != nil {
-		return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+	// Extract scheme/network from requirements for routing
+	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+	if err != nil {
+		return VerifyResponse{IsValid: false, InvalidReason: "invalid requirements"}, err
 	}
 
-	// Find appropriate facilitator
-	facilitator := s.findFacilitatorForPayment(payload.X402Version, requirements.Network, requirements.Scheme)
+	// Find appropriate facilitator (returns FacilitatorClient wrapper)
+	facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
 	if facilitator == nil {
 		// Try all facilitators as fallback
 		for _, client := range s.facilitatorClients {
-			resp, err := client.Verify(ctx, payload, requirements)
+			resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 			if err == nil {
 				return resp, nil
 			}
@@ -268,17 +275,31 @@ func (s *x402ResourceService) VerifyPayment(ctx context.Context, payload Payment
 			}
 	}
 
-	return facilitator.Verify(ctx, payload, requirements)
+	// FacilitatorClient doesn't need version (extracts from bytes)
+	return facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
 
 // SettlePayment settles a verified payment
-func (s *x402ResourceService) SettlePayment(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
-	// Find appropriate facilitator
-	facilitator := s.findFacilitatorForPayment(payload.X402Version, requirements.Network, requirements.Scheme)
+// Service is boundary: accepts bytes (from client), routes to facilitator
+func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+	// Detect version
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return SettleResponse{Success: false, ErrorReason: "invalid version"}, err
+	}
+
+	// Extract scheme/network from requirements for routing
+	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+	if err != nil {
+		return SettleResponse{Success: false, ErrorReason: "invalid requirements"}, err
+	}
+
+	// Find appropriate facilitator (returns FacilitatorClient wrapper)
+	facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
 	if facilitator == nil {
 		// Try all facilitators as fallback
 		for _, client := range s.facilitatorClients {
-			resp, err := client.Settle(ctx, payload, requirements)
+			resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
 			if err == nil {
 				return resp, nil
 			}
@@ -293,27 +314,32 @@ func (s *x402ResourceService) SettlePayment(ctx context.Context, payload Payment
 			}
 	}
 
-	return facilitator.Settle(ctx, payload, requirements)
+	// FacilitatorClient doesn't need version (extracts from bytes)
+	return facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }
 
 // FindMatchingRequirements finds requirements that match a payment payload
-func (s *x402ResourceService) FindMatchingRequirements(available []PaymentRequirements, payload PaymentPayload) *PaymentRequirements {
-	switch payload.X402Version {
-	case 2:
-		// V2: match by accepted requirements
-		for _, req := range available {
-			if DeepEqual(req, payload.Accepted) {
-				return &req
-			}
+// Service boundary: takes bytes (payload) + structs (available requirements)
+func (s *x402ResourceService) FindMatchingRequirements(available []PaymentRequirements, payloadBytes []byte) *PaymentRequirements {
+	// Detect version from payload
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return nil
+	}
+
+	// Check each requirement using version-aware matching
+	for _, req := range available {
+		reqBytes, err := json.Marshal(req)
+		if err != nil {
+			continue
 		}
-	case 1:
-		// V1: match by scheme and network
-		for _, req := range available {
-			if req.Scheme == payload.Accepted.Scheme && req.Network == payload.Accepted.Network {
-				return &req
-			}
+
+		match, err := types.MatchPayloadToRequirements(version, payloadBytes, reqBytes)
+		if err == nil && match {
+			return &req
 		}
 	}
+
 	return nil
 }
 
@@ -343,8 +369,14 @@ func (s *x402ResourceService) ProcessPaymentRequest(
 		}, nil
 	}
 
+	// Marshal payment payload to bytes for matching
+	payloadBytes, err := json.Marshal(paymentPayload)
+	if err != nil {
+		return nil, err
+	}
+
 	// Find matching requirements
-	matchingRequirements := s.FindMatchingRequirements(requirements, *paymentPayload)
+	matchingRequirements := s.FindMatchingRequirements(requirements, payloadBytes)
 	if matchingRequirements == nil {
 		return &ProcessResult{
 			Success: false,
@@ -358,8 +390,14 @@ func (s *x402ResourceService) ProcessPaymentRequest(
 		}, nil
 	}
 
+	// Marshal requirements to bytes for verification
+	requirementsBytes, err := json.Marshal(matchingRequirements)
+	if err != nil {
+		return nil, err
+	}
+
 	// Verify payment
-	verificationResult, err := s.VerifyPayment(ctx, *paymentPayload, *matchingRequirements)
+	verificationResult, err := s.VerifyPayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		return nil, err
 	}

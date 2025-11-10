@@ -3,19 +3,29 @@ package x402
 import "fmt"
 
 // ValidatePaymentPayload performs basic validation on a payment payload
+// Version-aware: handles both v1 and v2 payload structures
 func ValidatePaymentPayload(p PaymentPayload) error {
 	if p.X402Version < 1 || p.X402Version > 2 {
 		return fmt.Errorf("unsupported x402 version: %d", p.X402Version)
 	}
-	if p.Accepted.Scheme == "" {
-		return fmt.Errorf("payment scheme is required")
+
+	// V2 validation: check accepted field
+	if p.X402Version == 2 {
+		if p.Accepted.Scheme == "" {
+			return fmt.Errorf("payment scheme is required")
+		}
+		if p.Accepted.Network == "" {
+			return fmt.Errorf("payment network is required")
+		}
 	}
-	if p.Accepted.Network == "" {
-		return fmt.Errorf("payment network is required")
-	}
+
+	// Both v1 and v2 must have payload
 	if p.Payload == nil {
 		return fmt.Errorf("payment payload is required")
 	}
+
+	// Note: v1 validation is minimal here - scheme/network are validated
+	// by the mechanism-specific facilitator based on the payment requirements
 	return nil
 }
 

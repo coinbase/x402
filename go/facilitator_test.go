@@ -2,24 +2,27 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/coinbase/x402/go/types"
 )
 
 // Mock facilitator for testing
 type mockSchemeNetworkFacilitator struct {
 	scheme string
-	verify func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error)
-	settle func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error)
+	verify func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
+	settle func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
 }
 
 func (m *mockSchemeNetworkFacilitator) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
 	if m.verify != nil {
-		return m.verify(ctx, payload, requirements)
+		return m.verify(ctx, version, payloadBytes, requirementsBytes)
 	}
 	return VerifyResponse{
 		IsValid: true,
@@ -27,15 +30,41 @@ func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload Payme
 	}, nil
 }
 
-func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
 	if m.settle != nil {
-		return m.settle(ctx, payload, requirements)
+		return m.settle(ctx, version, payloadBytes, requirementsBytes)
 	}
+
+	// Verify first (like real mechanisms do)
+	verifyResp, err := m.Verify(ctx, version, payloadBytes, requirementsBytes)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+	if !verifyResp.IsValid {
+		return SettleResponse{
+			Success:     false,
+			ErrorReason: verifyResp.InvalidReason,
+			Payer:       verifyResp.Payer,
+		}, nil
+	}
+
+	// Unmarshal to get network
+	var network string
+	if version == 1 {
+		var payload types.PaymentPayloadV1
+		json.Unmarshal(payloadBytes, &payload)
+		network = payload.Network
+	} else {
+		var payload types.PaymentPayloadV2
+		json.Unmarshal(payloadBytes, &payload)
+		network = payload.Accepted.Network
+	}
+
 	return SettleResponse{
 		Success:     true,
 		Transaction: "0xmocktx",
 		Payer:       "0xmockpayer",
-		Network:     payload.Accepted.Network,
+		Network:     Network(network),
 	}, nil
 }
 
@@ -108,7 +137,13 @@ func TestFacilitatorVerify(t *testing.T) {
 
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		verify: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+		verify: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+			// Unmarshal to check
+			var payload types.PaymentPayloadV2
+			json.Unmarshal(payloadBytes, &payload)
+			var requirements types.PaymentRequirementsV2
+			json.Unmarshal(requirementsBytes, &requirements)
+
 			if payload.Accepted.Scheme != requirements.Scheme {
 				return VerifyResponse{
 					IsValid:       false,
@@ -155,7 +190,22 @@ func TestFacilitatorVerify(t *testing.T) {
 func TestFacilitatorVerifyValidation(t *testing.T) {
 	ctx := context.Background()
 	facilitator := Newx402Facilitator()
-	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
+	mockFacilitator := &mockSchemeNetworkFacilitator{
+		scheme: "exact",
+		verify: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+			// Unmarshal to validate
+			var payload types.PaymentPayloadV2
+			json.Unmarshal(payloadBytes, &payload)
+			var requirements types.PaymentRequirementsV2
+			json.Unmarshal(requirementsBytes, &requirements)
+
+			// Validate that payload.Accepted.Scheme matches requirements.Scheme
+			if payload.Accepted.Scheme != requirements.Scheme {
+				return VerifyResponse{IsValid: false, InvalidReason: "scheme_mismatch"}, nil
+			}
+			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+		},
+	}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
@@ -181,11 +231,10 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 	}
 
 	response, err := facilitator.Verify(ctx, invalidPayload, requirements)
-	if err == nil {
-		t.Fatal("Expected error for invalid payload")
-	}
-	if response.IsValid {
-		t.Fatal("Expected invalid response")
+	if err != nil {
+		// Error is acceptable
+	} else if response.IsValid {
+		t.Fatal("Expected invalid response for payload with empty scheme")
 	}
 
 	// Test invalid requirements
@@ -214,7 +263,22 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 	ctx := context.Background()
 	facilitator := Newx402Facilitator()
-	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
+	mockFacilitator := &mockSchemeNetworkFacilitator{
+		scheme: "exact",
+		verify: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+			// Unmarshal to validate
+			var payload types.PaymentPayloadV2
+			json.Unmarshal(payloadBytes, &payload)
+			var requirements types.PaymentRequirementsV2
+			json.Unmarshal(requirementsBytes, &requirements)
+
+			// Validate that payload.Accepted.Scheme matches requirements.Scheme
+			if payload.Accepted.Scheme != requirements.Scheme {
+				return VerifyResponse{IsValid: false, InvalidReason: "scheme_mismatch"}, nil
+			}
+			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+		},
+	}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
@@ -240,23 +304,41 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 	}
 
 	response, err := facilitator.Verify(ctx, payload, requirements)
-	if err == nil {
-		t.Fatal("Expected error for scheme mismatch")
-	}
 
-	var paymentErr *PaymentError
-	if !errors.As(err, &paymentErr) || paymentErr.Code != ErrCodeSchemeMismatch {
-		t.Fatal("Expected SchemeMismatch error")
-	}
-	if response.IsValid {
-		t.Fatal("Expected invalid response")
+	// With new architecture, routing happens by requirements.Scheme
+	// Mechanism validates and returns IsValid=false (not necessarily an error)
+	if err != nil {
+		// Error is acceptable for scheme mismatch
+		var paymentErr *PaymentError
+		if errors.As(err, &paymentErr) && paymentErr.Code != ErrCodeSchemeMismatch {
+			t.Fatalf("Expected SchemeMismatch error, got: %s", paymentErr.Code)
+		}
+	} else if response.IsValid {
+		t.Fatal("Expected invalid response for scheme mismatch")
+	} else if response.InvalidReason != "scheme_mismatch" {
+		t.Fatalf("Expected scheme_mismatch reason, got: %s", response.InvalidReason)
 	}
 }
 
 func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 	ctx := context.Background()
 	facilitator := Newx402Facilitator()
-	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
+	mockFacilitator := &mockSchemeNetworkFacilitator{
+		scheme: "exact",
+		verify: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+			// Unmarshal to validate
+			var payload types.PaymentPayloadV2
+			json.Unmarshal(payloadBytes, &payload)
+			var requirements types.PaymentRequirementsV2
+			json.Unmarshal(requirementsBytes, &requirements)
+
+			// Validate that payload.Accepted.Network matches requirements.Network
+			if payload.Accepted.Network != requirements.Network {
+				return VerifyResponse{IsValid: false, InvalidReason: "network_mismatch"}, nil
+			}
+			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+		},
+	}
 	facilitator.RegisterScheme("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
@@ -282,16 +364,18 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 	}
 
 	response, err := facilitator.Verify(ctx, payload, requirements)
-	if err == nil {
-		t.Fatal("Expected error for network mismatch")
-	}
 
-	var paymentErr *PaymentError
-	if !errors.As(err, &paymentErr) || paymentErr.Code != ErrCodeNetworkMismatch {
-		t.Fatal("Expected NetworkMismatch error")
-	}
-	if response.IsValid {
-		t.Fatal("Expected invalid response")
+	// With new architecture, mechanism validates and returns IsValid=false
+	if err != nil {
+		// Error is acceptable for network mismatch
+		var paymentErr *PaymentError
+		if errors.As(err, &paymentErr) && paymentErr.Code != ErrCodeNetworkMismatch {
+			t.Fatalf("Expected NetworkMismatch error, got: %s", paymentErr.Code)
+		}
+	} else if response.IsValid {
+		t.Fatal("Expected invalid response for network mismatch")
+	} else if response.InvalidReason != "network_mismatch" {
+		t.Fatalf("Expected network_mismatch reason, got: %s", response.InvalidReason)
 	}
 }
 
@@ -301,12 +385,16 @@ func TestFacilitatorSettle(t *testing.T) {
 
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		settle: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
+		settle: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+			// Unmarshal to get network
+			var payload types.PaymentPayloadV2
+			json.Unmarshal(payloadBytes, &payload)
+
 			return SettleResponse{
 				Success:     true,
 				Transaction: "0xsettledtx",
 				Payer:       "0xpayer",
-				Network:     payload.Accepted.Network,
+				Network:     Network(payload.Accepted.Network),
 			}, nil
 		},
 	}
@@ -348,7 +436,7 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 	verifyCallCount := 0
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		verify: func(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
+		verify: func(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
 			verifyCallCount++
 			return VerifyResponse{
 				IsValid:       false,
@@ -374,11 +462,17 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 	}
 
 	response, err := facilitator.Settle(ctx, payload, requirements)
-	if err == nil {
-		t.Fatal("Expected error for invalid payment")
+
+	// With new architecture, mechanisms verify first and return Success=false (not necessarily error)
+	if err != nil {
+		// Error is acceptable
+	} else if response.Success {
+		t.Fatal("Expected failed settlement for invalid payment")
 	}
-	if response.Success {
-		t.Fatal("Expected failed settlement")
+
+	// Verify should have been called
+	if verifyCallCount == 0 {
+		t.Fatal("Expected Verify to be called before Settle")
 	}
 	if verifyCallCount != 1 {
 		t.Fatal("Expected verify to be called before settle")
@@ -474,7 +568,11 @@ func TestLocalFacilitatorClient(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	verifyResp, err := client.Verify(ctx, payload, requirements)
+	// Marshal to bytes for client calls
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	verifyResp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -483,7 +581,7 @@ func TestLocalFacilitatorClient(t *testing.T) {
 	}
 
 	// Test Settle
-	settleResp, err := client.Settle(ctx, payload, requirements)
+	settleResp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

@@ -5,6 +5,7 @@ package evm
 
 import (
 	"context"
+	"encoding/json"
 
 	x402 "github.com/coinbase/x402/go"
 )
@@ -95,8 +96,8 @@ func RegisterService(networks ...string) []x402.ResourceServiceOption {
 	return opts
 }
 
-// CreateExactPayload is a helper to create a V2 exact EVM payment payload (partial)
-// Returns only x402Version and payload - use x402Client to construct full PaymentPayload
+// CreateExactPayload is a helper to create a V2 exact EVM payment payload
+// Bridge helper: keeps struct API, marshals internally
 func CreateExactPayload(
 	ctx context.Context,
 	signer ClientEvmSigner,
@@ -104,10 +105,27 @@ func CreateExactPayload(
 	version int,
 ) (x402.PartialPaymentPayload, error) {
 	client := NewExactEvmClient(signer)
-	return client.CreatePaymentPayload(ctx, version, requirements)
+
+	// Marshal requirements to bytes
+	reqBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return x402.PartialPaymentPayload{}, err
+	}
+
+	// Call bytes-based method
+	payloadBytes, err := client.CreatePaymentPayload(ctx, version, reqBytes)
+	if err != nil {
+		return x402.PartialPaymentPayload{}, err
+	}
+
+	// Unmarshal back to struct
+	var partial x402.PartialPaymentPayload
+	json.Unmarshal(payloadBytes, &partial)
+	return partial, nil
 }
 
 // VerifyExactPayload is a helper to verify a V2 exact EVM payment payload
+// Bridge helper: keeps struct API, marshals internally
 func VerifyExactPayload(
 	ctx context.Context,
 	signer FacilitatorEvmSigner,
@@ -115,10 +133,17 @@ func VerifyExactPayload(
 	requirements x402.PaymentRequirements,
 ) (x402.VerifyResponse, error) {
 	facilitator := NewExactEvmFacilitator(signer)
-	return facilitator.Verify(ctx, payload, requirements)
+
+	// Marshal to bytes
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	// Call bytes-based method
+	return facilitator.Verify(ctx, payload.X402Version, payloadBytes, requirementsBytes)
 }
 
 // SettleExactPayload is a helper to settle a V2 exact EVM payment payload
+// Bridge helper: keeps struct API, marshals internally
 func SettleExactPayload(
 	ctx context.Context,
 	signer FacilitatorEvmSigner,
@@ -126,5 +151,11 @@ func SettleExactPayload(
 	requirements x402.PaymentRequirements,
 ) (x402.SettleResponse, error) {
 	facilitator := NewExactEvmFacilitator(signer)
-	return facilitator.Settle(ctx, payload, requirements)
+
+	// Marshal to bytes
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	// Call bytes-based method
+	return facilitator.Settle(ctx, payload.X402Version, payloadBytes, requirementsBytes)
 }

@@ -2,14 +2,17 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/coinbase/x402/go/types"
 )
 
 // Mock client for testing
 type mockSchemeNetworkClient struct {
 	scheme        string
-	createPayload func(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error)
+	createPayload func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error)
 	version       int
 }
 
@@ -17,17 +20,34 @@ func (m *mockSchemeNetworkClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error) {
+func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
 	if m.createPayload != nil {
-		return m.createPayload(ctx, version, requirements)
+		return m.createPayload(ctx, version, requirementsBytes)
 	}
-	return PartialPaymentPayload{
+	
+	// Build mock payload based on version
+	if version == 1 {
+		payload := types.PaymentPayloadV1{
+			X402Version: version,
+			Scheme:      m.scheme,
+			Network:     "eip155:1",
+			Payload: map[string]interface{}{
+				"signature": "mock_signature",
+				"from":      "0xmock",
+			},
+		}
+		return json.Marshal(payload)
+	}
+	
+	// V2: return partial (just version + payload)
+	partial := types.PayloadBase{
 		X402Version: version,
 		Payload: map[string]interface{}{
 			"signature": "mock_signature",
 			"from":      "0xmock",
 		},
-	}, nil
+	}
+	return json.Marshal(partial)
 }
 
 func TestNewx402Client(t *testing.T) {
@@ -190,14 +210,15 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 	mockClient := &mockSchemeNetworkClient{
 		scheme:  "exact",
 		version: 2,
-		createPayload: func(ctx context.Context, version int, requirements PaymentRequirements) (PartialPaymentPayload, error) {
-			return PartialPaymentPayload{
+		createPayload: func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
+			partial := types.PayloadBase{
 				X402Version: version,
 				Payload: map[string]interface{}{
 					"signature": "test_sig",
 					"from":      "0xsender",
 				},
-			}, nil
+			}
+			return json.Marshal(partial)
 		},
 	}
 
@@ -211,7 +232,7 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	resource := &ResourceInfo{
+	resourceV2 := &types.ResourceInfoV2{
 		URL:         "https://example.com/api",
 		Description: "Test API",
 		MimeType:    "application/json",
@@ -221,10 +242,20 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		"test": "value",
 	}
 
-	payload, err := client.CreatePaymentPayload(ctx, 2, requirements, resource, extensions)
+	// Marshal requirements to bytes
+	requirementsBytes, _ := json.Marshal(requirements)
+	
+	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, resourceV2, extensions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
+	
+	// Unmarshal to check fields
+	var payload types.PaymentPayloadV2
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal payload: %v", err)
+	}
+	
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
@@ -257,7 +288,8 @@ func TestClientCreatePaymentPayloadValidation(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	_, err := client.CreatePaymentPayload(ctx, 2, invalidReqs, nil, nil)
+	invalidReqsBytes, _ := json.Marshal(invalidReqs)
+	_, err := client.CreatePaymentPayload(ctx, 2, invalidReqsBytes, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for invalid requirements")
 	}
@@ -279,7 +311,8 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	_, err := client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
+	requirementsBytes, _ := json.Marshal(requirements)
+	_, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for unregistered scheme")
 	}
@@ -380,6 +413,7 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
+	
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
@@ -411,10 +445,18 @@ func TestClientNetworkPatternMatching(t *testing.T) {
 
 	// Should match the wildcard pattern
 	ctx := context.Background()
-	payload, err := client.CreatePaymentPayload(ctx, 2, requirements, nil, nil)
+	requirementsBytes, _ := json.Marshal(requirements)
+	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected pattern match to work: %v", err)
 	}
+	
+	// Unmarshal to check fields
+	var payload types.PaymentPayloadV2
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		t.Fatalf("Failed to unmarshal payload: %v", err)
+	}
+	
 	if payload.Accepted.Scheme != "exact" {
 		t.Fatal("Expected payload to be created with pattern match")
 	}

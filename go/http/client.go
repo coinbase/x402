@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ============================================================================
@@ -35,18 +36,28 @@ func Newx402HTTPClient(opts ...x402.ClientOption) *x402HTTPClient {
 
 // EncodePaymentSignatureHeader encodes a payment payload into HTTP headers
 // Returns appropriate headers based on protocol version
-func (c *x402HTTPClient) EncodePaymentSignatureHeader(payload x402.PaymentPayload) map[string]string {
-	switch payload.X402Version {
+// Works with raw payload bytes
+func (c *x402HTTPClient) EncodePaymentSignatureHeader(payloadBytes []byte) map[string]string {
+	// Detect version from bytes
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		panic(fmt.Sprintf("failed to detect version: %v", err))
+	}
+	
+	// Base64 encode the payload bytes
+	encoded := base64.StdEncoding.EncodeToString(payloadBytes)
+	
+	switch version {
 	case 2:
 		return map[string]string{
-			"PAYMENT-SIGNATURE": encodePaymentSignatureHeader(payload),
+			"PAYMENT-SIGNATURE": encoded,
 		}
 	case 1:
 		return map[string]string{
-			"X-PAYMENT": encodePaymentSignatureHeader(payload),
+			"X-PAYMENT": encoded,
 		}
 	default:
-		panic(fmt.Sprintf("unsupported x402 version: %d", payload.X402Version))
+		panic(fmt.Sprintf("unsupported x402 version: %d", version))
 	}
 }
 
@@ -198,7 +209,24 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		ctx = context.Background()
 	}
 
-	payload, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selected, paymentRequired.Resource, paymentRequired.Extensions)
+	// Marshal selected requirements to bytes
+	selectedBytes, err := json.Marshal(selected)
+	if err != nil {
+		t.retryCount.Delete(requestID)
+		return nil, fmt.Errorf("failed to marshal requirements: %w", err)
+	}
+	
+	// Convert resource if present
+	var resourceV2 *types.ResourceInfoV2
+	if paymentRequired.Resource != nil {
+		resourceV2 = &types.ResourceInfoV2{
+			URL:         paymentRequired.Resource.URL,
+			Description: paymentRequired.Resource.Description,
+			MimeType:    paymentRequired.Resource.MimeType,
+		}
+	}
+	
+	payloadBytes, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selectedBytes, resourceV2, paymentRequired.Extensions)
 	if err != nil {
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("failed to create payment: %w", err)
@@ -206,7 +234,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 
 	// Create new request with payment header
 	paymentReq := req.Clone(ctx)
-	paymentHeaders := t.x402Client.EncodePaymentSignatureHeader(payload)
+	paymentHeaders := t.x402Client.EncodePaymentSignatureHeader(payloadBytes)
 	for k, v := range paymentHeaders {
 		paymentReq.Header.Set(k, v)
 	}

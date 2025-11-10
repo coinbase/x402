@@ -2,11 +2,12 @@ package evm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ExactEvmClient implements the SchemeNetworkClient interface for EVM exact payments (V2)
@@ -27,40 +28,45 @@ func (c *ExactEvmClient) Scheme() string {
 }
 
 // CreatePaymentPayload creates a payment payload for the exact scheme (V2)
-// Returns only the minimal payload (x402Version and payload fields)
+// Returns partial payload (x402Version + payload), core wraps with accepted/resource/extensions
 func (c *ExactEvmClient) CreatePaymentPayload(
 	ctx context.Context,
 	version int,
-	requirements x402.PaymentRequirements,
-) (x402.PartialPaymentPayload, error) {
+	requirementsBytes []byte,
+) (payloadBytes []byte, err error) {
+	// Unmarshal to v2 requirements using helper
+	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal v2 requirements: %w", err)
+	}
 	// Validate network
-	networkStr := string(requirements.Network)
+	networkStr := requirements.Network
 	if !IsValidNetwork(networkStr) {
-		return x402.PartialPaymentPayload{}, fmt.Errorf("unsupported network: %s", requirements.Network)
+		return nil, fmt.Errorf("unsupported network: %s", requirements.Network)
 	}
 
 	// Get network configuration
 	config, err := GetNetworkConfig(networkStr)
 	if err != nil {
-		return x402.PartialPaymentPayload{}, err
+		return nil, err
 	}
 
 	// Get asset info
 	assetInfo, err := GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
-		return x402.PartialPaymentPayload{}, err
+		return nil, err
 	}
 
 	// Requirements.Amount is already in the smallest unit
 	value, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok {
-		return x402.PartialPaymentPayload{}, fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return nil, fmt.Errorf("invalid amount: %s", requirements.Amount)
 	}
 
 	// Create nonce
 	nonce, err := CreateNonce()
 	if err != nil {
-		return x402.PartialPaymentPayload{}, err
+		return nil, err
 	}
 
 	// V2 specific: No buffer on validAfter (can use immediately)
@@ -91,20 +97,23 @@ func (c *ExactEvmClient) CreatePaymentPayload(
 	// Sign the authorization
 	signature, err := c.signAuthorization(ctx, authorization, config.ChainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return x402.PartialPaymentPayload{}, fmt.Errorf("failed to sign authorization: %w", err)
+		return nil, fmt.Errorf("failed to sign authorization: %w", err)
 	}
 
-	// Create payload
+	// Create EVM payload
 	evmPayload := &ExactEIP3009Payload{
 		Signature:     BytesToHex(signature),
 		Authorization: authorization,
 	}
 
-	// Return minimal payload - x402Client will add accepted, resource, extensions for v2
-	return x402.PartialPaymentPayload{
+	// Return PARTIAL payload (just version + payload field)
+	// Core will wrap with accepted, resource, extensions
+	partial := types.PayloadBase{
 		X402Version: version,
 		Payload:     evmPayload.ToMap(),
-	}, nil
+	}
+
+	return json.Marshal(partial)
 }
 
 // signAuthorization signs the EIP-3009 authorization using EIP-712

@@ -98,12 +98,26 @@ func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient 
 // ============================================================================
 
 // Verify checks if a payment is valid without executing it
-func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements) (x402.VerifyResponse, error) {
+func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+	// Unmarshal to get version (for request body)
+	var payloadPartial struct {
+		X402Version int `json:"x402Version"`
+	}
+	if err := json.Unmarshal(payloadBytes, &payloadPartial); err != nil {
+		return x402.VerifyResponse{}, fmt.Errorf("failed to detect version: %w", err)
+	}
+
+	// Unmarshal to maps for sending to facilitator
+	var payloadMap map[string]interface{}
+	var requirementsMap map[string]interface{}
+	json.Unmarshal(payloadBytes, &payloadMap)
+	json.Unmarshal(requirementsBytes, &requirementsMap)
+
 	// Build request body
 	requestBody := map[string]interface{}{
-		"x402Version":         payload.X402Version,
-		"paymentPayload":      toJSONSafe(payload),
-		"paymentRequirements": toJSONSafe(requirements),
+		"x402Version":         payloadPartial.X402Version,
+		"paymentPayload":      payloadMap,
+		"paymentRequirements": requirementsMap,
 	}
 
 	body, err := json.Marshal(requestBody)
@@ -153,12 +167,26 @@ func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payload x402.Payment
 }
 
 // Settle executes a payment on-chain
-func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements) (x402.SettleResponse, error) {
+func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+	// Unmarshal to get version (for request body)
+	var payloadPartial struct {
+		X402Version int `json:"x402Version"`
+	}
+	if err := json.Unmarshal(payloadBytes, &payloadPartial); err != nil {
+		return x402.SettleResponse{}, fmt.Errorf("failed to detect version: %w", err)
+	}
+
+	// Unmarshal to maps for sending to facilitator
+	var payloadMap map[string]interface{}
+	var requirementsMap map[string]interface{}
+	json.Unmarshal(payloadBytes, &payloadMap)
+	json.Unmarshal(requirementsBytes, &requirementsMap)
+
 	// Build request body
 	requestBody := map[string]interface{}{
-		"x402Version":         payload.X402Version,
-		"paymentPayload":      toJSONSafe(payload),
-		"paymentRequirements": toJSONSafe(requirements),
+		"x402Version":         payloadPartial.X402Version,
+		"paymentPayload":      payloadMap,
+		"paymentRequirements": requirementsMap,
 	}
 
 	body, err := json.Marshal(requestBody)
@@ -315,11 +343,11 @@ func NewMultiFacilitatorClient(clients ...x402.FacilitatorClient) *MultiFacilita
 }
 
 // Verify tries each facilitator until one succeeds
-func (m *MultiFacilitatorClient) Verify(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements) (x402.VerifyResponse, error) {
+func (m *MultiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
 	var lastErr error
 
 	for _, client := range m.clients {
-		resp, err := client.Verify(ctx, payload, requirements)
+		resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 		if err == nil {
 			return resp, nil
 		}
@@ -334,11 +362,11 @@ func (m *MultiFacilitatorClient) Verify(ctx context.Context, payload x402.Paymen
 }
 
 // Settle tries each facilitator until one succeeds
-func (m *MultiFacilitatorClient) Settle(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements) (x402.SettleResponse, error) {
+func (m *MultiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
 	var lastErr error
 
 	for _, client := range m.clients {
-		resp, err := client.Settle(ctx, payload, requirements)
+		resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
 		if err == nil {
 			return resp, nil
 		}

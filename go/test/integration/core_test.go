@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
@@ -53,19 +54,31 @@ func TestCoreIntegration(t *testing.T) {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		paymentPayload, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selected, paymentRequiredResponse.Resource, paymentRequiredResponse.Extensions)
+		// Marshal selected requirements to bytes
+		selectedBytes, err := json.Marshal(selected)
+		if err != nil {
+			t.Fatalf("Failed to marshal requirements: %v", err)
+		}
+
+		payloadBytes, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selectedBytes, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(accepts, paymentPayload)
+		accepted := service.FindMatchingRequirements(accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
 
+		// Marshal accepted requirements to bytes
+		acceptedBytes, err := json.Marshal(accepted)
+		if err != nil {
+			t.Fatalf("Failed to marshal accepted requirements: %v", err)
+		}
+
 		// Server - verifies payment
-		verifyResponse, err := service.VerifyPayment(ctx, paymentPayload, *accepted)
+		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -77,7 +90,7 @@ func TestCoreIntegration(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment
-		settleResponse, err := service.SettlePayment(ctx, paymentPayload, *accepted)
+		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -93,3 +106,4 @@ func TestCoreIntegration(t *testing.T) {
 		}
 	})
 }
+

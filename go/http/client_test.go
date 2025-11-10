@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 func TestNewx402HTTPClient(t *testing.T) {
@@ -59,7 +60,13 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			headers := client.EncodePaymentSignatureHeader(tt.payload)
+			// Marshal payload to bytes
+			payloadBytes, err := json.Marshal(tt.payload)
+			if err != nil {
+				t.Fatalf("Failed to marshal payload: %v", err)
+			}
+			
+			headers := client.EncodePaymentSignatureHeader(payloadBytes)
 			if _, exists := headers[tt.expected]; !exists {
 				t.Errorf("Expected header %s not found", tt.expected)
 			}
@@ -246,11 +253,12 @@ func TestPaymentRoundTripper(t *testing.T) {
 	// Create mock scheme client
 	mockClient := &mockSchemeClient{
 		scheme: "mock",
-		createPayload: func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error) {
-			return x402.PartialPaymentPayload{
+		createPayload: func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
+			partial := types.PayloadBase{
 				X402Version: version,
 				Payload:     map[string]interface{}{"sig": "test"},
-			}, nil
+			}
+			return json.Marshal(partial)
 		},
 	}
 
@@ -371,19 +379,20 @@ func TestPostWithPayment(t *testing.T) {
 // Mock scheme client for testing
 type mockSchemeClient struct {
 	scheme        string
-	createPayload func(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error)
+	createPayload func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error)
 }
 
 func (m *mockSchemeClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirements x402.PaymentRequirements) (x402.PartialPaymentPayload, error) {
+func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
 	if m.createPayload != nil {
-		return m.createPayload(ctx, version, requirements)
+		return m.createPayload(ctx, version, requirementsBytes)
 	}
-	return x402.PartialPaymentPayload{
+	partial := types.PayloadBase{
 		X402Version: version,
 		Payload:     map[string]interface{}{},
-	}, nil
+	}
+	return json.Marshal(partial)
 }

@@ -77,7 +77,9 @@ type PartialPaymentPayload struct {
 type PaymentPayload struct {
 	X402Version int                    `json:"x402Version"`
 	Payload     map[string]interface{} `json:"payload"`
-	Accepted    PaymentRequirements    `json:"accepted"`
+	Accepted    PaymentRequirements    `json:"accepted"`          // V2: scheme/network in accepted
+	Scheme      string                 `json:"scheme,omitempty"`  // V1: scheme at top level
+	Network     string                 `json:"network,omitempty"` // V1: network at top level
 	Resource    *ResourceInfo          `json:"resource,omitempty"`
 	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }

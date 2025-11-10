@@ -211,8 +211,17 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		}
 	}
 
+	// Marshal payment payload to bytes for matching/verification
+	payloadBytes, err := json.Marshal(paymentPayload)
+	if err != nil {
+		return HTTPProcessResult{
+			Type:     ResultPaymentError,
+			Response: &HTTPResponseInstructions{Status: 500},
+		}
+	}
+
 	// Find matching requirements
-	matchingReqs := s.FindMatchingRequirements(requirements, *paymentPayload)
+	matchingReqs := s.FindMatchingRequirements(requirements, payloadBytes)
 	if matchingReqs == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
@@ -227,8 +236,17 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		}
 	}
 
+	// Marshal requirements to bytes for verification
+	requirementsBytes, err := json.Marshal(matchingReqs)
+	if err != nil {
+		return HTTPProcessResult{
+			Type:     ResultPaymentError,
+			Response: &HTTPResponseInstructions{Status: 500},
+		}
+	}
+
 	// Verify payment
-	verifyResult, err := s.VerifyPayment(ctx, *paymentPayload, *matchingReqs)
+	verifyResult, err := s.VerifyPayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil || !verifyResult.IsValid {
 		errorMsg := "Payment verification failed"
 		if err != nil {
@@ -265,7 +283,18 @@ func (s *x402HTTPResourceService) ProcessSettlement(ctx context.Context, payload
 		return nil, nil
 	}
 
-	settleResult, err := s.SettlePayment(ctx, payload, requirements)
+	// Marshal to bytes for settlement
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+
+	requirementsBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return nil, err
+	}
+
+	settleResult, err := s.SettlePayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		return nil, err
 	}
