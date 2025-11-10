@@ -1,4 +1,3 @@
-/* eslint-disable jsdoc/check-tag-names */
 import { useRef, useMemo, useCallback } from "react";
 import { useAccount, useBlockNumber, useReadContract } from "wagmi";
 import { erc20Abi, formatUnits, type Address } from "viem";
@@ -89,7 +88,7 @@ const USDC_ADDRESSES: Record<string, Address> = {
  * }
  * ```
  *
- * @remarks
+ * @description
  * Balance Update Strategy:
  * 1. Fetches on mount and when address/network changes
  * 2. Watches for new blocks (when callbackOnPoll is not false)
@@ -98,13 +97,13 @@ const USDC_ADDRESSES: Record<string, Address> = {
  *
  * The hook uses multiple update mechanisms concurrently for reliability.
  *
- * @remarks
+ * @description
  * Callback Behavior:
  * - By default, onSuccess is only called when you manually call refresh()
  * - Set callbackOnPoll: true to trigger onSuccess on every balance change
  * - This prevents unnecessary re-renders when you just need to display the balance
  *
- * @remarks
+ * @description
  * Supported Networks (USDC addresses built-in):
  * - Base (Mainnet & Sepolia)
  * - Polygon (Mainnet & Amoy)

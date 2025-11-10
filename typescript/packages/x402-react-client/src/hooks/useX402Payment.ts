@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable jsdoc/require-returns */
 /* eslint-disable jsdoc/require-param */
-/* eslint-disable jsdoc/check-tag-names */
 import { useState, useCallback } from "react";
 import { useWalletClient, useAccount, useSwitchChain } from "wagmi";
 import type { Chain } from "wagmi/chains";
@@ -82,7 +81,7 @@ const CHAIN_MAP: Record<string, Chain> = {
  * await pay('/api/stream-data');
  * ```
  *
- * @remarks
+ * @description
  * Payment Flow:
  * 1. Calls endpoint with Accept header based on responseType
  * 2. If 402 response received:

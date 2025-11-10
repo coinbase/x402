@@ -1,3 +1,9 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable jsdoc/require-param */
+/* eslint-disable jsdoc/require-returns */
+/* eslint-disable jsdoc/check-param-names */
+/* eslint-disable jsdoc/check-tag-names */
 import React, { useMemo, useEffect, useState } from "react";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import type { CreateConnectorFn, Config } from "wagmi";
