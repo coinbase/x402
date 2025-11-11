@@ -6,11 +6,11 @@ import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
   decodeXPaymentMeta,
 } from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
   ERC20TokenAmount,
@@ -183,6 +183,7 @@ export function paymentMiddleware(
           input: {
             type: "http",
             method: req.method.toUpperCase(),
+            discoverable: discoverable ?? true,
             ...inputSchema,
           },
           output: outputSchema,

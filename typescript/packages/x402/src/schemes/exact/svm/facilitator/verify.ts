@@ -12,10 +12,10 @@ import {
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
   CompilableTransactionMessage,
-  decompileTransactionMessageFetchingLookupTables,
+  decompileTransactionMessage,
   fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
-  KeyPairSigner,
+  type TransactionSigner,
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
   RpcDevnet,
@@ -44,7 +44,11 @@ import {
   TOKEN_PROGRAM_ADDRESS,
   TokenInstruction,
 } from "@solana-program/token";
-import { decodeTransactionFromPayload, signAndSimulateTransaction } from "../../../../shared/svm";
+import {
+  decodeTransactionFromPayload,
+  signAndSimulateTransaction,
+  getTokenPayerFromTransaction,
+} from "../../../../shared/svm";
 import { getRpcClient } from "../../../../shared/svm/rpc";
 import { SCHEME } from "../../";
 
@@ -58,7 +62,7 @@ import { SCHEME } from "../../";
  * @returns A VerifyResponse indicating if the payment is valid and any invalidation reason
  */
 export async function verify(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
@@ -73,7 +77,7 @@ export async function verify(
     const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
 
     // perform transaction introspection to validate the transaction structure and details
-    await transactionIntrospection(svmPayload, paymentRequirements, config);
+    await transactionIntrospection(svmPayload, paymentRequirements, signer, config);
 
     // simulate the transaction to ensure it will execute successfully
     const simulateResult = await signAndSimulateTransaction(signer, decodedTransaction, rpc);
@@ -84,6 +88,7 @@ export async function verify(
     return {
       isValid: true,
       invalidReason: undefined,
+      payer: getTokenPayerFromTransaction(decodedTransaction),
     };
   } catch (error) {
     // if the error is one of the known error reasons, return the error reason
@@ -92,6 +97,14 @@ export async function verify(
         return {
           isValid: false,
           invalidReason: error.message as (typeof ErrorReasons)[number],
+          payer: (() => {
+            try {
+              const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
+              return getTokenPayerFromTransaction(tx);
+            } catch {
+              return undefined;
+            }
+          })(),
         };
       }
     }
@@ -101,6 +114,14 @@ export async function verify(
     return {
       isValid: false,
       invalidReason: "unexpected_verify_error",
+      payer: (() => {
+        try {
+          const tx = decodeTransactionFromPayload(payload.payload as ExactSvmPayload);
+          return getTokenPayerFromTransaction(tx);
+        } catch {
+          return undefined;
+        }
+      })(),
     };
   }
 }
@@ -134,11 +155,13 @@ export function verifySchemesAndNetworks(
  *
  * @param svmPayload - The SVM payload containing the transaction
  * @param paymentRequirements - The payment requirements to verify against
+ * @param signer - The signer that will sign the transaction
  * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  */
 export async function transactionIntrospection(
   svmPayload: ExactSvmPayload,
   paymentRequirements: PaymentRequirements,
+  signer: TransactionSigner,
   config?: X402Config,
 ): Promise<void> {
   const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
@@ -146,13 +169,11 @@ export async function transactionIntrospection(
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,
   );
-  const transactionMessage = await decompileTransactionMessageFetchingLookupTables(
+  const transactionMessage: CompilableTransactionMessage = decompileTransactionMessage(
     compiledTransactionMessage,
-    rpc,
   );
 
-  // verify that the transaction contains the expected instructions
-  await verifyTransactionInstructions(transactionMessage, paymentRequirements, rpc);
+  await verifyTransactionInstructions(transactionMessage, paymentRequirements, signer, rpc);
 }
 
 /**
@@ -160,12 +181,14 @@ export async function transactionIntrospection(
  *
  * @param transactionMessage - The transaction message to verify
  * @param paymentRequirements - The payment requirements to verify against
+ * @param signer - The signer that will sign the transaction
  * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transaction does not contain the expected instructions
  */
 export async function verifyTransactionInstructions(
   transactionMessage: CompilableTransactionMessage,
   paymentRequirements: PaymentRequirements,
+  signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // validate the number of expected instructions
@@ -180,6 +203,15 @@ export async function verifyTransactionInstructions(
   verifyComputeLimitInstruction(transactionMessage.instructions[0]);
   verifyComputePriceInstruction(transactionMessage.instructions[1]);
 
+  // verify that the fee payer is not included in any instruction's accounts
+  transactionMessage.instructions.forEach(instruction => {
+    if (instruction.accounts?.some(account => account.address === signer.address)) {
+      throw new Error(
+        `invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts`,
+      );
+    }
+  });
+
   // verify that the transfer instruction is valid
   // this expects the destination ATA to already exist
   if (transactionMessage.instructions.length === 3) {
@@ -189,6 +221,7 @@ export async function verifyTransactionInstructions(
       {
         txHasCreateDestATAInstruction: false,
       },
+      signer,
       rpc,
     );
   }
@@ -203,6 +236,7 @@ export async function verifyTransactionInstructions(
       {
         txHasCreateDestATAInstruction: true,
       },
+      signer,
       rpc,
     );
   }
@@ -319,6 +353,7 @@ export function verifyCreateATAInstruction(
  * @param paymentRequirements - The payment requirements to verify against
  * @param {object} options - The options for the verification of the transfer instruction
  * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
+ * @param signer - The signer that will sign the transaction
  * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer instruction is invalid
  */
@@ -329,6 +364,7 @@ export async function verifyTransferInstruction(
   >,
   paymentRequirements: PaymentRequirements,
   { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
+  signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // get a validated and parsed transferChecked instruction
@@ -339,6 +375,7 @@ export async function verifyTransferInstruction(
     {
       txHasCreateDestATAInstruction,
     },
+    signer,
     rpc,
   );
 }
@@ -350,6 +387,7 @@ export async function verifyTransferInstruction(
  * @param paymentRequirements - The payment requirements to verify against
  * @param {object} options - The options for the verification of the transfer checked instruction
  * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
+ * @param signer - The signer that will sign the transaction
  * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer checked instruction is invalid
  */
@@ -357,6 +395,7 @@ export async function verifyTransferCheckedInstruction(
   parsedInstruction: ReturnType<typeof parseTransferCheckedInstruction2022>,
   paymentRequirements: PaymentRequirements,
   { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
+  signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // get the token program address
@@ -364,6 +403,11 @@ export async function verifyTransferCheckedInstruction(
     parsedInstruction.programAddress.toString() === TOKEN_PROGRAM_ADDRESS.toString()
       ? TOKEN_PROGRAM_ADDRESS
       : TOKEN_2022_PROGRAM_ADDRESS;
+
+  // verify that the fee payer is not transferring funds
+  if (parsedInstruction.accounts.authority.address === signer.address) {
+    throw new Error(`invalid_exact_svm_payload_transaction_fee_payer_transferring_funds`);
+  }
 
   // get the expected receiver's ATA
   const payToATA = await findAssociatedTokenPda({
