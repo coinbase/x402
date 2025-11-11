@@ -14,8 +14,8 @@
     "watch": "tsc --watch",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
-    "lint": "eslint . --ext .ts --fix",
-    "lint:check": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts,.tsx --fix",
+    "lint:check": "eslint . --ext .ts,.tsx"
   },
   "keywords": [],
   "license": "Apache-2.0",
@@ -25,6 +25,8 @@
   "devDependencies": {
     "@eslint/js": "^9.24.0",
     "@types/node": "^22.13.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
     "eslint": "^9.24.0",
@@ -40,9 +42,12 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^0.36.8",
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
     "@x402/svm": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "x402": "workspace:*",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
