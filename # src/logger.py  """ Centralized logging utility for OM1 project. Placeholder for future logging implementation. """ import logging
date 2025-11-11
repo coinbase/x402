@@ -1,0 +1,7 @@
+# src/logger.py
+
+"""
+Centralized logging utility for x402 project.
+Placeholder for future logging implementation.
+"""
+import logging
