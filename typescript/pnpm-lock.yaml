@@ -419,6 +419,12 @@ importers:
       '@x402/core':
         specifier: workspace:*
         version: link:../../core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../mechanisms/evm
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../../mechanisms/svm
       viem:
         specifier: ^2.21.26
         version: 2.38.3(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
