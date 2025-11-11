@@ -1,15 +1,7 @@
-import { FundButton, getOnrampBuyUrl } from "@coinbase/onchainkit/fund";
-import { Avatar, Name } from "@coinbase/onchainkit/identity";
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownDisconnect,
-} from "@coinbase/onchainkit/wallet";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPublicClient, formatUnits, http, publicActions } from "viem";
-import { base, baseSepolia } from "viem/chains";
-import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
+import { createPublicClient, formatUnits, http, publicActions, type Chain } from "viem";
+import * as allChains from "viem/chains";
+import { useAccount, useSwitchChain, useWalletClient, useConnect, useDisconnect } from "wagmi";
 
 import { createEvmClient } from "@x402/evm/client";
 import type { PaymentRequired } from "@x402/core/types";
@@ -37,6 +29,8 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { data: wagmiWalletClient } = useWalletClient();
+  const { connectors, connect } = useConnect();
+  const { disconnect } = useDisconnect();
   const { sessionToken } = useOnrampSessionToken(address);
 
   const [status, setStatus] = useState<string>("");
@@ -56,14 +50,18 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const network = firstRequirement.network;
   const chainName = getNetworkDisplayName(network);
   const testnet = isTestnetNetwork(network);
-  const showOnramp = Boolean(!testnet && isConnected && x402.sessionTokenEndpoint);
 
-  // Extract chain ID from network (eip155:84532 -> 84532)
-  const chainId = network.includes(":") ? parseInt(network.split(":")[1]) : 8453;
+  const chainId = parseInt(network.split(":")[1]);
 
-  // Use default chains for now (Base or Base Sepolia)
-  // TODO: Support all EVM chains dynamically
-  const paymentChain = chainId === 84532 ? baseSepolia : base;
+  // Find the chain from viem's chain definitions
+  const paymentChain: Chain | undefined = Object.values(allChains).find(c => c.id === chainId);
+
+  if (!paymentChain) {
+    throw new Error(`Unsupported chain ID: ${chainId}`);
+  }
+
+  // Show onramp only for Base mainnet (8453) with session token endpoint configured
+  const showOnramp = chainId === 8453 && isConnected && x402.sessionTokenEndpoint && sessionToken;
 
   const publicClient = useMemo(
     () =>
@@ -119,16 +117,16 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
     }
   }, [chainId, connectedChainId, isConnected, chainName]);
 
-  const onrampBuyUrl = useMemo(() => {
-    if (!sessionToken) {
-      return undefined;
-    }
-    return getOnrampBuyUrl({
-      presetFiatAmount: 2,
-      fiatCurrency: "USD",
-      sessionToken,
-    });
-  }, [sessionToken]);
+  const handleBuyUSDC = useCallback(() => {
+    if (!sessionToken) return;
+
+    // Build Coinbase Onramp URL
+    const onrampUrl = `https://pay.coinbase.com/buy/select-asset?appId=${encodeURIComponent(
+      x402.cdpClientKey || "",
+    )}&addresses={"${address}":["base"]}&assets=["USDC"]&presetFiatAmount=2&fiatCurrency=USD&sessionToken=${sessionToken}`;
+
+    window.open(onrampUrl, "_blank", "noopener,noreferrer");
+  }, [sessionToken, x402.cdpClientKey, address]);
 
   const handlePayment = useCallback(async () => {
     if (!address || !x402) {
@@ -217,15 +215,25 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       </div>
 
       <div className="content w-full">
-        <Wallet className="w-full">
-          <ConnectWallet className="w-full py-3" disconnectedLabel="Connect wallet">
-            <Avatar className="h-5 w-5 opacity-80" />
-            <Name className="opacity-80 text-sm" />
-          </ConnectWallet>
-          <WalletDropdown>
-            <WalletDropdownDisconnect className="opacity-80" />
-          </WalletDropdown>
-        </Wallet>
+        {!isConnected ? (
+          <div className="cta-container">
+            {connectors.map(connector => (
+              <button
+                key={connector.id}
+                className="button button-primary w-full"
+                onClick={() => connect({ connector })}
+              >
+                Connect {connector.name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="cta-container">
+            <button className="button button-secondary" onClick={() => disconnect()}>
+              Disconnect
+            </button>
+          </div>
+        )}
         {isConnected && (
           <div id="payment-section">
             <div className="payment-details">
@@ -255,29 +263,28 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
               </div>
             </div>
 
-            {isCorrectChain ? (
-              <div className="cta-container">
-                {showOnramp && (
-                  <FundButton
-                    fundingUrl={onrampBuyUrl}
-                    text="Get more USDC"
-                    hideIcon
-                    className="button button-positive"
-                  />
-                )}
-                <button
-                  className="button button-primary"
-                  onClick={handlePayment}
-                  disabled={isPaying}
-                >
-                  {isPaying ? <Spinner /> : "Pay now"}
+            <div className="cta-container">
+              {isCorrectChain ? (
+                <>
+                  {showOnramp && (
+                    <button className="button button-secondary" onClick={handleBuyUSDC}>
+                      Buy USDC
+                    </button>
+                  )}
+                  <button
+                    className="button button-primary"
+                    onClick={handlePayment}
+                    disabled={isPaying}
+                  >
+                    {isPaying ? <Spinner /> : "Pay now"}
+                  </button>
+                </>
+              ) : (
+                <button className="button button-primary w-full" onClick={handleSwitchChain}>
+                  Switch to {chainName}
                 </button>
-              </div>
-            ) : (
-              <button className="button button-primary" onClick={handleSwitchChain}>
-                Switch to {chainName}
-              </button>
-            )}
+              )}
+            </div>
           </div>
         )}
         {status && <div className="status">{status}</div>}

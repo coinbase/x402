@@ -1,4 +1,3 @@
-@import "@coinbase/onchainkit/styles.css";
 /* Reset */
 *,
 *::before,
@@ -55,27 +54,6 @@ h6 {
   --button-positive-hover-color: #047857;
   --button-error-color: #ef4444;
   --button-error-hover-color: #dc2626;
-}
-
-.ock-font-family {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-}
-
-.ock-bg-secondary, .ock-bg-default {
-  background-color: var(--details-background-color);
-  transition: background-color 150ms;
-}
-
-.ock-bg-secondary:hover {
-  background-color: var(--details-background-color-hover);
-}
-
-.opacity-80 {
-  opacity: 0.8;
-}
-
-[data-testid="ockWalletDropdown"] {
-  z-index: 10;
 }
 
 body {

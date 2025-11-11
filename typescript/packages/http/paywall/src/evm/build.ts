@@ -10,7 +10,7 @@ const OUTPUT_HTML = path.join(DIST_DIR, "evm-paywall.html");
 const OUTPUT_TS = path.join("src/evm/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
-  entryPoints: ["src/evm/index.tsx", "src/styles.css"],
+  entryPoints: ["src/evm/entry.tsx", "src/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
@@ -32,7 +32,7 @@ const options: esbuild.BuildOptions = {
     htmlPlugin({
       files: [
         {
-          entryPoints: ["src/evm/index.tsx", "src/styles.css"],
+          entryPoints: ["src/evm/entry.tsx", "src/styles.css"],
           filename: "evm-paywall.html",
           title: "Payment Required",
           scriptLoading: "module",

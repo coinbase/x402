@@ -11,7 +11,7 @@ import {
 
 const baseRequirement: PaymentRequirements = {
   scheme: "exact",
-  network: "base",
+  network: "eip155:8453",
   maxAmountRequired: "1000",
   resource: "https://example.com/protected",
   description: "Base resource",
@@ -26,14 +26,14 @@ const baseRequirement: PaymentRequirements = {
 
 const baseSepoliaRequirement: PaymentRequirements = {
   ...baseRequirement,
-  network: "base-sepolia",
+  network: "eip155:84532",
   description: "Base Sepolia resource",
   asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 };
 
 const solanaRequirement: PaymentRequirements = {
   scheme: "exact",
-  network: "solana",
+  network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
   maxAmountRequired: "1000",
   resource: "https://example.com/solana",
   description: "Solana resource",
@@ -65,99 +65,94 @@ describe("paywallUtils", () => {
   describe("choosePaymentRequirement", () => {
     it("selects base payment on mainnet preference", () => {
       const selected = choosePaymentRequirement([solanaRequirement, baseRequirement], false);
-      expect(selected.network).toBe("base");
+      expect(selected.network).toBe("eip155:8453");
     });
 
     it("selects base sepolia payment on testnet preference", () => {
       const selected = choosePaymentRequirement([solanaRequirement, baseSepoliaRequirement], true);
-      expect(selected.network).toBe("base-sepolia");
+      expect(selected.network).toBe("eip155:84532");
     });
 
     it("falls back to solana when no evm networks exist", () => {
       const selected = choosePaymentRequirement([solanaRequirement], false);
-      expect(selected.network).toBe("solana");
+      expect(selected.network).toBe("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
     });
 
     it("returns first requirement when no preferred networks match", () => {
-      const customRequirement = { ...baseRequirement, network: "polygon" };
+      const customRequirement = { ...baseRequirement, network: "eip155:137" };
       const selected = choosePaymentRequirement([customRequirement], true);
       expect(selected).toBe(customRequirement);
     });
   });
 
   describe("getNetworkDisplayName", () => {
-    it("returns display names for v1 legacy networks", () => {
-      expect(getNetworkDisplayName("base")).toBe("Base");
-      expect(getNetworkDisplayName("base-sepolia")).toBe("Base Sepolia");
-      expect(getNetworkDisplayName("solana")).toBe("Solana");
-      expect(getNetworkDisplayName("solana-devnet")).toBe("Solana Devnet");
-    });
-
-    it("returns display names for v2 CAIP-2 EVM networks", () => {
+    it("returns display names for CAIP-2 EVM networks using viem", () => {
       expect(getNetworkDisplayName("eip155:8453")).toBe("Base");
       expect(getNetworkDisplayName("eip155:84532")).toBe("Base Sepolia");
-      expect(getNetworkDisplayName("eip155:1")).toBe("EVM Chain 1");
+      expect(getNetworkDisplayName("eip155:1")).toBe("Ethereum");
+      expect(getNetworkDisplayName("eip155:137")).toBe("Polygon");
     });
 
-    it("returns display names for v2 CAIP-2 Solana networks", () => {
-      expect(getNetworkDisplayName("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toContain("Solana");
+    it("returns display names for CAIP-2 Solana networks", () => {
+      expect(getNetworkDisplayName("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toBe(
+        "Solana Mainnet",
+      );
+      expect(getNetworkDisplayName("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")).toBe(
+        "Solana Devnet",
+      );
     });
 
-    it("returns network as-is for unknown networks", () => {
+    it("returns fallback for unknown chain IDs", () => {
+      expect(getNetworkDisplayName("eip155:999999")).toBe("Chain 999999");
+    });
+
+    it("returns network as-is for unknown formats", () => {
       expect(getNetworkDisplayName("unknown")).toBe("unknown");
     });
   });
 
   describe("isEvmNetwork", () => {
-    it("identifies v1 legacy EVM networks", () => {
-      expect(isEvmNetwork("base")).toBe(true);
-      expect(isEvmNetwork("base-sepolia")).toBe(true);
-      expect(isEvmNetwork("polygon")).toBe(true);
-    });
-
-    it("identifies v2 CAIP-2 EVM networks", () => {
+    it("identifies CAIP-2 EVM networks", () => {
       expect(isEvmNetwork("eip155:8453")).toBe(true);
       expect(isEvmNetwork("eip155:84532")).toBe(true);
       expect(isEvmNetwork("eip155:1")).toBe(true);
+      expect(isEvmNetwork("eip155:137")).toBe(true);
     });
 
     it("rejects non-EVM networks", () => {
-      expect(isEvmNetwork("solana")).toBe(false);
-      expect(isEvmNetwork("solana-devnet")).toBe(false);
       expect(isEvmNetwork("solana:5eykt")).toBe(false);
+      expect(isEvmNetwork("base")).toBe(false);
+      expect(isEvmNetwork("unknown")).toBe(false);
     });
   });
 
   describe("isSvmNetwork", () => {
-    it("identifies v1 legacy Solana networks", () => {
-      expect(isSvmNetwork("solana")).toBe(true);
-      expect(isSvmNetwork("solana-devnet")).toBe(true);
-    });
-
-    it("identifies v2 CAIP-2 Solana networks", () => {
+    it("identifies CAIP-2 Solana networks", () => {
       expect(isSvmNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toBe(true);
-      expect(isSvmNetwork("solana:devnet")).toBe(true);
+      expect(isSvmNetwork("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")).toBe(true);
     });
 
     it("rejects non-Solana networks", () => {
-      expect(isSvmNetwork("base")).toBe(false);
       expect(isSvmNetwork("eip155:8453")).toBe(false);
+      expect(isSvmNetwork("base")).toBe(false);
+      expect(isSvmNetwork("unknown")).toBe(false);
     });
   });
 
   describe("isTestnetNetwork", () => {
-    it("identifies EVM testnets", () => {
-      expect(isTestnetNetwork("base-sepolia")).toBe(true);
-      expect(isTestnetNetwork("polygon-amoy")).toBe(true);
+    it("identifies EVM testnets using viem metadata", () => {
+      expect(isTestnetNetwork("eip155:84532")).toBe(true);
+      expect(isTestnetNetwork("eip155:80002")).toBe(true);
     });
 
     it("identifies Solana testnets", () => {
-      expect(isTestnetNetwork("solana-devnet")).toBe(true);
+      expect(isTestnetNetwork("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")).toBe(true);
     });
 
     it("rejects mainnets", () => {
-      expect(isTestnetNetwork("base")).toBe(false);
-      expect(isTestnetNetwork("solana")).toBe(false);
+      expect(isTestnetNetwork("eip155:8453")).toBe(false);
+      expect(isTestnetNetwork("eip155:1")).toBe(false);
+      expect(isTestnetNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")).toBe(false);
     });
   });
 });

@@ -1,26 +1,14 @@
 import type { PaymentRequirements } from "x402/types";
+import * as allChains from "viem/chains";
 
 // Chain configuration constants
 
 // EVM Chain IDs (CAIP-2 format: eip155:chainId)
+// Only chains we explicitly reference in code
 export const EVM_CHAIN_IDS = {
   BASE_MAINNET: "8453",
   BASE_SEPOLIA: "84532",
-  AVALANCHE_MAINNET: "43114",
-  AVALANCHE_FUJI: "43113",
-  POLYGON_MAINNET: "137",
-  POLYGON_AMOY: "80002",
-  ABSTRACT_TESTNET: "11124",
-  SEI_TESTNET: "1328",
 } as const;
-
-export const EVM_TESTNET_CHAIN_IDS: Set<string> = new Set([
-  EVM_CHAIN_IDS.BASE_SEPOLIA,
-  EVM_CHAIN_IDS.ABSTRACT_TESTNET,
-  EVM_CHAIN_IDS.AVALANCHE_FUJI,
-  EVM_CHAIN_IDS.SEI_TESTNET,
-  EVM_CHAIN_IDS.POLYGON_AMOY,
-]);
 
 // Solana Network References (CAIP-2 format: solana:genesisHash)
 export const SOLANA_NETWORK_REFS = {
@@ -104,25 +92,29 @@ export function isSvmNetwork(network: string): boolean {
 
 /**
  * Provides a human-readable display name for a network.
+ * Uses viem/chains for EVM chain metadata (based on ethereum-lists/chains).
+ * See: https://github.com/ethereum-lists/chains
  *
  * @param network - The network identifier (CAIP-2 format).
  * @returns A display name suitable for UI use.
  */
 export function getNetworkDisplayName(network: string): string {
   if (network.startsWith("eip155:")) {
-    const chainId = network.split(":")[1];
-    if (chainId === EVM_CHAIN_IDS.BASE_MAINNET) return "Base";
-    if (chainId === EVM_CHAIN_IDS.BASE_SEPOLIA) return "Base Sepolia";
-    if (chainId === EVM_CHAIN_IDS.AVALANCHE_MAINNET) return "Avalanche";
-    if (chainId === EVM_CHAIN_IDS.AVALANCHE_FUJI) return "Avalanche Fuji";
-    if (chainId === EVM_CHAIN_IDS.POLYGON_MAINNET) return "Polygon";
-    if (chainId === EVM_CHAIN_IDS.POLYGON_AMOY) return "Polygon Amoy";
-    return `EVM Chain ${chainId}`;
+    const chainId = parseInt(network.split(":")[1]);
+
+    // Find matching chain in viem's chain definitions
+    const chain = Object.values(allChains).find(c => c.id === chainId);
+
+    if (chain) {
+      return chain.name;
+    }
+
+    return `Chain ${chainId}`;
   }
 
   if (network.startsWith("solana:")) {
     const ref = network.split(":")[1];
-    return ref === SOLANA_NETWORK_REFS.DEVNET ? "Solana Devnet" : "Solana";
+    return ref === SOLANA_NETWORK_REFS.DEVNET ? "Solana Devnet" : "Solana Mainnet";
   }
 
   return network;
@@ -130,14 +122,16 @@ export function getNetworkDisplayName(network: string): string {
 
 /**
  * Indicates whether the provided network is a testnet.
+ * Uses viem's testnet property for EVM chains.
  *
  * @param network - The network to evaluate (CAIP-2 format).
  * @returns True if the network is a recognized testnet.
  */
 export function isTestnetNetwork(network: string): boolean {
   if (network.startsWith("eip155:")) {
-    const chainId = network.split(":")[1];
-    return EVM_TESTNET_CHAIN_IDS.has(chainId);
+    const chainId = parseInt(network.split(":")[1]);
+    const chain = Object.values(allChains).find(c => c.id === chainId);
+    return chain?.testnet ?? false;
   }
 
   if (network.startsWith("solana:")) {

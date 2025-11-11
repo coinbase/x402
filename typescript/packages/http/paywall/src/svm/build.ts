@@ -10,7 +10,7 @@ const OUTPUT_HTML = path.join(DIST_DIR, "svm-paywall.html");
 const OUTPUT_TS = path.join("src/svm/gen", "template.ts");
 
 const options: esbuild.BuildOptions = {
-  entryPoints: ["src/svm/index.tsx", "src/styles.css"],
+  entryPoints: ["src/svm/entry.tsx", "src/styles.css"],
   bundle: true,
   metafile: true,
   outdir: DIST_DIR,
@@ -32,7 +32,7 @@ const options: esbuild.BuildOptions = {
     htmlPlugin({
       files: [
         {
-          entryPoints: ["src/svm/index.tsx", "src/styles.css"],
+          entryPoints: ["src/svm/entry.tsx", "src/styles.css"],
           filename: "svm-paywall.html",
           title: "Payment Required",
           scriptLoading: "module",

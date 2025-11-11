@@ -489,7 +489,7 @@ export class x402HTTPResourceService extends x402ResourceService {
 
       return paywall.getPaywallHtml({
         amount: displayAmount,
-        paymentRequirements: paymentRequired.accepts,
+        paymentRequired,
         currentUrl: resource?.url || paywallConfig?.currentUrl || "",
         testnet: paywallConfig?.testnet ?? true,
         cdpClientKey: paywallConfig?.cdpClientKey,
