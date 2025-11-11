@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import type { PaymentRequirements } from "x402/types";
-import { choosePaymentRequirement, isEvmNetwork, isSvmNetwork } from "./paywallUtils";
+import { useCallback } from "react";
+import type { PaymentRequired } from "@x402/core/types";
+import { isEvmNetwork, isSvmNetwork } from "./paywallUtils";
 import { EvmPaywall } from "./evm/EvmPaywall";
 import { SolanaPaywall } from "./svm/SolanaPaywall";
 
@@ -13,11 +13,7 @@ import { SolanaPaywall } from "./svm/SolanaPaywall";
  */
 export function PaywallApp() {
   const x402 = window.x402;
-  const testnet = x402.testnet ?? true;
-
-  const paymentRequirement = useMemo<PaymentRequirements>(() => {
-    return choosePaymentRequirement(x402.paymentRequirements, testnet);
-  }, [testnet, x402.paymentRequirements]);
+  const paymentRequired: PaymentRequired = x402.paymentRequired;
 
   const handleSuccessfulResponse = useCallback(async (response: Response) => {
     const contentType = response.headers.get("content-type");
@@ -30,7 +26,7 @@ export function PaywallApp() {
     }
   }, []);
 
-  if (!paymentRequirement) {
+  if (!paymentRequired || !paymentRequired.accepts || paymentRequired.accepts.length === 0) {
     return (
       <div className="container">
         <div className="header">
@@ -41,19 +37,22 @@ export function PaywallApp() {
     );
   }
 
-  if (isEvmNetwork(paymentRequirement.network)) {
+  const firstRequirement = paymentRequired.accepts[0];
+  const network = firstRequirement.network;
+
+  if (isEvmNetwork(network)) {
     return (
       <EvmPaywall
-        paymentRequirement={paymentRequirement}
+        paymentRequired={paymentRequired}
         onSuccessfulResponse={handleSuccessfulResponse}
       />
     );
   }
 
-  if (isSvmNetwork(paymentRequirement.network)) {
+  if (isSvmNetwork(network)) {
     return (
       <SolanaPaywall
-        paymentRequirement={paymentRequirement}
+        paymentRequired={paymentRequired}
         onSuccessfulResponse={handleSuccessfulResponse}
       />
     );

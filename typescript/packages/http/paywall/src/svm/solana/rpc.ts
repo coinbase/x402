@@ -7,6 +7,7 @@ import {
   SolanaRpcApiMainnet,
   RpcMainnet,
 } from "@solana/kit";
+import { SOLANA_NETWORK_REFS } from "../../paywallUtils";
 
 /**
  * Default public RPC endpoint for Solana devnet
@@ -45,7 +46,7 @@ export function createMainnetRpcClient(url?: string): RpcMainnet<SolanaRpcApiMai
 /**
  * Gets the RPC client for the given network.
  *
- * @param network - The network to get the RPC client for
+ * @param network - The network to get the RPC client for (CAIP-2 format: solana:reference)
  * @param url - Optional URL of the network. If not provided, the default URL will be used.
  * @returns The RPC client for the given network
  */
@@ -53,14 +54,14 @@ export function getRpcClient(
   network: string,
   url?: string,
 ): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
-  if (
-    network === "solana-devnet" ||
-    (network.startsWith("solana:") && network.includes("devnet"))
-  ) {
-    return createDevnetRpcClient(url);
-  } else if (network === "solana" || network.startsWith("solana:")) {
-    return createMainnetRpcClient(url);
-  } else {
-    throw new Error("Invalid network");
+  if (!network.startsWith("solana:")) {
+    throw new Error(
+      `Invalid network format. Expected CAIP-2 format (solana:reference), got: ${network}`,
+    );
   }
+
+  const ref = network.split(":")[1];
+  const isDevnet = ref === SOLANA_NETWORK_REFS.DEVNET;
+
+  return isDevnet ? createDevnetRpcClient(url) : createMainnetRpcClient(url);
 }

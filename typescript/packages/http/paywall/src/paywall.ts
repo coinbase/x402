@@ -1,10 +1,10 @@
 import { PAYWALL_TEMPLATE } from "./gen/template";
 
-import type { PaymentRequirements } from "./types";
+import type { PaymentRequired } from "./types";
 
 interface PaywallOptions {
   amount: number;
-  paymentRequirements: PaymentRequirements[];
+  paymentRequired: PaymentRequired;
   currentUrl: string;
   testnet: boolean;
   cdpClientKey?: string;
@@ -36,8 +36,6 @@ function escapeString(str: string): string {
  * @returns The chain config
  */
 function getChainConfig() {
-  // This config will come from the legacy x402 package
-  // For now, return a basic structure
   return {
     base: {
       usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -55,7 +53,7 @@ function getChainConfig() {
  *
  * @param options - The options for generating the paywall
  * @param options.amount - The amount to be paid in USD
- * @param options.paymentRequirements - The payment requirements for the content
+ * @param options.paymentRequired - The payment required response with accepts array
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
  * @param options.cdpClientKey - CDP client API key for OnchainKit
@@ -67,25 +65,22 @@ function getChainConfig() {
 export function getPaywallHtml({
   amount,
   testnet,
-  paymentRequirements,
+  paymentRequired,
   currentUrl,
   cdpClientKey,
   appName,
   appLogo,
   sessionTokenEndpoint,
 }: PaywallOptions): string {
-  const logOnTestnet = testnet
-    ? "console.log('Payment requirements initialized:', window.x402);"
-    : "";
+  const logOnTestnet = testnet ? "console.log('Payment required initialized:', window.x402);" : "";
 
   const config = getChainConfig();
 
-  // Create the configuration script to inject with proper escaping
   const configScript = `
   <script>
     window.x402 = {
       amount: ${amount},
-      paymentRequirements: ${JSON.stringify(paymentRequirements)},
+      paymentRequired: ${JSON.stringify(paymentRequired)},
       testnet: ${testnet},
       currentUrl: "${escapeString(currentUrl)}",
       config: {
@@ -99,6 +94,5 @@ export function getPaywallHtml({
     ${logOnTestnet}
   </script>`;
 
-  // Inject the configuration script into the head
   return PAYWALL_TEMPLATE.replace("</head>", `${configScript}\n</head>`);
 }

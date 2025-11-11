@@ -11,17 +11,17 @@ import { createPublicClient, formatUnits, http, publicActions } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient } from "wagmi";
 
-import { exact } from "x402/schemes";
+import { createEvmClient } from "@x402/evm/client";
+import type { PaymentRequired } from "@x402/core/types";
 import { getUSDCBalance } from "x402/shared/evm";
-import type { PaymentRequirements } from "x402/types";
 
 import { Spinner } from "./Spinner";
 import { useOnrampSessionToken } from "./useOnrampSessionToken";
-import { ensureValidAmount } from "../utils";
 import { getNetworkDisplayName, isTestnetNetwork } from "../paywallUtils";
+import { wagmiToClientSigner } from "./browserAdapter";
 
 type EvmPaywallProps = {
-  paymentRequirement: PaymentRequirements;
+  paymentRequired: PaymentRequired;
   onSuccessfulResponse: (response: Response) => Promise<void>;
 };
 
@@ -29,11 +29,11 @@ type EvmPaywallProps = {
  * Paywall experience for EVM networks.
  *
  * @param props - Component props.
- * @param props.paymentRequirement - Payment requirement evaluated for the protected resource.
+ * @param props.paymentRequired - Payment required response with accepts array.
  * @param props.onSuccessfulResponse - Callback fired once the 402 fetch succeeds.
  * @returns JSX element.
  */
-export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPaywallProps) {
+export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywallProps) {
   const { address, isConnected, chainId: connectedChainId } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const { data: wagmiWalletClient } = useWalletClient();
@@ -46,17 +46,24 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
   const [hideBalance, setHideBalance] = useState(true);
 
   const x402 = window.x402;
-  const amount =
-    typeof x402.amount === "number"
-      ? x402.amount
-      : Number(paymentRequirement.maxAmountRequired ?? 0) / 1_000_000;
+  const amount = x402.amount;
 
-  const network = paymentRequirement.network;
-  const paymentChain = network === "base-sepolia" ? baseSepolia : base;
-  const chainId = paymentChain.id;
+  const firstRequirement = paymentRequired.accepts[0];
+  if (!firstRequirement) {
+    throw new Error("No payment requirements in paymentRequired.accepts");
+  }
+
+  const network = firstRequirement.network;
   const chainName = getNetworkDisplayName(network);
   const testnet = isTestnetNetwork(network);
   const showOnramp = Boolean(!testnet && isConnected && x402.sessionTokenEndpoint);
+
+  // Extract chain ID from network (eip155:84532 -> 84532)
+  const chainId = network.includes(":") ? parseInt(network.split(":")[1]) : 8453;
+
+  // Use default chains for now (Base or Base Sepolia)
+  // TODO: Support all EVM chains dynamically
+  const paymentChain = chainId === 84532 ? baseSepolia : base;
 
   const publicClient = useMemo(
     () =>
@@ -147,51 +154,27 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
       }
 
       setStatus("Creating payment signature...");
-      const validPaymentRequirements = ensureValidAmount(paymentRequirement);
-      const initialPayment = await exact.evm.createPayment(
-        walletClient,
-        1,
-        validPaymentRequirements,
-      );
 
-      const paymentHeader: string = exact.evm.encodePayment(initialPayment);
+      // Create pre-configured EVM client (handles v1 and v2)
+      const signer = wagmiToClientSigner(walletClient);
+      const client = createEvmClient({ signer });
+
+      // Create payment payload - client automatically handles version
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+      // Encode as base64 JSON for v2 header
+      const paymentHeader = btoa(JSON.stringify(paymentPayload));
 
       setStatus("Requesting content with payment...");
       const response = await fetch(x402.currentUrl, {
         headers: {
-          "X-PAYMENT": paymentHeader,
-          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+          "PAYMENT-SIGNATURE": paymentHeader,
+          "Access-Control-Expose-Headers": "PAYMENT-RESPONSE",
         },
       });
 
       if (response.ok) {
         await onSuccessfulResponse(response);
-      } else if (response.status === 402) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData && typeof errorData.x402Version === "number") {
-          const retryPayment = await exact.evm.createPayment(
-            walletClient,
-            errorData.x402Version,
-            validPaymentRequirements,
-          );
-
-          retryPayment.x402Version = errorData.x402Version;
-          const retryHeader = exact.evm.encodePayment(retryPayment);
-          const retryResponse = await fetch(x402.currentUrl, {
-            headers: {
-              "X-PAYMENT": retryHeader,
-              "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-            },
-          });
-          if (retryResponse.ok) {
-            await onSuccessfulResponse(retryResponse);
-            return;
-          } else {
-            throw new Error(`Payment retry failed: ${retryResponse.statusText}`);
-          }
-        } else {
-          throw new Error(`Payment failed: ${response.statusText}`);
-        }
       } else {
         throw new Error(`Request failed: ${response.status} ${response.statusText}`);
       }
@@ -203,7 +186,7 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
   }, [
     address,
     x402,
-    paymentRequirement,
+    paymentRequired,
     handleSwitchChain,
     wagmiWalletClient,
     publicClient,
@@ -220,8 +203,8 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
       <div className="header">
         <h1 className="title">Payment Required</h1>
         <p>
-          {paymentRequirement.description && `${paymentRequirement.description}.`} To access this
-          content, please pay ${amount} {chainName} USDC.
+          {paymentRequired.resource?.description && `${paymentRequired.resource.description}.`} To
+          access this content, please pay ${amount} {chainName} USDC.
         </p>
         {testnet && (
           <p className="instructions">

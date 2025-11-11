@@ -7,7 +7,7 @@ import type {
 import { getEvmPaywallHtml } from "./paywall";
 
 /**
- * EVM paywall handler that supports EVM-based networks
+ * EVM paywall handler that supports EVM-based networks (CAIP-2 format only)
  */
 export const evmPaywall: PaywallNetworkHandler = {
   /**
@@ -17,30 +17,7 @@ export const evmPaywall: PaywallNetworkHandler = {
    * @returns True if this handler can process this requirement
    */
   supports(requirement: PaymentRequirements): boolean {
-    const network = requirement.network;
-
-    // Support v2 CAIP-2 format (eip155:*)
-    if (network.startsWith("eip155:")) {
-      return true;
-    }
-
-    // Support v1 legacy EVM networks
-    const evmNetworks = [
-      "base",
-      "base-sepolia",
-      "abstract",
-      "abstract-testnet",
-      "avalanche",
-      "avalanche-fuji",
-      "iotex",
-      "sei",
-      "sei-testnet",
-      "polygon",
-      "polygon-amoy",
-      "peaq",
-    ];
-
-    return evmNetworks.includes(network);
+    return requirement.network.startsWith("eip155:");
   },
 
   /**
@@ -56,7 +33,6 @@ export const evmPaywall: PaywallNetworkHandler = {
     paymentRequired: PaymentRequired,
     config: PaywallConfig,
   ): string {
-    // Calculate display amount
     const amount = requirement.amount
       ? parseFloat(requirement.amount) / 1000000
       : requirement.maxAmountRequired
@@ -65,7 +41,7 @@ export const evmPaywall: PaywallNetworkHandler = {
 
     return getEvmPaywallHtml({
       amount,
-      paymentRequirements: [requirement],
+      paymentRequired,
       currentUrl: paymentRequired.resource?.url || config.currentUrl || "",
       testnet: config.testnet ?? true,
       cdpClientKey: config.cdpClientKey,

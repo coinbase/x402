@@ -65,7 +65,7 @@ export class PaywallBuilder {
 
         return getPaywallHtml({
           amount: displayAmount,
-          paymentRequirements: paymentRequired.accepts,
+          paymentRequired,
           currentUrl: paymentRequired.resource?.url || finalConfig.currentUrl || "",
           testnet: finalConfig.testnet ?? true,
           cdpClientKey: finalConfig.cdpClientKey,

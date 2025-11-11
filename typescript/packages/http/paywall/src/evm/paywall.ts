@@ -1,4 +1,4 @@
-import type { PaymentRequirements } from "../types";
+import type { PaymentRequired } from "../types";
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
@@ -36,7 +36,7 @@ function getChainConfig() {
 
 interface EvmPaywallOptions {
   amount: number;
-  paymentRequirements: PaymentRequirements[];
+  paymentRequired: PaymentRequired;
   currentUrl: string;
   testnet: boolean;
   cdpClientKey?: string;
@@ -50,7 +50,7 @@ interface EvmPaywallOptions {
  *
  * @param options - The options for generating the paywall
  * @param options.amount - The amount to be paid in USD
- * @param options.paymentRequirements - The payment requirements for the content
+ * @param options.paymentRequired - The payment required response with accepts array
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
  * @param options.cdpClientKey - CDP client API key for OnchainKit
@@ -75,7 +75,7 @@ export function getEvmPaywallHtml(options: EvmPaywallOptions): string {
   const {
     amount,
     testnet,
-    paymentRequirements,
+    paymentRequired,
     currentUrl,
     cdpClientKey,
     appName,
@@ -84,7 +84,7 @@ export function getEvmPaywallHtml(options: EvmPaywallOptions): string {
   } = options;
 
   const logOnTestnet = testnet
-    ? "console.log('EVM Payment requirements initialized:', window.x402);"
+    ? "console.log('EVM Payment required initialized:', window.x402);"
     : "";
 
   const config = getChainConfig();
@@ -93,7 +93,7 @@ export function getEvmPaywallHtml(options: EvmPaywallOptions): string {
   <script>
     window.x402 = {
       amount: ${amount},
-      paymentRequirements: ${JSON.stringify(paymentRequirements)},
+      paymentRequired: ${JSON.stringify(paymentRequired)},
       testnet: ${testnet},
       currentUrl: "${escapeString(currentUrl)}",
       config: {

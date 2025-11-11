@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import type { WalletAccount } from "@wallet-standard/base";
-import type { PaymentRequirements } from "x402/types";
+import type { PaymentRequired } from "@x402/core/types";
 import { getRpcClient } from "./rpc";
 import type { Address } from "@solana/kit";
 import {
@@ -18,7 +18,7 @@ import { address as toAddress } from "@solana/kit";
 
 type Params = {
   activeAccount: WalletAccount | null;
-  paymentRequirement: PaymentRequirements;
+  paymentRequired: PaymentRequired;
   onStatus: (message: string) => void;
 };
 
@@ -35,18 +35,20 @@ type BalanceState = {
  *
  * @param params - Hook parameters containing account details and callbacks.
  * @param params.activeAccount - Wallet account whose balance is being tracked.
- * @param params.paymentRequirement - Payment requirement describing the asset to monitor.
+ * @param params.paymentRequired - Payment required response with accepts array.
  * @param params.onStatus - Callback for reporting status messages to the UI.
  * @returns Balance state and helper methods for refreshing/resetting data.
  */
 export function useSolanaBalance({
   activeAccount,
-  paymentRequirement,
+  paymentRequired,
   onStatus,
 }: Params): BalanceState {
   const [usdcBalance, setUsdcBalance] = useState<bigint | null>(null);
   const [formattedBalance, setFormattedBalance] = useState<string>("");
   const [isFetchingBalance, setIsFetchingBalance] = useState(false);
+
+  const firstRequirement = paymentRequired.accepts[0];
 
   const resetBalance = useCallback(() => {
     setUsdcBalance(null);
@@ -55,7 +57,7 @@ export function useSolanaBalance({
 
   const refreshBalance = useCallback(
     async (account: WalletAccount | null = activeAccount) => {
-      if (!account) {
+      if (!account || !firstRequirement) {
         resetBalance();
         return null;
       }
@@ -63,11 +65,11 @@ export function useSolanaBalance({
       try {
         setIsFetchingBalance(true);
 
-        const rpc = getRpcClient(paymentRequirement.network);
-        const mint = await fetchMint(rpc, paymentRequirement.asset as Address);
+        const rpc = getRpcClient(firstRequirement.network);
+        const mint = await fetchMint(rpc, firstRequirement.asset as Address);
         const tokenProgramAddress = mint.programAddress;
         const [ata] = await findAssociatedTokenPda({
-          mint: paymentRequirement.asset as Address,
+          mint: firstRequirement.asset as Address,
           owner: toAddress(account.address),
           tokenProgram: tokenProgramAddress,
         });
@@ -97,7 +99,7 @@ export function useSolanaBalance({
         setIsFetchingBalance(false);
       }
     },
-    [activeAccount, paymentRequirement, onStatus, resetBalance],
+    [activeAccount, firstRequirement, onStatus, resetBalance],
   );
 
   useEffect(() => {

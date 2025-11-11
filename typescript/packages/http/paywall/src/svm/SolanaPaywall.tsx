@@ -2,12 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WalletAccount } from "@wallet-standard/base";
 import type { WalletWithSolanaFeatures } from "@solana/wallet-standard-features";
 
-import { exact } from "x402/schemes";
-import type { PaymentRequirements } from "x402/types";
+import { createSvmClient } from "@x402/svm/client";
+import type { PaymentRequired } from "@x402/core/types";
 
 import { Spinner } from "./Spinner";
-import { ensureValidAmount } from "../utils";
-import { getNetworkDisplayName } from "../paywallUtils";
+import { getNetworkDisplayName, SOLANA_NETWORK_REFS } from "../paywallUtils";
 import { getStandardConnectFeature, getStandardDisconnectFeature } from "./solana/features";
 import { useSolanaBalance } from "./solana/useSolanaBalance";
 import { useSolanaSigner } from "./solana/useSolanaSigner";
@@ -17,7 +16,7 @@ import { useSilentWalletConnection } from "./solana/useSilentWalletConnection";
 import type { WalletOption } from "./solana/types";
 
 type SolanaPaywallProps = {
-  paymentRequirement: PaymentRequirements;
+  paymentRequired: PaymentRequired;
   onSuccessfulResponse: (response: Response) => Promise<void>;
 };
 
@@ -25,11 +24,11 @@ type SolanaPaywallProps = {
  * Paywall experience for Solana networks.
  *
  * @param props - Component props.
- * @param props.paymentRequirement - Payment requirement enforced for Solana requests.
+ * @param props.paymentRequired - Payment required response with accepts array.
  * @param props.onSuccessfulResponse - Callback invoked on successful 402 response.
  * @returns JSX element.
  */
-export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: SolanaPaywallProps) {
+export function SolanaPaywall({ paymentRequired, onSuccessfulResponse }: SolanaPaywallProps) {
   const [status, setStatus] = useState<string>("");
   const [isPaying, setIsPaying] = useState(false);
   const walletOptions = useSolanaWalletOptions();
@@ -39,23 +38,26 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
   const [hideBalance, setHideBalance] = useState(true);
   const attemptedSilentConnectWalletsRef = useRef<Set<string>>(new Set());
 
+  const x402 = window.x402;
+  const amount = x402.amount;
+
+  const firstRequirement = paymentRequired.accepts[0];
+  if (!firstRequirement) {
+    throw new Error("No payment requirements in paymentRequired.accepts");
+  }
+
+  const network = firstRequirement.network;
+  const chainName = getNetworkDisplayName(network);
+
+  const isMainnet = network.includes(SOLANA_NETWORK_REFS.MAINNET);
+  const targetChain = isMainnet ? ("solana:mainnet" as const) : ("solana:devnet" as const);
+
   const { usdcBalance, formattedBalance, isFetchingBalance, refreshBalance, resetBalance } =
     useSolanaBalance({
       activeAccount,
-      paymentRequirement,
+      paymentRequired,
       onStatus: setStatus,
     });
-
-  const x402 = window.x402;
-  const amount =
-    typeof x402.amount === "number"
-      ? x402.amount
-      : Number(paymentRequirement.maxAmountRequired ?? 0) / 1_000_000;
-
-  const network = paymentRequirement.network;
-  const chainName = getNetworkDisplayName(network);
-  const targetChain =
-    network === "solana" ? ("solana:mainnet" as const) : ("solana:devnet" as const);
 
   const walletSigner = useSolanaSigner({
     activeWallet,
@@ -175,57 +177,27 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
         }
       }
 
-      setStatus("Creating payment transaction...");
-      const validPaymentRequirements = ensureValidAmount(paymentRequirement);
+      setStatus("Creating payment signature...");
 
-      const createHeader = async (version: number) =>
-        exact.svm.createPaymentHeader(walletSigner, version, validPaymentRequirements);
+      const client = createSvmClient({ signer: walletSigner });
 
-      const paymentHeader = await createHeader(1);
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+      const paymentHeader = btoa(JSON.stringify(paymentPayload));
 
       setStatus("Requesting content with payment...");
       const response = await fetch(x402.currentUrl, {
         headers: {
-          "X-PAYMENT": paymentHeader,
-          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+          "PAYMENT-SIGNATURE": paymentHeader,
+          "Access-Control-Expose-Headers": "PAYMENT-RESPONSE",
         },
       });
 
       if (response.ok) {
         await onSuccessfulResponse(response);
-        return;
+      } else {
+        throw new Error(`Request failed: ${response.status} ${response.statusText}`);
       }
-
-      if (response.status === 402) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData && typeof errorData.x402Version === "number") {
-          const retryPayment = await exact.svm.createPaymentHeader(
-            walletSigner,
-            errorData.x402Version,
-            validPaymentRequirements,
-          );
-
-          const retryResponse = await fetch(x402.currentUrl, {
-            headers: {
-              "X-PAYMENT": retryPayment,
-              "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-            },
-          });
-
-          if (retryResponse.ok) {
-            await onSuccessfulResponse(retryResponse);
-            return;
-          }
-
-          throw new Error(
-            `Payment retry failed: ${retryResponse.status} ${retryResponse.statusText}`,
-          );
-        }
-
-        throw new Error(`Payment failed: ${response.statusText}`);
-      }
-
-      throw new Error(`Payment failed: ${response.status} ${response.statusText}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Payment failed.");
     } finally {
@@ -238,7 +210,7 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
     usdcBalance,
     refreshBalance,
     chainName,
-    paymentRequirement,
+    paymentRequired,
     onSuccessfulResponse,
   ]);
 
@@ -247,10 +219,10 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
       <div className="header">
         <h1 className="title">Payment Required</h1>
         <p>
-          {paymentRequirement.description && `${paymentRequirement.description}.`} To access this
-          content, please pay ${amount} {chainName} USDC.
+          {paymentRequired.resource?.description && `${paymentRequired.resource.description}.`} To
+          access this content, please pay ${amount} {chainName} USDC.
         </p>
-        {network === "solana-devnet" && (
+        {String(network).includes("devnet") && (
           <p className="instructions">
             Need Solana Devnet USDC?{" "}
             <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer">
@@ -306,7 +278,9 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
               <select
                 className="input"
                 value={selectedWalletValue}
-                onChange={event => setSelectedWalletValue(event.target.value)}
+                onChange={event =>
+                  setSelectedWalletValue((event.target as HTMLSelectElement).value)
+                }
               >
                 <option value="" disabled>
                   Select a wallet

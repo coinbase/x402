@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { base, baseSepolia } from "viem/chains";
 import { EvmPaywall } from "./EvmPaywall";
+import { EVM_CHAIN_IDS } from "../paywallUtils";
+import type {} from "../window";
 
 // EVM-specific paywall entry point
 window.addEventListener("load", () => {
@@ -13,7 +15,16 @@ window.addEventListener("load", () => {
   }
 
   const x402 = window.x402;
-  const chain = x402.paymentRequirements[0]?.network === "base-sepolia" ? baseSepolia : base;
+  const paymentRequired = x402.paymentRequired;
+
+  if (!paymentRequired?.accepts?.[0]) {
+    console.error("No payment requirements found");
+    return;
+  }
+
+  const network = paymentRequired.accepts[0].network;
+  const chainId = network.split(":")[1];
+  const chain = chainId === EVM_CHAIN_IDS.BASE_SEPOLIA ? baseSepolia : base;
 
   const root = createRoot(rootElement);
   root.render(
@@ -38,7 +49,7 @@ window.addEventListener("load", () => {
       }}
     >
       <EvmPaywall
-        paymentRequirement={x402.paymentRequirements[0]}
+        paymentRequired={paymentRequired}
         onSuccessfulResponse={async (response: Response) => {
           const contentType = response.headers.get("content-type");
           if (contentType && contentType.includes("text/html")) {

@@ -3,7 +3,8 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
   "include": ["src"]
 }

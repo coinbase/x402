@@ -1,29 +1,32 @@
 import type { PaymentRequirements } from "x402/types";
 
-// Define supported networks inline to avoid circular dependencies
-const EVM_NETWORKS = [
-  "base",
-  "base-sepolia",
-  "abstract",
-  "abstract-testnet",
-  "avalanche",
-  "avalanche-fuji",
-  "iotex",
-  "sei",
-  "sei-testnet",
-  "polygon",
-  "polygon-amoy",
-  "peaq",
-];
-const SVM_NETWORKS = ["solana", "solana-devnet"];
-const EVM_TESTNETS = new Set([
-  "base-sepolia",
-  "abstract-testnet",
-  "avalanche-fuji",
-  "sei-testnet",
-  "polygon-amoy",
+// Chain configuration constants
+
+// EVM Chain IDs (CAIP-2 format: eip155:chainId)
+export const EVM_CHAIN_IDS = {
+  BASE_MAINNET: "8453",
+  BASE_SEPOLIA: "84532",
+  AVALANCHE_MAINNET: "43114",
+  AVALANCHE_FUJI: "43113",
+  POLYGON_MAINNET: "137",
+  POLYGON_AMOY: "80002",
+  ABSTRACT_TESTNET: "11124",
+  SEI_TESTNET: "1328",
+} as const;
+
+export const EVM_TESTNET_CHAIN_IDS: Set<string> = new Set([
+  EVM_CHAIN_IDS.BASE_SEPOLIA,
+  EVM_CHAIN_IDS.ABSTRACT_TESTNET,
+  EVM_CHAIN_IDS.AVALANCHE_FUJI,
+  EVM_CHAIN_IDS.SEI_TESTNET,
+  EVM_CHAIN_IDS.POLYGON_AMOY,
 ]);
-const SVM_TESTNETS = new Set(["solana-devnet"]);
+
+// Solana Network References (CAIP-2 format: solana:genesisHash)
+export const SOLANA_NETWORK_REFS = {
+  MAINNET: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+  DEVNET: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+} as const;
 
 /**
  * Normalizes the payment requirements into an array.
@@ -44,13 +47,13 @@ export function normalizePaymentRequirements(
  * Returns the preferred networks to attempt first when selecting a payment requirement.
  *
  * @param testnet - Whether the paywall is operating in testnet mode.
- * @returns Ordered list of preferred networks.
+ * @returns Ordered list of preferred networks (CAIP-2 format).
  */
 export function getPreferredNetworks(testnet: boolean): string[] {
   if (testnet) {
-    return ["base-sepolia", "solana-devnet"];
+    return [`eip155:${EVM_CHAIN_IDS.BASE_SEPOLIA}`, `solana:${SOLANA_NETWORK_REFS.DEVNET}`];
   }
-  return ["base", "solana"];
+  return [`eip155:${EVM_CHAIN_IDS.BASE_MAINNET}`, `solana:${SOLANA_NETWORK_REFS.MAINNET}`];
 }
 
 /**
@@ -82,64 +85,65 @@ export function choosePaymentRequirement(
 /**
  * Determines if the provided network is an EVM network.
  *
- * @param network - The network to check.
+ * @param network - The network to check (CAIP-2 format: eip155:chainId).
  * @returns True if the network is EVM based.
  */
 export function isEvmNetwork(network: string): boolean {
-  // Check both v1 legacy format and v2 CAIP-2 format (eip155:*)
-  return EVM_NETWORKS.includes(network) || network.startsWith("eip155:");
+  return network.startsWith("eip155:");
 }
 
 /**
  * Determines if the provided network is an SVM network.
  *
- * @param network - The network to check.
+ * @param network - The network to check (CAIP-2 format: solana:reference).
  * @returns True if the network is SVM based.
  */
 export function isSvmNetwork(network: string): boolean {
-  // Check both v1 legacy format and v2 CAIP-2 format (solana:*)
-  return SVM_NETWORKS.includes(network) || network.startsWith("solana:");
+  return network.startsWith("solana:");
 }
 
 /**
  * Provides a human-readable display name for a network.
  *
- * @param network - The network identifier.
+ * @param network - The network identifier (CAIP-2 format).
  * @returns A display name suitable for UI use.
  */
 export function getNetworkDisplayName(network: string): string {
-  // Handle CAIP-2 format
   if (network.startsWith("eip155:")) {
     const chainId = network.split(":")[1];
-    if (chainId === "8453") return "Base";
-    if (chainId === "84532") return "Base Sepolia";
+    if (chainId === EVM_CHAIN_IDS.BASE_MAINNET) return "Base";
+    if (chainId === EVM_CHAIN_IDS.BASE_SEPOLIA) return "Base Sepolia";
+    if (chainId === EVM_CHAIN_IDS.AVALANCHE_MAINNET) return "Avalanche";
+    if (chainId === EVM_CHAIN_IDS.AVALANCHE_FUJI) return "Avalanche Fuji";
+    if (chainId === EVM_CHAIN_IDS.POLYGON_MAINNET) return "Polygon";
+    if (chainId === EVM_CHAIN_IDS.POLYGON_AMOY) return "Polygon Amoy";
     return `EVM Chain ${chainId}`;
   }
+
   if (network.startsWith("solana:")) {
-    return network.includes("devnet") ? "Solana Devnet" : "Solana";
+    const ref = network.split(":")[1];
+    return ref === SOLANA_NETWORK_REFS.DEVNET ? "Solana Devnet" : "Solana";
   }
 
-  // Handle v1 legacy format
-  switch (network) {
-    case "base":
-      return "Base";
-    case "base-sepolia":
-      return "Base Sepolia";
-    case "solana":
-      return "Solana";
-    case "solana-devnet":
-      return "Solana Devnet";
-    default:
-      return network;
-  }
+  return network;
 }
 
 /**
  * Indicates whether the provided network is a testnet.
  *
- * @param network - The network to evaluate.
+ * @param network - The network to evaluate (CAIP-2 format).
  * @returns True if the network is a recognized testnet.
  */
 export function isTestnetNetwork(network: string): boolean {
-  return EVM_TESTNETS.has(network) || SVM_TESTNETS.has(network);
+  if (network.startsWith("eip155:")) {
+    const chainId = network.split(":")[1];
+    return EVM_TESTNET_CHAIN_IDS.has(chainId);
+  }
+
+  if (network.startsWith("solana:")) {
+    const ref = network.split(":")[1];
+    return ref === SOLANA_NETWORK_REFS.DEVNET;
+  }
+
+  return false;
 }

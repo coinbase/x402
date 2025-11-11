@@ -35,6 +35,8 @@
     "@types/react-dom": "^19",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "@x402/evm": "workspace:*",
+    "@x402/svm": "workspace:*",
     "buffer": "^6.0.3",
     "esbuild": "^0.25.4",
     "eslint": "^9.24.0",

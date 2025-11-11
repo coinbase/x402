@@ -1,11 +1,11 @@
-import { PaymentRequirements } from "@x402/core";
+import type { PaymentRequired } from "@x402/core/types";
 
 declare global {
   interface Window {
     x402: {
       amount?: number;
       testnet?: boolean;
-      paymentRequirements: PaymentRequirements | PaymentRequirements[];
+      paymentRequired: PaymentRequired;
       currentUrl: string;
       cdpClientKey?: string;
       appName?: string;

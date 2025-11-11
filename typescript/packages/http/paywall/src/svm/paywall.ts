@@ -1,4 +1,4 @@
-import type { PaymentRequirements } from "../types";
+import type { PaymentRequired } from "../types";
 
 /**
  * Escapes a string for safe injection into JavaScript string literals
@@ -18,7 +18,7 @@ function escapeString(str: string): string {
 
 interface SvmPaywallOptions {
   amount: number;
-  paymentRequirements: PaymentRequirements[];
+  paymentRequired: PaymentRequired;
   currentUrl: string;
   testnet: boolean;
   cdpClientKey?: string;
@@ -31,6 +31,14 @@ interface SvmPaywallOptions {
  * Generates SVM-specific paywall HTML
  *
  * @param options - The options for generating the paywall
+ * @param options.amount - The amount to be paid in USD
+ * @param options.paymentRequired - The payment required response with accepts array
+ * @param options.currentUrl - The URL of the content being accessed
+ * @param options.testnet - Whether to use testnet or mainnet
+ * @param options.cdpClientKey - CDP client API key for OnchainKit
+ * @param options.appName - The name of the application to display in the wallet connection modal
+ * @param options.appLogo - The logo of the application to display in the wallet connection modal
+ * @param options.sessionTokenEndpoint - The API endpoint for generating session tokens for Onramp authentication
  * @returns HTML string for the paywall page
  */
 export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
@@ -49,7 +57,7 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
   const {
     amount,
     testnet,
-    paymentRequirements,
+    paymentRequired,
     currentUrl,
     cdpClientKey,
     appName,
@@ -58,14 +66,14 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
   } = options;
 
   const logOnTestnet = testnet
-    ? "console.log('SVM Payment requirements initialized:', window.x402);"
+    ? "console.log('SVM Payment required initialized:', window.x402);"
     : "";
 
   const configScript = `
   <script>
     window.x402 = {
       amount: ${amount},
-      paymentRequirements: ${JSON.stringify(paymentRequirements)},
+      paymentRequired: ${JSON.stringify(paymentRequired)},
       testnet: ${testnet},
       currentUrl: "${escapeString(currentUrl)}",
       config: {

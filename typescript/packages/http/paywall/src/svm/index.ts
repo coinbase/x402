@@ -7,7 +7,7 @@ import type {
 import { getSvmPaywallHtml } from "./paywall";
 
 /**
- * SVM paywall handler that supports Solana-based networks
+ * SVM paywall handler that supports Solana-based networks (CAIP-2 format only)
  */
 export const svmPaywall: PaywallNetworkHandler = {
   /**
@@ -17,17 +17,7 @@ export const svmPaywall: PaywallNetworkHandler = {
    * @returns True if this handler can process this requirement
    */
   supports(requirement: PaymentRequirements): boolean {
-    const network = requirement.network;
-
-    // Support v2 CAIP-2 format (solana:*)
-    if (network.startsWith("solana:")) {
-      return true;
-    }
-
-    // Support v1 legacy Solana networks
-    const svmNetworks = ["solana", "solana-devnet"];
-
-    return svmNetworks.includes(network);
+    return requirement.network.startsWith("solana:");
   },
 
   /**
@@ -43,7 +33,6 @@ export const svmPaywall: PaywallNetworkHandler = {
     paymentRequired: PaymentRequired,
     config: PaywallConfig,
   ): string {
-    // Calculate display amount
     const amount = requirement.amount
       ? parseFloat(requirement.amount) / 1000000
       : requirement.maxAmountRequired
@@ -52,7 +41,7 @@ export const svmPaywall: PaywallNetworkHandler = {
 
     return getSvmPaywallHtml({
       amount,
-      paymentRequirements: [requirement],
+      paymentRequired,
       currentUrl: paymentRequired.resource?.url || config.currentUrl || "",
       testnet: config.testnet ?? true,
       cdpClientKey: config.cdpClientKey,
