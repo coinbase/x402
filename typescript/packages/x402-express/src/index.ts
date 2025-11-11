@@ -214,7 +214,6 @@ export function paymentMiddleware(
     const acceptHeader = req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
-    console.log("META", meta)
     if (!payment && !meta) {
       // TODO handle paywall html for solana
       if (isWebBrowser) {
@@ -272,7 +271,6 @@ export function paymentMiddleware(
           const verifyReq = fallbackReq || { network: network || 'solana', extra: { sku: meta.sku } };
           //@ts-ignore
           const altResponse = await verify({ x402Meta: meta }, verifyReq);
-          console.log(altResponse)
           if (altResponse && altResponse.isValid) {
             alreadyVerified = true;
 
