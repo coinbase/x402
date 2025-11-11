@@ -83,9 +83,12 @@ func TestHTTPIntegration(t *testing.T) {
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)
 
-		// Setup HTTP client with cash scheme
-		client := x402http.Newx402HTTPClient()
-		client.RegisterScheme("x402:cash", cash.NewSchemeNetworkClient("John"))
+		// Setup x402 client with cash scheme
+		x402Client := x402.Newx402Client()
+		x402Client.RegisterScheme("x402:cash", cash.NewSchemeNetworkClient("John"))
+		
+		// Setup HTTP client wrapper
+		httpClient := x402http.Newx402HTTPClient(x402Client)
 
 		// Setup HTTP service
 		service := x402http.Newx402HTTPResourceService(
@@ -142,7 +145,7 @@ func TestHTTPIntegration(t *testing.T) {
 		}
 
 		// Client responds to PaymentRequired
-		paymentRequired, err := client.GetPaymentRequiredResponse(
+		paymentRequired, err := httpClient.GetPaymentRequiredResponse(
 			initial402Response.Headers,
 			nil, // No body for v2
 		)
@@ -150,7 +153,7 @@ func TestHTTPIntegration(t *testing.T) {
 			t.Fatalf("Failed to get payment required response: %v", err)
 		}
 
-		selected, err := client.SelectPaymentRequirements(
+		selected, err := x402Client.SelectPaymentRequirements(
 			paymentRequired.X402Version,
 			paymentRequired.Accepts,
 		)
@@ -164,7 +167,7 @@ func TestHTTPIntegration(t *testing.T) {
 			t.Fatalf("Failed to marshal requirements: %v", err)
 		}
 
-		payloadBytes, err := client.CreatePaymentPayload(
+		payloadBytes, err := x402Client.CreatePaymentPayload(
 			ctx,
 			paymentRequired.X402Version,
 			selectedBytes,
@@ -175,7 +178,7 @@ func TestHTTPIntegration(t *testing.T) {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
 
-		requestHeaders := client.EncodePaymentSignatureHeader(payloadBytes)
+		requestHeaders := httpClient.EncodePaymentSignatureHeader(payloadBytes)
 
 		// Update mock adapter with payment header
 		mockAdapter.headers = requestHeaders

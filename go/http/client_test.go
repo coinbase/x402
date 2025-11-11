@@ -15,17 +15,18 @@ import (
 )
 
 func TestNewx402HTTPClient(t *testing.T) {
-	client := Newx402HTTPClient()
+	x402Client := x402.Newx402Client()
+	client := Newx402HTTPClient(x402Client)
 	if client == nil {
 		t.Fatal("Expected client to be created")
 	}
-	if client.X402Client == nil {
-		t.Fatal("Expected embedded x402Client")
+	if client.client == nil {
+		t.Fatal("Expected composed x402Client")
 	}
 }
 
 func TestEncodePaymentSignatureHeader(t *testing.T) {
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 
 	tests := []struct {
 		name     string
@@ -91,7 +92,7 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 }
 
 func TestGetPaymentRequiredResponse(t *testing.T) {
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 
 	// Test v2 header format
 	requirements := x402.PaymentRequired{
@@ -161,7 +162,7 @@ func TestGetPaymentRequiredResponse(t *testing.T) {
 }
 
 func TestGetPaymentSettleResponse(t *testing.T) {
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 
 	settleResponse := x402.SettleResponse{
 		Success:     true,
@@ -262,12 +263,12 @@ func TestPaymentRoundTripper(t *testing.T) {
 		},
 	}
 
-	// Create x402 HTTP client
-	x402Client := Newx402HTTPClient()
+	// Create x402 client
+	x402Client := x402.Newx402Client()
 	x402Client.RegisterScheme("test:1", mockClient)
 
-	// Wrap standard HTTP client
-	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, x402Client)
+	// Create HTTP client wrapper
+	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, Newx402HTTPClient(x402Client))
 
 	// Make request
 	resp, err := httpClient.Get(server.URL)
@@ -298,7 +299,7 @@ func TestPaymentRoundTripperNoRetryOn200(t *testing.T) {
 	}))
 	defer server.Close()
 
-	x402Client := Newx402HTTPClient()
+	x402Client := Newx402HTTPClient(x402.Newx402Client())
 	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, x402Client)
 
 	resp, err := httpClient.Get(server.URL)
@@ -319,7 +320,7 @@ func TestDoWithPayment(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 	ctx := context.Background()
 	req, _ := http.NewRequest("GET", server.URL, nil)
 
@@ -343,7 +344,7 @@ func TestGetWithPayment(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 	ctx := context.Background()
 
 	resp, err := client.GetWithPayment(ctx, server.URL)
@@ -366,7 +367,7 @@ func TestPostWithPayment(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := Newx402HTTPClient()
+	client := Newx402HTTPClient(x402.Newx402Client())
 	ctx := context.Background()
 
 	resp, err := client.PostWithPayment(ctx, server.URL, strings.NewReader("test body"))

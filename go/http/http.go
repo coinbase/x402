@@ -28,8 +28,8 @@ type (
 // ============================================================================
 
 // NewClient creates a new HTTP-aware x402 client
-func NewClient(opts ...x402.ClientOption) *x402HTTPClient {
-	return Newx402HTTPClient(opts...)
+func NewClient(client *x402.X402Client) *x402HTTPClient {
+	return Newx402HTTPClient(client)
 }
 
 // NewService creates a new HTTP resource service

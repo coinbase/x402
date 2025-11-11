@@ -23,10 +23,15 @@ type ExactSvmClientV1 struct {
 }
 
 // NewExactSvmClientV1 creates a new ExactSvmClientV1
-func NewExactSvmClientV1(signer svm.ClientSvmSigner, config *svm.ClientConfig) *ExactSvmClientV1 {
+// Config is optional - if not provided, uses network defaults
+func NewExactSvmClientV1(signer svm.ClientSvmSigner, config ...*svm.ClientConfig) *ExactSvmClientV1 {
+	var cfg *svm.ClientConfig
+	if len(config) > 0 {
+		cfg = config[0]
+	}
 	return &ExactSvmClientV1{
 		signer: signer,
-		config: config,
+		config: cfg,
 	}
 }
 

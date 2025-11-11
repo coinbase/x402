@@ -332,7 +332,7 @@ func handlePaymentVerified(c *gin.Context, service *x402http.HTTPService, ctx co
 		// Call settlement handler if configured
 		if config.SettlementHandler != nil && settlementHeaders["PAYMENT-RESPONSE"] != "" {
 			// Decode settlement response
-			httpClient := x402http.Newx402HTTPClient()
+			httpClient := x402http.Newx402HTTPClient(x402.Newx402Client())
 			headers := make(map[string]string)
 			for k, v := range settlementHeaders {
 				headers[k] = v

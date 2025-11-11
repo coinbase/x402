@@ -6,6 +6,25 @@ import (
 	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
+// NETWORKS contains all supported V1 EVM networks
+var NETWORKS = []string{
+	"abstract",
+	"abstract-testnet",
+	"base-sepolia",
+	"base",
+	"avalanche-fuji",
+	"avalanche",
+	"iotex",
+	"sei",
+	"sei-testnet",
+	"polygon",
+	"polygon-amoy",
+	"peaq",
+	"story",
+	"educhain",
+	"skale-base-sepolia",
+}
+
 // RegisterClient registers the V1 EVM client with an x402Client
 func RegisterClient(client *x402.X402Client, signer evm.ClientEvmSigner) *x402.X402Client {
 	evmClient := NewExactEvmClientV1(signer)

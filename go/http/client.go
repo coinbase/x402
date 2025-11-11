@@ -18,15 +18,15 @@ import (
 // x402HTTPClient - HTTP-aware payment client
 // ============================================================================
 
-// x402HTTPClient extends x402Client with HTTP-specific payment handling
+// x402HTTPClient wraps x402Client with HTTP-specific payment handling
 type x402HTTPClient struct {
-	*x402.X402Client
+	client *x402.X402Client
 }
 
 // Newx402HTTPClient creates a new HTTP-aware x402 client
-func Newx402HTTPClient(opts ...x402.ClientOption) *x402HTTPClient {
+func Newx402HTTPClient(client *x402.X402Client) *x402HTTPClient {
 	return &x402HTTPClient{
-		X402Client: x402.Newx402Client(opts...),
+		client: client,
 	}
 }
 
@@ -43,10 +43,10 @@ func (c *x402HTTPClient) EncodePaymentSignatureHeader(payloadBytes []byte) map[s
 	if err != nil {
 		panic(fmt.Sprintf("failed to detect version: %v", err))
 	}
-	
+
 	// Base64 encode the payload bytes
 	encoded := base64.StdEncoding.EncodeToString(payloadBytes)
-	
+
 	switch version {
 	case 2:
 		return map[string]string{
@@ -198,7 +198,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	}
 
 	// Select and create payment
-	selected, err := t.x402Client.SelectPaymentRequirements(paymentRequired.X402Version, paymentRequired.Accepts)
+	selected, err := t.x402Client.client.SelectPaymentRequirements(paymentRequired.X402Version, paymentRequired.Accepts)
 	if err != nil {
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("cannot fulfill payment requirements: %w", err)
@@ -215,7 +215,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("failed to marshal requirements: %w", err)
 	}
-	
+
 	// Convert resource if present
 	var resourceV2 *types.ResourceInfoV2
 	if paymentRequired.Resource != nil {
@@ -225,8 +225,8 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 			MimeType:    paymentRequired.Resource.MimeType,
 		}
 	}
-	
-	payloadBytes, err := t.x402Client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selectedBytes, resourceV2, paymentRequired.Extensions)
+
+	payloadBytes, err := t.x402Client.client.CreatePaymentPayload(ctx, paymentRequired.X402Version, selectedBytes, resourceV2, paymentRequired.Extensions)
 	if err != nil {
 		t.retryCount.Delete(requestID)
 		return nil, fmt.Errorf("failed to create payment: %w", err)

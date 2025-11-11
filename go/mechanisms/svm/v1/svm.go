@@ -6,17 +6,20 @@ import (
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
 )
 
+// NETWORKS contains all supported V1 SVM networks
+var NETWORKS = []string{
+	"solana",
+	"solana-devnet",
+	"solana-testnet",
+}
+
 // RegisterClient registers the V1 SVM client with an x402Client
 func RegisterClient(client *x402.X402Client, signer svm.ClientSvmSigner, networks ...string) *x402.X402Client {
-	svmClient := NewExactSvmClientV1(signer, nil)
+	svmClient := NewExactSvmClientV1(signer)
 
 	// If no networks specified, register all
 	if len(networks) == 0 {
-		networks = []string{
-			svm.SolanaMainnetV1,
-			svm.SolanaDevnetV1,
-			svm.SolanaTestnetV1,
-		}
+		networks = NETWORKS
 	}
 
 	for _, network := range networks {
@@ -34,11 +37,7 @@ func RegisterFacilitator(facilitator *x402.X402Facilitator, signer svm.Facilitat
 
 	// If no networks specified, register all
 	if len(networks) == 0 {
-		networks = []string{
-			svm.SolanaMainnetV1,
-			svm.SolanaDevnetV1,
-			svm.SolanaTestnetV1,
-		}
+		networks = NETWORKS
 	}
 
 	for _, network := range networks {

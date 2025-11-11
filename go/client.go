@@ -20,10 +20,37 @@ type x402Client struct {
 
 	// Function to select payment requirements when multiple options exist
 	requirementsSelector PaymentRequirementsSelector
+
+	// Policies to filter/transform payment requirements
+	policies []PaymentPolicy
 }
 
 // PaymentRequirementsSelector chooses which payment option to use
 type PaymentRequirementsSelector func(version int, requirements []PaymentRequirements) PaymentRequirements
+
+// PaymentPolicy filters or transforms payment requirements
+// Policies are applied in order before the selector chooses the final option
+type PaymentPolicy func(version int, requirements []PaymentRequirements) []PaymentRequirements
+
+// SchemeRegistration defines configuration for registering a payment scheme
+type SchemeRegistration struct {
+	// Network identifier (e.g., "eip155:8453", "solana:mainnet")
+	Network Network
+	// The scheme client implementation
+	Client SchemeNetworkClient
+	// The x402 protocol version (defaults to 2)
+	X402Version int
+}
+
+// X402ClientConfig holds configuration for creating an x402 client
+type X402ClientConfig struct {
+	// Array of scheme registrations
+	Schemes []SchemeRegistration
+	// Policies to apply to the client
+	Policies []PaymentPolicy
+	// Custom payment requirements selector
+	PaymentRequirementsSelector PaymentRequirementsSelector
+}
 
 // ClientOption configures the client
 type ClientOption func(*x402Client)
@@ -32,6 +59,13 @@ type ClientOption func(*x402Client)
 func WithPaymentSelector(selector PaymentRequirementsSelector) ClientOption {
 	return func(c *x402Client) {
 		c.requirementsSelector = selector
+	}
+}
+
+// WithPolicy registers a payment policy at creation time
+func WithPolicy(policy PaymentPolicy) ClientOption {
+	return func(c *x402Client) {
+		c.policies = append(c.policies, policy)
 	}
 }
 
@@ -47,10 +81,42 @@ func Newx402Client(opts ...ClientOption) *x402Client {
 	c := &x402Client{
 		schemes:              make(map[int]map[Network]map[string]SchemeNetworkClient),
 		requirementsSelector: defaultPaymentSelector,
+		policies:             []PaymentPolicy{},
 	}
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	return c
+}
+
+// Newx402ClientFromConfig creates an x402 client from a configuration object
+func Newx402ClientFromConfig(config X402ClientConfig) *x402Client {
+	// Create client with selector if provided
+	selector := config.PaymentRequirementsSelector
+	if selector == nil {
+		selector = defaultPaymentSelector
+	}
+
+	c := &x402Client{
+		schemes:              make(map[int]map[Network]map[string]SchemeNetworkClient),
+		requirementsSelector: selector,
+		policies:             []PaymentPolicy{},
+	}
+
+	// Register schemes
+	for _, reg := range config.Schemes {
+		version := reg.X402Version
+		if version == 0 {
+			version = ProtocolVersion // Default to v2
+		}
+		c.registerScheme(version, reg.Network, reg.Client)
+	}
+
+	// Register policies
+	for _, policy := range config.Policies {
+		c.policies = append(c.policies, policy)
 	}
 
 	return c
@@ -74,6 +140,16 @@ func (c *x402Client) RegisterSchemeV1(network Network, client SchemeNetworkClien
 	return c.registerScheme(ProtocolVersionV1, network, client)
 }
 
+// RegisterPolicy registers a policy to filter or transform payment requirements
+// Policies are applied in order after filtering by registered schemes
+// and before the selector chooses the final payment requirement
+func (c *x402Client) RegisterPolicy(policy PaymentPolicy) *x402Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.policies = append(c.policies, policy)
+	return c
+}
+
 // registerScheme internal method to register schemes
 func (c *x402Client) registerScheme(version int, network Network, client SchemeNetworkClient) *x402Client {
 	c.mu.Lock()
@@ -95,6 +171,10 @@ func (c *x402Client) registerScheme(version int, network Network, client SchemeN
 
 // SelectPaymentRequirements chooses which payment requirements to use
 // This filters requirements to only those the client can fulfill
+// Selection process:
+// 1. Filter by registered schemes (network + scheme support)
+// 2. Apply all registered policies in order
+// 3. Use selector to choose final requirement
 func (c *x402Client) SelectPaymentRequirements(version int, requirements []PaymentRequirements) (PaymentRequirements, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -104,7 +184,7 @@ func (c *x402Client) SelectPaymentRequirements(version int, requirements []Payme
 		return PaymentRequirements{}, fmt.Errorf("no schemes registered for x402 version %d", version)
 	}
 
-	// Filter to only supported requirements
+	// Step 1: Filter to only supported requirements
 	var supported []PaymentRequirements
 	for _, req := range requirements {
 		schemeMap := findSchemesByNetwork(versionSchemes, req.Network)
@@ -126,8 +206,23 @@ func (c *x402Client) SelectPaymentRequirements(version int, requirements []Payme
 		}
 	}
 
-	// Use selector to choose from supported options
-	return c.requirementsSelector(version, supported), nil
+	// Step 2: Apply all policies in order
+	filtered := supported
+	for _, policy := range c.policies {
+		filtered = policy(version, filtered)
+		if len(filtered) == 0 {
+			return PaymentRequirements{}, &PaymentError{
+				Code:    ErrCodeUnsupportedScheme,
+				Message: "all payment requirements were filtered out by policies",
+				Details: map[string]interface{}{
+					"version": version,
+				},
+			}
+		}
+	}
+
+	// Step 3: Use selector to choose from filtered options
+	return c.requirementsSelector(version, filtered), nil
 }
 
 // CreatePaymentPayload creates a signed payment payload

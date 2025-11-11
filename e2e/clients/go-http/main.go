@@ -243,28 +243,29 @@ func main() {
 		return
 	}
 
-	// Create x402 HTTP client with both EVM and SVM support
-	httpClient := x402http.Newx402HTTPClient()
+	// Create x402 client with both EVM and SVM support
+	x402Client := x402.Newx402Client()
 
 	// Register EVM v2 client for all EIP155 networks
 	evmClient := evm.NewExactEvmClient(evmSigner)
-	httpClient.RegisterScheme("eip155:*", evmClient)
+	x402Client.RegisterScheme("eip155:*", evmClient)
 
-	// Register EVM v1 client for base-sepolia (v1 network name)
+	// Register EVM v1 client for base-sepolia and base (v1 network names)
 	evmClientV1 := evmv1.NewExactEvmClientV1(evmSigner)
-	httpClient.RegisterSchemeV1("base-sepolia", evmClientV1)
+	x402Client.RegisterSchemeV1("base-sepolia", evmClientV1)
+	x402Client.RegisterSchemeV1("base", evmClientV1)
 
 	// Register SVM v2 client for Solana networks
-	svmClient := svm.NewExactSvmClient(svmSigner, &svm.ClientConfig{
-		RPCURL: "https://api.devnet.solana.com",
-	})
-	httpClient.RegisterScheme("solana:*", svmClient)
+	svmClient := svm.NewExactSvmClient(svmSigner)
+	x402Client.RegisterScheme("solana:*", svmClient)
 
-	// Register SVM v1 client for solana-devnet (v1 network name)
-	svmClientV1 := svmv1.NewExactSvmClientV1(svmSigner, &svm.ClientConfig{
-		RPCURL: "https://api.devnet.solana.com",
-	})
-	httpClient.RegisterSchemeV1("solana-devnet", svmClientV1)
+	// Register SVM v1 client for solana networks (v1 network names)
+	svmClientV1 := svmv1.NewExactSvmClientV1(svmSigner)
+	x402Client.RegisterSchemeV1("solana-devnet", svmClientV1)
+	x402Client.RegisterSchemeV1("solana", svmClientV1)
+
+	// Create HTTP client wrapper
+	httpClient := x402http.Newx402HTTPClient(x402Client)
 
 	// Wrap standard HTTP client with payment handling
 	client := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
