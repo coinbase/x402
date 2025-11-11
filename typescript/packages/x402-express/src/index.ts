@@ -8,8 +8,9 @@ import {
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
-  decodeXPaymentMeta,
+  safeBase64Decode,
 } from "x402/shared";
+//@ts-ignore
 import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
@@ -25,6 +26,17 @@ import {
   SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
+
+/**
+ * Decodes the X-PAYMENT-META header
+ *
+ * @param header - The X-PAYMENT-META header to decode
+ * @returns The decoded payment response
+ */
+export function decodeXPaymentMeta(header: string): Record<string, unknown> {
+  const decoded = safeBase64Decode(header);
+  return JSON.parse(decoded)
+}
 
 /**
  * Creates a payment middleware factory for Express
