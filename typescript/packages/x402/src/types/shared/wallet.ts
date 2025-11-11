@@ -63,7 +63,7 @@ export function isEvmSignerWallet(wallet: Signer): wallet is evm.EvmSigner {
  * @returns True if the wallet is an SVM signer wallet, false otherwise
  */
 export function isSvmSignerWallet(wallet: Signer): wallet is svm.SvmSigner {
-  return svm.isSignerWallet(wallet as svm.SvmSigner);
+  return svm.isSignerWallet(wallet);
 }
 
 /**
