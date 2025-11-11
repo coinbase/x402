@@ -8,7 +8,9 @@ import {
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
+  safeBase64Decode,
 } from "x402/shared";
+//@ts-ignore
 import { getPaywallHtml } from "x402/paywall";
 import {
   FacilitatorConfig,
@@ -24,6 +26,17 @@ import {
   SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
+
+/**
+ * Decodes the X-PAYMENT-META header
+ *
+ * @param header - The X-PAYMENT-META header to decode
+ * @returns The decoded payment response
+ */
+export function decodeXPaymentMeta(header: string): Record<string, unknown> {
+  const decoded = safeBase64Decode(header);
+  return JSON.parse(decoded)
+}
 
 /**
  * Creates a payment middleware factory for Express
@@ -117,6 +130,7 @@ export function paymentMiddleware(
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
     let paymentRequirements: PaymentRequirements[] = [];
+    let alreadyVerified: boolean = false;
 
     // TODO: create a shared middleware function to build payment requirements
     // evm networks
@@ -141,7 +155,9 @@ export function paymentMiddleware(
           },
           output: outputSchema,
         },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
+        extra: {
+          ...(asset as ERC20TokenAmount["asset"]).eip712,
+        },
       });
     }
 
@@ -193,11 +209,12 @@ export function paymentMiddleware(
     }
 
     const payment = req.header("X-PAYMENT");
+    const meta = decodeXPaymentMeta(req.header("X-PAYMENT-META") || "");
     const userAgent = req.header("User-Agent") || "";
     const acceptHeader = req.header("Accept") || "";
     const isWebBrowser = acceptHeader.includes("text/html") && userAgent.includes("Mozilla");
 
-    if (!payment) {
+    if (!payment && !meta) {
       // TODO handle paywall html for solana
       if (isWebBrowser) {
         let displayAmount: number;
@@ -239,10 +256,40 @@ export function paymentMiddleware(
 
     let decodedPayment: PaymentPayload;
     try {
+      if (!payment) throw ("X-PAYMENT header is required")
       decodedPayment = exact.evm.decodePayment(payment);
+      //@ts-ignore
+      decodedPayment.x402Meta = meta;
       decodedPayment.x402Version = x402Version;
     } catch (error) {
-      console.error(error);
+      console.error('payment decode failed, trying X-PAYMENT-META fallback', error);
+      // If the client provided X-PAYMENT-META, try verifying that signed-proof as a fallback
+      if (meta && Object.keys(meta).length > 0) {
+        try {
+          // Use the first paymentRequirements entry as the target if matching isn't possible here
+          const fallbackReq = paymentRequirements && paymentRequirements.length ? paymentRequirements[0] : undefined;
+          const verifyReq = fallbackReq || { network: network || 'solana', extra: { sku: meta.sku } };
+          //@ts-ignore
+          const altResponse = await verify({ x402Meta: meta }, verifyReq);
+          if (altResponse && altResponse.isValid) {
+            alreadyVerified = true;
+
+            // Allow request to proceed (buyer has valid license)
+            return next();
+          } else {
+            res.status(402).json({
+              x402Version,
+              error: altResponse?.invalidReason || 'Signed proof invalid or no license',
+              accepts: toJsonSafe(paymentRequirements),
+            });
+
+            return
+          }
+        } catch (altErr) {
+          console.error('X-PAYMENT-META verify fallback failed', altErr);
+        }
+      }
+
       res.status(402).json({
         x402Version,
         error: error || "Invalid or malformed payment header",
@@ -263,26 +310,27 @@ export function paymentMiddleware(
       });
       return;
     }
-
-    try {
-      const response = await verify(decodedPayment, selectedPaymentRequirements);
-      if (!response.isValid) {
+    if (!alreadyVerified) {
+      try {
+        const response = await verify(decodedPayment, selectedPaymentRequirements);
+        if (!response.isValid) {
+          res.status(402).json({
+            x402Version,
+            error: response.invalidReason,
+            accepts: toJsonSafe(paymentRequirements),
+            payer: response.payer,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error(error);
         res.status(402).json({
           x402Version,
-          error: response.invalidReason,
+          error,
           accepts: toJsonSafe(paymentRequirements),
-          payer: response.payer,
         });
         return;
       }
-    } catch (error) {
-      console.error(error);
-      res.status(402).json({
-        x402Version,
-        error,
-        accepts: toJsonSafe(paymentRequirements),
-      });
-      return;
     }
 
     /* eslint-disable @typescript-eslint/no-explicit-any */

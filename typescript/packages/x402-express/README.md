@@ -5,7 +5,7 @@ Express middleware integration for the x402 Payment Protocol. This package allow
 ## Installation
 
 ```bash
-npm install x402-express
+npm install @pop402/x402-express
 ```
 
 ## Quick Start
