@@ -43,7 +43,7 @@ export const SOLANA_TESTNET_CAIP2 = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z";
 
 /**
  * V1 to V2 network identifier mappings (for backwards compatibility)
- * V1 used simple names like "solana", V2 uses CAIP-2
+ * V1 used simple names like solana, V2 uses CAIP-2
  */
 export const V1_TO_V2_NETWORK_MAP: Record<string, string> = {
   solana: SOLANA_MAINNET_CAIP2,

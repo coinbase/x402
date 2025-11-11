@@ -12,8 +12,8 @@ import (
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
 
-	"github.com/coinbase/x402/go/types"
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ExactSvmClientV1 implements the SchemeNetworkClient interface for SVM (Solana) exact payments (V1)
@@ -136,7 +136,7 @@ func (c *ExactSvmClientV1) CreatePaymentPayload(
 	if requirements.Extra != nil {
 		json.Unmarshal(*requirements.Extra, &extraMap)
 	}
-	
+
 	feePayerAddr, ok := extraMap["feePayer"].(string)
 	if !ok {
 		return nil, fmt.Errorf("feePayer is required in paymentRequirements.extra for Solana transactions")
@@ -161,37 +161,8 @@ func (c *ExactSvmClientV1) CreatePaymentPayload(
 	}
 	recentBlockhash := latestBlockhash.Value.Blockhash
 
-	// Build temporary transfer instruction for compute unit estimation
-	tempTransferIx, err := token.NewTransferCheckedInstructionBuilder().
-		SetAmount(amount).
-		SetDecimals(mintData.Decimals).
-		SetSourceAccount(sourceATA).
-		SetMintAccount(mintPubkey).
-		SetDestinationAccount(destinationATA).
-		SetOwnerAccount(c.signer.Address()).
-		ValidateAndBuild()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build transfer instruction: %w", err)
-	}
-
-	// Estimate compute units by simulating
-	tempTx, err := solana.NewTransactionBuilder().
-		AddInstruction(tempTransferIx).
-		SetRecentBlockHash(recentBlockhash).
-		SetFeePayer(feePayer).
-		Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp transaction: %w", err)
-	}
-
-	// Simulate to estimate compute units
-	simResult, err := rpcClient.SimulateTransaction(ctx, tempTx)
-	var estimatedUnits uint32 = 200000 // Default fallback
-	if err == nil && simResult != nil && simResult.Value != nil && simResult.Value.UnitsConsumed != nil {
-		estimatedUnits = uint32(*simResult.Value.UnitsConsumed)
-		// Add 20% buffer to avoid boundary issues
-		estimatedUnits = uint32(float64(estimatedUnits) * 1.2)
-	}
+	// Hardcoded compute units for 3 instructions (ComputeLimit + ComputePrice + TransferChecked)
+	const estimatedUnits uint32 = 6500
 
 	// Build compute budget instructions
 	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
@@ -259,4 +230,3 @@ func (c *ExactSvmClientV1) CreatePaymentPayload(
 
 	return json.Marshal(v1Payload)
 }
-

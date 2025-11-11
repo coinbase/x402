@@ -8,7 +8,6 @@ import (
 	"time"
 
 	solana "github.com/gagliardetto/solana-go"
-	associatedtokenaccount "github.com/gagliardetto/solana-go/programs/associated-token-account"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/token"
 	"github.com/gagliardetto/solana-go/rpc"
@@ -115,8 +114,7 @@ func (f *ExactSvmFacilitatorV1) Verify(
 	}
 
 	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-	// 4 instructions: ComputeLimit + ComputePrice + CreateATA + TransferChecked
-	if len(tx.Message.Instructions) != 3 && len(tx.Message.Instructions) != 4 {
+	if len(tx.Message.Instructions) != 3 {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: "invalid_exact_solana_payload_transaction_instructions_length",
@@ -170,21 +168,8 @@ func (f *ExactSvmFacilitatorV1) Verify(
 		Extra:   reqExtraMap, // Already unmarshaled above
 	}
 
-	// Step 4: Verify Optional ATA Creation
-	transferIxIndex := 2
-	if len(tx.Message.Instructions) == 4 {
-		if err := f.verifyCreateATAInstruction(tx, tx.Message.Instructions[2], reqStruct); err != nil {
-			return x402.VerifyResponse{
-				IsValid:       false,
-				InvalidReason: err.Error(),
-				Payer:         payer,
-			}, nil
-		}
-		transferIxIndex = 3
-	}
-
-	// Step 5: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[transferIxIndex], reqStruct); err != nil {
+	// Step 4: Verify Transfer Instruction
+	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], reqStruct); err != nil {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: err.Error(),
@@ -192,7 +177,7 @@ func (f *ExactSvmFacilitatorV1) Verify(
 		}, nil
 	}
 
-	// Step 6: Sign and Simulate Transaction
+	// Step 5: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 	if err := f.signer.SignTransaction(tx, string(requirements.Network)); err != nil {
 		return x402.VerifyResponse{
@@ -400,46 +385,6 @@ func (f *ExactSvmFacilitatorV1) verifyComputePriceInstruction(tx *solana.Transac
 	return nil
 }
 
-// verifyCreateATAInstruction verifies the create ATA instruction
-func (f *ExactSvmFacilitatorV1) verifyCreateATAInstruction(
-	tx *solana.Transaction,
-	inst solana.CompiledInstruction,
-	requirements x402.PaymentRequirements,
-) error {
-	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
-
-	if progID != solana.SPLAssociatedTokenAccountProgramID {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction")
-	}
-
-	accounts, err := inst.ResolveInstructionAccounts(&tx.Message)
-	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction")
-	}
-
-	decoded, err := associatedtokenaccount.DecodeInstruction(accounts, inst.Data)
-	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction")
-	}
-
-	createATA, ok := decoded.Impl.(*associatedtokenaccount.Create)
-	if !ok {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction")
-	}
-
-	// Verify owner matches payTo
-	if createATA.GetWalletAccount().PublicKey.String() != requirements.PayTo {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction_incorrect_payee")
-	}
-
-	// Verify mint matches asset
-	if createATA.GetMintAccount().PublicKey.String() != requirements.Asset {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_create_ata_instruction_incorrect_asset")
-	}
-
-	return nil
-}
-
 // verifyTransferInstruction verifies the transfer instruction
 func (f *ExactSvmFacilitatorV1) verifyTransferInstruction(
 	ctx context.Context,
@@ -471,6 +416,14 @@ func (f *ExactSvmFacilitatorV1) verifyTransferInstruction(
 	transferChecked, ok := decoded.Impl.(*token.TransferChecked)
 	if !ok {
 		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+	}
+
+	// SECURITY: Verify that the fee payer is not transferring their own funds
+	// Prevent facilitator from signing away their own tokens
+	authorityAddr := accounts[3].PublicKey.String() // TransferChecked: [source, mint, destination, authority, ...]
+	feePayerAddr, ok := requirements.Extra["feePayer"].(string)
+	if ok && authorityAddr == feePayerAddr {
+		return fmt.Errorf("invalid_exact_solana_payload_transaction_fee_payer_transferring_funds")
 	}
 
 	// Verify mint address

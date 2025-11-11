@@ -3,14 +3,19 @@ import {
   parseSetComputeUnitLimitInstruction,
   parseSetComputeUnitPriceInstruction,
 } from "@solana-program/compute-budget";
-import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import {
+  parseTransferCheckedInstruction as parseTransferCheckedInstructionToken,
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   findAssociatedTokenPda,
   parseCreateAssociatedTokenInstruction,
+  parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
 import {
+  decompileTransactionMessage,
   getBase64EncodedWireTransaction,
   getCompiledTransactionMessageDecoder,
   type Address,
@@ -42,7 +47,7 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
    * @param signer - The SVM RPC client for facilitator operations
    * @returns ExactSvmFacilitatorV1 instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) {}
+  constructor(private readonly signer: FacilitatorSvmSigner) { }
 
   /**
    * Verifies a payment payload (V1).
@@ -91,12 +96,12 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
     const compiled = getCompiledTransactionMessageDecoder().decode(
       transaction.messageBytes,
     ) as CompiledTransactionMessage;
-    const instructions = compiled.instructions ?? [];
+    const decompiled = decompileTransactionMessage(compiled);
+    const instructions = decompiled.instructions ?? [];
     const staticAccounts = compiled.staticAccounts ?? [];
 
     // 3 instructions: ComputeLimit + ComputePrice + TransferChecked
-    // 4 instructions: ComputeLimit + ComputePrice + CreateATA + TransferChecked
-    if (instructions.length !== 3 && instructions.length !== 4) {
+    if (instructions.length !== 3) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_transaction_instructions_length",
@@ -106,8 +111,8 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
 
     // Step 3: Verify Compute Budget Instructions
     try {
-      this.verifyComputeLimitInstruction(instructions[0] as never, staticAccounts);
-      this.verifyComputePriceInstruction(instructions[1] as never, staticAccounts);
+      this.verifyComputeLimitInstruction(instructions[0] as never);
+      this.verifyComputePriceInstruction(instructions[1] as never);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
@@ -134,24 +139,9 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 4: Verify Optional ATA Creation
-    if (instructions.length === 4) {
-      try {
-        this.verifyCreateATAInstruction(instructions[2] as never, staticAccounts, requirements);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-          isValid: false,
-          invalidReason: errorMessage,
-          payer,
-        };
-      }
-    }
-
-    // Step 5: Verify Transfer Instruction
-    const transferIxIndex = instructions.length === 3 ? 2 : 3;
-    const transferIx = instructions[transferIxIndex];
-    const programAddress = staticAccounts[transferIx.programAddressIndex].toString();
+    // Step 4: Verify Transfer Instruction
+    const transferIx = instructions[2];
+    const programAddress = transferIx.programAddress.toString();
 
     if (
       programAddress !== TOKEN_PROGRAM_ADDRESS.toString() &&
@@ -164,8 +154,15 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    const accountIndices = transferIx.accountIndices ?? [];
-    if (accountIndices.length < 4) {
+    // Parse the transfer instruction using the appropriate library helper
+    let parsedTransfer;
+    try {
+      if (programAddress === TOKEN_PROGRAM_ADDRESS.toString()) {
+        parsedTransfer = parseTransferCheckedInstructionToken(transferIx as never);
+      } else {
+        parsedTransfer = parseTransferCheckedInstruction2022(transferIx as never);
+      }
+    } catch {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
@@ -173,10 +170,19 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // TransferChecked accounts: [source, mint, destination, owner, ...]
-    const mintAddress = staticAccounts[accountIndices[1]].toString();
-    const destATA = staticAccounts[accountIndices[2]].toString();
+    // Verify that the fee payer is not transferring their own funds
+    // SECURITY: Prevent facilitator from signing away their own tokens
+    const authorityAddress = parsedTransfer.accounts.authority.address.toString();
+    if (authorityAddress === requirementsV1.extra.feePayer) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
+        payer,
+      };
+    }
 
+    // Verify mint address matches requirements
+    const mintAddress = parsedTransfer.accounts.mint.address.toString();
     if (mintAddress !== requirements.asset) {
       return {
         isValid: false,
@@ -185,6 +191,8 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
+    // Verify destination ATA matches expected ATA for payTo address
+    const destATA = parsedTransfer.accounts.destination.address.toString();
     try {
       const [expectedDestATA] = await findAssociatedTokenPda({
         mint: requirements.asset as Address,
@@ -210,23 +218,8 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // TransferChecked data: [discriminator(1), amount(8), decimals(1)]
-    const ixData = transferIx.data;
-    if (!ixData || ixData.length < 10) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_svm_payload_no_transfer_instruction",
-        payer,
-      };
-    }
-
-    // Parse amount as little-endian u64 (bytes 1-8)
-    const amountBytes = ixData.slice(1, 9);
-    let amount = 0n;
-    for (let i = 0; i < 8; i++) {
-      amount += BigInt(amountBytes[i]) << BigInt(i * 8);
-    }
-
+    // Verify transfer amount meets requirements
+    const amount = parsedTransfer.data.amount;
     if (amount < BigInt(requirementsV1.maxAmountRequired)) {
       return {
         isValid: false,
@@ -235,7 +228,7 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // Step 6: Sign and Simulate Transaction
+    // Step 5: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
       const partiallySignedTx = decodeTransactionFromPayload(exactSvmPayload);
@@ -355,65 +348,16 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
   }
 
   /**
-   * Verify that the create ATA instruction is valid.
-   *
-   * @param instruction - The create ATA instruction
-   * @param instruction.programAddressIndex - Program address index in static accounts
-   * @param instruction.accountIndices - Account indices used in the instruction
-   * @param instruction.data - Instruction data bytes
-   * @param staticAccounts - Static accounts array from transaction
-   * @param requirements - Payment requirements to verify against
-   */
-  private verifyCreateATAInstruction(
-    instruction: {
-      programAddressIndex: number;
-      accountIndices?: readonly number[];
-      data?: Readonly<Uint8Array>;
-    },
-    staticAccounts: Address[],
-    requirements: PaymentRequirements,
-  ): void {
-    const programAddress = staticAccounts[instruction.programAddressIndex].toString();
-
-    if (programAddress !== ASSOCIATED_TOKEN_PROGRAM_ADDRESS.toString()) {
-      throw new Error("invalid_exact_svm_payload_transaction_create_ata_instruction");
-    }
-
-    try {
-      const parsed = parseCreateAssociatedTokenInstruction(instruction as never);
-
-      if (parsed.accounts.owner.address !== requirements.payTo) {
-        throw new Error(
-          "invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_payee",
-        );
-      }
-
-      if (parsed.accounts.mint.address !== requirements.asset) {
-        throw new Error(
-          "invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_asset",
-        );
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("create_ata_instruction")) {
-        throw error;
-      }
-      throw new Error("invalid_exact_svm_payload_transaction_create_ata_instruction");
-    }
-  }
-
-  /**
    * Verify compute limit instruction
    *
    * @param instruction - The compute limit instruction
-   * @param instruction.programAddressIndex - Program address index in static accounts
+   * @param instruction.programAddress - Program address
    * @param instruction.data - Instruction data bytes
-   * @param staticAccounts - Static accounts array from transaction
    */
   private verifyComputeLimitInstruction(
-    instruction: { programAddressIndex: number; data?: Readonly<Uint8Array> },
-    staticAccounts: Address[],
+    instruction: { programAddress: Address; data?: Readonly<Uint8Array> },
   ): void {
-    const programAddress = staticAccounts[instruction.programAddressIndex].toString();
+    const programAddress = instruction.programAddress.toString();
 
     if (
       programAddress !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||
@@ -438,15 +382,13 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
    * Verify compute price instruction
    *
    * @param instruction - The compute price instruction
-   * @param instruction.programAddressIndex - Program address index in static accounts
+   * @param instruction.programAddress - Program address
    * @param instruction.data - Instruction data bytes
-   * @param staticAccounts - Static accounts array from transaction
    */
   private verifyComputePriceInstruction(
-    instruction: { programAddressIndex: number; data?: Readonly<Uint8Array> },
-    staticAccounts: Address[],
+    instruction: { programAddress: Address; data?: Readonly<Uint8Array> },
   ): void {
-    const programAddress = staticAccounts[instruction.programAddressIndex].toString();
+    const programAddress = instruction.programAddress.toString();
 
     if (
       programAddress !== COMPUTE_BUDGET_PROGRAM_ADDRESS.toString() ||

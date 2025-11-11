@@ -153,37 +153,8 @@ func (c *ExactSvmClient) CreatePaymentPayload(
 	}
 	recentBlockhash := latestBlockhash.Value.Blockhash
 
-	// Build temporary transfer instruction for compute unit estimation
-	tempTransferIx, err := token.NewTransferCheckedInstructionBuilder().
-		SetAmount(amount).
-		SetDecimals(mintData.Decimals).
-		SetSourceAccount(sourceATA).
-		SetMintAccount(mintPubkey).
-		SetDestinationAccount(destinationATA).
-		SetOwnerAccount(c.signer.Address()).
-		ValidateAndBuild()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build transfer instruction: %w", err)
-	}
-
-	// Estimate compute units by simulating
-	tempTx, err := solana.NewTransactionBuilder().
-		AddInstruction(tempTransferIx).
-		SetRecentBlockHash(recentBlockhash).
-		SetFeePayer(feePayer).
-		Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temp transaction: %w", err)
-	}
-
-	// Simulate to estimate compute units
-	simResult, err := rpcClient.SimulateTransaction(ctx, tempTx)
-	var estimatedUnits uint32 = 200000 // Default fallback
-	if err == nil && simResult != nil && simResult.Value != nil && simResult.Value.UnitsConsumed != nil {
-		estimatedUnits = uint32(*simResult.Value.UnitsConsumed)
-		// Add 20% buffer to avoid boundary issues
-		estimatedUnits = uint32(float64(estimatedUnits) * 1.2)
-	}
+	// Hardcoded compute units for 3 instructions (ComputeLimit + ComputePrice + TransferChecked)
+	const estimatedUnits uint32 = 6500
 
 	// Build compute budget instructions
 	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().

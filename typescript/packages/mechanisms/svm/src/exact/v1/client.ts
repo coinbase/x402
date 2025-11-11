@@ -50,7 +50,7 @@ export class ExactSvmClientV1 implements SchemeNetworkClient {
   constructor(
     private readonly signer: ClientSvmSigner,
     private readonly config?: ClientSvmConfig,
-  ) {}
+  ) { }
 
   /**
    * Creates a payment payload for the Exact scheme (V1).
@@ -129,8 +129,7 @@ export class ExactSvmClientV1 implements SchemeNetworkClient {
       tx => appendTransactionMessageInstructions([transferIx], tx),
     );
 
-    const estimateComputeUnitLimit = estimateComputeUnitLimitFactory({ rpc });
-    const estimatedUnits = await estimateComputeUnitLimit(txToSimulate);
+    const estimatedUnits = 6500;
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
     const tx = pipe(
