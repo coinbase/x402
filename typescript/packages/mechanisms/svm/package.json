@@ -74,6 +74,16 @@
         "types": "./dist/cjs/v1/index.d.ts",
         "default": "./dist/cjs/v1/index.js"
       }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/esm/client/index.d.mts",
+        "default": "./dist/esm/client/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/client/index.d.ts",
+        "default": "./dist/cjs/client/index.js"
+      }
     }
   },
   "files": [

@@ -222,6 +222,12 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.29.1
         version: 8.46.2(eslint@9.38.0(jiti@1.21.7))(typescript@5.9.3)
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../../mechanisms/evm
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../../mechanisms/svm
       eslint:
         specifier: ^9.24.0
         version: 9.38.0(jiti@1.21.7)

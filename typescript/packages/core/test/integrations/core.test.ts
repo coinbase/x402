@@ -100,7 +100,8 @@ describe("Core Integration Tests", () => {
 
       const facilitatorClient = new CashFacilitatorClient(facilitator);
 
-      client = new x402HTTPClient().registerScheme(
+      const paymentClient = new x402Client();
+      client = new x402HTTPClient(paymentClient).registerScheme(
         "x402:cash",
         new CashSchemeNetworkClient("John"),
       ) as x402HTTPClient;

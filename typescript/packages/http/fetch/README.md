@@ -11,7 +11,7 @@ npm install @x402/fetch
 ## Quick Start
 
 ```typescript
-import { wrapFetchWithPayment } from "@x402/fetch";
+import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmClient } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -19,7 +19,7 @@ import { privateKeyToAccount } from "viem/accounts";
 const account = privateKeyToAccount("0xYourPrivateKey");
 
 // Wrap the fetch function with payment handling
-const fetchWithPayment = wrapFetchWithPayment(fetch, {
+const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
     {
       network: "eip155:8453", // Base Sepolia
@@ -38,9 +38,18 @@ const data = await response.json();
 
 ## API
 
-### `wrapFetchWithPayment(fetch, config)`
+### `wrapFetchWithPayment(fetch, client)`
 
 Wraps the native fetch API to handle 402 Payment Required responses automatically.
+
+#### Parameters
+
+- `fetch`: The fetch function to wrap (typically `globalThis.fetch`)
+- `client`: An x402Client instance with registered payment schemes
+
+### `wrapFetchWithPaymentFromConfig(fetch, config)`
+
+Convenience wrapper that creates an x402Client from a configuration object.
 
 #### Parameters
 
@@ -66,7 +75,7 @@ A wrapped fetch function that automatically handles 402 responses by:
 
 ```typescript
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
+import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmClient } from "@x402/evm";
 
@@ -76,7 +85,7 @@ const { EVM_PRIVATE_KEY, API_URL } = process.env;
 
 const account = privateKeyToAccount(EVM_PRIVATE_KEY as `0x${string}`);
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, {
+const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
     {
       network: "eip155:*", // Support all EVM chains
@@ -106,14 +115,38 @@ fetchWithPayment(API_URL, {
   });
 ```
 
-### Multi-Chain Support
+### Using Pre-built Client Helpers
+
+For convenience, you can use the pre-built client helpers from mechanism packages:
 
 ```typescript
 import { wrapFetchWithPayment } from "@x402/fetch";
+import { createEvmClient } from "@x402/evm/client";
+import { createSvmClient } from "@x402/svm/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+
+// Create EVM client
+const evmAccount = privateKeyToAccount("0xYourPrivateKey");
+const evmClient = createEvmClient({ signer: evmAccount });
+
+// Or create SVM client  
+const svmSigner = await createKeyPairSignerFromBytes(base58.decode("YourSvmPrivateKey"));
+const svmClient = createSvmClient({ signer: svmSigner });
+
+// Wrap fetch with the client
+const fetchWithPayment = wrapFetchWithPayment(fetch, evmClient);
+```
+
+### Multi-Chain Support
+
+```typescript
+import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmClient } from "@x402/evm";
 import { SolanaExactScheme } from "@x402/solana";
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, {
+const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
     // EVM chains
     {
@@ -137,7 +170,7 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, {
 ### Custom Payment Requirements Selector
 
 ```typescript
-import { wrapFetchWithPayment, type SelectPaymentRequirements } from "@x402/fetch";
+import { wrapFetchWithPaymentFromConfig, type SelectPaymentRequirements } from "@x402/fetch";
 
 // Custom selector that prefers the cheapest option
 const selectCheapestOption: SelectPaymentRequirements = (version, accepts) => {

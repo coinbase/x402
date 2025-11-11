@@ -1,44 +1,5 @@
-import { x402HTTPClient, type SelectPaymentRequirements } from "@x402/core/client";
-import { type PaymentRequired, type Network } from "@x402/core/types";
-import { type SchemeNetworkClient } from "@x402/core/types";
-
-/**
- * Configuration for registering a payment scheme with a specific network
- */
-export interface SchemeRegistration {
-  /**
-   * The network identifier (e.g., 'eip155:8453', 'solana:mainnet')
-   */
-  network: Network;
-
-  /**
-   * The scheme client implementation for this network
-   */
-  client: SchemeNetworkClient;
-
-  /**
-   * The x402 protocol version to use for this scheme
-   *
-   * @default 2
-   */
-  x402Version?: number;
-}
-
-/**
- * Configuration options for the fetch wrapper
- */
-export interface FetchWrapperConfig {
-  /**
-   * Array of scheme registrations defining which payment methods are supported
-   */
-  schemes: SchemeRegistration[];
-
-  /**
-   * Custom payment requirements selector function
-   * If not provided, uses the default selector (first available option)
-   */
-  paymentRequirementsSelector?: SelectPaymentRequirements;
-}
+import { x402Client, x402ClientConfig, x402HTTPClient } from "@x402/core/client";
+import { type PaymentRequired } from "@x402/core/types";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol v2.
@@ -77,24 +38,8 @@ export interface FetchWrapperConfig {
  * @throws {Error} If a payment has already been attempted for this request
  * @throws {Error} If there's an error creating the payment header
  */
-export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: FetchWrapperConfig) {
-  const { schemes, paymentRequirementsSelector } = config;
-
-  if (!schemes || schemes.length === 0) {
-    throw new Error("At least one scheme registration is required");
-  }
-
-  // Create and configure the x402HTTPClient
-  const client = new x402HTTPClient(paymentRequirementsSelector);
-
-  // Register all provided schemes
-  schemes.forEach(({ network, client: schemeClient, x402Version = 2 }) => {
-    if (x402Version === 1) {
-      client.registerSchemeV1(network, schemeClient);
-    } else {
-      client.registerScheme(network, schemeClient);
-    }
-  });
+export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x402Client) {
+  const httpClient = new x402HTTPClient(client);
 
   return async (input: RequestInfo, init?: RequestInit) => {
     const response = await fetch(input, init);
@@ -122,7 +67,7 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: Fet
         // Ignore JSON parse errors - might be header-only response
       }
 
-      paymentRequired = client.getPaymentRequiredResponse(responseHeaders, body);
+      paymentRequired = httpClient.getPaymentRequiredResponse(responseHeaders, body);
     } catch (error) {
       throw new Error(
         `Failed to parse payment requirements: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -140,7 +85,7 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: Fet
     }
 
     // Encode payment header
-    const paymentHeaders = client.encodePaymentSignatureHeader(paymentPayload);
+    const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
 
     // Ensure we have request init
     if (!init) {
@@ -169,14 +114,17 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, config: Fet
   };
 }
 
+export function wrapFetchWithPaymentFromConfig(fetch: typeof globalThis.fetch, config: x402ClientConfig) {
+  const client = x402Client.fromConfig(config);
+  return wrapFetchWithPayment(fetch, client);
+}
+
 // Re-export types and utilities for convenience
-export type { SelectPaymentRequirements } from "@x402/core/client";
-export type {
-  PaymentRequired,
-  PaymentRequirements,
-  PaymentPayload,
-  Network,
-} from "@x402/core/types";
-export type { SchemeNetworkClient } from "@x402/core/types";
-export { decodePaymentResponseHeader } from "@x402/core/http";
 export { x402HTTPClient } from "@x402/core/client";
+export type { PaymentPolicy, SchemeRegistration, SelectPaymentRequirements, x402ClientConfig } from "@x402/core/client";
+export { decodePaymentResponseHeader } from "@x402/core/http";
+export type {
+  Network, PaymentPayload, PaymentRequired,
+  PaymentRequirements, SchemeNetworkClient
+} from "@x402/core/types";
+

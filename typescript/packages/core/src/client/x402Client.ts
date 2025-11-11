@@ -7,11 +7,69 @@ import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
 
 /**
+ * A policy function that filters or transforms payment requirements.
+ * Policies are applied in order before the selector chooses the final option.
  *
+ * @param x402Version - The x402 protocol version
+ * @param paymentRequirements - Array of payment requirements to filter/transform
+ * @returns Filtered array of payment requirements
+ */
+export type PaymentPolicy = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements[];
+
+
+/**
+ * Configuration for registering a payment scheme with a specific network
+ */
+export interface SchemeRegistration {
+  /**
+   * The network identifier (e.g., 'eip155:8453', 'solana:mainnet')
+   */
+  network: Network;
+
+  /**
+   * The scheme client implementation for this network
+   */
+  client: SchemeNetworkClient;
+
+  /**
+   * The x402 protocol version to use for this scheme
+   *
+   * @default 2
+   */
+  x402Version?: number;
+}
+
+/**
+ * Configuration options for the fetch wrapper
+ */
+export interface x402ClientConfig {
+  /**
+   * Array of scheme registrations defining which payment methods are supported
+   */
+  schemes: SchemeRegistration[];
+
+  /**
+   * Policies to apply to the client
+   */
+  policies?: PaymentPolicy[];
+
+  /**
+   * Custom payment requirements selector function
+   * If not provided, uses the default selector (first available option)
+   */
+  paymentRequirementsSelector?: SelectPaymentRequirements;
+}
+
+/**
+ * Core client for managing x402 payment schemes and creating payment payloads.
+ *
+ * Handles registration of payment schemes, policy-based filtering of payment requirements,
+ * and creation of payment payloads based on server requirements.
  */
 export class x402Client {
   private readonly paymentRequirementsSelector: SelectPaymentRequirements;
   private readonly registeredClientSchemes: Map<number, Map<string, Map<string, SchemeNetworkClient>>> = new Map();
+  private readonly policies: PaymentPolicy[] = [];
 
   /**
    * Creates a new x402Client instance.
@@ -20,6 +78,21 @@ export class x402Client {
    */
   constructor(paymentRequirementsSelector?: SelectPaymentRequirements) {
     this.paymentRequirementsSelector = paymentRequirementsSelector || ((x402Version, accepts) => accepts[0]);
+  }
+
+  static fromConfig(config: x402ClientConfig): x402Client {
+    const client = new x402Client(config.paymentRequirementsSelector);
+    config.schemes.forEach(scheme => {
+      if (scheme.x402Version === 1) {
+        client.registerSchemeV1(scheme.network, scheme.client);
+      } else {
+        client.registerScheme(scheme.network, scheme.client);
+      }
+    });
+    config.policies?.forEach(policy => {
+      client.registerPolicy(policy);
+    });
+    return client;
   }
 
   /**
@@ -36,12 +109,39 @@ export class x402Client {
   /**
    * Registers a scheme client for x402 version 1.
    *
-   * @param network - The network to register the client for
+   * @param network - The v1 network identifier (e.g., 'base-sepolia', 'solana-devnet')
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  registerSchemeV1(network: Network, client: SchemeNetworkClient): x402Client {
-    return this._registerScheme(1, network, client);
+  registerSchemeV1(network: string, client: SchemeNetworkClient): x402Client {
+    return this._registerScheme(1, network as Network, client);
+  }
+
+  /**
+   * Registers a policy to filter or transform payment requirements.
+   *
+   * Policies are applied in order after filtering by registered schemes
+   * and before the selector chooses the final payment requirement.
+   *
+   * @param policy - Function to filter/transform payment requirements
+   * @returns The x402Client instance for chaining
+   *
+   * @example
+   * ```typescript
+   * // Prefer cheaper options
+   * client.registerPolicy((version, reqs) =>
+   *   reqs.filter(r => BigInt(r.value) < BigInt('1000000'))
+   * );
+   *
+   * // Prefer specific networks
+   * client.registerPolicy((version, reqs) =>
+   *   reqs.filter(r => r.network.startsWith('eip155:'))
+   * );
+   * ```
+   */
+  registerPolicy(policy: PaymentPolicy): x402Client {
+    this.policies.push(policy);
+    return this;
   }
 
   /**
@@ -85,7 +185,12 @@ export class x402Client {
 
 
   /**
-   * Selects appropriate payment requirements based on registered clients.
+   * Selects appropriate payment requirements based on registered clients and policies.
+   *
+   * Selection process:
+   * 1. Filter by registered schemes (network + scheme support)
+   * 2. Apply all registered policies in order
+   * 3. Use selector to choose final requirement
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - Array of available payment requirements
@@ -97,6 +202,7 @@ export class x402Client {
       throw new Error(`No client registered for x402 version: ${x402Version}`);
     }
 
+    // Step 1: Filter by registered schemes
     const supportedPaymentRequirements = paymentRequirements.filter(requirement => {
       let clientSchemes = findSchemesByNetwork(clientSchemesByNetwork, requirement.network);
       if (!clientSchemes) {
@@ -116,7 +222,18 @@ export class x402Client {
       })}`);
     }
 
-    return this.paymentRequirementsSelector(x402Version, supportedPaymentRequirements);
+    // Step 2: Apply all policies in order
+    let filteredRequirements = supportedPaymentRequirements;
+    for (const policy of this.policies) {
+      filteredRequirements = policy(x402Version, filteredRequirements);
+
+      if (filteredRequirements.length === 0) {
+        throw new Error(`All payment requirements were filtered out by policies for x402 version: ${x402Version}`);
+      }
+    }
+
+    // Step 3: Use selector to choose final requirement
+    return this.paymentRequirementsSelector(x402Version, filteredRequirements);
   }
 
   /**

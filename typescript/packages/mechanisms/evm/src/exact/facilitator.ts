@@ -21,7 +21,7 @@ export class ExactEvmFacilitator implements SchemeNetworkFacilitator {
    *
    * @param signer - The EVM signer for facilitator operations
    */
-  constructor(private readonly signer: FacilitatorEvmSigner) {}
+  constructor(private readonly signer: FacilitatorEvmSigner) { }
 
   /**
    * Verifies a payment payload.
