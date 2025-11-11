@@ -1,72 +1,207 @@
-# Go Facilitator for E2E Testing
+# E2E Test Facilitator: Go
 
-This is a real blockchain facilitator implementation using the x402 Go SDK. It connects to Base Sepolia testnet and performs actual on-chain operations.
+This facilitator demonstrates and tests the Go x402 facilitator implementation with both EVM and SVM payment verification and settlement.
 
-## Features
+## What It Tests
 
-- **Real EIP-712 Signature Verification**: Uses go-ethereum's apitypes for proper signature recovery and verification
-- **Actual Blockchain Calls**: Connects via RPC to read contract state
-- **On-Chain Settlement**: Executes real USDC transfers via `transferWithAuthorization`
-- **Transaction Monitoring**: Polls for actual transaction receipts
+### Core Functionality
+- ✅ **V2 Protocol** - Modern x402 facilitator protocol
+- ✅ **V1 Protocol** - Legacy x402 facilitator protocol
+- ✅ **Payment Verification** - Validates payment payloads off-chain
+- ✅ **Payment Settlement** - Executes transactions on-chain
+- ✅ **Multi-chain Support** - EVM and SVM mechanisms
+- ✅ **HTTP API** - HTTP server exposing facilitator endpoints
 
-## Environment Variables
+### Facilitator Endpoints
+- ✅ `POST /verify` - Verifies payment payload validity
+- ✅ `POST /settle` - Settles payment on blockchain
+- ✅ `GET /supported` - Returns supported payment kinds
+- ✅ **Extension Support** - Bazaar discovery extension
 
-Required:
-- `EVM_PRIVATE_KEY`: The facilitator's private key (must have ETH for gas and USDC for settlements)
-- `EVM_NETWORK`: Network identifier (e.g., "eip155:84532" for Base Sepolia)
+## What It Demonstrates
 
-Optional:
-- `PORT`: HTTP server port (default: 4022)
-- `EVM_RPC_URL`: RPC endpoint URL (default: "https://sepolia.base.org")
+### Facilitator Setup
 
-## Endpoints
+```go
+import (
+    x402 "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/mechanisms/evm"
+    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+    "github.com/coinbase/x402/go/mechanisms/svm"
+    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+    "github.com/coinbase/x402/go/extensions/bazaar"
+)
 
-- `POST /verify`: Verify a payment signature and check nonce state
-- `POST /settle`: Execute the payment on-chain
-- `GET /supported`: Return supported payment kinds
-- `GET /health`: Health check
-- `POST /close`: Graceful shutdown
+// Create facilitator
+facilitator := x402.Newx402Facilitator()
+facilitator.RegisterExtension(bazaar.EXTENSION_NAME)
 
-## Implementation Details
+// Register EVM V2 wildcard
+evmFacilitator := evm.NewExactEvmFacilitator(evmSigner)
+facilitator.RegisterScheme("eip155:*", evmFacilitator)
 
-### Real Blockchain Operations
+// Register EVM V1 networks
+evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
+facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
 
-#### Signature Verification
-- Reconstructs EIP-712 typed data hash
-- Recovers signer address from signature
-- Compares recovered address with expected payer
+// Register SVM V2 wildcard
+svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
+facilitator.RegisterScheme("solana:*", svmFacilitator)
 
-#### Contract Reads
-- Calls `authorizationState(address, bytes32)` to check if nonce is used
-- Calls `balanceOf(address)` to verify sufficient balance
-- Calls `allowance(address, address)` to verify spending approval
+// Register SVM V1 networks
+svmFacilitatorV1 := svmv1.NewExactSvmFacilitatorV1(svmSigner)
+facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1)
+```
 
-#### Contract Writes
-- Creates and signs transactions using the facilitator's private key
-- Executes `transferWithAuthorization` on USDC contract
-- Waits for transaction confirmation
+### HTTP Server
 
-### Type Handling
+```go
+import (
+    "net/http"
+    "encoding/json"
+)
 
-The facilitator automatically converts between Go types and Ethereum ABI types:
-- String addresses → `common.Address`
-- Hex string nonces → `[32]byte`
-- Separate v, r, s signature components → Single 65-byte signature
-- `*big.Int` values → uint256
+http.HandleFunc("/verify", handleVerify(facilitator))
+http.HandleFunc("/settle", handleSettle(facilitator))
+http.HandleFunc("/supported", handleSupported(facilitator))
+
+http.ListenAndServe(":4024", nil)
+```
+
+### Key Concepts Shown
+
+1. **Extension Registration** - Bazaar discovery support
+2. **Multi-Version Support** - V1 and V2 protocols
+3. **Multi-Chain Support** - EVM and SVM mechanisms
+4. **Wildcard Registration** - Efficient V2 scheme handling
+5. **Real Settlement** - Actual on-chain transaction execution
+6. **Error Handling** - Comprehensive verification errors
+
+## Test Scenarios
+
+This facilitator is tested with:
+- **Clients:** TypeScript Fetch, Go HTTP
+- **Servers:** Express (TypeScript), Gin (Go)
+- **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
+- **Protocols:** V1 and V2
+
+### Verification Flow
+1. Receives payment payload + requirements
+2. Validates signatures and authorization structure
+3. Returns verification result without blockchain interaction
+
+### Settlement Flow
+1. Receives payment payload + requirements
+2. Verifies payload validity
+3. Executes transaction on blockchain
+4. Returns transaction hash and status
 
 ## Running
 
 ```bash
-# Make executable
-chmod +x run.sh
+# Via e2e test suite
+cd e2e
+pnpm test --facilitator=go
 
-# Run with environment variables
-EVM_PRIVATE_KEY=0x... EVM_RPC_URL=https://... PORT=4022 ./run.sh
+# Direct execution
+cd e2e/facilitators/go
+export EVM_PRIVATE_KEY="0x..."
+export SVM_PRIVATE_KEY="..."
+export PORT=4024
+./go
 ```
 
-## Notes
+## Environment Variables
 
-- The facilitator requires ETH for gas fees on the testnet
-- For production, use a reliable RPC endpoint (Alchemy, Infura, etc.) to avoid rate limiting
-- The public Base Sepolia RPC may rate limit under heavy load
+- `PORT` - HTTP server port (default: 4024)
+- `EVM_PRIVATE_KEY` - Ethereum private key for settlement
+- `SVM_PRIVATE_KEY` - Solana private key for settlement
 
+## API Endpoints
+
+### POST /verify
+
+**Request:**
+```json
+{
+  "x402Version": 2,
+  "paymentPayload": { ... },
+  "paymentRequirements": { ... }
+}
+```
+
+**Response:**
+```json
+{
+  "isValid": true,
+  "payer": "0x...",
+  "scheme": "exact",
+  "network": "eip155:84532"
+}
+```
+
+### POST /settle
+
+**Request:**
+```json
+{
+  "x402Version": 2,
+  "paymentPayload": { ... },
+  "paymentRequirements": { ... }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:84532",
+  "payer": "0x...",
+  "scheme": "exact"
+}
+```
+
+### GET /supported
+
+**Response:**
+```json
+{
+  "kinds": [
+    {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "extensions": ["bazaar"]
+    }
+  ]
+}
+```
+
+## Implementation Details
+
+### EVM Facilitator
+- Verifies EIP-712 signatures
+- Calls `transferWithAuthorization()` on USDC contract
+- Uses go-ethereum for blockchain interaction
+- Handles gas estimation and transaction submission
+
+### SVM Facilitator
+- Verifies ed25519 signatures
+- Completes partially-signed SPL Token transactions
+- Adds fee payer signature
+- Submits to Solana RPC
+
+### Extension Support
+- **Bazaar** - Discovery extension for API documentation
+- Registered at facilitator level
+- Included in supported kinds response
+
+## Dependencies
+
+- `github.com/coinbase/x402/go` - Core facilitator
+- `github.com/coinbase/x402/go/mechanisms/evm` - EVM mechanisms
+- `github.com/coinbase/x402/go/mechanisms/svm` - SVM mechanisms
+- `github.com/coinbase/x402/go/extensions/bazaar` - Bazaar extension
+- `github.com/ethereum/go-ethereum` - Ethereum client
+- `github.com/gagliardetto/solana-go` - Solana client

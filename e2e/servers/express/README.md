@@ -1,113 +1,170 @@
-# x402 Express E2E Test Server
+# E2E Test Server: Express (TypeScript)
 
-This directory contains an Express server configured with x402 payment middleware for end-to-end testing.
+This server demonstrates and tests the x402 Express.js middleware with both EVM and SVM payment protection.
 
-## Overview
+## What It Tests
 
-The server demonstrates how to integrate x402 payment protection into an Express application. It includes:
+### Core Functionality
+- ✅ **V2 Protocol** - Modern x402 server middleware
+- ✅ **Payment Protection** - Middleware protecting specific routes
+- ✅ **Multi-chain Support** - EVM and SVM payment acceptance
+- ✅ **Facilitator Integration** - HTTP communication with facilitator
+- ✅ **Extension Support** - Bazaar discovery metadata
+- ✅ **Settlement Handling** - Payment verification and confirmation
 
-- **Payment-protected endpoints** requiring micropayments to access
-- **Local facilitator** for testing without external dependencies  
-- **EVM support** for Base Sepolia testnet transactions
+### Protected Endpoints
+- ✅ `GET /protected` - Requires EVM payment (USDC on Base Sepolia)
+- ✅ `GET /protected-svm` - Requires SVM payment (USDC on Solana Devnet)
 
-## Setup
+## What It Demonstrates
 
-### Prerequisites
+### Server Setup
 
-1. Node.js and pnpm installed
-2. Environment variables configured:
-   ```bash
-   EVM_PRIVATE_KEY=0x...  # Private key for facilitator account
-   EVM_PAYEE_ADDRESS=0x...      # Address to receive payments
-   PORT=4021              # Optional: server port (defaults to 4021)
-   ```
+```typescript
+import express from "express";
+import { x402Middleware } from "@x402/server/express";
+import { ExactEvmService } from "@x402/evm";
+import { ExactSvmService } from "@x402/svm";
 
-### Installation
+const app = express();
 
-```bash
-pnpm install
+// Define payment requirements for routes
+const routes = {
+  "GET /protected": {
+    scheme: "exact",
+    network: "eip155:84532",
+    payTo: "0xYourAddress",
+    price: "$0.001",
+    extensions: {
+      bazaar: discoveryMetadata
+    }
+  },
+  "GET /protected-svm": {
+    scheme: "exact",
+    network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+    payTo: "YourSolanaAddress",
+    price: "$0.001",
+    extensions: {
+      bazaar: discoveryMetadata
+    }
+  }
+};
+
+// Apply x402 middleware with EVM and SVM services
+app.use(x402Middleware({
+  routes,
+  facilitatorUrl: "http://localhost:4023",
+  services: {
+    "eip155:84532": new ExactEvmService(),
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": new ExactSvmService()
+  }
+}));
+
+// Define protected endpoints
+app.get("/protected", (req, res) => {
+  res.json({ message: "EVM payment successful!" });
+});
+
+app.get("/protected-svm", (req, res) => {
+  res.json({ message: "SVM payment successful!" });
+});
 ```
 
-### Running the Server
+### Key Concepts Shown
+
+1. **Route-Based Configuration** - Payment requirements per route
+2. **Multi-Chain Services** - Different services for different networks
+3. **Price Parsing** - Dollar amounts converted to token units
+4. **Facilitator Client** - HTTP communication with payment processor
+5. **Extension Metadata** - Bazaar discovery info embedded in responses
+6. **Automatic 402 Responses** - Middleware generates payment requirements
+
+## Test Scenarios
+
+This server is tested with:
+- **Clients:** TypeScript Fetch, Go HTTP
+- **Facilitators:** TypeScript, Go
+- **Payment Types:** EVM (Base Sepolia), SVM (Solana Devnet)
+- **Protocols:** V2 (primary), V1 (via client negotiation)
+
+### Request Flow
+1. Client makes initial request (no payment)
+2. Middleware returns 402 with payment requirements
+3. Client creates payment payload
+4. Client retries with payment signature
+5. Middleware verifies payment via facilitator
+6. Middleware returns protected content
+
+## Running
 
 ```bash
-pnpm run start
+# Via e2e test suite
+cd e2e
+pnpm test --server=express
+
+# Direct execution
+cd e2e/servers/express
+export FACILITATOR_URL="http://localhost:4023"
+export EVM_PAYEE_ADDRESS="0x..."
+export SVM_PAYEE_ADDRESS="..."
+export PORT=4022
+pnpm start
 ```
 
-Or for development with auto-reload:
+## Environment Variables
 
-```bash
-pnpm run dev
+- `PORT` - HTTP server port (default: 4022)
+- `FACILITATOR_URL` - Facilitator endpoint URL
+- `EVM_PAYEE_ADDRESS` - Ethereum address to receive payments
+- `SVM_PAYEE_ADDRESS` - Solana address to receive payments
+- `EVM_NETWORK` - EVM network (default: eip155:84532)
+- `SVM_NETWORK` - SVM network (default: solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1)
+
+## Response Examples
+
+### 402 Payment Required (No Payment Sent)
+
+```
+HTTP/1.1 402 Payment Required
+PAYMENT-REQUIRED: <base64-encoded-payment-requirements>
+
+{
+  "error": "Payment required",
+  "x402Version": 2,
+  "accepts": [...]
+}
 ```
 
-## Endpoints
+### 200 Success (Payment Verified)
 
-### Protected Endpoint
-- **GET /protected** - Requires $0.001 USDC payment on Base Sepolia
-- Returns success message with timestamp when payment is valid
+```
+HTTP/1.1 200 OK
+PAYMENT-RESPONSE: <base64-encoded-settlement-response>
 
-### Utility Endpoints  
-- **GET /health** - Health check (no payment required)
-- **POST /close** - Gracefully shutdown server (for testing)
-
-## Architecture
-
-### Components
-
-1. **`index.ts`** - Main server file with Express app and route configuration
-2. **`facilitator.ts`** - Local facilitator setup for payment processing
-
-### Payment Flow
-
-1. Client requests protected endpoint
-2. Server returns 402 Payment Required with payment instructions
-3. Client creates and signs payment
-4. Client retries request with payment signature
-5. Server verifies payment via facilitator
-6. If valid, server processes request and settles payment
-7. Server returns response with settlement confirmation
-
-## Testing
-
-This server is used by the e2e test suite to verify x402 client implementations. The local facilitator allows testing without relying on external services.
-
-### Running E2E Tests
-
-From the project root:
-
-```bash
-pnpm run test:e2e
+{
+  "message": "Protected endpoint accessed successfully"
+}
 ```
 
-## Production Considerations
+## Package Dependencies
 
-For production use:
+- `@x402/server` - Express middleware
+- `@x402/evm` - EVM service
+- `@x402/svm` - SVM service
+- `@x402/extensions/bazaar` - Discovery extension
+- `express` - HTTP server framework
 
-1. Replace the local facilitator with a remote facilitator service
-2. Configure appropriate payment amounts and networks
-3. Add proper error handling and logging
-4. Implement rate limiting and security measures
-5. Use environment-specific configuration
+## Implementation Highlights
 
-## Troubleshooting
+### Middleware Features
+- **Automatic 402 Responses** - Generates payment requirements
+- **Payment Verification** - Validates via facilitator
+- **Settlement Tracking** - Includes payment response headers
+- **Extension Support** - Embeds bazaar metadata
+- **Error Handling** - Clear error messages for payment failures
 
-### Common Issues
-
-1. **"EVM_PRIVATE_KEY environment variable is required"**
-   - Ensure `.env` file exists with required variables
-   - Check that dotenv is loading correctly
-
-2. **"Server already running on port"**
-   - Check for existing processes: `lsof -i :4021`
-   - Kill existing process or use different port
-
-3. **Payment verification fails**
-   - Verify private key matches the expected account
-   - Check network configuration matches client
-   - Ensure sufficient balance for gas fees
-
-## Related Documentation
-
-- [x402 Protocol Specification](../../../specs/x402-specification.md)
-- [Express Middleware Package](../../../typescript/packages/http/express/README.md)
-- [E2E Test Suite](../../README.md)
+### Service Integration
+- **EVM Service** - Handles Base Sepolia USDC payments
+- **SVM Service** - Handles Solana Devnet USDC payments
+- **Price Conversion** - "$0.001" → token amounts with decimals
+- **Asset Resolution** - Automatic USDC contract/mint lookup

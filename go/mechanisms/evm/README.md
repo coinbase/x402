@@ -1,30 +1,27 @@
-# EVM Mechanism for x402 (V2)
+# EVM Mechanism for x402
 
-This package provides V2 EVM blockchain support for the x402 payment protocol. It implements the `exact` payment scheme using EIP-3009 TransferWithAuthorization.
+EVM (Ethereum Virtual Machine) implementation of the x402 payment protocol using the **Exact** payment scheme with EIP-3009 TransferWithAuthorization.
 
-**Note**: This is the V2 implementation which supports x402 protocol version 2. For V1 support, use the `v1` subpackage.
+## Package Structure
 
-## Features
-
-- **EIP-3009 Support**: Gasless token transfers using TransferWithAuthorization
-- **EIP-712 Signing**: Structured data signing for secure authorization
-- **Multi-Network Support**: Base, Base Sepolia, Ethereum Mainnet
-- **USDC Integration**: Default support for USDC stablecoin
-- **Modular Design**: Clean separation between client, facilitator, and service components
-
-## Installation
-
-```go
-// For V2 (default, recommended)
-import "github.com/coinbase/x402/go/mechanisms/evm"
-
-// For V1 (legacy support)
-import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+```
+evm/
+├── client.go       # ExactEvmClient (V2)
+├── facilitator.go  # ExactEvmFacilitator (V2)
+├── service.go      # ExactEvmService (V2)
+├── builder.go      # NewEvmClient() convenience builder
+├── v1/
+│   ├── client.go      # ExactEvmClientV1
+│   ├── facilitator.go # ExactEvmFacilitatorV1
+│   ├── service.go     # ExactEvmServiceV1
+│   └── evm.go         # V1 helpers + NETWORKS constant
 ```
 
-## Usage
+## Components
 
-### Client-Side (Payment Creation)
+### Client (Payment Creation)
+
+**V2:** `ExactEvmClient` - Creates payments using EIP-3009 with CAIP-2 networks
 
 ```go
 import (
@@ -32,136 +29,115 @@ import (
     "github.com/coinbase/x402/go/mechanisms/evm"
 )
 
-// Implement the ClientEvmSigner interface
-type mySigner struct {
-    // Your wallet implementation
-}
-
-func (s *mySigner) Address() string {
-    return "0x..." // Your address
-}
-
-func (s *mySigner) SignTypedData(domain evm.TypedDataDomain, types map[string][]evm.TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error) {
-    // Your EIP-712 signing implementation
-}
-
-// Create payment
-signer := &mySigner{}
 client := x402.Newx402Client()
-evm.RegisterClient(client, signer, "base")
-
-requirements := x402.PaymentRequirements{
-    Network: "base",
-    Asset:   "USDC",
-    PayTo:   "0xrecipient",
-    Amount:  "1.50", // $1.50 USDC
-}
-
-payload, err := client.CreatePaymentPayload(ctx, 2, requirements)
+evmClient := evm.NewExactEvmClient(mySigner)
+client.RegisterScheme("eip155:*", evmClient)
 ```
 
-### Facilitator-Side (Verification & Settlement)
+**V1:** `ExactEvmClientV1` - Legacy implementation with simple network names
 
 ```go
-// Implement the FacilitatorEvmSigner interface
-type myFacilitatorSigner struct {
-    // Your blockchain client implementation
-}
+import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 
-// Create facilitator
+evmClientV1 := evmv1.NewExactEvmClientV1(mySigner)
+client.RegisterSchemeV1("base-sepolia", evmClientV1)
+```
+
+### Facilitator (Payment Verification & Settlement)
+
+**V2:** `ExactEvmFacilitator` - Verifies and settles EIP-3009 payments
+
+```go
 facilitator := x402.Newx402Facilitator()
-signer := &myFacilitatorSigner{}
-evm.RegisterFacilitator(facilitator, signer, "base")
+evmFacilitator := evm.NewExactEvmFacilitator(myFacilitatorSigner)
+facilitator.RegisterScheme("eip155:8453", evmFacilitator)
 
 // Verify payment
-verifyResp, err := facilitator.Verify(ctx, payload, requirements)
-if verifyResp.IsValid {
-    // Payment is valid
-    fmt.Printf("Payer: %s\n", verifyResp.Payer)
-}
+verifyResp, err := facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 
-// Settle payment on-chain
-settleResp, err := facilitator.Settle(ctx, payload, requirements)
-if settleResp.Success {
-    fmt.Printf("Transaction: %s\n", settleResp.Transaction)
-}
+// Settle on-chain
+settleResp, err := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 ```
 
-### Service-Side (Price Parsing & Requirements)
+**V1:** `ExactEvmFacilitatorV1` - Legacy verification and settlement
+
+### Service (Payment Requirements)
+
+**V2:** `ExactEvmService` - Builds payment requirements for protected resources
 
 ```go
-// Create service with EVM support
 service := x402.Newx402ResourceService(
-    evm.RegisterService("base", "base-sepolia")...,
+    evm.RegisterService("eip155:8453")...,
 )
 
-// Parse price to asset amount
-assetAmount, err := evmService.ParsePrice("$1.50", "base")
-// Returns: { Asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", Amount: "1500000" }
+// Service handles price parsing and requirement building
+```
 
-// Enhance payment requirements
-enhanced, err := evmService.EnhancePaymentRequirements(
-    ctx,
-    requirements,
-    supportedKind,
-    []string{"customField"},
+**V1:** `ExactEvmServiceV1` - Legacy requirement building
+
+## Convenience Builder
+
+**`NewEvmClient(config)`** - Pre-configured client with V1+V2 support
+
+```go
+import (
+    "github.com/coinbase/x402/go/mechanisms/evm"
+    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 )
+
+client := evm.NewEvmClient(evm.EvmClientConfig{
+    Signer: myEvmSigner,
+    NewEvmClientV1: func(s evm.ClientEvmSigner) x402.SchemeNetworkClient {
+        return evmv1.NewExactEvmClientV1(s)
+    },
+})
+// Registers eip155:* for V2 + all V1 networks automatically
 ```
 
 ## Supported Networks
 
-| Network | Chain ID | USDC Address | Network String |
-|---------|----------|--------------|----------------|
-| Base Mainnet | 8453 | 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 | `base`, `base-mainnet`, `eip155:8453` |
-| Base Sepolia | 84532 | 0x036CbD53842c5426634e7929541eC2318f3dCF7e | `base-sepolia`, `eip155:84532` |
-| Ethereum Mainnet | 1 | 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48 | `eip155:1` |
+**V2 Networks** (CAIP-2 format):
+- `eip155:1` - Ethereum Mainnet
+- `eip155:8453` - Base Mainnet
+- `eip155:84532` - Base Sepolia  
+- `eip155:*` - Wildcard (all EVM chains)
 
-## EIP-3009 Authorization Structure
+**V1 Networks** (see `v1.NETWORKS`):
+- 15 networks including Base, Polygon, Avalanche, Sei, etc.
 
-The exact payment scheme uses EIP-3009 TransferWithAuthorization with the following structure:
+## Signer Interfaces
 
+### ClientEvmSigner (Client-side)
 ```go
-type ExactEIP3009Authorization struct {
-    From        string // Token holder address
-    To          string // Recipient address
-    Value       string // Amount in smallest unit (e.g., 1000000 = 1 USDC)
-    ValidAfter  string // Unix timestamp
-    ValidBefore string // Unix timestamp
-    Nonce       string // 32-byte unique nonce
+type ClientEvmSigner interface {
+    Address() string
+    SignTypedData(domain, types, primaryType, message) ([]byte, error)
+}
+```
+
+### FacilitatorEvmSigner (Facilitator-side)
+```go
+type FacilitatorEvmSigner interface {
+    SendTransaction(ctx, chainID, data) (string, error)
+    WaitForTransaction(ctx, chainID, txHash) error
 }
 ```
 
 ## Testing
 
 ```bash
-cd go/mechanisms/evm
-go test -v
+go test ./...                    # All tests
+go test -v ./mechanisms/evm      # V2 tests
+go test -v ./mechanisms/evm/v1   # V1 tests
 ```
 
 ## Dependencies
 
-- `github.com/ethereum/go-ethereum`: Ethereum Go implementation
-- `github.com/coinbase/x402/go`: Core x402 protocol
+- `github.com/ethereum/go-ethereum` - Ethereum Go implementation
+- `github.com/coinbase/x402/go` - Core x402 protocol
 
-## Version Differences
+## Related Packages
 
-### V2 (This Package)
-- Supports x402 protocol version 2
-- No buffer on `validAfter` (can be used immediately)
-- Default validity window of 1 hour
-- Enhanced price parsing with multiple format support
-
-### V1 (v1 Subpackage)
-- Supports x402 protocol version 1 only
-- 10-minute buffer subtracted from `validAfter`
-- Default validity window of 10 minutes
-- Simpler price parsing logic
-
-For backward compatibility with existing V1 integrations, use:
-```go
-import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
-```
-
-## License
-
-See the main x402 repository for license information.
+- `github.com/coinbase/x402/go` - Core x402 client
+- `github.com/coinbase/x402/go/http` - HTTP integration
+- `github.com/coinbase/x402/go/mechanisms/svm` - Solana implementation
