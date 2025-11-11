@@ -27,26 +27,28 @@ export interface EvmClientConfig {
 
 /**
  * Creates an x402Client configured for EVM payments.
- * 
+ *
  * Registers:
  * - V2: eip155:* scheme with ExactEvmClient
  * - V1: All supported EVM networks with ExactEvmClientV1
- * 
+ *
  * @param config - Configuration for the EVM client
  * @returns A configured x402Client instance
- * 
+ *
  * @example
  * ```typescript
  * import { createEvmClient } from "@x402/evm/client";
  * import { toClientEvmSigner } from "@x402/evm";
- * 
+ *
  * const signer = toClientEvmSigner(wallet);
  * const client = createEvmClient({ signer });
  * ```
  */
 export function createEvmClient(config: EvmClientConfig): x402Client {
-  const client = new x402Client(config.paymentRequirementsSelector)
-    .registerScheme("eip155:*", new ExactEvmClient(config.signer));
+  const client = new x402Client(config.paymentRequirementsSelector).registerScheme(
+    "eip155:*",
+    new ExactEvmClient(config.signer),
+  );
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
@@ -62,4 +64,3 @@ export function createEvmClient(config: EvmClientConfig): x402Client {
 
   return client;
 }
-

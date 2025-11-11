@@ -3,10 +3,9 @@ import {
   decodePaymentResponseHeader,
   encodePaymentSignatureHeader,
 } from ".";
-import { SettleResponse, Network } from "../types";
+import { SettleResponse } from "../types";
 import { PaymentPayload, PaymentRequired } from "../types/payments";
-import { x402Client, PaymentPolicy } from "../client/x402Client";
-import { SchemeNetworkClient } from "../types/mechanisms";
+import { x402Client } from "../client/x402Client";
 
 /**
  * HTTP-specific client for handling x402 payment protocol over HTTP.
@@ -20,7 +19,7 @@ export class x402HTTPClient {
    *
    * @param client - The underlying x402Client for payment logic
    */
-  constructor(private readonly client: x402Client) { }
+  constructor(private readonly client: x402Client) {}
 
   /**
    * Encodes a payment payload into appropriate HTTP headers based on version.

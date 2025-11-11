@@ -3,12 +3,7 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
-    "lib": [
-      "DOM"
-    ]
+    "lib": ["DOM"]
   },
-  "include": [
-    "src",
-    "test/unit/index.test.ts"
-  ]
+  "include": ["src", "test/unit/index.test.ts"]
 }

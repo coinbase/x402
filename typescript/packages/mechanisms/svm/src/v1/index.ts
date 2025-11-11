@@ -3,8 +3,4 @@
  */
 export { ExactSvmClientV1, ExactSvmFacilitatorV1 } from "../exact/v1";
 
-export const NETWORKS: string[] = [
-  "solana",
-  "solana-devnet",
-  "solana-testnet",
-];
+export const NETWORKS: string[] = ["solana", "solana-devnet", "solana-testnet"];

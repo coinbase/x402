@@ -27,26 +27,28 @@ export interface SvmClientConfig {
 
 /**
  * Creates an x402Client configured for SVM payments.
- * 
+ *
  * Registers:
  * - V2: solana:* scheme with ExactSvmClient
  * - V1: All supported SVM networks with ExactSvmClientV1
- * 
+ *
  * @param config - Configuration for the SVM client
  * @returns A configured x402Client instance
- * 
+ *
  * @example
  * ```typescript
  * import { createSvmClient } from "@x402/svm/client";
  * import { toClientSvmSigner } from "@x402/svm";
- * 
+ *
  * const signer = toClientSvmSigner(wallet);
  * const client = createSvmClient({ signer });
  * ```
  */
 export function createSvmClient(config: SvmClientConfig): x402Client {
-  const client = new x402Client(config.paymentRequirementsSelector)
-    .registerScheme("solana:*", new ExactSvmClient(config.signer));
+  const client = new x402Client(config.paymentRequirementsSelector).registerScheme(
+    "solana:*",
+    new ExactSvmClient(config.signer),
+  );
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
@@ -62,4 +64,3 @@ export function createSvmClient(config: SvmClientConfig): x402Client {
 
   return client;
 }
-

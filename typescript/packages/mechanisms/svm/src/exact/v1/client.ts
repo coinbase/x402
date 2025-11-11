@@ -1,5 +1,4 @@
 import {
-  estimateComputeUnitLimitFactory,
   getSetComputeUnitLimitInstruction,
   setTransactionMessageComputeUnitPrice,
 } from "@solana-program/compute-budget";
@@ -50,7 +49,7 @@ export class ExactSvmClientV1 implements SchemeNetworkClient {
   constructor(
     private readonly signer: ClientSvmSigner,
     private readonly config?: ClientSvmConfig,
-  ) { }
+  ) {}
 
   /**
    * Creates a payment payload for the Exact scheme (V1).

@@ -12,7 +12,7 @@ import { type PaymentRequired } from "@x402/core/types";
  * 4. Retry the request with the payment header
  *
  * @param fetch - The fetch function to wrap (typically globalThis.fetch)
- * @param config - Configuration options including scheme registrations and selectors
+ * @param client - Configured x402Client instance for handling payments
  * @returns A wrapped fetch function that handles 402 responses automatically
  *
  * @example
@@ -114,17 +114,34 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x40
   };
 }
 
-export function wrapFetchWithPaymentFromConfig(fetch: typeof globalThis.fetch, config: x402ClientConfig) {
+/**
+ * Creates a payment-enabled fetch function from a configuration object.
+ *
+ * @param fetch - The fetch function to wrap (typically globalThis.fetch)
+ * @param config - Configuration options including scheme registrations and selectors
+ * @returns A wrapped fetch function that handles 402 responses automatically
+ */
+export function wrapFetchWithPaymentFromConfig(
+  fetch: typeof globalThis.fetch,
+  config: x402ClientConfig,
+) {
   const client = x402Client.fromConfig(config);
   return wrapFetchWithPayment(fetch, client);
 }
 
 // Re-export types and utilities for convenience
 export { x402HTTPClient } from "@x402/core/client";
-export type { PaymentPolicy, SchemeRegistration, SelectPaymentRequirements, x402ClientConfig } from "@x402/core/client";
+export type {
+  PaymentPolicy,
+  SchemeRegistration,
+  SelectPaymentRequirements,
+  x402ClientConfig,
+} from "@x402/core/client";
 export { decodePaymentResponseHeader } from "@x402/core/http";
 export type {
-  Network, PaymentPayload, PaymentRequired,
-  PaymentRequirements, SchemeNetworkClient
+  Network,
+  PaymentPayload,
+  PaymentRequired,
+  PaymentRequirements,
+  SchemeNetworkClient,
 } from "@x402/core/types";
-

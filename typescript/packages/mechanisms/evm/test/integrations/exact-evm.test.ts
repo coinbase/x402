@@ -51,7 +51,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    *
    * @param facilitator - The x402 facilitator to wrap
    */
-  constructor(private readonly facilitator: x402Facilitator) { }
+  constructor(private readonly facilitator: x402Facilitator) {}
 
   /**
    * Verifies a payment payload
@@ -307,7 +307,10 @@ describe("EVM Integration Tests", () => {
 
       const evmClient = new ExactEvmClient(clientAccount);
       const paymentClient = new x402Client();
-      client = new x402HTTPClient(paymentClient).registerScheme("eip155:84532", evmClient) as x402HTTPClient;
+      client = new x402HTTPClient(paymentClient).registerScheme(
+        "eip155:84532",
+        evmClient,
+      ) as x402HTTPClient;
 
       service = new x402HTTPResourceService(routes, facilitatorClient);
       service.registerScheme("eip155:84532", new ExactEvmService());

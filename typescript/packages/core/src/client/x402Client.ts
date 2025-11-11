@@ -80,6 +80,12 @@ export class x402Client {
     this.paymentRequirementsSelector = paymentRequirementsSelector || ((x402Version, accepts) => accepts[0]);
   }
 
+  /**
+   * Creates a new x402Client instance from a configuration object.
+   *
+   * @param config - The client configuration including schemes, policies, and payment requirements selector
+   * @returns A configured x402Client instance
+   */
   static fromConfig(config: x402ClientConfig): x402Client {
     const client = new x402Client(config.paymentRequirementsSelector);
     config.schemes.forEach(scheme => {

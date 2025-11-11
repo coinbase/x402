@@ -8,9 +8,7 @@ import {
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   findAssociatedTokenPda,
-  parseCreateAssociatedTokenInstruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
@@ -47,7 +45,7 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
    * @param signer - The SVM RPC client for facilitator operations
    * @returns ExactSvmFacilitatorV1 instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) { }
+  constructor(private readonly signer: FacilitatorSvmSigner) {}
 
   /**
    * Verifies a payment payload (V1).
@@ -98,7 +96,6 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
     ) as CompiledTransactionMessage;
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
-    const staticAccounts = compiled.staticAccounts ?? [];
 
     // 3 instructions: ComputeLimit + ComputePrice + TransferChecked
     if (instructions.length !== 3) {
@@ -354,9 +351,10 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
    * @param instruction.programAddress - Program address
    * @param instruction.data - Instruction data bytes
    */
-  private verifyComputeLimitInstruction(
-    instruction: { programAddress: Address; data?: Readonly<Uint8Array> },
-  ): void {
+  private verifyComputeLimitInstruction(instruction: {
+    programAddress: Address;
+    data?: Readonly<Uint8Array>;
+  }): void {
     const programAddress = instruction.programAddress.toString();
 
     if (
@@ -385,9 +383,10 @@ export class ExactSvmFacilitatorV1 implements SchemeNetworkFacilitator {
    * @param instruction.programAddress - Program address
    * @param instruction.data - Instruction data bytes
    */
-  private verifyComputePriceInstruction(
-    instruction: { programAddress: Address; data?: Readonly<Uint8Array> },
-  ): void {
+  private verifyComputePriceInstruction(instruction: {
+    programAddress: Address;
+    data?: Readonly<Uint8Array>;
+  }): void {
     const programAddress = instruction.programAddress.toString();
 
     if (
