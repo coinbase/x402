@@ -259,6 +259,7 @@ export function paymentMiddleware(
           const verifyReq = fallbackReq || { network: network || 'solana', extra: { sku: meta.sku } };
           //@ts-ignore
           const altResponse = await verify({ x402Meta: meta }, verifyReq);
+          console.log(altResponse)
           if (altResponse && altResponse.isValid) {
             alreadyVerified = true;
 
