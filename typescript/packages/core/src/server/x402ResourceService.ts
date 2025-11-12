@@ -28,6 +28,68 @@ export interface ResourceInfo {
 }
 
 /**
+ * Lifecycle Hook Context Interfaces
+ */
+
+export interface VerifyContext {
+  paymentPayload: PaymentPayload;
+  requirements: PaymentRequirements;
+  timestamp: number;
+  requestMetadata?: Record<string, unknown>;
+}
+
+export interface VerifyResultContext extends VerifyContext {
+  result: VerifyResponse;
+  duration: number;
+}
+
+export interface VerifyFailureContext extends VerifyContext {
+  error: Error;
+  duration: number;
+}
+
+export interface SettleContext {
+  paymentPayload: PaymentPayload;
+  requirements: PaymentRequirements;
+  timestamp: number;
+  requestMetadata?: Record<string, unknown>;
+}
+
+export interface SettleResultContext extends SettleContext {
+  result: SettleResponse;
+  duration: number;
+}
+
+export interface SettleFailureContext extends SettleContext {
+  error: Error;
+  duration: number;
+}
+
+/**
+ * Lifecycle Hook Type Definitions
+ */
+
+export type BeforeVerifyHook = (
+  context: VerifyContext,
+) => Promise<void | { abort: true; reason: string }>;
+
+export type AfterVerifyHook = (context: VerifyResultContext) => Promise<void>;
+
+export type OnVerifyFailureHook = (
+  context: VerifyFailureContext,
+) => Promise<void | { recovered: true; result: VerifyResponse }>;
+
+export type BeforeSettleHook = (
+  context: SettleContext,
+) => Promise<void | { abort: true; reason: string }>;
+
+export type AfterSettleHook = (context: SettleResultContext) => Promise<void>;
+
+export type OnSettleFailureHook = (
+  context: SettleFailureContext,
+) => Promise<void | { recovered: true; result: SettleResponse }>;
+
+/**
  * Core x402 protocol server for resource protection
  * Transport-agnostic implementation of the x402 payment protocol
  */
@@ -39,6 +101,14 @@ export class x402ResourceService {
     new Map();
   private facilitatorClientsMap: Map<number, Map<string, Map<string, FacilitatorClient>>> =
     new Map();
+
+  // Lifecycle hooks
+  private beforeVerifyHooks: BeforeVerifyHook[] = [];
+  private afterVerifyHooks: AfterVerifyHook[] = [];
+  private onVerifyFailureHooks: OnVerifyFailureHook[] = [];
+  private beforeSettleHooks: BeforeSettleHook[] = [];
+  private afterSettleHooks: AfterSettleHook[] = [];
+  private onSettleFailureHooks: OnSettleFailureHook[] = [];
 
   /**
    * Creates a new x402ResourceService instance.
@@ -77,6 +147,76 @@ export class x402ResourceService {
       serverByScheme.set(server.scheme, server);
     }
 
+    return this;
+  }
+
+  /**
+   * Register a hook to execute before payment verification.
+   * Can abort verification by returning { abort: true, reason: string }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onBeforeVerify(hook: BeforeVerifyHook): x402ResourceService {
+    this.beforeVerifyHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute after successful payment verification.
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onAfterVerify(hook: AfterVerifyHook): x402ResourceService {
+    this.afterVerifyHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute when payment verification fails.
+   * Can recover from failure by returning { recovered: true, result: VerifyResponse }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onVerifyFailure(hook: OnVerifyFailureHook): x402ResourceService {
+    this.onVerifyFailureHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute before payment settlement.
+   * Can abort settlement by returning { abort: true, reason: string }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onBeforeSettle(hook: BeforeSettleHook): x402ResourceService {
+    this.beforeSettleHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute after successful payment settlement.
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onAfterSettle(hook: AfterSettleHook): x402ResourceService {
+    this.afterSettleHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute when payment settlement fails.
+   * Can recover from failure by returning { recovered: true, result: SettleResponse }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  onSettleFailure(hook: OnSettleFailureHook): x402ResourceService {
+    this.onSettleFailureHooks.push(hook);
     return this;
   }
 
@@ -225,7 +365,7 @@ export class x402ResourceService {
     );
 
     // Parse the price using the scheme's price parser
-    const parsedPrice = SchemeNetworkService.parsePrice(
+    const parsedPrice = await SchemeNetworkService.parsePrice(
       resourceConfig.price,
       resourceConfig.network,
     );
@@ -290,46 +430,100 @@ export class x402ResourceService {
    *
    * @param paymentPayload - The payment payload to verify
    * @param requirements - The payment requirements
+   * @param metadata - Optional metadata for hook context
    * @returns Verification response
    */
   async verifyPayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    metadata?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
-    // Find the facilitator that supports this payment type
-    const facilitatorClient = this.getFacilitatorClient(
-      paymentPayload.x402Version,
-      requirements.network,
-      requirements.scheme,
-    );
+    const startTime = Date.now();
+    const context: VerifyContext = {
+      paymentPayload,
+      requirements,
+      timestamp: startTime,
+      requestMetadata: metadata,
+    };
 
-    if (!facilitatorClient) {
-      // Fallback: try all facilitators if no specific support found
-      let lastError: Error | undefined;
+    // Execute beforeVerify hooks
+    for (const hook of this.beforeVerifyHooks) {
+      const result = await hook(context);
+      if (result && "abort" in result && result.abort) {
+        return {
+          isValid: false,
+          invalidReason: result.reason,
+        };
+      }
+    }
 
-      for (const client of this.facilitatorClients) {
-        try {
-          return await client.verify(paymentPayload, requirements);
-        } catch (error) {
-          lastError = error as Error;
+    try {
+      // Find the facilitator that supports this payment type
+      const facilitatorClient = this.getFacilitatorClient(
+        paymentPayload.x402Version,
+        requirements.network,
+        requirements.scheme,
+      );
+
+      let verifyResult: VerifyResponse;
+
+      if (!facilitatorClient) {
+        // Fallback: try all facilitators if no specific support found
+        let lastError: Error | undefined;
+
+        for (const client of this.facilitatorClients) {
+          try {
+            verifyResult = await client.verify(paymentPayload, requirements);
+            break;
+          } catch (error) {
+            lastError = error as Error;
+          }
+        }
+
+        if (!verifyResult!) {
+          throw (
+            lastError ||
+            new Error(
+              `No facilitator supports ${requirements.scheme} on ${requirements.network} for v${paymentPayload.x402Version}`,
+            )
+          );
+        }
+      } else {
+        // Use the specific facilitator that supports this payment
+        verifyResult = await facilitatorClient.verify(paymentPayload, requirements);
+      }
+
+      const duration = Date.now() - startTime;
+
+      // Execute afterVerify hooks
+      const resultContext: VerifyResultContext = {
+        ...context,
+        result: verifyResult,
+        duration,
+      };
+
+      for (const hook of this.afterVerifyHooks) {
+        await hook(resultContext);
+      }
+
+      return verifyResult;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const failureContext: VerifyFailureContext = {
+        ...context,
+        error: error as Error,
+        duration,
+      };
+
+      // Execute onVerifyFailure hooks
+      for (const hook of this.onVerifyFailureHooks) {
+        const result = await hook(failureContext);
+        if (result && "recovered" in result && result.recovered) {
+          return result.result;
         }
       }
 
-      throw (
-        lastError ||
-        new Error(
-          `No facilitator supports ${requirements.scheme} on ${requirements.network} for v${paymentPayload.x402Version}`,
-        )
-      );
-    }
-
-    // Use the specific facilitator that supports this payment
-    try {
-      return await facilitatorClient.verify(paymentPayload, requirements);
-    } catch (error) {
-      throw new Error(
-        `Facilitator failed to verify ${requirements.scheme} on ${requirements.network}: ${error}`,
-      );
+      throw error;
     }
   }
 
@@ -338,46 +532,97 @@ export class x402ResourceService {
    *
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
+   * @param metadata - Optional metadata for hook context
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    metadata?: Record<string, unknown>,
   ): Promise<SettleResponse> {
-    // Find the facilitator that supports this payment type
-    const facilitatorClient = this.getFacilitatorClient(
-      paymentPayload.x402Version,
-      requirements.network,
-      requirements.scheme,
-    );
+    const startTime = Date.now();
+    const context: SettleContext = {
+      paymentPayload,
+      requirements,
+      timestamp: startTime,
+      requestMetadata: metadata,
+    };
 
-    if (!facilitatorClient) {
-      // Fallback: try all facilitators if no specific support found
-      let lastError: Error | undefined;
+    // Execute beforeSettle hooks
+    for (const hook of this.beforeSettleHooks) {
+      const result = await hook(context);
+      if (result && "abort" in result && result.abort) {
+        throw new Error(`Settlement aborted: ${result.reason}`);
+      }
+    }
 
-      for (const client of this.facilitatorClients) {
-        try {
-          return await client.settle(paymentPayload, requirements);
-        } catch (error) {
-          lastError = error as Error;
+    try {
+      // Find the facilitator that supports this payment type
+      const facilitatorClient = this.getFacilitatorClient(
+        paymentPayload.x402Version,
+        requirements.network,
+        requirements.scheme,
+      );
+
+      let settleResult: SettleResponse;
+
+      if (!facilitatorClient) {
+        // Fallback: try all facilitators if no specific support found
+        let lastError: Error | undefined;
+
+        for (const client of this.facilitatorClients) {
+          try {
+            settleResult = await client.settle(paymentPayload, requirements);
+            break;
+          } catch (error) {
+            lastError = error as Error;
+          }
+        }
+
+        if (!settleResult!) {
+          throw (
+            lastError ||
+            new Error(
+              `No facilitator supports ${requirements.scheme} on ${requirements.network} for v${paymentPayload.x402Version}`,
+            )
+          );
+        }
+      } else {
+        // Use the specific facilitator that supports this payment
+        settleResult = await facilitatorClient.settle(paymentPayload, requirements);
+      }
+
+      const duration = Date.now() - startTime;
+
+      // Execute afterSettle hooks
+      const resultContext: SettleResultContext = {
+        ...context,
+        result: settleResult,
+        duration,
+      };
+
+      for (const hook of this.afterSettleHooks) {
+        await hook(resultContext);
+      }
+
+      return settleResult;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      const failureContext: SettleFailureContext = {
+        ...context,
+        error: error as Error,
+        duration,
+      };
+
+      // Execute onSettleFailure hooks
+      for (const hook of this.onSettleFailureHooks) {
+        const result = await hook(failureContext);
+        if (result && "recovered" in result && result.recovered) {
+          return result.result;
         }
       }
 
-      throw (
-        lastError ||
-        new Error(
-          `No facilitator supports ${requirements.scheme} on ${requirements.network} for v${paymentPayload.x402Version}`,
-        )
-      );
-    }
-
-    // Use the specific facilitator that supports this payment
-    try {
-      return await facilitatorClient.settle(paymentPayload, requirements);
-    } catch (error) {
-      throw new Error(
-        `Facilitator failed to settle ${requirements.scheme} on ${requirements.network}: ${error}`,
-      );
+      throw error;
     }
   }
 

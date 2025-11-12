@@ -1,4 +1,4 @@
-import { FacilitatorClient, x402ResourceService } from "../server";
+import { x402ResourceService } from "../server";
 import {
   decodePaymentSignatureHeader,
   encodePaymentRequiredHeader,
@@ -24,6 +24,29 @@ export interface HTTPAdapter {
   getUrl(): string;
   getAcceptHeader(): string;
   getUserAgent(): string;
+
+  /**
+   * Get query parameters from the request URL
+   *
+   * @returns Record of query parameter key-value pairs
+   */
+  getQueryParams?(): Record<string, string | string[]>;
+
+  /**
+   * Get a specific query parameter by name
+   *
+   * @param name - The query parameter name
+   * @returns The query parameter value(s) or undefined
+   */
+  getQueryParam?(name: string): string | string[] | undefined;
+
+  /**
+   * Get the parsed request body
+   * Framework adapters should parse JSON/form data appropriately
+   *
+   * @returns The parsed request body
+   */
+  getBody?(): unknown;
 }
 
 /**
@@ -46,12 +69,22 @@ export interface PaywallProvider {
 }
 
 /**
+ * Dynamic payTo function that receives HTTP request context
+ */
+export type DynamicPayTo = (context: HTTPRequestContext) => string | Promise<string>;
+
+/**
+ * Dynamic price function that receives HTTP request context
+ */
+export type DynamicPrice = (context: HTTPRequestContext) => Price | Promise<Price>;
+
+/**
  * Route configuration for HTTP endpoints
  */
 export interface RouteConfig {
   scheme: string;
-  payTo: string;
-  price: Price;
+  payTo: string | DynamicPayTo; // Now supports functions
+  price: Price | DynamicPrice; // Now supports functions
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>;
@@ -119,18 +152,19 @@ export type HTTPProcessResult =
  * HTTP-enhanced x402 resource server
  * Provides framework-agnostic HTTP protocol handling
  */
-export class x402HTTPResourceService extends x402ResourceService {
+export class x402HTTPResourceService {
+  private resourceService: x402ResourceService;
   private compiledRoutes: CompiledRoute[] = [];
   private paywallProvider?: PaywallProvider;
 
   /**
    * Creates a new x402HTTPResourceService instance.
    *
+   * @param resourceService - The core x402ResourceService instance to use
    * @param routes - Route configuration for payment-protected endpoints
-   * @param facilitatorClients - Optional facilitator client(s) for payment processing
    */
-  constructor(routes: RoutesConfig, facilitatorClients?: FacilitatorClient | FacilitatorClient[]) {
-    super(facilitatorClients);
+  constructor(resourceService: x402ResourceService, routes: RoutesConfig) {
+    this.resourceService = resourceService;
 
     // Handle both single route and multiple routes
     const normalizedRoutes =
@@ -179,18 +213,27 @@ export class x402HTTPResourceService extends x402ResourceService {
       return { type: "no-payment-required" }; // No payment required for this route
     }
 
+    // Resolve dynamic payTo and price
+    const resolvedConfig = await this.resolveRouteConfig(routeConfig, context);
+
     // Check for payment header (v1 or v2)
     const paymentPayload = this.extractPayment(adapter);
 
     // Create resource info first
     const resourceInfo = {
       url: context.adapter.getUrl(),
-      description: routeConfig.description || "",
-      mimeType: routeConfig.mimeType || "",
+      description: resolvedConfig.description || "",
+      mimeType: resolvedConfig.mimeType || "",
     };
 
-    // Build payment requirements from route config
-    const requirements = await this.buildPaymentRequirements(routeConfig);
+    // Build payment requirements from RESOLVED route config
+    const requirements = await this.resourceService.buildPaymentRequirements({
+      scheme: resolvedConfig.scheme,
+      payTo: resolvedConfig.payTo,
+      price: resolvedConfig.price,
+      network: resolvedConfig.network,
+      maxTimeoutSeconds: resolvedConfig.maxTimeoutSeconds,
+    });
 
     // Add resource URL to all payment requirements for discovery
     requirements.forEach(req => {
@@ -200,7 +243,7 @@ export class x402HTTPResourceService extends x402ResourceService {
       req.extra.resourceUrl = resourceInfo.url;
     });
 
-    const paymentRequired = this.createPaymentRequiredResponse(
+    const paymentRequired = this.resourceService.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
@@ -222,13 +265,13 @@ export class x402HTTPResourceService extends x402ResourceService {
 
     // Verify payment
     try {
-      const matchingRequirements = this.findMatchingRequirements(
+      const matchingRequirements = this.resourceService.findMatchingRequirements(
         paymentRequired.accepts,
         paymentPayload,
       );
 
       if (!matchingRequirements) {
-        const errorResponse = this.createPaymentRequiredResponse(
+        const errorResponse = this.resourceService.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements",
@@ -240,10 +283,13 @@ export class x402HTTPResourceService extends x402ResourceService {
         };
       }
 
-      const verifyResult = await this.verifyPayment(paymentPayload, matchingRequirements);
+      const verifyResult = await this.resourceService.verifyPayment(
+        paymentPayload,
+        matchingRequirements,
+      );
 
       if (!verifyResult.isValid) {
-        const errorResponse = this.createPaymentRequiredResponse(
+        const errorResponse = this.resourceService.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           verifyResult.invalidReason,
@@ -262,7 +308,7 @@ export class x402HTTPResourceService extends x402ResourceService {
         paymentRequirements: matchingRequirements,
       };
     } catch (error) {
-      const errorResponse = this.createPaymentRequiredResponse(
+      const errorResponse = this.resourceService.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
@@ -294,12 +340,41 @@ export class x402HTTPResourceService extends x402ResourceService {
     }
 
     try {
-      const settleResult = await this.settlePayment(paymentPayload, requirements);
+      const settleResult = await this.resourceService.settlePayment(paymentPayload, requirements);
       return this.createSettlementHeaders(settleResult);
     } catch (error) {
       console.error("Settlement failed:", error);
       throw error;
     }
+  }
+
+  /**
+   * Resolve dynamic route config values.
+   * Evaluates any function-based payTo or price values using the request context.
+   *
+   * @param routeConfig - The route configuration (may contain functions)
+   * @param context - HTTP request context for dynamic resolution
+   * @returns Resolved route configuration with static values
+   */
+  private async resolveRouteConfig(
+    routeConfig: RouteConfig,
+    context: HTTPRequestContext,
+  ): Promise<RouteConfig & { payTo: string; price: Price }> {
+    const payTo =
+      typeof routeConfig.payTo === "function"
+        ? await routeConfig.payTo(context)
+        : routeConfig.payTo;
+
+    const price =
+      typeof routeConfig.price === "function"
+        ? await routeConfig.price(context)
+        : routeConfig.price;
+
+    return {
+      ...routeConfig,
+      payTo,
+      price,
+    };
   }
 
   /**

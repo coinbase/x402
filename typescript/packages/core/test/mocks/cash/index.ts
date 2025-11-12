@@ -157,9 +157,9 @@ export class CashSchemeNetworkService implements SchemeNetworkService {
    *
    * @param price - The price to parse
    * @param network - The network identifier
-   * @returns The parsed asset amount
+   * @returns Promise resolving to the parsed asset amount
    */
-  parsePrice(price: Price, network: Network): AssetAmount {
+  async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
     // Network parameter is not used in this implementation
     void network;
     // Handle pre-parsed price object

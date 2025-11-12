@@ -4,6 +4,7 @@ import {
   PaymentRequirements,
   Price,
   SchemeNetworkService,
+  MoneyParser,
 } from "@x402/core/types";
 
 /**
@@ -11,19 +12,48 @@ import {
  */
 export class ExactEvmService implements SchemeNetworkService {
   readonly scheme = "exact";
+  private moneyParsers: MoneyParser[] = [];
+
+  /**
+   * Register a custom money parser in the parser chain.
+   * Multiple parsers can be registered - they will be tried in registration order.
+   * Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+   * If a parser returns null, the next parser in the chain will be tried.
+   * The default parser is always the final fallback.
+   *
+   * @param parser - Custom function to convert amount to AssetAmount (or null to skip)
+   * @returns The service instance for chaining
+   *
+   * @example
+   * evmService.registerMoneyParser(async (amount, network) => {
+   *   // Custom conversion logic
+   *   if (amount > 100) {
+   *     // Use different token for large amounts
+   *     return { amount: (amount * 1e18).toString(), asset: "0xCustomToken" };
+   *   }
+   *   return null; // Use next parser
+   * });
+   */
+  registerMoneyParser(parser: MoneyParser): ExactEvmService {
+    this.moneyParsers.push(parser);
+    return this;
+  }
 
   /**
    * Parses a price into an asset amount.
+   * If price is already an AssetAmount, returns it directly.
+   * If price is Money (string | number), parses to decimal and tries custom parsers.
+   * Falls back to default conversion if all custom parsers return null.
    *
    * @param price - The price to parse
    * @param network - The network to use
-   * @returns The parsed asset amount
+   * @returns Promise that resolves to the parsed asset amount
    */
-  parsePrice(price: Price, network: Network): AssetAmount {
-    // Handle pre-parsed price object
+  async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
+    // If already an AssetAmount, return it directly
     if (typeof price === "object" && price !== null && "amount" in price) {
       if (!price.asset) {
-        throw new Error(`Asset address must be specified for price object on network ${network}`);
+        throw new Error(`Asset address must be specified for AssetAmount on network ${network}`);
       }
       return {
         amount: price.amount,
@@ -32,59 +62,19 @@ export class ExactEvmService implements SchemeNetworkService {
       };
     }
 
-    // Parse string prices like "$0.10" or "0.10 USDC"
-    if (typeof price === "string") {
-      // Remove $ sign if present
-      const cleanPrice = price.replace(/^\$/, "").trim();
+    // Parse Money to decimal number
+    const amount = this.parseMoneyToDecimal(price);
 
-      // Check if it contains a currency/asset identifier
-      const parts = cleanPrice.split(/\s+/);
-      if (parts.length === 2) {
-        // Format: "0.10 USDC"
-        const amount = this.convertToTokenAmount(parts[0], network);
-        const assetInfo = this.getAssetInfo(parts[1], network);
-        return {
-          amount,
-          asset: assetInfo.address,
-          extra: {
-            name: assetInfo.name,
-            version: assetInfo.version,
-          },
-        };
-      } else if (cleanPrice.match(/^\d+(\.\d+)?$/)) {
-        // Simple number format like "0.10" - assume USD/USDC
-        const amount = this.convertToTokenAmount(cleanPrice, network);
-        const assetInfo = this.getDefaultAsset(network);
-        return {
-          amount,
-          asset: assetInfo.address,
-          extra: {
-            name: assetInfo.name,
-            version: assetInfo.version,
-          },
-        };
-      } else {
-        throw new Error(
-          `Invalid price format: ${price}. Must specify currency (e.g., "0.10 USDC") or use simple number format.`,
-        );
+    // Try each custom money parser in order
+    for (const parser of this.moneyParsers) {
+      const result = await parser(amount, network);
+      if (result !== null) {
+        return result;
       }
     }
 
-    // Handle number input - assume USD/USDC
-    if (typeof price === "number") {
-      const amount = this.convertToTokenAmount(price.toString(), network);
-      const assetInfo = this.getDefaultAsset(network);
-      return {
-        amount,
-        asset: assetInfo.address,
-        extra: {
-          name: assetInfo.name,
-          version: assetInfo.version,
-        },
-      };
-    }
-
-    throw new Error(`Invalid price format: ${price}`);
+    // All custom parsers returned null, use default conversion
+    return this.defaultMoneyConversion(amount, network);
   }
 
   /**
@@ -113,6 +103,52 @@ export class ExactEvmService implements SchemeNetworkService {
     void supportedKind;
     void extensionKeys;
     return Promise.resolve(paymentRequirements);
+  }
+
+  /**
+   * Parse Money (string | number) to a decimal number.
+   * Handles formats like "$1.50", "1.50", 1.50, etc.
+   *
+   * @param money - The money value to parse
+   * @returns Decimal number
+   */
+  private parseMoneyToDecimal(money: string | number): number {
+    if (typeof money === "number") {
+      return money;
+    }
+
+    // Remove $ sign and whitespace, then parse
+    const cleanMoney = money.replace(/^\$/, "").trim();
+    const amount = parseFloat(cleanMoney);
+
+    if (isNaN(amount)) {
+      throw new Error(`Invalid money format: ${money}`);
+    }
+
+    return amount;
+  }
+
+  /**
+   * Default money conversion implementation.
+   * Converts decimal amount to USDC on the specified network.
+   *
+   * @param amount - The decimal amount (e.g., 1.50)
+   * @param network - The network to use
+   * @returns The parsed asset amount in USDC
+   */
+  private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
+    // Convert decimal amount to token amount (USDC has 6 decimals)
+    const tokenAmount = this.convertToTokenAmount(amount.toString(), network);
+    const assetInfo = this.getDefaultAsset(network);
+
+    return {
+      amount: tokenAmount,
+      asset: assetInfo.address,
+      extra: {
+        name: assetInfo.name,
+        version: assetInfo.version,
+      },
+    };
   }
 
   /**

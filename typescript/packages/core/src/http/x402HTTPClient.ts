@@ -89,4 +89,15 @@ export class x402HTTPClient {
 
     throw new Error("Payment response header not found");
   }
+
+  /**
+   * Creates a payment payload for the given payment requirements.
+   * Delegates to the underlying x402Client.
+   *
+   * @param paymentRequired - The payment required response from the server
+   * @returns Promise resolving to the payment payload
+   */
+  async createPaymentPayload(paymentRequired: PaymentRequired): Promise<PaymentPayload> {
+    return this.client.createPaymentPayload(paymentRequired);
+  }
 }

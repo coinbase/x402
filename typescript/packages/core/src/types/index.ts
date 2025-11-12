@@ -10,6 +10,7 @@ export type {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
   SchemeNetworkService,
+  MoneyParser,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
 

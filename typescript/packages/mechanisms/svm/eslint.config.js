@@ -11,6 +11,7 @@ export default [
   },
   {
     files: ["**/*.ts", "**/*.tsx"],
+    ignores: ["**/*.test.ts", "test/**/*"],
     languageOptions: {
       parser: tsParser,
       sourceType: "module",
@@ -67,6 +68,24 @@ export default [
       "jsdoc/require-returns-description": "error",
       "jsdoc/require-returns-type": "off",
       "jsdoc/require-hyphen-before-param-description": ["error", "always"],
+    },
+  },
+  {
+    files: ["**/*.test.ts", "test/**/*"],
+    languageOptions: {
+      parser: tsParser,
+      sourceType: "module",
+      ecmaVersion: 2020,
+    },
+    plugins: {
+      "@typescript-eslint": ts,
+      prettier: prettier,
+    },
+    rules: {
+      "prettier/prettier": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/member-ordering": "off",
     },
   },
 ];

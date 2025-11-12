@@ -4,6 +4,7 @@ import {
   PaywallConfig,
   PaywallProvider,
   x402HTTPResourceService,
+  x402ResourceService,
   RoutesConfig,
   FacilitatorClient,
 } from "@x402/core/server";
@@ -76,6 +77,36 @@ export class ExpressAdapter implements HTTPAdapter {
   getUserAgent(): string {
     return this.req.header("User-Agent") || "";
   }
+
+  /**
+   * Gets all query parameters from the request URL.
+   *
+   * @returns Record of query parameter key-value pairs
+   */
+  getQueryParams(): Record<string, string | string[]> {
+    return this.req.query as Record<string, string | string[]>;
+  }
+
+  /**
+   * Gets a specific query parameter by name.
+   *
+   * @param name - The query parameter name
+   * @returns The query parameter value(s) or undefined
+   */
+  getQueryParam(name: string): string | string[] | undefined {
+    const value = this.req.query[name];
+    return value as string | string[] | undefined;
+  }
+
+  /**
+   * Gets the parsed request body.
+   * Requires express.json() or express.urlencoded() middleware.
+   *
+   * @returns The parsed request body
+   */
+  getBody(): unknown {
+    return this.req.body;
+  }
 }
 
 /**
@@ -112,23 +143,25 @@ export function paymentMiddleware(
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  // Create the x402 HTTP server instance
-  const server = new x402HTTPResourceService(routes, facilitatorClients);
+  // Create the core x402 resource service
+  const resourceService = new x402ResourceService(facilitatorClients);
 
-  // Register all provided schemes
+  // Register all provided schemes on the resource service
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
-      server.registerScheme(network, schemeServer);
+      resourceService.registerScheme(network, schemeServer);
     });
   }
+  if (initializeOnStart) {
+    resourceService.initialize();
+  }
+
+  // Create the x402 HTTP server instance with the resource service
+  const server = new x402HTTPResourceService(resourceService, routes);
 
   // Register custom paywall provider if provided
   if (paywall) {
     server.registerPaywallProvider(paywall);
-  }
-
-  if (initializeOnStart) {
-    server.initialize();
   }
 
   return async (req: Request, res: Response, next: NextFunction) => {
