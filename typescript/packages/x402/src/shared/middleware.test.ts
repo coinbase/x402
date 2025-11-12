@@ -4,8 +4,8 @@ import {
   findMatchingRoute,
   getDefaultAsset,
   processPriceToAtomicAmount,
-} from "x402/shared";
-import { RoutesConfig, Network } from "../types";
+} from "./middleware";
+import type { RoutesConfig, Network } from "../types";
 
 describe("computeRoutePatterns", () => {
   it("should handle simple string price routes", () => {

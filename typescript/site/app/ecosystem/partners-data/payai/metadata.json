@@ -1,0 +1,14 @@
+{
+  "name": "PayAI Facilitator",
+  "description": "Accept x402 payments on all networks including Avalanche, Base, Polygon, Sei, Solana, and more! Get started in less than 1 minute. Supports all tokens. No API Keys required.",
+  "logoUrl": "/logos/payai.svg",
+  "websiteUrl": "https://facilitator.payai.network",
+  "category": "Facilitators",
+  "facilitator": {
+      "baseUrl": "https://facilitator.payai.network",
+      "networks": ["solana", "solana-devnet", "base", "base-sepolia", "polygon", "polygon-amoy", "avalanche", "avalanche-fuji", "sei", "sei-testnet", "peaq", "iotex"],
+      "schemes": ["exact"],
+      "assets": ["EIP-3009", "SPL", "Token-2022"],
+      "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}

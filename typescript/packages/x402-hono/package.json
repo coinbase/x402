@@ -1,6 +1,6 @@
 {
   "name": "x402-hono",
-  "version": "0.6.5",
+  "version": "0.7.1",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -54,6 +54,16 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
+      }
+    },
+    "./session-token": {
+      "import": {
+        "types": "./dist/esm/session-token.d.mts",
+        "default": "./dist/esm/session-token.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/session-token.d.ts",
+        "default": "./dist/cjs/session-token.js"
       }
     }
   },

@@ -5,6 +5,7 @@ import {
   ExactSvmPayload,
   ErrorReasons,
 } from "../../../../types/verify";
+import { X402Config } from "../../../../types/config";
 import {
   assertIsTransactionMessageWithBlockhashLifetime,
   Commitment,
@@ -13,9 +14,9 @@ import {
   getCompiledTransactionMessageDecoder,
   getSignatureFromTransaction,
   isSolanaError,
-  KeyPairSigner,
+  type Transaction,
+  type TransactionSigner,
   SendTransactionApi,
-  signTransaction,
   SOLANA_ERROR__BLOCK_HEIGHT_EXCEEDED,
   SolanaRpcApiDevnet,
   SolanaRpcApiMainnet,
@@ -24,9 +25,10 @@ import {
 } from "@solana/kit";
 import {
   decodeTransactionFromPayload,
-  getRpcClient,
-  getRpcSubscriptions,
+  getTokenPayerFromTransaction,
+  signTransactionWithSigner,
 } from "../../../../shared/svm";
+import { getRpcClient, getRpcSubscriptions } from "../../../../shared/svm/rpc";
 import {
   createBlockHeightExceedencePromiseFactory,
   waitForRecentTransactionConfirmation,
@@ -41,14 +43,16 @@ import { verify } from "./verify";
  * @param signer - The signer that will sign the transaction
  * @param payload - The payment payload to settle
  * @param paymentRequirements - The payment requirements to settle against
+ * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A SettleResponse indicating if the payment is settled and any error reason
  */
 export async function settle(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
+  config?: X402Config,
 ): Promise<SettleResponse> {
-  const verifyResponse = await verify(signer, payload, paymentRequirements);
+  const verifyResponse = await verify(signer, payload, paymentRequirements, config);
   if (!verifyResponse.isValid) {
     return {
       success: false,
@@ -60,11 +64,15 @@ export async function settle(
 
   const svmPayload = payload.payload as ExactSvmPayload;
   const decodedTransaction = decodeTransactionFromPayload(svmPayload);
-  const signedTransaction = await signTransaction([signer.keyPair], decodedTransaction);
-  const payer = signer.address.toString();
+  const signedTransaction = await signTransactionWithSigner(signer, decodedTransaction);
+  assertTransactionFullySigned(signedTransaction);
+  const payer = getTokenPayerFromTransaction(signedTransaction);
 
-  const rpc = getRpcClient(payload.network);
-  const rpcSubscriptions = getRpcSubscriptions(payload.network);
+  const rpc = getRpcClient(paymentRequirements.network, config?.svmConfig?.rpcUrl);
+  const rpcSubscriptions = getRpcSubscriptions(
+    paymentRequirements.network,
+    config?.svmConfig?.rpcUrl,
+  );
 
   try {
     const { success, errorReason, signature } = await sendAndConfirmSignedTransaction(
@@ -87,6 +95,7 @@ export async function settle(
       errorReason: "unexpected_settle_error",
       network: payload.network,
       transaction: getSignatureFromTransaction(signedTransaction),
+      payer,
     };
   }
 }
@@ -101,7 +110,7 @@ export async function settle(
  * @returns The signature of the sent transaction
  */
 export async function sendSignedTransaction(
-  signedTransaction: Awaited<ReturnType<typeof signTransaction>>,
+  signedTransaction: Transaction,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
   sendTxConfig: Parameters<SendTransactionApi["sendTransaction"]>[1] = {
     skipPreflight: true,
@@ -123,7 +132,7 @@ export async function sendSignedTransaction(
  * @returns The success and signature of the confirmed transaction
  */
 export async function confirmSignedTransaction(
-  signedTransaction: Awaited<ReturnType<typeof signTransaction>>,
+  signedTransaction: Transaction,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
   rpcSubscriptions: ReturnType<typeof getRpcSubscriptions>,
 ): Promise<{ success: boolean; errorReason?: (typeof ErrorReasons)[number]; signature: string }> {
@@ -176,7 +185,9 @@ export async function confirmSignedTransaction(
     // wait for the transaction to be confirmed
     await waitForRecentTransactionConfirmation({
       ...config,
-      transaction: signedTransactionWithBlockhashLifetime,
+      transaction: signedTransactionWithBlockhashLifetime as Parameters<
+        typeof waitForRecentTransactionConfirmation
+      >[0]["transaction"],
     });
 
     // return the success and signature
@@ -222,10 +233,25 @@ export async function confirmSignedTransaction(
  * @returns The success and signature of the confirmed transaction
  */
 export async function sendAndConfirmSignedTransaction(
-  signedTransaction: Awaited<ReturnType<typeof signTransaction>>,
+  signedTransaction: Transaction,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
   rpcSubscriptions: ReturnType<typeof getRpcSubscriptions>,
 ): Promise<{ success: boolean; errorReason?: (typeof ErrorReasons)[number]; signature: string }> {
   await sendSignedTransaction(signedTransaction, rpc);
   return await confirmSignedTransaction(signedTransaction, rpc, rpcSubscriptions);
+}
+
+/**
+ * Ensures the provided transaction contains a signature for every required address.
+ *
+ * @param transaction - Transaction to verify for complete signatures
+ */
+function assertTransactionFullySigned(transaction: Transaction): void {
+  const missingAddresses = Object.entries(transaction.signatures)
+    .filter(([, signature]) => signature == null)
+    .map(([address]) => address);
+
+  if (missingAddresses.length > 0) {
+    throw new Error(`transaction_signer_missing_signatures:${missingAddresses.join(",")}`);
+  }
 }
