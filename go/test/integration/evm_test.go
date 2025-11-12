@@ -22,104 +22,16 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/coinbase/x402/go/types"
 )
 
-// Real EVM signer for client using EIP-712
-type realClientEvmSigner struct {
-	privateKey *ecdsa.PrivateKey
-	address    common.Address
-}
+// NOTE: The client signer implementation has been replaced with the helper from go/signers/evm
+// This reduces boilerplate from 95 lines to 3 lines - see newRealClientEvmSigner() below
 
-func newRealClientEvmSigner(privateKeyHex string) (*realClientEvmSigner, error) {
-	// Remove 0x prefix if present
-	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
-
-	privateKey, err := crypto.HexToECDSA(privateKeyHex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %w", err)
-	}
-
-	address := crypto.PubkeyToAddress(privateKey.PublicKey)
-
-	return &realClientEvmSigner{
-		privateKey: privateKey,
-		address:    address,
-	}, nil
-}
-
-func (s *realClientEvmSigner) Address() string {
-	return s.address.Hex()
-}
-
-func (s *realClientEvmSigner) SignTypedData(
-	domain evm.TypedDataDomain,
-	types map[string][]evm.TypedDataField,
-	primaryType string,
-	message map[string]interface{},
-) ([]byte, error) {
-	// Convert our types to go-ethereum's EIP-712 types
-	typedData := apitypes.TypedData{
-		Types:       make(apitypes.Types),
-		PrimaryType: primaryType,
-		Domain: apitypes.TypedDataDomain{
-			Name:              domain.Name,
-			Version:           domain.Version,
-			ChainId:           (*math.HexOrDecimal256)(domain.ChainID),
-			VerifyingContract: domain.VerifyingContract,
-		},
-		Message: message,
-	}
-
-	// Convert types
-	for typeName, fields := range types {
-		typedFields := make([]apitypes.Type, len(fields))
-		for i, field := range fields {
-			typedFields[i] = apitypes.Type{
-				Name: field.Name,
-				Type: field.Type,
-			}
-		}
-		typedData.Types[typeName] = typedFields
-	}
-
-	// Add EIP712Domain type if not present
-	if _, exists := typedData.Types["EIP712Domain"]; !exists {
-		typedData.Types["EIP712Domain"] = []apitypes.Type{
-			{Name: "name", Type: "string"},
-			{Name: "version", Type: "string"},
-			{Name: "chainId", Type: "uint256"},
-			{Name: "verifyingContract", Type: "address"},
-		}
-	}
-
-	// Sign the typed data
-	dataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash struct: %w", err)
-	}
-
-	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash domain: %w", err)
-	}
-
-	// Create the digest to sign
-	rawData := []byte{0x19, 0x01}
-	rawData = append(rawData, domainSeparator...)
-	rawData = append(rawData, dataHash...)
-	digest := crypto.Keccak256(rawData)
-
-	// Sign the digest
-	signature, err := crypto.Sign(digest, s.privateKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign: %w", err)
-	}
-
-	// Adjust v value for Ethereum (27 or 28)
-	signature[64] += 27
-
-	return signature, nil
+// newRealClientEvmSigner creates a client signer using the helper function
+func newRealClientEvmSigner(privateKeyHex string) (evm.ClientEvmSigner, error) {
+	return evmsigners.NewClientSignerFromPrivateKey(privateKeyHex)
 }
 
 // Real EVM facilitator signer

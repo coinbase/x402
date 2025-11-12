@@ -37,6 +37,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// NOTE: Facilitator signer helpers (go/signers/evm and go/signers/svm) are not yet implemented.
+// When available, this will reduce 300+ lines of facilitator signer code to just a few lines.
+// For now, facilitator signers still require manual implementation.
+// See PROPOSAL_SIGNER_HELPERS.md for the planned facilitator signer helpers.
+
 const (
 	DefaultPort = "4022"
 	Network     = "eip155:84532"

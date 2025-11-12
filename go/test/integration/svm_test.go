@@ -17,62 +17,16 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
 	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+	svmsigners "github.com/coinbase/x402/go/signers/svm"
 	"github.com/coinbase/x402/go/types"
 )
 
-// Real Solana signer for client
-type realClientSvmSigner struct {
-	privateKey solana.PrivateKey
-}
+// NOTE: The client signer implementation has been replaced with the helper from go/signers/svm
+// This reduces boilerplate from 48 lines to 3 lines - see newRealClientSvmSigner() below
 
-func newRealClientSvmSigner(privateKeyBase58 string) (*realClientSvmSigner, error) {
-	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %w", err)
-	}
-
-	return &realClientSvmSigner{
-		privateKey: privateKey,
-	}, nil
-}
-
-func (s *realClientSvmSigner) Address() solana.PublicKey {
-	return s.privateKey.PublicKey()
-}
-
-func (s *realClientSvmSigner) SignTransaction(tx *solana.Transaction) error {
-	// Partially sign - only sign for our own key, not for feePayer
-	// This is similar to how solana_parser.go does it
-
-	// Get the message bytes to sign
-	messageBytes, err := tx.Message.MarshalBinary()
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	// Sign the message
-	signature, err := s.privateKey.Sign(messageBytes)
-	if err != nil {
-		return fmt.Errorf("failed to sign: %w", err)
-	}
-
-	// Find the index of our public key in the account keys
-	accountIndex, err := tx.GetAccountIndex(s.privateKey.PublicKey())
-	if err != nil {
-		return fmt.Errorf("failed to get account index: %w", err)
-	}
-
-	// Ensure signatures array is large enough
-	if len(tx.Signatures) <= int(accountIndex) {
-		newSignatures := make([]solana.Signature, accountIndex+1)
-		copy(newSignatures, tx.Signatures)
-		tx.Signatures = newSignatures
-	}
-
-	// Add our signature at the correct index
-	tx.Signatures[accountIndex] = signature
-
-	return nil
+// newRealClientSvmSigner creates a client signer using the helper function
+func newRealClientSvmSigner(privateKeyBase58 string) (svm.ClientSvmSigner, error) {
+	return svmsigners.NewClientSignerFromPrivateKey(privateKeyBase58)
 }
 
 // Real Solana facilitator signer
