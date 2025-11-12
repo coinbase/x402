@@ -8,6 +8,7 @@ from x402.chains import (
     get_token_version,
     get_default_token_address,
 )
+from x402.networks import SUPPORTED_SVM_NETWORKS
 from x402.types import Price, TokenAmount, PaymentRequirements, PaymentPayload
 
 
@@ -31,19 +32,23 @@ def parse_money(amount: str | int, address: str, network: str) -> int:
 
 def process_price_to_atomic_amount(
     price: Price, network: str
-) -> tuple[str, str, dict[str, str]]:
-    """Process a Price into atomic amount, asset address, and EIP-712 domain info
+) -> tuple[str, str, dict[str, str] | None]:
+    """Process a Price into atomic amount, asset address, and optional EIP-712 domain info
 
     Args:
         price: Either Money (USD string/int) or TokenAmount
         network: Network identifier
 
     Returns:
-        Tuple of (max_amount_required, asset_address, eip712_domain)
+        Tuple of (max_amount_required, asset_address, eip712_domain_or_none)
+        For SVM networks, eip712_domain_or_none will be None
+        For EVM networks, eip712_domain_or_none will contain EIP-712 domain info
 
     Raises:
         ValueError: If price format is invalid
     """
+    is_svm = network in SUPPORTED_SVM_NETWORKS
+
     if isinstance(price, (str, int)):
         # Money type - convert USD to USDC atomic units
         try:
@@ -59,26 +64,34 @@ def process_price_to_atomic_amount(
             # Convert to atomic units
             atomic_amount = int(amount * Decimal(10**decimals))
 
-            # Get EIP-712 domain info
-            eip712_domain = {
-                "name": get_token_name(chain_id, asset_address),
-                "version": get_token_version(chain_id, asset_address),
-            }
+            # Get EIP-712 domain info (only for EVM networks)
+            if is_svm:
+                extra_data = None
+            else:
+                extra_data = {
+                    "name": get_token_name(chain_id, asset_address),
+                    "version": get_token_version(chain_id, asset_address),
+                }
 
-            return str(atomic_amount), asset_address, eip712_domain
+            return str(atomic_amount), asset_address, extra_data
 
         except (ValueError, KeyError) as e:
             raise ValueError(f"Invalid price format: {price}. Error: {e}")
 
     elif isinstance(price, TokenAmount):
         # TokenAmount type - already in atomic units with asset info
+        if is_svm:
+            extra_data = None
+        else:
+            extra_data = {
+                "name": price.asset.eip712.name,
+                "version": price.asset.eip712.version,
+            }
+
         return (
             price.amount,
             price.asset.address,
-            {
-                "name": price.asset.eip712.name,
-                "version": price.asset.eip712.version,
-            },
+            extra_data,
         )
 
     else:
