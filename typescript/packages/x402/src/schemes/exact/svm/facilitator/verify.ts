@@ -33,7 +33,6 @@ import {
 import {
   findAssociatedTokenPda,
   identifyToken2022Instruction,
-  parseCreateAssociatedTokenInstruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   Token2022Instruction,
   TOKEN_2022_PROGRAM_ADDRESS,
@@ -192,10 +191,7 @@ export async function verifyTransactionInstructions(
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // validate the number of expected instructions
-  if (
-    transactionMessage.instructions.length !== 3 &&
-    transactionMessage.instructions.length !== 4
-  ) {
+  if (transactionMessage.instructions.length !== 3) {
     throw new Error(`invalid_exact_svm_payload_transaction_instructions_length`);
   }
 
@@ -214,32 +210,12 @@ export async function verifyTransactionInstructions(
 
   // verify that the transfer instruction is valid
   // this expects the destination ATA to already exist
-  if (transactionMessage.instructions.length === 3) {
-    await verifyTransferInstruction(
-      transactionMessage.instructions[2],
-      paymentRequirements,
-      {
-        txHasCreateDestATAInstruction: false,
-      },
-      signer,
-      rpc,
-    );
-  }
-
-  // verify that the transfer instruction is valid
-  // this expects the destination ATA to be created in the same transaction
-  else {
-    verifyCreateATAInstruction(transactionMessage.instructions[2], paymentRequirements);
-    await verifyTransferInstruction(
-      transactionMessage.instructions[3],
-      paymentRequirements,
-      {
-        txHasCreateDestATAInstruction: true,
-      },
-      signer,
-      rpc,
-    );
-  }
+  await verifyTransferInstruction(
+    transactionMessage.instructions[2],
+    paymentRequirements,
+    signer,
+    rpc,
+  );
 }
 
 /**
@@ -311,48 +287,11 @@ export function verifyComputePriceInstruction(
  * @param paymentRequirements - The payment requirements to verify against
  * @throws Error if the create ATA instruction is invalid
  */
-export function verifyCreateATAInstruction(
-  instruction: Instruction<
-    string,
-    readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
-  >,
-  paymentRequirements: PaymentRequirements,
-) {
-  let createATAInstruction: ReturnType<typeof parseCreateAssociatedTokenInstruction>;
-
-  // validate and refine the type of the create ATA instruction
-  try {
-    assertIsInstructionWithAccounts(instruction);
-    assertIsInstructionWithData(instruction);
-
-    // parse the create ATA instruction
-    createATAInstruction = parseCreateAssociatedTokenInstruction({
-      ...instruction,
-      data: new Uint8Array(instruction.data),
-    });
-  } catch (error) {
-    console.error(error);
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction`);
-  }
-
-  // verify that the ATA is created for the expected payee
-  if (createATAInstruction.accounts.owner.address !== paymentRequirements.payTo) {
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_payee`);
-  }
-
-  // verify that the ATA is created for the expected asset
-  if (createATAInstruction.accounts.mint.address !== paymentRequirements.asset) {
-    throw new Error(`invalid_exact_svm_payload_transaction_create_ata_instruction_incorrect_asset`);
-  }
-}
-
 /**
  * Verify that the transfer instruction is valid.
  *
  * @param instruction - The transfer instruction to verify
  * @param paymentRequirements - The payment requirements to verify against
- * @param {object} options - The options for the verification of the transfer instruction
- * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
  * @param signer - The signer that will sign the transaction
  * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer instruction is invalid
@@ -363,21 +302,12 @@ export async function verifyTransferInstruction(
     readonly (AccountLookupMeta<string, string> | AccountMeta<string>)[]
   >,
   paymentRequirements: PaymentRequirements,
-  { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
   signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
   // get a validated and parsed transferChecked instruction
   const tokenInstruction = getValidatedTransferCheckedInstruction(instruction);
-  await verifyTransferCheckedInstruction(
-    tokenInstruction,
-    paymentRequirements,
-    {
-      txHasCreateDestATAInstruction,
-    },
-    signer,
-    rpc,
-  );
+  await verifyTransferCheckedInstruction(tokenInstruction, paymentRequirements, signer, rpc);
 }
 
 /**
@@ -385,8 +315,6 @@ export async function verifyTransferInstruction(
  *
  * @param parsedInstruction - The parsed transfer checked instruction to verify
  * @param paymentRequirements - The payment requirements to verify against
- * @param {object} options - The options for the verification of the transfer checked instruction
- * @param {boolean} options.txHasCreateDestATAInstruction - Whether the transaction has a create destination ATA instruction
  * @param signer - The signer that will sign the transaction
  * @param rpc - The RPC client to use for verifying account existence
  * @throws Error if the transfer checked instruction is invalid
@@ -394,7 +322,6 @@ export async function verifyTransferInstruction(
 export async function verifyTransferCheckedInstruction(
   parsedInstruction: ReturnType<typeof parseTransferCheckedInstruction2022>,
   paymentRequirements: PaymentRequirements,
-  { txHasCreateDestATAInstruction }: { txHasCreateDestATAInstruction: boolean },
   signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
@@ -429,7 +356,7 @@ export async function verifyTransferCheckedInstruction(
     if (missingAccount.address === parsedInstruction.accounts.source.address) {
       throw new Error(`invalid_exact_svm_payload_transaction_sender_ata_not_found`);
     }
-    if (missingAccount.address === payToATA[0] && !txHasCreateDestATAInstruction) {
+    if (missingAccount.address === payToATA[0]) {
       throw new Error(`invalid_exact_svm_payload_transaction_receiver_ata_not_found`);
     }
   }
