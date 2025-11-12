@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { base, baseSepolia, avalancheFuji } from "viem/chains";
+import { base, baseSepolia, avalancheFuji, abstract } from "viem/chains";
+import { skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createConnectedClient, createSigner } from "./wallet";
 
 // Mock viem modules
+const mockExtend = vi.fn();
+const mockEip712WalletActionsFn = vi.fn();
+
 vi.mock("viem", async () => {
   const actual = await vi.importActual("viem");
   return {
@@ -14,28 +18,37 @@ vi.mock("viem", async () => {
       extend: vi.fn().mockReturnValue({
         chain,
         transport,
-        // Mock public client methods
         getBlockNumber: vi.fn(),
         getBalance: vi.fn(),
       }),
     })),
-    createWalletClient: vi.fn().mockImplementation(({ chain, transport, account }) => ({
-      chain,
-      transport,
-      account,
-      extend: vi.fn().mockReturnValue({
+    createWalletClient: vi.fn().mockImplementation(({ chain, transport, account }) => {
+      const client = {
         chain,
         transport,
         account,
-        // Mock wallet client methods
         sendTransaction: vi.fn(),
         signMessage: vi.fn(),
-      }),
-    })),
+      };
+      return {
+        ...client,
+        extend: mockExtend.mockReturnValue({
+          ...client,
+          extend: mockExtend.mockReturnValue(client),
+        }),
+      };
+    }),
     http: vi.fn().mockReturnValue("mock-transport"),
     publicActions: vi.fn(),
   };
 });
+
+vi.mock("viem/zksync", () => ({
+  eip712WalletActions: () => {
+    mockEip712WalletActionsFn();
+    return vi.fn();
+  },
+}));
 
 vi.mock("viem/accounts", () => ({
   privateKeyToAccount: vi.fn().mockImplementation(privateKey => ({
@@ -69,6 +82,13 @@ describe("createConnectedClient", () => {
     const client = createConnectedClient("avalanche-fuji");
 
     expect(client.chain).toEqual(avalancheFuji);
+    expect(client.transport).toBe("mock-transport");
+  });
+
+  it("should create a public client for skale-base-sepolia network", () => {
+    const client = createConnectedClient("skale-base-sepolia");
+
+    expect(client.chain).toEqual(skaleBaseSepolia);
     expect(client.transport).toBe("mock-transport");
   });
 
@@ -123,6 +143,16 @@ describe("createSigner", () => {
     expect(privateKeyToAccount).toHaveBeenCalledWith(mockPrivateKey);
   });
 
+  it("should create a wallet client for skale-base-sepolia network with private key", () => {
+    const signer = createSigner("skale-base-sepolia", mockPrivateKey);
+
+    expect(signer.chain).toEqual(skaleBaseSepolia);
+    expect(signer.transport).toBe("mock-transport");
+    expect(signer.account).toBeDefined();
+    expect(signer.account.address).toBe("0x1234567890123456789012345678901234567890");
+    expect(privateKeyToAccount).toHaveBeenCalledWith(mockPrivateKey);
+  });
+
   it("should throw an error for unsupported network", () => {
     expect(() => createSigner("unsupported-network", mockPrivateKey)).toThrow(
       "Unsupported network: unsupported-network",
@@ -163,5 +193,31 @@ describe("createSigner", () => {
     expect(signer2.account).toBeDefined();
     expect(privateKeyToAccount).toHaveBeenCalledWith(privateKey1);
     expect(privateKeyToAccount).toHaveBeenCalledWith(privateKey2);
+  });
+
+  it("should extend wallet client with eip712WalletActions for ZK stack chains", () => {
+    mockExtend.mockClear();
+    mockEip712WalletActionsFn.mockClear();
+
+    const signer = createSigner("abstract", mockPrivateKey);
+
+    // Should call eip712WalletActions for ZK Stack chains
+    expect(mockEip712WalletActionsFn).toHaveBeenCalledTimes(1);
+    expect(mockExtend).toHaveBeenCalledTimes(2);
+    expect(signer.chain).toEqual(abstract);
+    expect(signer.account).toBeDefined();
+  });
+
+  it("should NOT extend with eip712WalletActions for non ZK stack chains", () => {
+    mockExtend.mockClear();
+    mockEip712WalletActionsFn.mockClear();
+
+    const signer = createSigner("base", mockPrivateKey);
+
+    // Should only call extend once for publicActions on non-ZK Stack chains
+    expect(mockEip712WalletActionsFn).toHaveBeenCalledTimes(0);
+    expect(mockExtend).toHaveBeenCalledTimes(1);
+    expect(signer.chain).toEqual(base);
+    expect(signer.account).toBeDefined();
   });
 });

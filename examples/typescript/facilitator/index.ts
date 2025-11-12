@@ -15,17 +15,24 @@ import {
   ConnectedClient,
   SupportedPaymentKind,
   isSvmSignerWallet,
+  type X402Config,
 } from "x402/types";
 
 config();
 
 const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
 const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
+const SVM_RPC_URL = process.env.SVM_RPC_URL || "";
 
 if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+// Create X402 config with custom RPC URL if provided
+const x402Config: X402Config | undefined = SVM_RPC_URL
+  ? { svmConfig: { rpcUrl: SVM_RPC_URL } }
+  : undefined;
 
 const app = express();
 
@@ -71,7 +78,7 @@ app.post("/verify", async (req: Request, res: Response) => {
     }
 
     // verify
-    const valid = await verify(client, paymentPayload, paymentRequirements);
+    const valid = await verify(client, paymentPayload, paymentRequirements, x402Config);
     res.json(valid);
   } catch (error) {
     console.error("error", error);
@@ -138,7 +145,7 @@ app.post("/settle", async (req: Request, res: Response) => {
     }
 
     // settle
-    const response = await settle(signer, paymentPayload, paymentRequirements);
+    const response = await settle(signer, paymentPayload, paymentRequirements, x402Config);
     res.json(response);
   } catch (error) {
     console.error("error", error);

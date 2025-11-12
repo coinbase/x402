@@ -6,10 +6,10 @@ import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  getPaywallHtml,
   processPriceToAtomicAmount,
   toJsonSafe,
 } from "x402/shared";
+import { getPaywallHtml } from "x402/paywall";
 import {
   ERC20TokenAmount,
   FacilitatorConfig,
@@ -175,6 +175,7 @@ export function paymentMiddleware(
           input: {
             type: "http",
             method,
+            discoverable: discoverable ?? true,
             ...inputSchema,
           },
           output: outputSchema,

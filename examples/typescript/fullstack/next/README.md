@@ -10,10 +10,10 @@ This is a Next.js application that demonstrates how to use the `x402-next` middl
 
 ## Setup
 
-1. Copy `.env.local` to `.env` and add your Ethereum address to receive payments:
+1. Copy `.env-local` to `.env` and add your Ethereum address to receive payments:
 
 ```bash
-cp .env.local .env
+cp .env-local .env
 ```
 
 2. Install and build all packages from the typescript examples root:
