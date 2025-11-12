@@ -39,6 +39,13 @@ export interface PaywallConfig {
 }
 
 /**
+ * Paywall provider interface for generating HTML
+ */
+export interface PaywallProvider {
+  generateHtml(paymentRequired: PaymentRequired, config?: PaywallConfig): string;
+}
+
+/**
  * Route configuration for HTTP endpoints
  */
 export interface RouteConfig {
@@ -114,6 +121,7 @@ export type HTTPProcessResult =
  */
 export class x402HTTPResourceService extends x402ResourceService {
   private compiledRoutes: CompiledRoute[] = [];
+  private paywallProvider?: PaywallProvider;
 
   /**
    * Creates a new x402HTTPResourceService instance.
@@ -138,6 +146,17 @@ export class x402HTTPResourceService extends x402ResourceService {
         config,
       });
     }
+  }
+
+  /**
+   * Register a custom paywall provider for generating HTML
+   *
+   * @param provider - PaywallProvider instance
+   * @returns This service instance for chaining
+   */
+  registerPaywallProvider(provider: PaywallProvider): this {
+    this.paywallProvider = provider;
+    return this;
   }
 
   /**
@@ -456,11 +475,36 @@ export class x402HTTPResourceService extends x402ResourceService {
       return customHtml;
     }
 
-    const resource = paymentRequired.resource;
+    // Use custom paywall provider if set
+    if (this.paywallProvider) {
+      return this.paywallProvider.generateHtml(paymentRequired, paywallConfig);
+    }
 
+    // Try to use @x402/paywall if available (optional dependency)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const paywall = require("@x402/paywall");
+      const displayAmount = this.getDisplayAmount(paymentRequired);
+      const resource = paymentRequired.resource;
+
+      return paywall.getPaywallHtml({
+        amount: displayAmount,
+        paymentRequired,
+        currentUrl: resource?.url || paywallConfig?.currentUrl || "",
+        testnet: paywallConfig?.testnet ?? true,
+        cdpClientKey: paywallConfig?.cdpClientKey,
+        appName: paywallConfig?.appName,
+        appLogo: paywallConfig?.appLogo,
+        sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
+      });
+    } catch {
+      // @x402/paywall not installed, fall back to basic HTML
+    }
+
+    // Fallback: Basic HTML paywall
+    const resource = paymentRequired.resource;
     const displayAmount = this.getDisplayAmount(paymentRequired);
 
-    // TODO: Full paywall
     return `
       <!DOCTYPE html>
       <html>
@@ -480,7 +524,10 @@ export class x402HTTPResourceService extends x402ResourceService {
                  data-cdp-client-key="${paywallConfig?.cdpClientKey || ""}"
                  data-app-name="${paywallConfig?.appName || ""}"
                  data-testnet="${paywallConfig?.testnet || false}">
-              <!-- CDP widget would be injected here -->
+              <!-- Install @x402/paywall for full wallet integration -->
+              <p style="margin-top: 2rem; padding: 1rem; background: #fef3c7; border-radius: 0.5rem;">
+                <strong>Note:</strong> Install <code>@x402/paywall</code> for full wallet connection and payment UI.
+              </p>
             </div>
           </div>
         </body>

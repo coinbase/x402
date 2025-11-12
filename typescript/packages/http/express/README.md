@@ -17,32 +17,32 @@ import { paymentMiddleware } from "@x402/express";
 const app = express();
 
 // Apply the payment middleware with your configuration
-app.use(paymentMiddleware(
-  {
-    "/protected-route": {
-      price: "$0.10",
-      network: "base-sepolia",
-      config: {
-        description: "Access to premium content",
-      }
-    }
-  },
-  // Optional: custom facilitator client
-  undefined,
-  // Optional: paywall configuration
-  {
-    cdpClientKey: "your-cdp-client-key",
-    appName: "Your App",
-    appLogo: "/logo.svg"
-  }
-));
+app.use(
+  paymentMiddleware(
+    {
+      "/protected-route": {
+        price: "$0.10",
+        network: "base-sepolia",
+        config: {
+          description: "Access to premium content",
+        },
+      },
+    },
+    // Optional: custom facilitator client
+    undefined,
+    // Optional: paywall configuration
+    {
+      cdpClientKey: "your-cdp-client-key",
+      appName: "Your App",
+      appLogo: "/logo.svg",
+    },
+  ),
+);
 
 // Implement your protected route
-app.get("/protected-route", 
-  (req, res) => {
-    res.json({ message: "This content is behind a paywall" });
-  }
-);
+app.get("/protected-route", (req, res) => {
+  res.json({ message: "This content is behind a paywall" });
+});
 
 app.listen(3000);
 ```
@@ -75,12 +75,12 @@ The `ExpressAdapter` class implements the `HTTPAdapter` interface from `@x402/co
 
 ```typescript
 class ExpressAdapter implements HTTPAdapter {
-  getHeader(name: string): string | undefined
-  getMethod(): string
-  getPath(): string
-  getUrl(): string
-  getAcceptHeader(): string
-  getUserAgent(): string
+  getHeader(name: string): string | undefined;
+  getMethod(): string;
+  getPath(): string;
+  getUrl(): string;
+  getAcceptHeader(): string;
+  getUserAgent(): string;
 }
 ```
 
@@ -90,11 +90,12 @@ class ExpressAdapter implements HTTPAdapter {
 function paymentMiddleware(
   routes: RoutesConfig,
   facilitatorClients?: FacilitatorClient | FacilitatorClient[],
-  paywallConfig?: PaywallConfig
-): (req: Request, res: Response, next: NextFunction) => Promise<void>
+  paywallConfig?: PaywallConfig,
+): (req: Request, res: Response, next: NextFunction) => Promise<void>;
 ```
 
 Creates Express middleware that:
+
 1. Instantiates an x402HTTPResourceService with the provided configuration
 2. Checks if the incoming request matches a protected route
 3. Validates payment headers if required
@@ -113,9 +114,9 @@ const routes: RoutesConfig = {
     network: "base-sepolia",
     config: {
       description: "Premium API access",
-      maxTimeoutSeconds: 60
-    }
-  }
+      maxTimeoutSeconds: 60,
+    },
+  },
 };
 
 app.use(paymentMiddleware(routes));
@@ -123,43 +124,78 @@ app.use(paymentMiddleware(routes));
 
 ### Paywall Configuration
 
-Optional configuration for the built-in paywall UI (third parameter):
+The middleware automatically displays a paywall UI when browsers request protected endpoints.
+
+**Option 1: Full Paywall UI (Recommended)**
+
+Install the optional `@x402/paywall` package for a complete wallet connection and payment UI:
+
+```bash
+pnpm add @x402/paywall
+```
+
+Then configure it:
 
 ```typescript
 const paywallConfig: PaywallConfig = {
   cdpClientKey: "your-cdp-client-key",
   appName: "Your App Name",
   appLogo: "/path/to/logo.svg",
-  sessionTokenEndpoint: "/api/x402/session-token"
+  sessionTokenEndpoint: "/api/x402/session-token",
+  testnet: true,
 };
 
-app.use(paymentMiddleware(routes, undefined, paywallConfig));
+app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig));
 ```
+
+The paywall includes:
+
+- EVM wallet support (MetaMask, Coinbase Wallet, etc.)
+- Solana wallet support (Phantom, Solflare, etc.)
+- USDC balance checking
+- Chain switching
+- Onramp integration for mainnet
+
+**Option 2: Basic Paywall (No Installation)**
+
+Without `@x402/paywall` installed, the middleware returns a basic HTML page with payment instructions. This works but doesn't include wallet connections.
+
+**Option 3: Custom HTML**
+
+Provide your own HTML template:
+
+```typescript
+app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig, customHtml));
+```
+
+This uses `@x402/paywall` if installed (full wallet UI), or falls back to basic HTML.
+
+**For advanced configuration** (builder pattern, network-specific bundles, custom handlers), see the [@x402/paywall README](../paywall/README.md).
 
 ## Advanced Usage
 
 ### Multiple Protected Routes
 
 ```typescript
-app.use(paymentMiddleware(
-  {
+app.use(
+  paymentMiddleware({
     "/api/premium/*": {
       price: "$1.00",
       network: "base",
       config: {
-        description: "Premium API access"
-      }
+        description: "Premium API access",
+      },
     },
     "/api/data": {
       price: "$0.50",
       network: "base-sepolia",
       config: {
         description: "Data endpoint access",
-        maxTimeoutSeconds: 120
-      }
-    }
-  }
-));
+        maxTimeoutSeconds: 120,
+      },
+    },
+  }),
+);
 ```
 
 ### Custom Facilitator Client
@@ -172,14 +208,13 @@ import { createFacilitatorClient } from "@x402/core";
 const customFacilitator = createFacilitatorClient({
   url: "https://your-facilitator.com",
   createAuthHeaders: async () => ({
-    verify: { "Authorization": "Bearer your-token" },
-    settle: { "Authorization": "Bearer your-token" }
-  })
+    verify: { Authorization: "Bearer your-token" },
+    settle: { Authorization: "Bearer your-token" },
+  }),
 });
 
 app.use(paymentMiddleware(routes, customFacilitator, paywallConfig));
 ```
-
 
 ## Migration from x402-express
 
@@ -190,26 +225,32 @@ If you're migrating from the legacy `x402-express` package:
 3. **Parameter order**: Routes are now the first parameter, followed by optional facilitator and paywall config
 
 ### Before (x402-express):
+
 ```typescript
 import { paymentMiddleware } from "x402-express";
 
-app.use(paymentMiddleware(
-  payTo,           // First param was payTo address
-  routes,          // Second param was routes
-  facilitator,     // Third param was facilitator config
-  paywall         // Fourth param was paywall config
-));
+app.use(
+  paymentMiddleware(
+    payTo, // First param was payTo address
+    routes, // Second param was routes
+    facilitator, // Third param was facilitator config
+    paywall, // Fourth param was paywall config
+  ),
+);
 ```
 
 ### After (@x402/express):
+
 ```typescript
 import { paymentMiddleware } from "@x402/express";
 
-app.use(paymentMiddleware(
-  routes,          // First param is now routes (payTo is part of route config)
-  facilitator,     // Second param is facilitator client (optional)
-  paywall         // Third param is paywall config (optional)
-));
+app.use(
+  paymentMiddleware(
+    routes, // First param is now routes (payTo is part of route config)
+    facilitator, // Second param is facilitator client (optional)
+    paywall, // Third param is paywall config (optional)
+  ),
+);
 ```
 
 Note: The `payTo` address is now specified within each route configuration rather than as a separate parameter.
