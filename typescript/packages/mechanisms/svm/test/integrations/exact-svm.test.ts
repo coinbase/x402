@@ -251,15 +251,21 @@ describe("SVM Integration Tests", () => {
       const svmClient = new ExactSvmClient(clientSigner, {
         rpcUrl: "https://api.devnet.solana.com",
       });
-      const paymentClient = new x402Client();
-      client = new x402HTTPClient(paymentClient).registerScheme(
+      const paymentClient = new x402Client().registerScheme(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         svmClient,
-      ) as x402HTTPClient;
+      );
+      client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      service = new x402HTTPResourceService(routes, facilitatorClient);
-      service.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmService());
-      await service.initialize();
+      // Create resource service and register schemes (composition pattern)
+      const resourceService = new x402ResourceService(facilitatorClient);
+      resourceService.registerScheme(
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        new ExactSvmService(),
+      );
+      await resourceService.initialize(); // Initialize to fetch supported kinds
+
+      service = new x402HTTPResourceService(resourceService, routes);
     });
 
     it("middleware should successfully verify and settle a SVM payment from an http client", async () => {
@@ -322,6 +328,198 @@ describe("SVM Integration Tests", () => {
 
       expect(settlementHeaders).toBeDefined();
       expect(settlementHeaders?.["PAYMENT-RESPONSE"]).toBeDefined();
+    });
+  });
+
+  describe("Price Parsing Integration", () => {
+    let server: x402ResourceService;
+    let svmService: ExactSvmService;
+
+    beforeEach(async () => {
+      const facilitatorBytes = base58.decode(FACILITATOR_PRIVATE_KEY);
+      const facilitatorSigner = await createKeyPairSignerFromBytes(facilitatorBytes);
+
+      const facilitatorEvmSigner = toFacilitatorSvmSigner({
+        signer: facilitatorSigner,
+        rpcUrl: "https://api.devnet.solana.com",
+      });
+
+      const facilitator = new x402Facilitator().registerScheme(
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        new ExactSvmFacilitator(facilitatorEvmSigner),
+      );
+
+      const facilitatorClient = new SvmFacilitatorClient(facilitator);
+      server = new x402ResourceService(facilitatorClient);
+
+      svmService = new ExactSvmService();
+      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmService);
+      await server.initialize();
+    });
+
+    it("should parse Money formats and build payment requirements", async () => {
+      // Test different Money formats
+      const testCases = [
+        { input: "$1.00", expectedAmount: "1000000" },
+        { input: "1.50", expectedAmount: "1500000" },
+        { input: 2.5, expectedAmount: "2500000" },
+      ];
+
+      for (const testCase of testCases) {
+        const requirements = await server.buildPaymentRequirements({
+          scheme: "exact",
+          payTo: RESOURCE_SERVER_ADDRESS,
+          price: testCase.input,
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+        });
+
+        expect(requirements).toHaveLength(1);
+        expect(requirements[0].amount).toBe(testCase.expectedAmount);
+        expect(requirements[0].asset).toBe("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"); // Devnet USDC
+      }
+    });
+
+    it("should handle AssetAmount pass-through", async () => {
+      const customAsset = {
+        amount: "5000000",
+        asset: "CustomTokenMint1111111111111111111111",
+        extra: { foo: "bar" },
+      };
+
+      const requirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: customAsset,
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+
+      expect(requirements).toHaveLength(1);
+      expect(requirements[0].amount).toBe("5000000");
+      expect(requirements[0].asset).toBe("CustomTokenMint1111111111111111111111");
+      expect(requirements[0].extra?.foo).toBe("bar");
+    });
+
+    it("should use registerMoneyParser for custom conversion", async () => {
+      // Register custom parser: large amounts use custom token
+      svmService.registerMoneyParser(async (amount, _network) => {
+        if (amount > 100) {
+          return {
+            amount: (amount * 1e9).toString(), // Custom token with 9 decimals
+            asset: "CustomLargeTokenMint111111111111111",
+            extra: { token: "CUSTOM", tier: "large" },
+          };
+        }
+        return null; // Use default for small amounts
+      });
+
+      // Test large amount - should use custom parser
+      const largeRequirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 150, // Large amount
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+
+      expect(largeRequirements[0].amount).toBe((150 * 1e9).toString());
+      expect(largeRequirements[0].asset).toBe("CustomLargeTokenMint111111111111111");
+      expect(largeRequirements[0].extra?.token).toBe("CUSTOM");
+      expect(largeRequirements[0].extra?.tier).toBe("large");
+
+      // Test small amount - should use default USDC
+      const smallRequirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 50, // Small amount
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+
+      expect(smallRequirements[0].amount).toBe("50000000"); // 50 * 1e6 (USDC)
+      expect(smallRequirements[0].asset).toBe("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"); // Devnet USDC
+    });
+
+    it("should support multiple MoneyParser in chain", async () => {
+      svmService
+        .registerMoneyParser(async amount => {
+          if (amount > 1000) {
+            return {
+              amount: (amount * 1e9).toString(),
+              asset: "VIPTokenMint111111111111111111111111",
+              extra: { tier: "vip" },
+            };
+          }
+          return null;
+        })
+        .registerMoneyParser(async amount => {
+          if (amount > 100) {
+            return {
+              amount: (amount * 1e6).toString(),
+              asset: "PremiumTokenMint1111111111111111111",
+              extra: { tier: "premium" },
+            };
+          }
+          return null;
+        });
+      // < 100 uses default USDC
+
+      // VIP tier
+      const vipReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 2000,
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+      expect(vipReq[0].extra?.tier).toBe("vip");
+      expect(vipReq[0].asset).toBe("VIPTokenMint111111111111111111111111");
+
+      // Premium tier
+      const premiumReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 500,
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+      expect(premiumReq[0].extra?.tier).toBe("premium");
+      expect(premiumReq[0].asset).toBe("PremiumTokenMint1111111111111111111");
+
+      // Standard tier (default)
+      const standardReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 50,
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+      expect(standardReq[0].asset).toBe("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"); // Default USDC
+    });
+
+    it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
+      const mockExchangeRate = 0.98;
+
+      svmService.registerMoneyParser(async (amount, _network) => {
+        // Simulate async API call
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const usdcAmount = amount * mockExchangeRate;
+        return {
+          amount: Math.floor(usdcAmount * 1e6).toString(),
+          asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+          extra: {
+            exchangeRate: mockExchangeRate,
+            originalUSD: amount,
+          },
+        };
+      });
+
+      const requirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: RESOURCE_SERVER_ADDRESS,
+        price: 100,
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+      });
+
+      // 100 USD * 0.98 = 98 USDC
+      expect(requirements[0].amount).toBe("98000000");
+      expect(requirements[0].extra?.exchangeRate).toBe(0.98);
+      expect(requirements[0].extra?.originalUSD).toBe(100);
     });
   });
 });

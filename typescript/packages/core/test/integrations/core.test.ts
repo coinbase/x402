@@ -13,7 +13,7 @@ import {
   CashSchemeNetworkClient,
   CashSchemeNetworkFacilitator,
   CashSchemeNetworkService,
-} from "./mocks/cash";
+} from "../mocks";
 import { Network, PaymentPayload, PaymentRequirements } from "../../src/types";
 
 describe("Core Integration Tests", () => {
@@ -100,15 +100,19 @@ describe("Core Integration Tests", () => {
 
       const facilitatorClient = new CashFacilitatorClient(facilitator);
 
-      const paymentClient = new x402Client();
-      client = new x402HTTPClient(paymentClient).registerScheme(
+      const paymentClient = new x402Client().registerScheme(
         "x402:cash",
         new CashSchemeNetworkClient("John"),
-      ) as x402HTTPClient;
+      );
+      client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      service = new x402HTTPResourceService(routes, facilitatorClient);
-      service.registerScheme("x402:cash", new CashSchemeNetworkService());
-      await service.initialize(); // Initialize to fetch supported kinds
+      // Create resource service and register schemes
+      const resourceService = new x402ResourceService(facilitatorClient);
+      resourceService.registerScheme("x402:cash", new CashSchemeNetworkService());
+      await resourceService.initialize(); // Initialize to fetch supported kinds
+
+      // Create HTTP service with the resource service
+      service = new x402HTTPResourceService(resourceService, routes);
     });
 
     it("middleware should successfully verify and settle a cash payment from an http client", async () => {

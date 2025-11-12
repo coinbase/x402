@@ -306,15 +306,15 @@ describe("EVM Integration Tests", () => {
       const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
 
       const evmClient = new ExactEvmClient(clientAccount);
-      const paymentClient = new x402Client();
-      client = new x402HTTPClient(paymentClient).registerScheme(
-        "eip155:84532",
-        evmClient,
-      ) as x402HTTPClient;
+      const paymentClient = new x402Client().registerScheme("eip155:84532", evmClient);
+      client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      service = new x402HTTPResourceService(routes, facilitatorClient);
-      service.registerScheme("eip155:84532", new ExactEvmService());
-      await service.initialize(); // Initialize to fetch supported kinds
+      // Create resource service and register schemes (composition pattern)
+      const resourceService = new x402ResourceService(facilitatorClient);
+      resourceService.registerScheme("eip155:84532", new ExactEvmService());
+      await resourceService.initialize(); // Initialize to fetch supported kinds
+
+      service = new x402HTTPResourceService(resourceService, routes);
     });
 
     it("middleware should successfully verify and settle an EVM payment from an http client", async () => {
@@ -383,6 +383,202 @@ describe("EVM Integration Tests", () => {
 
       expect(settlementHeaders).toBeDefined();
       expect(settlementHeaders?.["PAYMENT-RESPONSE"]).toBeDefined();
+    });
+  });
+
+  describe("Price Parsing Integration", () => {
+    let server: x402ResourceService;
+    let evmService: ExactEvmService;
+
+    beforeEach(async () => {
+      const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http(),
+      });
+      const walletClient = createWalletClient({
+        account: facilitatorAccount,
+        chain: baseSepolia,
+        transport: http(),
+      });
+
+      const facilitatorSigner = toFacilitatorEvmSigner({ publicClient, walletClient });
+      const facilitator = new x402Facilitator().registerScheme(
+        "eip155:84532",
+        new ExactEvmFacilitator(facilitatorSigner),
+      );
+
+      const facilitatorClient = new EvmFacilitatorClient(facilitator);
+      server = new x402ResourceService(facilitatorClient);
+
+      evmService = new ExactEvmService();
+      server.registerScheme("eip155:84532", evmService);
+      await server.initialize();
+    });
+
+    it("should parse Money formats and build payment requirements", async () => {
+      // Test different Money formats
+      const testCases = [
+        { input: "$1.00", expectedAmount: "1000000" },
+        { input: "1.50", expectedAmount: "1500000" },
+        { input: 2.5, expectedAmount: "2500000" },
+      ];
+
+      for (const testCase of testCases) {
+        const requirements = await server.buildPaymentRequirements({
+          scheme: "exact",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          price: testCase.input,
+          network: "eip155:84532" as Network,
+        });
+
+        expect(requirements).toHaveLength(1);
+        expect(requirements[0].amount).toBe(testCase.expectedAmount);
+        expect(requirements[0].asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e"); // Base Sepolia USDC
+      }
+    });
+
+    it("should handle AssetAmount pass-through", async () => {
+      const customAsset = {
+        amount: "5000000",
+        asset: "0xCustomToken1234567890123456789012345678",
+        extra: { foo: "bar" },
+      };
+
+      const requirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: customAsset,
+        network: "eip155:84532" as Network,
+      });
+
+      expect(requirements).toHaveLength(1);
+      expect(requirements[0].amount).toBe("5000000");
+      expect(requirements[0].asset).toBe("0xCustomToken1234567890123456789012345678");
+      expect(requirements[0].extra?.foo).toBe("bar");
+    });
+
+    it("should use registerMoneyParser for custom conversion", async () => {
+      // Register custom parser: large amounts use DAI
+      evmService.registerMoneyParser(async (amount, _network) => {
+        if (amount > 100) {
+          return {
+            amount: (amount * 1e18).toString(), // DAI has 18 decimals
+            asset: "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI on mainnet (test value)
+            extra: { token: "DAI", tier: "large" },
+          };
+        }
+        return null; // Use default for small amounts
+      });
+
+      // Test large amount - should use custom parser
+      const largeRequirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 150, // Large amount
+        network: "eip155:84532" as Network,
+      });
+
+      expect(largeRequirements[0].amount).toBe((150 * 1e18).toString());
+      expect(largeRequirements[0].asset).toBe("0x6B175474E89094C44Da98b954EedeAC495271d0F");
+      expect(largeRequirements[0].extra?.token).toBe("DAI");
+      expect(largeRequirements[0].extra?.tier).toBe("large");
+
+      // Test small amount - should use default USDC
+      const smallRequirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 50, // Small amount
+        network: "eip155:84532" as Network,
+      });
+
+      expect(smallRequirements[0].amount).toBe("50000000"); // 50 * 1e6 (USDC)
+      expect(smallRequirements[0].asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e"); // Base Sepolia USDC
+    });
+
+    it("should support multiple MoneyParser in chain", async () => {
+      evmService
+        .registerMoneyParser(async amount => {
+          if (amount > 1000) {
+            return {
+              amount: (amount * 1e18).toString(),
+              asset: "0xDAI",
+              extra: { tier: "vip" },
+            };
+          }
+          return null;
+        })
+        .registerMoneyParser(async amount => {
+          if (amount > 100) {
+            return {
+              amount: (amount * 1e6).toString(),
+              asset: "0xUSDT",
+              extra: { tier: "premium" },
+            };
+          }
+          return null;
+        });
+      // < 100 uses default USDC
+
+      // VIP tier
+      const vipReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 2000,
+        network: "eip155:84532" as Network,
+      });
+      expect(vipReq[0].extra?.tier).toBe("vip");
+      expect(vipReq[0].asset).toBe("0xDAI");
+
+      // Premium tier
+      const premiumReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 500,
+        network: "eip155:84532" as Network,
+      });
+      expect(premiumReq[0].extra?.tier).toBe("premium");
+      expect(premiumReq[0].asset).toBe("0xUSDT");
+
+      // Standard tier (default)
+      const standardReq = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 50,
+        network: "eip155:84532" as Network,
+      });
+      expect(standardReq[0].asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e"); // Default USDC
+    });
+
+    it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
+      const mockExchangeRate = 1.02;
+
+      evmService.registerMoneyParser(async (amount, _network) => {
+        // Simulate async API call
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const usdcAmount = amount * mockExchangeRate;
+        return {
+          amount: Math.floor(usdcAmount * 1e6).toString(),
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          extra: {
+            exchangeRate: mockExchangeRate,
+            originalUSD: amount,
+          },
+        };
+      });
+
+      const requirements = await server.buildPaymentRequirements({
+        scheme: "exact",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        price: 100,
+        network: "eip155:84532" as Network,
+      });
+
+      // 100 USD * 1.02 = 102 USDC
+      expect(requirements[0].amount).toBe("102000000");
+      expect(requirements[0].extra?.exchangeRate).toBe(1.02);
+      expect(requirements[0].extra?.originalUSD).toBe(100);
     });
   });
 });

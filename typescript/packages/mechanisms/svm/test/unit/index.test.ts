@@ -111,44 +111,50 @@ describe("@x402/svm", () => {
     const service = new ExactSvmService();
 
     describe("parsePrice", () => {
-      it("should parse dollar string prices", () => {
-        const result = service.parsePrice("$0.10", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+      it("should parse dollar string prices", async () => {
+        const result = await service.parsePrice("$0.10", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
         expect(result.amount).toBe("100000"); // 0.10 USDC = 100000 smallest units
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
-      it("should parse simple number string prices", () => {
-        const result = service.parsePrice("0.10", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+      it("should parse simple number string prices", async () => {
+        const result = await service.parsePrice("0.10", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
-      it("should parse explicit USDC prices", () => {
-        const result = service.parsePrice("0.10 USDC", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+      it("should parse explicit USDC prices", async () => {
+        const result = await service.parsePrice(
+          "0.10 USDC",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        );
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
-      it("should parse USD as USDC", () => {
-        const result = service.parsePrice("0.10 USD", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+      it("should parse USD as USDC", async () => {
+        const result = await service.parsePrice(
+          "0.10 USD",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        );
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
-      it("should parse number prices", () => {
-        const result = service.parsePrice(0.1, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+      it("should parse number prices", async () => {
+        const result = await service.parsePrice(0.1, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
-      it("should use devnet USDC for devnet network", () => {
-        const result = service.parsePrice("1.00", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+      it("should use devnet USDC for devnet network", async () => {
+        const result = await service.parsePrice("1.00", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
         expect(result.amount).toBe("1000000");
         expect(result.asset).toBe(USDC_DEVNET_ADDRESS);
       });
 
-      it("should handle pre-parsed price objects", () => {
-        const result = service.parsePrice(
+      it("should handle pre-parsed price objects", async () => {
+        const result = await service.parsePrice(
           { amount: "123456", asset: "custom_token_address", extra: {} },
           "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
         );
@@ -156,25 +162,21 @@ describe("@x402/svm", () => {
         expect(result.asset).toBe("custom_token_address");
       });
 
-      it("should throw for unsupported assets", () => {
-        expect(() =>
-          service.parsePrice("1.00 SOL", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
-        ).toThrow("Unsupported asset");
+      it("should throw for invalid price formats", async () => {
+        await expect(
+          async () =>
+            await service.parsePrice("not-a-price!", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
+        ).rejects.toThrow("Invalid money format");
       });
 
-      it("should throw for invalid price formats", () => {
-        expect(() =>
-          service.parsePrice("not-a-price!", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
-        ).toThrow("Invalid price format");
-      });
-
-      it("should throw for price objects without asset", () => {
-        expect(() =>
-          service.parsePrice(
-            { amount: "123456" } as never,
-            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          ),
-        ).toThrow("Asset address must be specified");
+      it("should throw for price objects without asset", async () => {
+        await expect(
+          async () =>
+            await service.parsePrice(
+              { amount: "123456" } as never,
+              "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            ),
+        ).rejects.toThrow("Asset address must be specified");
       });
     });
 
