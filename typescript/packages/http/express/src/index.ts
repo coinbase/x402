@@ -10,6 +10,7 @@ import {
 } from "@x402/core/server";
 import { SchemeNetworkService, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
+import { bazaarResourceServiceExtension } from "@x402/extensions/bazaar";
 
 /**
  * Express adapter implementation
@@ -143,10 +144,10 @@ export function paymentMiddleware(
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  // Create the core x402 resource service
   const resourceService = new x402ResourceService(facilitatorClients);
 
-  // Register all provided schemes on the resource service
+  resourceService.registerExtension(bazaarResourceServiceExtension);
+
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
       resourceService.registerScheme(network, schemeServer);

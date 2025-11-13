@@ -243,11 +243,16 @@ export class x402HTTPResourceService {
       req.extra.resourceUrl = resourceInfo.url;
     });
 
+    let extensions = routeConfig.extensions;
+    if (extensions) {
+      extensions = this.resourceService.enrichExtensions(extensions, context);
+    }
+
     const paymentRequired = this.resourceService.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
-      routeConfig.extensions,
+      extensions,
     );
 
     // If no payment provided

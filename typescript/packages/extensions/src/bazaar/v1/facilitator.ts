@@ -1,9 +1,9 @@
 /**
  * V1 Facilitator functions for extracting Bazaar discovery information
- * 
+ *
  * In v1, discovery information is stored in the `outputSchema` field
  * of PaymentRequirements, which has a different structure than v2.
- * 
+ *
  * This module transforms v1 data into v2 DiscoveryInfo format.
  */
 
@@ -13,12 +13,18 @@ import type { DiscoveryInfo, QueryDiscoveryInfo, BodyDiscoveryInfo } from "../ty
 
 /**
  * Type guard to check if an object has the v1 outputSchema structure
+ *
+ * @param obj - The object to check
+ * @returns True if object has v1 outputSchema structure
  */
-function hasV1OutputSchema(obj: any): obj is { input: any; output?: any } {
+function hasV1OutputSchema(
+  obj: unknown,
+): obj is { input: Record<string, unknown>; output?: Record<string, unknown> } {
   return (
     obj !== null &&
     typeof obj === "object" &&
     "input" in obj &&
+    obj.input !== null &&
     typeof obj.input === "object" &&
     "type" in obj.input &&
     obj.input.type === "http" &&
@@ -28,6 +34,9 @@ function hasV1OutputSchema(obj: any): obj is { input: any; output?: any } {
 
 /**
  * Checks if a method is a query parameter method
+ *
+ * @param method - HTTP method string to check
+ * @returns True if method is GET, HEAD, or DELETE
  */
 function isQueryMethod(method: string): method is QueryParamMethods {
   const upperMethod = method.toUpperCase();
@@ -36,6 +45,9 @@ function isQueryMethod(method: string): method is QueryParamMethods {
 
 /**
  * Checks if a method is a body method
+ *
+ * @param method - HTTP method string to check
+ * @returns True if method is POST, PUT, or PATCH
  */
 function isBodyMethod(method: string): method is BodyMethods {
   const upperMethod = method.toUpperCase();
@@ -45,33 +57,42 @@ function isBodyMethod(method: string): method is BodyMethods {
 /**
  * Extracts query parameters from v1 input, making smart assumptions
  * about common field names used in v1
+ *
+ * @param v1Input - V1 input object from payment requirements
+ * @returns Extracted query parameters or undefined
  */
-function extractQueryParams(v1Input: any): Record<string, any> | undefined {
+function extractQueryParams(v1Input: Record<string, unknown>): Record<string, unknown> | undefined {
   // Check various common field names used in v1 (both camelCase and snake_case)
-  if (v1Input.queryParams) {
-    return v1Input.queryParams;
+  if (v1Input.queryParams && typeof v1Input.queryParams === "object") {
+    return v1Input.queryParams as Record<string, unknown>;
   }
-  if (v1Input.query_params) {
-    return v1Input.query_params;
+  if (v1Input.query_params && typeof v1Input.query_params === "object") {
+    return v1Input.query_params as Record<string, unknown>;
   }
-  if (v1Input.query) {
-    return v1Input.query;
+  if (v1Input.query && typeof v1Input.query === "object") {
+    return v1Input.query as Record<string, unknown>;
   }
-  if (v1Input.params) {
-    return v1Input.params;
+  if (v1Input.params && typeof v1Input.params === "object") {
+    return v1Input.params as Record<string, unknown>;
   }
   return undefined;
 }
 
 /**
  * Extracts body information from v1 input, making smart assumptions
+ *
+ * @param v1Input - V1 input object from payment requirements
+ * @returns Object containing body content and bodyType
  */
-function extractBodyInfo(v1Input: any): { body: any; bodyType: "json" | "form-data" | "text" } {
+function extractBodyInfo(v1Input: Record<string, unknown>): {
+  body: Record<string, unknown>;
+  bodyType: "json" | "form-data" | "text";
+} {
   // Determine body type (check both camelCase and snake_case)
   let bodyType: "json" | "form-data" | "text" = "json";
   const bodyTypeField = v1Input.bodyType || v1Input.body_type;
 
-  if (bodyTypeField) {
+  if (bodyTypeField && typeof bodyTypeField === "string") {
     const type = bodyTypeField.toLowerCase();
     if (type.includes("form") || type.includes("multipart")) {
       bodyType = "form-data";
@@ -84,21 +105,25 @@ function extractBodyInfo(v1Input: any): { body: any; bodyType: "json" | "form-da
 
   // Extract body content from various possible fields
   // Priority order based on observed patterns in real data
-  let body: any = {};
+  let body: Record<string, unknown> = {};
 
-  if (v1Input.bodyFields) {
-    body = v1Input.bodyFields;
-  } else if (v1Input.body_fields && v1Input.body_fields !== null) {
-    body = v1Input.body_fields;
-  } else if (v1Input.bodyParams) {
-    body = v1Input.bodyParams;
-  } else if (v1Input.body) {
-    body = v1Input.body;
-  } else if (v1Input.data) {
-    body = v1Input.data;
-  } else if (v1Input.properties) {
+  if (v1Input.bodyFields && typeof v1Input.bodyFields === "object") {
+    body = v1Input.bodyFields as Record<string, unknown>;
+  } else if (
+    v1Input.body_fields &&
+    v1Input.body_fields !== null &&
+    typeof v1Input.body_fields === "object"
+  ) {
+    body = v1Input.body_fields as Record<string, unknown>;
+  } else if (v1Input.bodyParams && typeof v1Input.bodyParams === "object") {
+    body = v1Input.bodyParams as Record<string, unknown>;
+  } else if (v1Input.body && typeof v1Input.body === "object") {
+    body = v1Input.body as Record<string, unknown>;
+  } else if (v1Input.data && typeof v1Input.data === "object") {
+    body = v1Input.data as Record<string, unknown>;
+  } else if (v1Input.properties && typeof v1Input.properties === "object") {
     // Some endpoints have properties directly at the input level
-    body = v1Input.properties;
+    body = v1Input.properties as Record<string, unknown>;
   }
 
   return { body, bodyType };
@@ -106,18 +131,18 @@ function extractBodyInfo(v1Input: any): { body: any; bodyType: "json" | "form-da
 
 /**
  * Extracts discovery info from v1 PaymentRequirements and transforms to v2 format
- * 
+ *
  * In v1, the discovery information is stored in the `outputSchema` field,
  * which contains both input (endpoint shape) and output (response schema) information.
- * 
+ *
  * This function makes smart assumptions to normalize v1 data into v2 DiscoveryInfo format:
  * - For GET/HEAD/DELETE: Looks for queryParams, query, or params fields
  * - For POST/PUT/PATCH: Looks for bodyFields, body, or data fields and normalizes bodyType
  * - Extracts optional headers if present
- * 
+ *
  * @param paymentRequirements - V1 payment requirements
  * @returns Discovery info in v2 format if present and valid, or null if not discoverable
- * 
+ *
  * @example
  * ```typescript
  * const requirements: PaymentRequirementsV1 = {
@@ -141,7 +166,7 @@ function extractBodyInfo(v1Input: any): { body: any; bodyType: "json" | "form-da
  *   asset: "0x...",
  *   extra: {}
  * };
- * 
+ *
  * const info = extractDiscoveryInfoV1(requirements);
  * if (info) {
  *   console.log("Endpoint method:", info.input.method);
@@ -149,7 +174,7 @@ function extractBodyInfo(v1Input: any): { body: any; bodyType: "json" | "form-da
  * ```
  */
 export function extractDiscoveryInfoV1(
-  paymentRequirements: PaymentRequirementsV1
+  paymentRequirements: PaymentRequirementsV1,
 ): DiscoveryInfo | null {
   const { outputSchema } = paymentRequirements;
 
@@ -168,10 +193,14 @@ export function extractDiscoveryInfoV1(
     return null;
   }
 
-  const method = v1Input.method.toUpperCase();
+  const method = typeof v1Input.method === "string" ? v1Input.method.toUpperCase() : "";
 
   // Extract headers if present (check both camelCase and snake_case)
-  const headers = v1Input.headerFields || v1Input.header_fields || v1Input.headers;
+  const headersRaw = v1Input.headerFields || v1Input.header_fields || v1Input.headers;
+  const headers =
+    headersRaw && typeof headersRaw === "object"
+      ? (headersRaw as Record<string, string>)
+      : undefined;
 
   // Extract output example/schema if present
   const output = outputSchema.output
@@ -190,10 +219,10 @@ export function extractDiscoveryInfoV1(
       input: {
         type: "http",
         method: method as QueryParamMethods,
-        ...(queryParams && { queryParams }),
-        ...(headers && { headers }),
+        ...(queryParams ? { queryParams } : {}),
+        ...(headers ? { headers } : {}),
       },
-      ...(output && { output }),
+      ...(output ? { output } : {}),
     };
 
     return discoveryInfo;
@@ -208,10 +237,10 @@ export function extractDiscoveryInfoV1(
         method: method as BodyMethods,
         bodyType,
         body,
-        ...(queryParams && { queryParams }),
-        ...(headers && { headers }),
+        ...(queryParams ? { queryParams } : {}),
+        ...(headers ? { headers } : {}),
       },
-      ...(output && { output }),
+      ...(output ? { output } : {}),
     };
 
     return discoveryInfo;
@@ -223,10 +252,10 @@ export function extractDiscoveryInfoV1(
 
 /**
  * Checks if v1 PaymentRequirements contains discoverable information
- * 
+ *
  * @param paymentRequirements - V1 payment requirements
  * @returns True if the requirements contain valid discovery info
- * 
+ *
  * @example
  * ```typescript
  * if (isDiscoverableV1(requirements)) {
@@ -235,21 +264,19 @@ export function extractDiscoveryInfoV1(
  * }
  * ```
  */
-export function isDiscoverableV1(
-  paymentRequirements: PaymentRequirementsV1
-): boolean {
+export function isDiscoverableV1(paymentRequirements: PaymentRequirementsV1): boolean {
   return extractDiscoveryInfoV1(paymentRequirements) !== null;
 }
 
 /**
  * Extracts resource metadata from v1 PaymentRequirements
- * 
+ *
  * In v1, resource information is embedded directly in the payment requirements
  * rather than in a separate resource object.
- * 
+ *
  * @param paymentRequirements - V1 payment requirements
  * @returns Resource metadata
- * 
+ *
  * @example
  * ```typescript
  * const metadata = extractResourceMetadataV1(requirements);
@@ -257,9 +284,7 @@ export function isDiscoverableV1(
  * console.log("Description:", metadata.description);
  * ```
  */
-export function extractResourceMetadataV1(
-  paymentRequirements: PaymentRequirementsV1
-): {
+export function extractResourceMetadataV1(paymentRequirements: PaymentRequirementsV1): {
   url: string;
   description: string;
   mimeType: string;
@@ -270,4 +295,3 @@ export function extractResourceMetadataV1(
     mimeType: paymentRequirements.mimeType,
   };
 }
-

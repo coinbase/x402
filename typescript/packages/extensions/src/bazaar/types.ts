@@ -16,13 +16,13 @@ export interface QueryDiscoveryInfo {
   input: {
     type: "http";
     method: QueryParamMethods;
-    queryParams?: Record<string, any>;
+    queryParams?: Record<string, unknown>;
     headers?: Record<string, string>;
   };
   output?: {
     type?: string;
     format?: string;
-    example?: any;
+    example?: unknown;
   };
 }
 
@@ -34,14 +34,14 @@ export interface BodyDiscoveryInfo {
     type: "http";
     method: BodyMethods;
     bodyType: "json" | "form-data" | "text";
-    body: any;
-    queryParams?: Record<string, any>;
+    body: Record<string, unknown>;
+    queryParams?: Record<string, unknown>;
     headers?: Record<string, string>;
   };
   output?: {
     type?: string;
     format?: string;
-    example?: any;
+    example?: unknown;
   };
 }
 
@@ -73,7 +73,7 @@ export interface QueryDiscoveryExtension {
           };
           queryParams?: {
             type: "object";
-            properties?: Record<string, any>;
+            properties?: Record<string, unknown>;
             required?: string[];
             additionalProperties?: boolean;
           };
@@ -84,12 +84,13 @@ export interface QueryDiscoveryExtension {
             };
           };
         };
-        required: ["type", "method"];
+        required: ("type" | "method")[];
         additionalProperties?: boolean;
       };
       output?: {
         type: "object";
-        properties?: Record<string, any>;
+        properties?: Record<string, unknown>;
+        required?: readonly string[];
         additionalProperties?: boolean;
       };
     };
@@ -122,10 +123,10 @@ export interface BodyDiscoveryExtension {
             type: "string";
             enum: ["json", "form-data", "text"];
           };
-          body: Record<string, any>;
+          body: Record<string, unknown>;
           queryParams?: {
             type: "object";
-            properties?: Record<string, any>;
+            properties?: Record<string, unknown>;
             required?: string[];
             additionalProperties?: boolean;
           };
@@ -136,12 +137,13 @@ export interface BodyDiscoveryExtension {
             };
           };
         };
-        required: ["type", "method", "bodyType", "body"];
+        required: ("type" | "method" | "bodyType" | "body")[];
         additionalProperties?: boolean;
       };
       output?: {
         type: "object";
-        properties?: Record<string, any>;
+        properties?: Record<string, unknown>;
+        required?: readonly string[];
         additionalProperties?: boolean;
       };
     };
@@ -154,63 +156,39 @@ export interface BodyDiscoveryExtension {
  */
 export type DiscoveryExtension = QueryDiscoveryExtension | BodyDiscoveryExtension;
 
-
-
-/**
- * Configuration for declaring a discovery extension
- */
 export interface DeclareQueryDiscoveryExtensionConfig {
-  /** HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD) */
-  method: QueryParamMethods;
-
-  /** Example input data (query params for GET/HEAD/DELETE, body for POST/PUT/PATCH) */
-  input?: any;
-
-  /** JSON Schema for the input */
-  inputSchema?: Record<string, any>;
-
-  /** Output configuration */
+  method?: QueryParamMethods;
+  input?: Record<string, unknown>;
+  inputSchema?: Record<string, unknown>;
   output?: {
-    /** Example output data */
-    example?: any;
-    /** JSON Schema for the output example */
-    schema?: Record<string, any>;
+    example?: unknown;
+    schema?: Record<string, unknown>;
   };
 }
 
-/**
- * Configuration for declaring a discovery extension
- */
 export interface DeclareBodyDiscoveryExtensionConfig {
-  /** HTTP method (GET, POST, PUT, PATCH, DELETE, HEAD) */
-  method: BodyMethods;
-
-  /** Example input data (query params for GET/HEAD/DELETE, body for POST/PUT/PATCH) */
-  input?: any;
-
-  /** JSON Schema for the input */
-  inputSchema?: Record<string, any>;
-
-  /** Body type for POST/PUT/PATCH methods */
+  method?: BodyMethods;
+  input?: Record<string, unknown>;
+  inputSchema?: Record<string, unknown>;
   bodyType?: "json" | "form-data" | "text";
-
-  /** Output configuration */
   output?: {
-    /** Example output data */
-    example?: any;
-    /** JSON Schema for the output example */
-    schema?: Record<string, any>;
+    example?: unknown;
+    schema?: Record<string, unknown>;
   };
 }
 
-export type DeclareDiscoveryExtensionConfig = DeclareQueryDiscoveryExtensionConfig | DeclareBodyDiscoveryExtensionConfig;
+export type DeclareDiscoveryExtensionConfig =
+  | DeclareQueryDiscoveryExtensionConfig
+  | DeclareBodyDiscoveryExtensionConfig;
 
+export const isQueryExtensionConfig = (
+  config: DeclareDiscoveryExtensionConfig,
+): config is DeclareQueryDiscoveryExtensionConfig => {
+  return !("bodyType" in config);
+};
 
-// make it a typeguard
-export const isQueryExtensionConfig = (config: DeclareDiscoveryExtensionConfig): config is DeclareQueryDiscoveryExtensionConfig => {
-  return ["GET", "HEAD", "DELETE"].includes(config.method);
-}
-
-export const isBodyExtensionConfig = (config: DeclareDiscoveryExtensionConfig): config is DeclareBodyDiscoveryExtensionConfig => {
-  return ["POST", "PUT", "PATCH"].includes(config.method);
-}
+export const isBodyExtensionConfig = (
+  config: DeclareDiscoveryExtensionConfig,
+): config is DeclareBodyDiscoveryExtensionConfig => {
+  return "bodyType" in config;
+};

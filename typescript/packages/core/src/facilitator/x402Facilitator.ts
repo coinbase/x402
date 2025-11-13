@@ -6,16 +6,18 @@ import { Network } from "../types";
 import { findByNetworkAndScheme } from "../utils";
 
 /**
- *
+ * Facilitator client for the x402 payment protocol.
+ * Manages payment scheme registration, verification, and settlement.
  */
 export class x402Facilitator {
-  // Mapping: x402Version -> network / pattern -> scheme -> SchemeNetworkFacilitator
   private readonly registeredFacilitatorSchemes: Map<
     number,
     Map<string, Map<string, SchemeNetworkFacilitator>>
   > = new Map();
-
-  // Extensions this facilitator supports (e.g., "bazaar", "sign_in_with_x")
+  private readonly schemeExtras: Map<
+    number,
+    Map<string, Map<string, Record<string, unknown> | (() => Record<string, unknown>)>>
+  > = new Map();
   private readonly extensions: string[] = [];
 
   /**
@@ -23,10 +25,15 @@ export class x402Facilitator {
    *
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
+   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  registerScheme(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
-    return this._registerScheme(x402Version, network, facilitator);
+  registerScheme(
+    network: Network,
+    facilitator: SchemeNetworkFacilitator,
+    extra?: Record<string, unknown> | (() => Record<string, unknown>),
+  ): x402Facilitator {
+    return this._registerScheme(x402Version, network, facilitator, extra);
   }
 
   /**
@@ -34,10 +41,15 @@ export class x402Facilitator {
    *
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
+   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  registerSchemeV1(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
-    return this._registerScheme(1, network, facilitator);
+  registerSchemeV1(
+    network: Network,
+    facilitator: SchemeNetworkFacilitator,
+    extra?: Record<string, unknown> | (() => Record<string, unknown>),
+  ): x402Facilitator {
+    return this._registerScheme(1, network, facilitator, extra);
   }
 
   /**
@@ -61,6 +73,58 @@ export class x402Facilitator {
    */
   getExtensions(): string[] {
     return [...this.extensions];
+  }
+
+  /**
+   * Builds /supported response with concrete networks.
+   * Expands registered patterns (e.g., "eip155:*") into specific networks (e.g., "eip155:84532").
+   *
+   * @param networks - Array of concrete network identifiers to include in response
+   * @returns Supported response with kinds and extensions
+   */
+  buildSupported(networks: Network[]): {
+    kinds: Array<{
+      x402Version: number;
+      scheme: string;
+      network: string;
+      extra?: Record<string, unknown>;
+    }>;
+    extensions?: string[];
+  } {
+    const kinds: Array<{
+      x402Version: number;
+      scheme: string;
+      network: string;
+      extra?: Record<string, unknown>;
+    }> = [];
+
+    for (const concreteNetwork of networks) {
+      for (const [version, networkMap] of this.registeredFacilitatorSchemes) {
+        for (const [registeredPattern, schemeMap] of networkMap) {
+          const patternRegex = new RegExp("^" + registeredPattern.replace("*", ".*") + "$");
+          if (!patternRegex.test(concreteNetwork)) {
+            continue;
+          }
+
+          for (const [scheme] of schemeMap) {
+            const extraMap = this.schemeExtras.get(version)?.get(registeredPattern)?.get(scheme);
+            const extra = typeof extraMap === "function" ? extraMap() : extraMap;
+
+            kinds.push({
+              x402Version: version,
+              scheme,
+              network: concreteNetwork,
+              ...(extra && { extra }),
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      kinds,
+      extensions: this.extensions.length > 0 ? this.extensions : undefined,
+    };
   }
 
   /**
@@ -132,12 +196,14 @@ export class x402Facilitator {
    * @param x402Version - The x402 protocol version
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
+   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
   private _registerScheme(
     x402Version: number,
     network: Network,
     facilitator: SchemeNetworkFacilitator,
+    extra?: Record<string, unknown> | (() => Record<string, unknown>),
   ): x402Facilitator {
     if (!this.registeredFacilitatorSchemes.has(x402Version)) {
       this.registeredFacilitatorSchemes.set(x402Version, new Map());
@@ -150,6 +216,19 @@ export class x402Facilitator {
     if (!facilitatorByScheme.has(facilitator.scheme)) {
       facilitatorByScheme.set(facilitator.scheme, facilitator);
     }
+
+    if (extra) {
+      if (!this.schemeExtras.has(x402Version)) {
+        this.schemeExtras.set(x402Version, new Map());
+      }
+      const networkExtras = this.schemeExtras.get(x402Version)!;
+      if (!networkExtras.has(network)) {
+        networkExtras.set(network, new Map());
+      }
+      const schemeExtras = networkExtras.get(network)!;
+      schemeExtras.set(facilitator.scheme, extra);
+    }
+
     return this;
   }
 }

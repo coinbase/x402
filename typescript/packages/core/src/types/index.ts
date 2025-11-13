@@ -13,6 +13,7 @@ export type {
   MoneyParser,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
+export type { ResourceServiceExtension } from "./extensions";
 
 export type Network = `${string}:${string}`;
 

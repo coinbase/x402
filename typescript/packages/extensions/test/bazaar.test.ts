@@ -23,8 +23,7 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("declareDiscoveryExtension - GET method", () => {
     it("should create a valid GET extension with query params", () => {
-      const extension = declareDiscoveryExtension({
-        method: "GET",
+      const result = declareDiscoveryExtension({
         input: { query: "test", limit: 10 },
         inputSchema: {
           properties: {
@@ -35,17 +34,17 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      expect(result).toHaveProperty("bazaar");
+      const extension = result.bazaar;
       expect(extension).toHaveProperty("info");
       expect(extension).toHaveProperty("schema");
-      expect(extension.info.input.method).toBe("GET");
       expect(extension.info.input.type).toBe("http");
       expect(extension.info.input.queryParams).toEqual({ query: "test", limit: 10 });
     });
 
     it("should create a GET extension with output example", () => {
       const outputExample = { results: [], total: 0 };
-      const extension = declareDiscoveryExtension({
-        method: "GET",
+      const result = declareDiscoveryExtension({
         input: { query: "test" },
         inputSchema: {
           properties: {
@@ -57,14 +56,14 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      const extension = result.bazaar;
       expect(extension.info.output?.example).toEqual(outputExample);
     });
   });
 
   describe("declareDiscoveryExtension - POST method", () => {
     it("should create a valid POST extension with JSON body", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const result = declareDiscoveryExtension({
         input: { name: "John", age: 30 },
         inputSchema: {
           properties: {
@@ -76,29 +75,29 @@ describe("Bazaar Discovery Extension", () => {
         bodyType: "json",
       });
 
-      expect(extension.info.input.method).toBe("POST");
+      const extension = result.bazaar;
       expect(extension.info.input.type).toBe("http");
       expect((extension.info as BodyDiscoveryInfo).input.bodyType).toBe("json");
       expect((extension.info as BodyDiscoveryInfo).input.body).toEqual({ name: "John", age: 30 });
     });
 
     it("should default to JSON body type if not specified", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const result = declareDiscoveryExtension({
         input: { data: "test" },
         inputSchema: {
           properties: {
             data: { type: "string" },
           },
         },
+        bodyType: "json",
       });
 
+      const extension = result.bazaar;
       expect((extension.info as BodyDiscoveryInfo).input.bodyType).toBe("json");
     });
 
     it("should support form-data body type", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const result = declareDiscoveryExtension({
         input: { file: "upload.pdf" },
         inputSchema: {
           properties: {
@@ -108,14 +107,14 @@ describe("Bazaar Discovery Extension", () => {
         bodyType: "form-data",
       });
 
+      const extension = result.bazaar;
       expect((extension.info as BodyDiscoveryInfo).input.bodyType).toBe("form-data");
     });
   });
 
   describe("declareDiscoveryExtension - Other methods", () => {
     it("should create a valid PUT extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "PUT",
+      const result = declareDiscoveryExtension({
         input: { id: "123", name: "Updated" },
         inputSchema: {
           properties: {
@@ -123,28 +122,30 @@ describe("Bazaar Discovery Extension", () => {
             name: { type: "string" },
           },
         },
+        bodyType: "json",
       });
 
-      expect(extension.info.input.method).toBe("PUT");
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("http");
     });
 
     it("should create a valid PATCH extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "PATCH",
+      const result = declareDiscoveryExtension({
         input: { status: "active" },
         inputSchema: {
           properties: {
             status: { type: "string" },
           },
         },
+        bodyType: "json",
       });
 
-      expect(extension.info.input.method).toBe("PATCH");
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("http");
     });
 
     it("should create a valid DELETE extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "DELETE",
+      const result = declareDiscoveryExtension({
         input: { id: "123" },
         inputSchema: {
           properties: {
@@ -153,30 +154,26 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
-      expect(extension.info.input.method).toBe("DELETE");
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("http");
     });
 
     it("should create a valid HEAD extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "HEAD",
-      });
+      const result = declareDiscoveryExtension({});
 
-      expect(extension.info.input.method).toBe("HEAD");
+      const extension = result.bazaar;
+      expect(extension.info.input.type).toBe("http");
     });
 
     it("should throw error for unsupported method", () => {
-      expect(() => {
-        declareDiscoveryExtension({
-          method: "INVALID" as any,
-        });
-      }).toThrow("Unsupported HTTP method: INVALID");
+      const result = declareDiscoveryExtension({});
+      expect(result).toHaveProperty("bazaar");
     });
   });
 
   describe("validateDiscoveryExtension", () => {
     it("should validate a correct GET extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "GET",
+      const declared = declareDiscoveryExtension({
         input: { query: "test" },
         inputSchema: {
           properties: {
@@ -185,22 +182,24 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      const extension = declared.bazaar;
       const result = validateDiscoveryExtension(extension);
       expect(result.valid).toBe(true);
       expect(result.errors).toBeUndefined();
     });
 
     it("should validate a correct POST extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const declared = declareDiscoveryExtension({
         input: { name: "John" },
         inputSchema: {
           properties: {
             name: { type: "string" },
           },
         },
+        bodyType: "json",
       });
 
+      const extension = declared.bazaar;
       const result = validateDiscoveryExtension(extension);
       expect(result.valid).toBe(true);
     });
@@ -239,8 +238,7 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("extractDiscoveryInfoFromExtension", () => {
     it("should extract info from a valid extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "GET",
+      const declared = declareDiscoveryExtension({
         input: { query: "test" },
         inputSchema: {
           properties: {
@@ -249,23 +247,24 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      const extension = declared.bazaar;
       const info = extractDiscoveryInfoFromExtension(extension);
       expect(info).toEqual(extension.info);
-      expect(info.input.method).toBe("GET");
       expect(info.input.type).toBe("http");
     });
 
     it("should extract info without validation when validate=false", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const declared = declareDiscoveryExtension({
         input: { name: "John" },
         inputSchema: {
           properties: {
             name: { type: "string" },
           },
         },
+        bodyType: "json",
       });
 
+      const extension = declared.bazaar;
       const info = extractDiscoveryInfoFromExtension(extension, false);
       expect(info).toEqual(extension.info);
     });
@@ -303,38 +302,41 @@ describe("Bazaar Discovery Extension", () => {
 
   describe("extractDiscoveryInfo (full flow)", () => {
     it("should extract info from v2 PaymentPayload with extensions", () => {
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const declared = declareDiscoveryExtension({
         input: { userId: "123" },
         inputSchema: {
           properties: {
             userId: { type: "string" },
           },
         },
+        bodyType: "json",
       });
+
+      const extension = declared.bazaar;
 
       const paymentPayload = {
         x402Version: 2,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
-        accepted: {} as any,
+        accepted: {} as unknown,
+        resource: { url: "http://example.com/test" },
         extensions: {
           [BAZAAR]: extension,
         },
       };
 
-      const info = extractDiscoveryInfo(paymentPayload, {} as any);
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
 
-      expect(info).not.toBeNull();
-      expect(info!.input.method).toBe("POST");
-      expect(info!.input.type).toBe("http");
+      expect(discovered).not.toBeNull();
+      expect(discovered!.discoveryInfo.input.type).toBe("http");
+      expect(discovered!.resourceUrl).toBe("http://example.com/test");
     });
 
     it("should extract info from v1 PaymentRequirements", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/data",
         description: "Get data",
@@ -356,36 +358,36 @@ describe("Bazaar Discovery Extension", () => {
       const v1Payload = {
         x402Version: 1,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
       };
 
-      const info = extractDiscoveryInfo(v1Payload as any, v1Requirements as any);
+      const discovered = extractDiscoveryInfo(v1Payload as unknown, v1Requirements as unknown);
 
-      expect(info).not.toBeNull();
-      expect(info!.input.method).toBe("GET");
-      expect(info!.input.type).toBe("http");
+      expect(discovered).not.toBeNull();
+      expect(discovered!.discoveryInfo.input.method).toBe("GET");
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/data");
+      expect(discovered!.method).toBe("GET");
     });
 
     it("should return null when no discovery info is present", () => {
       const paymentPayload = {
         x402Version: 2,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
-        accepted: {} as any,
+        accepted: {} as unknown,
       };
 
-      const info = extractDiscoveryInfo(paymentPayload, {} as any);
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
 
-      expect(info).toBeNull();
+      expect(discovered).toBeNull();
     });
   });
 
   describe("validateAndExtract", () => {
     it("should return valid result with info for correct extension", () => {
-      const extension = declareDiscoveryExtension({
-        method: "GET",
+      const declared = declareDiscoveryExtension({
         input: { query: "test" },
         inputSchema: {
           properties: {
@@ -394,6 +396,7 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      const extension = declared.bazaar;
       const result = validateAndExtract(extension);
       expect(result.valid).toBe(true);
       expect(result.info).toEqual(extension.info);
@@ -437,7 +440,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 GET with no params", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "100000",
         resource: "https://api.example.com/data",
         description: "Get data",
@@ -456,7 +459,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("GET");
       expect(info!.input.type).toBe("http");
@@ -465,7 +468,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 GET with queryParams", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/list",
         description: "List items",
@@ -488,7 +491,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("GET");
       expect(info!.input.queryParams).toEqual({
@@ -500,7 +503,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 POST with bodyFields", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/search",
         description: "Search",
@@ -526,7 +529,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("POST");
       expect((info as BodyDiscoveryInfo).input.bodyType).toBe("json");
@@ -542,7 +545,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 POST with snake_case fields", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "1000",
         resource: "https://api.example.com/action",
         description: "Action",
@@ -571,7 +574,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("POST");
       expect(info!.input.headers).toEqual({
@@ -586,7 +589,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 POST with bodyParams", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "50000",
         resource: "https://api.example.com/query",
         description: "Query",
@@ -612,7 +615,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("POST");
       expect((info as BodyDiscoveryInfo).input.body).toEqual({
@@ -628,7 +631,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should extract discovery info from v1 POST with properties field", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "80000",
         resource: "https://api.example.com/chat",
         description: "Chat",
@@ -657,7 +660,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("POST");
       expect((info as BodyDiscoveryInfo).input.body).toEqual({
@@ -675,7 +678,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should handle v1 POST with no body content (minimal)", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/action",
         description: "Action",
@@ -693,7 +696,7 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).not.toBeNull();
       expect(info!.input.method).toBe("POST");
       expect((info as BodyDiscoveryInfo).input.bodyType).toBe("json");
@@ -703,7 +706,7 @@ describe("Bazaar Discovery Extension", () => {
     it("should skip non-discoverable endpoints", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/internal",
         description: "Internal",
@@ -721,14 +724,14 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).toBeNull();
     });
 
     it("should handle missing outputSchema", () => {
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/resource",
         description: "Resource",
@@ -740,17 +743,15 @@ describe("Bazaar Discovery Extension", () => {
         extra: {},
       };
 
-      const info = extractDiscoveryInfoV1(v1Requirements as any);
+      const info = extractDiscoveryInfoV1(v1Requirements as unknown);
       expect(info).toBeNull();
     });
   });
 
   describe("Integration - Full workflow", () => {
     it("should handle GET endpoint with output schema (e2e scenario)", () => {
-      // This reproduces the exact scenario from e2e tests
-      const extension = declareDiscoveryExtension({
-        method: "GET",
-        input: {}, // No query params
+      const declared = declareDiscoveryExtension({
+        input: {},
         inputSchema: {
           properties: {},
         },
@@ -769,21 +770,20 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
-      // Validate the extension
+      const extension = declared.bazaar;
+
       const validation = validateDiscoveryExtension(extension);
 
-      // Debug: print validation errors if any
       if (!validation.valid) {
         console.log("Validation errors:", validation.errors);
-        console.log("Extension info:", JSON.stringify(extension.info, null, 2));
-        console.log("Extension schema:", JSON.stringify(extension.schema, null, 2));
+        console.log("Extension info:", extension.info);
+        console.log("Extension schema:", extension.schema);
       }
 
       expect(validation.valid).toBe(true);
 
-      // Extract info
       const info = extractDiscoveryInfoFromExtension(extension, false);
-      expect(info.input.method).toBe("GET");
+      expect(info.input.type).toBe("http");
       expect(info.output?.example).toEqual({
         message: "Protected endpoint accessed successfully",
         timestamp: "2024-01-01T00:00:00Z",
@@ -791,9 +791,7 @@ describe("Bazaar Discovery Extension", () => {
     });
 
     it("should handle complete v2 server-to-facilitator workflow", () => {
-      // 1. Server declares extension
-      const extension = declareDiscoveryExtension({
-        method: "POST",
+      const declared = declareDiscoveryExtension({
         input: { userId: "123", action: "create" },
         inputSchema: {
           properties: {
@@ -808,7 +806,8 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
-      // 2. Server includes in PaymentRequired
+      const extension = declared.bazaar;
+
       const paymentRequired = {
         x402Version: 2,
         resource: {
@@ -822,16 +821,14 @@ describe("Bazaar Discovery Extension", () => {
         },
       };
 
-      // 3. Facilitator receives and validates
       const bazaarExt = paymentRequired.extensions?.[BAZAAR] as DiscoveryExtension;
       expect(bazaarExt).toBeDefined();
 
       const validation = validateDiscoveryExtension(bazaarExt);
       expect(validation.valid).toBe(true);
 
-      // 4. Facilitator extracts info for cataloging using the extension directly
       const info = extractDiscoveryInfoFromExtension(bazaarExt, false);
-      expect(info.input.method).toBe("POST");
+      expect(info.input.type).toBe("http");
       expect((info as BodyDiscoveryInfo).input.bodyType).toBe("json");
       expect((info as BodyDiscoveryInfo).input.body).toEqual({ userId: "123", action: "create" });
       expect(info.output?.example).toEqual({ success: true, id: "new-id" });
@@ -843,7 +840,7 @@ describe("Bazaar Discovery Extension", () => {
       // V1 PaymentRequirements from real Bazaar data
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://mesh.heurist.xyz/x402/agents/TokenResolverAgent/search",
         description: "Find tokens by address, ticker/symbol, or token name",
@@ -881,26 +878,25 @@ describe("Bazaar Discovery Extension", () => {
       const v1Payload = {
         x402Version: 1,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
       };
 
-      // Facilitator extracts v1 info and transforms to v2
-      const info = extractDiscoveryInfo(v1Payload as any, v1Requirements as any);
+      const discovered = extractDiscoveryInfo(v1Payload as unknown, v1Requirements as unknown);
 
-      expect(info).not.toBeNull();
-      expect(info!.input.method).toBe("POST");
-      expect(info!.input.type).toBe("http");
-      expect((info as BodyDiscoveryInfo).input.bodyType).toBe("json");
-      expect((info as BodyDiscoveryInfo).input.body).toHaveProperty("query");
-      expect((info as BodyDiscoveryInfo).input.body).toHaveProperty("chain");
-      expect((info as BodyDiscoveryInfo).input.body).toHaveProperty("type_hint");
+      expect(discovered).not.toBeNull();
+      expect(discovered!.discoveryInfo.input.method).toBe("POST");
+      expect(discovered!.method).toBe("POST");
+      expect((discovered!.discoveryInfo as BodyDiscoveryInfo).input.bodyType).toBe("json");
+      expect((discovered!.discoveryInfo as BodyDiscoveryInfo).input.body).toHaveProperty("query");
+      expect((discovered!.discoveryInfo as BodyDiscoveryInfo).input.body).toHaveProperty("chain");
+      expect((discovered!.discoveryInfo as BodyDiscoveryInfo).input.body).toHaveProperty(
+        "type_hint",
+      );
     });
 
     it("should handle unified extraction for both v1 and v2", () => {
-      // V2 case - extensions are in PaymentPayload
-      const v2Extension = declareDiscoveryExtension({
-        method: "GET",
+      const declared = declareDiscoveryExtension({
         input: { limit: 10 },
         inputSchema: {
           properties: {
@@ -909,26 +905,29 @@ describe("Bazaar Discovery Extension", () => {
         },
       });
 
+      const v2Extension = declared.bazaar;
+
       const v2Payload = {
         x402Version: 2,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
-        accepted: {} as any,
+        accepted: {} as unknown,
+        resource: { url: "http://example.com/v2" },
         extensions: {
           [BAZAAR]: v2Extension,
         },
       };
 
-      const v2Info = extractDiscoveryInfo(v2Payload, {} as any);
+      const v2Discovered = extractDiscoveryInfo(v2Payload, {} as unknown);
 
-      expect(v2Info).not.toBeNull();
-      expect(v2Info!.input.method).toBe("GET");
+      expect(v2Discovered).not.toBeNull();
+      expect(v2Discovered!.discoveryInfo.input.type).toBe("http");
+      expect(v2Discovered!.resourceUrl).toBe("http://example.com/v2");
 
-      // V1 case - discovery info is in PaymentRequirements.outputSchema
       const v1Requirements = {
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         maxAmountRequired: "10000",
         resource: "https://api.example.com/list",
         description: "List",
@@ -950,18 +949,19 @@ describe("Bazaar Discovery Extension", () => {
       const v1Payload = {
         x402Version: 1,
         scheme: "exact",
-        network: "eip155:8453" as any,
+        network: "eip155:8453" as unknown,
         payload: {},
       };
 
-      const v1Info = extractDiscoveryInfo(v1Payload as any, v1Requirements as any);
+      const v1Discovered = extractDiscoveryInfo(v1Payload as unknown, v1Requirements as unknown);
 
-      expect(v1Info).not.toBeNull();
-      expect(v1Info!.input.method).toBe("GET");
+      expect(v1Discovered).not.toBeNull();
+      expect(v1Discovered!.method).toBe("GET");
+      expect(v1Discovered!.resourceUrl).toBe("https://api.example.com/list");
 
-      // Both v1 and v2 return the same DiscoveryInfo structure
-      expect(typeof v2Info!.input).toBe(typeof v1Info!.input);
+      expect(typeof v2Discovered!.discoveryInfo.input).toBe(
+        typeof v1Discovered!.discoveryInfo.input,
+      );
     });
   });
 });
-

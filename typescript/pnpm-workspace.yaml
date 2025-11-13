@@ -1,6 +1,6 @@
 packages:
   - packages/core
-  - packages/extensions/*
+  - packages/extensions
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*

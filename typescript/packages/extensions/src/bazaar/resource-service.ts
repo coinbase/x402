@@ -1,11 +1,10 @@
 /**
  * Resource Service functions for creating Bazaar discovery extensions
- * 
+ *
  * These functions help servers declare the shape of their endpoints
  * for facilitator discovery and cataloging in the Bazaar.
  */
 
-import type { BodyMethods, QueryParamMethods } from "@x402/core/http";
 import {
   type DiscoveryExtension,
   type QueryDiscoveryExtension,
@@ -13,12 +12,17 @@ import {
   type DeclareDiscoveryExtensionConfig,
   type DeclareQueryDiscoveryExtensionConfig,
   type DeclareBodyDiscoveryExtensionConfig,
-  isQueryExtensionConfig,
-  isBodyExtensionConfig,
 } from "./types";
 
 /**
  * Internal helper to create a query discovery extension
+ *
+ * @param root0 - Configuration object for query discovery extension
+ * @param root0.method - HTTP method (GET, HEAD, DELETE)
+ * @param root0.input - Query parameters
+ * @param root0.inputSchema - JSON schema for query parameters
+ * @param root0.output - Output specification with example
+ * @returns QueryDiscoveryExtension with info and schema
  */
 function createQueryDiscoveryExtension({
   method,
@@ -30,15 +34,17 @@ function createQueryDiscoveryExtension({
     info: {
       input: {
         type: "http",
-        method,
-        ...(input && { queryParams: input }),
-      },
-      ...(output?.example && {
-        output: {
-          type: "json",
-          example: output.example,
-        },
-      }),
+        ...(method ? { method } : {}),
+        ...(input ? { queryParams: input } : {}),
+      } as QueryDiscoveryExtension["info"]["input"],
+      ...(output?.example
+        ? {
+          output: {
+            type: "json",
+            example: output.example,
+          },
+        }
+        : {}),
     },
     schema: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -53,33 +59,37 @@ function createQueryDiscoveryExtension({
             },
             method: {
               type: "string",
-              enum: [method] as QueryParamMethods[],
+              enum: ["GET", "HEAD", "DELETE"],
             },
-            ...(inputSchema && {
-              queryParams: {
-                type: "object" as const,
-                ...inputSchema,
-              },
-            }),
+            ...(inputSchema
+              ? {
+                queryParams: {
+                  type: "object" as const,
+                  ...(typeof inputSchema === "object" ? inputSchema : {}),
+                },
+              }
+              : {}),
           },
-          required: ["type", "method"],
+          required: ["type"] as ("type" | "method")[],
           additionalProperties: false,
         },
-        ...(output?.example && {
-          output: {
-            type: "object" as const,
-            properties: {
-              type: {
-                type: "string" as const,
+        ...(output?.example
+          ? {
+            output: {
+              type: "object" as const,
+              properties: {
+                type: {
+                  type: "string" as const,
+                },
+                example: {
+                  type: "object" as const,
+                  ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
+                },
               },
-              example: {
-                type: "object" as const,
-                ...(output.schema || {}),
-              },
+              required: ["type"] as const,
             },
-            required: ["type"] as const,
-          },
-        }),
+          }
+          : {}),
       },
       required: ["input"],
     },
@@ -88,6 +98,14 @@ function createQueryDiscoveryExtension({
 
 /**
  * Internal helper to create a body discovery extension
+ *
+ * @param root0 - Configuration object for body discovery extension
+ * @param root0.method - HTTP method (POST, PUT, PATCH)
+ * @param root0.input - Request body specification
+ * @param root0.inputSchema - JSON schema for request body
+ * @param root0.bodyType - Content type of body (json, form, multipart)
+ * @param root0.output - Output specification with example
+ * @returns BodyDiscoveryExtension with info and schema
  */
 function createBodyDiscoveryExtension({
   method,
@@ -96,21 +114,22 @@ function createBodyDiscoveryExtension({
   bodyType = "json",
   output,
 }: DeclareBodyDiscoveryExtensionConfig): BodyDiscoveryExtension {
-
   return {
     info: {
       input: {
         type: "http",
-        method,
+        ...(method ? { method } : {}),
         bodyType,
         body: input,
-      },
-      ...(output?.example && {
-        output: {
-          type: "json",
-          example: output.example,
-        },
-      }),
+      } as BodyDiscoveryExtension["info"]["input"],
+      ...(output?.example
+        ? {
+          output: {
+            type: "json",
+            example: output.example,
+          },
+        }
+        : {}),
     },
     schema: {
       $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -125,7 +144,7 @@ function createBodyDiscoveryExtension({
             },
             method: {
               type: "string",
-              enum: [method] as BodyMethods[],
+              enum: ["POST", "PUT", "PATCH"],
             },
             bodyType: {
               type: "string",
@@ -133,24 +152,26 @@ function createBodyDiscoveryExtension({
             },
             body: inputSchema,
           },
-          required: ["type", "method", "bodyType", "body"],
+          required: ["type", "bodyType", "body"] as ("type" | "method" | "bodyType" | "body")[],
           additionalProperties: false,
         },
-        ...(output?.example && {
-          output: {
-            type: "object" as const,
-            properties: {
-              type: {
-                type: "string" as const,
+        ...(output?.example
+          ? {
+            output: {
+              type: "object" as const,
+              properties: {
+                type: {
+                  type: "string" as const,
+                },
+                example: {
+                  type: "object" as const,
+                  ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
+                },
               },
-              example: {
-                type: "object" as const,
-                ...(output?.schema || {}),
-              },
+              required: ["type"] as const,
             },
-            required: ["type"] as const,
-          },
-        }),
+          }
+          : {}),
       },
       required: ["input"],
     },
@@ -159,13 +180,13 @@ function createBodyDiscoveryExtension({
 
 /**
  * Create a discovery extension for any HTTP method
- * 
+ *
  * This function helps servers declare how their endpoint should be called,
  * including the expected input parameters/body and output format.
- * 
+ *
  * @param config - Configuration object for the discovery extension
  * @returns A discovery extension object with both info and schema
- * 
+ *
  * @example
  * ```typescript
  * // For a GET endpoint with no input
@@ -175,7 +196,7 @@ function createBodyDiscoveryExtension({
  *     example: { message: "Success", timestamp: "2024-01-01T00:00:00Z" }
  *   }
  * });
- * 
+ *
  * // For a GET endpoint with query params
  * const getWithParams = declareDiscoveryExtension({
  *   method: "GET",
@@ -187,7 +208,7 @@ function createBodyDiscoveryExtension({
  *     required: ["query"]
  *   }
  * });
- * 
+ *
  * // For a POST endpoint with JSON body
  * const postExtension = declareDiscoveryExtension({
  *   method: "POST",
@@ -207,14 +228,14 @@ function createBodyDiscoveryExtension({
  * ```
  */
 export function declareDiscoveryExtension(
-  config: DeclareDiscoveryExtensionConfig
-): DiscoveryExtension {
-  if (isQueryExtensionConfig(config)) {
-    return createQueryDiscoveryExtension(config);
-  } else if (isBodyExtensionConfig(config)) {
-    return createBodyDiscoveryExtension(config);
-  } else {
-    throw new Error(`Unsupported HTTP method: ${config}`);
-  }
-}
+  config: Omit<DeclareDiscoveryExtensionConfig, "method">,
+): Record<string, DiscoveryExtension> {
+  const bodyType = (config as DeclareBodyDiscoveryExtensionConfig).bodyType;
+  const isBodyMethod = bodyType !== undefined;
 
+  const extension = isBodyMethod
+    ? createBodyDiscoveryExtension(config as DeclareBodyDiscoveryExtensionConfig)
+    : createQueryDiscoveryExtension(config as DeclareQueryDiscoveryExtensionConfig);
+
+  return { bazaar: extension as DiscoveryExtension };
+}

@@ -1,7 +1,7 @@
 import { SettleResponse, VerifyResponse, SupportedResponse } from "../types/facilitator";
 import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
 import { SchemeNetworkService } from "../types/mechanisms";
-import { Price, Network } from "../types";
+import { Price, Network, ResourceServiceExtension } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
 import { FacilitatorClient, HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 import { x402Version } from "..";
@@ -95,14 +95,13 @@ export type OnSettleFailureHook = (
  */
 export class x402ResourceService {
   private facilitatorClients: FacilitatorClient[];
-  // Mapping: x402Version -> network -> scheme -> SupportedResponse | FacilitatorClient
   private registeredServerSchemes: Map<string, Map<string, SchemeNetworkService>> = new Map();
   private supportedResponsesMap: Map<number, Map<string, Map<string, SupportedResponse>>> =
     new Map();
   private facilitatorClientsMap: Map<number, Map<string, Map<string, FacilitatorClient>>> =
     new Map();
+  private registeredExtensions: Map<string, ResourceServiceExtension> = new Map();
 
-  // Lifecycle hooks
   private beforeVerifyHooks: BeforeVerifyHook[] = [];
   private afterVerifyHooks: AfterVerifyHook[] = [];
   private onVerifyFailureHooks: OnVerifyFailureHook[] = [];
@@ -148,6 +147,43 @@ export class x402ResourceService {
     }
 
     return this;
+  }
+
+  /**
+   * Registers a resource service extension that can enrich extension declarations.
+   *
+   * @param extension - The extension to register
+   * @returns The x402ResourceService instance for chaining
+   */
+  registerExtension(extension: ResourceServiceExtension): this {
+    this.registeredExtensions.set(extension.key, extension);
+    return this;
+  }
+
+  /**
+   * Enriches declared extensions using registered extension hooks.
+   *
+   * @param declaredExtensions - Extensions declared on the route
+   * @param transportContext - Transport-specific context (HTTP, A2A, MCP, etc.)
+   * @returns Enriched extensions map
+   */
+  enrichExtensions(
+    declaredExtensions: Record<string, unknown>,
+    transportContext: unknown,
+  ): Record<string, unknown> {
+    const enriched: Record<string, unknown> = {};
+
+    for (const [key, declaration] of Object.entries(declaredExtensions)) {
+      const extension = this.registeredExtensions.get(key);
+
+      if (extension?.enrichDeclaration) {
+        enriched[key] = extension.enrichDeclaration(declaration, transportContext);
+      } else {
+        enriched[key] = declaration;
+      }
+    }
+
+    return enriched;
   }
 
   /**
