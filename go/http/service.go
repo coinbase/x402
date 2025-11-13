@@ -182,8 +182,6 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		MimeType:    routeConfig.MimeType,
 	}
 
-	// Add resource URL to all payment requirements for discovery
-	// This allows facilitators to catalog the resource correctly
 	for i := range requirements {
 		if requirements[i].Extra == nil {
 			requirements[i].Extra = make(map[string]interface{})
@@ -191,13 +189,17 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		requirements[i].Extra["resourceUrl"] = resourceInfo.URL
 	}
 
-	// If no payment provided
+	extensions := routeConfig.Extensions
+	if extensions != nil && len(extensions) > 0 {
+		extensions = s.EnrichExtensions(extensions, reqCtx)
+	}
+
 	if paymentPayload == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
 			resourceInfo,
 			"Payment required",
-			routeConfig.Extensions,
+			extensions,
 		)
 
 		return HTTPProcessResult{
@@ -227,7 +229,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 			requirements,
 			resourceInfo,
 			"No matching payment requirements",
-			routeConfig.Extensions,
+			extensions,
 		)
 
 		return HTTPProcessResult{
@@ -259,7 +261,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 			requirements,
 			resourceInfo,
 			errorMsg,
-			routeConfig.Extensions,
+			extensions,
 		)
 
 		return HTTPProcessResult{

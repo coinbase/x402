@@ -9,6 +9,7 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/extensions/bazaar"
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/gin-gonic/gin"
 )
@@ -176,14 +177,14 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 		opt(config)
 	}
 
-	// Create service options
 	serviceOpts := []x402.ResourceServiceOption{}
 	for _, client := range config.FacilitatorClients {
 		serviceOpts = append(serviceOpts, x402.WithFacilitatorClient(client))
 	}
 
-	// Create HTTP service
 	service := x402http.Newx402HTTPResourceService(config.Routes, serviceOpts...)
+
+	service.RegisterExtension(bazaar.BazaarResourceServiceExtension)
 
 	// Register schemes
 	for _, scheme := range config.Schemes {

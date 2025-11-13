@@ -84,83 +84,84 @@ func ValidateDiscoveryExtension(extension types.DiscoveryExtension) ValidationRe
 	}
 }
 
-// ExtractDiscoveryInfo extracts the discovery info from payment payload and requirements
-//
-// This function handles both v2 (extensions) and v1 (outputSchema) formats.
-//
-// For v2: Discovery info is in PaymentPayload.Extensions (client copied it from PaymentRequired)
-// For v1: Discovery info is in PaymentRequirements.OutputSchema
-//
-// V1 data is automatically transformed to v2 DiscoveryInfo format.
-//
-// Args:
-//   - paymentPayload: The payment payload containing extensions (v2) and version info
-//   - paymentRequirements: The payment requirements (contains outputSchema for v1)
-//   - validate: Whether to validate v2 extensions before extracting (default: true)
-//
-// Returns:
-//   - The discovery info in v2 format if present, or nil if not discoverable
-//
-// Example:
-//
-//	// V2 - extensions are in PaymentPayload
-//	info, err := bazaar.ExtractDiscoveryInfo(paymentPayload, paymentRequirements, true)
-//
-//	// V1 - discovery info is in PaymentRequirements.OutputSchema
-//	info, err := bazaar.ExtractDiscoveryInfo(paymentPayloadV1, paymentRequirementsV1, true)
-//
-//	if info != nil {
-//	    // Both v1 and v2 return the same DiscoveryInfo structure
-//	    fmt.Printf("Method: %v\n", info.Input)
-//	}
+type DiscoveredResource struct {
+	ResourceURL   string
+	Method        string
+	X402Version   int
+	DiscoveryInfo *types.DiscoveryInfo
+}
+
 func ExtractDiscoveryInfo(
 	paymentPayload x402.PaymentPayload,
-	paymentRequirements interface{}, // Can be PaymentRequirements or PaymentRequirementsV1
+	paymentRequirements interface{},
 	validate bool,
-) (*types.DiscoveryInfo, error) {
-	// Try v2 first - extensions are in PaymentPayload (client copied from PaymentRequired)
-	if paymentPayload.X402Version == 2 && paymentPayload.Extensions != nil {
-		if bazaarExt, ok := paymentPayload.Extensions[types.BAZAAR]; ok {
-			// Convert to DiscoveryExtension
-			extensionJSON, err := json.Marshal(bazaarExt)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
-			}
+) (*DiscoveredResource, error) {
+	var discoveryInfo *types.DiscoveryInfo
+	var resourceURL string
 
-			var extension types.DiscoveryExtension
-			if err := json.Unmarshal(extensionJSON, &extension); err != nil {
-				// V2 extraction failed, fall through to try v1
-				fmt.Printf("Warning: V2 discovery extension extraction failed: %v\n", err)
-			} else {
-				if validate {
-					result := ValidateDiscoveryExtension(extension)
-					if !result.Valid {
-						// V2 validation failed, fall through to try v1
-						fmt.Printf("Warning: V2 discovery extension validation failed: %v\n", result.Errors)
-					} else {
-						return &extension.Info, nil
-					}
+	if paymentPayload.X402Version == 2 {
+		resourceURL = ""
+		if paymentPayload.Resource != nil {
+			resourceURL = paymentPayload.Resource.URL
+		}
+
+		if paymentPayload.Extensions != nil {
+			if bazaarExt, ok := paymentPayload.Extensions[types.BAZAAR]; ok {
+				extensionJSON, err := json.Marshal(bazaarExt)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
+				}
+
+				var extension types.DiscoveryExtension
+				if err := json.Unmarshal(extensionJSON, &extension); err != nil {
+					fmt.Printf("Warning: V2 discovery extension extraction failed: %v\n", err)
 				} else {
-					return &extension.Info, nil
+					if validate {
+						result := ValidateDiscoveryExtension(extension)
+						if !result.Valid {
+							fmt.Printf("Warning: V2 discovery extension validation failed: %v\n", result.Errors)
+						} else {
+							discoveryInfo = &extension.Info
+						}
+					} else {
+						discoveryInfo = &extension.Info
+					}
 				}
 			}
 		}
-	}
+	} else if paymentPayload.X402Version == 1 {
+		metadata := v1.ExtractResourceMetadataV1(paymentRequirements)
+		if url, ok := metadata["url"]; ok {
+			resourceURL = url
+		}
 
-	// Try v1 format - discovery info is in PaymentRequirements.OutputSchema
-	if paymentPayload.X402Version == 1 || paymentPayload.X402Version == 2 {
-		// Try to extract v1 info
 		infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequirements)
 		if err != nil {
 			return nil, err
 		}
-		if infoV1 != nil {
-			return infoV1, nil
-		}
+		discoveryInfo = infoV1
+	} else {
+		return nil, nil
 	}
 
-	// No discovery info found
-	return nil, nil
+	if discoveryInfo == nil {
+		return nil, nil
+	}
+
+	method := "UNKNOWN"
+	switch input := discoveryInfo.Input.(type) {
+	case types.QueryInput:
+		method = string(input.Method)
+	case types.BodyInput:
+		method = string(input.Method)
+	}
+
+	return &DiscoveredResource{
+		ResourceURL:   resourceURL,
+		Method:        method,
+		X402Version:   paymentPayload.X402Version,
+		DiscoveryInfo: discoveryInfo,
+	}, nil
 }
 
 // ExtractDiscoveryInfoFromExtension extracts discovery info from a v2 extension directly

@@ -9,42 +9,41 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// x402Facilitator manages payment verification and settlement
-// This is used by payment processors that execute on-chain transactions
 type x402Facilitator struct {
 	mu sync.RWMutex
-
-	// Nested map: version -> network -> scheme -> facilitator implementation
 	schemes map[int]map[Network]map[string]SchemeNetworkFacilitator
-
-	// Extensions this facilitator supports (e.g., "bazaar", "sign_in_with_x")
+	schemeExtras map[int]map[Network]map[string]interface{}
 	extensions []string
 }
 
-// Newx402Facilitator creates a new facilitator
 func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
-		schemes:    make(map[int]map[Network]map[string]SchemeNetworkFacilitator),
-		extensions: []string{},
+		schemes:      make(map[int]map[Network]map[string]SchemeNetworkFacilitator),
+		schemeExtras: make(map[int]map[Network]map[string]interface{}),
+		extensions:   []string{},
 	}
 }
 
-// RegisterScheme registers a payment mechanism for protocol v2
-func (f *x402Facilitator) RegisterScheme(network Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
-	return f.registerScheme(ProtocolVersion, network, facilitator)
+func (f *x402Facilitator) RegisterScheme(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
+	var extraData interface{}
+	if len(extra) > 0 {
+		extraData = extra[0]
+	}
+	return f.registerScheme(ProtocolVersion, network, facilitator, extraData)
 }
 
-// RegisterSchemeV1 registers a payment mechanism for protocol v1
-func (f *x402Facilitator) RegisterSchemeV1(network Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
-	return f.registerScheme(ProtocolVersionV1, network, facilitator)
+func (f *x402Facilitator) RegisterSchemeV1(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
+	var extraData interface{}
+	if len(extra) > 0 {
+		extraData = extra[0]
+	}
+	return f.registerScheme(ProtocolVersionV1, network, facilitator, extraData)
 }
 
-// registerScheme internal method to register schemes
-func (f *x402Facilitator) registerScheme(version int, network Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
+func (f *x402Facilitator) registerScheme(version int, network Network, facilitator SchemeNetworkFacilitator, extra interface{}) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// Initialize nested maps if needed
 	if f.schemes[version] == nil {
 		f.schemes[version] = make(map[Network]map[string]SchemeNetworkFacilitator)
 	}
@@ -52,8 +51,17 @@ func (f *x402Facilitator) registerScheme(version int, network Network, facilitat
 		f.schemes[version][network] = make(map[string]SchemeNetworkFacilitator)
 	}
 
-	// Register the facilitator for this scheme
 	f.schemes[version][network][facilitator.Scheme()] = facilitator
+
+	if extra != nil {
+		if f.schemeExtras[version] == nil {
+			f.schemeExtras[version] = make(map[Network]map[string]interface{})
+		}
+		if f.schemeExtras[version][network] == nil {
+			f.schemeExtras[version][network] = make(map[string]interface{})
+		}
+		f.schemeExtras[version][network][facilitator.Scheme()] = extra
+	}
 
 	return f
 }
@@ -189,7 +197,6 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 	return facilitator.Settle(ctx, version, payloadBytes, requirementsBytes)
 }
 
-// GetSupported returns the payment kinds this facilitator supports
 func (f *x402Facilitator) GetSupported() SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -199,7 +206,6 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 		Extensions: f.extensions,
 	}
 
-	// Build list of supported kinds
 	for version, versionSchemes := range f.schemes {
 		for network, schemes := range versionSchemes {
 			for scheme := range schemes {
@@ -214,6 +220,54 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 	}
 
 	return response
+}
+
+func (f *x402Facilitator) BuildSupported(networks []Network) SupportedResponse {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	kinds := []SupportedKind{}
+
+	for _, concreteNetwork := range networks {
+		for version, versionSchemes := range f.schemes {
+			for registeredPattern, schemes := range versionSchemes {
+				if !concreteNetwork.Match(registeredPattern) {
+					continue
+				}
+
+				for scheme := range schemes {
+					kind := SupportedKind{
+						X402Version: version,
+						Scheme:      scheme,
+						Network:     concreteNetwork,
+					}
+
+					if f.schemeExtras[version] != nil &&
+						f.schemeExtras[version][registeredPattern] != nil {
+						if extra := f.schemeExtras[version][registeredPattern][scheme]; extra != nil {
+							if fn, ok := extra.(func() map[string]interface{}); ok {
+								kind.Extra = fn()
+							} else if extraMap, ok := extra.(map[string]interface{}); ok {
+								kind.Extra = extraMap
+							}
+						}
+					}
+
+					kinds = append(kinds, kind)
+				}
+			}
+		}
+	}
+
+	var extensions []string
+	if len(f.extensions) > 0 {
+		extensions = f.extensions
+	}
+
+	return SupportedResponse{
+		Kinds:      kinds,
+		Extensions: extensions,
+	}
 }
 
 // CanHandle checks if the facilitator can handle a payment type

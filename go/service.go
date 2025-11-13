@@ -14,18 +14,10 @@ import (
 // This is used by servers/APIs that want to charge for access
 type x402ResourceService struct {
 	mu sync.RWMutex
-
-	// Map of network -> scheme -> service implementation
 	schemes map[Network]map[string]SchemeNetworkService
-
-	// Facilitator clients for payment verification/settlement
 	facilitatorClients []FacilitatorClient
-
-	// Cache of supported payment kinds from facilitators
+	registeredExtensions map[string]types.ResourceServiceExtension
 	supportedCache *SupportedCache
-
-	// Map of version -> network -> scheme -> FacilitatorClient
-	// Built during Initialize() to map which facilitator handles which payment type
 	facilitatorClientsMap map[int]map[Network]map[string]FacilitatorClient
 }
 
@@ -61,15 +53,15 @@ func WithCacheTTL(ttl time.Duration) ResourceServiceOption {
 	}
 }
 
-// Newx402ResourceService creates a new resource service
 func Newx402ResourceService(opts ...ResourceServiceOption) *x402ResourceService {
 	s := &x402ResourceService{
-		schemes:            make(map[Network]map[string]SchemeNetworkService),
-		facilitatorClients: []FacilitatorClient{},
+		schemes:              make(map[Network]map[string]SchemeNetworkService),
+		facilitatorClients:   []FacilitatorClient{},
+		registeredExtensions: make(map[string]types.ResourceServiceExtension),
 		supportedCache: &SupportedCache{
 			data:   make(map[string]SupportedResponse),
 			expiry: make(map[string]time.Time),
-			ttl:    5 * time.Minute, // Default 5 minute cache
+			ttl:    5 * time.Minute,
 		},
 		facilitatorClientsMap: make(map[int]map[Network]map[string]FacilitatorClient),
 	}
@@ -140,7 +132,6 @@ func (s *x402ResourceService) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// RegisterScheme registers a scheme service for a network
 func (s *x402ResourceService) RegisterScheme(network Network, service SchemeNetworkService) *x402ResourceService {
 	return s.registerScheme(network, service)
 }
@@ -156,6 +147,34 @@ func (s *x402ResourceService) registerScheme(network Network, service SchemeNetw
 	s.schemes[network][service.Scheme()] = service
 
 	return s
+}
+
+func (s *x402ResourceService) RegisterExtension(extension types.ResourceServiceExtension) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.registeredExtensions[extension.Key()] = extension
+	return s
+}
+
+func (s *x402ResourceService) EnrichExtensions(
+	declaredExtensions map[string]interface{},
+	transportContext interface{},
+) map[string]interface{} {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	enriched := make(map[string]interface{})
+
+	for key, declaration := range declaredExtensions {
+		if extension, ok := s.registeredExtensions[key]; ok {
+			enriched[key] = extension.EnrichDeclaration(declaration, transportContext)
+		} else {
+			enriched[key] = declaration
+		}
+	}
+
+	return enriched
 }
 
 // BuildPaymentRequirements creates payment requirements for a resource
