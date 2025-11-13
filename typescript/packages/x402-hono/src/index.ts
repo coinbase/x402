@@ -110,7 +110,21 @@ export function paymentMiddleware(
     }
     const { maxAmountRequired, asset } = atomicAmountForAsset;
 
-    const resourceUrl: Resource = resource || (c.req.url as Resource);
+    let resourceUrl = resource;
+    if (!resourceUrl) {
+      const forwardedProto = c.req.header("X-Forwarded-Proto");
+      const forwardedHost = c.req.header("X-Forwarded-Host");
+
+      if (forwardedProto && forwardedHost) {
+        // Handle reverse proxy scenarios by reconstructing URL using forwarded headers from reverse proxy
+        const url = new URL(c.req.url);
+        resourceUrl =
+          `${forwardedProto}://${forwardedHost}${url.pathname}${url.search}` as Resource;
+      } else {
+        // Fall back to default behavior when not behind a reverse proxy
+        resourceUrl = c.req.url as Resource;
+      }
+    }
 
     let paymentRequirements: PaymentRequirements[] = [];
 
