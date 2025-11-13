@@ -12,7 +12,7 @@ import (
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	"github.com/coinbase/x402/go/extensions/types"
 	x402http "github.com/coinbase/x402/go/http"
-	"github.com/coinbase/x402/go/http/gin"
+	ginmw "github.com/coinbase/x402/go/http/gin"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/mechanisms/svm"
 	ginfw "github.com/gin-gonic/gin"
@@ -127,19 +127,17 @@ func main() {
 		},
 	}
 
-	// Create services for handling payments
-	evmService := evm.NewExactEvmService()
-	svmService := svm.NewExactSvmService()
-
-	// Apply payment middleware with both EVM and SVM support
-	r.Use(gin.PaymentMiddleware(
-		routes,
-		gin.WithFacilitatorClient(facilitatorClient),
-		gin.WithScheme(evmNetwork, evmService),
-		gin.WithScheme(svmNetwork, svmService),
-		gin.WithInitializeOnStart(true),
-		gin.WithTimeout(30*time.Second),
-	))
+	// Apply payment middleware
+	r.Use(ginmw.X402Payment(ginmw.Config{
+		Routes:      routes,
+		Facilitator: facilitatorClient,
+		Schemes: []ginmw.SchemeConfig{
+			{Network: evmNetwork, Service: evm.NewExactEvmService()},
+			{Network: svmNetwork, Service: svm.NewExactSvmService()},
+		},
+		Initialize: true,
+		Timeout:    30 * time.Second,
+	}))
 
 	/**
 	 * Protected endpoint - requires payment to access

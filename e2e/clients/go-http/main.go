@@ -27,9 +27,6 @@ type Result struct {
 	Error           string      `json:"error,omitempty"`
 }
 
-// NOTE: Signer implementations removed - now using helpers from go/signers package
-// This eliminates 200+ lines of boilerplate code
-
 func main() {
 	// Get configuration from environment
 	serverURL := os.Getenv("RESOURCE_SERVER_URL")
@@ -52,7 +49,6 @@ func main() {
 		log.Fatal("❌ SVM_PRIVATE_KEY environment variable is required")
 	}
 
-	// Create signers using helpers - eliminates 200+ lines of boilerplate!
 	evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(evmPrivateKey)
 	if err != nil {
 		outputError(fmt.Sprintf("Failed to create EVM signer: %v", err))
@@ -65,12 +61,10 @@ func main() {
 		return
 	}
 
-	// Create x402 client with fluent API and both EVM and SVM support
+	// Create x402 client with fluent API
 	x402Client := x402.Newx402Client().
-		// V2 support with wildcards
 		RegisterScheme("eip155:*", evm.NewExactEvmClient(evmSigner)).
 		RegisterScheme("solana:*", svm.NewExactSvmClient(svmSigner)).
-		// V1 support for legacy networks
 		RegisterSchemeV1("base-sepolia", evmv1.NewExactEvmClientV1(evmSigner)).
 		RegisterSchemeV1("base", evmv1.NewExactEvmClientV1(evmSigner)).
 		RegisterSchemeV1("solana-devnet", svmv1.NewExactSvmClientV1(svmSigner)).
@@ -92,7 +86,7 @@ func main() {
 		return
 	}
 
-	// Perform the request (payment will be handled automatically if needed)
+	// Perform the request (payment will be handled)
 	resp, err := client.Do(req)
 	if err != nil {
 		outputError(fmt.Sprintf("Request failed: %v", err))

@@ -21,10 +21,7 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// NOTE: The client signer implementation has been replaced with the helper from go/signers/svm
-// This reduces boilerplate from 48 lines to 3 lines - see newRealClientSvmSigner() below
-
-// newRealClientSvmSigner creates a client signer using the helper function
+// newRealClientSvmSigner creates a client signer using the helper
 func newRealClientSvmSigner(privateKeyBase58 string) (svm.ClientSvmSigner, error) {
 	return svmsigners.NewClientSignerFromPrivateKey(privateKeyBase58)
 }
@@ -73,7 +70,6 @@ func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 
 func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
 	// Partially sign - only sign for facilitator key, client has already signed
-	// This is similar to how solana_parser.go does it
 
 	// Get the message bytes to sign
 	messageBytes, err := tx.Message.MarshalBinary()

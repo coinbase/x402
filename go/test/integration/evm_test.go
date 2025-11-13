@@ -26,10 +26,7 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// NOTE: The client signer implementation has been replaced with the helper from go/signers/evm
-// This reduces boilerplate from 95 lines to 3 lines - see newRealClientEvmSigner() below
-
-// newRealClientEvmSigner creates a client signer using the helper function
+// newRealClientEvmSigner creates a client signer using the helper
 func newRealClientEvmSigner(privateKeyHex string) (evm.ClientEvmSigner, error) {
 	return evmsigners.NewClientSignerFromPrivateKey(privateKeyHex)
 }
@@ -209,12 +206,12 @@ func (l *localEvmFacilitatorClient) Verify(
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
 	}
-	
+
 	var requirements x402.PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
 	}
-	
+
 	return l.facilitator.Verify(ctx, payload, requirements)
 }
 
@@ -228,12 +225,12 @@ func (l *localEvmFacilitatorClient) Settle(
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return x402.SettleResponse{Success: false}, err
 	}
-	
+
 	var requirements x402.PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return x402.SettleResponse{Success: false}, err
 	}
-	
+
 	return l.facilitator.Settle(ctx, payload, requirements)
 }
 
@@ -404,7 +401,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Server does work here...
 
-		// Server - settles payment (REAL ON-CHAIN TRANSACTION)
+		// Server - settles payment
 		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
