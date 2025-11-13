@@ -10,7 +10,7 @@ const MixedAddressRegex = /^0x[a-fA-F0-9]{40}|[A-Za-z0-9][A-Za-z0-9-]{0,34}[A-Za
 const HexEncoded64ByteRegex = /^0x[0-9a-fA-F]{64}$/;
 const EvmSignatureRegex = /^0x[0-9a-fA-F]+$/; // Flexible hex signature validation
 // Enums
-export const schemes = ["exact"] as const;
+export const schemes = ["exact", "negotiated"] as const;
 export const x402Versions = [1] as const;
 export const ErrorReasons = [
   "insufficient_funds",
@@ -104,12 +104,26 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
+// x402NegotiatedPayload
+export const NegotiatedPayloadSchema = z.object({
+  negotiationId: z.string(),
+  proposedAmount: z.string().refine(isInteger),
+  maxAcceptable: z.string().refine(isInteger).optional(),
+  volume: z.number().int().optional(),
+  metadata: z.record(z.any()).optional(),
+  signature: z.string().regex(EvmSignatureRegex),
+  proposer: z.string().regex(EvmAddressRegex),
+  nonce: z.string().refine(isInteger),
+  deadline: z.number().int(),
+});
+export type NegotiatedPayload = z.infer<typeof NegotiatedPayloadSchema>;
+
 // x402PaymentPayload
 export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
+  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, NegotiatedPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
