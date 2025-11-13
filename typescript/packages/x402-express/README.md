@@ -40,14 +40,44 @@ app.get("/protected-route",
 app.listen(3000);
 ```
 
+## Security Considerations
+
+### Authorization Replay Risk
+
+By default, the middleware uses an **'after' settlement timing**: it verifies the payment authorization, executes your handler, then settles the payment on-chain. This provides lower latency but creates a window where **multiple concurrent requests** can execute using the same signed payment authorization before settlement confirms the payment.
+
+This matters for endpoints that perform **irreversible side effects**:
+- Token issuance or minting
+- Account creation or credits
+- Inventory updates
+- Database writes that affect state
+
+For these critical operations, use **settlementTiming: 'before'** to settle the payment on-chain BEFORE your handler executes:
+
+```typescript
+app.use(paymentMiddleware(
+  "0xYourAddress",
+  {
+    "/mint-token": {
+      price: "$1.00",
+      network: "base",
+    }
+  },
+  {
+    settlementTiming: 'before' // Settle on-chain first, then execute handler
+  }
+));
+```
+
+For **read-only or idempotent endpoints** (data fetching, analytics), the default `'after'` timing is safe and provides better performance.
+
 ## Configuration
 
 The `paymentMiddleware` function accepts three parameters:
 
 1. `payTo`: Your receiving address (`0x${string}`)
 2. `routes`: Route configurations for protected endpoints
-3. `facilitator`: (Optional) Configuration for the x402 facilitator service
-4. `paywall`: (Optional) Configuration for the built-in paywall
+3. `options`: (Optional) Configuration object with `facilitator`, `paywall`, and `settlementTiming`
 
 See the Middleware Options section below for detailed configuration options.
 
