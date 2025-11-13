@@ -62,8 +62,7 @@ app.use(
         price: "$0.001",
         network: EVM_NETWORK,
         extensions: {
-          [BAZAAR]: declareDiscoveryExtension({
-            method: "GET",
+          ...declareDiscoveryExtension({
             output: {
               example: {
                 message: "Protected endpoint accessed successfully",
@@ -86,8 +85,7 @@ app.use(
         price: "$0.001",
         network: SVM_NETWORK,
         extensions: {
-          [BAZAAR]: declareDiscoveryExtension({
-            method: "GET",
+          ...declareDiscoveryExtension({
             output: {
               example: {
                 message: "Protected endpoint accessed successfully",
