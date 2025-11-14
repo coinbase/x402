@@ -169,6 +169,22 @@ func (s *ExactEvmService) defaultMoneyConversion(amount float64, network x402.Ne
 		return x402.AssetAmount{}, err
 	}
 	
+	// Check if amount appears to already be in smallest unit
+	// (e.g., 1500000 for $1.50 USDC is likely already in smallest unit, not $1.5M)
+	oneUnit := float64(1)
+	for i := 0; i < config.DefaultAsset.Decimals; i++ {
+		oneUnit *= 10
+	}
+	
+	// If amount is >= 1 unit AND is a whole number, it's likely already in smallest unit
+	if amount >= oneUnit && amount == float64(int64(amount)) {
+		return x402.AssetAmount{
+			Asset:  config.DefaultAsset.Address,
+			Amount: fmt.Sprintf("%.0f", amount),
+			Extra:  make(map[string]interface{}),
+		}, nil
+	}
+	
 	// Convert decimal to smallest unit (e.g., $1.50 -> 1500000 for USDC with 6 decimals)
 	amountStr := fmt.Sprintf("%.6f", amount)
 	parsedAmount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)

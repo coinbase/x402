@@ -42,12 +42,19 @@ type PaywallConfig struct {
 	Testnet              bool   `json:"testnet,omitempty"`
 }
 
+// DynamicPayToFunc is a function that resolves payTo address dynamically based on request context
+type DynamicPayToFunc func(context.Context, HTTPRequestContext) (string, error)
+
+// DynamicPriceFunc is a function that resolves price dynamically based on request context
+type DynamicPriceFunc func(context.Context, HTTPRequestContext) (x402.Price, error)
+
 // RouteConfig defines payment configuration for an HTTP endpoint
+// PayTo and Price can be static values or functions for dynamic resolution
 type RouteConfig struct {
 	// Payment configuration
 	Scheme            string                 `json:"scheme"`
-	PayTo             string                 `json:"payTo"`
-	Price             x402.Price             `json:"price"`
+	PayTo             interface{}            `json:"payTo"` // string or DynamicPayToFunc
+	Price             interface{}            `json:"price"` // x402.Price or DynamicPriceFunc
 	Network           x402.Network           `json:"network"`
 	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds,omitempty"`
 	Extra             map[string]interface{} `json:"extra,omitempty"`
@@ -61,6 +68,27 @@ type RouteConfig struct {
 	InputSchema       interface{}            `json:"inputSchema,omitempty"`
 	OutputSchema      interface{}            `json:"outputSchema,omitempty"`
 	Extensions        map[string]interface{} `json:"extensions,omitempty"`
+}
+
+// ResolvedRouteConfig is a RouteConfig with all dynamic values resolved to static values
+type ResolvedRouteConfig struct {
+	// Payment configuration (all resolved to static values)
+	Scheme            string
+	PayTo             string
+	Price             x402.Price
+	Network           x402.Network
+	MaxTimeoutSeconds int
+	Extra             map[string]interface{}
+
+	// HTTP-specific metadata
+	Resource          string
+	Description       string
+	MimeType          string
+	CustomPaywallHTML string
+	Discoverable      bool
+	InputSchema       interface{}
+	OutputSchema      interface{}
+	Extensions        map[string]interface{}
 }
 
 // RoutesConfig maps route patterns to configurations
@@ -144,6 +172,63 @@ func Newx402HTTPResourceService(routes RoutesConfig, opts ...x402.ResourceServic
 	return service
 }
 
+// resolveRouteConfig resolves dynamic route config values.
+// Evaluates any function-based payTo or price values using the request context.
+//
+// Args:
+//   ctx: Context for cancellation
+//   routeConfig: The route configuration (may contain functions)
+//   reqCtx: HTTP request context for dynamic resolution
+//
+// Returns:
+//   Resolved route configuration with static values
+func (s *x402HTTPResourceService) resolveRouteConfig(ctx context.Context, routeConfig *RouteConfig, reqCtx HTTPRequestContext) (*ResolvedRouteConfig, error) {
+	resolved := &ResolvedRouteConfig{
+		Scheme:            routeConfig.Scheme,
+		Network:           routeConfig.Network,
+		MaxTimeoutSeconds: routeConfig.MaxTimeoutSeconds,
+		Extra:             routeConfig.Extra,
+		Resource:          routeConfig.Resource,
+		Description:       routeConfig.Description,
+		MimeType:          routeConfig.MimeType,
+		CustomPaywallHTML: routeConfig.CustomPaywallHTML,
+		Discoverable:      routeConfig.Discoverable,
+		InputSchema:       routeConfig.InputSchema,
+		OutputSchema:      routeConfig.OutputSchema,
+		Extensions:        routeConfig.Extensions,
+	}
+	
+	// Resolve PayTo (string or DynamicPayToFunc)
+	if payToFunc, ok := routeConfig.PayTo.(DynamicPayToFunc); ok {
+		// It's a function, call it
+		payTo, err := payToFunc(ctx, reqCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve dynamic payTo: %w", err)
+		}
+		resolved.PayTo = payTo
+	} else if payToStr, ok := routeConfig.PayTo.(string); ok {
+		// It's a static string
+		resolved.PayTo = payToStr
+	} else {
+		return nil, fmt.Errorf("payTo must be string or DynamicPayToFunc, got %T", routeConfig.PayTo)
+	}
+	
+	// Resolve Price (x402.Price or DynamicPriceFunc)
+	if priceFunc, ok := routeConfig.Price.(DynamicPriceFunc); ok {
+		// It's a function, call it
+		price, err := priceFunc(ctx, reqCtx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve dynamic price: %w", err)
+		}
+		resolved.Price = price
+	} else {
+		// It's a static value (string, number, or AssetAmount)
+		resolved.Price = routeConfig.Price
+	}
+	
+	return resolved, nil
+}
+
 // ProcessHTTPRequest handles an HTTP request and returns processing result
 func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx HTTPRequestContext, paywallConfig *PaywallConfig) HTTPProcessResult {
 	// Find matching route
@@ -151,17 +236,30 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 	if routeConfig == nil {
 		return HTTPProcessResult{Type: ResultNoPaymentRequired}
 	}
+	
+	// Resolve dynamic payTo and price
+	resolvedConfig, err := s.resolveRouteConfig(ctx, routeConfig, reqCtx)
+	if err != nil {
+		return HTTPProcessResult{
+			Type: ResultPaymentError,
+			Response: &HTTPResponseInstructions{
+				Status:  500,
+				Headers: map[string]string{"Content-Type": "application/json"},
+				Body:    map[string]string{"error": fmt.Sprintf("Failed to resolve route config: %v", err)},
+			},
+		}
+	}
 
 	// Check for payment header
 	paymentPayload := s.extractPayment(reqCtx.Adapter)
 
-	// Build payment requirements
+	// Build payment requirements from RESOLVED config
 	requirements, err := s.BuildPaymentRequirements(ctx, x402.ResourceConfig{
-		Scheme:            routeConfig.Scheme,
-		PayTo:             routeConfig.PayTo,
-		Price:             routeConfig.Price,
-		Network:           routeConfig.Network,
-		MaxTimeoutSeconds: routeConfig.MaxTimeoutSeconds,
+		Scheme:            resolvedConfig.Scheme,
+		PayTo:             resolvedConfig.PayTo,
+		Price:             resolvedConfig.Price,
+		Network:           resolvedConfig.Network,
+		MaxTimeoutSeconds: resolvedConfig.MaxTimeoutSeconds,
 	})
 
 	if err != nil {
@@ -175,11 +273,11 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		}
 	}
 
-	// Create resource info
+	// Create resource info from RESOLVED config
 	resourceInfo := x402.ResourceInfo{
 		URL:         reqCtx.Adapter.GetURL(),
-		Description: routeConfig.Description,
-		MimeType:    routeConfig.MimeType,
+		Description: resolvedConfig.Description,
+		MimeType:    resolvedConfig.MimeType,
 	}
 
 	for i := range requirements {
@@ -189,7 +287,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 		requirements[i].Extra["resourceUrl"] = resourceInfo.URL
 	}
 
-	extensions := routeConfig.Extensions
+	extensions := resolvedConfig.Extensions
 	if extensions != nil && len(extensions) > 0 {
 		extensions = s.EnrichExtensions(extensions, reqCtx)
 	}
@@ -208,7 +306,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 				paymentRequired,
 				s.isWebBrowser(reqCtx.Adapter),
 				paywallConfig,
-				routeConfig.CustomPaywallHTML,
+				resolvedConfig.CustomPaywallHTML,
 			),
 		}
 	}
