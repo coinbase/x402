@@ -37,3 +37,4 @@ describe("@x402/svm/v1", () => {
     expect(facilitator.scheme).toBe("exact");
   });
 });
+

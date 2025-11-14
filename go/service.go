@@ -19,6 +19,14 @@ type x402ResourceService struct {
 	registeredExtensions map[string]types.ResourceServiceExtension
 	supportedCache *SupportedCache
 	facilitatorClientsMap map[int]map[Network]map[string]FacilitatorClient
+	
+	// Lifecycle hooks
+	beforeVerifyHooks     []BeforeVerifyHook
+	afterVerifyHooks      []AfterVerifyHook
+	onVerifyFailureHooks  []OnVerifyFailureHook
+	beforeSettleHooks     []BeforeSettleHook
+	afterSettleHooks      []AfterSettleHook
+	onSettleFailureHooks  []OnSettleFailureHook
 }
 
 // SupportedCache caches facilitator capabilities
@@ -157,6 +165,98 @@ func (s *x402ResourceService) RegisterExtension(extension types.ResourceServiceE
 	return s
 }
 
+// ============================================================================
+// Hook Registration Methods (Chainable)
+// ============================================================================
+
+// OnBeforeVerify registers a hook to execute before payment verification
+// Can abort verification by returning a result with Abort=true
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnBeforeVerify(hook BeforeVerifyHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.beforeVerifyHooks = append(s.beforeVerifyHooks, hook)
+	return s
+}
+
+// OnAfterVerify registers a hook to execute after successful payment verification
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnAfterVerify(hook AfterVerifyHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.afterVerifyHooks = append(s.afterVerifyHooks, hook)
+	return s
+}
+
+// OnVerifyFailure registers a hook to execute when payment verification fails
+// Can recover from failure by returning a result with Recovered=true
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnVerifyFailure(hook OnVerifyFailureHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onVerifyFailureHooks = append(s.onVerifyFailureHooks, hook)
+	return s
+}
+
+// OnBeforeSettle registers a hook to execute before payment settlement
+// Can abort settlement by returning a result with Abort=true
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnBeforeSettle(hook BeforeSettleHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.beforeSettleHooks = append(s.beforeSettleHooks, hook)
+	return s
+}
+
+// OnAfterSettle registers a hook to execute after successful payment settlement
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnAfterSettle(hook AfterSettleHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.afterSettleHooks = append(s.afterSettleHooks, hook)
+	return s
+}
+
+// OnSettleFailure registers a hook to execute when payment settlement fails
+// Can recover from failure by returning a result with Recovered=true
+//
+// Args:
+//   hook: The hook function to register
+//
+// Returns:
+//   The service instance for chaining
+func (s *x402ResourceService) OnSettleFailure(hook OnSettleFailureHook) *x402ResourceService {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.onSettleFailureHooks = append(s.onSettleFailureHooks, hook)
+	return s
+}
+
 func (s *x402ResourceService) EnrichExtensions(
 	declaredExtensions map[string]interface{},
 	transportContext interface{},
@@ -261,80 +361,290 @@ func (s *x402ResourceService) CreatePaymentRequiredResponse(
 
 // VerifyPayment verifies a payment against requirements
 // Service is boundary: accepts bytes (from client), routes to facilitator
-func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+//
+// Args:
+//   ctx: Context for cancellation and metadata
+//   payloadBytes: Serialized payment payload
+//   requirementsBytes: Serialized payment requirements
+//   metadata: Optional metadata to pass to hooks (can be nil)
+//
+// Returns:
+//   VerifyResponse and error if verification fails
+func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte, metadata ...map[string]interface{}) (VerifyResponse, error) {
+	startTime := time.Now()
+	
+	// Build hook context
+	hookCtx := VerifyContext{
+		Ctx:              ctx,
+		PayloadBytes:     payloadBytes,
+		RequirementsBytes: requirementsBytes,
+		Timestamp:        startTime,
+	}
+	if len(metadata) > 0 && metadata[0] != nil {
+		hookCtx.RequestMetadata = metadata[0]
+	}
+	
+	// Execute beforeVerify hooks
+	s.mu.RLock()
+	beforeHooks := s.beforeVerifyHooks
+	s.mu.RUnlock()
+	
+	for _, hook := range beforeHooks {
+		result, err := hook(hookCtx)
+		if err != nil {
+			// Log error but continue (hook errors don't abort)
+			// In production, you might want to log this
+		}
+		if result != nil && result.Abort {
+			return VerifyResponse{
+				IsValid:       false,
+				InvalidReason: result.Reason,
+			}, nil
+		}
+	}
+	
+	// Perform verification
+	var verifyResult VerifyResponse
+	var verifyErr error
+	
 	// Detect version
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return VerifyResponse{IsValid: false, InvalidReason: "invalid version"}, err
-	}
-
-	// Extract scheme/network from requirements for routing
-	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
-	if err != nil {
-		return VerifyResponse{IsValid: false, InvalidReason: "invalid requirements"}, err
-	}
-
-	// Find appropriate facilitator (returns FacilitatorClient wrapper)
-	facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
-	if facilitator == nil {
-		// Try all facilitators as fallback
-		for _, client := range s.facilitatorClients {
-			resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
-			if err == nil {
-				return resp, nil
+		verifyErr = err
+		verifyResult = VerifyResponse{IsValid: false, InvalidReason: "invalid version"}
+	} else {
+		// Extract scheme/network from requirements for routing
+		reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+		if err != nil {
+			verifyErr = err
+			verifyResult = VerifyResponse{IsValid: false, InvalidReason: "invalid requirements"}
+		} else {
+			// Find appropriate facilitator
+			facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
+			if facilitator == nil {
+				// Try all facilitators as fallback
+				var lastErr error
+				for _, client := range s.facilitatorClients {
+					resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+					if err == nil {
+						verifyResult = resp
+						break
+					}
+					lastErr = err
+				}
+				
+				if verifyResult.IsValid || lastErr != nil {
+					if lastErr != nil {
+						verifyErr = &PaymentError{
+							Code:    ErrCodeUnsupportedNetwork,
+							Message: "no facilitator supports this payment type",
+						}
+						verifyResult = VerifyResponse{
+							IsValid:       false,
+							InvalidReason: "no facilitator available for verification",
+						}
+					}
+				}
+			} else {
+				// Use specific facilitator
+				verifyResult, verifyErr = facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 			}
 		}
-
-		return VerifyResponse{
-				IsValid:       false,
-				InvalidReason: "no facilitator available for verification",
-			}, &PaymentError{
-				Code:    ErrCodeUnsupportedNetwork,
-				Message: "no facilitator supports this payment type",
-			}
 	}
-
-	// FacilitatorClient doesn't need version (extracts from bytes)
-	return facilitator.Verify(ctx, payloadBytes, requirementsBytes)
+	
+	duration := time.Since(startTime)
+	
+	// Handle success case
+	if verifyErr == nil {
+		// Execute afterVerify hooks
+		s.mu.RLock()
+		afterHooks := s.afterVerifyHooks
+		s.mu.RUnlock()
+		
+		resultCtx := VerifyResultContext{
+			VerifyContext: hookCtx,
+			Result:        verifyResult,
+			Duration:      duration,
+		}
+		
+		for _, hook := range afterHooks {
+			if err := hook(resultCtx); err != nil {
+				// Log error but don't fail the verification
+				// In production, you might want to log this
+			}
+		}
+		
+		return verifyResult, nil
+	}
+	
+	// Handle failure case
+	s.mu.RLock()
+	failureHooks := s.onVerifyFailureHooks
+	s.mu.RUnlock()
+	
+	failureCtx := VerifyFailureContext{
+		VerifyContext: hookCtx,
+		Error:         verifyErr,
+		Duration:      duration,
+	}
+	
+	// Execute onVerifyFailure hooks
+	for _, hook := range failureHooks {
+		result, err := hook(failureCtx)
+		if err != nil {
+			// Log error but continue
+		}
+		if result != nil && result.Recovered {
+			// Hook recovered from failure
+			return result.Result, nil
+		}
+	}
+	
+	// No recovery, return original error
+	return verifyResult, verifyErr
 }
 
 // SettlePayment settles a verified payment
 // Service is boundary: accepts bytes (from client), routes to facilitator
-func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+//
+// Args:
+//   ctx: Context for cancellation and metadata
+//   payloadBytes: Serialized payment payload
+//   requirementsBytes: Serialized payment requirements
+//   metadata: Optional metadata to pass to hooks (can be nil)
+//
+// Returns:
+//   SettleResponse and error if settlement fails
+func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte, metadata ...map[string]interface{}) (SettleResponse, error) {
+	startTime := time.Now()
+	
+	// Build hook context
+	hookCtx := SettleContext{
+		Ctx:              ctx,
+		PayloadBytes:     payloadBytes,
+		RequirementsBytes: requirementsBytes,
+		Timestamp:        startTime,
+	}
+	if len(metadata) > 0 && metadata[0] != nil {
+		hookCtx.RequestMetadata = metadata[0]
+	}
+	
+	// Execute beforeSettle hooks
+	s.mu.RLock()
+	beforeHooks := s.beforeSettleHooks
+	s.mu.RUnlock()
+	
+	for _, hook := range beforeHooks {
+		result, err := hook(hookCtx)
+		if err != nil {
+			// Log error but continue (hook errors don't abort)
+			// In production, you might want to log this
+		}
+		if result != nil && result.Abort {
+			return SettleResponse{
+				Success:     false,
+				ErrorReason: fmt.Sprintf("Settlement aborted: %s", result.Reason),
+			}, fmt.Errorf("settlement aborted: %s", result.Reason)
+		}
+	}
+	
+	// Perform settlement
+	var settleResult SettleResponse
+	var settleErr error
+	
 	// Detect version
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return SettleResponse{Success: false, ErrorReason: "invalid version"}, err
-	}
-
-	// Extract scheme/network from requirements for routing
-	reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
-	if err != nil {
-		return SettleResponse{Success: false, ErrorReason: "invalid requirements"}, err
-	}
-
-	// Find appropriate facilitator (returns FacilitatorClient wrapper)
-	facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
-	if facilitator == nil {
-		// Try all facilitators as fallback
-		for _, client := range s.facilitatorClients {
-			resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
-			if err == nil {
-				return resp, nil
+		settleErr = err
+		settleResult = SettleResponse{Success: false, ErrorReason: "invalid version"}
+	} else {
+		// Extract scheme/network from requirements for routing
+		reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
+		if err != nil {
+			settleErr = err
+			settleResult = SettleResponse{Success: false, ErrorReason: "invalid requirements"}
+		} else {
+			// Find appropriate facilitator
+			facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
+			if facilitator == nil {
+				// Try all facilitators as fallback
+				var lastErr error
+				for _, client := range s.facilitatorClients {
+					resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
+					if err == nil {
+						settleResult = resp
+						break
+					}
+					lastErr = err
+				}
+				
+				if !settleResult.Success && lastErr != nil {
+					settleErr = &PaymentError{
+						Code:    ErrCodeSettlementFailed,
+						Message: "no facilitator supports this payment type",
+					}
+					settleResult = SettleResponse{
+						Success:     false,
+						ErrorReason: "no facilitator available for settlement",
+					}
+				}
+			} else {
+				// Use specific facilitator
+				settleResult, settleErr = facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 			}
 		}
-
-		return SettleResponse{
-				Success:     false,
-				ErrorReason: "no facilitator available for settlement",
-			}, &PaymentError{
-				Code:    ErrCodeSettlementFailed,
-				Message: "no facilitator supports this payment type",
-			}
 	}
-
-	// FacilitatorClient doesn't need version (extracts from bytes)
-	return facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+	
+	duration := time.Since(startTime)
+	
+	// Handle success case
+	if settleErr == nil && settleResult.Success {
+		// Execute afterSettle hooks
+		s.mu.RLock()
+		afterHooks := s.afterSettleHooks
+		s.mu.RUnlock()
+		
+		resultCtx := SettleResultContext{
+			SettleContext: hookCtx,
+			Result:        settleResult,
+			Duration:      duration,
+		}
+		
+		for _, hook := range afterHooks {
+			if err := hook(resultCtx); err != nil {
+				// Log error but don't fail the settlement
+				// In production, you might want to log this
+			}
+		}
+		
+		return settleResult, nil
+	}
+	
+	// Handle failure case
+	s.mu.RLock()
+	failureHooks := s.onSettleFailureHooks
+	s.mu.RUnlock()
+	
+	failureCtx := SettleFailureContext{
+		SettleContext: hookCtx,
+		Error:         settleErr,
+		Duration:      duration,
+	}
+	
+	// Execute onSettleFailure hooks
+	for _, hook := range failureHooks {
+		result, err := hook(failureCtx)
+		if err != nil {
+			// Log error but continue
+		}
+		if result != nil && result.Recovered {
+			// Hook recovered from failure
+			return result.Result, nil
+		}
+	}
+	
+	// No recovery, return original error
+	return settleResult, settleErr
 }
 
 // FindMatchingRequirements finds requirements that match a payment payload
