@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	x402 "github.com/coinbase/x402/go"
 )
