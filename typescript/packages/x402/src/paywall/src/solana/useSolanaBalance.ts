@@ -63,7 +63,7 @@ export function useSolanaBalance({
       try {
         setIsFetchingBalance(true);
 
-        const rpc = getRpcClient(paymentRequirement.network);
+        const rpc = getRpcClient(paymentRequirement.network, paymentRequirement.extra?.rpcUrl);
         const mint = await fetchMint(rpc, paymentRequirement.asset as Address);
         const tokenProgramAddress = mint.programAddress;
         const [ata] = await findAssociatedTokenPda({

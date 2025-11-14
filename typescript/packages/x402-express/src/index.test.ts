@@ -595,6 +595,122 @@ describe("paymentMiddleware()", () => {
     expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
   });
 
+  describe("Solana RPC proxy integration", () => {
+    it("should include proxy rpcUrl in payment requirements extra when solanaRpcUrl is configured", async () => {
+      const solanaRoutesConfig: RoutesConfig = {
+        "/test": {
+          price: "$0.001",
+          network: "solana",
+          config: middlewareConfig,
+        },
+      };
+      const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+      const feePayer = "FeePayerAddressMainnet";
+      const paywallConfig = {
+        cdpClientKey: "test-client-key",
+        solanaRpcUrl: "https://mainnet.helius-rpc.com/?api-key=test-key",
+      };
+      const supportedResponse = {
+        kinds: [
+          {
+            scheme: "exact",
+            network: "solana",
+            extra: { feePayer },
+          },
+        ],
+      };
+      (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+      vi.mocked(findMatchingRoute).mockReturnValue({
+        pattern: /^\/test$/,
+        verb: "GET",
+        config: {
+          price: "$0.001",
+          network: "solana",
+          config: middlewareConfig,
+        },
+      });
+
+      const middlewareWithSolanaRpc = paymentMiddleware(
+        solanaPayTo as SolanaAddress,
+        solanaRoutesConfig,
+        facilitatorConfig,
+        paywallConfig,
+      );
+
+      mockReq = {
+        ...mockReq,
+        method: "GET",
+        originalUrl: "/test",
+        protocol: "https",
+        headers: { host: "example.com" },
+      } as Request;
+
+      await middlewareWithSolanaRpc(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(responseJson.accepts[0].extra).toEqual({
+        feePayer: feePayer,
+        rpcUrl: "https://example.com/api/x402/solana-rpc-proxy",
+      });
+    });
+
+    it("should not include rpcUrl when solanaRpcUrl is not configured", async () => {
+      const solanaRoutesConfig: RoutesConfig = {
+        "/test": {
+          price: "$0.001",
+          network: "solana",
+          config: middlewareConfig,
+        },
+      };
+      const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+      const feePayer = "FeePayerAddressMainnet";
+      const supportedResponse = {
+        kinds: [
+          {
+            scheme: "exact",
+            network: "solana",
+            extra: { feePayer },
+          },
+        ],
+      };
+      (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+      vi.mocked(findMatchingRoute).mockReturnValue({
+        pattern: /^\/test$/,
+        verb: "GET",
+        config: {
+          price: "$0.001",
+          network: "solana",
+          config: middlewareConfig,
+        },
+      });
+
+      const middlewareWithoutSolanaRpc = paymentMiddleware(
+        solanaPayTo as SolanaAddress,
+        solanaRoutesConfig,
+        facilitatorConfig,
+      );
+
+      mockReq = {
+        ...mockReq,
+        method: "GET",
+        originalUrl: "/test",
+        protocol: "https",
+        headers: { host: "example.com" },
+      } as Request;
+
+      await middlewareWithoutSolanaRpc(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(402);
+      const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(responseJson.accepts[0].extra).toEqual({
+        feePayer: feePayer,
+      });
+    });
+  });
+
   describe("session token integration", () => {
     it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
       const paywallConfig = {
