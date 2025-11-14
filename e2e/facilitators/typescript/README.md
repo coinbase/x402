@@ -20,6 +20,53 @@ This facilitator demonstrates and tests the TypeScript x402 facilitator implemen
 
 ## What It Demonstrates
 
+### Lifecycle Hooks Usage
+
+This e2e facilitator showcases **production-ready lifecycle hook patterns**:
+
+```typescript
+const facilitator = new x402Facilitator()
+  .registerScheme("eip155:*", new ExactEvmFacilitator(evmSigner))
+  .registerExtension(BAZAAR)
+  // Hook 1: Track verified payments + extract discovery info
+  .onAfterVerify(async (context) => {
+    if (context.result.isValid) {
+      const paymentHash = createPaymentHash(context.paymentPayload);
+      verifiedPayments.set(paymentHash, context.timestamp);
+      
+      // Catalog discovered resources
+      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
+      if (discovered) {
+        bazaarCatalog.catalogResource(discovered);
+      }
+    }
+  })
+  // Hook 2: Validate payment was verified before settlement
+  .onBeforeSettle(async (context) => {
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    if (!verifiedPayments.has(paymentHash)) {
+      return { abort: true, reason: "Payment must be verified first" };
+    }
+    
+    // Check timeout
+    const age = context.timestamp - verifiedPayments.get(paymentHash)!;
+    if (age > 5 * 60 * 1000) {
+      return { abort: true, reason: "Verification expired" };
+    }
+  })
+  // Hook 3: Clean up tracking after settlement
+  .onAfterSettle(async (context) => {
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    verifiedPayments.delete(paymentHash);
+  })
+  // Hook 4: Clean up on failure too
+  .onSettleFailure(async (context) => {
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    verifiedPayments.delete(paymentHash);
+  });
+```
+
+
 ### Facilitator Setup
 
 ```typescript

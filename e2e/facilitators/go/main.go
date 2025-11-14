@@ -692,6 +692,83 @@ func main() {
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
+	
+	// Lifecycle hooks for payment tracking and discovery
+	facilitator.
+		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
+			// Hook 1: Track verified payment for verify→settle flow validation
+			if ctx.Result.IsValid {
+				paymentHash := createPaymentHash(ctx.PaymentPayload)
+				verificationMutex.Lock()
+				verifiedPayments[paymentHash] = ctx.Timestamp.Unix()
+				verificationMutex.Unlock()
+				
+				// Hook 2: Extract and catalog bazaar discovery info
+				discovered, err := bazaar.ExtractDiscoveryInfo(ctx.PaymentPayload, ctx.PaymentRequirements, true)
+				if err == nil && discovered != nil {
+					bazaarCatalog.CatalogResource(
+						discovered.ResourceURL,
+						discovered.Method,
+						discovered.X402Version,
+						discovered.DiscoveryInfo,
+						ctx.PaymentRequirements,
+					)
+					log.Printf("📦 Discovered resource: %s %s", discovered.Method, discovered.ResourceURL)
+				}
+			}
+			return nil
+		}).
+		OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
+			// Hook 3: Validate payment was previously verified
+			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			verificationMutex.RLock()
+			verificationTimestamp, verified := verifiedPayments[paymentHash]
+			verificationMutex.RUnlock()
+			
+			if !verified {
+				return &x402.FacilitatorBeforeHookResult{
+					Abort:  true,
+					Reason: "Payment must be verified before settlement",
+				}, nil
+			}
+			
+			// Check verification isn't too old (5 minute timeout)
+			age := ctx.Timestamp.Unix() - verificationTimestamp
+			if age > 5*60 {
+				verificationMutex.Lock()
+				delete(verifiedPayments, paymentHash)
+				verificationMutex.Unlock()
+				
+				return &x402.FacilitatorBeforeHookResult{
+					Abort:  true,
+					Reason: "Payment verification expired (must settle within 5 minutes)",
+				}, nil
+			}
+			
+			return nil, nil
+		}).
+		OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
+			// Hook 4: Clean up verified payment tracking after successful settlement
+			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			verificationMutex.Lock()
+			delete(verifiedPayments, paymentHash)
+			verificationMutex.Unlock()
+			
+			if ctx.Result.Success {
+				log.Printf("✅ Settlement completed: %s", ctx.Result.Transaction)
+			}
+			return nil
+		}).
+		OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
+			// Hook 5: Clean up verified payment tracking on failure too
+			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			verificationMutex.Lock()
+			delete(verifiedPayments, paymentHash)
+			verificationMutex.Unlock()
+			
+			log.Printf("❌ Settlement failed: %v", ctx.Error)
+			return nil, nil
+		})
 
 	// Set up Gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -699,6 +776,7 @@ func main() {
 	router.Use(gin.Recovery())
 
 	// POST /verify - Verify a payment against requirements
+	// Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
 	router.POST("/verify", func(c *gin.Context) {
 		// First, peek at the version to determine which struct to use
 		var versionCheck struct {
@@ -730,8 +808,9 @@ func main() {
 			return
 		}
 
-		// No transformation needed - v1 mechanisms will read MaxAmountRequired field directly
-
+		// Hooks will automatically:
+		// - Track verified payment (OnAfterVerify)
+		// - Extract and catalog discovery info (OnAfterVerify)
 		response, err := facilitator.Verify(
 			context.Background(),
 			req.PaymentPayload,
@@ -745,29 +824,11 @@ func main() {
 			return
 		}
 
-		// Track verified payment and extract discovery info if valid
-		if response.IsValid {
-			paymentHash := createPaymentHash(req.PaymentPayload)
-			verificationMutex.Lock()
-			verifiedPayments[paymentHash] = time.Now().Unix()
-			verificationMutex.Unlock()
-
-			discovered, err := bazaar.ExtractDiscoveryInfo(req.PaymentPayload, req.PaymentRequirements, true)
-			if err == nil && discovered != nil {
-				bazaarCatalog.CatalogResource(
-					discovered.ResourceURL,
-					discovered.Method,
-					discovered.X402Version,
-					discovered.DiscoveryInfo,
-					req.PaymentRequirements,
-				)
-			}
-		}
-
 		c.JSON(http.StatusOK, response)
 	})
 
 	// POST /settle - Settle a payment on-chain
+	// Note: Verification validation and cleanup are handled by lifecycle hooks
 	router.POST("/settle", func(c *gin.Context) {
 		// First, peek at the version to determine which struct to use
 		var versionCheck struct {
@@ -808,54 +869,29 @@ func main() {
 		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
 		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
 
-		// Validate that payment was previously verified
-		paymentHash := createPaymentHash(req.PaymentPayload)
-		verificationMutex.RLock()
-		verificationTimestamp, verified := verifiedPayments[paymentHash]
-		verificationMutex.RUnlock()
-
-		if !verified {
-			c.JSON(http.StatusOK, x402.SettleResponse{
-				Success:     false,
-				ErrorReason: "Payment must be verified before settlement",
-				Network:     req.PaymentPayload.Accepted.Network,
-			})
-			return
-		}
-
-		// Check verification isn't too old (5 minute timeout)
-		age := time.Now().Unix() - verificationTimestamp
-		if age > 5*60 {
-			verificationMutex.Lock()
-			delete(verifiedPayments, paymentHash)
-			verificationMutex.Unlock()
-
-			c.JSON(http.StatusOK, x402.SettleResponse{
-				Success:     false,
-				ErrorReason: "Payment verification expired (must settle within 5 minutes)",
-				Network:     req.PaymentPayload.Accepted.Network,
-			})
-			return
-		}
-
-		// No transformation needed - v1 mechanisms will read MaxAmountRequired field directly
-
 		response, err := facilitator.Settle(
 			context.Background(),
 			req.PaymentPayload,
 			req.PaymentRequirements,
 		)
 
-		// Clean up verified payment after settlement (successful or not)
-		verificationMutex.Lock()
-		delete(verifiedPayments, paymentHash)
-		verificationMutex.Unlock()
-
 		// Debug: Log response
 		log.Printf("🔍 [FACILITATOR SETTLE] Response: %+v", response)
 		log.Printf("🔍 [FACILITATOR SETTLE] Error: %v", err)
 		if err != nil {
 			log.Printf("Settle error: %v", err)
+			
+			// Check if this was an abort from hook
+			if strings.Contains(err.Error(), "settlement aborted:") {
+				// Return a proper SettleResponse instead of 500 error
+				c.JSON(http.StatusOK, x402.SettleResponse{
+					Success:     false,
+					ErrorReason: strings.TrimPrefix(err.Error(), "settlement aborted: "),
+					Network:     req.PaymentPayload.Accepted.Network,
+				})
+				return
+			}
+			
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": err.Error(),
 			})

@@ -105,18 +105,6 @@ const evmSigner = toFacilitatorEvmSigner({
 // Facilitator can now handle all Solana networks with automatic RPC creation
 const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
-const facilitator = new x402Facilitator()
-  .registerScheme("eip155:*", new ExactEvmFacilitator(evmSigner))
-  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(evmSigner))
-  .registerScheme("solana:*" as `${string}:${string}`, new ExactSvmFacilitator(svmSigner), {
-    feePayer: svmAccount.address,
-  })
-  .registerSchemeV1("solana-devnet" as `${string}:${string}`, new ExactSvmFacilitatorV1(svmSigner), {
-    feePayer: svmAccount.address,
-  })
-  .registerExtension(BAZAAR);
-
-
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
 
@@ -127,6 +115,76 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
     .digest("hex");
 }
 
+const facilitator = new x402Facilitator()
+  .registerScheme("eip155:*", new ExactEvmFacilitator(evmSigner))
+  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(evmSigner))
+  .registerScheme("solana:*" as `${string}:${string}`, new ExactSvmFacilitator(svmSigner), {
+    feePayer: svmAccount.address,
+  })
+  .registerSchemeV1("solana-devnet" as `${string}:${string}`, new ExactSvmFacilitatorV1(svmSigner), {
+    feePayer: svmAccount.address,
+  })
+  .registerExtension(BAZAAR)
+  // Lifecycle hooks for payment tracking and discovery
+  .onAfterVerify(async (context) => {
+    // Hook 1: Track verified payment for verify→settle flow validation
+    if (context.result.isValid) {
+      const paymentHash = createPaymentHash(context.paymentPayload);
+      verifiedPayments.set(paymentHash, context.timestamp);
+      
+      // Hook 2: Extract and catalog bazaar discovery info
+      const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
+      if (discovered) {
+        bazaarCatalog.catalogResource(
+          discovered.resourceUrl,
+          discovered.method,
+          discovered.x402Version,
+          discovered.discoveryInfo,
+          context.requirements,
+        );
+        console.log(`📦 Discovered resource: ${discovered.method} ${discovered.resourceUrl}`);
+      }
+    }
+  })
+  .onBeforeSettle(async (context) => {
+    // Hook 3: Validate payment was previously verified
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    const verificationTimestamp = verifiedPayments.get(paymentHash);
+    
+    if (!verificationTimestamp) {
+      return {
+        abort: true,
+        reason: "Payment must be verified before settlement",
+      };
+    }
+    
+    // Check verification isn't too old (5 minute timeout)
+    const age = context.timestamp - verificationTimestamp;
+    if (age > 5 * 60 * 1000) {
+      verifiedPayments.delete(paymentHash);
+      return {
+        abort: true,
+        reason: "Payment verification expired (must settle within 5 minutes)",
+      };
+    }
+  })
+  .onAfterSettle(async (context) => {
+    // Hook 4: Clean up verified payment tracking after settlement
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    verifiedPayments.delete(paymentHash);
+    
+    if (context.result.success) {
+      console.log(`✅ Settlement completed: ${context.result.transaction}`);
+    }
+  })
+  .onSettleFailure(async (context) => {
+    // Hook 5: Clean up on settlement failure too
+    const paymentHash = createPaymentHash(context.paymentPayload);
+    verifiedPayments.delete(paymentHash);
+    
+    console.error(`❌ Settlement failed: ${context.error.message}`);
+  });
+
 // Initialize Express app
 const app = express();
 app.use(express.json());
@@ -135,7 +193,7 @@ app.use(express.json());
  * POST /verify
  * Verify a payment against requirements
  * 
- * Also tracks verified payments and extracts bazaar discovery info
+ * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
@@ -147,26 +205,13 @@ app.post("/verify", async (req, res) => {
       });
     }
 
+    // Hooks will automatically:
+    // - Track verified payment (onAfterVerify)
+    // - Extract and catalog discovery info (onAfterVerify)
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload,
       paymentRequirements,
     );
-
-    if (response.isValid) {
-      const paymentHash = createPaymentHash(paymentPayload);
-      verifiedPayments.set(paymentHash, Date.now());
-
-      const discovered = extractDiscoveryInfo(paymentPayload, paymentRequirements);
-      if (discovered) {
-        bazaarCatalog.catalogResource(
-          discovered.resourceUrl,
-          discovered.method,
-          discovered.x402Version,
-          discovered.discoveryInfo,
-          paymentRequirements,
-        );
-      }
-    }
 
     res.json(response);
   } catch (error) {
@@ -181,7 +226,7 @@ app.post("/verify", async (req, res) => {
  * POST /settle
  * Settle a payment on-chain
  * 
- * Validates that the payment was previously verified
+ * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
   try {
@@ -193,41 +238,29 @@ app.post("/settle", async (req, res) => {
       });
     }
 
-    // Validate that payment was previously verified
-    const paymentHash = createPaymentHash(paymentPayload);
-    const verificationTimestamp = verifiedPayments.get(paymentHash);
-
-    if (!verificationTimestamp) {
-      return res.json({
-        success: false,
-        errorReason: "Payment must be verified before settlement",
-        network: paymentPayload.network,
-      } as SettleResponse);
-    }
-
-    // Check verification isn't too old (5 minute timeout)
-    const age = Date.now() - verificationTimestamp;
-    if (age > 5 * 60 * 1000) {
-      verifiedPayments.delete(paymentHash);
-      return res.json({
-        success: false,
-        errorReason: "Payment verification expired (must settle within 5 minutes)",
-        network: paymentPayload.network,
-      } as SettleResponse);
-    }
-
-    // No transformation needed - v1 mechanisms will read maxAmountRequired field directly
+    // Hooks will automatically:
+    // - Validate payment was verified (onBeforeSettle - will abort if not)
+    // - Check verification timeout (onBeforeSettle)
+    // - Clean up tracking (onAfterSettle / onSettleFailure)
     const response: SettleResponse = await facilitator.settle(
       paymentPayload as PaymentPayload,
       paymentRequirements as PaymentRequirements,
     );
 
-    // Clean up verified payment after settlement (successful or not)
-    verifiedPayments.delete(paymentHash);
-
     res.json(response);
   } catch (error) {
     console.error("Settle error:", error);
+    
+    // Check if this was an abort from hook
+    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+      // Return a proper SettleResponse instead of 500 error
+      return res.json({
+        success: false,
+        errorReason: error.message.replace("Settlement aborted: ", ""),
+        network: req.body?.paymentPayload?.network || "unknown",
+      } as SettleResponse);
+    }
+    
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });
