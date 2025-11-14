@@ -72,6 +72,7 @@ export async function settle(
   const rpcSubscriptions = getRpcSubscriptions(
     paymentRequirements.network,
     config?.svmConfig?.rpcUrl,
+    config?.svmConfig?.rpcSubscriptionsUrl,
   );
 
   try {

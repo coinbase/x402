@@ -35,28 +35,14 @@ const DEVNET_WS_URL = "wss://api.devnet.solana.com";
 const MAINNET_WS_URL = "wss://api.mainnet-beta.solana.com";
 
 /**
- * Creates a Solana RPC client for the devnet network.
- *
- * @param url - Optional URL of the devnet network.
- * @returns A Solana RPC client.
+ * Default localhost URL for Solana RPC
  */
-export function createDevnetRpcClient(url?: string): RpcDevnet<SolanaRpcApiDevnet> {
-  return createSolanaRpc(
-    url ? devnet(url) : devnet(DEVNET_RPC_URL),
-  ) as RpcDevnet<SolanaRpcApiDevnet>;
-}
+const LOCALHOST_URL = "http://127.0.0.1:8899";
 
 /**
- * Creates a Solana RPC client for the mainnet network.
- *
- * @param url - Optional URL of the mainnet network.
- * @returns A Solana RPC client.
+ * Default localhost WS URL for Solana WebSocket
  */
-export function createMainnetRpcClient(url?: string): RpcMainnet<SolanaRpcApiMainnet> {
-  return createSolanaRpc(
-    url ? mainnet(url) : mainnet(MAINNET_RPC_URL),
-  ) as RpcMainnet<SolanaRpcApiMainnet>;
-}
+const LOCALHOST_WS_URL = "ws://127.0.0.1:8900";
 
 /**
  * Gets the RPC client for the given network.
@@ -69,38 +55,34 @@ export function getRpcClient(
   network: Network,
   url?: string,
 ): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
-  // TODO: should the networks be replaced with enum references?
-  if (network === "solana-devnet") {
-    return createDevnetRpcClient(url);
-  } else if (network === "solana") {
-    return createMainnetRpcClient(url);
-  } else {
-    throw new Error("Invalid network");
-  }
+  validateNetwork(network);
+  const clusterFunction = getClusterFunction(network);
+  const rpcUrl = url ? url : getPublicRpcUrl(network);
+  return createSolanaRpc(clusterFunction(rpcUrl)) as
+    | RpcDevnet<SolanaRpcApiDevnet>
+    | RpcMainnet<SolanaRpcApiMainnet>;
 }
 
 /**
  * Gets the RPC subscriptions for the given network.
  *
  * @param network - The network to get the RPC subscriptions for
- * @param url - Optional URL of the network. If not provided, the default URL will be used.
+ * @param url - Optional RPC URL. If provided and no subscriptionsUrl is given, will be converted to WebSocket URL.
+ * @param subscriptionsUrl - Optional custom WebSocket URL for subscriptions. Takes precedence over url parameter.
  * @returns The RPC subscriptions for the given network
  */
 export function getRpcSubscriptions(
   network: Network,
   url?: string,
+  subscriptionsUrl?: string,
 ): RpcSubscriptionsFromTransport<
   SolanaRpcSubscriptionsApi,
   RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>
 > {
-  // TODO: should the networks be replaced with enum references?
-  if (network === "solana-devnet") {
-    return createSolanaRpcSubscriptions(devnet(url ? httpToWs(url) : DEVNET_WS_URL));
-  } else if (network === "solana") {
-    return createSolanaRpcSubscriptions(mainnet(url ? httpToWs(url) : MAINNET_WS_URL));
-  } else {
-    throw new Error("Invalid network");
-  }
+  validateNetwork(network);
+  const wsUrl = subscriptionsUrl ? subscriptionsUrl : url ? httpToWs(url) : getPublicWsUrl(network);
+  const clusterFunction = getClusterFunction(network);
+  return createSolanaRpcSubscriptions(clusterFunction(wsUrl));
 }
 
 /**
@@ -111,8 +93,76 @@ export function getRpcSubscriptions(
  * @returns The WebSocket URL
  */
 function httpToWs(url: string): string {
+  if (url === LOCALHOST_URL) {
+    return LOCALHOST_WS_URL;
+  }
   if (url.startsWith("http")) {
+    console.warn(`No WS URL provided, converting HTTP URL ${url} to WebSocket URL`);
     return url.replace("http", "ws");
   }
   return url;
+}
+
+/**
+ *
+ * Gets the public WebSocket URL for the given network.
+ *
+ * @param network - The network to get the public WebSocket URL for
+ * @returns The public WebSocket URL for the given network
+ */
+function getPublicWsUrl(network: Network): string {
+  if (network === "solana-devnet") {
+    return DEVNET_WS_URL;
+  } else if (network === "solana") {
+    return MAINNET_WS_URL;
+  } else {
+    throw new Error("Invalid Solana network");
+  }
+}
+
+/**
+ *
+ * Gets the public RPC URL for the given network.
+ *
+ * @param network - The network to get the public RPC URL for
+ * @returns The public RPC URL for the given network
+ */
+function getPublicRpcUrl(network: Network): string {
+  if (network === "solana-devnet") {
+    return DEVNET_RPC_URL;
+  } else if (network === "solana") {
+    return MAINNET_RPC_URL;
+  } else {
+    throw new Error("Invalid Solana network");
+  }
+}
+
+/**
+ *
+ * Validates the given network.
+ *
+ * @param network - The network to get the cluster function for
+ * @returns The cluster function for the given network
+ */
+function getClusterFunction(network: Network): (url: string) => ClusterUrl {
+  if (network === "solana-devnet") {
+    return devnet;
+  } else if (network === "solana") {
+    return mainnet;
+  } else {
+    throw new Error("Invalid Solana network");
+  }
+}
+
+/**
+ *
+ * Verifies the given network is a valid Solana network. Throws an error if not.
+ *
+ * @param network - The network to validate
+ */
+function validateNetwork(network: Network): void {
+  // TODO: should the networks be replaced with enum references?
+  if (network !== "solana-devnet" && network !== "solana") {
+    throw new Error("Invalid Solana network");
+  }
 }
