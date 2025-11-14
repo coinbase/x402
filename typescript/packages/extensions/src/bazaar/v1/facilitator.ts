@@ -205,9 +205,9 @@ export function extractDiscoveryInfoV1(
   // Extract output example/schema if present
   const output = outputSchema.output
     ? {
-      type: "json" as const,
-      example: outputSchema.output,
-    }
+        type: "json" as const,
+        example: outputSchema.output,
+      }
     : undefined;
 
   // Transform based on method type

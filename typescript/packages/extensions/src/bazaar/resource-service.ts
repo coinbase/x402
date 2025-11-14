@@ -39,11 +39,11 @@ function createQueryDiscoveryExtension({
       } as QueryDiscoveryExtension["info"]["input"],
       ...(output?.example
         ? {
-          output: {
-            type: "json",
-            example: output.example,
-          },
-        }
+            output: {
+              type: "json",
+              example: output.example,
+            },
+          }
         : {}),
     },
     schema: {
@@ -63,11 +63,11 @@ function createQueryDiscoveryExtension({
             },
             ...(inputSchema
               ? {
-                queryParams: {
-                  type: "object" as const,
-                  ...(typeof inputSchema === "object" ? inputSchema : {}),
-                },
-              }
+                  queryParams: {
+                    type: "object" as const,
+                    ...(typeof inputSchema === "object" ? inputSchema : {}),
+                  },
+                }
               : {}),
           },
           required: ["type"] as ("type" | "method")[],
@@ -75,20 +75,20 @@ function createQueryDiscoveryExtension({
         },
         ...(output?.example
           ? {
-            output: {
-              type: "object" as const,
-              properties: {
-                type: {
-                  type: "string" as const,
+              output: {
+                type: "object" as const,
+                properties: {
+                  type: {
+                    type: "string" as const,
+                  },
+                  example: {
+                    type: "object" as const,
+                    ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
+                  },
                 },
-                example: {
-                  type: "object" as const,
-                  ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
-                },
+                required: ["type"] as const,
               },
-              required: ["type"] as const,
-            },
-          }
+            }
           : {}),
       },
       required: ["input"],
@@ -124,11 +124,11 @@ function createBodyDiscoveryExtension({
       } as BodyDiscoveryExtension["info"]["input"],
       ...(output?.example
         ? {
-          output: {
-            type: "json",
-            example: output.example,
-          },
-        }
+            output: {
+              type: "json",
+              example: output.example,
+            },
+          }
         : {}),
     },
     schema: {
@@ -157,20 +157,20 @@ function createBodyDiscoveryExtension({
         },
         ...(output?.example
           ? {
-            output: {
-              type: "object" as const,
-              properties: {
-                type: {
-                  type: "string" as const,
+              output: {
+                type: "object" as const,
+                properties: {
+                  type: {
+                    type: "string" as const,
+                  },
+                  example: {
+                    type: "object" as const,
+                    ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
+                  },
                 },
-                example: {
-                  type: "object" as const,
-                  ...(output.schema && typeof output.schema === "object" ? output.schema : {}),
-                },
+                required: ["type"] as const,
               },
-              required: ["type"] as const,
-            },
-          }
+            }
           : {}),
       },
       required: ["input"],
