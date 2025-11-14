@@ -8,7 +8,7 @@ from x402.core.types import Version
 from x402.core.types.payments import PaymentRequirements
 
 
-class MockNetworkClient:
+class MockSchemeNetworkClient:
     def __init__(self, scheme: str):
         self.scheme = scheme
 
@@ -25,6 +25,7 @@ class MockNetworkClient:
             },
         }
 
+    # Implements the SchemeNetworkClient interface
     async def create_payment_payload(
         self, x402_version: Version, payment_requirements: PaymentRequirements
     ) -> dict[str, Any]:
@@ -94,10 +95,10 @@ def test_x402_client_with_custom_selector(payment_requirements_1):
 def test_x402_register_scheme_for_current_version():
     scheme = "test-scheme"
     network = "test:network"
-    mock_network_client = MockNetworkClient(scheme)
+    mock_network_client = MockSchemeNetworkClient(scheme)
     client = X402Client()
 
-    # Asserts the network client is being registered
+    # Asserts the scheme network client is being registered
     result = client.register_scheme(network, mock_network_client)
     assert result is client
     assert (
@@ -107,7 +108,7 @@ def test_x402_register_scheme_for_current_version():
 
     # Verify another scheme can be added to the same network
     another_scheme = "another-scheme"
-    another_mock_network_client = MockNetworkClient(another_scheme)
+    another_mock_network_client = MockSchemeNetworkClient(another_scheme)
     client.register_scheme(network, another_mock_network_client)
     assert (
         client.registered_client_schemes[X402_VERSION][network][another_scheme]
@@ -125,7 +126,7 @@ def test_x402_register_scheme_for_current_version():
     # Verify that can register scheme for V1
     v1_scheme = "v1-scheme"
     v1_network = "test:v1"
-    v1_mock_network_client = MockNetworkClient(v1_scheme)
+    v1_mock_network_client = MockSchemeNetworkClient(v1_scheme)
     result = client.register_scheme_V1(v1_network, v1_mock_network_client)
     assert result is client
     assert (

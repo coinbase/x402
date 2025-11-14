@@ -1,7 +1,7 @@
 from typing import Callable, Optional
 
 from x402.core import X402_VERSION
-from x402.core.types import Network, Version
+from x402.core.types import Version
 from x402.core.types.mechanisms import SchemeNetworkClient
 from x402.core.types.payments import PaymentRequirements
 
@@ -37,7 +37,7 @@ class X402Client:
         )
 
     def register_scheme(
-        self, network: Network, client: SchemeNetworkClient
+        self, network: str, client: SchemeNetworkClient
     ) -> "X402Client":
         """Registers a scheme client for the current x402 version.
 
@@ -51,7 +51,7 @@ class X402Client:
         return self._register_scheme(X402_VERSION, network, client)
 
     def register_scheme_V1(
-        self, network: Network, client: SchemeNetworkClient
+        self, network: str, client: SchemeNetworkClient
     ) -> "X402Client":
         """Registers a scheme client for x402 version 1.
 
@@ -65,7 +65,7 @@ class X402Client:
         return self._register_scheme(1, network, client)
 
     def _register_scheme(
-        self, x402_version: Version, network: Network, client: SchemeNetworkClient
+        self, x402_version: Version, network: str, client: SchemeNetworkClient
     ) -> "X402Client":
         """Internal method to register a scheme client.
 
@@ -77,6 +77,10 @@ class X402Client:
         Returns:
             X402Client: The X402Client instance for chaining
         """
+        assert type(x402_version) is int
+        assert type(network) is str
+        assert isinstance(client, SchemeNetworkClient)
+
         if x402_version not in self.registered_client_schemes:
             self.registered_client_schemes[x402_version] = {}
 

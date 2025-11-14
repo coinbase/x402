@@ -1,8 +1,13 @@
 from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
-from x402.core.types import BaseCompoundType, Network, Version
+from x402.core.types import BaseCompoundType, Version
+
+
+class Extension(BaseCompoundType):
+    info: dict[str, Any]
+    schema_: dict[str, Any] = Field(alias="schema")
 
 
 class ResourceInfo(BaseCompoundType):
@@ -13,12 +18,13 @@ class ResourceInfo(BaseCompoundType):
 
 class PaymentRequirements(BaseCompoundType):
     scheme: str
-    network: Network
+    network: str
     asset: str
     amount: str
     pay_to: str
     max_timeout_seconds: int
-    extra: dict[str, Any]
+    schema_: Optional[dict[str, Any]] = Field(default=None, alias="schema")
+    extra: Optional[dict[str, Any]] = None
 
     @field_validator("amount")
     def validate_amount(cls, v):
@@ -29,9 +35,17 @@ class PaymentRequirements(BaseCompoundType):
         return v
 
 
+class PaymentRequired(BaseCompoundType):
+    x402_version: Version
+    error: Optional[str] = None
+    resource: ResourceInfo
+    accepts: list[PaymentRequirements]
+    extensions: Optional[dict[str, Extension]] = None
+
+
 class PaymentPayload(BaseCompoundType):
     x402_version: Version
     resource: ResourceInfo
     accepted: PaymentRequirements
     payload: dict[str, Any]
-    extensions: Optional[dict[str, Any]] = None
+    extensions: Optional[dict[str, Extension]] = None

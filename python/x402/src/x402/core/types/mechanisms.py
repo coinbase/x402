@@ -1,9 +1,10 @@
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from x402.core.types import Version
 from x402.core.types.payments import PaymentRequirements
 
 
+@runtime_checkable
 class SchemeNetworkClient(Protocol):
     scheme: str
 
