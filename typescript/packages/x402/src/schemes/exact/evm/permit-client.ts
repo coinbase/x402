@@ -119,7 +119,7 @@ export function preparePermitPaymentHeader(
   return {
     x402Version,
     scheme: paymentRequirements.scheme,
-    network: paymentRequirements.network,
+    network: paymentRequirements.srcNetwork || paymentRequirements.network,
     payload: {
       signature: undefined,
       permit: {
