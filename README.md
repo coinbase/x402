@@ -129,7 +129,7 @@ The AnySpend transaction flow:
 6. Facilitator swaps tokens to USDC (if needed)
 7. Resource is delivered
 
-**AnySpend Facilitator**: Processes all payments with multi-token and multi-chain support across 19+ networks (including Solana), automatic swaps, gasless transactions, and standards compliance.
+**AnySpend Facilitator**: Processes all payments with multi-token and multi-chain support across 19+ networks (including Solana, BNB Chain), automatic swaps, gasless transactions, and standards compliance.
 
 **Production endpoint**: `https://mainnet.anyspend.com/x402`
 
