@@ -11,7 +11,6 @@ import type { StarknetSigner } from "../../../shared/starknet/wallet";
 import {
   type StarknetTransferAuthorization,
   signTransferAuthorization,
-  createX402PaymentPayload,
 } from "../../../shared/starknet/x402-transfers";
 import { encodePayment } from "../../utils";
 

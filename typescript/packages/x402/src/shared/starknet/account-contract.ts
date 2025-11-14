@@ -234,7 +234,7 @@ export function createX402AccountContract(
   client: StarknetConnectedClient,
   accountAddress: string,
 ): Contract {
-  return createContractInstance(client, accountAddress, X402_ACCOUNT_ABI as any);
+  return createContractInstance(client, accountAddress, X402_ACCOUNT_ABI as unknown[]);
 }
 
 /**

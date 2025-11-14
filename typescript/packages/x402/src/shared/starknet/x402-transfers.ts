@@ -426,7 +426,8 @@ export class SessionKeyManager {
 export class StarknetFacilitator {
   private nonceRegistry: NonceRegistry;
   private sessionKeyManager: SessionKeyManager;
-  private stateManager = globalStateManager;
+  // NOTE: x402 is STATELESS by design - no server-side state management
+  // All replay protection happens at the blockchain level via Starknet account nonces
 
   /**
    * Creates a new StarknetFacilitator instance
@@ -497,45 +498,26 @@ export class StarknetFacilitator {
         return { valid: false, reason: "Authorization expired" };
       }
 
-      // Check nonce for replay protection using state manager
-      const isNonceValid = await this.stateManager.useNonce(
-        payload.authorization.from,
-        payload.authorization.nonce,
-      );
-
-      if (!isNonceValid) {
-        return { valid: false, reason: "Nonce already used or invalid" };
-      }
+      // ✅ STATELESS: Nonce validation happens on-chain via Starknet account contracts
+      // The blockchain will reject transactions with invalid/duplicate nonces
+      // No server-side nonce tracking needed
 
       // Check if this is a session key signature
       if (payload.sessionKeyPublicKey && this.config?.enableSessionKeys) {
-        // Validate session key constraints using state manager
-        const sessionValidation = await this.stateManager.validateSessionKey(
+        // ✅ STATELESS: Session key validation via account contract
+        const sessionValid = await this.sessionKeyManager.validateSessionKey(
           payload.sessionKeyPublicKey,
-          payload.authorization.tokenAddress,
-          payload.authorization.to,
-          payload.authorization.amount,
+          payload.authorization,
         );
 
-        if (!sessionValidation.valid) {
-          return { valid: false, reason: sessionValidation.reason };
+        if (!sessionValid) {
+          return { valid: false, reason: "Invalid session key or constraints" };
         }
       }
 
-      // Check rate limits if enabled
-      if (this.config?.enableRateLimiting) {
-        const rateLimitCheck = await this.stateManager.checkRateLimit(
-          payload.authorization.from,
-          payload.authorization.tokenAddress,
-          payload.authorization.amount,
-          this.config.maxAmountPerDay,
-          this.config.maxTransactionsPerDay,
-        );
-
-        if (!rateLimitCheck.allowed) {
-          return { valid: false, reason: rateLimitCheck.reason };
-        }
-      }
+      // ✅ STATELESS: Rate limiting should be implemented ON-CHAIN via account contracts
+      // Server-side rate limiting breaks the stateless design
+      // Production deployments should use smart contract-based limits
 
       // Verify the signature using account contract
       const isValid = await verifyTransferAuthorization(
@@ -618,20 +600,8 @@ export class StarknetFacilitator {
         const payloadStr = Buffer.from(payloadBase64, "base64").toString();
         const payload = JSON.parse(payloadStr);
 
-        // Record transaction as pending
-        await this.stateManager.recordTransaction({
-          txHash: "", // Will be updated after execution
-          account: payload.authorization.from,
-          token: payload.authorization.tokenAddress,
-          recipient: payload.authorization.to,
-          amount: payload.authorization.amount,
-          nonce: payload.authorization.nonce,
-          status: "pending",
-          metadata: {
-            sessionKey: payload.sessionKeyPublicKey,
-            scheme: payload.scheme,
-          },
-        });
+        // ✅ STATELESS: No server-side transaction recording needed
+        // All transaction state is managed on-chain
 
         // Execute the transfer
         const result = await executeTransferWithAuthorization(
@@ -640,16 +610,8 @@ export class StarknetFacilitator {
           payload.signature,
         );
 
-        // Update transaction record with hash
-        await this.stateManager.recordTransaction({
-          txHash: result.transaction_hash,
-          account: payload.authorization.from,
-          token: payload.authorization.tokenAddress,
-          recipient: payload.authorization.to,
-          amount: payload.authorization.amount,
-          nonce: payload.authorization.nonce,
-          status: "pending",
-        });
+        // ✅ STATELESS: Transaction hash returned directly to client
+        // No server-side state tracking needed
 
         // Wait for confirmation if requested
         if (waitForConfirmation) {
@@ -659,40 +621,25 @@ export class StarknetFacilitator {
             });
 
             // Check if transaction failed (using type assertion for compatibility)
-            const receiptAny = receipt as any;
+            const receiptAny = receipt as {
+              execution_status?: string;
+              status?: string;
+              revert_reason?: string;
+              block_number?: number;
+            };
             if (receiptAny.execution_status === "REVERTED" || receiptAny.status === "REJECTED") {
-              // Record failed transaction
-              await this.stateManager.recordTransaction({
-                txHash: result.transaction_hash,
-                account: payload.authorization.from,
-                token: payload.authorization.tokenAddress,
-                recipient: payload.authorization.to,
-                amount: payload.authorization.amount,
-                nonce: payload.authorization.nonce,
-                status: "failed",
-                error: receiptAny.revert_reason || "Transaction failed",
-                blockNumber: receiptAny.block_number,
-              });
-              throw new Error(`Transaction reverted: ${receiptAny.revert_reason || "Unknown error"}`);
+              throw new Error(
+                `Transaction reverted: ${receiptAny.revert_reason || "Unknown error"}`,
+              );
             }
 
-            // Record confirmed transaction
-            const receiptConfirmed = receipt as any;
-            await this.stateManager.recordTransaction({
-              txHash: result.transaction_hash,
-              account: payload.authorization.from,
-              token: payload.authorization.tokenAddress,
-              recipient: payload.authorization.to,
-              amount: payload.authorization.amount,
-              nonce: payload.authorization.nonce,
-              status: "confirmed",
-              blockNumber: receiptConfirmed.block_number,
-            });
+            // ✅ STATELESS: Return transaction details directly
+            const blockNumber = (receipt as { block_number?: number }).block_number;
 
             return {
               success: true,
               txHash: result.transaction_hash,
-              blockNumber: receiptConfirmed.block_number,
+              blockNumber,
             };
           } catch (error) {
             console.warn("Could not wait for confirmation:", error);
@@ -737,7 +684,12 @@ export class StarknetFacilitator {
       const receipt = await this.client.provider.getTransactionReceipt(txHash);
 
       // Use type assertion for compatibility
-      const receiptAny = receipt as any;
+      const receiptAny = receipt as {
+        execution_status?: string;
+        status?: string;
+        revert_reason?: string;
+        block_number?: number;
+      };
       if (receiptAny.execution_status === "REVERTED" || receiptAny.status === "REJECTED") {
         return {
           status: "reverted",

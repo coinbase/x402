@@ -15,6 +15,7 @@ import type {
   SettleRequest,
   SettleResponse,
   PaymentRequirements,
+  PaymentPayload,
 } from "../../types/verify";
 import type { StarknetSigner } from "./wallet";
 import type { StarknetConnectedClient } from "./client";
@@ -24,6 +25,7 @@ import {
   PaymentSettlementError,
 } from "./provider";
 import { createStarknetConnectedClient } from "./client";
+import { ErrorReasons } from "../../types/verify/x402Specs";
 
 /**
  * x402-compliant Starknet Facilitator
@@ -44,10 +46,7 @@ export class X402StarknetFacilitator {
    * @param network - The Starknet network to use
    * @param facilitatorSigner - The facilitator's signer
    */
-  constructor(
-    network: "starknet" | "starknet-sepolia",
-    facilitatorSigner: StarknetSigner,
-  ) {
+  constructor(network: "starknet" | "starknet-sepolia", facilitatorSigner: StarknetSigner) {
     this.client = createStarknetConnectedClient(network);
     this.starknetFacilitator = new StarknetPaymentProvider(this.client, facilitatorSigner);
   }
@@ -85,7 +84,7 @@ export class X402StarknetFacilitator {
       if (!result.valid) {
         return {
           isValid: false,
-          invalidReason: this.mapErrorReason(result.reason || "verification_failed") as any,
+          invalidReason: this.mapErrorReason(result.reason || "verification_failed"),
         };
       }
 
@@ -145,7 +144,7 @@ export class X402StarknetFacilitator {
       if (!result.success) {
         return {
           success: false,
-          errorReason: this.mapErrorReason(result.error || "settlement_failed") as any,
+          errorReason: this.mapErrorReason(result.error || "settlement_failed"),
           network: request.paymentPayload.network,
           transaction: "",
         };
@@ -209,13 +208,20 @@ export class X402StarknetFacilitator {
    * @param payload - Payment payload object
    * @returns Base64 encoded payload string
    */
-  private encodePaymentPayload(payload: any): string {
+  private encodePaymentPayload(payload: PaymentPayload): string {
     const starknetPayload = {
       scheme: "starknet-native",
       network: payload.network,
-      authorization: payload.payload?.authorization || payload.authorization,
-      signature: payload.payload?.signature || payload.signature,
-      sessionKeyPublicKey: payload.payload?.sessionKeyPublicKey || payload.sessionKeyPublicKey,
+      authorization:
+        payload.payload && "authorization" in payload.payload
+          ? payload.payload.authorization
+          : undefined,
+      signature:
+        payload.payload && "signature" in payload.payload ? payload.payload.signature : undefined,
+      sessionKeyPublicKey:
+        payload.payload && "sessionKeyPublicKey" in payload.payload
+          ? (payload.payload as { sessionKeyPublicKey?: string }).sessionKeyPublicKey
+          : undefined,
     };
 
     return Buffer.from(JSON.stringify(starknetPayload)).toString("base64");
@@ -227,8 +233,15 @@ export class X402StarknetFacilitator {
    * @param payload - Payment payload object
    * @returns Payer address or undefined
    */
-  private extractPayerFromPayload(payload: any): string | undefined {
-    return payload.payload?.authorization?.from || payload.authorization?.from;
+  private extractPayerFromPayload(payload: PaymentPayload): string | undefined {
+    if (
+      payload.payload &&
+      "authorization" in payload.payload &&
+      payload.payload.authorization?.from
+    ) {
+      return payload.payload.authorization.from;
+    }
+    return undefined;
   }
 
   /**
@@ -247,7 +260,7 @@ export class X402StarknetFacilitator {
    * @param reason - Internal error reason
    * @returns Mapped error string
    */
-  private mapErrorReason(reason: string): string {
+  private mapErrorReason(reason: string): (typeof ErrorReasons)[number] {
     const errorMap: Record<string, string> = {
       verification_failed: "invalid_payment",
       settlement_failed: "unexpected_settle_error",
@@ -263,7 +276,7 @@ export class X402StarknetFacilitator {
       scheme_mismatch: "unsupported_scheme",
     };
 
-    return errorMap[reason] || "unexpected_verify_error";
+    return (errorMap[reason] || "unexpected_verify_error") as (typeof ErrorReasons)[number];
   }
 }
 
@@ -279,12 +292,22 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
     /**
      * POST /verify endpoint handler
      *
-     * @param req - Express request object
-     * @param res - Express response object
+     * @param req - Express request object with body containing VerifyRequest
+     * @param req.body - Request body containing VerifyRequest
+     * @param res - Express response object with json method
+     * @param res.json - Function to send JSON response
+     * @param res.status - Function to set response status
      * @param _ - Express next function (unused)
      * @returns Promise that resolves when response is sent
      */
-    verify: async (req: any, res: any, _: any) => {
+    verify: async (
+      req: { body: VerifyRequest },
+      res: {
+        json: (data: VerifyResponse) => void;
+        status: (code: number) => { json: (data: VerifyResponse) => void };
+      },
+      _: unknown,
+    ) => {
       try {
         const verifyRequest = req.body;
         const result = await facilitator.verify(verifyRequest);
@@ -301,12 +324,22 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
     /**
      * POST /settle endpoint handler
      *
-     * @param req - Express request object
-     * @param res - Express response object
+     * @param req - Express request object with body containing SettleRequest
+     * @param req.body - Request body containing SettleRequest
+     * @param res - Express response object with json method
+     * @param res.json - Function to send JSON response
+     * @param res.status - Function to set response status
      * @param _ - Express next function (unused)
      * @returns Promise that resolves when response is sent
      */
-    settle: async (req: any, res: any, _: any) => {
+    settle: async (
+      req: { body: SettleRequest },
+      res: {
+        json: (data: SettleResponse) => void;
+        status: (code: number) => { json: (data: SettleResponse) => void };
+      },
+      _: unknown,
+    ) => {
       try {
         const settleRequest = req.body;
         const result = await facilitator.settle(settleRequest);
@@ -325,16 +358,30 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
     /**
      * GET /status/:txHash endpoint handler
      *
-     * @param req - Express request object
-     * @param res - Express response object
+     * @param req - Express request object with params containing txHash
+     * @param req.params - Request parameters object
+     * @param req.params.txHash - Transaction hash from URL parameter
+     * @param res - Express response object with json method
+     * @param res.json - Function to send JSON response
+     * @param res.status - Function to set response status
      * @param _ - Express next function (unused)
      * @returns Promise that resolves when response is sent
      */
-    status: async (req: any, res: any, _: any) => {
+    status: async (
+      req: { params: { txHash: string } },
+      res: {
+        json: (data: { status: string; network: string }) => void;
+        status: (code: number) => { json: (data: { error: string }) => void };
+      },
+      _: unknown,
+    ) => {
       try {
         const { txHash } = req.params;
         const result = await facilitator.getTransactionStatus(txHash);
-        res.json(result);
+        res.json({
+          status: typeof result === "object" && "status" in result ? result.status : "pending",
+          network: "starknet",
+        });
       } catch (error) {
         console.error("Status endpoint error:", error);
         res.status(500).json({
@@ -350,12 +397,23 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
     /**
      * GET /nonce/:account endpoint handler
      *
-     * @param req - Express request object
-     * @param res - Express response object
+     * @param req - Express request object with params containing account
+     * @param req.params - Request parameters object
+     * @param req.params.account - Account address from URL parameter
+     * @param res - Express response object with json method
+     * @param res.json - Function to send JSON response
+     * @param res.status - Function to set response status
      * @param _ - Express next function (unused)
      * @returns Promise that resolves when response is sent
      */
-    nonce: async (req: any, res: any, _: any) => {
+    nonce: async (
+      req: { params: { account: string } },
+      res: {
+        json: (data: { nonce: string }) => void;
+        status: (code: number) => { json: (data: { error: string }) => void };
+      },
+      _: unknown,
+    ) => {
       try {
         const { account } = req.params;
         const nonce = await facilitator.getNextNonce(account);
@@ -390,14 +448,16 @@ export function createStarknetFacilitator(
  * @param requirements - Payment requirements to validate
  * @returns True if requirements are valid
  */
-export function validateStarknetPaymentRequirements(requirements: any): boolean {
-  if (!requirements) return false;
-  if (requirements.scheme !== "exact") return false;
-  if (!["starknet", "starknet-sepolia"].includes(requirements.network)) return false;
-  if (!requirements.payTo || typeof requirements.payTo !== "string") return false;
-  if (!requirements.asset || typeof requirements.asset !== "string") return false;
-  if (!requirements.maxAmountRequired || typeof requirements.maxAmountRequired !== "string")
-    return false;
+export function validateStarknetPaymentRequirements(requirements: unknown): boolean {
+  if (!requirements || typeof requirements !== "object") return false;
+
+  const req = requirements as Record<string, unknown>;
+
+  if (req.scheme !== "exact") return false;
+  if (!["starknet", "starknet-sepolia"].includes(req.network as string)) return false;
+  if (!req.payTo || typeof req.payTo !== "string") return false;
+  if (!req.asset || typeof req.asset !== "string") return false;
+  if (!req.maxAmountRequired || typeof req.maxAmountRequired !== "string") return false;
 
   return true;
 }

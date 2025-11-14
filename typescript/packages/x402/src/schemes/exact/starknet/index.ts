@@ -31,10 +31,7 @@ export {
 } from "../../../shared/starknet/client";
 
 // Wallet types
-export {
-  type StarknetSigner,
-  isStarknetSigner,
-} from "../../../shared/starknet/wallet";
+export { type StarknetSigner, isStarknetSigner } from "../../../shared/starknet/wallet";
 
 // Transfer utilities
 export {

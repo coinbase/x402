@@ -18,6 +18,11 @@ import {
  * Error class for payment verification failures
  */
 export class PaymentVerificationError extends Error {
+  /**
+   * Creates an error instance for payment verification failures
+   *
+   * @param message - The error message describing what went wrong
+   */
   constructor(message: string) {
     super(message);
     this.name = "PaymentVerificationError";
@@ -28,6 +33,11 @@ export class PaymentVerificationError extends Error {
  * Error class for payment settlement failures
  */
 export class PaymentSettlementError extends Error {
+  /**
+   * Creates an error instance for payment settlement failures
+   *
+   * @param message - The error message describing what went wrong
+   */
   constructor(message: string) {
     super(message);
     this.name = "PaymentSettlementError";
@@ -42,6 +52,12 @@ export class PaymentSettlementError extends Error {
  * happens at the blockchain level via Starknet account nonces.
  */
 export class StarknetPaymentProvider {
+  /**
+   * Creates a new Starknet payment provider instance
+   *
+   * @param client - Connected Starknet client for blockchain interactions
+   * @param facilitatorSigner - Signer instance for facilitator operations
+   */
   constructor(
     private client: StarknetConnectedClient,
     private facilitatorSigner: StarknetSigner,
@@ -74,7 +90,8 @@ export class StarknetPaymentProvider {
       }
 
       // Check network
-      const expectedNetwork = this.client.chainId === "0x534e5f4d41494e" ? "starknet" : "starknet-sepolia";
+      const expectedNetwork =
+        this.client.chainId === "0x534e5f4d41494e" ? "starknet" : "starknet-sepolia";
       if (payload.network !== expectedNetwork) {
         return {
           valid: false,
@@ -142,6 +159,8 @@ export class StarknetPaymentProvider {
    *
    * @param payloadBase64 - Base64 encoded payment payload
    * @param options - Settlement options
+   * @param options.waitForConfirmation - Whether to wait for transaction confirmation
+   * @param options.maxRetries - Maximum number of retry attempts
    * @returns Settlement result
    */
   async settle(
@@ -274,7 +293,11 @@ export class StarknetPaymentProvider {
     while (Date.now() - startTime < timeout) {
       try {
         const receipt = await this.client.provider.getTransactionReceipt(txHash);
-        if (receipt && (receipt as any).status === "ACCEPTED_ON_L2") {
+        if (
+          receipt &&
+          "status" in receipt &&
+          (receipt as { status: string }).status === "ACCEPTED_ON_L2"
+        ) {
           return;
         }
       } catch {

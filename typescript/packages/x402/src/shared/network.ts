@@ -41,4 +41,3 @@ export function getNumericNetworkId(network: Network): number {
   }
   throw new Error(`Network ${network} does not have a numeric chain ID`);
 }
-

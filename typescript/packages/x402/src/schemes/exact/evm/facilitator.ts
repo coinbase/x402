@@ -8,7 +8,7 @@ import {
   parseSignature,
   Transport,
 } from "viem";
-import { getNetworkId } from "../../../shared";
+import { getNumericNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
   usdcABI as abi,
