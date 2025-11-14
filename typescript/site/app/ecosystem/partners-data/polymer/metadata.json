@@ -1,0 +1,7 @@
+{
+  "name": "Polymer Prove API",
+  "description": "Access Polymer cross chain proof generation and query service. Request proofs using proof_request (returns job ID) or query proof status using proof_query. Pay for these proofs using x402.",
+  "logoUrl": "/logos/polymer.png",
+  "websiteUrl": "https://docs.polymerlabs.org/docs/build/prove-api-V2/api-endpoints",
+  "category": "Services/Endpoints"
+}
