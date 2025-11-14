@@ -1,6 +1,16 @@
-# X402 Python Examples
+# X402 Python Examples <!-- omit in toc -->
 
 This directory contains a collection of Python examples demonstrating how to use the X402 protocol in various contexts. These examples use the Python `x402` package and standard Python web frameworks/HTTP clients.
+
+- [Setup](#setup)
+- [Example Structure](#example-structure)
+  - [Clients](#clients)
+  - [Discovery](#discovery)
+  - [Fullstack](#fullstack)
+  - [Servers](#servers)
+- [Running Examples](#running-examples)
+- [Development](#development)
+- [A note on private keys](#a-note-on-private-keys)
 
 ## Setup
 
@@ -9,17 +19,23 @@ Before running any examples, ensure you have:
 - Python 3.10+
 - `uv` package manager installed (see `https://github.com/astral-sh/uv`)
 
-Then install dependencies for the examples you want to run. You can either:
+Then install dependencies for the examples you want to run.
 
-```bash
-# Option A: sync each example individually (recommended by each example README)
-cd <example-dir>
-uv sync
+You can either:
 
-# Option B: run the helper script to sync all examples
-cd examples/python
-uv run python sync.py
-```
+1. Sync each example individually (recommended by each example README)
+
+   ```bash
+   cd <example-dir>
+   uv sync
+   ```
+
+2. Run the helper script to sync all examples:
+
+   ```bash
+   cd examples/python
+   uv run python sync.py
+   ```
 
 ## Example Structure
 
