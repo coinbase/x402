@@ -161,16 +161,21 @@ export function paymentMiddleware(
   // Create the x402 HTTP server instance with the resource service
   const server = new x402HTTPResourceService(service, routes);
 
-  if (initializeOnStart) {
-    service.initialize();
-  }
-
   // Register custom paywall provider if provided
   if (paywall) {
     server.registerPaywallProvider(paywall);
   }
 
+  // Store initialization promise (not the result)
+  let initPromise: Promise<void> | null = initializeOnStart ? service.initialize() : null;
+
   return async (req: Request, res: Response, next: NextFunction) => {
+    // Ensure initialization completes before processing
+    if (initPromise) {
+      await initPromise;
+      initPromise = null; // Clear after first await
+    }
+
     // Create adapter and context
     const adapter = new ExpressAdapter(req);
     const context: HTTPRequestContext = {

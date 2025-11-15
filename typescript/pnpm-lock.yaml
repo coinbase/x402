@@ -131,7 +131,7 @@ importers:
   packages/http/axios:
     dependencies:
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
       axios:
         specifier: ^1.7.9
@@ -323,8 +323,11 @@ importers:
   packages/http/hono:
     dependencies:
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
+      '@x402/extensions':
+        specifier: workspace:^
+        version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
         version: link:../paywall
@@ -383,9 +386,15 @@ importers:
 
   packages/http/next:
     dependencies:
+      '@coinbase/cdp-sdk':
+        specifier: ^1.22.0
+        version: 1.38.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
+      '@x402/extensions':
+        specifier: workspace:^
+        version: link:../../extensions
       '@x402/paywall':
         specifier: workspace:*
         version: link:../paywall
