@@ -10,5 +10,4 @@ class SchemeNetworkClient(Protocol):
 
     async def create_payment_payload(
         self, x402_version: Version, payment_requirements: PaymentRequirements
-    ) -> dict[str, Any]:
-        pass
+    ) -> dict[str, Any]: ...

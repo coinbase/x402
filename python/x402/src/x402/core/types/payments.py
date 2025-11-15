@@ -4,6 +4,8 @@ from pydantic import Field, field_validator
 
 from x402.core.types import BaseCompoundType, Version
 
+Payload = dict[str, Any]
+
 
 class Extension(BaseCompoundType):
     info: dict[str, Any]
@@ -43,9 +45,16 @@ class PaymentRequired(BaseCompoundType):
     extensions: Optional[dict[str, Extension]] = None
 
 
+class PaymentPayloadV1(BaseCompoundType):
+    x402_version: Version
+    scheme: str
+    network: str
+    payload: Payload
+
+
 class PaymentPayload(BaseCompoundType):
     x402_version: Version
     resource: ResourceInfo
     accepted: PaymentRequirements
-    payload: dict[str, Any]
+    payload: Payload
     extensions: Optional[dict[str, Extension]] = None
