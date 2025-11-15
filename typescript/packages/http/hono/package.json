@@ -39,7 +39,8 @@
   },
   "dependencies": {
     "hono": "^4.7.1",
-    "@x402/core": "workspace:*",
+    "@x402/core": "workspace:^",
+    "@x402/extensions": "workspace:^",
     "zod": "^3.24.2"
   },
   "peerDependencies": {
