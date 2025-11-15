@@ -135,10 +135,10 @@ class X402Client:
         and before the selector chooses the final payment requirement.
 
         Args:
-            policy (PaymentPolicy): Function to filter/transform payment requirements
+            policy (`PaymentPolicy`): Function to filter/transform payment requirements
 
         Returns:
-            X402Client: The x402Client instance for chaining
+            `X402Client`: The x402Client instance for chaining
 
         Example:
         ```python
@@ -213,66 +213,70 @@ class X402Client:
             assert isinstance(req, PaymentRequirements)
 
         # Step 1: Filter by registered schemes
-        # TODO: implement pattern matching for registered network patterns (?)
+        supported_payment_requirements = self._get_supported_payment_requirements(
+            x402_version, payment_requirements
+        )
+
+        # Step 2: Apply all policies in order
+        filtered_requirements = self._apply_policies(
+            x402_version, supported_payment_requirements
+        )
+
+        # Step 3: Use selector to choose final requirement
+        return self.payment_requirements_selector(x402_version, filtered_requirements)
+
+    def _get_supported_payment_requirements(
+        self, x402_version: Version, payment_requirements: list[PaymentRequirements]
+    ) -> list[PaymentRequirements]:
+        """Internal method to filter only the payment requirements that have clients available for"""
         supported_payment_requirements = list(
             filter(
-                lambda req: req.scheme
-                in self._get_scheme_clients_map_by_network(x402_version, req.network),
+                lambda req: self._get_client_by_network_and_scheme(
+                    x402_version, req.network, req.scheme
+                ),
                 payment_requirements,
             )
         )
 
-        if not supported_payment_requirements:
-            client_schemes_by_network = self._get_network_scheme_clients_map_by_version(
-                x402_version
-            )
-            exception_context = {
-                "x402_version": x402_version,
-                "payment_requirements": payment_requirements,
-                "x402_versions": list(self.registered_client_schemes.keys()),
-                "networks": list(client_schemes_by_network.keys()),
-                "schemes": itertools.chain.from_iterable(
+        if supported_payment_requirements:
+            return supported_payment_requirements
+
+        client_schemes_by_network = self._get_network_scheme_clients_map_by_version(
+            x402_version
+        )
+        exception_context = {
+            "x402_version": x402_version,
+            "payment_requirements": payment_requirements,
+            "x402_versions": list(self.registered_client_schemes.keys()),
+            "networks": list(client_schemes_by_network.keys()),
+            "schemes": list(
+                itertools.chain.from_iterable(
                     map(
                         lambda schemes: list(schemes.keys()),
                         list(client_schemes_by_network.values()),
                     )
-                ),
-            }
-            raise Exception(
-                f"No network/scheme registered for x402 version: {x402_version} which comply with the payment requirements. {exception_context}"
-            )
-
-        # Step 2: Apply all policies in order
-        filtered_requirements = supported_payment_requirements
-        for policy in self.policies:
-            filtered_requirements = policy(x402_version, filtered_requirements)
-            if not filtered_requirements:
-                raise Exception(
-                    f"All payment requirements were filtered out by policies for x402 version: {x402_version}"
                 )
-
-        # Step 3: Use selector to choose final requirement
-        return self.payment_requirements_selector(x402_version, filtered_requirements)
+            ),
+        }
+        raise Exception(
+            f"No network/scheme registered for x402 version: {x402_version} which comply with the payment requirements. {exception_context}"
+        )
 
     def _get_client_by_network_and_scheme(
         self, x402_version: Version, network: str, scheme: str
     ) -> SchemeNetworkClient:
         """Internal method to get a single SchemeNetworkClient from the map"""
+        assert type(scheme) is str
         scheme_clients_map = self._get_scheme_clients_map_by_network(
             x402_version, network
         )
-        scheme_network_client = scheme_clients_map.get(scheme)
-        if scheme_network_client is None:
-            raise Exception(
-                f"No client registered for scheme: {scheme} and network: {network}"
-            )
-        return scheme_network_client
+        return scheme_clients_map.get(scheme)
 
+    # TODO: Implement pattern matching for registered network patterns
     def _get_scheme_clients_map_by_network(
         self, x402_version: Version, network: str
     ) -> SchemeClientsMap:
         """Internal method to get SchemeClientsMap from x402_version and network"""
-        assert type(x402_version) is int
         assert type(network) is str
         network_scheme_clients_map = self._get_network_scheme_clients_map_by_version(
             x402_version
@@ -289,19 +293,22 @@ class X402Client:
             raise Exception(f"No client registered for x402 version: {x402_version}")
         return network_scheme_clients_map
 
+    def _apply_policies(
+        self, x402_version: Version, payment_requirements: list[PaymentRequirements]
+    ) -> list[PaymentRequirements]:
+        """Internal method to apply policies in order"""
+        for policy in self.policies:
+            payment_requirements = policy(x402_version, payment_requirements)
+            if not payment_requirements:
+                raise Exception(
+                    f"All payment requirements were filtered out by policies for x402 version: {x402_version}"
+                )
+        return payment_requirements
+
     def _register_scheme(
         self, x402_version: Version, network: str, client: SchemeNetworkClient
     ) -> "X402Client":
-        """Internal method to register a scheme client.
-
-        Args:
-            x402_version (`Version`): The x402 protocol version
-            network (`str`): The network to register the client for
-            client (`SchemeNetworkClient`): The scheme network client to register
-
-        Returns:
-            `X402Client`: The X402Client instance for chaining
-        """
+        """Internal method to register a scheme client on the instance"""
         assert type(x402_version) is int
         assert type(network) is str
         assert isinstance(client, SchemeNetworkClient)

@@ -175,6 +175,7 @@ def test_x402_client_creation_from_config(scheme_network_client):
         payment_requirements_selector=custom_selector,
     )
 
+    # With full config
     client = X402Client.from_config(config)
     assert (
         client.registered_client_schemes[X402_VERSION][TEST_NETWORK][TEST_SCHEME]
@@ -182,6 +183,27 @@ def test_x402_client_creation_from_config(scheme_network_client):
     )
     assert client.policies == [policy1, policy2]
     assert client.payment_requirements_selector is custom_selector
+
+    # With partial config
+    config = X402ClientConfig(schemes=[scheme_registration])
+    client = X402Client.from_config(config)
+    assert (
+        client.registered_client_schemes[X402_VERSION][TEST_NETWORK][TEST_SCHEME]
+        is scheme_network_client
+    )
+    assert client.policies == []
+    assert isinstance(client.payment_requirements_selector, Callable)
+
+    # For V1
+    scheme_registration = SchemeRegistration(
+        TEST_NETWORK, scheme_network_client, x402_version=1
+    )
+    config = X402ClientConfig(schemes=[scheme_registration])
+    client = X402Client.from_config(config)
+    assert (
+        client.registered_client_schemes[1][TEST_NETWORK][TEST_SCHEME]
+        is scheme_network_client
+    )
 
 
 def test_x402_register_scheme_for_current_version(scheme_network_client, payload):
@@ -318,7 +340,7 @@ async def test_x402_client_raises_error_when_no_scheme_network_client_is_registe
 async def test_x402_client_raises_error_when_no_matching_client_is_found(
     scheme_network_client, payment_required
 ):
-    client = X402Client().register_scheme("another-scheme", scheme_network_client)
+    client = X402Client().register_scheme("another:network", scheme_network_client)
     with pytest.raises(Exception) as exc:
         await client.create_payment_payload(payment_required)
     assert str(exc.value).startswith(

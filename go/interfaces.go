@@ -2,6 +2,19 @@ package x402
 
 import "context"
 
+// MoneyParser is a function that converts a decimal amount to an AssetAmount
+// If the parser cannot handle the conversion, it should return nil
+// Multiple parsers can be registered and will be tried in order
+// The default parser is always used as a fallback
+//
+// Args:
+//   amount: Decimal amount (e.g., 1.50 for $1.50)
+//   network: Network identifier
+//
+// Returns:
+//   AssetAmount or nil if this parser cannot handle the conversion
+type MoneyParser func(amount float64, network Network) (*AssetAmount, error)
+
 // SchemeNetworkClient is implemented by client-side payment mechanisms
 // This interface is used by clients who sign/create payments
 type SchemeNetworkClient interface {

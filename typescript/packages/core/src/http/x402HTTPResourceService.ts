@@ -83,8 +83,8 @@ export type DynamicPrice = (context: HTTPRequestContext) => Price | Promise<Pric
  */
 export interface RouteConfig {
   scheme: string;
-  payTo: string | DynamicPayTo; // Now supports functions
-  price: Price | DynamicPrice; // Now supports functions
+  payTo: string | DynamicPayTo;
+  price: Price | DynamicPrice;
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>;
@@ -94,9 +94,6 @@ export interface RouteConfig {
   description?: string;
   mimeType?: string;
   customPaywallHtml?: string;
-  discoverable?: boolean;
-  inputSchema?: unknown;
-  outputSchema?: unknown;
 
   // Extensions
   extensions?: Record<string, unknown>;

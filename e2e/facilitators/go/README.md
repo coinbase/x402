@@ -2,6 +2,65 @@
 
 This facilitator demonstrates and tests the Go x402 facilitator implementation with both EVM and SVM payment verification and settlement.
 
+## What It Demonstrates
+
+### Lifecycle Hooks Usage
+
+This e2e facilitator showcases **production-ready lifecycle hook patterns**:
+
+```go
+facilitator := x402.Newx402Facilitator()
+	.RegisterScheme("eip155:*", evmFacilitator)
+	.RegisterExtension(exttypes.BAZAAR)
+	// Hook 1: Track verified payments + extract discovery info
+	.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
+		if ctx.Result.IsValid {
+			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			verifiedPayments[paymentHash] = ctx.Timestamp.Unix()
+			
+			// Catalog discovered resources
+			discovered, _ := bazaar.ExtractDiscoveryInfo(ctx.PaymentPayload, ctx.PaymentRequirements, true)
+			if discovered != nil {
+				bazaarCatalog.CatalogResource(discovered)
+			}
+		}
+		return nil
+	}).
+	// Hook 2: Validate payment was verified before settlement
+	OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
+		paymentHash := createPaymentHash(ctx.PaymentPayload)
+		if !verifiedPayments.has(paymentHash) {
+			return &x402.FacilitatorBeforeHookResult{
+				Abort:  true,
+				Reason: "Payment must be verified first",
+			}, nil
+		}
+		
+		// Check timeout
+		age := ctx.Timestamp.Unix() - verifiedPayments[paymentHash]
+		if age > 5*60 {
+			return &x402.FacilitatorBeforeHookResult{
+				Abort:  true,
+				Reason: "Verification expired",
+			}, nil
+		}
+		return nil, nil
+	}).
+	// Hook 3: Clean up tracking after settlement
+	OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
+		paymentHash := createPaymentHash(ctx.PaymentPayload)
+		delete(verifiedPayments, paymentHash)
+		return nil
+	}).
+	// Hook 4: Clean up on failure too
+	OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
+		paymentHash := createPaymentHash(ctx.PaymentPayload)
+		delete(verifiedPayments, paymentHash)
+		return nil, nil
+	})
+```
+
+
 ## What It Tests
 
 ### Core Functionality

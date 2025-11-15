@@ -10,11 +10,15 @@ import (
 )
 
 // ExactSvmService implements the SchemeNetworkService interface for SVM (Solana) exact payments (V2)
-type ExactSvmService struct{}
+type ExactSvmService struct {
+	moneyParsers []x402.MoneyParser
+}
 
 // NewExactSvmService creates a new ExactSvmService
 func NewExactSvmService() *ExactSvmService {
-	return &ExactSvmService{}
+	return &ExactSvmService{
+		moneyParsers: []x402.MoneyParser{},
+	}
 }
 
 // Scheme returns the scheme identifier
@@ -22,7 +26,47 @@ func (s *ExactSvmService) Scheme() string {
 	return SchemeExact
 }
 
+// RegisterMoneyParser registers a custom money parser in the parser chain.
+// Multiple parsers can be registered - they will be tried in registration order.
+// Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+// If a parser returns nil, the next parser in the chain will be tried.
+// The default parser is always the final fallback.
+//
+// Args:
+//   parser: Custom function to convert amount to AssetAmount (or nil to skip)
+//
+// Returns:
+//   The service instance for chaining
+//
+// Example:
+//
+//	svmService.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+//	    // Use custom token for large amounts
+//	    if amount > 100 {
+//	        return &x402.AssetAmount{
+//	            Amount: fmt.Sprintf("%.0f", amount * 1e9),
+//	            Asset:  "CustomTokenMint111111111111111111111",
+//	            Extra:  map[string]interface{}{"token": "CUSTOM", "tier": "large"},
+//	        }, nil
+//	    }
+//	    return nil, nil // Use next parser
+//	})
+func (s *ExactSvmService) RegisterMoneyParser(parser x402.MoneyParser) *ExactSvmService {
+	s.moneyParsers = append(s.moneyParsers, parser)
+	return s
+}
+
 // ParsePrice parses a price and converts it to an asset amount (V2)
+// If price is already an AssetAmount, returns it directly.
+// If price is Money (string | number), parses to decimal and tries custom parsers.
+// Falls back to default conversion if all custom parsers return nil.
+//
+// Args:
+//   price: The price to parse (can be string, number, or AssetAmount map)
+//   network: The network identifier
+//
+// Returns:
+//   AssetAmount with amount, asset, and optional extra fields
 func (s *ExactSvmService) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	networkStr := string(network)
 
@@ -62,110 +106,80 @@ func (s *ExactSvmService) ParsePrice(price x402.Price, network x402.Network) (x4
 		}
 	}
 
+	// Parse Money to decimal number
+	decimalAmount, err := s.parseMoneyToDecimal(price)
+	if err != nil {
+		return x402.AssetAmount{}, err
+	}
+	
+	// Try each custom money parser in order
+	for _, parser := range s.moneyParsers {
+		result, err := parser(decimalAmount, network)
+		if err != nil {
+			// Parser returned an error, skip it
+			continue
+		}
+		if result != nil {
+			// Parser handled the conversion
+			return *result, nil
+		}
+		// Parser returned nil, try next one
+	}
+	
+	// All custom parsers returned nil, use default conversion
+	return s.defaultMoneyConversion(decimalAmount, network, config)
+}
+
+// parseMoneyToDecimal converts Money (string | number) to decimal amount
+func (s *ExactSvmService) parseMoneyToDecimal(price x402.Price) (float64, error) {
 	// Handle string prices
 	if priceStr, ok := price.(string); ok {
-		return s.parseStringPrice(priceStr, config)
+		// Remove $ sign and currency identifiers
+		cleanPrice := strings.TrimSpace(priceStr)
+		cleanPrice = strings.TrimPrefix(cleanPrice, "$")
+		cleanPrice = strings.TrimSpace(cleanPrice)
+		
+		// Check if it contains a currency/asset identifier
+		parts := strings.Fields(cleanPrice)
+		if len(parts) >= 1 {
+			// Use the first part as the amount
+			amount, err := strconv.ParseFloat(parts[0], 64)
+			if err != nil {
+				return 0, fmt.Errorf("failed to parse price string '%s': %w", priceStr, err)
+			}
+			return amount, nil
+		}
 	}
 
-	// Handle number input - assume USDC
+	// Handle number input
 	switch v := price.(type) {
 	case float64:
-		amountStr := fmt.Sprintf("%.6f", v)
-		amount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, err
-		}
-		return x402.AssetAmount{
-			Amount: strconv.FormatUint(amount, 10),
-			Asset:  config.DefaultAsset.Address,
-			Extra:  make(map[string]interface{}),
-		}, nil
-
+		return v, nil
 	case int:
-		amountStr := strconv.Itoa(v)
-		amount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, err
-		}
-		return x402.AssetAmount{
-			Amount: strconv.FormatUint(amount, 10),
-			Asset:  config.DefaultAsset.Address,
-			Extra:  make(map[string]interface{}),
-		}, nil
-
+		return float64(v), nil
 	case int64:
-		amountStr := strconv.FormatInt(v, 10)
-		amount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, err
-		}
-		return x402.AssetAmount{
-			Amount: strconv.FormatUint(amount, 10),
-			Asset:  config.DefaultAsset.Address,
-			Extra:  make(map[string]interface{}),
-		}, nil
+		return float64(v), nil
 	}
 
-	return x402.AssetAmount{}, fmt.Errorf("invalid price format: %v", price)
+	return 0, fmt.Errorf("invalid price format: %v", price)
 }
 
-// parseStringPrice parses string prices in various formats
-func (s *ExactSvmService) parseStringPrice(priceStr string, config *NetworkConfig) (x402.AssetAmount, error) {
-	// Remove $ sign if present
-	cleanPrice := strings.TrimSpace(strings.TrimPrefix(priceStr, "$"))
-
-	// Check if it contains a currency/asset identifier
-	parts := strings.Fields(cleanPrice)
-
-	if len(parts) == 2 {
-		// Format: "0.10 USDC"
-		amountStr := parts[0]
-		symbol := strings.ToUpper(parts[1])
-
-		// Determine asset based on symbol
-		var assetInfo *AssetInfo
-		if symbol == "USDC" || symbol == "USD" {
-			assetInfo = &config.DefaultAsset
-		} else {
-			// Try to look up asset by symbol
-			asset, err := GetAssetInfo(config.CAIP2, symbol)
-			if err != nil {
-				return x402.AssetAmount{}, fmt.Errorf("unsupported asset: %s on network %s", symbol, config.CAIP2)
-			}
-			assetInfo = asset
-		}
-
-		amount, err := ParseAmount(amountStr, assetInfo.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, err
-		}
-
-		return x402.AssetAmount{
-			Amount: strconv.FormatUint(amount, 10),
-			Asset:  assetInfo.Address,
-			Extra:  make(map[string]interface{}),
-		}, nil
+// defaultMoneyConversion converts decimal amount to USDC AssetAmount
+func (s *ExactSvmService) defaultMoneyConversion(amount float64, network x402.Network, config *NetworkConfig) (x402.AssetAmount, error) {
+	// Convert decimal to smallest unit (e.g., $1.50 -> 1500000 for USDC with 6 decimals)
+	amountStr := fmt.Sprintf("%.6f", amount)
+	parsedAmount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)
+	if err != nil {
+		return x402.AssetAmount{}, fmt.Errorf("failed to convert amount: %w", err)
 	}
-
-	if len(parts) == 1 {
-		// Simple number format like "0.10" - assume USDC
-		amount, err := ParseAmount(parts[0], config.DefaultAsset.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, err
-		}
-
-		return x402.AssetAmount{
-			Amount: strconv.FormatUint(amount, 10),
-			Asset:  config.DefaultAsset.Address,
-			Extra:  make(map[string]interface{}),
-		}, nil
-	}
-
-	return x402.AssetAmount{}, fmt.Errorf(
-		"invalid price format: %s. Must specify currency (e.g., \"0.10 USDC\") or use simple number format",
-		priceStr,
-	)
+	
+	return x402.AssetAmount{
+		Amount: strconv.FormatUint(parsedAmount, 10),
+		Asset:  config.DefaultAsset.Address,
+		Extra:  make(map[string]interface{}),
+	}, nil
 }
+
 
 // EnhancePaymentRequirements adds scheme-specific enhancements to payment requirements (V2)
 func (s *ExactSvmService) EnhancePaymentRequirements(

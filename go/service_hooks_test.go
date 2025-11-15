@@ -1,0 +1,437 @@
+package x402
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+)
+
+// Test BeforeVerify hook - abort verification
+func TestBeforeVerifyHook_Abort(t *testing.T) {
+	service := Newx402ResourceService()
+	
+	// Register hook that aborts verification
+	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
+		return &BeforeHookResult{
+			Abort:  true,
+			Reason: "Security check failed",
+		}, nil
+	})
+	
+	// Try to verify (should be aborted by hook)
+	result, err := service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if result.IsValid {
+		t.Error("Expected verification to be aborted (IsValid=false)")
+	}
+	
+	if result.InvalidReason != "Security check failed" {
+		t.Errorf("Expected InvalidReason='Security check failed', got '%s'", result.InvalidReason)
+	}
+}
+
+// Test BeforeVerify hook - continue verification
+func TestBeforeVerifyHook_Continue(t *testing.T) {
+	called := false
+	
+	service := Newx402ResourceService()
+	
+	// Register hook that allows verification to continue
+	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
+		called = true
+		// Return nil to continue
+		return nil, nil
+	})
+	
+	// Try to verify (will fail due to no facilitators, but hook should be called)
+	_, _ = service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if !called {
+		t.Error("Expected beforeVerify hook to be called")
+	}
+}
+
+// Test AfterVerify hook
+func TestAfterVerifyHook(t *testing.T) {
+	var capturedResult VerifyResponse
+	var capturedDuration time.Duration
+	
+	service := Newx402ResourceService()
+	
+	// Register hook to capture result
+	service.OnAfterVerify(func(ctx VerifyResultContext) error {
+		capturedResult = ctx.Result
+		capturedDuration = ctx.Duration
+		return nil
+	})
+	
+	// Mock facilitator that returns success
+	mockFacilitator := &mockFacilitatorClient{
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
+			return VerifyResponse{IsValid: true}, nil
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Verify payment
+	result, err := service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if !result.IsValid {
+		t.Error("Expected verification to succeed")
+	}
+	
+	// Check hook was called with correct result
+	if !capturedResult.IsValid {
+		t.Error("Expected afterVerify hook to capture valid result")
+	}
+	
+	if capturedDuration == 0 {
+		t.Error("Expected afterVerify hook to capture non-zero duration")
+	}
+}
+
+// Test OnVerifyFailure hook - recovery
+func TestOnVerifyFailureHook_Recover(t *testing.T) {
+	service := Newx402ResourceService()
+	
+	// Register hook that recovers from failure
+	service.OnVerifyFailure(func(ctx VerifyFailureContext) (*VerifyFailureHookResult, error) {
+		return &VerifyFailureHookResult{
+			Recovered: true,
+			Result: VerifyResponse{
+				IsValid: true,
+				// Hook recovered the payment
+			},
+		}, nil
+	})
+	
+	// Mock facilitator that returns error
+	mockFacilitator := &mockFacilitatorClient{
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
+			return VerifyResponse{IsValid: false}, errors.New("facilitator error")
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Verify payment (should be recovered by hook)
+	result, err := service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err != nil {
+		t.Errorf("Expected hook to recover, got error: %v", err)
+	}
+	
+	if !result.IsValid {
+		t.Error("Expected hook to recover verification")
+	}
+}
+
+// Test OnVerifyFailure hook - no recovery
+func TestOnVerifyFailureHook_NoRecover(t *testing.T) {
+	hookCalled := false
+	
+	service := Newx402ResourceService()
+	
+	// Register hook that doesn't recover
+	service.OnVerifyFailure(func(ctx VerifyFailureContext) (*VerifyFailureHookResult, error) {
+		hookCalled = true
+		// Return nil to not recover
+		return nil, nil
+	})
+	
+	// Mock facilitator that returns error
+	mockFacilitator := &mockFacilitatorClient{
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
+			return VerifyResponse{IsValid: false}, errors.New("facilitator error")
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Verify payment (should fail)
+	_, err := service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err == nil {
+		t.Error("Expected error to be returned when hook doesn't recover")
+	}
+	
+	if !hookCalled {
+		t.Error("Expected failure hook to be called")
+	}
+}
+
+// Test BeforeSettle hook - abort settlement
+func TestBeforeSettleHook_Abort(t *testing.T) {
+	service := Newx402ResourceService()
+	
+	// Register hook that aborts settlement
+	service.OnBeforeSettle(func(ctx SettleContext) (*BeforeHookResult, error) {
+		return &BeforeHookResult{
+			Abort:  true,
+			Reason: "Insufficient funds",
+		}, nil
+	})
+	
+	// Try to settle (should be aborted by hook)
+	result, err := service.SettlePayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err == nil {
+		t.Error("Expected error when settlement is aborted")
+	}
+	
+	if result.Success {
+		t.Error("Expected settlement to be aborted (Success=false)")
+	}
+	
+	if result.ErrorReason != "Settlement aborted: Insufficient funds" {
+		t.Errorf("Expected specific error reason, got '%s'", result.ErrorReason)
+	}
+}
+
+// Test AfterSettle hook
+func TestAfterSettleHook(t *testing.T) {
+	var capturedTxHash string
+	
+	service := Newx402ResourceService()
+	
+	// Register hook to capture settlement result
+	service.OnAfterSettle(func(ctx SettleResultContext) error {
+		capturedTxHash = ctx.Result.Transaction
+		return nil
+	})
+	
+	// Mock facilitator that returns successful settlement
+	mockFacilitator := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error) {
+			return SettleResponse{
+				Success:     true,
+				Transaction: "0xabc123",
+			}, nil
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Settle payment
+	result, err := service.SettlePayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+	
+	if !result.Success {
+		t.Error("Expected settlement to succeed")
+	}
+	
+	// Check hook captured the transaction hash
+	if capturedTxHash != "0xabc123" {
+		t.Errorf("Expected hook to capture tx hash '0xabc123', got '%s'", capturedTxHash)
+	}
+}
+
+// Test OnSettleFailure hook - recovery
+func TestOnSettleFailureHook_Recover(t *testing.T) {
+	service := Newx402ResourceService()
+	
+	// Register hook that recovers from failure
+	service.OnSettleFailure(func(ctx SettleFailureContext) (*SettleFailureHookResult, error) {
+		return &SettleFailureHookResult{
+			Recovered: true,
+			Result: SettleResponse{
+				Success:     true,
+				Transaction: "0xrecovered",
+			},
+		}, nil
+	})
+	
+	// Mock facilitator that returns error
+	mockFacilitator := &mockFacilitatorClient{
+		settle: func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error) {
+			return SettleResponse{Success: false}, errors.New("settlement failed")
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Settle payment (should be recovered by hook)
+	result, err := service.SettlePayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if err != nil {
+		t.Errorf("Expected hook to recover, got error: %v", err)
+	}
+	
+	if !result.Success {
+		t.Error("Expected hook to recover settlement")
+	}
+	
+	if result.Transaction != "0xrecovered" {
+		t.Errorf("Expected recovered transaction, got '%s'", result.Transaction)
+	}
+}
+
+// Test multiple hooks execution order
+func TestMultipleHooks_ExecutionOrder(t *testing.T) {
+	executionOrder := []string{}
+	
+	service := Newx402ResourceService()
+	
+	// Register multiple hooks in order
+	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
+		executionOrder = append(executionOrder, "before1")
+		return nil, nil
+	})
+	
+	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
+		executionOrder = append(executionOrder, "before2")
+		return nil, nil
+	})
+	
+	service.OnAfterVerify(func(ctx VerifyResultContext) error {
+		executionOrder = append(executionOrder, "after1")
+		return nil
+	})
+	
+	service.OnAfterVerify(func(ctx VerifyResultContext) error {
+		executionOrder = append(executionOrder, "after2")
+		return nil
+	})
+	
+	// Mock facilitator
+	mockFacilitator := &mockFacilitatorClient{
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
+			return VerifyResponse{IsValid: true}, nil
+		},
+	}
+	
+	service.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	
+	// Verify payment
+	_, _ = service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	// Check execution order
+	expected := []string{"before1", "before2", "after1", "after2"}
+	if len(executionOrder) != len(expected) {
+		t.Errorf("Expected %d hooks to execute, got %d", len(expected), len(executionOrder))
+	}
+	
+	for i, v := range expected {
+		if i >= len(executionOrder) || executionOrder[i] != v {
+			t.Errorf("Expected execution order %v, got %v", expected, executionOrder)
+			break
+		}
+	}
+}
+
+// Test hook with metadata
+func TestHooks_WithMetadata(t *testing.T) {
+	var capturedMetadata map[string]interface{}
+	
+	service := Newx402ResourceService()
+	
+	// Register hook that captures metadata
+	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
+		capturedMetadata = ctx.RequestMetadata
+		return nil, nil
+	})
+	
+	// Create metadata
+	metadata := map[string]interface{}{
+		"userId":    "user123",
+		"ipAddress": "192.168.1.1",
+		"userAgent": "Mozilla/5.0",
+	}
+	
+	// Verify with metadata
+	_, _ = service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		metadata,
+	)
+	
+	// Check metadata was passed to hook
+	if capturedMetadata == nil {
+		t.Fatal("Expected metadata to be captured")
+	}
+	
+	if capturedMetadata["userId"] != "user123" {
+		t.Errorf("Expected userId='user123', got '%v'", capturedMetadata["userId"])
+	}
+	
+	if capturedMetadata["ipAddress"] != "192.168.1.1" {
+		t.Errorf("Expected ipAddress='192.168.1.1', got '%v'", capturedMetadata["ipAddress"])
+	}
+}
+
+// Test using functional options to register hooks at construction
+func TestHooks_FunctionalOptions(t *testing.T) {
+	hookCalled := false
+	
+	// Create service with hooks registered via options
+	service := Newx402ResourceService(
+		WithBeforeVerifyHook(func(ctx VerifyContext) (*BeforeHookResult, error) {
+			hookCalled = true
+			return nil, nil
+		}),
+	)
+	
+	// Verify
+	_, _ = service.VerifyPayment(
+		context.Background(),
+		[]byte(`{"x402Version":2}`),
+		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+	)
+	
+	if !hookCalled {
+		t.Error("Expected hook registered via option to be called")
+	}
+}
+
+// Note: mockFacilitatorClient is defined in service_test.go
+

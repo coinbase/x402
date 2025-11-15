@@ -4,17 +4,22 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
 )
 
 // ExactEvmService implements the SchemeNetworkService interface for EVM exact payments (V2)
-type ExactEvmService struct{}
+type ExactEvmService struct {
+	moneyParsers []x402.MoneyParser
+}
 
 // NewExactEvmService creates a new ExactEvmService
 func NewExactEvmService() *ExactEvmService {
-	return &ExactEvmService{}
+	return &ExactEvmService{
+		moneyParsers: []x402.MoneyParser{},
+	}
 }
 
 // Scheme returns the scheme identifier
@@ -22,70 +27,175 @@ func (s *ExactEvmService) Scheme() string {
 	return SchemeExact
 }
 
+// RegisterMoneyParser registers a custom money parser in the parser chain.
+// Multiple parsers can be registered - they will be tried in registration order.
+// Each parser receives a decimal amount (e.g., 1.50 for $1.50).
+// If a parser returns nil, the next parser in the chain will be tried.
+// The default parser is always the final fallback.
+//
+// Args:
+//   parser: Custom function to convert amount to AssetAmount (or nil to skip)
+//
+// Returns:
+//   The service instance for chaining
+//
+// Example:
+//
+//	evmService.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+//	    // Use DAI for large amounts
+//	    if amount > 100 {
+//	        return &x402.AssetAmount{
+//	            Amount: fmt.Sprintf("%.0f", amount * 1e18),
+//	            Asset:  "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
+//	            Extra:  map[string]interface{}{"token": "DAI"},
+//	        }, nil
+//	    }
+//	    return nil, nil // Use next parser
+//	})
+func (s *ExactEvmService) RegisterMoneyParser(parser x402.MoneyParser) *ExactEvmService {
+	s.moneyParsers = append(s.moneyParsers, parser)
+	return s
+}
+
 // ParsePrice parses a price string and converts it to an asset amount (V2)
+// If price is already an AssetAmount, returns it directly.
+// If price is Money (string | number), parses to decimal and tries custom parsers.
+// Falls back to default conversion if all custom parsers return nil.
+//
+// Args:
+//   price: The price to parse (can be string, number, or AssetAmount map)
+//   network: The network identifier
+//
+// Returns:
+//   AssetAmount with amount, asset, and optional extra fields
 func (s *ExactEvmService) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-	// Convert price to string (Price is interface{})
-	priceStr, ok := price.(string)
-	if !ok {
-		priceStr = fmt.Sprintf("%v", price)
+	// If already an AssetAmount (map with "amount" and "asset"), return it directly
+	if priceMap, ok := price.(map[string]interface{}); ok {
+		if amountVal, hasAmount := priceMap["amount"]; hasAmount {
+			amountStr, ok := amountVal.(string)
+			if !ok {
+				return x402.AssetAmount{}, fmt.Errorf("amount must be a string")
+			}
+			
+			asset := ""
+			if assetVal, hasAsset := priceMap["asset"]; hasAsset {
+				if assetStr, ok := assetVal.(string); ok {
+					asset = assetStr
+				}
+			}
+			
+			if asset == "" {
+				return x402.AssetAmount{}, fmt.Errorf("asset address must be specified for AssetAmount")
+			}
+			
+			extra := make(map[string]interface{})
+			if extraVal, hasExtra := priceMap["extra"]; hasExtra {
+				if extraMap, ok := extraVal.(map[string]interface{}); ok {
+					extra = extraMap
+				}
+			}
+			
+			return x402.AssetAmount{
+				Amount: amountStr,
+				Asset:  asset,
+				Extra:  extra,
+			}, nil
+		}
 	}
+	
+	// Parse Money to decimal number
+	decimalAmount, err := s.parseMoneyToDecimal(price)
+	if err != nil {
+		return x402.AssetAmount{}, err
+	}
+	
+	// Try each custom money parser in order
+	for _, parser := range s.moneyParsers {
+		result, err := parser(decimalAmount, network)
+		if err != nil {
+			// Parser returned an error, skip it
+			continue
+		}
+		if result != nil {
+			// Parser handled the conversion
+			return *result, nil
+		}
+		// Parser returned nil, try next one
+	}
+	
+	// All custom parsers returned nil, use default conversion
+	return s.defaultMoneyConversion(decimalAmount, network)
+}
+
+// parseMoneyToDecimal converts Money (string | number) to decimal amount
+func (s *ExactEvmService) parseMoneyToDecimal(price x402.Price) (float64, error) {
+	switch v := price.(type) {
+	case string:
+		// Remove currency symbols
+		cleanPrice := strings.TrimSpace(v)
+		cleanPrice = strings.TrimPrefix(cleanPrice, "$")
+		cleanPrice = strings.TrimSuffix(cleanPrice, " USD")
+		cleanPrice = strings.TrimSuffix(cleanPrice, " USDC")
+		cleanPrice = strings.TrimSpace(cleanPrice)
+		
+		// Parse as float
+		amount, err := strconv.ParseFloat(cleanPrice, 64)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse price string '%s': %w", v, err)
+		}
+		return amount, nil
+		
+	case float64:
+		return v, nil
+		
+	case int:
+		return float64(v), nil
+		
+	case int64:
+		return float64(v), nil
+		
+	default:
+		return 0, fmt.Errorf("unsupported price type: %T", price)
+	}
+}
+
+// defaultMoneyConversion converts decimal amount to USDC AssetAmount
+func (s *ExactEvmService) defaultMoneyConversion(amount float64, network x402.Network) (x402.AssetAmount, error) {
 	networkStr := string(network)
-
-	// Handle different price formats
-	// Format 1: "$1.00" or "1.00 USD"
-	// Format 2: "1000000" (already in smallest unit)
-	// Format 3: "1.00" (decimal amount)
-
-	// Remove common currency symbols and spaces
-	priceStr = strings.TrimSpace(priceStr)
-	priceStr = strings.TrimPrefix(priceStr, "$")
-	priceStr = strings.TrimSuffix(priceStr, " USD")
-	priceStr = strings.TrimSuffix(priceStr, " USDC")
-	priceStr = strings.TrimSpace(priceStr)
-
+	
 	// Get network config to determine the asset
 	config, err := GetNetworkConfig(networkStr)
 	if err != nil {
 		return x402.AssetAmount{}, err
 	}
-
-	// Try to parse as decimal first
-	if strings.Contains(priceStr, ".") {
-		// It's a decimal amount, convert to smallest unit
-		amount, err := ParseAmount(priceStr, config.DefaultAsset.Decimals)
-		if err != nil {
-			return x402.AssetAmount{}, fmt.Errorf("failed to parse decimal price: %w", err)
-		}
-
+	
+	// Check if amount appears to already be in smallest unit
+	// (e.g., 1500000 for $1.50 USDC is likely already in smallest unit, not $1.5M)
+	oneUnit := float64(1)
+	for i := 0; i < config.DefaultAsset.Decimals; i++ {
+		oneUnit *= 10
+	}
+	
+	// If amount is >= 1 unit AND is a whole number, it's likely already in smallest unit
+	if amount >= oneUnit && amount == float64(int64(amount)) {
 		return x402.AssetAmount{
 			Asset:  config.DefaultAsset.Address,
-			Amount: amount.String(),
+			Amount: fmt.Sprintf("%.0f", amount),
+			Extra:  make(map[string]interface{}),
 		}, nil
 	}
-
-	// Try to parse as integer (already in smallest unit)
-	amount, ok := new(big.Int).SetString(priceStr, 10)
-	if !ok {
-		return x402.AssetAmount{}, fmt.Errorf("invalid price format: %s", price)
+	
+	// Convert decimal to smallest unit (e.g., $1.50 -> 1500000 for USDC with 6 decimals)
+	amountStr := fmt.Sprintf("%.6f", amount)
+	parsedAmount, err := ParseAmount(amountStr, config.DefaultAsset.Decimals)
+	if err != nil {
+		return x402.AssetAmount{}, fmt.Errorf("failed to convert amount: %w", err)
 	}
-
-	// Check if this looks like a reasonable amount in smallest unit
-	// (e.g., 1000000 for $1.00 USDC with 6 decimals)
-	oneUnit := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(config.DefaultAsset.Decimals)), nil)
-	if amount.Cmp(oneUnit) >= 0 {
-		// Likely already in smallest unit
-		return x402.AssetAmount{
-			Asset:  config.DefaultAsset.Address,
-			Amount: amount.String(),
-		}, nil
-	}
-
-	// Small integer, treat as dollar amount
-	amount.Mul(amount, oneUnit)
-
+	
 	return x402.AssetAmount{
 		Asset:  config.DefaultAsset.Address,
-		Amount: amount.String(),
+		Amount: parsedAmount.String(),
+		Extra:  make(map[string]interface{}),
 	}, nil
 }
 
