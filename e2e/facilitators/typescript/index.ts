@@ -22,11 +22,11 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { ExactEvmFacilitator, toFacilitatorEvmSigner } from "@x402/evm";
-import { ExactEvmFacilitatorV1 } from "@x402/evm/v1";
+import { toFacilitatorEvmSigner } from "@x402/evm";
+import { registerEvmToFacilitator } from "@x402/evm/register";
 import { BAZAAR, extractDiscoveryInfo } from "@x402/extensions/bazaar";
-import { ExactSvmFacilitator, toFacilitatorSvmSigner } from "@x402/svm";
-import { ExactSvmFacilitatorV1 } from "@x402/svm/v1";
+import { toFacilitatorSvmSigner } from "@x402/svm";
+import { registerSvmToFacilitator } from "@x402/svm/register";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -115,16 +115,16 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
     .digest("hex");
 }
 
-const facilitator = new x402Facilitator()
-  .registerScheme("eip155:*", new ExactEvmFacilitator(evmSigner))
-  .registerSchemeV1("base-sepolia" as `${string}:${string}`, new ExactEvmFacilitatorV1(evmSigner))
-  .registerScheme("solana:*" as `${string}:${string}`, new ExactSvmFacilitator(svmSigner), {
-    feePayer: svmAccount.address,
-  })
-  .registerSchemeV1("solana-devnet" as `${string}:${string}`, new ExactSvmFacilitatorV1(svmSigner), {
-    feePayer: svmAccount.address,
-  })
-  .registerExtension(BAZAAR)
+const facilitator = new x402Facilitator();
+
+// Register EVM and SVM schemes using the new register helpers
+registerEvmToFacilitator(facilitator, { signer: evmSigner });
+registerSvmToFacilitator(facilitator, {
+  signer: svmSigner,
+  extras: { feePayer: svmAccount.address },
+});
+
+facilitator.registerExtension(BAZAAR)
   // Lifecycle hooks for payment tracking and discovery
   .onAfterVerify(async (context) => {
     // Hook 1: Track verified payment for verify→settle flow validation

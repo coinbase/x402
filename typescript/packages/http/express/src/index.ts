@@ -126,39 +126,44 @@ export interface SchemeRegistration {
 }
 
 /**
- * Express payment middleware for x402 protocol
+ * Express payment middleware for x402 protocol (direct service instance).
+ *
+ * Use this when you want to pass a pre-configured x402ResourceService instance.
+ * This provides more flexibility for testing, custom configuration, and reusing
+ * service instances across multiple middlewares.
  *
  * @param routes - Route configurations for protected endpoints
- * @param facilitatorClients - Optional facilitator client(s) for payment processing
- * @param schemes - Optional array of scheme registrations for server-side payment processing
+ * @param service - Pre-configured x402ResourceService instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup
+ * @param initializeOnStart - Whether to initialize the service on startup (defaults to true)
  * @returns Express middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { paymentMiddleware } from "@x402/express";
+ * import { x402ResourceService } from "@x402/core/server";
+ * import { registerEvmToResourceService } from "@x402/evm/register";
+ *
+ * const service = new x402ResourceService(myFacilitatorClient);
+ * registerEvmToResourceService(service, { signer: myServerSigner });
+ *
+ * app.use(paymentMiddleware(routes, service, paywallConfig));
+ * ```
  */
 export function paymentMiddleware(
   routes: RoutesConfig,
-  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
-  schemes?: SchemeRegistration[],
+  service: x402ResourceService,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  const resourceService = new x402ResourceService(facilitatorClients);
-
-  resourceService.registerExtension(bazaarResourceServiceExtension);
-
-  if (schemes) {
-    schemes.forEach(({ network, server: schemeServer }) => {
-      resourceService.registerScheme(network, schemeServer);
-    });
-  }
-  if (initializeOnStart) {
-    resourceService.initialize();
-  }
-
   // Create the x402 HTTP server instance with the resource service
-  const server = new x402HTTPResourceService(resourceService, routes);
+  const server = new x402HTTPResourceService(service, routes);
+
+  if (initializeOnStart) {
+    service.initialize();
+  }
 
   // Register custom paywall provider if provided
   if (paywall) {
@@ -262,6 +267,54 @@ export function paymentMiddleware(
         return;
     }
   };
+}
+
+/**
+ * Express payment middleware for x402 protocol (configuration-based).
+ *
+ * Use this when you want to quickly set up middleware with simple configuration.
+ * This function creates and configures the x402ResourceService internally.
+ *
+ * @param routes - Route configurations for protected endpoints
+ * @param facilitatorClients - Optional facilitator client(s) for payment processing
+ * @param schemes - Optional array of scheme registrations for server-side payment processing
+ * @param paywallConfig - Optional configuration for the built-in paywall UI
+ * @param paywall - Optional custom paywall provider (overrides default)
+ * @param initializeOnStart - Whether to initialize the server on startup
+ * @returns Express middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { paymentMiddlewareFromConfig } from "@x402/express";
+ *
+ * app.use(paymentMiddlewareFromConfig(
+ *   routes,
+ *   myFacilitatorClient,
+ *   [{ network: "eip155:8453", server: evmSchemeServer }],
+ *   paywallConfig
+ * ));
+ * ```
+ */
+export function paymentMiddlewareFromConfig(
+  routes: RoutesConfig,
+  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
+  schemes?: SchemeRegistration[],
+  paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
+  initializeOnStart: boolean = true,
+) {
+  const resourceService = new x402ResourceService(facilitatorClients);
+
+  resourceService.registerExtension(bazaarResourceServiceExtension);
+
+  if (schemes) {
+    schemes.forEach(({ network, server: schemeServer }) => {
+      resourceService.registerScheme(network, schemeServer);
+    });
+  }
+
+  // Use the direct paymentMiddleware with the configured service
+  return paymentMiddleware(routes, resourceService, paywallConfig, paywall, initializeOnStart);
 }
 
 export type {

@@ -1,9 +1,9 @@
 import express from "express";
-import { paymentMiddleware } from "@x402/express";
+import { paymentMiddlewareFromConfig } from "@x402/express";
 import { ExactEvmService } from "@x402/evm";
 import { ExactSvmService } from "@x402/svm";
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { declareDiscoveryExtension, BAZAAR } from "@x402/extensions/bazaar";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -53,7 +53,7 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
  * on the Base Sepolia testnet with bazaar discovery extension.
  */
 app.use(
-  paymentMiddleware(
+  paymentMiddlewareFromConfig(
     {
       // Route-specific payment configuration
       "GET /protected": {
