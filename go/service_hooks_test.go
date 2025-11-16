@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 )
 
 // Test BeforeVerify hook - abort verification
@@ -67,14 +66,12 @@ func TestBeforeVerifyHook_Continue(t *testing.T) {
 // Test AfterVerify hook
 func TestAfterVerifyHook(t *testing.T) {
 	var capturedResult VerifyResponse
-	var capturedDuration time.Duration
 	
 	service := Newx402ResourceService()
 	
 	// Register hook to capture result
 	service.OnAfterVerify(func(ctx VerifyResultContext) error {
 		capturedResult = ctx.Result
-		capturedDuration = ctx.Duration
 		return nil
 	})
 	
@@ -105,10 +102,6 @@ func TestAfterVerifyHook(t *testing.T) {
 	// Check hook was called with correct result
 	if !capturedResult.IsValid {
 		t.Error("Expected afterVerify hook to capture valid result")
-	}
-	
-	if capturedDuration == 0 {
-		t.Error("Expected afterVerify hook to capture non-zero duration")
 	}
 }
 
@@ -365,47 +358,6 @@ func TestMultipleHooks_ExecutionOrder(t *testing.T) {
 			t.Errorf("Expected execution order %v, got %v", expected, executionOrder)
 			break
 		}
-	}
-}
-
-// Test hook with metadata
-func TestHooks_WithMetadata(t *testing.T) {
-	var capturedMetadata map[string]interface{}
-	
-	service := Newx402ResourceService()
-	
-	// Register hook that captures metadata
-	service.OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
-		capturedMetadata = ctx.RequestMetadata
-		return nil, nil
-	})
-	
-	// Create metadata
-	metadata := map[string]interface{}{
-		"userId":    "user123",
-		"ipAddress": "192.168.1.1",
-		"userAgent": "Mozilla/5.0",
-	}
-	
-	// Verify with metadata
-	_, _ = service.VerifyPayment(
-		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
-		metadata,
-	)
-	
-	// Check metadata was passed to hook
-	if capturedMetadata == nil {
-		t.Fatal("Expected metadata to be captured")
-	}
-	
-	if capturedMetadata["userId"] != "user123" {
-		t.Errorf("Expected userId='user123', got '%v'", capturedMetadata["userId"])
-	}
-	
-	if capturedMetadata["ipAddress"] != "192.168.1.1" {
-		t.Errorf("Expected ipAddress='192.168.1.1', got '%v'", capturedMetadata["ipAddress"])
 	}
 }
 

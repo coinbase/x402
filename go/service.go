@@ -366,22 +366,15 @@ func (s *x402ResourceService) CreatePaymentRequiredResponse(
 //   ctx: Context for cancellation and metadata
 //   payloadBytes: Serialized payment payload
 //   requirementsBytes: Serialized payment requirements
-//   metadata: Optional metadata to pass to hooks (can be nil)
 //
 // Returns:
 //   VerifyResponse and error if verification fails
-func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte, metadata ...map[string]interface{}) (VerifyResponse, error) {
-	startTime := time.Now()
-	
+func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
 	// Build hook context
 	hookCtx := VerifyContext{
 		Ctx:              ctx,
 		PayloadBytes:     payloadBytes,
 		RequirementsBytes: requirementsBytes,
-		Timestamp:        startTime,
-	}
-	if len(metadata) > 0 && metadata[0] != nil {
-		hookCtx.RequestMetadata = metadata[0]
 	}
 	
 	// Execute beforeVerify hooks
@@ -452,8 +445,6 @@ func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []
 		}
 	}
 	
-	duration := time.Since(startTime)
-	
 	// Handle success case
 	if verifyErr == nil {
 		// Execute afterVerify hooks
@@ -464,7 +455,6 @@ func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []
 		resultCtx := VerifyResultContext{
 			VerifyContext: hookCtx,
 			Result:        verifyResult,
-			Duration:      duration,
 		}
 		
 		for _, hook := range afterHooks {
@@ -485,7 +475,6 @@ func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []
 	failureCtx := VerifyFailureContext{
 		VerifyContext: hookCtx,
 		Error:         verifyErr,
-		Duration:      duration,
 	}
 	
 	// Execute onVerifyFailure hooks
@@ -511,22 +500,15 @@ func (s *x402ResourceService) VerifyPayment(ctx context.Context, payloadBytes []
 //   ctx: Context for cancellation and metadata
 //   payloadBytes: Serialized payment payload
 //   requirementsBytes: Serialized payment requirements
-//   metadata: Optional metadata to pass to hooks (can be nil)
 //
 // Returns:
 //   SettleResponse and error if settlement fails
-func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte, metadata ...map[string]interface{}) (SettleResponse, error) {
-	startTime := time.Now()
-	
+func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
 	// Build hook context
 	hookCtx := SettleContext{
 		Ctx:              ctx,
 		PayloadBytes:     payloadBytes,
 		RequirementsBytes: requirementsBytes,
-		Timestamp:        startTime,
-	}
-	if len(metadata) > 0 && metadata[0] != nil {
-		hookCtx.RequestMetadata = metadata[0]
 	}
 	
 	// Execute beforeSettle hooks
@@ -595,8 +577,6 @@ func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []
 		}
 	}
 	
-	duration := time.Since(startTime)
-	
 	// Handle success case
 	if settleErr == nil && settleResult.Success {
 		// Execute afterSettle hooks
@@ -607,7 +587,6 @@ func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []
 		resultCtx := SettleResultContext{
 			SettleContext: hookCtx,
 			Result:        settleResult,
-			Duration:      duration,
 		}
 		
 		for _, hook := range afterHooks {
@@ -628,7 +607,6 @@ func (s *x402ResourceService) SettlePayment(ctx context.Context, payloadBytes []
 	failureCtx := SettleFailureContext{
 		SettleContext: hookCtx,
 		Error:         settleErr,
-		Duration:      duration,
 	}
 	
 	// Execute onSettleFailure hooks

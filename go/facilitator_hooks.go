@@ -2,7 +2,6 @@ package x402
 
 import (
 	"context"
-	"time"
 )
 
 // ============================================================================
@@ -14,22 +13,18 @@ type FacilitatorVerifyContext struct {
 	Ctx               context.Context
 	PaymentPayload    PaymentPayload
 	PaymentRequirements PaymentRequirements
-	Timestamp         time.Time
-	RequestMetadata   map[string]interface{}
 }
 
 // FacilitatorVerifyResultContext contains facilitator verify operation result and context
 type FacilitatorVerifyResultContext struct {
 	FacilitatorVerifyContext
 	Result   VerifyResponse
-	Duration time.Duration
 }
 
 // FacilitatorVerifyFailureContext contains facilitator verify operation failure and context
 type FacilitatorVerifyFailureContext struct {
 	FacilitatorVerifyContext
 	Error    error
-	Duration time.Duration
 }
 
 // FacilitatorSettleContext contains information passed to facilitator settle hooks
@@ -37,22 +32,18 @@ type FacilitatorSettleContext struct {
 	Ctx               context.Context
 	PaymentPayload    PaymentPayload
 	PaymentRequirements PaymentRequirements
-	Timestamp         time.Time
-	RequestMetadata   map[string]interface{}
 }
 
 // FacilitatorSettleResultContext contains facilitator settle operation result and context
 type FacilitatorSettleResultContext struct {
 	FacilitatorSettleContext
 	Result   SettleResponse
-	Duration time.Duration
 }
 
 // FacilitatorSettleFailureContext contains facilitator settle operation failure and context
 type FacilitatorSettleFailureContext struct {
 	FacilitatorSettleContext
 	Error    error
-	Duration time.Duration
 }
 
 // ============================================================================

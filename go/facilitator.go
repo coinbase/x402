@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
-	
+
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -190,22 +189,15 @@ func (f *x402Facilitator) OnSettleFailure(hook FacilitatorOnSettleFailureHook) *
 //   ctx: Context for cancellation and metadata
 //   payload: Payment payload struct
 //   requirements: Payment requirements struct
-//   metadata: Optional metadata to pass to hooks (can be nil)
 //
 // Returns:
 //   VerifyResponse and error if verification fails
-func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements, metadata ...map[string]interface{}) (VerifyResponse, error) {
-	startTime := time.Now()
-	
+func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
 	// Build hook context
 	hookCtx := FacilitatorVerifyContext{
 		Ctx:                 ctx,
 		PaymentPayload:      payload,
 		PaymentRequirements: requirements,
-		Timestamp:           startTime,
-	}
-	if len(metadata) > 0 && metadata[0] != nil {
-		hookCtx.RequestMetadata = metadata[0]
 	}
 	
 	// Execute beforeVerify hooks
@@ -289,8 +281,6 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 		}
 	}
 	
-	duration := time.Since(startTime)
-	
 	// Handle success case
 	if verifyErr == nil {
 		// Execute afterVerify hooks
@@ -301,7 +291,6 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 		resultCtx := FacilitatorVerifyResultContext{
 			FacilitatorVerifyContext: hookCtx,
 			Result:                   verifyResult,
-			Duration:                 duration,
 		}
 		
 		for _, hook := range afterHooks {
@@ -321,7 +310,6 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 	failureCtx := FacilitatorVerifyFailureContext{
 		FacilitatorVerifyContext: hookCtx,
 		Error:                    verifyErr,
-		Duration:                 duration,
 	}
 	
 	// Execute onVerifyFailure hooks
@@ -347,22 +335,15 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 //   ctx: Context for cancellation and metadata
 //   payload: Payment payload struct
 //   requirements: Payment requirements struct
-//   metadata: Optional metadata to pass to hooks (can be nil)
 //
 // Returns:
 //   SettleResponse and error if settlement fails
-func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements, metadata ...map[string]interface{}) (SettleResponse, error) {
-	startTime := time.Now()
-	
+func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
 	// Build hook context
 	hookCtx := FacilitatorSettleContext{
 		Ctx:                 ctx,
 		PaymentPayload:      payload,
 		PaymentRequirements: requirements,
-		Timestamp:           startTime,
-	}
-	if len(metadata) > 0 && metadata[0] != nil {
-		hookCtx.RequestMetadata = metadata[0]
 	}
 	
 	// Execute beforeSettle hooks
@@ -447,8 +428,6 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		}
 	}
 	
-	duration := time.Since(startTime)
-	
 	// Handle success case
 	if settleErr == nil && settleResult.Success {
 		// Execute afterSettle hooks
@@ -459,7 +438,6 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		resultCtx := FacilitatorSettleResultContext{
 			FacilitatorSettleContext: hookCtx,
 			Result:                   settleResult,
-			Duration:                 duration,
 		}
 		
 		for _, hook := range afterHooks {
@@ -479,7 +457,6 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 	failureCtx := FacilitatorSettleFailureContext{
 		FacilitatorSettleContext: hookCtx,
 		Error:                    settleErr,
-		Duration:                 duration,
 	}
 	
 	// Execute onSettleFailure hooks

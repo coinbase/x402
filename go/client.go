@@ -23,6 +23,11 @@ type x402Client struct {
 
 	// Policies to filter/transform payment requirements
 	policies []PaymentPolicy
+
+	// Lifecycle hooks
+	beforePaymentCreationHooks   []BeforePaymentCreationHook
+	afterPaymentCreationHooks    []AfterPaymentCreationHook
+	onPaymentCreationFailureHooks []OnPaymentCreationFailureHook
 }
 
 // PaymentRequirementsSelector chooses which payment option to use
@@ -147,6 +152,32 @@ func (c *x402Client) RegisterPolicy(policy PaymentPolicy) *x402Client {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.policies = append(c.policies, policy)
+	return c
+}
+
+// OnBeforePaymentCreation registers a hook to execute before payment payload creation
+// Can abort creation by returning a result with Abort=true
+func (c *x402Client) OnBeforePaymentCreation(hook BeforePaymentCreationHook) *x402Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.beforePaymentCreationHooks = append(c.beforePaymentCreationHooks, hook)
+	return c
+}
+
+// OnAfterPaymentCreation registers a hook to execute after successful payment payload creation
+func (c *x402Client) OnAfterPaymentCreation(hook AfterPaymentCreationHook) *x402Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.afterPaymentCreationHooks = append(c.afterPaymentCreationHooks, hook)
+	return c
+}
+
+// OnPaymentCreationFailure registers a hook to execute when payment payload creation fails
+// Can recover from failure by returning a result with Recovered=true
+func (c *x402Client) OnPaymentCreationFailure(hook OnPaymentCreationFailureHook) *x402Client {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onPaymentCreationFailureHooks = append(c.onPaymentCreationFailureHooks, hook)
 	return c
 }
 
@@ -350,33 +381,102 @@ func (c *x402Client) CreatePaymentForRequired(ctx context.Context, required Paym
 		return PaymentPayload{}, err
 	}
 
-	// Marshal selected requirements to bytes
-	selectedBytes, err := json.Marshal(selected)
-	if err != nil {
-		return PaymentPayload{}, err
+	// Build hook context
+	hookCtx := PaymentCreationContext{
+		Ctx:                  ctx,
+		PaymentRequired:      required,
+		SelectedRequirements: selected,
 	}
 
-	// Marshal resource to v2 type if present
-	var resourceV2 *types.ResourceInfoV2
-	if required.Resource != nil {
-		resourceV2 = &types.ResourceInfoV2{
-			URL:         required.Resource.URL,
-			Description: required.Resource.Description,
-			MimeType:    required.Resource.MimeType,
+	// Execute beforePaymentCreation hooks
+	c.mu.RLock()
+	beforeHooks := c.beforePaymentCreationHooks
+	c.mu.RUnlock()
+
+	for _, hook := range beforeHooks {
+		result, err := hook(hookCtx)
+		if err != nil {
+			// Log error but continue (hook errors don't abort)
+		}
+		if result != nil && result.Abort {
+			return PaymentPayload{}, fmt.Errorf("payment creation aborted: %s", result.Reason)
 		}
 	}
 
-	// Call bytes-based CreatePaymentPayload
-	payloadBytes, err := c.CreatePaymentPayload(ctx, required.X402Version, selectedBytes, resourceV2, required.Extensions)
+	// Perform payment creation
+	var paymentPayload PaymentPayload
+	var paymentErr error
+
+	// Marshal selected requirements to bytes
+	selectedBytes, err := json.Marshal(selected)
 	if err != nil {
-		return PaymentPayload{}, err
+		paymentErr = err
+	} else {
+		// Marshal resource to v2 type if present
+		var resourceV2 *types.ResourceInfoV2
+		if required.Resource != nil {
+			resourceV2 = &types.ResourceInfoV2{
+				URL:         required.Resource.URL,
+				Description: required.Resource.Description,
+				MimeType:    required.Resource.MimeType,
+			}
+		}
+
+		// Call bytes-based CreatePaymentPayload
+		payloadBytes, err := c.CreatePaymentPayload(ctx, required.X402Version, selectedBytes, resourceV2, required.Extensions)
+		if err != nil {
+			paymentErr = err
+		} else {
+			// Unmarshal back to struct for backward compat
+			if err := json.Unmarshal(payloadBytes, &paymentPayload); err != nil {
+				paymentErr = err
+			}
+		}
 	}
 
-	// Unmarshal back to struct for backward compat
-	var payload PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return PaymentPayload{}, err
+	// Handle success case
+	if paymentErr == nil {
+		// Execute afterPaymentCreation hooks
+		c.mu.RLock()
+		afterHooks := c.afterPaymentCreationHooks
+		c.mu.RUnlock()
+
+		createdCtx := PaymentCreatedContext{
+			PaymentCreationContext: hookCtx,
+			PaymentPayload:         paymentPayload,
+		}
+
+		for _, hook := range afterHooks {
+			if err := hook(createdCtx); err != nil {
+				// Log error but don't fail the payment creation
+			}
+		}
+
+		return paymentPayload, nil
 	}
 
-	return payload, nil
+	// Handle failure case
+	c.mu.RLock()
+	failureHooks := c.onPaymentCreationFailureHooks
+	c.mu.RUnlock()
+
+	failureCtx := PaymentCreationFailureContext{
+		PaymentCreationContext: hookCtx,
+		Error:                  paymentErr,
+	}
+
+	// Execute onPaymentCreationFailure hooks
+	for _, hook := range failureHooks {
+		result, err := hook(failureCtx)
+		if err != nil {
+			// Log error but continue
+		}
+		if result != nil && result.Recovered {
+			// Hook recovered from failure
+			return result.Payload, nil
+		}
+	}
+
+	// No recovery, return original error
+	return PaymentPayload{}, paymentErr
 }

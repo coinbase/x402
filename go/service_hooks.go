@@ -2,7 +2,6 @@ package x402
 
 import (
 	"context"
-	"time"
 )
 
 // ============================================================================
@@ -14,22 +13,18 @@ type VerifyContext struct {
 	Ctx              context.Context
 	PayloadBytes     []byte
 	RequirementsBytes []byte
-	Timestamp        time.Time
-	RequestMetadata  map[string]interface{}
 }
 
 // VerifyResultContext contains verify operation result and context
 type VerifyResultContext struct {
 	VerifyContext
 	Result   VerifyResponse
-	Duration time.Duration
 }
 
 // VerifyFailureContext contains verify operation failure and context
 type VerifyFailureContext struct {
 	VerifyContext
 	Error    error
-	Duration time.Duration
 }
 
 // SettleContext contains information passed to settle hooks
@@ -37,22 +32,18 @@ type SettleContext struct {
 	Ctx              context.Context
 	PayloadBytes     []byte
 	RequirementsBytes []byte
-	Timestamp        time.Time
-	RequestMetadata  map[string]interface{}
 }
 
 // SettleResultContext contains settle operation result and context
 type SettleResultContext struct {
 	SettleContext
 	Result   SettleResponse
-	Duration time.Duration
 }
 
 // SettleFailureContext contains settle operation failure and context
 type SettleFailureContext struct {
 	SettleContext
 	Error    error
-	Duration time.Duration
 }
 
 // ============================================================================

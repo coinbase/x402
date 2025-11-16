@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 )
 
 // Test Facilitator BeforeVerify hook - abort verification
@@ -42,7 +41,6 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 // Test Facilitator AfterVerify hook
 func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	var capturedPayer string
-	var capturedDuration time.Duration
 	
 	facilitator := Newx402Facilitator()
 	
@@ -58,7 +56,6 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	// Register hook to capture result
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
 		capturedPayer = ctx.Result.Payer
-		capturedDuration = ctx.Duration
 		return nil
 	})
 	
@@ -80,10 +77,6 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	// Check hook captured the result
 	if capturedPayer != "0xTestPayer" {
 		t.Errorf("Expected hook to capture payer '0xTestPayer', got '%s'", capturedPayer)
-	}
-	
-	if capturedDuration == 0 {
-		t.Error("Expected hook to capture non-zero duration")
 	}
 }
 
@@ -242,42 +235,6 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	
 	if result.Transaction != "0xFacilitatorRecovered" {
 		t.Errorf("Expected recovered transaction, got '%s'", result.Transaction)
-	}
-}
-
-// Test Facilitator hook with metadata
-func TestFacilitatorHooks_WithMetadata(t *testing.T) {
-	var capturedMetadata map[string]interface{}
-	
-	facilitator := Newx402Facilitator()
-	
-	// Register hook that captures metadata
-	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {
-		capturedMetadata = ctx.RequestMetadata
-		return nil, nil
-	})
-	
-	// Create metadata
-	metadata := map[string]interface{}{
-		"facilitatorId": "facilitator-123",
-		"region":        "us-west-2",
-	}
-	
-	// Verify with metadata
-	_, _ = facilitator.Verify(
-		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
-		metadata,
-	)
-	
-	// Check metadata was passed to hook
-	if capturedMetadata == nil {
-		t.Fatal("Expected metadata to be captured")
-	}
-	
-	if capturedMetadata["facilitatorId"] != "facilitator-123" {
-		t.Errorf("Expected facilitatorId='facilitator-123', got '%v'", capturedMetadata["facilitatorId"])
 	}
 }
 

@@ -700,7 +700,7 @@ func main() {
 			if ctx.Result.IsValid {
 				paymentHash := createPaymentHash(ctx.PaymentPayload)
 				verificationMutex.Lock()
-				verifiedPayments[paymentHash] = ctx.Timestamp.Unix()
+				verifiedPayments[paymentHash] = time.Now().Unix()
 				verificationMutex.Unlock()
 				
 				// Hook 2: Extract and catalog bazaar discovery info
@@ -733,7 +733,7 @@ func main() {
 			}
 			
 			// Check verification isn't too old (5 minute timeout)
-			age := ctx.Timestamp.Unix() - verificationTimestamp
+			age := time.Now().Unix() - verificationTimestamp
 			if age > 5*60 {
 				verificationMutex.Lock()
 				delete(verifiedPayments, paymentHash)
