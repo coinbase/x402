@@ -130,8 +130,8 @@ facilitator.registerExtension(BAZAAR)
     // Hook 1: Track verified payment for verify→settle flow validation
     if (context.result.isValid) {
       const paymentHash = createPaymentHash(context.paymentPayload);
-      verifiedPayments.set(paymentHash, context.timestamp);
-      
+      verifiedPayments.set(paymentHash, Date.now());
+
       // Hook 2: Extract and catalog bazaar discovery info
       const discovered = extractDiscoveryInfo(context.paymentPayload, context.requirements);
       if (discovered) {
@@ -150,16 +150,16 @@ facilitator.registerExtension(BAZAAR)
     // Hook 3: Validate payment was previously verified
     const paymentHash = createPaymentHash(context.paymentPayload);
     const verificationTimestamp = verifiedPayments.get(paymentHash);
-    
+
     if (!verificationTimestamp) {
       return {
         abort: true,
         reason: "Payment must be verified before settlement",
       };
     }
-    
+
     // Check verification isn't too old (5 minute timeout)
-    const age = context.timestamp - verificationTimestamp;
+    const age = Date.now() - verificationTimestamp;
     if (age > 5 * 60 * 1000) {
       verifiedPayments.delete(paymentHash);
       return {
@@ -172,7 +172,7 @@ facilitator.registerExtension(BAZAAR)
     // Hook 4: Clean up verified payment tracking after settlement
     const paymentHash = createPaymentHash(context.paymentPayload);
     verifiedPayments.delete(paymentHash);
-    
+
     if (context.result.success) {
       console.log(`✅ Settlement completed: ${context.result.transaction}`);
     }
@@ -181,7 +181,7 @@ facilitator.registerExtension(BAZAAR)
     // Hook 5: Clean up on settlement failure too
     const paymentHash = createPaymentHash(context.paymentPayload);
     verifiedPayments.delete(paymentHash);
-    
+
     console.error(`❌ Settlement failed: ${context.error.message}`);
   });
 
@@ -250,7 +250,7 @@ app.post("/settle", async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Settle error:", error);
-    
+
     // Check if this was an abort from hook
     if (error instanceof Error && error.message.includes("Settlement aborted:")) {
       // Return a proper SettleResponse instead of 500 error
@@ -260,7 +260,7 @@ app.post("/settle", async (req, res) => {
         network: req.body?.paymentPayload?.network || "unknown",
       } as SettleResponse);
     }
-    
+
     res.status(500).json({
       error: error instanceof Error ? error.message : "Unknown error",
     });

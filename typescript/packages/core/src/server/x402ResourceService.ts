@@ -34,35 +34,27 @@ export interface ResourceInfo {
 export interface VerifyContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
-  timestamp: number;
-  requestMetadata?: Record<string, unknown>;
 }
 
 export interface VerifyResultContext extends VerifyContext {
   result: VerifyResponse;
-  duration: number;
 }
 
 export interface VerifyFailureContext extends VerifyContext {
   error: Error;
-  duration: number;
 }
 
 export interface SettleContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
-  timestamp: number;
-  requestMetadata?: Record<string, unknown>;
 }
 
 export interface SettleResultContext extends SettleContext {
   result: SettleResponse;
-  duration: number;
 }
 
 export interface SettleFailureContext extends SettleContext {
   error: Error;
-  duration: number;
 }
 
 /**
@@ -389,7 +381,7 @@ export class x402ResourceService {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkService.scheme} on ${resourceConfig.network}. ` +
-          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -466,20 +458,15 @@ export class x402ResourceService {
    *
    * @param paymentPayload - The payment payload to verify
    * @param requirements - The payment requirements
-   * @param metadata - Optional metadata for hook context
    * @returns Verification response
    */
   async verifyPayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-    metadata?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
-    const startTime = Date.now();
     const context: VerifyContext = {
       paymentPayload,
       requirements,
-      timestamp: startTime,
-      requestMetadata: metadata,
     };
 
     // Execute beforeVerify hooks
@@ -529,13 +516,10 @@ export class x402ResourceService {
         verifyResult = await facilitatorClient.verify(paymentPayload, requirements);
       }
 
-      const duration = Date.now() - startTime;
-
       // Execute afterVerify hooks
       const resultContext: VerifyResultContext = {
         ...context,
         result: verifyResult,
-        duration,
       };
 
       for (const hook of this.afterVerifyHooks) {
@@ -544,11 +528,9 @@ export class x402ResourceService {
 
       return verifyResult;
     } catch (error) {
-      const duration = Date.now() - startTime;
       const failureContext: VerifyFailureContext = {
         ...context,
         error: error as Error,
-        duration,
       };
 
       // Execute onVerifyFailure hooks
@@ -568,20 +550,15 @@ export class x402ResourceService {
    *
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
-   * @param metadata - Optional metadata for hook context
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-    metadata?: Record<string, unknown>,
   ): Promise<SettleResponse> {
-    const startTime = Date.now();
     const context: SettleContext = {
       paymentPayload,
       requirements,
-      timestamp: startTime,
-      requestMetadata: metadata,
     };
 
     // Execute beforeSettle hooks
@@ -628,13 +605,10 @@ export class x402ResourceService {
         settleResult = await facilitatorClient.settle(paymentPayload, requirements);
       }
 
-      const duration = Date.now() - startTime;
-
       // Execute afterSettle hooks
       const resultContext: SettleResultContext = {
         ...context,
         result: settleResult,
-        duration,
       };
 
       for (const hook of this.afterSettleHooks) {
@@ -643,11 +617,9 @@ export class x402ResourceService {
 
       return settleResult;
     } catch (error) {
-      const duration = Date.now() - startTime;
       const failureContext: SettleFailureContext = {
         ...context,
         error: error as Error,
-        duration,
       };
 
       // Execute onSettleFailure hooks

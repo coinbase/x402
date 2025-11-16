@@ -12,35 +12,27 @@ import { findByNetworkAndScheme } from "../utils";
 export interface FacilitatorVerifyContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
-  timestamp: number;
-  requestMetadata?: Record<string, unknown>;
 }
 
 export interface FacilitatorVerifyResultContext extends FacilitatorVerifyContext {
   result: VerifyResponse;
-  duration: number;
 }
 
 export interface FacilitatorVerifyFailureContext extends FacilitatorVerifyContext {
   error: Error;
-  duration: number;
 }
 
 export interface FacilitatorSettleContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
-  timestamp: number;
-  requestMetadata?: Record<string, unknown>;
 }
 
 export interface FacilitatorSettleResultContext extends FacilitatorSettleContext {
   result: SettleResponse;
-  duration: number;
 }
 
 export interface FacilitatorSettleFailureContext extends FacilitatorSettleContext {
   error: Error;
-  duration: number;
 }
 
 /**
@@ -271,20 +263,15 @@ export class x402Facilitator {
    *
    * @param paymentPayload - The payment payload to verify
    * @param paymentRequirements - The payment requirements to verify against
-   * @param metadata - Optional metadata to pass to hooks
    * @returns Promise resolving to the verification response
    */
   async verify(
     paymentPayload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
-    metadata?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
-    const startTime = Date.now();
     const context: FacilitatorVerifyContext = {
       paymentPayload,
       requirements: paymentRequirements,
-      timestamp: startTime,
-      requestMetadata: metadata,
     };
 
     // Execute beforeVerify hooks
@@ -323,13 +310,11 @@ export class x402Facilitator {
         paymentPayload,
         paymentRequirements,
       );
-      const duration = Date.now() - startTime;
 
       // Execute afterVerify hooks
       const resultContext: FacilitatorVerifyResultContext = {
         ...context,
         result: verifyResult,
-        duration,
       };
 
       for (const hook of this.afterVerifyHooks) {
@@ -338,11 +323,9 @@ export class x402Facilitator {
 
       return verifyResult;
     } catch (error) {
-      const duration = Date.now() - startTime;
       const failureContext: FacilitatorVerifyFailureContext = {
         ...context,
         error: error as Error,
-        duration,
       };
 
       // Execute onVerifyFailure hooks
@@ -362,20 +345,15 @@ export class x402Facilitator {
    *
    * @param paymentPayload - The payment payload to settle
    * @param paymentRequirements - The payment requirements for settlement
-   * @param metadata - Optional metadata to pass to hooks
    * @returns Promise resolving to the settlement response
    */
   async settle(
     paymentPayload: PaymentPayload,
     paymentRequirements: PaymentRequirements,
-    metadata?: Record<string, unknown>,
   ): Promise<SettleResponse> {
-    const startTime = Date.now();
     const context: FacilitatorSettleContext = {
       paymentPayload,
       requirements: paymentRequirements,
-      timestamp: startTime,
-      requestMetadata: metadata,
     };
 
     // Execute beforeSettle hooks
@@ -411,13 +389,11 @@ export class x402Facilitator {
         paymentPayload,
         paymentRequirements,
       );
-      const duration = Date.now() - startTime;
 
       // Execute afterSettle hooks
       const resultContext: FacilitatorSettleResultContext = {
         ...context,
         result: settleResult,
-        duration,
       };
 
       for (const hook of this.afterSettleHooks) {
@@ -426,11 +402,9 @@ export class x402Facilitator {
 
       return settleResult;
     } catch (error) {
-      const duration = Date.now() - startTime;
       const failureContext: FacilitatorSettleFailureContext = {
         ...context,
         error: error as Error,
-        duration,
       };
 
       // Execute onSettleFailure hooks

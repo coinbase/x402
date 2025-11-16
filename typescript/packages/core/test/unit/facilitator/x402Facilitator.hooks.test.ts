@@ -141,22 +141,6 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
       expect(executionOrder).toEqual([1, 2]);
     });
-
-    it("should pass metadata to hook", async () => {
-      const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
-
-      let capturedMetadata: Record<string, unknown> | undefined;
-
-      facilitator.onBeforeVerify(async context => {
-        capturedMetadata = context.requestMetadata;
-      });
-
-      const metadata = { facilitatorId: "test-123", region: "us-west" };
-      await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements(), metadata);
-
-      expect(capturedMetadata).toEqual(metadata);
-    });
   });
 
   describe("onAfterVerify", () => {
@@ -165,18 +149,15 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
 
       let capturedResult: VerifyResponse | undefined;
-      let capturedDuration: number | undefined;
 
       facilitator.onAfterVerify(async context => {
         capturedResult = context.result;
-        capturedDuration = context.duration;
       });
 
       const result = await facilitator.verify(buildPaymentPayload(), buildPaymentRequirements());
 
       expect(result.isValid).toBe(true);
       expect(capturedResult?.isValid).toBe(true);
-      expect(capturedDuration).toBeGreaterThanOrEqual(0);
     });
 
     it("should execute multiple hooks in order", async () => {

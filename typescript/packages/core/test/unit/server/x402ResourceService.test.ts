@@ -404,7 +404,6 @@ describe("x402ResourceService", () => {
           hookExecuted = true;
           expect(context.paymentPayload).toBeDefined();
           expect(context.requirements).toBeDefined();
-          expect(context.timestamp).toBeGreaterThan(0);
         });
 
         const payload = buildPaymentPayload();
@@ -468,22 +467,6 @@ describe("x402ResourceService", () => {
 
         expect(executionOrder).toEqual([1, 2]); // Third hook not executed
       });
-
-      it("should include metadata in hook context", async () => {
-        let receivedMetadata: Record<string, unknown> | undefined;
-
-        service.onBeforeVerify(async context => {
-          receivedMetadata = context.requestMetadata;
-        });
-
-        const payload = buildPaymentPayload();
-        const requirements = buildPaymentRequirements();
-        const metadata = { userId: "123", ip: "192.168.1.1" };
-
-        await service.verifyPayment(payload, requirements, metadata);
-
-        expect(receivedMetadata).toEqual(metadata);
-      });
     });
 
     describe("onAfterVerify", () => {
@@ -494,7 +477,6 @@ describe("x402ResourceService", () => {
         service.onAfterVerify(async context => {
           hookExecuted = true;
           hookResult = context.result;
-          expect(context.duration).toBeGreaterThanOrEqual(0);
         });
 
         const result = await service.verifyPayment(
@@ -552,7 +534,6 @@ describe("x402ResourceService", () => {
         service.onVerifyFailure(async context => {
           hookExecuted = true;
           hookError = context.error;
-          expect(context.duration).toBeGreaterThanOrEqual(0);
         });
 
         await expect(
@@ -674,7 +655,6 @@ describe("x402ResourceService", () => {
         service.onAfterSettle(async context => {
           hookExecuted = true;
           hookResult = context.result;
-          expect(context.duration).toBeGreaterThanOrEqual(0);
         });
 
         const result = await service.settlePayment(
