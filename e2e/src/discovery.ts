@@ -6,36 +6,11 @@ import { log, verboseLog, errorLog } from './logger';
 import { TestConfig, DiscoveredServer, DiscoveredClient, TestScenario, ProtocolFamily } from './types';
 
 const facilitatorNetworkCombos = [
-  {
-    useCdpFacilitator: false,
-    network: 'base-sepolia',
-    protocolFamily: 'evm' as ProtocolFamily,
-  },
-  {
-    useCdpFacilitator: true,
-    network: 'base-sepolia',
-    protocolFamily: 'evm' as ProtocolFamily,
-  },
-  {
-    useCdpFacilitator: true,
-    network: 'base',
-    protocolFamily: 'evm' as ProtocolFamily,
-  },
-  {
-    useCdpFacilitator: false,
-    network: 'solana-devnet',
-    protocolFamily: 'svm' as ProtocolFamily,
-  },
-  {
-    useCdpFacilitator: true,
-    network: 'solana-devnet',
-    protocolFamily: 'svm' as ProtocolFamily,
-  },
-  {
-    useCdpFacilitator: true,
-    network: 'solana',
-    protocolFamily: 'svm' as ProtocolFamily,
-  },
+  // {
+  //   useCdpFacilitator: false,
+  //   network: 'base-sepolia',
+  //   protocolFamily: 'evm' as ProtocolFamily,
+  // },
   {
     useCdpFacilitator: false,
     network: 'arc-testnet',

@@ -10,19 +10,17 @@ import {
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as Hex;
-const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string;
 const endpointPath = process.env.ENDPOINT_PATH as string;
 const url = `${baseURL}${endpointPath}`;
 
-if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
+if (!baseURL || !evmPrivateKey || !endpointPath) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
 const evmSigner = await createSigner("arc-testnet", evmPrivateKey);
-const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
-const account = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
+const account = { evm: evmSigner } as MultiNetworkSigner;
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, account);
 

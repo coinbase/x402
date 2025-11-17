@@ -48,13 +48,14 @@ export abstract class BaseProxy {
       if (trimmed.startsWith('#') || trimmed === '') continue;
 
       // Look for command patterns
-      if (trimmed.startsWith('pnpm ') ||
+      if (
+        trimmed.startsWith('pnpm ') ||
         trimmed.startsWith('npm ') ||
         trimmed.startsWith('node ') ||
         trimmed.startsWith('python ') ||
         trimmed.startsWith('uv run ') ||
-        trimmed.startsWith('go run ')) {
-
+        trimmed.startsWith('go run ')
+      ) {
         // Split the command into parts
         const parts = trimmed.split(' ');
         return parts;
@@ -69,13 +70,13 @@ export abstract class BaseProxy {
       const command = this.getRunCommand();
       const env = {
         ...process.env,
-        ...config.env
+        ...config.env,
       };
 
       this.process = spawn(command[0], command.slice(1), {
         env,
         stdio: 'pipe',
-        cwd: this.directory
+        cwd: this.directory,
       });
 
       let output = '';
@@ -150,13 +151,13 @@ export abstract class BaseProxy {
       const command = this.getRunCommand();
       const processEnv = {
         ...process.env,
-        ...config.env
+        ...config.env,
       };
 
       const childProcess = spawn(command[0], command.slice(1), {
         env: processEnv,
         stdio: 'pipe',
-        cwd: this.directory
+        cwd: this.directory,
       });
 
       let stdout = '';
@@ -177,7 +178,7 @@ export abstract class BaseProxy {
           try {
             // Find JSON result in stdout
             const lines = stdout.split('\n');
-            const jsonLine = lines.find(line => line.trim().startsWith('{'));
+            const jsonLine = lines.find((line) => line.trim().startsWith('{'));
             if (jsonLine) {
               const result = JSON.parse(jsonLine);
               resolve({ success: true, data: result, exitCode: code });
@@ -198,4 +199,4 @@ export abstract class BaseProxy {
       });
     });
   }
-} 
+}

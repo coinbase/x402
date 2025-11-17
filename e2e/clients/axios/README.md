@@ -12,6 +12,7 @@ This is an example client that demonstrates how to use the `x402-axios` package 
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -20,11 +21,13 @@ cd clients/axios
 ```
 
 2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+
 ```bash
 cp .env-local .env
 ```
 
 3. Start the example client (remember you need to be running a server locally or point at an endpoint):
+
 ```bash
 pnpm dev
 ```
@@ -32,6 +35,7 @@ pnpm dev
 ## How It Works
 
 The example demonstrates how to:
+
 1. Create a wallet client using viem
 2. Create an Axios instance with x402 payment handling
 3. Make a request to a paid endpoint
@@ -45,7 +49,7 @@ import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { withPaymentInterceptor } from "x402-axios";
 import axios from "axios";
-import { baseSepolia } from "viem/chains";
+import { arcTestnet } from "viem/chains";
 
 config();
 
@@ -56,7 +60,7 @@ const account = privateKeyToAccount(PRIVATE_KEY as "0x${string}");
 const client = createWalletClient({
   account,
   transport: http(),
-  chain: baseSepolia,
+  chain: arcTestnet,
 }).extend(publicActions);
 
 // Create Axios instance with payment handling
@@ -64,7 +68,7 @@ const api = withPaymentInterceptor(
   axios.create({
     baseURL: RESOURCE_SERVER_URL,
   }),
-  client
+  client,
 );
 
 // Make request to paid endpoint

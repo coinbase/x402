@@ -11,18 +11,16 @@ import {
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as Hex;
-const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
 const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
 const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
 
-if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
+if (!baseURL || !evmPrivateKey || !endpointPath) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
 const evmSigner = await createSigner("arc-testnet", evmPrivateKey);
-const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
-const account = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
+const account = { evm: evmSigner } as MultiNetworkSigner;
 
 const api = withPaymentInterceptor(
   axios.create({

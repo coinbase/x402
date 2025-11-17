@@ -7,8 +7,7 @@ This is an example Hono server that demonstrates how to use the `x402-hono` midd
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
--- get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet) -- get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
 
 ## Setup
 
@@ -64,7 +63,7 @@ These clients will demonstrate how to:
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
+The server includes a single example endpoint at `/protected` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
 
 ## Response Format
 

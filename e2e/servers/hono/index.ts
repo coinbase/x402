@@ -1,12 +1,11 @@
 import { config } from "dotenv";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { paymentMiddleware, Network, Resource } from "x402-hono";
+import { paymentMiddleware, Network } from "x402-hono";
 import { facilitator } from "@coinbase/x402";
 
 config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === "true";
 const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const payTo = process.env.EVM_ADDRESS as `0x${string}`;
 const network = process.env.EVM_NETWORK as Network;
@@ -33,9 +32,7 @@ app.use(
       ? {
           url: facilitatorUrl,
         }
-      : useCdpFacilitator
-        ? facilitator
-        : undefined,
+      : facilitator,
   ),
 );
 

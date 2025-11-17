@@ -1,15 +1,17 @@
 import { Address } from "viem";
-import { paymentMiddleware, Network, Resource } from "x402-next";
+import { paymentMiddleware, Network } from "x402-next";
 import { facilitator } from "@coinbase/x402";
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
+const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const payTo = process.env.EVM_ADDRESS as Address;
 const network = process.env.EVM_NETWORK as Network;
 
 // Configure facilitator
-const facilitatorConfig = useCdpFacilitator
-  ? facilitator
-  : undefined;
+const facilitatorConfig = facilitatorUrl
+  ? {
+      url: facilitatorUrl,
+    }
+  : facilitator;
 
 export const middleware = paymentMiddleware(
   payTo,
@@ -32,6 +34,5 @@ export const middleware = paymentMiddleware(
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/api/protected"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
+  runtime: "nodejs", // TEMPORARY: Only needed until Edge runtime support is added
 };
-

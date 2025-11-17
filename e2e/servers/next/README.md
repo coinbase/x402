@@ -17,6 +17,7 @@ cp .env.local .env
 ```
 
 2. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -25,6 +26,7 @@ cd fullstack/next
 ```
 
 2. Install and start the Next.js example:
+
 ```bash
 pnpm dev
 ```
@@ -34,6 +36,7 @@ pnpm dev
 The app includes protected routes that require payment to access:
 
 ### Protected Page Route
+
 The `/protected` route requires a payment of $0.01 to access. The route is protected using the x402-next middleware:
 
 ```typescript
@@ -41,8 +44,8 @@ The `/protected` route requires a payment of $0.01 to access. The route is prote
 import { paymentMiddleware, Network, Resource } from "x402-next";
 
 const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
-const payTo = process.env.RESOURCE_WALLET_ADDRESS as Address;
-const network = process.env.NETWORK as Network;
+const payTo = process.env.EVM_ADDRESS as Address;
+const network = process.env.EVM_NETWORK as Network;
 
 export const middleware = paymentMiddleware(
   payTo,
@@ -69,12 +72,13 @@ export const config = {
 ## Response Format
 
 ### Payment Required (402)
+
 ```json
 {
   "error": "X-PAYMENT header is required",
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base",
+    "network": "arc-testnet",
     "maxAmountRequired": "1000",
     "resource": "http://localhost:3000/protected",
     "description": "Access to protected content",
@@ -89,6 +93,7 @@ export const config = {
 ```
 
 ### Successful Response
+
 ```ts
 // Headers
 {
@@ -101,25 +106,22 @@ export const config = {
 To add more protected routes, update the middleware configuration:
 
 ```typescript
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/protected": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Access to protected content",
-      },
+export const middleware = paymentMiddleware(payTo, {
+  "/protected": {
+    price: "$0.01",
+    network,
+    config: {
+      description: "Access to protected content",
     },
-    "/api/premium": {
-      price: "$0.10",
-      network,
-      config: {
-        description: "Premium API access",
-      },
+  },
+  "/api/premium": {
+    price: "$0.10",
+    network,
+    config: {
+      description: "Premium API access",
     },
-  }
-);
+  },
+});
 
 export const config = {
   matcher: ["/protected/:path*", "/api/premium/:path*"],
