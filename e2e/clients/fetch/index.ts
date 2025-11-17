@@ -1,11 +1,6 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import {
-  createSigner,
-  decodeXPaymentResponse,
-  MultiNetworkSigner,
-  wrapFetchWithPayment,
-} from "x402-fetch";
+import { createSigner, decodeXPaymentResponse, wrapFetchWithPayment } from "x402-fetch";
 
 config();
 
@@ -19,10 +14,9 @@ if (!baseURL || !evmPrivateKey || !endpointPath) {
   process.exit(1);
 }
 
-const evmSigner = await createSigner("arc-testnet", evmPrivateKey);
-const account = { evm: evmSigner } as MultiNetworkSigner;
+const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, account);
+const fetchWithPayment = wrapFetchWithPayment(fetch, evmSigner);
 
 fetchWithPayment(url, {
   method: "GET",

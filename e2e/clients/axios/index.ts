@@ -1,12 +1,7 @@
 import axios from "axios";
 import { config } from "dotenv";
 import { Hex } from "viem";
-import {
-  withPaymentInterceptor,
-  decodeXPaymentResponse,
-  createSigner,
-  MultiNetworkSigner,
-} from "x402-axios";
+import { withPaymentInterceptor, decodeXPaymentResponse, createSigner } from "x402-axios";
 
 config();
 
@@ -20,13 +15,12 @@ if (!baseURL || !evmPrivateKey || !endpointPath) {
 }
 
 const evmSigner = await createSigner("arc-testnet", evmPrivateKey);
-const account = { evm: evmSigner } as MultiNetworkSigner;
 
 const api = withPaymentInterceptor(
   axios.create({
     baseURL,
   }),
-  account,
+  evmSigner,
 );
 
 api
