@@ -288,7 +288,7 @@ describe("SVM Integration Tests", () => {
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
 
       const paymentRequired = client.getPaymentRequiredResponse(
-        initial402Response.headers,
+        (name) => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

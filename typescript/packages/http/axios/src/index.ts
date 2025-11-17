@@ -68,17 +68,18 @@ export function wrapAxiosWithPayment(
         // Parse payment requirements from response
         let paymentRequired: PaymentRequired;
         try {
-          const responseHeaders: Record<string, string> = {};
-          Object.entries(error.response.headers).forEach(([key, value]) => {
-            if (typeof value === "string") {
-              responseHeaders[key.toUpperCase()] = value;
-            }
-          });
+          const response = error.response!; // Already validated above
+
+          // Create getHeader function for case-insensitive header lookup
+          const getHeader = (name: string) => {
+            const value = response.headers[name] ?? response.headers[name.toLowerCase()];
+            return typeof value === "string" ? value : undefined;
+          };
 
           // Try to get from headers first (v2), then from body (v1)
-          const body = error.response.data as PaymentRequired | undefined;
+          const body = response.data as PaymentRequired | undefined;
 
-          paymentRequired = httpClient.getPaymentRequiredResponse(responseHeaders, body);
+          paymentRequired = httpClient.getPaymentRequiredResponse(getHeader, body);
         } catch (parseError) {
           return Promise.reject(
             new Error(
@@ -163,7 +164,7 @@ export function wrapAxiosWithPaymentFromConfig(
 }
 
 // Re-export types and utilities for convenience
-export { x402HTTPClient } from "@x402/core/client";
+export { x402Client, x402HTTPClient } from "@x402/core/client";
 export type {
   PaymentPolicy,
   SchemeRegistration,

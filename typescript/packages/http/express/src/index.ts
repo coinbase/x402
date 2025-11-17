@@ -21,7 +21,7 @@ export class ExpressAdapter implements HTTPAdapter {
    *
    * @param req - The Express request object
    */
-  constructor(private req: Request) {}
+  constructor(private req: Request) { }
 
   /**
    * Gets a header value from the request.
@@ -321,6 +321,8 @@ export function paymentMiddlewareFromConfig(
   // Use the direct paymentMiddleware with the configured service
   return paymentMiddleware(routes, resourceService, paywallConfig, paywall, initializeOnStart);
 }
+
+export { x402ResourceService, x402HTTPResourceService } from "@x402/core/server";
 
 export type {
   PaymentRequired,

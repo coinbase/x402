@@ -341,7 +341,7 @@ describe("EVM Integration Tests", () => {
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(
-        initial402Response.headers,
+        (name) => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

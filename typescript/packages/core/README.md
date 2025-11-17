@@ -51,22 +51,14 @@ const response = await fetch('https://api.example.com/protected', {
 });
 
 if (response.status === 402) {
-  // Extract payment requirements
+  // Extract payment requirements using getHeader function
   const paymentRequired = client.getPaymentRequiredResponse(
-    response.headers,
+    (name) => response.headers.get(name),
     await response.json()
   );
   
-  // Select and create payment
-  const requirements = client.selectPaymentRequirements(
-    paymentRequired.x402Version,
-    paymentRequired.accepts
-  );
-  
-  const paymentPayload = await client.createPaymentPayload(
-    paymentRequired.x402Version,
-    requirements
-  );
+  // Create payment payload
+  const paymentPayload = await client.createPaymentPayload(paymentRequired);
   
   // Retry with payment
   const paidResponse = await fetch('https://api.example.com/protected', {
@@ -77,7 +69,7 @@ if (response.status === 402) {
   });
   
   // Get settlement confirmation
-  const settleResponse = client.getPaymentSettleResponse(paidResponse.headers);
+  const settleResponse = client.getPaymentSettleResponse((name) => paidResponse.headers.get(name));
   console.log('Payment settled:', settleResponse.transaction);
 }
 ```
@@ -208,8 +200,8 @@ HTTP-specific client extending base client.
 
 **Methods:**
 - `encodePaymentSignatureHeader(payload: PaymentPayload)`: Create payment header
-- `getPaymentRequiredResponse(headers: Record<string, string>, body?: PaymentRequired)`: Parse 402 response
-- `getPaymentSettleResponse(headers: Record<string, string>)`: Extract settlement info
+- `getPaymentRequiredResponse(getHeader: (name: string) => string | null | undefined, body?: PaymentRequired)`: Parse 402 response
+- `getPaymentSettleResponse(getHeader: (name: string) => string | null | undefined)`: Extract settlement info
 
 ### Server Classes
 
