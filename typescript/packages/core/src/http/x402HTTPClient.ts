@@ -19,7 +19,7 @@ export class x402HTTPClient {
    *
    * @param client - The underlying x402Client for payment logic
    */
-  constructor(private readonly client: x402Client) { }
+  constructor(private readonly client: x402Client) {}
 
   /**
    * Encodes a payment payload into appropriate HTTP headers based on version.
@@ -51,7 +51,10 @@ export class x402HTTPClient {
    * @param body - Optional response body for v1 compatibility
    * @returns The payment required object
    */
-  getPaymentRequiredResponse(getHeader: (name: string) => string | null | undefined, body?: unknown): PaymentRequired {
+  getPaymentRequiredResponse(
+    getHeader: (name: string) => string | null | undefined,
+    body?: unknown,
+  ): PaymentRequired {
     // v2
     const paymentRequired = getHeader("PAYMENT-REQUIRED");
     if (paymentRequired) {

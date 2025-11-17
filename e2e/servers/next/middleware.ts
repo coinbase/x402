@@ -23,10 +23,12 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 export const middleware = paymentMiddlewareFromConfig(
   {
     "/api/protected": {
-      payTo: EVM_PAYEE_ADDRESS,
-      scheme: "exact",
-      price: "$0.001",
-      network: EVM_NETWORK,
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        price: "$0.001",
+        network: EVM_NETWORK,
+      },
       extensions: {
         ...declareDiscoveryExtension({
           output: {
@@ -46,10 +48,12 @@ export const middleware = paymentMiddlewareFromConfig(
       },
     },
     "/api/protected-svm": {
-      payTo: SVM_PAYEE_ADDRESS,
-      scheme: "exact",
-      price: "$0.001",
-      network: SVM_NETWORK,
+      accepts: {
+        payTo: SVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        price: "$0.001",
+        network: SVM_NETWORK,
+      },
       extensions: {
         ...declareDiscoveryExtension({
           output: {

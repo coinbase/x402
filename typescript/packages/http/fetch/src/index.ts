@@ -38,7 +38,10 @@ import { type PaymentRequired } from "@x402/core/types";
  * @throws {Error} If a payment has already been attempted for this request
  * @throws {Error} If there's an error creating the payment header
  */
-export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x402Client | x402HTTPClient) {
+export function wrapFetchWithPayment(
+  fetch: typeof globalThis.fetch,
+  client: x402Client | x402HTTPClient,
+) {
   const httpClient = client instanceof x402HTTPClient ? client : new x402HTTPClient(client);
 
   return async (input: RequestInfo, init?: RequestInit) => {

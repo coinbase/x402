@@ -381,7 +381,7 @@ export class x402ResourceService {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkService.scheme} on ${resourceConfig.network}. ` +
-        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -420,6 +420,49 @@ export class x402ResourceService {
 
     requirements.push(requirement);
     return requirements;
+  }
+
+  /**
+   * Build payment requirements from multiple payment options
+   * This method handles resolving dynamic payTo/price functions and builds requirements for each option
+   *
+   * @param paymentOptions - Array of payment options to convert
+   * @param context - HTTP request context for resolving dynamic functions
+   * @returns Array of payment requirements (one per option)
+   */
+  async buildPaymentRequirementsFromOptions<TContext = unknown>(
+    paymentOptions: Array<{
+      scheme: string;
+      payTo: string | ((context: TContext) => string | Promise<string>);
+      price: Price | ((context: TContext) => Price | Promise<Price>);
+      network: Network;
+      maxTimeoutSeconds?: number;
+    }>,
+    context: TContext,
+  ): Promise<PaymentRequirements[]> {
+    const allRequirements: PaymentRequirements[] = [];
+
+    for (const option of paymentOptions) {
+      // Resolve dynamic payTo and price if they are functions
+      const resolvedPayTo =
+        typeof option.payTo === "function" ? await option.payTo(context) : option.payTo;
+      const resolvedPrice =
+        typeof option.price === "function" ? await option.price(context) : option.price;
+
+      const resourceConfig: ResourceConfig = {
+        scheme: option.scheme,
+        payTo: resolvedPayTo,
+        price: resolvedPrice,
+        network: option.network,
+        maxTimeoutSeconds: option.maxTimeoutSeconds,
+      };
+
+      // Use existing buildPaymentRequirements for each option
+      const requirements = await this.buildPaymentRequirements(resourceConfig);
+      allRequirements.push(...requirements);
+    }
+
+    return allRequirements;
   }
 
   /**

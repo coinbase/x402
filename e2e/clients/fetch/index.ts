@@ -5,7 +5,7 @@ import { registerEvmToClient } from "@x402/evm/register";
 import { registerSvmToClient } from "@x402/svm/register";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
-import { x402Client } from "@x402/core/client";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
 
 config();
 
@@ -26,8 +26,7 @@ fetchWithPayment(url, {
   method: "GET",
 }).then(async response => {
   const data = await response.json();
-  // Check both v2 (PAYMENT-RESPONSE) and v1 (X-PAYMENT-RESPONSE) headers
-  const paymentResponse = response.headers.get("PAYMENT-RESPONSE") || response.headers.get("X-PAYMENT-RESPONSE");
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse((name) => response.headers.get(name));
 
   if (!paymentResponse) {
     // No payment was required
@@ -41,13 +40,11 @@ fetchWithPayment(url, {
     return;
   }
 
-  const decodedPaymentResponse = decodePaymentResponseHeader(paymentResponse);
-
   const result = {
-    success: decodedPaymentResponse.success,
+    success: paymentResponse.success,
     data: data,
     status_code: response.status,
-    payment_response: decodedPaymentResponse,
+    payment_response: paymentResponse,
   };
 
   // Output structured result as JSON for proxy to parse

@@ -246,10 +246,12 @@ describe("EVM Integration Tests", () => {
 
     const routes = {
       "/api/protected": {
-        scheme: "exact",
-        payTo: "0x9876543210987654321098765432109876543210",
-        price: "$0.001",
-        network: "eip155:84532" as Network,
+        accepts: {
+          scheme: "exact",
+          payTo: "0x9876543210987654321098765432109876543210",
+          price: "$0.001",
+          network: "eip155:84532" as Network,
+        },
         description: "Access to protected API",
         mimeType: "application/json",
       },
@@ -341,7 +343,7 @@ describe("EVM Integration Tests", () => {
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(
-        (name) => initial402Response.headers[name],
+        name => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

@@ -68,10 +68,12 @@ describe("Core Integration Tests", () => {
 
     const routes = {
       "/api/protected": {
-        scheme: "cash",
-        payTo: "merchant@example.com",
-        price: "$0.10",
-        network: "x402:cash" as Network,
+        accepts: {
+          scheme: "cash",
+          payTo: "merchant@example.com",
+          price: "$0.10",
+          network: "x402:cash" as Network,
+        },
         description: "Access to protected API",
         mimeType: "application/json",
       },
@@ -140,7 +142,7 @@ describe("Core Integration Tests", () => {
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(
-        (name) => initial402Response.headers[name],
+        name => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

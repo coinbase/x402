@@ -29,6 +29,7 @@
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsdoc": "^50.6.9",
     "eslint-plugin-prettier": "^5.2.6",
+    "hono": "^4.7.1",
     "prettier": "3.5.2",
     "tsup": "^8.4.0",
     "tsx": "^4.19.2",
@@ -38,12 +39,12 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "hono": "^4.7.1",
     "@x402/core": "workspace:^",
     "@x402/extensions": "workspace:^",
     "zod": "^3.24.2"
   },
   "peerDependencies": {
+    "hono": "^4.0.0",
     "@x402/paywall": "workspace:*"
   },
   "peerDependenciesMeta": {

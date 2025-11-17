@@ -313,6 +313,8 @@ export function paymentMiddlewareFromConfig(
   return paymentMiddleware(routes, resourceService, paywallConfig, paywall, initializeOnStart);
 }
 
+export { x402ResourceService, x402HTTPResourceService } from "@x402/core/server";
+
 export type {
   PaymentRequired,
   PaymentRequirements,

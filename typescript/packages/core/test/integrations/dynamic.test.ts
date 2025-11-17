@@ -143,17 +143,19 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should extract tier from query params and adjust price", async () => {
       const routes = {
         "GET /api/data": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "merchant@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            // Extract tier from query params
-            const tier = _context.adapter.getQueryParam?.("tier");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "merchant@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              // Extract tier from query params
+              const tier = _context.adapter.getQueryParam?.("tier");
 
-            // Tiered pricing based on query param
-            if (tier === "premium") return "$0.01" as Price;
-            if (tier === "business") return "$0.05" as Price;
-            return "$0.10" as Price; // Default tier
+              // Tiered pricing based on query param
+              if (tier === "premium") return "$0.01" as Price;
+              if (tier === "business") return "$0.05" as Price;
+              return "$0.10" as Price; // Default tier
+            },
           },
           description: "Tiered API access",
         },
@@ -232,18 +234,20 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should use query params for pagination-based pricing", async () => {
       const routes = {
         "GET /api/items": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "merchant@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const limit = parseInt((context.adapter.getQueryParam?.("limit") as string) || "10");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "merchant@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const limit = parseInt((context.adapter.getQueryParam?.("limit") as string) || "10");
 
-            // Price scales with requested items
-            const basePrice = 0.01;
-            const pricePerItem = 0.001;
-            const totalPrice = basePrice + limit * pricePerItem;
+              // Price scales with requested items
+              const basePrice = 0.01;
+              const pricePerItem = 0.001;
+              const totalPrice = basePrice + limit * pricePerItem;
 
-            return `$${totalPrice.toFixed(3)}` as Price;
+              return `$${totalPrice.toFixed(3)}` as Price;
+            },
           },
           description: "Paginated data access",
         },
@@ -280,22 +284,24 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should extract data from request body for pricing", async () => {
       const routes = {
         "POST /api/compute": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "compute@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const body = _context.adapter.getBody?.() as Record<string, unknown> | undefined;
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "compute@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const body = _context.adapter.getBody?.() as Record<string, unknown> | undefined;
 
-            const complexity = (body?.complexity as string) || "low";
-            const duration = (body?.estimatedDuration as number) || 1;
+              const complexity = (body?.complexity as string) || "low";
+              const duration = (body?.estimatedDuration as number) || 1;
 
-            // Price based on computational complexity
-            let baseRate = 0.1;
-            if (complexity === "high") baseRate = 1.0;
-            else if (complexity === "medium") baseRate = 0.5;
+              // Price based on computational complexity
+              let baseRate = 0.1;
+              if (complexity === "high") baseRate = 1.0;
+              else if (complexity === "medium") baseRate = 0.5;
 
-            const totalPrice = baseRate * duration;
-            return `$${totalPrice.toFixed(2)}` as Price;
+              const totalPrice = baseRate * duration;
+              return `$${totalPrice.toFixed(2)}` as Price;
+            },
           },
           description: "Compute service",
         },
@@ -358,19 +364,21 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should price based on request payload size", async () => {
       const routes = {
         "POST /api/process": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "processor@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const body = _context.adapter.getBody?.() as Record<string, unknown> | undefined;
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "processor@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const body = _context.adapter.getBody?.() as Record<string, unknown> | undefined;
 
-            // Get data array size
-            const dataArray = (body?.data as unknown[]) || [];
-            const itemCount = dataArray.length;
+              // Get data array size
+              const dataArray = (body?.data as unknown[]) || [];
+              const itemCount = dataArray.length;
 
-            // $0.01 per item, minimum $0.05
-            const price = Math.max(0.05, itemCount * 0.01);
-            return `$${price.toFixed(2)}` as Price;
+              // $0.01 per item, minimum $0.05
+              const price = Math.max(0.05, itemCount * 0.01);
+              return `$${price.toFixed(2)}` as Price;
+            },
           },
           description: "Batch processing",
         },
@@ -414,29 +422,31 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
 
       const routes = {
         "GET /api/resource": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "api@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const apiKey = _context.adapter.getHeader("x-api-key");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "api@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const apiKey = _context.adapter.getHeader("x-api-key");
 
-            if (!apiKey) {
-              return "$1.00" as Price; // No API key = highest price
-            }
+              if (!apiKey) {
+                return "$1.00" as Price; // No API key = highest price
+              }
 
-            const user = userDatabase[apiKey];
-            if (!user) {
-              return "$1.00" as Price; // Unknown key = highest price
-            }
+              const user = userDatabase[apiKey];
+              if (!user) {
+                return "$1.00" as Price; // Unknown key = highest price
+              }
 
-            // Tier-based pricing
-            const tierPrices: Record<string, string> = {
-              premium: "$0.01",
-              standard: "$0.10",
-              free: "$0.50",
-            };
+              // Tier-based pricing
+              const tierPrices: Record<string, string> = {
+                premium: "$0.01",
+                standard: "$0.10",
+                free: "$0.50",
+              };
 
-            return (tierPrices[user.tier] as Price) || ("$1.00" as Price);
+              return (tierPrices[user.tier] as Price) || ("$1.00" as Price);
+            },
           },
           description: "API with tier-based access",
         },
@@ -508,17 +518,19 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should use Content-Length header for size-based pricing", async () => {
       const routes = {
         "POST /api/upload": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "storage@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const contentLength = _context.adapter.getHeader("content-length");
-            const sizeInBytes = parseInt(contentLength || "0");
-            const sizeInMB = sizeInBytes / (1024 * 1024);
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "storage@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const contentLength = _context.adapter.getHeader("content-length");
+              const sizeInBytes = parseInt(contentLength || "0");
+              const sizeInMB = sizeInBytes / (1024 * 1024);
 
-            // $0.10 per MB, minimum $0.05
-            const price = Math.max(0.05, sizeInMB * 0.1);
-            return `$${price.toFixed(2)}` as Price;
+              // $0.10 per MB, minimum $0.05
+              const price = Math.max(0.05, sizeInMB * 0.1);
+              return `$${price.toFixed(2)}` as Price;
+            },
           },
           description: "File storage",
         },
@@ -555,19 +567,21 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should use custom headers for feature flags", async () => {
       const routes = {
         "GET /api/advanced": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "service@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const enableAI = _context.adapter.getHeader("x-enable-ai");
-            const enableCache = _context.adapter.getHeader("x-enable-cache");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "service@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const enableAI = _context.adapter.getHeader("x-enable-ai");
+              const enableCache = _context.adapter.getHeader("x-enable-cache");
 
-            let price = 0.1; // Base price
+              let price = 0.1; // Base price
 
-            if (enableAI === "true") price += 0.5; // AI features cost extra
-            if (enableCache === "false") price += 0.2; // No cache = more compute
+              if (enableAI === "true") price += 0.5; // AI features cost extra
+              if (enableCache === "false") price += 0.2; // No cache = more compute
 
-            return `$${price.toFixed(2)}` as Price;
+              return `$${price.toFixed(2)}` as Price;
+            },
           },
           description: "Advanced API with optional features",
         },
@@ -627,20 +641,22 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should route payment to different addresses based on header", async () => {
       const routes = {
         "POST /api/process": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          price: "$0.50" as Price,
-          payTo: async (context: HTTPRequestContext) => {
-            const region = context.adapter.getHeader("x-region");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            price: "$0.50" as Price,
+            payTo: async (context: HTTPRequestContext) => {
+              const region = context.adapter.getHeader("x-region");
 
-            // Route to different payment addresses by region
-            const paymentAddresses: Record<string, string> = {
-              us: "merchant-us@example.com",
-              eu: "merchant-eu@example.com",
-              asia: "merchant-asia@example.com",
-            };
+              // Route to different payment addresses by region
+              const paymentAddresses: Record<string, string> = {
+                us: "merchant-us@example.com",
+                eu: "merchant-eu@example.com",
+                asia: "merchant-asia@example.com",
+              };
 
-            return paymentAddresses[region || "us"] || "merchant-default@example.com";
+              return paymentAddresses[region || "us"] || "merchant-default@example.com";
+            },
           },
           description: "Regional payment routing",
         },
@@ -692,28 +708,30 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should use Authorization header to determine payment recipient", async () => {
       const routes = {
         "GET /api/user-content": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          price: "$0.25" as Price,
-          payTo: async (context: HTTPRequestContext) => {
-            const authHeader = context.adapter.getHeader("authorization");
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            price: "$0.25" as Price,
+            payTo: async (context: HTTPRequestContext) => {
+              const authHeader = context.adapter.getHeader("authorization");
 
-            if (!authHeader) {
-              return "anonymous@example.com";
-            }
+              if (!authHeader) {
+                return "anonymous@example.com";
+              }
 
-            // Parse Bearer token (simplified)
-            const token = authHeader.replace("Bearer ", "");
+              // Parse Bearer token (simplified)
+              const token = authHeader.replace("Bearer ", "");
 
-            // Simulate decoding user ID from token
-            if (token.includes("creator")) {
-              return "creator-123@example.com";
-            }
-            if (token.includes("consumer")) {
-              return "platform@example.com";
-            }
+              // Simulate decoding user ID from token
+              if (token.includes("creator")) {
+                return "creator-123@example.com";
+              }
+              if (token.includes("consumer")) {
+                return "platform@example.com";
+              }
 
-            return "default@example.com";
+              return "default@example.com";
+            },
           },
           description: "User-generated content access",
         },
@@ -767,22 +785,24 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should route to different service providers based on request", async () => {
       const routes = {
         "POST /api/inference": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          price: "$1.00" as Price,
-          payTo: async (context: HTTPRequestContext) => {
-            const body = context.adapter.getBody?.() as Record<string, unknown> | undefined;
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            price: "$1.00" as Price,
+            payTo: async (context: HTTPRequestContext) => {
+              const body = context.adapter.getBody?.() as Record<string, unknown> | undefined;
 
-            const modelId = body?.modelId as string;
+              const modelId = body?.modelId as string;
 
-            // Route to different GPU providers based on model
-            const modelProviders: Record<string, string> = {
-              "gpt-4": "openai-provider@example.com",
-              "claude-3": "anthropic-provider@example.com",
-              "llama-3": "meta-provider@example.com",
-            };
+              // Route to different GPU providers based on model
+              const modelProviders: Record<string, string> = {
+                "gpt-4": "openai-provider@example.com",
+                "claude-3": "anthropic-provider@example.com",
+                "llama-3": "meta-provider@example.com",
+              };
 
-            return modelProviders[modelId] || "default-provider@example.com";
+              return modelProviders[modelId] || "default-provider@example.com";
+            },
           },
           description: "AI model inference routing",
         },
@@ -842,35 +862,37 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should use both query params and headers for complex routing", async () => {
       const routes = {
         "GET /api/premium-data": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: async (context: HTTPRequestContext) => {
-            // Route based on data source (query param)
-            const source = context.adapter.getQueryParam?.("source") as string | undefined;
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: async (context: HTTPRequestContext) => {
+              // Route based on data source (query param)
+              const source = context.adapter.getQueryParam?.("source") as string | undefined;
 
-            if (source === "blockchain") return "blockchain-provider@example.com";
-            if (source === "market") return "market-data-provider@example.com";
-            return "default-provider@example.com";
-          },
-          price: async (_context: HTTPRequestContext) => {
-            // Price based on subscription level (header) and data range (query)
-            const subscription = _context.adapter.getHeader("x-subscription");
-            const range = (_context.adapter.getQueryParam?.("range") as string) || "1d";
+              if (source === "blockchain") return "blockchain-provider@example.com";
+              if (source === "market") return "market-data-provider@example.com";
+              return "default-provider@example.com";
+            },
+            price: async (_context: HTTPRequestContext) => {
+              // Price based on subscription level (header) and data range (query)
+              const subscription = _context.adapter.getHeader("x-subscription");
+              const range = (_context.adapter.getQueryParam?.("range") as string) || "1d";
 
-            let basePrice = subscription === "pro" ? 0.1 : 0.5;
+              let basePrice = subscription === "pro" ? 0.1 : 0.5;
 
-            // Price multiplier based on data range
-            const rangeMultipliers: Record<string, number> = {
-              "1d": 1,
-              "7d": 3,
-              "30d": 10,
-              "1y": 50,
-            };
+              // Price multiplier based on data range
+              const rangeMultipliers: Record<string, number> = {
+                "1d": 1,
+                "7d": 3,
+                "30d": 10,
+                "1y": 50,
+              };
 
-            const multiplier = rangeMultipliers[range] || 1;
-            const finalPrice = basePrice * multiplier;
+              const multiplier = rangeMultipliers[range] || 1;
+              const finalPrice = basePrice * multiplier;
 
-            return `$${finalPrice.toFixed(2)}` as Price;
+              return `$${finalPrice.toFixed(2)}` as Price;
+            },
           },
           description: "Premium data API with complex pricing",
         },
@@ -945,23 +967,25 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
 
       const routes = {
         "GET /api/data": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "api@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            const apiKey = _context.adapter.getHeader("x-api-key") || "anonymous";
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "api@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              const apiKey = _context.adapter.getHeader("x-api-key") || "anonymous";
 
-            // Track requests
-            requestCounts[apiKey] = (requestCounts[apiKey] || 0) + 1;
+              // Track requests
+              requestCounts[apiKey] = (requestCounts[apiKey] || 0) + 1;
 
-            const requestCount = requestCounts[apiKey];
+              const requestCount = requestCounts[apiKey];
 
-            // First 100 requests: cheap
-            if (requestCount <= 100) return "$0.01" as Price;
-            // Next 900 requests: medium
-            if (requestCount <= 1000) return "$0.05" as Price;
-            // Over 1000: expensive (encourage upgrade)
-            return "$0.50" as Price;
+              // First 100 requests: cheap
+              if (requestCount <= 100) return "$0.01" as Price;
+              // Next 900 requests: medium
+              if (requestCount <= 1000) return "$0.05" as Price;
+              // Over 1000: expensive (encourage upgrade)
+              return "$0.50" as Price;
+            },
           },
           description: "Rate-limited API",
         },
@@ -1017,16 +1041,18 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
 
       const routes = {
         "POST /api/task": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          price: "$0.10" as Price,
-          payTo: async (_context: HTTPRequestContext) => {
-            // Round-robin load balancing
-            const server = servers[currentServerIndex];
-            currentServerIndex = (currentServerIndex + 1) % servers.length;
-            server.load++;
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            price: "$0.10" as Price,
+            payTo: async (_context: HTTPRequestContext) => {
+              // Round-robin load balancing
+              const server = servers[currentServerIndex];
+              currentServerIndex = (currentServerIndex + 1) % servers.length;
+              server.load++;
 
-            return server.address;
+              return server.address;
+            },
           },
           description: "Load-balanced task processing",
         },
@@ -1073,20 +1099,22 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     it("should apply surge pricing during peak hours", async () => {
       const routes = {
         "GET /api/resource": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: "service@example.com",
-          price: async (_context: HTTPRequestContext) => {
-            // Check if client provides a timestamp header (for testing)
-            const timestampHeader = _context.adapter.getHeader("x-test-time");
-            const hour = timestampHeader
-              ? new Date(parseInt(timestampHeader)).getHours()
-              : new Date().getHours();
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: "service@example.com",
+            price: async (_context: HTTPRequestContext) => {
+              // Check if client provides a timestamp header (for testing)
+              const timestampHeader = _context.adapter.getHeader("x-test-time");
+              const hour = timestampHeader
+                ? new Date(parseInt(timestampHeader)).getHours()
+                : new Date().getHours();
 
-            // Peak hours (9 AM - 5 PM): surge pricing
-            const isPeakHour = hour >= 9 && hour < 17;
+              // Peak hours (9 AM - 5 PM): surge pricing
+              const isPeakHour = hour >= 9 && hour < 17;
 
-            return isPeakHour ? ("$0.20" as Price) : ("$0.10" as Price);
+              return isPeakHour ? ("$0.20" as Price) : ("$0.10" as Price);
+            },
           },
           description: "Surge pricing API",
         },
@@ -1152,13 +1180,15 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
 
       const routes = {
         "POST /api/test": {
-          scheme: "cash",
-          network: "x402:cash" as Network,
-          payTo: async (context: HTTPRequestContext) => {
-            capturedContext = context;
-            return "test@example.com";
+          accepts: {
+            scheme: "cash",
+            network: "x402:cash" as Network,
+            payTo: async (context: HTTPRequestContext) => {
+              capturedContext = context;
+              return "test@example.com";
+            },
+            price: "$1.00" as Price,
           },
-          price: "$1.00" as Price,
           description: "Context capture test",
         },
       };

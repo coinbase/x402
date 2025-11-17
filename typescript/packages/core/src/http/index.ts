@@ -86,9 +86,12 @@ export {
   HTTPProcessResult,
   PaywallConfig,
   PaywallProvider,
+  PaymentOption,
   RouteConfig,
   RoutesConfig,
   CompiledRoute,
+  DynamicPayTo,
+  DynamicPrice,
 } from "./x402HTTPResourceService";
 export { HTTPFacilitatorClient } from "./httpFacilitatorClient";
 export { x402HTTPClient } from "./x402HTTPClient";

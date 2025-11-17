@@ -21,7 +21,7 @@ export class ExpressAdapter implements HTTPAdapter {
    *
    * @param req - The Express request object
    */
-  constructor(private req: Request) { }
+  constructor(private req: Request) {}
 
   /**
    * Gets a header value from the request.

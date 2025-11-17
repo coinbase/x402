@@ -203,9 +203,6 @@ importers:
       '@x402/paywall':
         specifier: workspace:*
         version: link:../paywall
-      express:
-        specifier: ^4.18.2
-        version: 4.21.2
       viem:
         specifier: ^2.21.26
         version: 2.38.3(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
@@ -240,6 +237,9 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.2.6
         version: 5.5.4(eslint@9.38.0(jiti@1.21.7))(prettier@3.5.2)
+      express:
+        specifier: ^4.18.2
+        version: 4.21.2
       prettier:
         specifier: 3.5.2
         version: 3.5.2
@@ -331,9 +331,6 @@ importers:
       '@x402/paywall':
         specifier: workspace:*
         version: link:../paywall
-      hono:
-        specifier: ^4.7.1
-        version: 4.10.2
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -362,6 +359,9 @@ importers:
       eslint-plugin-prettier:
         specifier: ^5.2.6
         version: 5.5.4(eslint@9.38.0(jiti@1.21.7))(prettier@3.5.2)
+      hono:
+        specifier: ^4.7.1
+        version: 4.10.2
       prettier:
         specifier: 3.5.2
         version: 3.5.2

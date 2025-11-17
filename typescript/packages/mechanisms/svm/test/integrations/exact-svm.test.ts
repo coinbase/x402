@@ -212,10 +212,12 @@ describe("SVM Integration Tests", () => {
 
     const routes = {
       "/api/protected": {
-        scheme: "exact",
-        payTo: RESOURCE_SERVER_ADDRESS,
-        price: "$0.001",
-        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+        accepts: {
+          scheme: "exact",
+          payTo: RESOURCE_SERVER_ADDRESS,
+          price: "$0.001",
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+        },
         description: "Access to protected API",
         mimeType: "application/json",
       },
@@ -288,7 +290,7 @@ describe("SVM Integration Tests", () => {
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
 
       const paymentRequired = client.getPaymentRequiredResponse(
-        (name) => initial402Response.headers[name],
+        name => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

@@ -112,10 +112,12 @@ describe("x402HTTPResourceService", () => {
     it("should accept resourceService and routes via composition", () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -126,10 +128,12 @@ describe("x402HTTPResourceService", () => {
 
     it("should compile single route config", () => {
       const singleRoute = {
-        scheme: "exact",
-        payTo: "0xabc",
-        price: 1.0 as Price,
-        network: "eip155:8453" as Network,
+        accepts: {
+          scheme: "exact",
+          payTo: "0xabc",
+          price: 1.0 as Price,
+          network: "eip155:8453" as Network,
+        },
       };
 
       const httpService = new x402HTTPResourceService(resourceService, singleRoute);
@@ -140,16 +144,20 @@ describe("x402HTTPResourceService", () => {
     it("should compile multiple route configs", () => {
       const routes = {
         "GET /api/route1": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: 1.0 as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: 1.0 as Price,
+            network: "eip155:8453" as Network,
+          },
         },
         "POST /api/route2": {
-          scheme: "exact",
-          payTo: "0xdef",
-          price: 2.0 as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xdef",
+            price: 2.0 as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -165,13 +173,15 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/dynamic": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: async (context: HTTPRequestContext) => {
-            contextReceived = context;
-            return "$5.00" as Price;
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: async (context: HTTPRequestContext) => {
+              contextReceived = context;
+              return "$5.00" as Price;
+            },
+            network: "eip155:8453" as Network,
           },
-          network: "eip155:8453" as Network,
         },
       };
 
@@ -194,10 +204,12 @@ describe("x402HTTPResourceService", () => {
     it("should use static price if not a function", async () => {
       const routes = {
         "/api/static": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -220,13 +232,15 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: async (context: HTTPRequestContext) => {
-            headerValue = context.adapter.getHeader("x-api-key");
-            return "$1.00" as Price;
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: async (context: HTTPRequestContext) => {
+              headerValue = context.adapter.getHeader("x-api-key");
+              return "$1.00" as Price;
+            },
+            network: "eip155:8453" as Network,
           },
-          network: "eip155:8453" as Network,
         },
       };
 
@@ -251,13 +265,15 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/dynamic": {
-          scheme: "exact",
-          payTo: async (context: HTTPRequestContext) => {
-            contextReceived = context;
-            return "0xdynamic";
+          accepts: {
+            scheme: "exact",
+            payTo: async (context: HTTPRequestContext) => {
+              contextReceived = context;
+              return "0xdynamic";
+            },
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
           },
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
         },
       };
 
@@ -279,10 +295,12 @@ describe("x402HTTPResourceService", () => {
     it("should use static payTo if not a function", async () => {
       const routes = {
         "/api/static": {
-          scheme: "exact",
-          payTo: "0xstatic",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xstatic",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -305,10 +323,12 @@ describe("x402HTTPResourceService", () => {
     it("should match exact path", async () => {
       const routes = {
         "/api/exact": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -329,10 +349,12 @@ describe("x402HTTPResourceService", () => {
     it("should match wildcard paths", async () => {
       const routes = {
         "/api/*": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -353,10 +375,12 @@ describe("x402HTTPResourceService", () => {
     it("should return no-payment-required for unmatched routes", async () => {
       const routes = {
         "/api/protected": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -377,10 +401,12 @@ describe("x402HTTPResourceService", () => {
     it("should match HTTP methods", async () => {
       const routes = {
         "POST /api/create": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -403,10 +429,12 @@ describe("x402HTTPResourceService", () => {
     it("should not match wrong HTTP method", async () => {
       const routes = {
         "POST /api/create": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -429,10 +457,12 @@ describe("x402HTTPResourceService", () => {
     it("should return payment-error if no payment provided", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -457,10 +487,12 @@ describe("x402HTTPResourceService", () => {
     it("should delegate verification to resource service", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -489,10 +521,12 @@ describe("x402HTTPResourceService", () => {
     it("should not settle if response status >= 400", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -513,10 +547,12 @@ describe("x402HTTPResourceService", () => {
     it("should settle if response status < 400", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -540,10 +576,12 @@ describe("x402HTTPResourceService", () => {
     it("should detect web browser from accept header and user agent", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
@@ -570,10 +608,12 @@ describe("x402HTTPResourceService", () => {
     it("should not treat API clients as browsers", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 

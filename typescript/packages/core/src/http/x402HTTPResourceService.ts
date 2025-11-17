@@ -79,15 +79,27 @@ export type DynamicPayTo = (context: HTTPRequestContext) => string | Promise<str
 export type DynamicPrice = (context: HTTPRequestContext) => Price | Promise<Price>;
 
 /**
- * Route configuration for HTTP endpoints
+ * A single payment option for a route
+ * Represents one way a client can pay for access to the resource
  */
-export interface RouteConfig {
+export interface PaymentOption {
   scheme: string;
   payTo: string | DynamicPayTo;
   price: Price | DynamicPrice;
   network: Network;
   maxTimeoutSeconds?: number;
   extra?: Record<string, unknown>;
+}
+
+/**
+ * Route configuration for HTTP endpoints
+ *
+ * The 'accepts' field defines payment options for the route.
+ * Can be a single PaymentOption or an array of PaymentOptions for multiple payment methods.
+ */
+export interface RouteConfig {
+  // Payment option(s): single or array
+  accepts: PaymentOption | PaymentOption[];
 
   // HTTP-specific metadata
   resource?: string;
@@ -165,7 +177,7 @@ export class x402HTTPResourceService {
 
     // Handle both single route and multiple routes
     const normalizedRoutes =
-      typeof routes === "object" && !("scheme" in routes)
+      typeof routes === "object" && !("accepts" in routes)
         ? (routes as Record<string, RouteConfig>)
         : { "*": routes as RouteConfig };
 
@@ -210,8 +222,8 @@ export class x402HTTPResourceService {
       return { type: "no-payment-required" }; // No payment required for this route
     }
 
-    // Resolve dynamic payTo and price
-    const resolvedConfig = await this.resolveRouteConfig(routeConfig, context);
+    // Normalize accepts field to array of payment options
+    const paymentOptions = this.normalizePaymentOptions(routeConfig);
 
     // Check for payment header (v1 or v2)
     const paymentPayload = this.extractPayment(adapter);
@@ -219,18 +231,16 @@ export class x402HTTPResourceService {
     // Create resource info first
     const resourceInfo = {
       url: context.adapter.getUrl(),
-      description: resolvedConfig.description || "",
-      mimeType: resolvedConfig.mimeType || "",
+      description: routeConfig.description || "",
+      mimeType: routeConfig.mimeType || "",
     };
 
-    // Build payment requirements from RESOLVED route config
-    const requirements = await this.resourceService.buildPaymentRequirements({
-      scheme: resolvedConfig.scheme,
-      payTo: resolvedConfig.payTo,
-      price: resolvedConfig.price,
-      network: resolvedConfig.network,
-      maxTimeoutSeconds: resolvedConfig.maxTimeoutSeconds,
-    });
+    // Build requirements from all payment options
+    // (this method handles resolving dynamic functions internally)
+    const requirements = await this.resourceService.buildPaymentRequirementsFromOptions(
+      paymentOptions,
+      context,
+    );
 
     // Add resource URL to all payment requirements for discovery
     requirements.forEach(req => {
@@ -351,32 +361,14 @@ export class x402HTTPResourceService {
   }
 
   /**
-   * Resolve dynamic route config values.
-   * Evaluates any function-based payTo or price values using the request context.
+   * Normalizes a RouteConfig's accepts field into an array of PaymentOptions
+   * Handles both single PaymentOption and array formats
    *
-   * @param routeConfig - The route configuration (may contain functions)
-   * @param context - HTTP request context for dynamic resolution
-   * @returns Resolved route configuration with static values
+   * @param routeConfig - Route configuration
+   * @returns Array of payment options
    */
-  private async resolveRouteConfig(
-    routeConfig: RouteConfig,
-    context: HTTPRequestContext,
-  ): Promise<RouteConfig & { payTo: string; price: Price }> {
-    const payTo =
-      typeof routeConfig.payTo === "function"
-        ? await routeConfig.payTo(context)
-        : routeConfig.payTo;
-
-    const price =
-      typeof routeConfig.price === "function"
-        ? await routeConfig.price(context)
-        : routeConfig.price;
-
-    return {
-      ...routeConfig,
-      payTo,
-      price,
-    };
+  private normalizePaymentOptions(routeConfig: RouteConfig): PaymentOption[] {
+    return Array.isArray(routeConfig.accepts) ? routeConfig.accepts : [routeConfig.accepts];
   }
 
   /**
