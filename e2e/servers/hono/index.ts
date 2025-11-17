@@ -6,10 +6,11 @@ import { facilitator } from "@coinbase/x402";
 
 config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
+const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === "true";
+const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const payTo = process.env.EVM_ADDRESS as `0x${string}`;
 const network = process.env.EVM_NETWORK as Network;
-const port = parseInt(process.env.PORT || '4021');
+const port = parseInt(process.env.PORT || "4021");
 
 if (!payTo || !network) {
   console.error("Missing required environment variables");
@@ -28,9 +29,13 @@ app.use(
         network,
       },
     },
-    useCdpFacilitator
-      ? facilitator
-      : undefined,
+    facilitatorUrl
+      ? {
+          url: facilitatorUrl,
+        }
+      : useCdpFacilitator
+        ? facilitator
+        : undefined,
   ),
 );
 
@@ -38,14 +43,14 @@ app.use(
 app.get("/protected", c => {
   return c.json({
     message: "Protected endpoint accessed successfully",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Health check endpoint
 app.get("/health", c => {
   return c.json({
-    status: "healthy"
+    status: "healthy",
   });
 });
 
@@ -57,7 +62,7 @@ app.post("/close", c => {
   }, 1000);
 
   return c.json({
-    message: "Shutting down gracefully"
+    message: "Shutting down gracefully",
   });
 });
 

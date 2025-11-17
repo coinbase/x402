@@ -75,7 +75,7 @@ The server includes a single example endpoint at `/weather` that requires a paym
   "error": "X-PAYMENT header is required",
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base",
+    "network": "arc-testnet",
     "maxAmountRequired": "1000",
     "resource": "http://localhost:4021/weather",
     "description": "",
@@ -123,9 +123,9 @@ app.use(
         amount: "100000",
         asset: {
           address: "0xabc",
-          decimals: 18,
+          decimals: 6,
           eip712: {
-            name: "WETH",
+            name: "USDC",
             version: "1",
           },
         },

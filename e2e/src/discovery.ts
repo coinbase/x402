@@ -3,21 +3,44 @@ import { join } from 'path';
 import { GenericServerProxy } from './servers/generic-server';
 import { GenericClientProxy } from './clients/generic-client';
 import { log, verboseLog, errorLog } from './logger';
-import {
-  TestConfig,
-  DiscoveredServer,
-  DiscoveredClient,
-  TestScenario,
-  ProtocolFamily
-} from './types';
+import { TestConfig, DiscoveredServer, DiscoveredClient, TestScenario, ProtocolFamily } from './types';
 
 const facilitatorNetworkCombos = [
-  { useCdpFacilitator: false, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
-  { useCdpFacilitator: true, network: 'base-sepolia', protocolFamily: 'evm' as ProtocolFamily },
-  { useCdpFacilitator: true, network: 'base', protocolFamily: 'evm' as ProtocolFamily },
-  { useCdpFacilitator: false, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
-  { useCdpFacilitator: true, network: 'solana-devnet', protocolFamily: 'svm' as ProtocolFamily },
-  { useCdpFacilitator: true, network: 'solana', protocolFamily: 'svm' as ProtocolFamily }
+  {
+    useCdpFacilitator: false,
+    network: 'base-sepolia',
+    protocolFamily: 'evm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: true,
+    network: 'base-sepolia',
+    protocolFamily: 'evm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: true,
+    network: 'base',
+    protocolFamily: 'evm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: false,
+    network: 'solana-devnet',
+    protocolFamily: 'svm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: true,
+    network: 'solana-devnet',
+    protocolFamily: 'svm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: true,
+    network: 'solana',
+    protocolFamily: 'svm' as ProtocolFamily,
+  },
+  {
+    useCdpFacilitator: false,
+    network: 'arc-testnet',
+    protocolFamily: 'evm' as ProtocolFamily,
+  },
 ];
 
 export class TestDiscovery {
@@ -37,7 +60,7 @@ export class TestDiscovery {
   getDefaultNetworksForProtocolFamily(protocolFamily: ProtocolFamily): string[] {
     switch (protocolFamily) {
       case 'evm':
-        return ['base-sepolia'];
+        return ['base-sepolia', 'arc-testnet'];
       case 'svm':
         return ['solana-devnet'];
       default:
@@ -49,7 +72,7 @@ export class TestDiscovery {
    * Get facilitator network combos for a specific protocol family
    */
   getFacilitatorNetworkCombosForProtocol(protocolFamily: ProtocolFamily): typeof facilitatorNetworkCombos {
-    return facilitatorNetworkCombos.filter(combo => combo.protocolFamily === protocolFamily);
+    return facilitatorNetworkCombos.filter((combo) => combo.protocolFamily === protocolFamily);
   }
 
   /**
@@ -63,8 +86,8 @@ export class TestDiscovery {
 
     const servers: DiscoveredServer[] = [];
     let serverDirs = readdirSync(serversDir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
 
     for (const serverName of serverDirs) {
       const serverDir = join(serversDir, serverName);
@@ -80,7 +103,7 @@ export class TestDiscovery {
               name: serverName,
               directory: serverDir,
               config,
-              proxy: new GenericServerProxy(serverDir)
+              proxy: new GenericServerProxy(serverDir),
             });
           }
         } catch (error) {
@@ -103,8 +126,8 @@ export class TestDiscovery {
 
     const clients: DiscoveredClient[] = [];
     let clientDirs = readdirSync(clientsDir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
 
     for (const clientName of clientDirs) {
       const clientDir = join(clientsDir, clientName);
@@ -120,7 +143,7 @@ export class TestDiscovery {
               name: clientName,
               directory: clientDir,
               config,
-              proxy: new GenericClientProxy(clientDir)
+              proxy: new GenericClientProxy(clientDir),
             });
           }
         } catch (error) {
@@ -146,10 +169,11 @@ export class TestDiscovery {
 
       for (const server of servers) {
         // Only test endpoints that require payment
-        const testableEndpoints = server.config.endpoints?.filter(endpoint => {
-          // Only include endpoints that require payment
-          return endpoint.requiresPayment;
-        }) || [];
+        const testableEndpoints =
+          server.config.endpoints?.filter((endpoint) => {
+            // Only include endpoints that require payment
+            return endpoint.requiresPayment;
+          }) || [];
 
         for (const endpoint of testableEndpoints) {
           // Default to EVM if no protocol family specified for backward compatibility
@@ -168,8 +192,8 @@ export class TestDiscovery {
                 protocolFamily: endpointProtocolFamily,
                 facilitatorNetworkCombo: {
                   useCdpFacilitator: combo.useCdpFacilitator,
-                  network: combo.network
-                }
+                  network: combo.network,
+                },
               });
             }
           }
@@ -191,16 +215,20 @@ export class TestDiscovery {
     log('🔍 Test Discovery Summary');
     log('========================');
     log(`📡 Servers found: ${servers.length}`);
-    servers.forEach(server => {
-      const paidEndpoints = server.config.endpoints?.filter(e => e.requiresPayment).length || 0;
+    servers.forEach((server) => {
+      const paidEndpoints = server.config.endpoints?.filter((e) => e.requiresPayment).length || 0;
       const protocolFamilies = new Set(
-        server.config.endpoints?.filter(e => e.requiresPayment).map(e => e.protocolFamily || 'evm') || ['evm']
+        server.config.endpoints?.filter((e) => e.requiresPayment).map((e) => e.protocolFamily || 'evm') || ['evm']
       );
-      log(`   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints [${Array.from(protocolFamilies).join(', ')}]`);
+      log(
+        `   - ${server.name} (${server.config.language}) - ${paidEndpoints} x402 endpoints [${Array.from(
+          protocolFamilies
+        ).join(', ')}]`
+      );
     });
 
     log(`📱 Clients found: ${clients.length}`);
-    clients.forEach(client => {
+    clients.forEach((client) => {
       const protocolFamilies = client.config.protocolFamilies || ['evm'];
       log(`   - ${client.name} (${client.config.language}) [${protocolFamilies.join(', ')}]`);
     });
@@ -219,4 +247,4 @@ export class TestDiscovery {
     });
     log('');
   }
-} 
+}

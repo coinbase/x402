@@ -5,14 +5,15 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
+const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === "true";
+const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const evmNetwork = process.env.EVM_NETWORK as Network;
 const svmNetwork = process.env.SVM_NETWORK as Network;
 const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
 const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
 const port = process.env.PORT || "4021";
 
-if (!payToEvm || !evmNetwork) {
+if (!payToEvm || !evmNetwork || !facilitatorUrl) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -28,7 +29,13 @@ app.use(
         network: evmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : undefined
+    facilitatorUrl
+      ? {
+          url: facilitatorUrl,
+        }
+      : useCdpFacilitator
+        ? facilitator
+        : undefined,
   ),
 );
 
@@ -41,7 +48,13 @@ app.use(
         network: svmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : undefined
+    facilitatorUrl
+      ? {
+          url: facilitatorUrl,
+        }
+      : useCdpFacilitator
+        ? facilitator
+        : undefined,
   ),
 );
 
@@ -71,4 +84,4 @@ app.post("/close", (req, res) => {
 
 app.listen(parseInt(port), () => {
   console.log(`Server listening at http://localhost:${port}`);
-}); 
+});
