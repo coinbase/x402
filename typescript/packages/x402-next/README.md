@@ -13,26 +13,21 @@ npm install x402-next
 Create a middleware file in your Next.js project (e.g., `middleware.ts`):
 
 ```typescript
-import { paymentMiddleware, Network } from 'x402-next';
+import { paymentMiddleware, Network } from "x402-next";
 
-export const middleware = paymentMiddleware(
-  "0xYourAddress",
-  {
-    '/protected': {
-      price: '$0.01',
-      network: "base-sepolia",
-      config: {
-        description: 'Access to protected content'
-      }
+export const middleware = paymentMiddleware("0xYourAddress", {
+  "/protected": {
+    price: "$0.01",
+    network: "base-sepolia",
+    config: {
+      description: "Access to protected content",
     },
-  }
-);
+  },
+});
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: [
-    '/protected/:path*',
-  ]
+  matcher: ["/protected/:path*"],
 };
 ```
 
@@ -57,8 +52,8 @@ The middleware supports various configuration options:
 type RoutesConfig = Record<string, Price | RouteConfig>;
 
 interface RouteConfig {
-  price: Price;           // Price in USD or token amount
-  network: Network;       // "base" or "base-sepolia"
+  price: Price; // Price in USD or token amount
+  network: Network; // "base" or "base-sepolia"
   config?: PaymentMiddlewareConfig;
 }
 ```
@@ -67,12 +62,12 @@ interface RouteConfig {
 
 ```typescript
 interface PaymentMiddlewareConfig {
-  description?: string;               // Description of the payment
-  mimeType?: string;                  // MIME type of the resource
-  maxTimeoutSeconds?: number;         // Maximum time for payment (default: 60)
+  description?: string; // Description of the payment
+  mimeType?: string; // MIME type of the resource
+  maxTimeoutSeconds?: number; // Maximum time for payment (default: 60)
   outputSchema?: Record<string, any>; // JSON schema for the response
-  customPaywallHtml?: string;         // Custom HTML for the paywall
-  resource?: string;                  // Resource URL (defaults to request URL)
+  customPaywallHtml?: string; // Custom HTML for the paywall
+  resource?: string; // Resource URL (defaults to request URL)
 }
 ```
 
@@ -80,8 +75,8 @@ interface PaymentMiddlewareConfig {
 
 ```typescript
 type FacilitatorConfig = {
-  url: string;                        // URL of the x402 facilitator service
-  createAuthHeaders?: CreateHeaders;  // Optional function to create authentication headers
+  url: string; // URL of the x402 facilitator service
+  createAuthHeaders?: CreateHeaders; // Optional function to create authentication headers
 };
 ```
 
@@ -91,12 +86,113 @@ For more on paywall configuration options, refer to the [paywall README](../x402
 
 ```typescript
 type PaywallConfig = {
-  cdpClientKey?: string;              // Your CDP Client API Key
-  appName?: string;                   // Name displayed in the paywall wallet selection modal
-  appLogo?: string;                   // Logo for the paywall wallet selection modal
-  sessionTokenEndpoint?: string;      // API endpoint for Coinbase Onramp session authentication
+  cdpClientKey?: string; // Your CDP Client API Key
+  appName?: string; // Name displayed in the paywall wallet selection modal
+  appLogo?: string; // Logo for the paywall wallet selection modal
+  sessionTokenEndpoint?: string; // API endpoint for Coinbase Onramp session authentication
+  rpc?: {
+    // Custom RPC proxy configuration
+    url: string; // The actual RPC URL (server-side only)
+    proxyPath: string; // Path where proxy endpoint is registered
+  };
 };
 ```
+
+## Optional: Solana RPC Proxy Configuration
+
+**Note**: RPC proxy is completely optional. Your x402 paywall will work with default public RPC endpoints. This feature is for users who want to provide custom RPC URLs (e.g., Helius, QuickNode).
+
+When configured, your paywall will automatically use your custom RPC endpoint proxied through your Next.js API route, keeping your API keys secure.
+
+### Quick Setup
+
+#### 1. Create the RPC Proxy API Route
+
+Add the RPC proxy endpoint to your Next.js app:
+
+```typescript
+// app/api/rpc/solana/route.ts
+export { solanaRpcProxy as POST } from "x402-next/endpoints";
+```
+
+That's it! The `x402-next` package provides the complete RPC proxy implementation.
+
+#### 2. Configure Your Middleware
+
+Add `rpc` configuration to your middleware. This tells the paywall where to find your RPC proxy:
+
+```typescript
+// middleware.ts
+import { paymentMiddleware } from "x402-next";
+
+export const middleware = paymentMiddleware(
+  "0xYourAddress",
+  {
+    "/protected": {
+      price: "$0.01",
+      network: "solana-devnet",
+      config: {
+        description: "Access to protected content",
+      },
+    },
+  },
+  undefined,
+  {
+    cdpClientKey: "your-cdp-client-key",
+    rpc: {
+      url: process.env.RPC_URL_SOLANA_MAINNET!, // Your custom RPC URL
+      proxyPath: "/api/rpc/solana", // Path where you registered the proxy
+    },
+  },
+);
+
+export const config = {
+  matcher: ["/protected/:path*"],
+};
+```
+
+**Important**: The `proxyPath` must match the API route you created above. You can use any path you prefer - just make sure both the route and configuration use the same path.
+
+#### 3. Set Environment Variables
+
+Add your RPC URLs to your environment:
+
+```bash
+# .env
+RPC_URL_SOLANA_MAINNET=https://mainnet.helius-rpc.com/?api-key=YOUR_API_KEY_HERE
+RPC_URL_SOLANA_DEVNET=https://devnet.helius-rpc.com/?api-key=YOUR_API_KEY_HERE
+```
+
+### How RPC Proxy Works
+
+Once set up, your x402 paywall will automatically route Solana RPC requests through your Next.js API:
+
+1. **Client makes request**: The paywall sends RPC requests to your proxy endpoint
+2. **Server forwards securely**: Your API route forwards the request to your custom RPC URL
+3. **No exposed keys**: API keys remain secure on the server, never exposed to the client
+
+The proxy automatically handles both mainnet and devnet requests based on the payment network configuration.
+
+### Troubleshooting RPC Proxy
+
+#### Common Issues
+
+1. **"Failed to fetch Solana balance"**
+
+   - Ensure `RPC_URL_SOLANA_MAINNET` or `RPC_URL_SOLANA_DEVNET` is set
+   - Verify your RPC URL is valid and accessible
+   - Check your RPC provider's API key is correct
+
+2. **API route not found**
+
+   - Ensure you've added the proxy route: `export { solanaRpcProxy as POST } from "x402-next/endpoints";`
+   - Check that your API route path matches your `proxyPath` configuration
+   - Verify the import: `import { solanaRpcProxy } from "x402-next/endpoints"`
+   - Example: If you configured `proxyPath: "/api/custom/rpc"`, create `app/api/custom/rpc/route.ts` with the export
+
+3. **Network mismatch errors**
+   - The proxy should handle the `?network=` query parameter to select mainnet or devnet
+   - Ensure both environment variables are set if supporting multiple networks
 
 ## Accessing Mainnet with @coinbase/x402
 
@@ -118,7 +214,7 @@ const nextConfig: NextConfig = {
   // rest of your next config setup
   experimental: {
     nodeMiddleware: true, // TEMPORARY: Only needed until Edge runtime support is added
-  }
+  },
 };
 
 export default nextConfig;
@@ -140,12 +236,12 @@ export const middleware = paymentMiddleware(
       // other config options
     },
   },
-  facilitator // Use the Coinbase facilitator
+  facilitator, // Use the Coinbase facilitator
 );
 
 export const config = {
   matcher: ["/protected/:path*"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
+  runtime: "nodejs", // TEMPORARY: Only needed until Edge runtime support is added
 };
 ```
 
@@ -186,16 +282,11 @@ When configured, a "Get more USDC" button will appear in your paywall, allowing 
 Add `sessionTokenEndpoint` to your middleware configuration. This tells the paywall where to find your session token API:
 
 ```typescript
-export const middleware = paymentMiddleware(
-  payTo,
-  routes,
-  facilitator,
-  {
-    sessionTokenEndpoint: "/api/x402/session-token", // Enable onramp functionality
-    cdpClientKey: "your-cdp-client-key",
-    appName: "My App",
-  }
-);
+export const middleware = paymentMiddleware(payTo, routes, facilitator, {
+  sessionTokenEndpoint: "/api/x402/session-token", // Enable onramp functionality
+  cdpClientKey: "your-cdp-client-key",
+  appName: "My App",
+});
 ```
 
 **Important**: The `sessionTokenEndpoint` can be any path you choose - just make sure it matches where you create your API route in the next step. Without this configuration, the "Get more USDC" button will be hidden.
@@ -236,7 +327,7 @@ CDP_API_KEY_SECRET=your_secret_api_key_secret_here
 
 ### How Onramp Works
 
-Once set up, your x402 paywall will automatically show a "Get more USDC" button when users need to fund their wallets. 
+Once set up, your x402 paywall will automatically show a "Get more USDC" button when users need to fund their wallets.
 
 1. **Generates session token**: Your backend securely creates a session token using CDP's API
 2. **Opens secure onramp**: User is redirected to Coinbase Onramp with the session token
@@ -247,19 +338,20 @@ Once set up, your x402 paywall will automatically show a "Get more USDC" button 
 #### Common Issues
 
 1. **"Missing CDP API credentials"**
-    - Ensure `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` are set
-    - Verify you're using **Secret API Keys**, not Client API Keys
+
+   - Ensure `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` are set
+   - Verify you're using **Secret API Keys**, not Client API Keys
 
 2. **"Failed to generate session token"**
-    - Check your CDP Secret API key has proper permissions
-    - Verify your project has Onramp enabled
+
+   - Check your CDP Secret API key has proper permissions
+   - Verify your project has Onramp enabled
 
 3. **API route not found**
-    - Ensure you've created your session token API route at the path you configured
-    - Check that your API route path matches your `sessionTokenEndpoint` configuration
-    - Verify the export: `export { POST } from "x402-next";`
-    - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, create `app/api/custom/onramp/route.ts`
-
+   - Ensure you've created your session token API route at the path you configured
+   - Check that your API route path matches your `sessionTokenEndpoint` configuration
+   - Verify the export: `export { POST } from "x402-next";`
+   - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, create `app/api/custom/onramp/route.ts`
 
 ## Resources
 
