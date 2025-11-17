@@ -21,7 +21,6 @@ app.use(
         // USDC amount in dollars
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
-        // network: "solana" // uncomment for Solana mainnet
         network: "arc-testnet",
       },
       "/premium/*": {
@@ -39,7 +38,6 @@ app.use(
           },
         },
         // network: "base" // uncomment for Base mainnet
-        // network: "solana" // uncomment for Solana mainnet
         network: "arc-testnet",
       },
     },

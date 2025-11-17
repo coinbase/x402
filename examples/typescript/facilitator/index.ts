@@ -10,29 +10,18 @@ import {
   createConnectedClient,
   createSigner,
   SupportedEVMNetworks,
-  SupportedSVMNetworks,
   Signer,
   ConnectedClient,
   SupportedPaymentKind,
-  isSvmSignerWallet,
-  type X402Config,
 } from "x402/types";
 
 config();
 
 const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
-const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
-const SVM_RPC_URL = process.env.SVM_RPC_URL || "";
-
-if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
+if (!EVM_PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
-
-// Create X402 config with custom RPC URL if provided
-const x402Config: X402Config | undefined = SVM_RPC_URL
-  ? { svmConfig: { rpcUrl: SVM_RPC_URL } }
-  : undefined;
 
 const app = express();
 
@@ -67,18 +56,15 @@ app.post("/verify", async (req: Request, res: Response) => {
     const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
 
     // use the correct client/signer based on the requested network
-    // svm verify requires a Signer because it signs & simulates the txn
     let client: Signer | ConnectedClient;
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       client = createConnectedClient(paymentRequirements.network);
-    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
     } else {
       throw new Error("Invalid network");
     }
 
     // verify
-    const valid = await verify(client, paymentPayload, paymentRequirements, x402Config);
+    const valid = await verify(client, paymentPayload, paymentRequirements);
     res.json(valid);
   } catch (error) {
     console.error("error", error);
@@ -109,20 +95,6 @@ app.get("/supported", async (req: Request, res: Response) => {
     });
   }
 
-  // svm
-  if (SVM_PRIVATE_KEY) {
-    const signer = await createSigner("solana-devnet", SVM_PRIVATE_KEY);
-    const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
-
-    kinds.push({
-      x402Version: 1,
-      scheme: "exact",
-      network: "solana-devnet",
-      extra: {
-        feePayer,
-      },
-    });
-  }
   res.json({
     kinds,
   });
@@ -138,14 +110,12 @@ app.post("/settle", async (req: Request, res: Response) => {
     let signer: Signer;
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       signer = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
-    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      signer = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
     } else {
       throw new Error("Invalid network");
     }
 
     // settle
-    const response = await settle(signer, paymentPayload, paymentRequirements, x402Config);
+    const response = await settle(signer, paymentPayload, paymentRequirements);
     res.json(response);
   } catch (error) {
     console.error("error", error);
