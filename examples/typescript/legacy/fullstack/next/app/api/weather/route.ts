@@ -7,6 +7,9 @@ export const runtime = "nodejs";
 
 /**
  * Get weather information for a city (hardcoded response)
+ *
+ * @param request - The Next.js request object
+ * @returns JSON response with weather data or error
  */
 export async function POST(request: NextRequest) {
   try {
@@ -17,10 +20,7 @@ export async function POST(request: NextRequest) {
     console.info(city);
 
     if (!city) {
-      return NextResponse.json(
-        { error: "City parameter is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "City parameter is required" }, { status: 400 });
     }
 
     // Return hardcoded temperature
@@ -30,11 +30,7 @@ export async function POST(request: NextRequest) {
       unit: "F",
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Invalid request body" },
-      { status: 400 }
-    );
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 }
-
