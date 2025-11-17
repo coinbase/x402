@@ -22,7 +22,7 @@ app.use(
         price: "$0.001",
         // network: "base" // uncomment for Base mainnet
         // network: "solana" // uncomment for Solana mainnet
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
       "/premium/*": {
         // Define atomic amounts in any EIP-3009 token
@@ -30,17 +30,17 @@ app.use(
           amount: "100000",
           asset: {
             address: "0xabc",
-            decimals: 18,
+            decimals: 6,
             // omit eip712 for Solana
             eip712: {
-              name: "WETH",
+              name: "USDC",
               version: "1",
             },
           },
         },
         // network: "base" // uncomment for Base mainnet
         // network: "solana" // uncomment for Solana mainnet
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
     },
     {

@@ -111,21 +111,21 @@ app.use(
       // Define your routes and their payment requirements
       "GET /your-endpoint": {
         price: "$0.10",
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
       "/premium/*": {
         price: {
           amount: "100000",
           asset: {
             address: "0xabc",
-            decimals: 18,
+            decimals: 6,
             eip712: {
-              name: "WETH",
+              name: "USDC",
               version: "1",
             },
           },
         },
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
     },
   ),

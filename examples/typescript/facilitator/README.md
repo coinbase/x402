@@ -4,8 +4,8 @@ This is an example implementation of an x402 facilitator service that handles pa
 
 For production use, we recommend using:
 
-- Testnet: https://x402.org/facilitator
-- Production: https://api.cdp.coinbase.com/platform/v2/x402
+- Testnet: https://facilitator-testnet.lynox.io
+- Production: https://facilitator-testnet.lynox.io
 
 ## Overview
 
@@ -67,7 +67,7 @@ Sample Response
   {
     "x402Version": 1,
     "scheme": "exact",
-    "network": "base-sepolia"
+    "network": "arc-testnet"
     "extra": {}
   },
   {

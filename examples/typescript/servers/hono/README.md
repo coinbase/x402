@@ -123,9 +123,9 @@ app.use(
         amount: "100000",
         asset: {
           address: "0xabc",
-          decimals: 18,
+          decimals: 6,
           eip712: {
-            name: "WETH",
+            name: "USDC",
             version: "1",
           },
         },

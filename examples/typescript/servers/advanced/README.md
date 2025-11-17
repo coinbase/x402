@@ -100,7 +100,7 @@ The server includes example endpoints that demonstrate different payment scenari
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "arc-testnet",
       "maxAmountRequired": "1000",
       "resource": "http://localhost:3001/weather",
       "description": "Access to weather data",
@@ -142,7 +142,7 @@ app.get("/your-endpoint", async (req, res) => {
   const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
   const paymentRequirements = [createExactPaymentRequirements(
     "$0.001", // Your price
-    "base-sepolia", // Your network
+    "arc-testnet", // Your network
     resource,
     "Description of your resource"
   )];
