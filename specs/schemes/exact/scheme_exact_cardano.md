@@ -4,28 +4,92 @@
 
 This document specifies the `exact` payment scheme for the x402 protocol on Cardano. This scheme facilitates payments of Cardano Native Tokens.
 
-It offers two ways to do x402 interactions:
+It offers different flavors to do x402 interactions:
 
-a) Doing **Address-To-Address** Payments, similar to the regular x402 specifications on other chains.
-b) Using the **Masumi Smart Protocol**, which offers additional refund mechanics & decision logging mechanisms in a decentralised way.
+1. Doing **Address-To-Address** Payments, similar to the regular x402 specifications on other chains.
 
+2. Using the **Masumi Smart Protocol**, which offers additional refund mechanics & decision logging mechanisms in a decentralised way.
+
+3. Performing payments to scripts using parameters that can be applied to scripts while transaction building.
 ## Protocol Flow
 
-![](../../../static/masumi-cardano-sequency-diagram-x402.png)
+```mermaid
+sequenceDiagram
+    participant Client as Client/Agent
+    participant Server as Server
+    participant Facilitator as Facilitator
+    participant Cardano as Cardano Blockchain
 
+    %% Initial Request
+    Client->>Server: 1. HTTP GET /api
+
+    %% Payment Required Response
+    Server->>Client: 2. HTTP 402 and Payment Details
+
+    %% Client Prepares Payment
+    Note over Client: 3. Client selects payment option,<br/>creates and <br/> signs a Transaction
+
+    %% Request with Payment
+    Client->>Server: 4. HTTP GET /api<br/>Header: X-PAYMENT (signed transaction)
+    Note right of Client: Retries with payment header
+
+    %% Server Verification
+    alt Server Verification
+        Server->>Server: 5. Verify transaction locally
+    else Remote Verification (via Facilitator)
+        Server->>Facilitator: 5. POST /verify<br/>(Payment Payload + Requirements)
+        Note right of Facilitator: Facilitator validates:<br/>- Payment amount<br/>- Correct recipient<br/>- Nonce in Transaction
+    end
+
+    %% Server Verification
+    alt Server Submission
+        Server->>Cardano: 6a. Submit signed transaction
+        Note right of Cardano: Transaction included in mempool or block
+        Cardano-->>Server: 6b. Transaction hash + confirmation
+    else Remote Submission (via Facilitator)
+      Server->>Facilitator: 6a. POST /settle<br/>(Payment details)
+      Facilitator->>Cardano: 6b. Submit signed transaction
+      Note right of Cardano: Transaction included in mempool or block
+      Cardano-->>Facilitator: 6c. Transaction hash + confirmation
+      Facilitator->>Server: 6d. Settlement Response<br/>(txHash, status)
+    end
+
+    Note right of Server: 7. Receives transaction hash and status
+
+    %% Final Response
+    Server->>Client: 8. HTTP 200 OK + Resource<br/>Header: X-PAYMENT-RESPONSE
+    Note left of Server: Returns requested resource<br/>with transaction confirmation:<br/>- txHash<br/>- network: "cardano-mainnet"<br/>- status: "x confirmed" or "mempool"
+```
 
 The protocol flow for `exact` on Cardano is client-driven. 
 
 1.  **Client** makes an HTTP request to a **Resource Server**.
-2.  **Resource Server** responds with a `402 Payment Required` status. Detailing the Payment Information 
-3.  **Client** constructs transaction body & returns it to Ressource Server.
-4.  **Resource Server** receives the request and forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator's** `/verify` endpoint to check if the transaction is valid.
-5.  **Facilitator** confirms, then **Resource Server** sends the request to the **Facilitator** `/settle` endpoint.
-6.  **Facilitator** submits the transaction.
-7. Upon successful on-chain settlement, the **Facilitator** responds to the **Resource Server**.
-8. **Resource Server** grants the **Client** access to the resource in its response.
 
-## Version 1: Address-To-Address
+2.  **Resource Server** responds with a `402 Payment Required` status, detailing the payment information:
+    - If using the Masumi Protocol, the `extra` field will contain additional information required to build a Masumi Smart Contract interaction.
+    - If using Address-To-Address payments, the `payTo` field will contain the address to which the payment must be sent.
+    - If using Script payments, the `extra` field will contain parameters to be applied to scripts during transaction building.
+
+3.  **Client** constructs the transaction body, signs it, and returns it to the **Resource Server** via the `X-PAYMENT` header.
+
+4.  **Resource Server** verifies the transaction is valid:
+    - **Local verification**: The server validates the transaction structure, amount, and recipient address directly.
+    - **Remote verification**: The server forwards the `X-PAYMENT` header and `paymentRequirements` to a **Facilitator's** `/verify` endpoint to check if the transaction is valid.
+
+5.  After successful verification, the signed transaction is submitted to the Cardano blockchain:
+    - **Server submission**: The **Resource Server** submits the transaction directly to the Cardano blockchain.
+    - **Facilitator submission**: The **Resource Server** sends the transaction to the **Facilitator's** `/settle` endpoint, which then submits it to the blockchain.
+
+6.  The Cardano blockchain includes the transaction in the mempool or a block and returns the transaction hash and confirmation status.
+
+7.  **Resource Server** receives the transaction hash and status:
+    - If submitted via the **Facilitator**, it receives a settlement response containing the `txHash` and `status`.
+    - If the **Facilitator** supports mempool monitoring, it may notify the **Resource Server** upon mempool inclusion, reducing end-to-end latency but with higher risk of accepting unconfirmed transactions.
+
+8.  **Resource Server** grants the **Client** access to the requested resource, returning an HTTP 200 OK response with an `X-PAYMENT-RESPONSE` header containing:
+    - `txHash`: The Cardano transaction hash
+    - `network`: The Cardano network (e.g., `cardano-mainnet`)
+    - `status`: The transaction status (e.g., `confirmed` or `mempool`)
 
 ### `PaymentRequirementsResponse`
 
@@ -36,9 +100,9 @@ The protocol flow for `exact` on Cardano is client-driven.
   "accepts": [
     {
       "scheme": "exact",
-      "network": "cardano-mainnet",
+      "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
       "maxAmountRequired": "10000", // 1 USDM = 1000000000
-      "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad", // USDM on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod
+      "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
       "payTo": "addr1...",
       "resource": "https://api.example.com/premium-data",
       "description": "Access to premium market data",
@@ -46,6 +110,19 @@ The protocol flow for `exact` on Cardano is client-driven.
       "outputSchema": null,
       "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
       "extra": {
+        "flavor": "masumi", // optional, can be "default" | "masumi" | "script"
+        // Additional fields for masumi or script flavors can be added here
+        "identifierFromPurchaser": "aabbaabb11221122aabb",
+        "network": "Mainnet | Preprod",
+        "sellerVkey": "sdasdqweqwewewewqe",
+        "paymentType": "Web3CardanoV1",
+        "blockchainIdentifier": "blockchain_identifier",
+        "payByTime": "1713626260",
+        "submitResultTime": "1713636260",
+        "unlockTime": "1713636260",
+        "externalDisputeUnlockTime": "1713636260",
+        "agentIdentifier": "agent_identifier",
+        "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
       }
     }
   ]
@@ -73,22 +150,23 @@ Full X-PAYMENT header:
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "cardano",
+  "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
   "payload": {
     "transaction": "AAAIAQDi1HwjSnS6M+WGvD73iEyUY2FRKNj0MlRp7+3SHZM3xCvMdB0AAAAAIFRgPKOstGBLCnbcyGoOXugUYAWwVzNrpMjPCzXK4KQWAQCMoE29VLGwftex8rhIlOuFLFNfxLIJlHqGXoXA8hx6l+LMdB0AAAAAIHbPucTRIEWgO6lzqukswPZ6i72IHEKK5LyM1l9HJNZNAQBthSeHDVK8Xr5/zp3JMZPLtG5uAoVgedTA4pEnp+h8qUlUzRwAAAAAIACH0swYW/QfGCFczGnjAVPHPqZrQE5vfvJr36i6KVEFAQAC7W4K5vCwB+nprjxcNlLiOQ7SIIfyCZjmj2qSis2iTsCuzBwAAAAAIAkSUkXOoeq52GNdhwpbs+jZqqrqPdmiN3oPw5EzDIanAQAIyFNGWD6OxiFIyXSxrNEcFG0npm+nImk6InUssXb1EZgx1hwAAAAAILhsjmMKyM0n75Cd7z6ufH2LNhOMibFOGhNlLgV5RFuEAQC+Mh4kGkLwrw/11729oUQnt3xOmOreE6PcnuN6M68ZBcCuzBwAAAAAIO2PQhSSqSAawCbRr005lfjBgFOqIHo4zb2GcQ/WCxAlAAgA+QKVAAAAAAAgjiAHD0X4HNSdVPpJtf2E6W2uRc8kbvCHYkgEQ1B+w1MDAwEAAAUBAQABAgABAwABBAABBQACAQAAAQEGAAEBAgEAAQcAHrfFfj8r0Pxsudz/0UPqlX5NmPgFw1hzP3be4GZ/4LEB5XXrONxGw0qOUsq3yNKeUhOCOgCIwaa4pswKaer66EKqPGwdAAAAACBrOIN4poutFUmHfB6FbFJu8GgXoPPTGQWREqFpPfvO1B63xX4/K9D8bLnc/9FD6pV+TZj4BcNYcz923uBmf+Cx7gIAAAAAAABg4xYAAAAAAAA="
   }
 }
 ```
 
-Schema:
+Expanded Schema based on flavors:
 
 ```json
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "cardano",
+  "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
   "payload": {
-    "network": "Mainnet | Preprod",
+    "transaction": "base64-encoded-cardano-transaction",
+    "flavor": "masumi", // optional, can be "default" | "masumi" | "script"
     "sellerVkey": "sdasdqweqwewewewqe",
     "paymentType": "Web3CardanoV1",
     "blockchainIdentifier": "blockchain_identifier",
@@ -97,7 +175,9 @@ Schema:
     "unlockTime": "1713636260",
     "externalDisputeUnlockTime": "1713636260",
     "agentIdentifier": "agent_identifier",
-    "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "identifierFromPurchaser": "aabbaabb11221122aabb"
+    // Additional fields for script flavor can be added here
   }
 }
 ```
@@ -112,94 +192,53 @@ Schema:
 
 ```json
 {
-  "success": "true | false",
+  "status": "confirmed", // "confirmed", "mempool" or "failed"
+  "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
+  "txHash": "2f9a7b3c..." // Transaction hash of the payment if successful
+}
+```
+
+### `X-SESSION-TOKEN` Header Payload
+
+In case of a successful payment, the Resource Server *may* return an *optional* `X-SESSION-TOKEN` header to allow the Client to access the resource without making additional payments until the session expires.
+
+The session token should be implemented as a **JSON Web Token (JWT)** to manage the session after initial payment authentication. This approach provides a smoother user experience by eliminating the need for wallet signatures on every subsequent request.
+
+#### JWT Structure
+
+The `X-SESSION-TOKEN` is a standard JWT (RFC 7519) with the following structure:
+
+**Header:**
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+**Payload (Claims):**
+```json
+{
+  "iss": "api.example.com",
+  "sub": "addr1qxclient...",
+  "exp": 1731866400,
+  "iat": 1731862800,
+  "jti": "7f234e8b-1c4a-49b7-8a5f-d321e567890a",
+  "txHash": "2f9a7b3c4d5e6f789a0bc...",
+  "scope": "/api/premium/*,/api/data/*",
   "network": "cardano-mainnet"
-  "transaction": "transaction-id",
 }
 ```
 
-## Version 2: Using Masumi Protocol
+**Claims Description:**
+- `iss` (issuer): The domain of the Resource Server
+- `sub` (subject): The Cardano address of the client who made the payment
+- `exp` (expiration): Unix timestamp when the session expires
+- `iat` (issued at): Unix timestamp when the session was created
+- `jti` (JWT ID): Unique session identifier
+- `txHash`: Transaction hash of the payment that created this session
+- `scope`: Comma-separated list of resource paths accessible with this token
+- `network`: Cardano network where the payment was made
 
-
-### Expanded `PaymentRequirementsResponse` Schema
-
-The PaymentRequirementsResponse has been expanded to include fields in "extra" and must return the information required to create a valid Masumi Smart Contract interaction.
-
-Schema:
-
-```json
-{
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
-  "accepts": [
-    {
-      "scheme": "exact",
-      "network": "cardano-masumi",
-      "maxAmountRequired": "10000",
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-      "resource": "https://api.example.com/premium-data",
-      "description": "Access to premium market data",
-      "mimeType": "application/json",
-      "outputSchema": null,
-      "maxTimeoutSeconds": 60,
-      "extra": {
-        "identifierFromPurchaser": "aabbaabb11221122aabb",
-        "network": "Mainnet | Preprod",
-        "sellerVkey": "sdasdqweqwewewewqe",
-        "paymentType": "Web3CardanoV1",
-        "blockchainIdentifier": "blockchain_identifier",
-        "payByTime": "1713626260",
-        "submitResultTime": "1713636260",
-        "unlockTime": "1713636260",
-        "externalDisputeUnlockTime": "1713636260",
-        "agentIdentifier": "agent_identifier",
-        "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-      }
-    }
-  ]
-}
-```
-
-### `X-PAYMENT` Header Payload
-
-The X-PAYMENT header is base64-encoded and sent in the client's request to the resource server when paying for a resource.
-
-Schema:
-
-```json
-{
-  "x402Version": 1,
-  "scheme": "exact",
-  "network": "cardano",
-  "payload": {
-    "identifierFromPurchaser": "aabbaabb11221122aabb",
-    "network": "Mainnet | Preprod",
-    "sellerVkey": "sdasdqweqwewewewqe",
-    "paymentType": "Web3CardanoV1",
-    "blockchainIdentifier": "blockchain_identifier",
-    "payByTime": "1713626260",
-    "submitResultTime": "1713636260",
-    "unlockTime": "1713636260",
-    "externalDisputeUnlockTime": "1713636260",
-    "agentIdentifier": "agent_identifier",
-    "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-  }
-}
-```
-
-### `X-PAYMENT-RESPONSE` Header Payload
-
-The `X-PAYMENT-RESPONSE` header is base64-encoded and returned to the client by the resource server.
-
-Once decoded, the `X-PAYMENT-RESPONSE` is a JSON string with the following properties:
-
-Schema:
-
-```json
-{
-  "success": "true | false",
-  "network": "cardano-masumi"
-  "transaction": "transaction-id",
-}
-```
+**Signature:**
+The JWT is signed using the server's secret key (HS256) or RSA private key (RS256). The signature ensures the token cannot be tampered with.
