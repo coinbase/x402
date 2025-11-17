@@ -1,6 +1,7 @@
 packages:
   - "clients/*"
   - "servers/*"
+  - "facilitator"
   - "legacy/facilitator"
   - "legacy/servers/*"
   - "legacy/clients/*"
