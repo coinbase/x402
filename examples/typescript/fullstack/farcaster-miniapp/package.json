@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@coinbase/onchainkit": "latest",
-    "@coinbase/x402": "latest",
+    "@coinbase/x402": "workspace:*",
     "@farcaster/frame-sdk": "^0.0.60",
     "@tanstack/react-query": "^5",
     "@upstash/redis": "^1.34.4",
@@ -24,7 +24,7 @@
     "react-hot-toast": "^2.5.2",
     "viem": "^2.27.2",
     "wagmi": "^2.14.11",
-    "x402-fetch": "^0.4.1",
+    "x402-fetch": "workspace:*",
     "x402-next": "workspace:*"
   },
   "devDependencies": {
