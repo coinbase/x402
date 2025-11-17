@@ -182,6 +182,9 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+          ...(paywall?.rpc && {
+            rpcUrl: `${new URL(c.req.url).protocol}//${new URL(c.req.url).host}${paywall.rpc.proxyPath}?network=${network === "solana" ? "mainnet" : "devnet"}`,
+          }),
         },
       });
     } else {

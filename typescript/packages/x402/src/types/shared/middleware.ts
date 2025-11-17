@@ -15,7 +15,10 @@ export type PaywallConfig = {
   appName?: string;
   appLogo?: string;
   sessionTokenEndpoint?: string;
-  solanaRpcUrl?: string;
+  rpc?: {
+    url: string;
+    proxyPath: string;
+  };
 };
 
 export type PaymentMiddlewareConfig = {

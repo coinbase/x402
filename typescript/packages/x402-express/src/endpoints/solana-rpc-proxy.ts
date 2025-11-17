@@ -7,9 +7,9 @@ import type { Request, Response } from "express";
  * Solana RPC endpoint, keeping the API key secure on the server.
  *
  * Setup:
- * 1. Set SOLANA_MAINNET_RPC_URL and/or SOLANA_DEVNET_RPC_URL environment variables
- * 2. Add this to your Express app: app.post("/api/x402/solana-rpc-proxy", POST);
- * 3. Client can specify network via query parameter: /api/x402/solana-rpc-proxy?network=devnet
+ * 1. Set RPC_URL_SOLANA_MAINNET and/or RPC_URL_SOLANA_DEVNET environment variables
+ * 2. Add this to your Express app at your chosen path
+ * 3. Client can specify network via query parameter: ?network=devnet
  *
  * @param req - The Express Request containing the RPC request and optional ?network query
  * @param res - The Express Response object
@@ -21,8 +21,10 @@ export async function POST(req: Request, res: Response) {
 
     const rpcUrl =
       network === "devnet"
-        ? process.env.SOLANA_DEVNET_RPC_URL || "https://api.devnet.solana.com"
-        : process.env.SOLANA_MAINNET_RPC_URL || "https://api.mainnet-beta.solana.com";
+        ? process.env.RPC_URL_SOLANA_DEVNET || "https://api.devnet.solana.com"
+        : process.env.RPC_URL_SOLANA_MAINNET || "https://api.mainnet-beta.solana.com";
+
+    console.log("rpcUrl", rpcUrl);
 
     if (!req.body || typeof req.body !== "object") {
       return res.status(400).json({

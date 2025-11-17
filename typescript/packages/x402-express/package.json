@@ -56,6 +56,16 @@
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
       }
+    },
+    "./endpoints": {
+      "import": {
+        "types": "./dist/esm/endpoints/index.d.mts",
+        "default": "./dist/esm/endpoints/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/endpoints/index.d.ts",
+        "default": "./dist/cjs/endpoints/index.js"
+      }
     }
   },
   "files": [

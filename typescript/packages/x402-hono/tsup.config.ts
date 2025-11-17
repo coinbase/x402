@@ -4,6 +4,7 @@ const baseConfig = {
   entry: {
     index: "src/index.ts",
     "session-token": "src/session-token.ts",
+    "endpoints/index": "src/endpoints/index.ts",
   },
   dts: {
     resolve: true,

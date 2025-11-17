@@ -205,6 +205,9 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
+          ...(paywall?.rpc && {
+            rpcUrl: `${request.nextUrl.protocol}//${request.nextUrl.host}${paywall.rpc.proxyPath}?network=${network === "solana" ? "mainnet" : "devnet"}`,
+          }),
         },
       });
     } else {

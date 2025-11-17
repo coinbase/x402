@@ -186,8 +186,8 @@ export function paymentMiddleware(
         },
         extra: {
           feePayer,
-          ...(paywall?.solanaRpcUrl && {
-            rpcUrl: `${req.protocol}://${req.headers.host}/api/x402/solana-rpc-proxy?network=${network === "solana" ? "mainnet" : "devnet"}`,
+          ...(paywall?.rpc && {
+            rpcUrl: `${req.protocol}://${req.headers.host}${paywall.rpc.proxyPath}?network=${network === "solana" ? "mainnet" : "devnet"}`,
           }),
         },
       });
