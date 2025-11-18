@@ -93,7 +93,39 @@ The protocol flow for `exact` on Cardano is client-driven.
 
 ### `PaymentRequirementsResponse`
 
-```json
+#### Default Schema
+
+When the Resource Server responds with a `402 Payment Required`, the body of the response contains the payment requirements in the following schema:
+
+```js
+{
+  "x402Version": 1,
+  "error": "X-PAYMENT header is required",
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
+      "maxAmountRequired": "10000", // 1 USDM = 1000000000
+      "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
+      "payTo": "addr1...",
+      "resource": "https://api.example.com/premium-data",
+      "description": "Access to premium market data",
+      "mimeType": "application/json",
+      "outputSchema": null,
+      "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
+      "extra": {
+        // In case of default address-to-address payments, this may be empty or contain additional metadata
+      }
+    }
+  ]
+}
+```
+
+#### Masumi Flavor Schema
+
+When the Resource Server requires payment via the Masumi Smart Protocol, the `extra` field in the `PaymentRequirementsResponse` contains additional fields required for Masumi interactions.
+
+```js
 {
   "x402Version": 1,
   "error": "X-PAYMENT header is required",
@@ -111,7 +143,7 @@ The protocol flow for `exact` on Cardano is client-driven.
       "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
       "extra": {
         "flavor": "masumi", // optional, can be "default" | "masumi" | "script"
-        // Additional fields for masumi or script flavors can be added here
+        // If the masumi flavor is used, make sure to include all masumi related fields
         "identifierFromPurchaser": "aabbaabb11221122aabb",
         "network": "Mainnet | Preprod",
         "sellerVkey": "sdasdqweqwewewewqe",
@@ -123,6 +155,48 @@ The protocol flow for `exact` on Cardano is client-driven.
         "externalDisputeUnlockTime": "1713636260",
         "agentIdentifier": "agent_identifier",
         "inputHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        // Additional fields for masumi or script flavors can be added here
+      }
+    }
+  ]
+}
+```
+
+#### Script Flavor Schema
+
+When the Resource Server requires payment to a script, the `extra` field in the `PaymentRequirementsResponse` contains additional fields required for script interactions.
+
+```js
+{
+  "x402Version": 1,
+  "error": "X-PAYMENT header is required",
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
+      "maxAmountRequired": "10000", // 1 USDM = 1000000000
+      "asset": "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad.0014df105553444d", // ${policyId}.${assetName} The policy id in this example is the USDM policy id on Cardano Mainnet - use 16a55b2a349361ff88c03788f93e1e966e5d689605d044fef722ddde for USDM on Preprod. The asset name is the hex representation of '(333) USDM'
+      "payTo": "addr1...", // In case of script payments, this is the script address (the address should match the script provided in extra after applying parameters. In case of additional parameters provided, the client needs to pass the additional parameters to the server in the X-PAYMENT header, so that the server can reconstruct the script address and verify the payment)
+      "resource": "https://api.example.com/premium-data",
+      "description": "Access to premium market data",
+      "mimeType": "application/json",
+      "outputSchema": null,
+      "maxTimeoutSeconds": 600, // Has to be set to a higher amount of time because of the Cardano Network speed
+      "extra": {
+        "flavor": "script", // optional, can be "default" | "masumi" | "script"
+        // If the script flavor is used, make sure to include all script related fields
+        "scriptHash": "script_hash_here", // If the script is already on-chain, provide its hash and the client can resolve the full script
+        "script": {
+          // Optional full script object if not on-chain yet
+          "type": "plutusV3",
+          "code": "<Hex-encoded script code here>",
+        },
+        "parameters": {
+          "param1": {"value": "Hello World", "type": "bytes"},
+          "param2": {"value": 42, "type": "bigint"}
+          // Script-specific parameters required for transaction building
+        }
+        // Additional fields for script flavors can be added here
       }
     }
   ]
@@ -138,7 +212,7 @@ The payload field of the X-PAYMENT header must contain the following fields:
 transaction: The Base64 encoded Cardano transaction.
 Example:
 
-```json
+```js
 {
   "transaction": "AAAIAQDi1HwjSnS6M+WGvD73iEyUY2FRKNj0MlRp7+3SHZM3xCvMdB0AAAAAIFRgPKOstGBLCnbcyGoOXugUYAWwVzNrpMjPCzXK4KQWAQCMoE29VLGwftex8rhIlOuFLFNfxLIJlHqGXoXA8hx6l+LMdB0AAAAAIHbPucTRIEWgO6lzqukswPZ6i72IHEKK5LyM1l9HJNZNAQBthSeHDVK8Xr5/zp3JMZPLtG5uAoVgedTA4pEnp+h8qUlUzRwAAAAAIACH0swYW/QfGCFczGnjAVPHPqZrQE5vfvJr36i6KVEFAQAC7W4K5vCwB+nprjxcNlLiOQ7SIIfyCZjmj2qSis2iTsCuzBwAAAAAIAkSUkXOoeq52GNdhwpbs+jZqqrqPdmiN3oPw5EzDIanAQAIyFNGWD6OxiFIyXSxrNEcFG0npm+nImk6InUssXb1EZgx1hwAAAAAILhsjmMKyM0n75Cd7z6ufH2LNhOMibFOGhNlLgV5RFuEAQC+Mh4kGkLwrw/11729oUQnt3xOmOreE6PcnuN6M68ZBcCuzBwAAAAAIO2PQhSSqSAawCbRr005lfjBgFOqIHo4zb2GcQ/WCxAlAAgA+QKVAAAAAAAgjiAHD0X4HNSdVPpJtf2E6W2uRc8kbvCHYkgEQ1B+w1MDAwEAAAUBAQABAgABAwABBAABBQACAQAAAQEGAAEBAgEAAQcAHrfFfj8r0Pxsudz/0UPqlX5NmPgFw1hzP3be4GZ/4LEB5XXrONxGw0qOUsq3yNKeUhOCOgCIwaa4pswKaer66EKqPGwdAAAAACBrOIN4poutFUmHfB6FbFJu8GgXoPPTGQWREqFpPfvO1B63xX4/K9D8bLnc/9FD6pV+TZj4BcNYcz923uBmf+Cx7gIAAAAAAABg4xYAAAAAAAA="
 }
@@ -146,7 +220,7 @@ Example:
 
 Full X-PAYMENT header:
 
-```json
+```js
 {
   "x402Version": 1,
   "scheme": "exact",
@@ -159,14 +233,16 @@ Full X-PAYMENT header:
 
 Expanded Schema based on flavors:
 
-```json
+#### Masumi Flavor
+
+```js
 {
   "x402Version": 1,
   "scheme": "exact",
   "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
   "payload": {
-    "transaction": "base64-encoded-cardano-transaction",
     "flavor": "masumi", // optional, can be "default" | "masumi" | "script"
+    "transaction": "base64-encoded-cardano-transaction",
     "sellerVkey": "sdasdqweqwewewewqe",
     "paymentType": "Web3CardanoV1",
     "blockchainIdentifier": "blockchain_identifier",
@@ -182,6 +258,33 @@ Expanded Schema based on flavors:
 }
 ```
 
+#### Script Flavor
+
+```js
+{
+  "x402Version": 1,
+  "scheme": "exact",
+  "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
+  "payload": {
+    "flavor": "script", // optional, can be "default" | "masumi" | "script"
+    "transaction": "base64-encoded-cardano-transaction",
+    "scriptHash": "script_hash_here", // If the script is already on-chain, provide its hash and the client can resolve the full script
+    "script": {
+      // Optional full script object if not on-chain yet
+      "type": "plutusV3",
+      "code": "<Hex-encoded script code here>",
+    },
+    "parameters": {
+      // Script-specific parameters required for transaction building
+      "param1": {"value": "Hello World", "type": "bytes"},
+      "param2": {"value": 42, "type": "bigint"}
+      // Make sure to include all parameters that were applied to the script, even if they were not part of the payment requirements
+    }
+    // Additional fields for script flavor can be added here
+  }
+}
+```
+
 ### `X-PAYMENT-RESPONSE` Header Payload
 
 The `X-PAYMENT-RESPONSE` header is base64-encoded and returned to the client by the resource server.
@@ -190,7 +293,7 @@ Once decoded, the `X-PAYMENT-RESPONSE` is a JSON string with the following prope
 
 Schema:
 
-```json
+```js
 {
   "status": "confirmed", // "confirmed", "mempool" or "failed"
   "network": "cardano-mainnet", // cardano-preprod or cardano-preview for public testnets
@@ -209,7 +312,7 @@ The session token should be implemented as a **JSON Web Token (JWT)** to manage 
 The `X-SESSION-TOKEN` is a standard JWT (RFC 7519) with the following structure:
 
 **Header:**
-```json
+```js
 {
   "alg": "HS256",
   "typ": "JWT"
@@ -217,7 +320,7 @@ The `X-SESSION-TOKEN` is a standard JWT (RFC 7519) with the following structure:
 ```
 
 **Payload (Claims):**
-```json
+```js
 {
   "iss": "api.example.com",
   "sub": "addr1qxclient...",
