@@ -374,10 +374,9 @@ export function paymentMiddleware(
       );
     }
 
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
+    const selectedPaymentRequirements =
+      findMatchingPaymentRequirements(paymentRequirements, decodedPayment) ||
+      paymentRequirements[0];
     if (!selectedPaymentRequirements) {
       return c.json(
         {
