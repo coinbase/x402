@@ -10,7 +10,7 @@
   "dependencies": {
     "hono": "^4.6.17",
     "@hono/node-server": "^1.14.0",
-    "x402-hono": "^0.4.0",
+    "x402-hono": "workspace:*",
     "dotenv": "^16.5.0",
     "uuid": "^11.0.6"
   },
