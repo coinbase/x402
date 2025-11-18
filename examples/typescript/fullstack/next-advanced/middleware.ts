@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
-import { Address } from "viem";
 
 // export const middleware = paymentMiddleware(
 //   payTo,
