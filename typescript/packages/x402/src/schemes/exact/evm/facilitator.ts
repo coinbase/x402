@@ -66,6 +66,22 @@ export async function verify<
 
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
+  // Check if this is an undeployed smart wallet
+  // EIP-3009 requires on-chain signature verification which needs the wallet to be deployed
+  const payerAddress = exactEvmPayload.authorization.from as Address;
+  const bytecode = await client.getCode({ address: payerAddress });
+  if (!bytecode || bytecode === "0x") {
+    // Check if signature is ERC-6492 wrapped (indicates smart wallet)
+    const signature = exactEvmPayload.signature;
+    if (signature && signature.length > 200) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: payerAddress,
+      };
+    }
+  }
+
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
     return {

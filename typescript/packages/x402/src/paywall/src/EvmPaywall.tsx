@@ -194,7 +194,23 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
           throw new Error(`Payment failed: ${response.statusText}`);
         }
       } else {
-        throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+        let errorMessage = `Request failed: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (
+            errorData.invalidReason === "invalid_exact_evm_payload_undeployed_smart_wallet"
+          ) {
+            errorMessage =
+              "Smart wallet must be deployed before making payments. Please deploy your wallet first.";
+          } else if (errorData.invalidReason) {
+            errorMessage = `Payment validation failed: ${errorData.invalidReason}`;
+          }
+        } catch {
+          // Use default error message if parsing fails
+        }
+        throw new Error(errorMessage);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Payment failed");
