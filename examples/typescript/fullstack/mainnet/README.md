@@ -4,7 +4,7 @@ This is a Next.js application that demonstrates how to use the `x402-next` middl
 
 ## Prerequisites
 
-- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- Node.js v22+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
 
@@ -127,41 +127,4 @@ export const config = {
 
 ## Accessing Mainnet
 
-To access the mainnet facilitator in NextJs, a temporary workaround is currently needed. The `@coinbase/x402` package currently only supports Node.js runtimes and is incompatible with the Edge runtime. Coinbase is actively working on Edge runtime compatibility.
-
-As a **temporary solution** until official support is available, you can enable the Node.js runtime for middleware:
-
-1. Enable Node middleware as an experimental feature:
-
-```ts
-// next.config.ts
-const nextConfig: NextConfig = {
-  // rest of your next config setup
-  experimental: {
-    nodeMiddleware: true,
-  }
-};
-```
-
-2. Specify the Node.js runtime in your middleware:
-
-```ts
-// middleware.ts
-export const config = {
-  // rest of your config setup
-  runtime: 'nodejs',
-};
-```
-
-3. Use the `canary` version of Next.js to access experimental features:
-
-```json
-// package.json
-{
-  "dependencies": {
-    "next": "canary",
-  }
-}
-```
-
-**Note:** This approach is only needed temporarily while awaiting official Edge runtime support in the x402 package.
+To access the mainnet facilitator in Next.js, simply install and use the `@coinbase/x402` package. 
