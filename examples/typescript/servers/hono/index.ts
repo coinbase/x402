@@ -1,7 +1,7 @@
 import { config } from "dotenv";
-import { paymentMiddleware, x402ResourceService } from "@x402/hono";
-import { ExactEvmService } from "@x402/evm";
-import { ExactSvmService } from "@x402/svm";
+import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
+import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmServer } from "@x402/svm";
 import { Hono } from "hono";
 config();
 
@@ -37,9 +37,9 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceService()
-      .registerScheme("eip155:84532", new ExactEvmService())
-      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmService()),
+    new x402ResourceServer()
+      .registerScheme("eip155:84532", new ExactEvmServer())
+      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactEvmServer()),
   ),
 );
 

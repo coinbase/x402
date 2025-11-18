@@ -4,8 +4,8 @@ import { x402Facilitator } from "@x402/core/facilitator";
 import {
   HTTPAdapter,
   HTTPResponseInstructions,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
   FacilitatorClient,
 } from "@x402/core/server";
 import {
@@ -19,7 +19,7 @@ import {
 import {
   ExactSvmClient,
   ExactSvmFacilitator,
-  ExactSvmService,
+  ExactSvmServer,
   toFacilitatorSvmSigner,
 } from "../../src";
 import type { ExactSvmPayloadV2 } from "../../src/types";
@@ -45,7 +45,7 @@ if (
 
 /**
  * SVM Facilitator Client wrapper
- * Wraps the x402Facilitator for use with x402ResourceService
+ * Wraps the x402Facilitator for use with x402ResourceServer
  */
 class SvmFacilitatorClient implements FacilitatorClient {
   readonly scheme = "exact";
@@ -136,9 +136,9 @@ function buildSvmPaymentRequirements(
 }
 
 describe("SVM Integration Tests", () => {
-  describe("x402Client / x402ResourceService / x402Facilitator - SVM Flow", () => {
+  describe("x402Client / x402ResourceServer / x402Facilitator - SVM Flow", () => {
     let client: x402Client;
-    let server: x402ResourceService;
+    let server: x402ResourceServer;
     let clientAddress: string;
 
     beforeEach(async () => {
@@ -165,8 +165,8 @@ describe("SVM Integration Tests", () => {
       );
 
       const facilitatorClient = new SvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
-      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmService());
+      server = new x402ResourceServer(facilitatorClient);
+      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmServer());
       await server.initialize();
     });
 
@@ -206,9 +206,9 @@ describe("SVM Integration Tests", () => {
     });
   });
 
-  describe("x402HTTPClient / x402HTTPResourceService / x402Facilitator - SVM Flow", () => {
+  describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - SVM Flow", () => {
     let client: x402HTTPClient;
-    let service: x402HTTPResourceService;
+    let httpServer: x402HTTPResourceServer;
 
     const routes = {
       "/api/protected": {
@@ -259,15 +259,15 @@ describe("SVM Integration Tests", () => {
       );
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      // Create resource service and register schemes (composition pattern)
-      const resourceService = new x402ResourceService(facilitatorClient);
-      resourceService.registerScheme(
+      // Create resource server and register schemes (composition pattern)
+      const ResourceServer = new x402ResourceServer(facilitatorClient);
+      ResourceServer.registerScheme(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-        new ExactSvmService(),
+        new ExactSvmServer(),
       );
-      await resourceService.initialize(); // Initialize to fetch supported kinds
+      await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
-      service = new x402HTTPResourceService(resourceService, routes);
+      httpServer = new x402HTTPResourceServer(ResourceServer, routes);
     });
 
     it("middleware should successfully verify and settle a SVM payment from an http client", async () => {
@@ -277,7 +277,7 @@ describe("SVM Integration Tests", () => {
         method: "GET",
       };
 
-      const httpProcessResult = (await service.processHTTPRequest(context))!;
+      const httpProcessResult = (await httpServer.processHTTPRequest(context))!;
       expect(httpProcessResult.type).toBe("payment-error");
 
       const initial402Response = (
@@ -307,7 +307,7 @@ describe("SVM Integration Tests", () => {
         return undefined;
       };
 
-      const httpProcessResult2 = await service.processHTTPRequest(context);
+      const httpProcessResult2 = await httpServer.processHTTPRequest(context);
 
       expect(httpProcessResult2.type).toBe("payment-verified");
       const {
@@ -322,7 +322,7 @@ describe("SVM Integration Tests", () => {
       expect(verifiedPaymentPayload).toBeDefined();
       expect(verifiedPaymentRequirements).toBeDefined();
 
-      const settlementHeaders = await service.processSettlement(
+      const settlementHeaders = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
         200,
@@ -334,8 +334,8 @@ describe("SVM Integration Tests", () => {
   });
 
   describe("Price Parsing Integration", () => {
-    let server: x402ResourceService;
-    let svmService: ExactSvmService;
+    let server: x402ResourceServer;
+    let svmServer: ExactSvmServer;
 
     beforeEach(async () => {
       const facilitatorBytes = base58.decode(FACILITATOR_PRIVATE_KEY);
@@ -352,10 +352,10 @@ describe("SVM Integration Tests", () => {
       );
 
       const facilitatorClient = new SvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
+      server = new x402ResourceServer(facilitatorClient);
 
-      svmService = new ExactSvmService();
-      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmService);
+      svmServer = new ExactSvmServer();
+      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmServer);
       await server.initialize();
     });
 
@@ -403,7 +403,7 @@ describe("SVM Integration Tests", () => {
 
     it("should use registerMoneyParser for custom conversion", async () => {
       // Register custom parser: large amounts use custom token
-      svmService.registerMoneyParser(async (amount, _network) => {
+      svmServer.registerMoneyParser(async (amount, _network) => {
         if (amount > 100) {
           return {
             amount: (amount * 1e9).toString(), // Custom token with 9 decimals
@@ -440,7 +440,7 @@ describe("SVM Integration Tests", () => {
     });
 
     it("should support multiple MoneyParser in chain", async () => {
-      svmService
+      svmServer
         .registerMoneyParser(async amount => {
           if (amount > 1000) {
             return {
@@ -496,7 +496,7 @@ describe("SVM Integration Tests", () => {
     it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
       const mockExchangeRate = 0.98;
 
-      svmService.registerMoneyParser(async (amount, _network) => {
+      svmServer.registerMoneyParser(async (amount, _network) => {
         // Simulate async API call
         await new Promise(resolve => setTimeout(resolve, 10));
 

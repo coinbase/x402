@@ -8,7 +8,7 @@ import {
 import {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
-  SchemeNetworkService,
+  SchemeNetworkServer,
 } from "../../../../src/types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../../../../src/types/payments";
 import { Price, AssetAmount, Network } from "../../../../src/types";
@@ -149,7 +149,7 @@ export function buildCashPaymentRequirements(
 /**
  *
  */
-export class CashSchemeNetworkService implements SchemeNetworkService {
+export class CashSchemeNetworkServer implements SchemeNetworkServer {
   readonly scheme = "cash";
 
   /**

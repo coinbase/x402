@@ -39,7 +39,7 @@ func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version 
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return nil, err
 	}
-	
+
 	validUntil := time.Now().Add(time.Duration(requirements.MaxTimeoutSeconds) * time.Second).Unix()
 
 	payload := x402.PartialPaymentPayload{
@@ -50,7 +50,7 @@ func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version 
 			"name":       c.payer,
 		},
 	}
-	
+
 	return json.Marshal(payload)
 }
 
@@ -78,7 +78,7 @@ func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, version int, payl
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
 	}
-	
+
 	var requirements x402.PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
@@ -162,7 +162,7 @@ func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, version int, payl
 	// Unmarshal to extract transaction details
 	var payload x402.PaymentPayload
 	json.Unmarshal(payloadBytes, &payload)
-	
+
 	var requirements x402.PaymentRequirements
 	json.Unmarshal(requirementsBytes, &requirements)
 
@@ -178,24 +178,24 @@ func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, version int, payl
 }
 
 // ============================================================================
-// Cash Scheme Network Service
+// Cash Scheme Network Server
 // ============================================================================
 
-// SchemeNetworkService implements the service side of the cash payment scheme
-type SchemeNetworkService struct{}
+// SchemeNetworkServer implements the server side of the cash payment scheme
+type SchemeNetworkServer struct{}
 
-// NewSchemeNetworkService creates a new cash scheme service
-func NewSchemeNetworkService() *SchemeNetworkService {
-	return &SchemeNetworkService{}
+// NewSchemeNetworkServer creates a new cash scheme server
+func NewSchemeNetworkServer() *SchemeNetworkServer {
+	return &SchemeNetworkServer{}
 }
 
 // Scheme returns the payment scheme identifier
-func (s *SchemeNetworkService) Scheme() string {
+func (s *SchemeNetworkServer) Scheme() string {
 	return "cash"
 }
 
 // ParsePrice parses a price into asset amount format
-func (s *SchemeNetworkService) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
+func (s *SchemeNetworkServer) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	// Handle pre-parsed price object
 	if assetAmount, ok := price.(x402.AssetAmount); ok {
 		return assetAmount, nil
@@ -251,7 +251,7 @@ func (s *SchemeNetworkService) ParsePrice(price x402.Price, network x402.Network
 }
 
 // EnhancePaymentRequirements enhances payment requirements with cash-specific details
-func (s *SchemeNetworkService) EnhancePaymentRequirements(
+func (s *SchemeNetworkServer) EnhancePaymentRequirements(
 	ctx context.Context,
 	requirements x402.PaymentRequirements,
 	supportedKind x402.SupportedKind,
@@ -284,12 +284,12 @@ func (c *FacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, req
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
 	}
-	
+
 	var requirements x402.PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return x402.VerifyResponse{IsValid: false}, err
 	}
-	
+
 	return c.facilitator.Verify(ctx, payload, requirements)
 }
 
@@ -300,12 +300,12 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, req
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return x402.SettleResponse{Success: false}, err
 	}
-	
+
 	var requirements x402.PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return x402.SettleResponse{Success: false}, err
 	}
-	
+
 	return c.facilitator.Settle(ctx, payload, requirements)
 }
 

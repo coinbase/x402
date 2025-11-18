@@ -96,7 +96,7 @@ function paymentMiddleware(
 
 Creates Express middleware that:
 
-1. Instantiates an x402HTTPResourceService with the provided configuration
+1. Instantiates an x402HTTPResourceServer with the provided configuration
 2. Checks if the incoming request matches a protected route
 3. Validates payment headers if required
 4. Returns payment instructions (402 status) if payment is missing or invalid
@@ -200,7 +200,7 @@ app.use(
 
 ### Custom Facilitator Client
 
-If you need to use a custom facilitator service, pass it as the second parameter:
+If you need to use a custom facilitator server, pass it as the second parameter:
 
 ```typescript
 import { createFacilitatorClient } from "@x402/core";

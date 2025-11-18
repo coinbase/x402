@@ -33,7 +33,7 @@ This package provides three main components for handling x402 payments on EVM-co
 - `FacilitatorEvmSigner` - TypeScript type for facilitator signers
 
 **Service:**
-- `ExactEvmService` - V2 service for building payment requirements
+- `ExactEvmServer` - V2 service for building payment requirements
 
 ### V1 Package (`@x402/evm/v1`)
 

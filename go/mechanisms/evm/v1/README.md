@@ -28,9 +28,9 @@ client = evmv1.RegisterClient(client, signer)
 facilitator := x402.Newx402Facilitator()
 facilitator = evmv1.RegisterFacilitator(facilitator, signer)
 
-// Register V1 service
-service := x402.Newx402ResourceService(
-    evmv1.RegisterService(),
+// Register V1 server
+server := x402.Newx402ResourceServer(
+    evmv1.RegisterServer(),
 )
 ```
 

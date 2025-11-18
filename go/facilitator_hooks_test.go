@@ -9,7 +9,7 @@ import (
 // Test Facilitator BeforeVerify hook - abort verification
 func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 	facilitator := Newx402Facilitator()
-	
+
 	// Register hook that aborts verification
 	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {
 		return &FacilitatorBeforeHookResult{
@@ -17,22 +17,22 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 			Reason: "Facilitator security check failed",
 		}, nil
 	})
-	
+
 	// Try to verify (should be aborted by hook)
 	result, err := facilitator.Verify(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
+
 	if result.IsValid {
 		t.Error("Expected verification to be aborted (IsValid=false)")
 	}
-	
+
 	if result.InvalidReason != "Facilitator security check failed" {
 		t.Errorf("Expected specific InvalidReason, got '%s'", result.InvalidReason)
 	}
@@ -41,9 +41,9 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 // Test Facilitator AfterVerify hook
 func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	var capturedPayer string
-	
+
 	facilitator := Newx402Facilitator()
-	
+
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
@@ -52,28 +52,28 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 		},
 	}
 	facilitator.RegisterScheme("eip155:8453", mockScheme)
-	
+
 	// Register hook to capture result
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
 		capturedPayer = ctx.Result.Payer
 		return nil
 	})
-	
+
 	// Verify payment
 	result, err := facilitator.Verify(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
+
 	if !result.IsValid {
 		t.Error("Expected verification to succeed")
 	}
-	
+
 	// Check hook captured the result
 	if capturedPayer != "0xTestPayer" {
 		t.Errorf("Expected hook to capture payer '0xTestPayer', got '%s'", capturedPayer)
@@ -83,7 +83,7 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 // Test Facilitator OnVerifyFailure hook - recovery
 func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 	facilitator := Newx402Facilitator()
-	
+
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
@@ -92,7 +92,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 		},
 	}
 	facilitator.RegisterScheme("eip155:8453", mockScheme)
-	
+
 	// Register hook that recovers from failure
 	facilitator.OnVerifyFailure(func(ctx FacilitatorVerifyFailureContext) (*FacilitatorVerifyFailureHookResult, error) {
 		return &FacilitatorVerifyFailureHookResult{
@@ -103,22 +103,22 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 			},
 		}, nil
 	})
-	
+
 	// Verify payment (should be recovered by hook)
 	result, err := facilitator.Verify(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err != nil {
 		t.Errorf("Expected hook to recover, got error: %v", err)
 	}
-	
+
 	if !result.IsValid {
 		t.Error("Expected hook to recover verification")
 	}
-	
+
 	if result.Payer != "0xRecovered" {
 		t.Errorf("Expected recovered payer, got '%s'", result.Payer)
 	}
@@ -127,7 +127,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 // Test Facilitator BeforeSettle hook - abort
 func TestFacilitatorBeforeSettleHook_Abort(t *testing.T) {
 	facilitator := Newx402Facilitator()
-	
+
 	// Register hook that aborts settlement
 	facilitator.OnBeforeSettle(func(ctx FacilitatorSettleContext) (*FacilitatorBeforeHookResult, error) {
 		return &FacilitatorBeforeHookResult{
@@ -135,18 +135,18 @@ func TestFacilitatorBeforeSettleHook_Abort(t *testing.T) {
 			Reason: "Gas price too high",
 		}, nil
 	})
-	
+
 	// Try to settle (should be aborted by hook)
 	result, err := facilitator.Settle(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err == nil {
 		t.Error("Expected error when settlement is aborted")
 	}
-	
+
 	if result.Success {
 		t.Error("Expected settlement to be aborted (Success=false)")
 	}
@@ -155,9 +155,9 @@ func TestFacilitatorBeforeSettleHook_Abort(t *testing.T) {
 // Test Facilitator AfterSettle hook
 func TestFacilitatorAfterSettleHook(t *testing.T) {
 	var capturedTx string
-	
+
 	facilitator := Newx402Facilitator()
-	
+
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
@@ -166,28 +166,28 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 		},
 	}
 	facilitator.RegisterScheme("eip155:8453", mockScheme)
-	
+
 	// Register hook to capture settlement result
 	facilitator.OnAfterSettle(func(ctx FacilitatorSettleResultContext) error {
 		capturedTx = ctx.Result.Transaction
 		return nil
 	})
-	
+
 	// Settle payment
 	result, err := facilitator.Settle(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
-	
+
 	if !result.Success {
 		t.Error("Expected settlement to succeed")
 	}
-	
+
 	// Check hook captured the transaction
 	if capturedTx != "0xFacilitatorTx" {
 		t.Errorf("Expected hook to capture tx '0xFacilitatorTx', got '%s'", capturedTx)
@@ -197,7 +197,7 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 // Test Facilitator OnSettleFailure hook - recovery
 func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	facilitator := Newx402Facilitator()
-	
+
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
@@ -206,7 +206,7 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 		},
 	}
 	facilitator.RegisterScheme("eip155:8453", mockScheme)
-	
+
 	// Register hook that recovers from failure
 	facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error) {
 		return &FacilitatorSettleFailureHookResult{
@@ -217,22 +217,22 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 			},
 		}, nil
 	})
-	
+
 	// Settle payment (should be recovered by hook)
 	result, err := facilitator.Settle(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	if err != nil {
 		t.Errorf("Expected hook to recover, got error: %v", err)
 	}
-	
+
 	if !result.Success {
 		t.Error("Expected hook to recover settlement")
 	}
-	
+
 	if result.Transaction != "0xFacilitatorRecovered" {
 		t.Errorf("Expected recovered transaction, got '%s'", result.Transaction)
 	}
@@ -241,9 +241,9 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 // Test Facilitator multiple hooks execution order
 func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 	executionOrder := []string{}
-	
+
 	facilitator := Newx402Facilitator()
-	
+
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
@@ -252,41 +252,41 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 		},
 	}
 	facilitator.RegisterScheme("eip155:8453", mockScheme)
-	
+
 	// Register multiple hooks in order
 	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {
 		executionOrder = append(executionOrder, "before1")
 		return nil, nil
 	})
-	
+
 	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {
 		executionOrder = append(executionOrder, "before2")
 		return nil, nil
 	})
-	
+
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
 		executionOrder = append(executionOrder, "after1")
 		return nil
 	})
-	
+
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
 		executionOrder = append(executionOrder, "after2")
 		return nil
 	})
-	
+
 	// Verify payment
 	_, _ = facilitator.Verify(
 		context.Background(),
 		PaymentPayload{X402Version: 2},
 		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
 	)
-	
+
 	// Check execution order
 	expected := []string{"before1", "before2", "after1", "after2"}
 	if len(executionOrder) != len(expected) {
 		t.Errorf("Expected %d hooks to execute, got %d", len(expected), len(executionOrder))
 	}
-	
+
 	for i, v := range expected {
 		if i >= len(executionOrder) || executionOrder[i] != v {
 			t.Errorf("Expected execution order %v, got %v", expected, executionOrder)
@@ -319,4 +319,3 @@ func (m *mockSchemeFacilitator) Settle(ctx context.Context, version int, payload
 	}
 	return SettleResponse{Success: false}, errors.New("not implemented")
 }
-

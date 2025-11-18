@@ -4,8 +4,8 @@ import { x402Facilitator } from "@x402/core/facilitator";
 import {
   HTTPAdapter,
   HTTPResponseInstructions,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
   FacilitatorClient,
 } from "@x402/core/server";
 import {
@@ -19,7 +19,7 @@ import {
 import {
   ExactEvmClient,
   ExactEvmFacilitator,
-  ExactEvmService,
+  ExactEvmServer,
   toFacilitatorEvmSigner,
 } from "../../src";
 import type { ExactEvmPayloadV2 } from "../../src/types";
@@ -39,7 +39,7 @@ if (!CLIENT_PRIVATE_KEY || !FACILITATOR_PRIVATE_KEY) {
 
 /**
  * EVM Facilitator Client wrapper
- * Wraps the x402Facilitator for use with x402ResourceService
+ * Wraps the x402Facilitator for use with x402ResourceServer
  */
 class EvmFacilitatorClient implements FacilitatorClient {
   readonly scheme = "exact";
@@ -132,9 +132,9 @@ function buildEvmPaymentRequirements(
 }
 
 describe("EVM Integration Tests", () => {
-  describe("x402Client / x402ResourceService / x402Facilitator - EVM Flow", () => {
+  describe("x402Client / x402ResourceServer / x402Facilitator - EVM Flow", () => {
     let client: x402Client;
-    let server: x402ResourceService;
+    let server: x402ResourceServer;
     let clientAddress: `0x${string}`;
 
     beforeEach(async () => {
@@ -179,8 +179,8 @@ describe("EVM Integration Tests", () => {
       const facilitator = new x402Facilitator().registerScheme("eip155:84532", evmFacilitator);
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
-      server.registerScheme("eip155:84532", new ExactEvmService());
+      server = new x402ResourceServer(facilitatorClient);
+      server.registerScheme("eip155:84532", new ExactEvmServer());
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
@@ -240,9 +240,9 @@ describe("EVM Integration Tests", () => {
     });
   });
 
-  describe("x402HTTPClient / x402HTTPResourceService / x402Facilitator - EVM Flow", () => {
+  describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - EVM Flow", () => {
     let client: x402HTTPClient;
-    let service: x402HTTPResourceService;
+    let httpServer: x402HTTPResourceServer;
 
     const routes = {
       "/api/protected": {
@@ -311,12 +311,12 @@ describe("EVM Integration Tests", () => {
       const paymentClient = new x402Client().registerScheme("eip155:84532", evmClient);
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      // Create resource service and register schemes (composition pattern)
-      const resourceService = new x402ResourceService(facilitatorClient);
-      resourceService.registerScheme("eip155:84532", new ExactEvmService());
-      await resourceService.initialize(); // Initialize to fetch supported kinds
+      // Create resource server and register schemes (composition pattern)
+      const ResourceServer = new x402ResourceServer(facilitatorClient);
+      ResourceServer.registerScheme("eip155:84532", new ExactEvmServer());
+      await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
-      service = new x402HTTPResourceService(resourceService, routes);
+      httpServer = new x402HTTPResourceServer(ResourceServer, routes);
     });
 
     it("middleware should successfully verify and settle an EVM payment from an http client", async () => {
@@ -328,7 +328,7 @@ describe("EVM Integration Tests", () => {
       };
 
       // No payment made, get PaymentRequired response & header
-      const httpProcessResult = (await service.processHTTPRequest(context))!;
+      const httpProcessResult = (await httpServer.processHTTPRequest(context))!;
 
       expect(httpProcessResult.type).toBe("payment-error");
 
@@ -361,7 +361,7 @@ describe("EVM Integration Tests", () => {
         return undefined;
       };
 
-      const httpProcessResult2 = await service.processHTTPRequest(context);
+      const httpProcessResult2 = await httpServer.processHTTPRequest(context);
 
       // No need to respond, can continue with request
       expect(httpProcessResult2.type).toBe("payment-verified");
@@ -377,7 +377,7 @@ describe("EVM Integration Tests", () => {
       expect(verifiedPaymentPayload).toBeDefined();
       expect(verifiedPaymentRequirements).toBeDefined();
 
-      const settlementHeaders = await service.processSettlement(
+      const settlementHeaders = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
         200,
@@ -389,8 +389,8 @@ describe("EVM Integration Tests", () => {
   });
 
   describe("Price Parsing Integration", () => {
-    let server: x402ResourceService;
-    let evmService: ExactEvmService;
+    let server: x402ResourceServer;
+    let evmServer: ExactEvmServer;
 
     beforeEach(async () => {
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
@@ -411,10 +411,10 @@ describe("EVM Integration Tests", () => {
       );
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
+      server = new x402ResourceServer(facilitatorClient);
 
-      evmService = new ExactEvmService();
-      server.registerScheme("eip155:84532", evmService);
+      evmServer = new ExactEvmServer();
+      server.registerScheme("eip155:84532", evmServer);
       await server.initialize();
     });
 
@@ -462,7 +462,7 @@ describe("EVM Integration Tests", () => {
 
     it("should use registerMoneyParser for custom conversion", async () => {
       // Register custom parser: large amounts use DAI
-      evmService.registerMoneyParser(async (amount, _network) => {
+      evmServer.registerMoneyParser(async (amount, _network) => {
         if (amount > 100) {
           return {
             amount: (amount * 1e18).toString(), // DAI has 18 decimals
@@ -499,7 +499,7 @@ describe("EVM Integration Tests", () => {
     });
 
     it("should support multiple MoneyParser in chain", async () => {
-      evmService
+      evmServer
         .registerMoneyParser(async amount => {
           if (amount > 1000) {
             return {
@@ -555,7 +555,7 @@ describe("EVM Integration Tests", () => {
     it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
       const mockExchangeRate = 1.02;
 
-      evmService.registerMoneyParser(async (amount, _network) => {
+      evmServer.registerMoneyParser(async (amount, _network) => {
         // Simulate async API call
         await new Promise(resolve => setTimeout(resolve, 10));
 

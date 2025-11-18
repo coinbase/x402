@@ -3,14 +3,14 @@ import {
   HTTPRequestContext,
   PaywallConfig,
   PaywallProvider,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
 } from "@x402/core/server";
-import { SchemeNetworkService, Network } from "@x402/core/types";
+import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextRequest, NextResponse } from "next/server";
-import { bazaarResourceServiceExtension } from "@x402/extensions/bazaar";
+import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
 
 /**
  * Next.js adapter implementation
@@ -139,52 +139,52 @@ export interface SchemeRegistration {
   /**
    * The scheme server implementation for this network
    */
-  server: SchemeNetworkService;
+  server: SchemeNetworkServer;
 }
 
 /**
- * Next.js payment middleware for x402 protocol (direct service instance).
+ * Next.js payment middleware for x402 protocol (direct server instance).
  *
- * Use this when you want to pass a pre-configured x402ResourceService instance.
+ * Use this when you want to pass a pre-configured x402ResourceServer instance.
  * This provides more flexibility for testing, custom configuration, and reusing
- * service instances across multiple middlewares.
+ * server instances across multiple middlewares.
  *
  * @param routes - Route configurations for protected endpoints
- * @param service - Pre-configured x402ResourceService instance
+ * @param server - Pre-configured x402ResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the service on startup (defaults to true)
+ * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
  * @returns Next.js middleware handler
  *
  * @example
  * ```typescript
  * import { paymentMiddleware } from "@x402/next";
- * import { x402ResourceService } from "@x402/core/server";
- * import { registerEvmToResourceService } from "@x402/evm/register";
+ * import { x402ResourceServer } from "@x402/core/server";
+ * import { registerEvmToResourceServer } from "@x402/evm/register";
  *
- * const service = new x402ResourceService(myFacilitatorClient);
- * registerEvmToResourceService(service, {});
+ * const server = new x402ResourceServer(myFacilitatorClient);
+ * registerEvmToResourceServer(server, {});
  *
- * export const middleware = paymentMiddleware(routes, service, paywallConfig);
+ * export const middleware = paymentMiddleware(routes, server, paywallConfig);
  * ```
  */
 export function paymentMiddleware(
   routes: RoutesConfig,
-  service: x402ResourceService,
+  server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  // Create the x402 HTTP server instance with the resource service
-  const server = new x402HTTPResourceService(service, routes);
+  // Create the x402 HTTP server instance with the resource server
+  const httpServer = new x402HTTPResourceServer(server, routes);
 
   // Register custom paywall provider if provided
   if (paywall) {
-    server.registerPaywallProvider(paywall);
+    httpServer.registerPaywallProvider(paywall);
   }
 
   // Store initialization promise (not the result)
-  let initPromise: Promise<void> | null = initializeOnStart ? service.initialize() : null;
+  let initPromise: Promise<void> | null = initializeOnStart ? server.initialize() : null;
 
   return async (req: NextRequest) => {
     // Ensure initialization completes before processing
@@ -203,7 +203,7 @@ export function paymentMiddleware(
     };
 
     // Process payment requirement check
-    const result = await server.processHTTPRequest(context, paywallConfig);
+    const result = await httpServer.processHTTPRequest(context, paywallConfig);
 
     // Handle the different result types
     switch (result.type) {
@@ -242,7 +242,7 @@ export function paymentMiddleware(
         }
 
         try {
-          const settlementHeaders = await server.processSettlement(
+          const settlementHeaders = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
             nextResponse.status,
@@ -278,7 +278,7 @@ export function paymentMiddleware(
  * Next.js payment middleware for x402 protocol (configuration-based).
  *
  * Use this when you want to quickly set up middleware with simple configuration.
- * This function creates and configures the x402ResourceService internally.
+ * This function creates and configures the x402ResourceServer internally.
  *
  * @param routes - Route configurations for protected endpoints
  * @param facilitatorClients - Optional facilitator client(s) for payment processing
@@ -308,18 +308,18 @@ export function paymentMiddlewareFromConfig(
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  const resourceService = new x402ResourceService(facilitatorClients);
+  const ResourceServer = new x402ResourceServer(facilitatorClients);
 
-  resourceService.registerExtension(bazaarResourceServiceExtension);
+  ResourceServer.registerExtension(bazaarResourceServerExtension);
 
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
-      resourceService.registerScheme(network, schemeServer);
+      ResourceServer.registerScheme(network, schemeServer);
     });
   }
 
-  // Use the direct paymentMiddleware with the configured service
-  return paymentMiddleware(routes, resourceService, paywallConfig, paywall, initializeOnStart);
+  // Use the direct paymentMiddleware with the configured server
+  return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, initializeOnStart);
 }
 
 export type {
@@ -327,7 +327,7 @@ export type {
   PaymentRequirements,
   PaymentPayload,
   Network,
-  SchemeNetworkService,
+  SchemeNetworkServer,
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig } from "@x402/core/server";

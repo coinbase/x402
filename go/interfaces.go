@@ -8,11 +8,13 @@ import "context"
 // The default parser is always used as a fallback
 //
 // Args:
-//   amount: Decimal amount (e.g., 1.50 for $1.50)
-//   network: Network identifier
+//
+//	amount: Decimal amount (e.g., 1.50 for $1.50)
+//	network: Network identifier
 //
 // Returns:
-//   AssetAmount or nil if this parser cannot handle the conversion
+//
+//	AssetAmount or nil if this parser cannot handle the conversion
 type MoneyParser func(amount float64, network Network) (*AssetAmount, error)
 
 // SchemeNetworkClient is implemented by client-side payment mechanisms
@@ -42,9 +44,9 @@ type SchemeNetworkFacilitator interface {
 	Settle(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
 }
 
-// SchemeNetworkService is implemented by server-side payment mechanisms
+// SchemeNetworkServer is implemented by server-side payment mechanisms
 // This interface is used by servers who create payment requirements
-type SchemeNetworkService interface {
+type SchemeNetworkServer interface {
 	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
 

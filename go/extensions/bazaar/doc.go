@@ -65,6 +65,3 @@ The `ExtractDiscoveryInfo` function automatically handles v1 format as a fallbac
 	infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequirementsV1)
 */
 package bazaar
-
-
-

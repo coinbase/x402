@@ -23,8 +23,8 @@ This server demonstrates and tests the x402 Express.js middleware with both EVM 
 ```typescript
 import express from "express";
 import { x402Middleware } from "@x402/server/express";
-import { ExactEvmService } from "@x402/evm";
-import { ExactSvmService } from "@x402/svm";
+import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmServer } from "@x402/svm";
 
 const app = express();
 
@@ -50,13 +50,13 @@ const routes = {
   }
 };
 
-// Apply x402 middleware with EVM and SVM services
+// Apply x402 middleware with EVM and SVM servers
 app.use(x402Middleware({
   routes,
   facilitatorUrl: "http://localhost:4023",
-  services: {
-    "eip155:84532": new ExactEvmService(),
-    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": new ExactSvmService()
+  servers: {
+    "eip155:84532": new ExactEvmServer(),
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": new ExactSvmServer()
   }
 }));
 
@@ -149,8 +149,8 @@ PAYMENT-RESPONSE: <base64-encoded-settlement-response>
 ## Package Dependencies
 
 - `@x402/server` - Express middleware
-- `@x402/evm` - EVM service
-- `@x402/svm` - SVM service
+- `@x402/evm` - EVM server
+- `@x402/svm` - SVM server
 - `@x402/extensions/bazaar` - Discovery extension
 - `express` - HTTP server framework
 
@@ -164,7 +164,7 @@ PAYMENT-RESPONSE: <base64-encoded-settlement-response>
 - **Error Handling** - Clear error messages for payment failures
 
 ### Service Integration
-- **EVM Service** - Handles Base Sepolia USDC payments
-- **SVM Service** - Handles Solana Devnet USDC payments
+- **EVM Server** - Handles Base Sepolia USDC payments
+- **SVM Server** - Handles Solana Devnet USDC payments
 - **Price Conversion** - "$0.001" → token amounts with decimals
 - **Asset Resolution** - Automatic USDC contract/mint lookup

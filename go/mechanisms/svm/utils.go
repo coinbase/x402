@@ -207,13 +207,13 @@ func GetTokenPayerFromTransaction(tx *solana.Transaction) (string, error) {
 				continue
 			}
 
-		// Check if it's a TransferChecked instruction
-		if _, ok := decoded.Impl.(*token.TransferChecked); ok {
-			// The owner/authority is the 4th account (index 3)
-			if len(accounts) >= 4 {
-				return accounts[3].PublicKey.String(), nil
+			// Check if it's a TransferChecked instruction
+			if _, ok := decoded.Impl.(*token.TransferChecked); ok {
+				// The owner/authority is the 4th account (index 3)
+				if len(accounts) >= 4 {
+					return accounts[3].PublicKey.String(), nil
+				}
 			}
-		}
 		}
 	}
 
@@ -231,4 +231,3 @@ func EncodeTransaction(tx *solana.Transaction) (string, error) {
 	// Encode to base64
 	return base64.StdEncoding.EncodeToString(txBytes), nil
 }
-

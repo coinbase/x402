@@ -23,11 +23,13 @@ type ClientSigner struct {
 // NewClientSignerFromPrivateKey creates a client signer from a hex-encoded private key.
 //
 // Args:
-//   privateKeyHex: Hex-encoded private key (with or without "0x" prefix)
+//
+//	privateKeyHex: Hex-encoded private key (with or without "0x" prefix)
 //
 // Returns:
-//   ClientEvmSigner implementation ready for use with evm.NewExactEvmClient()
-//   Error if private key is invalid
+//
+//	ClientEvmSigner implementation ready for use with evm.NewExactEvmClient()
+//	Error if private key is invalid
 //
 // Example:
 //
@@ -64,14 +66,16 @@ func (s *ClientSigner) Address() string {
 // SignTypedData signs EIP-712 typed data.
 //
 // Args:
-//   domain: EIP-712 domain separator
-//   types: Type definitions for the structured data
-//   primaryType: The primary type being signed
-//   message: The message data to sign
+//
+//	domain: EIP-712 domain separator
+//	types: Type definitions for the structured data
+//	primaryType: The primary type being signed
+//	message: The message data to sign
 //
 // Returns:
-//   65-byte signature (r, s, v)
-//   Error if signing fails
+//
+//	65-byte signature (r, s, v)
+//	Error if signing fails
 func (s *ClientSigner) SignTypedData(
 	domain x402evm.TypedDataDomain,
 	types map[string][]x402evm.TypedDataField,
@@ -142,4 +146,3 @@ func (s *ClientSigner) SignTypedData(
 
 	return signature, nil
 }
-

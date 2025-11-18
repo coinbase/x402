@@ -10,40 +10,40 @@ import (
 
 // FacilitatorVerifyContext contains information passed to facilitator verify hooks
 type FacilitatorVerifyContext struct {
-	Ctx               context.Context
-	PaymentPayload    PaymentPayload
+	Ctx                 context.Context
+	PaymentPayload      PaymentPayload
 	PaymentRequirements PaymentRequirements
 }
 
 // FacilitatorVerifyResultContext contains facilitator verify operation result and context
 type FacilitatorVerifyResultContext struct {
 	FacilitatorVerifyContext
-	Result   VerifyResponse
+	Result VerifyResponse
 }
 
 // FacilitatorVerifyFailureContext contains facilitator verify operation failure and context
 type FacilitatorVerifyFailureContext struct {
 	FacilitatorVerifyContext
-	Error    error
+	Error error
 }
 
 // FacilitatorSettleContext contains information passed to facilitator settle hooks
 type FacilitatorSettleContext struct {
-	Ctx               context.Context
-	PaymentPayload    PaymentPayload
+	Ctx                 context.Context
+	PaymentPayload      PaymentPayload
 	PaymentRequirements PaymentRequirements
 }
 
 // FacilitatorSettleResultContext contains facilitator settle operation result and context
 type FacilitatorSettleResultContext struct {
 	FacilitatorSettleContext
-	Result   SettleResponse
+	Result SettleResponse
 }
 
 // FacilitatorSettleFailureContext contains facilitator settle operation failure and context
 type FacilitatorSettleFailureContext struct {
 	FacilitatorSettleContext
-	Error    error
+	Error error
 }
 
 // ============================================================================
@@ -101,4 +101,3 @@ type FacilitatorAfterSettleHook func(FacilitatorSettleResultContext) error
 // If it returns a result with Recovered=true, the provided SettleResponse
 // will be returned instead of the error
 type FacilitatorOnSettleFailureHook func(FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error)
-

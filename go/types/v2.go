@@ -25,11 +25,11 @@ type PaymentRequirementsV2 struct {
 
 // PaymentRequiredV2 represents a v2 402 response structure
 type PaymentRequiredV2 struct {
-	X402Version int                      `json:"x402Version"`
-	Error       string                   `json:"error,omitempty"`
-	Resource    *ResourceInfoV2          `json:"resource,omitempty"`
-	Accepts     []PaymentRequirementsV2  `json:"accepts"`
-	Extensions  map[string]interface{}   `json:"extensions,omitempty"`
+	X402Version int                     `json:"x402Version"`
+	Error       string                  `json:"error,omitempty"`
+	Resource    *ResourceInfoV2         `json:"resource,omitempty"`
+	Accepts     []PaymentRequirementsV2 `json:"accepts"`
+	Extensions  map[string]interface{}  `json:"extensions,omitempty"`
 }
 
 // ResourceInfoV2 describes the resource being accessed
@@ -67,4 +67,3 @@ func ToPaymentRequiredV2(data []byte) (*PaymentRequiredV2, error) {
 	}
 	return &required, nil
 }
-

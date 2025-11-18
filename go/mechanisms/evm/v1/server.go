@@ -11,21 +11,21 @@ import (
 	"github.com/coinbase/x402/go/mechanisms/evm"
 )
 
-// ExactEvmServiceV1 implements the SchemeNetworkService interface for EVM exact payments (V1)
-type ExactEvmServiceV1 struct{}
+// ExactEvmServerV1 implements the SchemeNetworkServer interface for EVM exact payments (V1)
+type ExactEvmServerV1 struct{}
 
-// NewExactEvmServiceV1 creates a new ExactEvmServiceV1
-func NewExactEvmServiceV1() *ExactEvmServiceV1 {
-	return &ExactEvmServiceV1{}
+// NewExactEvmServerV1 creates a new ExactEvmServerV1
+func NewExactEvmServerV1() *ExactEvmServerV1 {
+	return &ExactEvmServerV1{}
 }
 
 // Scheme returns the scheme identifier
-func (s *ExactEvmServiceV1) Scheme() string {
+func (s *ExactEvmServerV1) Scheme() string {
 	return evm.SchemeExact
 }
 
 // ParsePrice parses a price into an AssetAmount (V1)
-func (s *ExactEvmServiceV1) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
+func (s *ExactEvmServerV1) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	// Get network configuration
 	networkStr := string(network)
 	config, err := evm.GetNetworkConfig(networkStr)
@@ -123,7 +123,7 @@ func (s *ExactEvmServiceV1) ParsePrice(price x402.Price, network x402.Network) (
 }
 
 // EnhancePaymentRequirements enhances payment requirements with EVM-specific details (V1)
-func (s *ExactEvmServiceV1) EnhancePaymentRequirements(
+func (s *ExactEvmServerV1) EnhancePaymentRequirements(
 	ctx context.Context,
 	requirements x402.PaymentRequirements,
 	supportedKind x402.SupportedKind,

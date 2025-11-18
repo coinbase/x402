@@ -173,6 +173,3 @@ func IsBodyMethod(method string) bool {
 	}
 	return false
 }
-
-
-

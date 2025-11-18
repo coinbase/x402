@@ -1,10 +1,10 @@
 import { x402Client, SelectPaymentRequirements, PaymentPolicy } from "@x402/core/client";
-import { x402ResourceService } from "@x402/core/server";
+import { x402ResourceServer } from "@x402/core/server";
 import { x402Facilitator } from "@x402/core/facilitator";
 import { Network } from "@x402/core/types";
 import { ClientEvmSigner, FacilitatorEvmSigner } from "../signer";
 import { ExactEvmClient } from "../exact/client";
-import { ExactEvmService } from "../exact/service";
+import { ExactEvmServer } from "../exact/server";
 import { ExactEvmFacilitator } from "../exact/facilitator";
 import { ExactEvmClientV1, ExactEvmFacilitatorV1, NETWORKS } from "../v1";
 
@@ -36,9 +36,9 @@ export interface EvmClientConfig {
 }
 
 /**
- * Configuration options for registering EVM schemes to an x402ResourceService
+ * Configuration options for registering EVM schemes to an x402ResourceServer
  */
-export interface EvmResourceServiceConfig {
+export interface EvmResourceServerConfig {
   /**
    * Optional specific networks to register
    * If not provided, registers wildcard support (eip155:*)
@@ -117,43 +117,43 @@ export function registerEvmToClient(client: x402Client, config: EvmClientConfig)
 }
 
 /**
- * Registers EVM payment schemes to an existing x402ResourceService instance.
+ * Registers EVM payment schemes to an existing x402ResourceServer instance.
  *
  * This function registers:
- * - V2: eip155:* wildcard scheme with ExactEvmService (or specific networks if provided)
- * - V1: All supported EVM networks with ExactEvmServiceV1
+ * - V2: eip155:* wildcard scheme with ExactEvmServer (or specific networks if provided)
+ * - V1: All supported EVM networks with ExactEvmServerV1
  *
- * @param service - The x402ResourceService instance to register schemes to
- * @param config - Configuration for EVM resource service registration
- * @returns The service instance for chaining
+ * @param server - The x402ResourceServer instance to register schemes to
+ * @param config - Configuration for EVM resource server registration
+ * @returns The server instance for chaining
  *
  * @example
  * ```typescript
- * import { registerEvmToResourceService } from "@x402/evm/register";
- * import { x402ResourceService } from "@x402/core/server";
+ * import { registerEvmToResourceServer } from "@x402/evm/register";
+ * import { x402ResourceServer } from "@x402/core/server";
  *
- * const service = new x402ResourceService(facilitatorClient);
- * registerEvmToResourceService(service, {});
+ * const server = new x402ResourceServer(facilitatorClient);
+ * registerEvmToResourceServer(server, {});
  * ```
  */
-export function registerEvmToResourceService(
-  service: x402ResourceService,
-  config: EvmResourceServiceConfig = {},
-): x402ResourceService {
+export function registerEvmToResourceServer(
+  server: x402ResourceServer,
+  config: EvmResourceServerConfig = {},
+): x402ResourceServer {
   // Register V2 scheme
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      service.registerScheme(network, new ExactEvmService());
+      server.registerScheme(network, new ExactEvmServer());
     });
   } else {
     // Register wildcard for all EVM chains
-    service.registerScheme("eip155:*", new ExactEvmService());
+    server.registerScheme("eip155:*", new ExactEvmServer());
   }
 
-  // Note: V1 networks are not registered for ResourceService as V1 is client/facilitator only
+  // Note: V1 networks are not registered for ResourceServer as V1 is client/facilitator only
 
-  return service;
+  return server;
 }
 
 /**

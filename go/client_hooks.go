@@ -87,4 +87,3 @@ func WithOnPaymentCreationFailureHook(hook OnPaymentCreationFailureHook) ClientO
 		c.onPaymentCreationFailureHooks = append(c.onPaymentCreationFailureHooks, hook)
 	}
 }
-

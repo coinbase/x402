@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ExactEvmClient, ExactEvmFacilitator, ExactEvmService } from "../../src";
+import { ExactEvmClient, ExactEvmFacilitator, ExactEvmServer } from "../../src";
 
 describe("@x402/evm", () => {
   it("should export ExactEvmClient", () => {
@@ -12,13 +12,13 @@ describe("@x402/evm", () => {
     expect(typeof ExactEvmFacilitator).toBe("function");
   });
 
-  it("should export ExactEvmService", () => {
-    expect(ExactEvmService).toBeDefined();
-    expect(typeof ExactEvmService).toBe("function");
+  it("should export ExactEvmServer", () => {
+    expect(ExactEvmServer).toBeDefined();
+    expect(typeof ExactEvmServer).toBe("function");
   });
 
-  it("should create ExactEvmService instance", () => {
-    const service = new ExactEvmService();
-    expect(service.scheme).toBe("exact");
+  it("should create ExactEvmServer instance", () => {
+    const server = new ExactEvmServer();
+    expect(server.scheme).toBe("exact");
   });
 });

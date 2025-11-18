@@ -61,4 +61,3 @@ func ToPaymentRequiredV1(data []byte) (*PaymentRequiredV1, error) {
 	}
 	return &required, nil
 }
-

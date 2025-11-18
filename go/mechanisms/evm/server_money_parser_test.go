@@ -9,13 +9,13 @@ import (
 
 // TestRegisterMoneyParser_SingleCustomParser tests a single custom money parser
 func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	// Register custom parser: large amounts use DAI
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 100 {
 			return &x402.AssetAmount{
-				Amount: fmt.Sprintf("%.0f", amount*1e18), // DAI has 18 decimals
+				Amount: fmt.Sprintf("%.0f", amount*1e18),             // DAI has 18 decimals
 				Asset:  "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI on mainnet
 				Extra: map[string]interface{}{
 					"token": "DAI",
@@ -27,7 +27,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	})
 
 	// Test large amount - should use custom parser (DAI)
-	result1, err := service.ParsePrice(150.0, "eip155:1")
+	result1, err := server.ParsePrice(150.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	}
 
 	// Test small amount - should fall back to default (USDC)
-	result2, err := service.ParsePrice(50.0, "eip155:1")
+	result2, err := server.ParsePrice(50.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -64,10 +64,10 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 
 // TestRegisterMoneyParser_MultipleInChain tests multiple money parsers in chain
 func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	// Parser 1: Premium tier (> 1000)
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 1000 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e18),
@@ -79,7 +79,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Parser 2: Large tier (> 100)
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 100 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e18),
@@ -91,7 +91,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Parser 3: Medium tier (> 10)
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 10 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e6),
@@ -103,7 +103,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Test premium tier
-	result1, err := service.ParsePrice(2000.0, "eip155:1")
+	result1, err := server.ParsePrice(2000.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test large tier
-	result2, err := service.ParsePrice(200.0, "eip155:1")
+	result2, err := server.ParsePrice(200.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -121,7 +121,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test medium tier
-	result3, err := service.ParsePrice(20.0, "eip155:1")
+	result3, err := server.ParsePrice(20.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -130,7 +130,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test default (small amount)
-	result4, err := service.ParsePrice(5.0, "eip155:1")
+	result4, err := server.ParsePrice(5.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -142,10 +142,10 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 
 // TestRegisterMoneyParser_NetworkSpecific tests network-specific parsers
 func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	// Network-specific parser
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		// Only handle Base Sepolia
 		if string(network) == "eip155:84532" {
 			return &x402.AssetAmount{
@@ -158,7 +158,7 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 	})
 
 	// Test Base Sepolia - should use custom parser
-	result1, err := service.ParsePrice(10.0, "eip155:84532")
+	result1, err := server.ParsePrice(10.0, "eip155:84532")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -167,7 +167,7 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 	}
 
 	// Test Ethereum Mainnet - should use default
-	result2, err := service.ParsePrice(10.0, "eip155:1")
+	result2, err := server.ParsePrice(10.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -178,9 +178,9 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 
 // TestRegisterMoneyParser_StringPrices tests parsing with string prices
 func TestRegisterMoneyParser_StringPrices(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 50 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e18),
@@ -195,7 +195,7 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 		price         string
 		expectedAsset string
 	}{
-		{"Dollar format", "$100", "0xDAI"}, // > 50, uses DAI
+		{"Dollar format", "$100", "0xDAI"},                                       // > 50, uses DAI
 		{"Plain decimal", "25.50", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"}, // <= 50, uses USDC
 		{"With USD suffix", "75 USD", "0xDAI"},
 		{"With USDC suffix", "10 USDC", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"},
@@ -203,7 +203,7 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.ParsePrice(tt.price, "eip155:1")
+			result, err := server.ParsePrice(tt.price, "eip155:1")
 			if err != nil {
 				t.Fatalf("Expected no error, got %v", err)
 			}
@@ -216,10 +216,10 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 
 // TestRegisterMoneyParser_ErrorHandling tests parser error handling
 func TestRegisterMoneyParser_ErrorHandling(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	// Parser that returns an error
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount == 99 {
 			return nil, fmt.Errorf("amount 99 is not allowed")
 		}
@@ -227,7 +227,7 @@ func TestRegisterMoneyParser_ErrorHandling(t *testing.T) {
 	})
 
 	// Parser that handles successfully
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 50 {
 			return &x402.AssetAmount{
 				Amount: "100000000",
@@ -238,7 +238,7 @@ func TestRegisterMoneyParser_ErrorHandling(t *testing.T) {
 	})
 
 	// Error in first parser should be skipped, second parser should handle
-	result, err := service.ParsePrice(99.0, "eip155:1")
+	result, err := server.ParsePrice(99.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error (should skip erroring parser), got %v", err)
 	}
@@ -249,9 +249,9 @@ func TestRegisterMoneyParser_ErrorHandling(t *testing.T) {
 
 // TestRegisterMoneyParser_Chainability tests that RegisterMoneyParser returns the service for chaining
 func TestRegisterMoneyParser_Chainability(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
-	result := service.
+	result := server.
 		RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 			return nil, nil
 		}).
@@ -259,17 +259,17 @@ func TestRegisterMoneyParser_Chainability(t *testing.T) {
 			return nil, nil
 		})
 
-	if result != service {
-		t.Error("Expected RegisterMoneyParser to return service for chaining")
+	if result != server {
+		t.Error("Expected RegisterMoneyParser to return server for chaining")
 	}
 }
 
 // TestRegisterMoneyParser_NoCustomParsers tests default behavior with no custom parsers
 func TestRegisterMoneyParser_NoCustomParsers(t *testing.T) {
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	// No custom parsers registered, should use default
-	result, err := service.ParsePrice(10.0, "eip155:1")
+	result, err := server.ParsePrice(10.0, "eip155:1")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -284,4 +284,3 @@ func TestRegisterMoneyParser_NoCustomParsers(t *testing.T) {
 		t.Errorf("Expected amount %s, got %s", expectedAmount, result.Amount)
 	}
 }
-

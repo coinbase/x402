@@ -25,8 +25,8 @@ type x402Client struct {
 	policies []PaymentPolicy
 
 	// Lifecycle hooks
-	beforePaymentCreationHooks   []BeforePaymentCreationHook
-	afterPaymentCreationHooks    []AfterPaymentCreationHook
+	beforePaymentCreationHooks    []BeforePaymentCreationHook
+	afterPaymentCreationHooks     []AfterPaymentCreationHook
 	onPaymentCreationFailureHooks []OnPaymentCreationFailureHook
 }
 

@@ -8,12 +8,12 @@ EVM (Ethereum Virtual Machine) implementation of the x402 payment protocol using
 evm/
 ├── client.go       # ExactEvmClient (V2)
 ├── facilitator.go  # ExactEvmFacilitator (V2)
-├── service.go      # ExactEvmService (V2)
+├── server.go       # ExactEvmServer (V2)
 ├── builder.go      # NewEvmClient() convenience builder
 ├── v1/
 │   ├── client.go      # ExactEvmClientV1
 │   ├── facilitator.go # ExactEvmFacilitatorV1
-│   ├── service.go     # ExactEvmServiceV1
+│   ├── server.go      # ExactEvmServerV1
 │   └── evm.go         # V1 helpers + NETWORKS constant
 ```
 
@@ -63,17 +63,17 @@ settleResp, err := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 
 ### Service (Payment Requirements)
 
-**V2:** `ExactEvmService` - Builds payment requirements for protected resources
+**V2:** `ExactEvmServer` - Builds payment requirements for protected resources
 
 ```go
-service := x402.Newx402ResourceService(
-    evm.RegisterService("eip155:8453")...,
+server := x402.Newx402ResourceServer(
+    evm.RegisterServer("eip155:8453")...,
 )
 
-// Service handles price parsing and requirement building
+// Server handles price parsing and requirement building
 ```
 
-**V1:** `ExactEvmServiceV1` - Legacy requirement building
+**V1:** `ExactEvmServerV1` - Legacy requirement building
 
 ## Convenience Builder
 

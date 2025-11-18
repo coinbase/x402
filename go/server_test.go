@@ -8,18 +8,18 @@ import (
 	"time"
 )
 
-// Mock service for testing
-type mockSchemeNetworkService struct {
+// Mock server for testing
+type mockSchemeNetworkServer struct {
 	scheme      string
 	parsePrice  func(price Price, network Network) (AssetAmount, error)
 	enhanceReqs func(ctx context.Context, base PaymentRequirements, supported SupportedKind, extensions []string) (PaymentRequirements, error)
 }
 
-func (m *mockSchemeNetworkService) Scheme() string {
+func (m *mockSchemeNetworkServer) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkService) ParsePrice(price Price, network Network) (AssetAmount, error) {
+func (m *mockSchemeNetworkServer) ParsePrice(price Price, network Network) (AssetAmount, error) {
 	if m.parsePrice != nil {
 		return m.parsePrice(price, network)
 	}
@@ -30,7 +30,7 @@ func (m *mockSchemeNetworkService) ParsePrice(price Price, network Network) (Ass
 	}, nil
 }
 
-func (m *mockSchemeNetworkService) EnhancePaymentRequirements(ctx context.Context, base PaymentRequirements, supported SupportedKind, extensions []string) (PaymentRequirements, error) {
+func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context, base PaymentRequirements, supported SupportedKind, extensions []string) (PaymentRequirements, error) {
 	if m.enhanceReqs != nil {
 		return m.enhanceReqs(ctx, base, supported, extensions)
 	}
@@ -87,44 +87,44 @@ func (m *mockFacilitatorClient) Identifier() string {
 	return "mock"
 }
 
-func TestNewx402ResourceService(t *testing.T) {
-	service := Newx402ResourceService()
-	if service == nil {
-		t.Fatal("Expected service to be created")
+func TestNewx402ResourceServer(t *testing.T) {
+	server := Newx402ResourceServer()
+	if server == nil {
+		t.Fatal("Expected server to be created")
 	}
-	if service.schemes == nil {
+	if server.schemes == nil {
 		t.Fatal("Expected schemes map to be initialized")
 	}
-	if service.facilitatorClients == nil {
+	if server.facilitatorClients == nil {
 		t.Fatal("Expected facilitator clients to be initialized")
 	}
-	if service.supportedCache == nil {
+	if server.supportedCache == nil {
 		t.Fatal("Expected cache to be initialized")
 	}
 }
 
-func TestServiceWithOptions(t *testing.T) {
+func TestServerWithOptions(t *testing.T) {
 	mockClient := &mockFacilitatorClient{}
-	mockService := &mockSchemeNetworkService{scheme: "exact"}
+	mockServer := &mockSchemeNetworkServer{scheme: "exact"}
 
-	service := Newx402ResourceService(
+	server := Newx402ResourceServer(
 		WithFacilitatorClient(mockClient),
-		WithSchemeService("eip155:1", mockService),
+		WithSchemeServer("eip155:1", mockServer),
 		WithCacheTTL(10*time.Minute),
 	)
 
-	if len(service.facilitatorClients) != 1 {
+	if len(server.facilitatorClients) != 1 {
 		t.Fatal("Expected 1 facilitator client")
 	}
-	if service.schemes["eip155:1"]["exact"] != mockService {
-		t.Fatal("Expected scheme service to be registered")
+	if server.schemes["eip155:1"]["exact"] != mockServer {
+		t.Fatal("Expected scheme server to be registered")
 	}
-	if service.supportedCache.ttl != 10*time.Minute {
+	if server.supportedCache.ttl != 10*time.Minute {
 		t.Fatal("Expected cache TTL to be set")
 	}
 }
 
-func TestServiceInitialize(t *testing.T) {
+func TestServerInitialize(t *testing.T) {
 	ctx := context.Background()
 	mockClient := &mockFacilitatorClient{
 		supported: func(ctx context.Context) (SupportedResponse, error) {
@@ -146,28 +146,28 @@ func TestServiceInitialize(t *testing.T) {
 		},
 	}
 
-	service := Newx402ResourceService(WithFacilitatorClient(mockClient))
-	err := service.Initialize(ctx)
+	server := Newx402ResourceServer(WithFacilitatorClient(mockClient))
+	err := server.Initialize(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
 	// Check that facilitatorClientsMap was built
-	if len(service.facilitatorClientsMap) != 1 {
+	if len(server.facilitatorClientsMap) != 1 {
 		t.Fatal("Expected 1 version in map")
 	}
-	if len(service.facilitatorClientsMap[2]) != 2 {
+	if len(server.facilitatorClientsMap[2]) != 2 {
 		t.Fatal("Expected 2 networks for v2")
 	}
-	if service.facilitatorClientsMap[2]["eip155:1"]["exact"] != mockClient {
+	if server.facilitatorClientsMap[2]["eip155:1"]["exact"] != mockClient {
 		t.Fatal("Expected client to be mapped for exact scheme")
 	}
-	if service.facilitatorClientsMap[2]["eip155:8453"]["transfer"] != mockClient {
+	if server.facilitatorClientsMap[2]["eip155:8453"]["transfer"] != mockClient {
 		t.Fatal("Expected client to be mapped for transfer scheme")
 	}
 }
 
-func TestServiceInitializeWithMultipleFacilitators(t *testing.T) {
+func TestServerInitializeWithMultipleFacilitators(t *testing.T) {
 	ctx := context.Background()
 
 	// First facilitator supports exact on mainnet
@@ -207,31 +207,31 @@ func TestServiceInitializeWithMultipleFacilitators(t *testing.T) {
 		},
 	}
 
-	service := Newx402ResourceService(
+	server := Newx402ResourceServer(
 		WithFacilitatorClient(mockClient1),
 		WithFacilitatorClient(mockClient2),
 	)
 
-	err := service.Initialize(ctx)
+	err := server.Initialize(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
 	// First facilitator should have precedence for eip155:1
-	if service.facilitatorClientsMap[2]["eip155:1"]["exact"] != mockClient1 {
+	if server.facilitatorClientsMap[2]["eip155:1"]["exact"] != mockClient1 {
 		t.Fatal("Expected first facilitator to have precedence")
 	}
 
 	// Second facilitator should handle eip155:8453
-	if service.facilitatorClientsMap[2]["eip155:8453"]["exact"] != mockClient2 {
+	if server.facilitatorClientsMap[2]["eip155:8453"]["exact"] != mockClient2 {
 		t.Fatal("Expected second facilitator for new network")
 	}
 }
 
-func TestServiceBuildPaymentRequirements(t *testing.T) {
+func TestServerBuildPaymentRequirements(t *testing.T) {
 	ctx := context.Background()
 
-	mockService := &mockSchemeNetworkService{
+	mockServer := &mockSchemeNetworkServer{
 		scheme: "exact",
 		parsePrice: func(price Price, network Network) (AssetAmount, error) {
 			return AssetAmount{
@@ -244,13 +244,13 @@ func TestServiceBuildPaymentRequirements(t *testing.T) {
 
 	mockClient := &mockFacilitatorClient{}
 
-	service := Newx402ResourceService(
+	server := Newx402ResourceServer(
 		WithFacilitatorClient(mockClient),
-		WithSchemeService("eip155:1", mockService),
+		WithSchemeServer("eip155:1", mockServer),
 	)
 
 	// Initialize to populate supported kinds
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	config := ResourceConfig{
 		Scheme:            "exact",
@@ -260,7 +260,7 @@ func TestServiceBuildPaymentRequirements(t *testing.T) {
 		MaxTimeoutSeconds: 600,
 	}
 
-	requirements, err := service.BuildPaymentRequirements(ctx, config)
+	requirements, err := server.BuildPaymentRequirements(ctx, config)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -287,9 +287,9 @@ func TestServiceBuildPaymentRequirements(t *testing.T) {
 	}
 }
 
-func TestServiceBuildPaymentRequirementsNoScheme(t *testing.T) {
+func TestServerBuildPaymentRequirementsNoScheme(t *testing.T) {
 	ctx := context.Background()
-	service := Newx402ResourceService()
+	server := Newx402ResourceServer()
 
 	config := ResourceConfig{
 		Scheme:  "unregistered",
@@ -298,7 +298,7 @@ func TestServiceBuildPaymentRequirementsNoScheme(t *testing.T) {
 		Network: "eip155:1",
 	}
 
-	_, err := service.BuildPaymentRequirements(ctx, config)
+	_, err := server.BuildPaymentRequirements(ctx, config)
 	if err == nil {
 		t.Fatal("Expected error for unregistered scheme")
 	}
@@ -309,8 +309,8 @@ func TestServiceBuildPaymentRequirementsNoScheme(t *testing.T) {
 	}
 }
 
-func TestServiceCreatePaymentRequiredResponse(t *testing.T) {
-	service := Newx402ResourceService()
+func TestServerCreatePaymentRequiredResponse(t *testing.T) {
+	server := Newx402ResourceServer()
 
 	requirements := []PaymentRequirements{
 		{
@@ -328,7 +328,7 @@ func TestServiceCreatePaymentRequiredResponse(t *testing.T) {
 		MimeType:    "application/json",
 	}
 
-	response := service.CreatePaymentRequiredResponse(
+	response := server.CreatePaymentRequiredResponse(
 		requirements,
 		info,
 		"Custom error message",
@@ -352,7 +352,7 @@ func TestServiceCreatePaymentRequiredResponse(t *testing.T) {
 	}
 }
 
-func TestServiceVerifyPayment(t *testing.T) {
+func TestServerVerifyPayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
@@ -364,8 +364,8 @@ func TestServiceVerifyPayment(t *testing.T) {
 		},
 	}
 
-	service := Newx402ResourceService(WithFacilitatorClient(mockClient))
-	service.Initialize(ctx)
+	server := Newx402ResourceServer(WithFacilitatorClient(mockClient))
+	server.Initialize(ctx)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -381,11 +381,11 @@ func TestServiceVerifyPayment(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	// Marshal to bytes for service call
+	// Marshal to bytes for server call
 	payloadBytes, _ := json.Marshal(payload)
 	requirementsBytes, _ := json.Marshal(requirements)
 
-	response, err := service.VerifyPayment(ctx, payloadBytes, requirementsBytes)
+	response, err := server.VerifyPayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -397,7 +397,7 @@ func TestServiceVerifyPayment(t *testing.T) {
 	}
 }
 
-func TestServiceSettlePayment(t *testing.T) {
+func TestServerSettlePayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
@@ -410,8 +410,8 @@ func TestServiceSettlePayment(t *testing.T) {
 		},
 	}
 
-	service := Newx402ResourceService(WithFacilitatorClient(mockClient))
-	service.Initialize(ctx)
+	server := Newx402ResourceServer(WithFacilitatorClient(mockClient))
+	server.Initialize(ctx)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -427,11 +427,11 @@ func TestServiceSettlePayment(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	// Marshal to bytes for service call
+	// Marshal to bytes for server call
 	payloadBytes, _ := json.Marshal(payload)
 	requirementsBytes, _ := json.Marshal(requirements)
 
-	response, err := service.SettlePayment(ctx, payloadBytes, requirementsBytes)
+	response, err := server.SettlePayment(ctx, payloadBytes, requirementsBytes)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -443,8 +443,8 @@ func TestServiceSettlePayment(t *testing.T) {
 	}
 }
 
-func TestServiceFindMatchingRequirements(t *testing.T) {
-	service := Newx402ResourceService()
+func TestServerFindMatchingRequirements(t *testing.T) {
+	server := Newx402ResourceServer()
 
 	available := []PaymentRequirements{
 		{
@@ -476,7 +476,7 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 	}
 
 	payloadV2Bytes, _ := json.Marshal(payloadV2)
-	matched := service.FindMatchingRequirements(available, payloadV2Bytes)
+	matched := server.FindMatchingRequirements(available, payloadV2Bytes)
 	if matched == nil {
 		t.Fatal("Expected match for v2")
 	}
@@ -493,7 +493,7 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 	}
 
 	payloadV1Bytes, _ := json.Marshal(payloadV1)
-	matched = service.FindMatchingRequirements(available, payloadV1Bytes)
+	matched = server.FindMatchingRequirements(available, payloadV1Bytes)
 	if matched == nil {
 		t.Fatal("Expected match for v1")
 	}
@@ -514,23 +514,23 @@ func TestServiceFindMatchingRequirements(t *testing.T) {
 	}
 
 	payloadNoMatchBytes, _ := json.Marshal(payloadNoMatch)
-	matched = service.FindMatchingRequirements(available, payloadNoMatchBytes)
+	matched = server.FindMatchingRequirements(available, payloadNoMatchBytes)
 	if matched != nil {
 		t.Fatal("Expected no match")
 	}
 }
 
-func TestServiceProcessPaymentRequest(t *testing.T) {
+func TestServerProcessPaymentRequest(t *testing.T) {
 	ctx := context.Background()
 
-	mockService := &mockSchemeNetworkService{scheme: "exact"}
+	mockServer := &mockSchemeNetworkServer{scheme: "exact"}
 	mockClient := &mockFacilitatorClient{}
 
-	service := Newx402ResourceService(
+	server := Newx402ResourceServer(
 		WithFacilitatorClient(mockClient),
-		WithSchemeService("eip155:1", mockService),
+		WithSchemeServer("eip155:1", mockServer),
 	)
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	config := ResourceConfig{
 		Scheme:  "exact",
@@ -545,7 +545,7 @@ func TestServiceProcessPaymentRequest(t *testing.T) {
 	}
 
 	// Test without payment (should require payment)
-	result, err := service.ProcessPaymentRequest(ctx, nil, config, info, nil)
+	result, err := server.ProcessPaymentRequest(ctx, nil, config, info, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -558,7 +558,7 @@ func TestServiceProcessPaymentRequest(t *testing.T) {
 
 	// Test with valid payment
 	// First, build requirements to see what they actually are
-	builtReqs, _ := service.BuildPaymentRequirements(ctx, config)
+	builtReqs, _ := server.BuildPaymentRequirements(ctx, config)
 
 	payload := &PaymentPayload{
 		X402Version: 2,
@@ -566,7 +566,7 @@ func TestServiceProcessPaymentRequest(t *testing.T) {
 		Accepted:    builtReqs[0], // Use the actual built requirements
 	}
 
-	result, err = service.ProcessPaymentRequest(ctx, payload, config, info, nil)
+	result, err = server.ProcessPaymentRequest(ctx, payload, config, info, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

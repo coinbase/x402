@@ -249,7 +249,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		t.Skip("Skipping SVM integration test: SVM_CLIENT_PRIVATE_KEY, SVM_FACILITATOR_PRIVATE_KEY, SVM_FACILITATOR_ADDRESS, and SVM_RESOURCE_SERVER_ADDRESS must be set")
 	}
 
-	t.Run("SVM V2 Flow - x402Client / x402ResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("SVM V2 Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Create real client signer
@@ -284,17 +284,17 @@ func TestSVMIntegrationV2(t *testing.T) {
 			signer:      facilitatorSigner,
 		}
 
-		// Setup resource service with SVM v2
-		svmService := svm.NewExactSvmService()
-		service := x402.Newx402ResourceService(
+		// Setup resource server with SVM v2
+		svmServer := svm.NewExactEvmServer()
+		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme(svm.SolanaDevnetCAIP2, svmService)
+		server.RegisterScheme(svm.SolanaDevnetCAIP2, svmServer)
 
-		// Initialize service to fetch supported kinds
-		err = service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err = server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Server - builds PaymentRequired response for 0.001 USDC
@@ -315,7 +315,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 			Description: "Premium API Access",
 			MimeType:    "application/json",
 		}
-		paymentRequiredResponse := service.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
 
 		// Verify it's V2
 		if paymentRequiredResponse.X402Version != 2 {
@@ -385,7 +385,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(paymentRequiredResponse.Accepts, payloadBytes)
+		accepted := server.FindMatchingRequirements(paymentRequiredResponse.Accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
@@ -397,7 +397,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		}
 
 		// Server - verifies payment
-		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -413,7 +413,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment (REAL ON-CHAIN TRANSACTION)
-		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -449,7 +449,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		t.Skip("Skipping SVM V1 integration test: SVM_CLIENT_PRIVATE_KEY, SVM_FACILITATOR_PRIVATE_KEY, SVM_FACILITATOR_ADDRESS, and SVM_RESOURCE_SERVER_ADDRESS must be set")
 	}
 
-	t.Run("SVM V1 Flow (Legacy) - x402Client / x402ResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("SVM V1 Flow (Legacy) - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Create real client signer
@@ -484,18 +484,18 @@ func TestSVMIntegrationV1(t *testing.T) {
 			signer:      facilitatorSigner,
 		}
 
-		// Setup resource service with SVM v2 (service is V2 only)
-		svmService := svm.NewExactSvmService()
-		service := x402.Newx402ResourceService(
+		// Setup resource server with SVM v2 (server is V2 only)
+		svmServer := svm.NewExactEvmServer()
+		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		// Register for CAIP-2 network (service uses V2 format)
-		service.RegisterScheme(svm.SolanaDevnetCAIP2, svmService)
+		// Register for CAIP-2 network (server uses V2 format)
+		server.RegisterScheme(svm.SolanaDevnetCAIP2, svmServer)
 
-		// Initialize service to fetch supported kinds
-		err = service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err = server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Server - builds PaymentRequired response for 0.001 USDC (V1 uses version 1)
@@ -554,7 +554,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(accepts, payloadBytes)
+		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
@@ -566,7 +566,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		}
 
 		// Server - verifies payment
-		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -582,7 +582,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment (REAL ON-CHAIN TRANSACTION)
-		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}

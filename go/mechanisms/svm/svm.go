@@ -7,11 +7,11 @@ import (
 	x402 "github.com/coinbase/x402/go"
 )
 
-// Register registers all V2 SVM mechanism implementations with the x402 client, facilitator, and service
+// Register registers all V2 SVM mechanism implementations with the x402 client, facilitator, and server
 func Register(
 	client *x402.X402Client,
 	facilitator *x402.X402Facilitator,
-	service *x402.X402ResourceService,
+	server *x402.X402ResourceServer,
 	signer interface{},
 	networks []string,
 ) error {
@@ -56,10 +56,10 @@ func Register(
 		}
 	}
 
-	// Register with service (no signer needed)
-	// Note: Service registration is done via RegisterService() which returns options
-	if service != nil {
-		// Service options should be passed during service creation
+	// Register with server (no signer needed)
+	// Note: Server registration is done via RegisterServer() which returns options
+	if server != nil {
+		// Server options should be passed during server creation
 	}
 
 	return nil
@@ -75,10 +75,10 @@ func RegisterFacilitator(facilitator *x402.X402Facilitator, signer FacilitatorSv
 	return Register(nil, facilitator, nil, signer, networks)
 }
 
-// RegisterService returns the option to register the V2 SVM service implementation
-func RegisterService(networks ...string) []x402.ResourceServiceOption {
-	svmService := NewExactSvmService()
-	opts := []x402.ResourceServiceOption{}
+// RegisterServer returns the option to register the V2 SVM server implementation
+func RegisterServer(networks ...string) []x402.ResourceServerOption {
+	svmServer := NewExactEvmServer()
+	opts := []x402.ResourceServerOption{}
 
 	if len(networks) == 0 {
 		networks = []string{
@@ -90,10 +90,9 @@ func RegisterService(networks ...string) []x402.ResourceServiceOption {
 
 	for _, network := range networks {
 		if IsValidNetwork(network) {
-			opts = append(opts, x402.WithSchemeService(x402.Network(network), svmService))
+			opts = append(opts, x402.WithSchemeServer(x402.Network(network), svmServer))
 		}
 	}
 
 	return opts
 }
-

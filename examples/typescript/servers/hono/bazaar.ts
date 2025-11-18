@@ -1,7 +1,7 @@
 import { config } from "dotenv";
-import { paymentMiddleware, x402ResourceService } from "@x402/hono";
+import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { Hono } from "hono";
-import { ExactEvmService } from "@x402/evm";
+import { ExactEvmServer } from "@x402/evm";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 config();
 
@@ -51,7 +51,7 @@ app.use(
         },
       },
     },
-    new x402ResourceService().registerScheme("eip155:84532", new ExactEvmService()),
+    new x402ResourceServer().registerScheme("eip155:84532", new ExactEvmServer()),
   ),
 );
 

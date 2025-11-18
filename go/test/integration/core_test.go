@@ -9,9 +9,9 @@ import (
 	"github.com/coinbase/x402/go/test/mocks/cash"
 )
 
-// TestCoreIntegration tests the integration between x402Client, x402ResourceService, and x402Facilitator
+// TestCoreIntegration tests the integration between x402Client, x402ResourceServer, and x402Facilitator
 func TestCoreIntegration(t *testing.T) {
-	t.Run("Cash Flow - x402Client / x402ResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("Cash Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Setup client with cash scheme
@@ -25,16 +25,16 @@ func TestCoreIntegration(t *testing.T) {
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)
 
-		// Setup resource service
-		service := x402.Newx402ResourceService(
+		// Setup resource server
+		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme("x402:cash", cash.NewSchemeNetworkService())
+		server.RegisterScheme("x402:cash", cash.NewSchemeNetworkServer())
 
-		// Initialize service to fetch supported kinds
-		err := service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err := server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Server - builds PaymentRequired response
@@ -46,7 +46,7 @@ func TestCoreIntegration(t *testing.T) {
 			Description: "Company Co. resource",
 			MimeType:    "application/json",
 		}
-		paymentRequiredResponse := service.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
 
 		// Client - responds with PaymentPayload response
 		selected, err := client.SelectPaymentRequirements(paymentRequiredResponse.X402Version, accepts)
@@ -66,7 +66,7 @@ func TestCoreIntegration(t *testing.T) {
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(accepts, payloadBytes)
+		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
@@ -78,7 +78,7 @@ func TestCoreIntegration(t *testing.T) {
 		}
 
 		// Server - verifies payment
-		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -90,7 +90,7 @@ func TestCoreIntegration(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment
-		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -106,4 +106,3 @@ func TestCoreIntegration(t *testing.T) {
 		}
 	})
 }
-

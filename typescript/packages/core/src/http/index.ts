@@ -79,7 +79,7 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
 
 // Export HTTP service and types
 export {
-  x402HTTPResourceService,
+  x402HTTPResourceServer,
   HTTPAdapter,
   HTTPRequestContext,
   HTTPResponseInstructions,
@@ -92,6 +92,6 @@ export {
   CompiledRoute,
   DynamicPayTo,
   DynamicPrice,
-} from "./x402HTTPResourceService";
+} from "./x402HTTPResourceServer";
 export { HTTPFacilitatorClient } from "./httpFacilitatorClient";
 export { x402HTTPClient } from "./x402HTTPClient";

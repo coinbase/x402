@@ -137,20 +137,20 @@ const (
 )
 
 // ============================================================================
-// x402HTTPResourceService
+// x402HTTPResourceServer
 // ============================================================================
 
-// x402HTTPResourceService provides HTTP-specific payment handling
-type x402HTTPResourceService struct {
-	*x402.X402ResourceService
+// x402HTTPResourceServer provides HTTP-specific payment handling
+type x402HTTPResourceServer struct {
+	*x402.X402ResourceServer
 	compiledRoutes []CompiledRoute
 }
 
-// Newx402HTTPResourceService creates a new HTTP resource service
-func Newx402HTTPResourceService(routes RoutesConfig, opts ...x402.ResourceServiceOption) *x402HTTPResourceService {
-	service := &x402HTTPResourceService{
-		X402ResourceService: x402.Newx402ResourceService(opts...),
-		compiledRoutes:      []CompiledRoute{},
+// Newx402HTTPResourceServer creates a new HTTP resource server
+func Newx402HTTPResourceServer(routes RoutesConfig, opts ...x402.ResourceServerOption) *x402HTTPResourceServer {
+	server := &x402HTTPResourceServer{
+		X402ResourceServer: x402.Newx402ResourceServer(opts...),
+		compiledRoutes:     []CompiledRoute{},
 	}
 
 	// Handle both single route and multiple routes
@@ -162,27 +162,29 @@ func Newx402HTTPResourceService(routes RoutesConfig, opts ...x402.ResourceServic
 	// Compile routes
 	for pattern, config := range normalizedRoutes {
 		verb, regex := parseRoutePattern(pattern)
-		service.compiledRoutes = append(service.compiledRoutes, CompiledRoute{
+		server.compiledRoutes = append(server.compiledRoutes, CompiledRoute{
 			Verb:   verb,
 			Regex:  regex,
 			Config: config,
 		})
 	}
 
-	return service
+	return server
 }
 
 // resolveRouteConfig resolves dynamic route config values.
 // Evaluates any function-based payTo or price values using the request context.
 //
 // Args:
-//   ctx: Context for cancellation
-//   routeConfig: The route configuration (may contain functions)
-//   reqCtx: HTTP request context for dynamic resolution
+//
+//	ctx: Context for cancellation
+//	routeConfig: The route configuration (may contain functions)
+//	reqCtx: HTTP request context for dynamic resolution
 //
 // Returns:
-//   Resolved route configuration with static values
-func (s *x402HTTPResourceService) resolveRouteConfig(ctx context.Context, routeConfig *RouteConfig, reqCtx HTTPRequestContext) (*ResolvedRouteConfig, error) {
+//
+//	Resolved route configuration with static values
+func (s *x402HTTPResourceServer) resolveRouteConfig(ctx context.Context, routeConfig *RouteConfig, reqCtx HTTPRequestContext) (*ResolvedRouteConfig, error) {
 	resolved := &ResolvedRouteConfig{
 		Scheme:            routeConfig.Scheme,
 		Network:           routeConfig.Network,
@@ -197,7 +199,7 @@ func (s *x402HTTPResourceService) resolveRouteConfig(ctx context.Context, routeC
 		OutputSchema:      routeConfig.OutputSchema,
 		Extensions:        routeConfig.Extensions,
 	}
-	
+
 	// Resolve PayTo (string or DynamicPayToFunc)
 	if payToFunc, ok := routeConfig.PayTo.(DynamicPayToFunc); ok {
 		// It's a function, call it
@@ -212,7 +214,7 @@ func (s *x402HTTPResourceService) resolveRouteConfig(ctx context.Context, routeC
 	} else {
 		return nil, fmt.Errorf("payTo must be string or DynamicPayToFunc, got %T", routeConfig.PayTo)
 	}
-	
+
 	// Resolve Price (x402.Price or DynamicPriceFunc)
 	if priceFunc, ok := routeConfig.Price.(DynamicPriceFunc); ok {
 		// It's a function, call it
@@ -225,18 +227,18 @@ func (s *x402HTTPResourceService) resolveRouteConfig(ctx context.Context, routeC
 		// It's a static value (string, number, or AssetAmount)
 		resolved.Price = routeConfig.Price
 	}
-	
+
 	return resolved, nil
 }
 
 // ProcessHTTPRequest handles an HTTP request and returns processing result
-func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx HTTPRequestContext, paywallConfig *PaywallConfig) HTTPProcessResult {
+func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx HTTPRequestContext, paywallConfig *PaywallConfig) HTTPProcessResult {
 	// Find matching route
 	routeConfig := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
 	if routeConfig == nil {
 		return HTTPProcessResult{Type: ResultNoPaymentRequired}
 	}
-	
+
 	// Resolve dynamic payTo and price
 	resolvedConfig, err := s.resolveRouteConfig(ctx, routeConfig, reqCtx)
 	if err != nil {
@@ -377,7 +379,7 @@ func (s *x402HTTPResourceService) ProcessHTTPRequest(ctx context.Context, reqCtx
 }
 
 // ProcessSettlement handles settlement after successful response
-func (s *x402HTTPResourceService) ProcessSettlement(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements, responseStatus int) (map[string]string, error) {
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements, responseStatus int) (map[string]string, error) {
 	// Don't settle if response failed
 	if responseStatus >= 400 {
 		return nil, nil
@@ -407,7 +409,7 @@ func (s *x402HTTPResourceService) ProcessSettlement(ctx context.Context, payload
 // ============================================================================
 
 // getRouteConfig finds matching route configuration
-func (s *x402HTTPResourceService) getRouteConfig(path, method string) *RouteConfig {
+func (s *x402HTTPResourceServer) getRouteConfig(path, method string) *RouteConfig {
 	normalizedPath := normalizePath(path)
 	upperMethod := strings.ToUpper(method)
 
@@ -423,7 +425,7 @@ func (s *x402HTTPResourceService) getRouteConfig(path, method string) *RouteConf
 }
 
 // extractPayment extracts payment from headers
-func (s *x402HTTPResourceService) extractPayment(adapter HTTPAdapter) *x402.PaymentPayload {
+func (s *x402HTTPResourceServer) extractPayment(adapter HTTPAdapter) *x402.PaymentPayload {
 	// Check v2 header
 	header := adapter.GetHeader("PAYMENT-SIGNATURE")
 	if header == "" {
@@ -454,14 +456,14 @@ func (s *x402HTTPResourceService) extractPayment(adapter HTTPAdapter) *x402.Paym
 }
 
 // isWebBrowser checks if request is from a web browser
-func (s *x402HTTPResourceService) isWebBrowser(adapter HTTPAdapter) bool {
+func (s *x402HTTPResourceServer) isWebBrowser(adapter HTTPAdapter) bool {
 	accept := adapter.GetAcceptHeader()
 	userAgent := adapter.GetUserAgent()
 	return strings.Contains(accept, "text/html") && strings.Contains(userAgent, "Mozilla")
 }
 
 // createHTTPResponse creates response instructions
-func (s *x402HTTPResourceService) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
 	if isWebBrowser {
 		html := s.generatePaywallHTML(paymentRequired, paywallConfig, customHTML)
 		return &HTTPResponseInstructions{
@@ -484,14 +486,14 @@ func (s *x402HTTPResourceService) createHTTPResponse(paymentRequired x402.Paymen
 }
 
 // createSettlementHeaders creates settlement response headers
-func (s *x402HTTPResourceService) createSettlementHeaders(response x402.SettleResponse) map[string]string {
+func (s *x402HTTPResourceServer) createSettlementHeaders(response x402.SettleResponse) map[string]string {
 	return map[string]string{
 		"PAYMENT-RESPONSE": encodePaymentResponseHeader(response),
 	}
 }
 
 // generatePaywallHTML generates HTML paywall for browsers
-func (s *x402HTTPResourceService) generatePaywallHTML(paymentRequired x402.PaymentRequired, config *PaywallConfig, customHTML string) string {
+func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.PaymentRequired, config *PaywallConfig, customHTML string) string {
 	if customHTML != "" {
 		return customHTML
 	}
@@ -598,7 +600,7 @@ func (s *x402HTTPResourceService) generatePaywallHTML(paymentRequired x402.Payme
 }
 
 // getDisplayAmount extracts display amount from payment requirements
-func (s *x402HTTPResourceService) getDisplayAmount(paymentRequired x402.PaymentRequired) float64 {
+func (s *x402HTTPResourceServer) getDisplayAmount(paymentRequired x402.PaymentRequired) float64 {
 	if len(paymentRequired.Accepts) > 0 {
 		firstReq := paymentRequired.Accepts[0]
 		// Check if amount field exists

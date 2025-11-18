@@ -10,18 +10,18 @@ import (
 )
 
 type x402Facilitator struct {
-	mu sync.RWMutex
-	schemes map[int]map[Network]map[string]SchemeNetworkFacilitator
+	mu           sync.RWMutex
+	schemes      map[int]map[Network]map[string]SchemeNetworkFacilitator
 	schemeExtras map[int]map[Network]map[string]interface{}
-	extensions []string
-	
+	extensions   []string
+
 	// Lifecycle hooks
-	beforeVerifyHooks     []FacilitatorBeforeVerifyHook
-	afterVerifyHooks      []FacilitatorAfterVerifyHook
-	onVerifyFailureHooks  []FacilitatorOnVerifyFailureHook
-	beforeSettleHooks     []FacilitatorBeforeSettleHook
-	afterSettleHooks      []FacilitatorAfterSettleHook
-	onSettleFailureHooks  []FacilitatorOnSettleFailureHook
+	beforeVerifyHooks    []FacilitatorBeforeVerifyHook
+	afterVerifyHooks     []FacilitatorAfterVerifyHook
+	onVerifyFailureHooks []FacilitatorOnVerifyFailureHook
+	beforeSettleHooks    []FacilitatorBeforeSettleHook
+	afterSettleHooks     []FacilitatorAfterSettleHook
+	onSettleFailureHooks []FacilitatorOnSettleFailureHook
 }
 
 func Newx402Facilitator() *x402Facilitator {
@@ -98,10 +98,12 @@ func (f *x402Facilitator) RegisterExtension(extension string) *x402Facilitator {
 // Can abort verification by returning a result with Abort=true
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnBeforeVerify(hook FacilitatorBeforeVerifyHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -112,10 +114,12 @@ func (f *x402Facilitator) OnBeforeVerify(hook FacilitatorBeforeVerifyHook) *x402
 // OnAfterVerify registers a hook to execute after successful facilitator payment verification
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnAfterVerify(hook FacilitatorAfterVerifyHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -127,10 +131,12 @@ func (f *x402Facilitator) OnAfterVerify(hook FacilitatorAfterVerifyHook) *x402Fa
 // Can recover from failure by returning a result with Recovered=true
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnVerifyFailure(hook FacilitatorOnVerifyFailureHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -142,10 +148,12 @@ func (f *x402Facilitator) OnVerifyFailure(hook FacilitatorOnVerifyFailureHook) *
 // Can abort settlement by returning a result with Abort=true
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnBeforeSettle(hook FacilitatorBeforeSettleHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -156,10 +164,12 @@ func (f *x402Facilitator) OnBeforeSettle(hook FacilitatorBeforeSettleHook) *x402
 // OnAfterSettle registers a hook to execute after successful facilitator payment settlement
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnAfterSettle(hook FacilitatorAfterSettleHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -171,10 +181,12 @@ func (f *x402Facilitator) OnAfterSettle(hook FacilitatorAfterSettleHook) *x402Fa
 // Can recover from failure by returning a result with Recovered=true
 //
 // Args:
-//   hook: The hook function to register
+//
+//	hook: The hook function to register
 //
 // Returns:
-//   The facilitator instance for chaining
+//
+//	The facilitator instance for chaining
 func (f *x402Facilitator) OnSettleFailure(hook FacilitatorOnSettleFailureHook) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -186,12 +198,14 @@ func (f *x402Facilitator) OnSettleFailure(hook FacilitatorOnSettleFailureHook) *
 // Bridge method: keeps struct API, uses bytes internally
 //
 // Args:
-//   ctx: Context for cancellation and metadata
-//   payload: Payment payload struct
-//   requirements: Payment requirements struct
+//
+//	ctx: Context for cancellation and metadata
+//	payload: Payment payload struct
+//	requirements: Payment requirements struct
 //
 // Returns:
-//   VerifyResponse and error if verification fails
+//
+//	VerifyResponse and error if verification fails
 func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error) {
 	// Build hook context
 	hookCtx := FacilitatorVerifyContext{
@@ -199,12 +213,12 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 		PaymentPayload:      payload,
 		PaymentRequirements: requirements,
 	}
-	
+
 	// Execute beforeVerify hooks
 	f.mu.RLock()
 	beforeHooks := f.beforeVerifyHooks
 	f.mu.RUnlock()
-	
+
 	for _, hook := range beforeHooks {
 		result, err := hook(hookCtx)
 		if err != nil {
@@ -217,11 +231,11 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 			}, nil
 		}
 	}
-	
+
 	// Perform verification
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	
+
 	var verifyResult VerifyResponse
 	var verifyErr error
 
@@ -280,38 +294,38 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 			}
 		}
 	}
-	
+
 	// Handle success case
 	if verifyErr == nil {
 		// Execute afterVerify hooks
 		f.mu.RLock()
 		afterHooks := f.afterVerifyHooks
 		f.mu.RUnlock()
-		
+
 		resultCtx := FacilitatorVerifyResultContext{
 			FacilitatorVerifyContext: hookCtx,
 			Result:                   verifyResult,
 		}
-		
+
 		for _, hook := range afterHooks {
 			if err := hook(resultCtx); err != nil {
 				// Log error but don't fail the verification
 			}
 		}
-		
+
 		return verifyResult, nil
 	}
-	
+
 	// Handle failure case
 	f.mu.RLock()
 	failureHooks := f.onVerifyFailureHooks
 	f.mu.RUnlock()
-	
+
 	failureCtx := FacilitatorVerifyFailureContext{
 		FacilitatorVerifyContext: hookCtx,
 		Error:                    verifyErr,
 	}
-	
+
 	// Execute onVerifyFailure hooks
 	for _, hook := range failureHooks {
 		result, err := hook(failureCtx)
@@ -323,7 +337,7 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 			return result.Result, nil
 		}
 	}
-	
+
 	// No recovery, return original error
 	return verifyResult, verifyErr
 }
@@ -332,12 +346,14 @@ func (f *x402Facilitator) Verify(ctx context.Context, payload PaymentPayload, re
 // Bridge method: keeps struct API, uses bytes internally
 //
 // Args:
-//   ctx: Context for cancellation and metadata
-//   payload: Payment payload struct
-//   requirements: Payment requirements struct
+//
+//	ctx: Context for cancellation and metadata
+//	payload: Payment payload struct
+//	requirements: Payment requirements struct
 //
 // Returns:
-//   SettleResponse and error if settlement fails
+//
+//	SettleResponse and error if settlement fails
 func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (SettleResponse, error) {
 	// Build hook context
 	hookCtx := FacilitatorSettleContext{
@@ -345,12 +361,12 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 		PaymentPayload:      payload,
 		PaymentRequirements: requirements,
 	}
-	
+
 	// Execute beforeSettle hooks
 	f.mu.RLock()
 	beforeHooks := f.beforeSettleHooks
 	f.mu.RUnlock()
-	
+
 	for _, hook := range beforeHooks {
 		result, err := hook(hookCtx)
 		if err != nil {
@@ -363,11 +379,11 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 			}, fmt.Errorf("settlement aborted: %s", result.Reason)
 		}
 	}
-	
+
 	// Perform settlement
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	
+
 	var settleResult SettleResponse
 	var settleErr error
 
@@ -427,38 +443,38 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 			}
 		}
 	}
-	
+
 	// Handle success case
 	if settleErr == nil && settleResult.Success {
 		// Execute afterSettle hooks
 		f.mu.RLock()
 		afterHooks := f.afterSettleHooks
 		f.mu.RUnlock()
-		
+
 		resultCtx := FacilitatorSettleResultContext{
 			FacilitatorSettleContext: hookCtx,
 			Result:                   settleResult,
 		}
-		
+
 		for _, hook := range afterHooks {
 			if err := hook(resultCtx); err != nil {
 				// Log error but don't fail the settlement
 			}
 		}
-		
+
 		return settleResult, nil
 	}
-	
+
 	// Handle failure case
 	f.mu.RLock()
 	failureHooks := f.onSettleFailureHooks
 	f.mu.RUnlock()
-	
+
 	failureCtx := FacilitatorSettleFailureContext{
 		FacilitatorSettleContext: hookCtx,
 		Error:                    settleErr,
 	}
-	
+
 	// Execute onSettleFailure hooks
 	for _, hook := range failureHooks {
 		result, err := hook(failureCtx)
@@ -470,7 +486,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payload PaymentPayload, re
 			return result.Result, nil
 		}
 	}
-	
+
 	// No recovery, return original error
 	return settleResult, settleErr
 }
@@ -584,12 +600,12 @@ func (c *LocalFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return VerifyResponse{IsValid: false}, err
 	}
-	
+
 	var requirements PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return VerifyResponse{IsValid: false}, err
 	}
-	
+
 	return c.facilitator.Verify(ctx, payload, requirements)
 }
 
@@ -601,12 +617,12 @@ func (c *LocalFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return SettleResponse{Success: false}, err
 	}
-	
+
 	var requirements PaymentRequirements
 	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
 		return SettleResponse{Success: false}, err
 	}
-	
+
 	return c.facilitator.Settle(ctx, payload, requirements)
 }
 

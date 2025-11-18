@@ -9,12 +9,12 @@ import (
 	x402 "github.com/coinbase/x402/go"
 )
 
-// Note: mockHTTPAdapter and mockSchemeService are defined in service_test.go
+// Note: mockHTTPAdapter and mockSchemeServer are defined in server_test.go
 
 // TestDynamicPayTo tests dynamic payTo resolution
 func TestDynamicPayTo(t *testing.T) {
-	// Create mock scheme service
-	mockService := &mockSchemeService{
+	// Create mock scheme server
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			return x402.AssetAmount{
@@ -51,13 +51,13 @@ func TestDynamicPayTo(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes,
-		x402.WithSchemeService("eip155:8453", mockService),
+	server := Newx402HTTPResourceServer(routes,
+		x402.WithSchemeServer("eip155:8453", mockServer),
 		x402.WithFacilitatorClient(mockFacilitator),
 	)
-	
+
 	// Initialize to populate facilitator support
-	_ = service.Initialize(context.Background())
+	_ = server.Initialize(context.Background())
 
 	adapter := &mockHTTPAdapter{
 		method: "GET",
@@ -72,7 +72,7 @@ func TestDynamicPayTo(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error (no payment provided), got %s", result.Type)
@@ -86,7 +86,7 @@ func TestDynamicPayTo(t *testing.T) {
 func TestDynamicPrice(t *testing.T) {
 	var capturedPrices []string
 
-	mockService := &mockSchemeService{
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			// Capture the resolved price
@@ -127,13 +127,13 @@ func TestDynamicPrice(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes,
-		x402.WithSchemeService("eip155:8453", mockService),
+	server := Newx402HTTPResourceServer(routes,
+		x402.WithSchemeServer("eip155:8453", mockServer),
 		x402.WithFacilitatorClient(mockFacilitator),
 	)
-	
+
 	// Initialize to populate facilitator support
-	_ = service.Initialize(context.Background())
+	_ = server.Initialize(context.Background())
 
 	// Test premium tier
 	adapter1 := &mockHTTPAdapter{
@@ -149,7 +149,7 @@ func TestDynamicPrice(t *testing.T) {
 		Method:  "GET",
 	}
 
-	service.ProcessHTTPRequest(context.Background(), reqCtx1, nil)
+	server.ProcessHTTPRequest(context.Background(), reqCtx1, nil)
 
 	// Test basic tier
 	adapter2 := &mockHTTPAdapter{
@@ -165,7 +165,7 @@ func TestDynamicPrice(t *testing.T) {
 		Method:  "GET",
 	}
 
-	service.ProcessHTTPRequest(context.Background(), reqCtx2, nil)
+	server.ProcessHTTPRequest(context.Background(), reqCtx2, nil)
 
 	// Check that dynamic price resolution worked
 	// The test passes if we got here without errors - the price function was called
@@ -185,7 +185,7 @@ func TestDynamicPrice(t *testing.T) {
 
 // TestDynamicPayToAndPrice tests both dynamic payTo and price together
 func TestDynamicPayToAndPrice(t *testing.T) {
-	mockService := &mockSchemeService{
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			return x402.AssetAmount{
@@ -228,13 +228,13 @@ func TestDynamicPayToAndPrice(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes,
-		x402.WithSchemeService("eip155:8453", mockService),
+	server := Newx402HTTPResourceServer(routes,
+		x402.WithSchemeServer("eip155:8453", mockServer),
 		x402.WithFacilitatorClient(mockFacilitator),
 	)
-	
+
 	// Initialize to populate facilitator support
-	_ = service.Initialize(context.Background())
+	_ = server.Initialize(context.Background())
 
 	adapter := &mockHTTPAdapter{
 		method: "POST",
@@ -249,7 +249,7 @@ func TestDynamicPayToAndPrice(t *testing.T) {
 		Method:  "POST",
 	}
 
-	result := service.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error (no payment provided), got %s", result.Type)
@@ -272,7 +272,7 @@ func TestDynamicPayTo_Error(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes)
+	server := Newx402HTTPResourceServer(routes)
 
 	adapter := &mockHTTPAdapter{
 		method: "GET",
@@ -287,7 +287,7 @@ func TestDynamicPayTo_Error(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error, got %s", result.Type)
@@ -311,12 +311,12 @@ func TestDynamicPrice_Error(t *testing.T) {
 			PayTo:   "0xRecipient",
 			// Dynamic price that returns an error
 			Price: func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
-				return nil, fmt.Errorf("pricing service unavailable")
+				return nil, fmt.Errorf("pricing server unavailable")
 			},
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes)
+	server := Newx402HTTPResourceServer(routes)
 
 	adapter := &mockHTTPAdapter{
 		method: "GET",
@@ -331,7 +331,7 @@ func TestDynamicPrice_Error(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error, got %s", result.Type)
@@ -344,7 +344,7 @@ func TestDynamicPrice_Error(t *testing.T) {
 
 // TestStaticPayToAndPrice tests that static values still work
 func TestStaticPayToAndPrice(t *testing.T) {
-	mockService := &mockSchemeService{
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			return x402.AssetAmount{
@@ -359,11 +359,11 @@ func TestStaticPayToAndPrice(t *testing.T) {
 			Scheme:  "exact",
 			Network: "eip155:8453",
 			PayTo:   "0xStaticRecipient", // Static string
-			Price:   "$10.00",             // Static price
+			Price:   "$10.00",            // Static price
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes, x402.WithSchemeService("eip155:8453", mockService))
+	server := Newx402HTTPResourceServer(routes, x402.WithSchemeServer("eip155:8453", mockServer))
 
 	adapter := &mockHTTPAdapter{
 		method: "GET",
@@ -378,7 +378,7 @@ func TestStaticPayToAndPrice(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(context.Background(), reqCtx, nil)
+	result := server.ProcessHTTPRequest(context.Background(), reqCtx, nil)
 
 	// Should work fine with static values (no resolution errors)
 	// The result type depends on whether facilitators are configured
@@ -391,5 +391,3 @@ func TestStaticPayToAndPrice(t *testing.T) {
 		}
 	}
 }
-
-

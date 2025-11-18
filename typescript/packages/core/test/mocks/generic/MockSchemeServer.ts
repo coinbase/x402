@@ -1,11 +1,11 @@
-import { SchemeNetworkService } from "../../../src/types/mechanisms";
+import { SchemeNetworkServer } from "../../../src/types/mechanisms";
 import { AssetAmount, Network, Price } from "../../../src/types";
 import { PaymentRequirements } from "../../../src/types/payments";
 
 /**
- * Mock scheme network service for testing.
+ * Mock scheme network server for testing.
  */
-export class MockSchemeNetworkService implements SchemeNetworkService {
+export class MockSchemeNetworkServer implements SchemeNetworkServer {
   public readonly scheme: string;
   private parsePriceResult: AssetAmount | Error;
   private enhanceResult: PaymentRequirements | Error | null = null;

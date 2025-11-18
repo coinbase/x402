@@ -17,8 +17,8 @@ type (
 	// X402Client is the exported type for x402Client
 	X402Client = x402Client
 
-	// X402ResourceService is the exported type for x402ResourceService
-	X402ResourceService = x402ResourceService
+	// X402ResourceServer is the exported type for x402ResourceServer
+	X402ResourceServer = x402ResourceServer
 
 	// X402Facilitator is the exported type for x402Facilitator
 	X402Facilitator = x402Facilitator

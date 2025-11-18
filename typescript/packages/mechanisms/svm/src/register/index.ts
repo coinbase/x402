@@ -1,10 +1,10 @@
 import { x402Client, SelectPaymentRequirements, PaymentPolicy } from "@x402/core/client";
-import { x402ResourceService } from "@x402/core/server";
+import { x402ResourceServer } from "@x402/core/server";
 import { x402Facilitator } from "@x402/core/facilitator";
 import { Network } from "@x402/core/types";
 import { ClientSvmSigner, FacilitatorSvmSigner } from "../signer";
 import { ExactSvmClient } from "../exact/client";
-import { ExactSvmService } from "../exact/service";
+import { ExactSvmServer } from "../exact/server";
 import { ExactSvmFacilitator } from "../exact/facilitator";
 import { ExactSvmClientV1, ExactSvmFacilitatorV1, NETWORKS } from "../v1";
 
@@ -36,9 +36,9 @@ export interface SvmClientConfig {
 }
 
 /**
- * Configuration options for registering SVM schemes to an x402ResourceService
+ * Configuration options for registering SVM schemes to an x402ResourceServer
  */
-export interface SvmResourceServiceConfig {
+export interface SvmResourceServerConfig {
   /**
    * Optional specific networks to register
    * If not provided, registers wildcard support (solana:*)
@@ -117,43 +117,43 @@ export function registerSvmToClient(client: x402Client, config: SvmClientConfig)
 }
 
 /**
- * Registers SVM payment schemes to an existing x402ResourceService instance.
+ * Registers SVM payment schemes to an existing x402ResourceServer instance.
  *
  * This function registers:
- * - V2: solana:* wildcard scheme with ExactSvmService (or specific networks if provided)
- * - V1: All supported SVM networks with ExactSvmServiceV1
+ * - V2: solana:* wildcard scheme with ExactSvmServer (or specific networks if provided)
+ * - V1: All supported SVM networks with ExactEvmServerV1
  *
- * @param service - The x402ResourceService instance to register schemes to
- * @param config - Configuration for SVM resource service registration
- * @returns The service instance for chaining
+ * @param server - The x402ResourceServer instance to register schemes to
+ * @param config - Configuration for SVM resource server registration
+ * @returns The server instance for chaining
  *
  * @example
  * ```typescript
- * import { registerSvmToResourceService } from "@x402/svm/register";
- * import { x402ResourceService } from "@x402/core/server";
+ * import { registerSvmToResourceServer } from "@x402/svm/register";
+ * import { x402ResourceServer } from "@x402/core/server";
  *
- * const service = new x402ResourceService(facilitatorClient);
- * registerSvmToResourceService(service, {});
+ * const server = new x402ResourceServer(facilitatorClient);
+ * registerSvmToResourceServer(server, {});
  * ```
  */
-export function registerSvmToResourceService(
-  service: x402ResourceService,
-  config: SvmResourceServiceConfig = {},
-): x402ResourceService {
+export function registerSvmToResourceServer(
+  server: x402ResourceServer,
+  config: SvmResourceServerConfig = {},
+): x402ResourceServer {
   // Register V2 scheme
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      service.registerScheme(network, new ExactSvmService());
+      server.registerScheme(network, new ExactSvmServer());
     });
   } else {
     // Register wildcard for all Solana chains
-    service.registerScheme("solana:*", new ExactSvmService());
+    server.registerScheme("solana:*", new ExactSvmServer());
   }
 
-  // Note: V1 networks are not registered for ResourceService as V1 is client/facilitator only
+  // Note: V1 networks are not registered for ResourceServer as V1 is client/facilitator only
 
-  return service;
+  return server;
 }
 
 /**

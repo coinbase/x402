@@ -442,8 +442,8 @@ func TestExactEvmFacilitator_Settle(t *testing.T) {
 	}
 }
 
-func TestExactEvmService_ParsePrice(t *testing.T) {
-	service := NewExactEvmService()
+func TestExactEvmServer_ParsePrice(t *testing.T) {
+	server := NewExactEvmServer()
 
 	tests := []struct {
 		name    string
@@ -486,7 +486,7 @@ func TestExactEvmService_ParsePrice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := service.ParsePrice(tt.price, x402.Network(tt.network))
+			got, err := server.ParsePrice(tt.price, x402.Network(tt.network))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParsePrice() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -498,9 +498,9 @@ func TestExactEvmService_ParsePrice(t *testing.T) {
 	}
 }
 
-func TestExactEvmService_EnhancePaymentRequirements(t *testing.T) {
+func TestExactEvmServer_EnhancePaymentRequirements(t *testing.T) {
 	ctx := context.Background()
-	service := NewExactEvmService()
+	server := NewExactEvmServer()
 
 	requirements := x402.PaymentRequirements{
 		Network: "base",
@@ -517,7 +517,7 @@ func TestExactEvmService_EnhancePaymentRequirements(t *testing.T) {
 		},
 	}
 
-	enhanced, err := service.EnhancePaymentRequirements(ctx, requirements, supportedKind, []string{"customField"})
+	enhanced, err := server.EnhancePaymentRequirements(ctx, requirements, supportedKind, []string{"customField"})
 	if err != nil {
 		t.Fatalf("EnhancePaymentRequirements() error = %v", err)
 	}

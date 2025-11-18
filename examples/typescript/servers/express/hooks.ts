@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, x402ResourceService } from "@x402/express";
-import { ExactEvmService } from "@x402/evm";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmServer } from "@x402/evm";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -11,8 +11,8 @@ if (!evmAddress) {
   process.exit(1);
 }
 
-const resourceService = new x402ResourceService()
-  .registerScheme("eip155:84532", new ExactEvmService())
+const ResourceServer = new x402ResourceServer()
+  .registerScheme("eip155:84532", new ExactEvmServer())
   .onBeforeVerify(async context => {
     console.log("Before verify hook", context);
     // Abort verification by returning { abort: true, reason: string }
@@ -54,7 +54,7 @@ app.use(
         mimeType: "application/json",
       },
     },
-    resourceService,
+    ResourceServer,
   ),
 );
 

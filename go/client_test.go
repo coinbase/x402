@@ -24,7 +24,7 @@ func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, vers
 	if m.createPayload != nil {
 		return m.createPayload(ctx, version, requirementsBytes)
 	}
-	
+
 	// Build mock payload based on version
 	if version == 1 {
 		payload := types.PaymentPayloadV1{
@@ -38,7 +38,7 @@ func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, vers
 		}
 		return json.Marshal(payload)
 	}
-	
+
 	// V2: return partial (just version + payload)
 	partial := types.PayloadBase{
 		X402Version: version,
@@ -244,18 +244,18 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 
 	// Marshal requirements to bytes
 	requirementsBytes, _ := json.Marshal(requirements)
-	
+
 	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, resourceV2, extensions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	
+
 	// Unmarshal to check fields
 	var payload types.PaymentPayloadV2
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal payload: %v", err)
 	}
-	
+
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
@@ -413,7 +413,7 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	
+
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
@@ -450,13 +450,13 @@ func TestClientNetworkPatternMatching(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected pattern match to work: %v", err)
 	}
-	
+
 	// Unmarshal to check fields
 	var payload types.PaymentPayloadV2
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		t.Fatalf("Failed to unmarshal payload: %v", err)
 	}
-	
+
 	if payload.Accepted.Scheme != "exact" {
 		t.Fatal("Expected payload to be created with pattern match")
 	}

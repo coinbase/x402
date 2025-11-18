@@ -1,6 +1,6 @@
 // Generic mocks for unit testing
 export { MockFacilitatorClient } from "./generic/MockFacilitatorClient";
-export { MockSchemeNetworkService } from "./generic/MockSchemeService";
+export { MockSchemeNetworkServer } from "./generic/MockSchemeServer";
 export { MockSchemeNetworkClient } from "./generic/MockSchemeClient";
 export {
   buildPaymentRequired,
@@ -17,5 +17,5 @@ export {
   CashFacilitatorClient,
   CashSchemeNetworkClient,
   CashSchemeNetworkFacilitator,
-  CashSchemeNetworkService,
+  CashSchemeNetworkServer,
 } from "./cash";

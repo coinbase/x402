@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  x402HTTPResourceService,
+  x402HTTPResourceServer,
   HTTPAdapter,
   HTTPRequestContext,
-} from "../../src/http/x402HTTPResourceService";
-import { x402ResourceService } from "../../src/server/x402ResourceService";
+} from "../../src/http/x402HTTPResourceServer";
+import { x402ResourceServer } from "../../src/server/x402ResourceServer";
 import { decodePaymentRequiredHeader } from "../../src/http";
-import { CashFacilitatorClient, CashSchemeNetworkService } from "../mocks";
+import { CashFacilitatorClient, CashSchemeNetworkServer } from "../mocks";
 import { x402Facilitator } from "../../src/facilitator";
 import { CashSchemeNetworkFacilitator } from "../mocks/cash";
 import { Network, Price } from "../../src/types";
@@ -125,7 +125,7 @@ interface ExtendedHTTPRequestContext extends HTTPRequestContext {
 }
 
 describe("Dynamic Pricing & PayTo Integration Tests", () => {
-  let resourceService: x402ResourceService;
+  let ResourceServer: x402ResourceServer;
 
   beforeEach(async () => {
     const facilitator = new x402Facilitator().registerScheme(
@@ -134,9 +134,9 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
     );
 
     const facilitatorClient = new CashFacilitatorClient(facilitator);
-    resourceService = new x402ResourceService(facilitatorClient);
-    resourceService.registerScheme("x402:cash", new CashSchemeNetworkService());
-    await resourceService.initialize();
+    ResourceServer = new x402ResourceServer(facilitatorClient);
+    ResourceServer.registerScheme("x402:cash", new CashSchemeNetworkServer());
+    await ResourceServer.initialize();
   });
 
   describe("Dynamic Pricing - Query Parameters", () => {
@@ -161,7 +161,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Test 1: Premium tier
       const premiumAdapter = new MockHTTPAdapter({
@@ -176,7 +176,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "GET",
       };
 
-      const premiumResult = await httpService.processHTTPRequest(premiumContext);
+      const premiumResult = await httpServer.processHTTPRequest(premiumContext);
 
       expect(premiumResult.type).toBe("payment-error"); // No payment provided
       if (premiumResult.type === "payment-error") {
@@ -199,7 +199,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "GET",
       };
 
-      const businessResult = await httpService.processHTTPRequest(businessContext);
+      const businessResult = await httpServer.processHTTPRequest(businessContext);
 
       if (businessResult.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -221,7 +221,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "GET",
       };
 
-      const defaultResult = await httpService.processHTTPRequest(defaultContext);
+      const defaultResult = await httpServer.processHTTPRequest(defaultContext);
 
       if (defaultResult.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -253,7 +253,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Request 100 items
       const adapter = new MockHTTPAdapter({
@@ -268,7 +268,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       if (result.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -307,7 +307,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Test 1: High complexity, 5 minute job
       const highComplexityAdapter = new MockHTTPAdapter({
@@ -326,7 +326,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "POST",
       };
 
-      const highResult = await httpService.processHTTPRequest(highContext);
+      const highResult = await httpServer.processHTTPRequest(highContext);
 
       if (highResult.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -351,7 +351,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "POST",
       };
 
-      const lowResult = await httpService.processHTTPRequest(lowContext);
+      const lowResult = await httpServer.processHTTPRequest(lowContext);
 
       if (lowResult.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -384,7 +384,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter({
         path: "/api/process",
@@ -400,7 +400,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "POST",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       if (result.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -452,7 +452,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Test 1: Premium user
       const premiumAdapter = new MockHTTPAdapter({
@@ -461,7 +461,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { "x-api-key": "key_premium_123" },
       });
 
-      const premiumResult = await httpService.processHTTPRequest({
+      const premiumResult = await httpServer.processHTTPRequest({
         adapter: premiumAdapter,
         path: "/api/resource",
         method: "GET",
@@ -481,7 +481,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { "x-api-key": "key_standard_456" },
       });
 
-      const standardResult = await httpService.processHTTPRequest({
+      const standardResult = await httpServer.processHTTPRequest({
         adapter: standardAdapter,
         path: "/api/resource",
         method: "GET",
@@ -501,7 +501,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: {},
       });
 
-      const noKeyResult = await httpService.processHTTPRequest({
+      const noKeyResult = await httpServer.processHTTPRequest({
         adapter: noKeyAdapter,
         path: "/api/resource",
         method: "GET",
@@ -536,7 +536,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Upload 10MB file
       const adapter = new MockHTTPAdapter({
@@ -554,7 +554,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "POST",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       if (result.type === "payment-error") {
         const paymentRequired = decodePaymentRequiredHeader(
@@ -587,7 +587,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // With AI, with cache
       const aiCacheAdapter = new MockHTTPAdapter({
@@ -599,7 +599,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const aiCacheResult = await httpService.processHTTPRequest({
+      const aiCacheResult = await httpServer.processHTTPRequest({
         adapter: aiCacheAdapter,
         path: "/api/advanced",
         method: "GET",
@@ -622,7 +622,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const basicResult = await httpService.processHTTPRequest({
+      const basicResult = await httpServer.processHTTPRequest({
         adapter: basicAdapter,
         path: "/api/advanced",
         method: "GET",
@@ -662,7 +662,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Test US region
       const usAdapter = new MockHTTPAdapter({
@@ -671,7 +671,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { "x-region": "us" },
       });
 
-      const usResult = await httpService.processHTTPRequest({
+      const usResult = await httpServer.processHTTPRequest({
         adapter: usAdapter,
         path: "/api/process",
         method: "POST",
@@ -691,7 +691,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { "x-region": "eu" },
       });
 
-      const euResult = await httpService.processHTTPRequest({
+      const euResult = await httpServer.processHTTPRequest({
         adapter: euAdapter,
         path: "/api/process",
         method: "POST",
@@ -737,7 +737,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Creator content - pay creator directly
       const creatorAdapter = new MockHTTPAdapter({
@@ -746,7 +746,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { authorization: "Bearer creator_token_abc" },
       });
 
-      const creatorResult = await httpService.processHTTPRequest({
+      const creatorResult = await httpServer.processHTTPRequest({
         adapter: creatorAdapter,
         path: "/api/user-content",
         method: "GET",
@@ -766,7 +766,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         headers: { authorization: "Bearer consumer_token_xyz" },
       });
 
-      const consumerResult = await httpService.processHTTPRequest({
+      const consumerResult = await httpServer.processHTTPRequest({
         adapter: consumerAdapter,
         path: "/api/user-content",
         method: "GET",
@@ -808,7 +808,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // GPT-4 request
       const gptAdapter = new MockHTTPAdapter({
@@ -820,7 +820,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const gptResult = await httpService.processHTTPRequest({
+      const gptResult = await httpServer.processHTTPRequest({
         adapter: gptAdapter,
         path: "/api/inference",
         method: "POST",
@@ -843,7 +843,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const claudeResult = await httpService.processHTTPRequest({
+      const claudeResult = await httpServer.processHTTPRequest({
         adapter: claudeAdapter,
         path: "/api/inference",
         method: "POST",
@@ -898,7 +898,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Pro subscription, 30-day data, blockchain source
       const adapter = new MockHTTPAdapter({
@@ -911,7 +911,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const result = await httpService.processHTTPRequest({
+      const result = await httpServer.processHTTPRequest({
         adapter,
         path: "/api/premium-data",
         method: "GET",
@@ -940,7 +940,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const freeResult = await httpService.processHTTPRequest({
+      const freeResult = await httpServer.processHTTPRequest({
         adapter: freeAdapter,
         path: "/api/premium-data",
         method: "GET",
@@ -991,7 +991,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter({
         path: "/api/data",
@@ -1000,7 +1000,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
       });
 
       // First request
-      const result1 = await httpService.processHTTPRequest({
+      const result1 = await httpServer.processHTTPRequest({
         adapter,
         path: "/api/data",
         method: "GET",
@@ -1016,7 +1016,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
       // Simulate 100 more requests
       requestCounts["test-key-123"] = 101;
 
-      const result101 = await httpService.processHTTPRequest({
+      const result101 = await httpServer.processHTTPRequest({
         adapter,
         path: "/api/data",
         method: "GET",
@@ -1058,7 +1058,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter({
         path: "/api/task",
@@ -1068,7 +1068,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
       // Make 3 requests
       const results = [];
       for (let i = 0; i < 3; i++) {
-        const result = await httpService.processHTTPRequest({
+        const result = await httpServer.processHTTPRequest({
           adapter,
           path: "/api/task",
           method: "POST",
@@ -1120,7 +1120,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Peak hour - use local time noon (12 PM)
       const peakDate = new Date();
@@ -1134,7 +1134,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const peakResult = await httpService.processHTTPRequest({
+      const peakResult = await httpServer.processHTTPRequest({
         adapter: peakAdapter,
         path: "/api/resource",
         method: "GET",
@@ -1159,7 +1159,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       });
 
-      const offPeakResult = await httpService.processHTTPRequest({
+      const offPeakResult = await httpServer.processHTTPRequest({
         adapter: offPeakAdapter,
         path: "/api/resource",
         method: "GET",
@@ -1193,7 +1193,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter({
         path: "/api/test",
@@ -1216,7 +1216,7 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
         method: "POST",
       };
 
-      await httpService.processHTTPRequest(context);
+      await httpServer.processHTTPRequest(context);
 
       // Verify context was captured
       expect(capturedContext).toBeDefined();

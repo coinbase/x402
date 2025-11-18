@@ -213,13 +213,13 @@ func (f *ExactEvmFacilitator) Settle(
 	if err != nil {
 		return x402.SettleResponse{}, err
 	}
-	
+
 	// Unmarshal to v2 types for settlement
 	payload, err := types.ToPaymentPayloadV2(payloadBytes)
 	if err != nil {
 		return x402.SettleResponse{Success: false, ErrorReason: "invalid_payload"}, nil
 	}
-	
+
 	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
 	if err != nil {
 		return x402.SettleResponse{Success: false, ErrorReason: "invalid_requirements"}, nil

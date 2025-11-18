@@ -3,15 +3,15 @@ import type {
   Network,
   PaymentRequirements,
   Price,
-  SchemeNetworkService,
+  SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
 import { convertToTokenAmount, getUsdcAddress } from "../utils";
 
 /**
- * SVM service implementation for the Exact payment scheme.
+ * SVM server implementation for the Exact payment scheme.
  */
-export class ExactSvmService implements SchemeNetworkService {
+export class ExactSvmServer implements SchemeNetworkServer {
   readonly scheme = "exact";
   private moneyParsers: MoneyParser[] = [];
 
@@ -25,7 +25,7 @@ export class ExactSvmService implements SchemeNetworkService {
    * @param parser - Custom function to convert amount to AssetAmount (or null to skip)
    * @returns The service instance for chaining
    */
-  registerMoneyParser(parser: MoneyParser): ExactSvmService {
+  registerMoneyParser(parser: MoneyParser): ExactSvmServer {
     this.moneyParsers.push(parser);
     return this;
   }

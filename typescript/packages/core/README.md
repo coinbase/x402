@@ -77,7 +77,7 @@ if (response.status === 402) {
 ### Server Usage
 
 ```typescript
-import { x402HTTPResourceService, HTTPFacilitatorClient } from '@x402/core/server';
+import { x402HTTPResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
 import { EVMExactScheme } from '@x402/evm';
 
 // Configure routes with payment requirements
@@ -104,7 +104,7 @@ const facilitator = new HTTPFacilitatorClient({
   url: 'https://x402.org/facilitator',
 });
 
-const server = new x402HTTPResourceService(routes, facilitator);
+const server = new x402HTTPResourceServer(routes, facilitator);
 
 // Register supported schemes
 server.registerScheme('eip155:8453', new EVMExactScheme());
@@ -205,24 +205,24 @@ HTTP-specific client extending base client.
 
 ### Server Classes
 
-#### `x402ResourceService`
+#### `x402ResourceServer`
 
 Core server for protecting resources with payments.
 
 **Methods:**
-- `registerScheme(network: Network, server: SchemeNetworkService)`: Register scheme handler
+- `registerScheme(network: Network, server: SchemeNetworkServer)`: Register scheme handler
 - `initialize()`: Fetch supported payment types from facilitators
 - `buildPaymentRequirements(config: ResourceConfig)`: Create payment requirements
 - `verifyPayment(payload: PaymentPayload, requirements: PaymentRequirements)`: Verify payment
 - `settlePayment(payload: PaymentPayload, requirements: PaymentRequirements)`: Settle payment
 
-#### `x402HTTPResourceService`
+#### `x402HTTPResourceServer`
 
 HTTP-enhanced server with routing and transport handling.
 
 **Constructor:**
 ```typescript
-new x402HTTPResourceService(
+new x402HTTPResourceServer(
   routes: RoutesConfig,
   facilitatorClients?: FacilitatorClient | FacilitatorClient[]
 )
@@ -313,7 +313,7 @@ interface SchemeNetworkClient {
   ): Promise<PaymentPayload>;
 }
 
-interface SchemeNetworkService {
+interface SchemeNetworkServer {
   readonly scheme: string;
   parsePrice(price: Price, network: Network): AssetAmount;
   enhancePaymentRequirements(

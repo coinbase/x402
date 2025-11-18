@@ -35,7 +35,7 @@ This package provides three main components for handling x402 payments on Solana
 - `FacilitatorRpcClient` - RPC client interface
 
 **Service:**
-- `ExactSvmService` - V2 service for building payment requirements
+- `ExactEvmServer` - V2 service for building payment requirements
 
 **Utilities:**
 - Network validation, asset info lookup, amount formatting, transaction encoding

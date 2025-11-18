@@ -23,8 +23,8 @@ This server demonstrates and tests the x402 Express.js middleware with both EVM 
 ```typescript
 import express from "express";
 import { x402Middleware } from "@x402/server/express";
-import { ExactEvmService } from "@x402/evm";
-import { ExactSvmService } from "@x402/svm";
+import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmServer } from "@x402/svm";
 
 const app = express();
 
@@ -54,9 +54,9 @@ const routes = {
 app.use(x402Middleware({
   routes,
   facilitatorUrl: "http://localhost:4023",
-  services: {
-    "eip155:84532": new ExactEvmService(),
-    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": new ExactSvmService()
+  servers: {
+    "eip155:84532": new ExactEvmServer(),
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": new ExactSvmServer()
   }
 }));
 

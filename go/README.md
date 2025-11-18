@@ -76,7 +76,7 @@ func main() {
     // Add payment middleware
     r.Use(x402gin.PaymentMiddleware(routes,
         x402gin.WithFacilitatorURL("https://facilitator.example.com"),
-        x402gin.WithScheme("eip155:8453", evm.NewExactService()),
+        x402gin.WithScheme("eip155:8453", evm.NewExactEvmServer()),
     ))
     
     r.GET("/protected", func(c *gin.Context) {

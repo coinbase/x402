@@ -1,7 +1,6 @@
 package types
 
-type ResourceServiceExtension interface {
+type ResourceServerExtension interface {
 	Key() string
 	EnrichDeclaration(declaration interface{}, transportContext interface{}) interface{}
 }
-

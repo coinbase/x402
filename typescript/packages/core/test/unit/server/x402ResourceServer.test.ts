@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { x402ResourceService } from "../../../src/server/x402ResourceService";
+import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
   MockFacilitatorClient,
-  MockSchemeNetworkService,
+  MockSchemeNetworkServer,
   buildPaymentPayload,
   buildPaymentRequirements,
   buildSupportedResponse,
@@ -11,26 +11,26 @@ import {
 } from "../../mocks";
 import { Network } from "../../../src/types";
 
-describe("x402ResourceService", () => {
+describe("x402ResourceServer", () => {
   describe("Construction", () => {
     it("should create default HTTP facilitator client if none provided", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
-      expect(service).toBeDefined();
+      expect(server).toBeDefined();
     });
 
     it("should use provided facilitator client", () => {
       const mockClient = new MockFacilitatorClient(buildSupportedResponse());
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
-      expect(service).toBeDefined();
+      expect(server).toBeDefined();
     });
 
     it("should normalize single client to array", async () => {
       const mockClient = new MockFacilitatorClient(buildSupportedResponse());
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
-      await service.initialize();
+      await server.initialize();
 
       expect(mockClient.getSupportedCalls).toBe(1);
     });
@@ -47,54 +47,54 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService([mockClient1, mockClient2]);
-      await service.initialize();
+      const server = new x402ResourceServer([mockClient1, mockClient2]);
+      await server.initialize();
 
       expect(mockClient1.getSupportedCalls).toBe(1);
       expect(mockClient2.getSupportedCalls).toBe(1);
     });
 
     it("should create default client if empty array provided", async () => {
-      const service = new x402ResourceService([]);
+      const server = new x402ResourceServer([]);
 
       // Should not throw - uses default client
-      await expect(service.initialize()).resolves.not.toThrow();
+      await expect(server.initialize()).resolves.not.toThrow();
     });
   });
 
   describe("registerScheme", () => {
     it("should register scheme for network", () => {
-      const service = new x402ResourceService();
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer();
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      const result = service.registerScheme("test:network" as Network, mockScheme);
+      const result = server.registerScheme("test:network" as Network, mockScheme);
 
-      expect(result).toBe(service); // Chaining
+      expect(result).toBe(server); // Chaining
     });
 
     it("should support multiple schemes per network", () => {
-      const service = new x402ResourceService();
-      const scheme1 = new MockSchemeNetworkService("scheme1");
-      const scheme2 = new MockSchemeNetworkService("scheme2");
+      const server = new x402ResourceServer();
+      const scheme1 = new MockSchemeNetworkServer("scheme1");
+      const scheme2 = new MockSchemeNetworkServer("scheme2");
 
-      const result = service
+      const result = server
         .registerScheme("test:network" as Network, scheme1)
         .registerScheme("test:network" as Network, scheme2);
 
-      expect(result).toBe(service);
+      expect(result).toBe(server);
     });
 
     it("should not override existing scheme registration", () => {
-      const service = new x402ResourceService();
-      const firstScheme = new MockSchemeNetworkService("test-scheme");
-      const secondScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer();
+      const firstScheme = new MockSchemeNetworkServer("test-scheme");
+      const secondScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service
+      server
         .registerScheme("test:network" as Network, firstScheme)
         .registerScheme("test:network" as Network, secondScheme);
 
       // This is verified implicitly - both registrations succeed without error
-      expect(service).toBeDefined();
+      expect(server).toBeDefined();
     });
   });
 
@@ -106,9 +106,9 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
-      await service.initialize();
+      await server.initialize();
 
       expect(mockClient.getSupportedCalls).toBe(1);
     });
@@ -120,14 +120,14 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("exact");
-      service.registerScheme("eip155:8453" as Network, mockScheme);
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("exact");
+      server.registerScheme("eip155:8453" as Network, mockScheme);
 
-      await service.initialize();
+      await server.initialize();
 
       // Should be able to get supported kind
-      const supportedKind = service.getSupportedKind(2, "eip155:8453" as Network, "exact");
+      const supportedKind = server.getSupportedKind(2, "eip155:8453" as Network, "exact");
       expect(supportedKind).toBeDefined();
       expect(supportedKind?.scheme).toBe("exact");
     });
@@ -159,11 +159,11 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService([mockClient1, mockClient2]);
+      const server = new x402ResourceServer([mockClient1, mockClient2]);
 
-      await service.initialize();
+      await server.initialize();
 
-      const supportedKind = service.getSupportedKind(2, "eip155:8453" as Network, "exact");
+      const supportedKind = server.getSupportedKind(2, "eip155:8453" as Network, "exact");
       expect(supportedKind?.extra?.facilitator).toBe("first");
     });
 
@@ -182,10 +182,10 @@ describe("x402ResourceService", () => {
         throw new Error("Network error");
       };
 
-      const service = new x402ResourceService([failingClient, workingClient]);
+      const server = new x402ResourceServer([failingClient, workingClient]);
 
       // Should not throw - continues with working client
-      await service.initialize();
+      await server.initialize();
 
       expect(workingClient.getSupportedCalls).toBe(1);
     });
@@ -204,12 +204,12 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient1);
+      const server = new x402ResourceServer(mockClient1);
 
-      await service.initialize();
+      await server.initialize();
 
       // Re-initialize - this tests the clear logic
-      await service.initialize();
+      await server.initialize();
 
       // Mappings should be re-built
       expect(mockClient1.getSupportedCalls).toBe(2);
@@ -224,17 +224,17 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme", {
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme", {
         amount: "1000000",
         asset: "USDC",
         extra: {},
       });
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
-      const requirements = await service.buildPaymentRequirements({
+      const requirements = await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient_address",
         price: "$1.00",
@@ -255,13 +255,13 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
-      await service.buildPaymentRequirements({
+      await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient",
         price: "$5.00",
@@ -281,13 +281,13 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
-      await service.buildPaymentRequirements({
+      await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient",
         price: 1.0,
@@ -304,13 +304,13 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
-      const requirements = await service.buildPaymentRequirements({
+      const requirements = await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient",
         price: 1.0,
@@ -327,13 +327,13 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
-      const requirements = await service.buildPaymentRequirements({
+      const requirements = await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient",
         price: 1.0,
@@ -345,9 +345,9 @@ describe("x402ResourceService", () => {
     });
 
     it("should return empty array if no scheme registered for network", async () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
-      const requirements = await service.buildPaymentRequirements({
+      const requirements = await server.buildPaymentRequirements({
         scheme: "test-scheme",
         payTo: "recipient",
         price: 1.0,
@@ -365,15 +365,15 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      const mockScheme = new MockSchemeNetworkService("test-scheme");
+      const server = new x402ResourceServer(mockClient);
+      const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      service.registerScheme("test:network" as Network, mockScheme);
-      await service.initialize();
+      server.registerScheme("test:network" as Network, mockScheme);
+      await server.initialize();
 
       await expect(
         async () =>
-          await service.buildPaymentRequirements({
+          await server.buildPaymentRequirements({
             scheme: "test-scheme",
             payTo: "recipient",
             price: 1.0,
@@ -384,7 +384,7 @@ describe("x402ResourceService", () => {
   });
 
   describe("Lifecycle hooks", () => {
-    let service: x402ResourceService;
+    let server: x402ResourceServer;
     let mockClient: MockFacilitatorClient;
 
     beforeEach(() => {
@@ -393,14 +393,14 @@ describe("x402ResourceService", () => {
         buildVerifyResponse({ isValid: true }),
         buildSettleResponse({ success: true }),
       );
-      service = new x402ResourceService(mockClient);
+      server = new x402ResourceServer(mockClient);
     });
 
     describe("onBeforeVerify", () => {
       it("should execute hook before verification", async () => {
         let hookExecuted = false;
 
-        service.onBeforeVerify(async context => {
+        server.onBeforeVerify(async context => {
           hookExecuted = true;
           expect(context.paymentPayload).toBeDefined();
           expect(context.requirements).toBeDefined();
@@ -409,20 +409,20 @@ describe("x402ResourceService", () => {
         const payload = buildPaymentPayload();
         const requirements = buildPaymentRequirements();
 
-        await service.verifyPayment(payload, requirements);
+        await server.verifyPayment(payload, requirements);
 
         expect(hookExecuted).toBe(true);
       });
 
       it("should abort verification if hook returns abort", async () => {
-        service.onBeforeVerify(async () => {
+        server.onBeforeVerify(async () => {
           return { abort: true, reason: "Rate limited" };
         });
 
         const payload = buildPaymentPayload();
         const requirements = buildPaymentRequirements();
 
-        const result = await service.verifyPayment(payload, requirements);
+        const result = await server.verifyPayment(payload, requirements);
 
         expect(result.isValid).toBe(false);
         expect(result.invalidReason).toBe("Rate limited");
@@ -432,7 +432,7 @@ describe("x402ResourceService", () => {
       it("should execute multiple hooks in order", async () => {
         const executionOrder: number[] = [];
 
-        service
+        server
           .onBeforeVerify(async () => {
             executionOrder.push(1);
           })
@@ -443,7 +443,7 @@ describe("x402ResourceService", () => {
             executionOrder.push(3);
           });
 
-        await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2, 3]);
       });
@@ -451,7 +451,7 @@ describe("x402ResourceService", () => {
       it("should stop on first abort", async () => {
         const executionOrder: number[] = [];
 
-        service
+        server
           .onBeforeVerify(async () => {
             executionOrder.push(1);
           })
@@ -463,7 +463,7 @@ describe("x402ResourceService", () => {
             executionOrder.push(3); // Should not execute
           });
 
-        await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2]); // Third hook not executed
       });
@@ -474,12 +474,12 @@ describe("x402ResourceService", () => {
         let hookExecuted = false;
         let hookResult: any;
 
-        service.onAfterVerify(async context => {
+        server.onAfterVerify(async context => {
           hookExecuted = true;
           hookResult = context.result;
         });
 
-        const result = await service.verifyPayment(
+        const result = await server.verifyPayment(
           buildPaymentPayload(),
           buildPaymentRequirements(),
         );
@@ -491,7 +491,7 @@ describe("x402ResourceService", () => {
       it("should execute multiple afterVerify hooks in order", async () => {
         const executionOrder: number[] = [];
 
-        service
+        server
           .onAfterVerify(async () => {
             executionOrder.push(1);
           })
@@ -502,7 +502,7 @@ describe("x402ResourceService", () => {
             executionOrder.push(3);
           });
 
-        await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2, 3]);
       });
@@ -510,15 +510,15 @@ describe("x402ResourceService", () => {
       it("should not execute afterVerify if verification aborted", async () => {
         let afterVerifyCalled = false;
 
-        service.onBeforeVerify(async () => {
+        server.onBeforeVerify(async () => {
           return { abort: true, reason: "Aborted" };
         });
 
-        service.onAfterVerify(async () => {
+        server.onAfterVerify(async () => {
           afterVerifyCalled = true;
         });
 
-        await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(afterVerifyCalled).toBe(false);
       });
@@ -531,14 +531,13 @@ describe("x402ResourceService", () => {
 
         mockClient.setVerifyResponse(new Error("Verification failed"));
 
-        service.onVerifyFailure(async context => {
+        server.onVerifyFailure(async context => {
           hookExecuted = true;
           hookError = context.error;
         });
 
         await expect(
-          async () =>
-            await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements()),
+          async () => await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements()),
         ).rejects.toThrow("Verification failed");
 
         expect(hookExecuted).toBe(true);
@@ -548,7 +547,7 @@ describe("x402ResourceService", () => {
       it("should allow recovery from failure", async () => {
         mockClient.setVerifyResponse(new Error("Temporary failure"));
 
-        service.onVerifyFailure(async _context => {
+        server.onVerifyFailure(async _context => {
           // Recover with successful result
           return {
             recovered: true,
@@ -556,7 +555,7 @@ describe("x402ResourceService", () => {
           };
         });
 
-        const result = await service.verifyPayment(
+        const result = await server.verifyPayment(
           buildPaymentPayload(),
           buildPaymentRequirements(),
         );
@@ -570,7 +569,7 @@ describe("x402ResourceService", () => {
 
         mockClient.setVerifyResponse(new Error("Failure"));
 
-        service
+        server
           .onVerifyFailure(async () => {
             executionOrder.push(1);
             // No recovery
@@ -583,7 +582,7 @@ describe("x402ResourceService", () => {
             executionOrder.push(3); // Should not execute
           });
 
-        await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2]); // Stops after recovery
       });
@@ -591,13 +590,12 @@ describe("x402ResourceService", () => {
       it("should re-throw if no recovery", async () => {
         mockClient.setVerifyResponse(new Error("Fatal error"));
 
-        service.onVerifyFailure(async () => {
+        server.onVerifyFailure(async () => {
           // No recovery
         });
 
         await expect(
-          async () =>
-            await service.verifyPayment(buildPaymentPayload(), buildPaymentRequirements()),
+          async () => await server.verifyPayment(buildPaymentPayload(), buildPaymentRequirements()),
         ).rejects.toThrow("Fatal error");
       });
     });
@@ -606,25 +604,24 @@ describe("x402ResourceService", () => {
       it("should execute hook before settlement", async () => {
         let hookExecuted = false;
 
-        service.onBeforeSettle(async context => {
+        server.onBeforeSettle(async context => {
           hookExecuted = true;
           expect(context.paymentPayload).toBeDefined();
           expect(context.requirements).toBeDefined();
         });
 
-        await service.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(hookExecuted).toBe(true);
       });
 
       it("should abort settlement if hook returns abort", async () => {
-        service.onBeforeSettle(async () => {
+        server.onBeforeSettle(async () => {
           return { abort: true, reason: "Insufficient balance" };
         });
 
         await expect(
-          async () =>
-            await service.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
+          async () => await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
         ).rejects.toThrow("Settlement aborted: Insufficient balance");
 
         expect(mockClient.settleCalls.length).toBe(0); // Facilitator not called
@@ -633,7 +630,7 @@ describe("x402ResourceService", () => {
       it("should execute multiple hooks in order", async () => {
         const executionOrder: number[] = [];
 
-        service
+        server
           .onBeforeSettle(async () => {
             executionOrder.push(1);
           })
@@ -641,7 +638,7 @@ describe("x402ResourceService", () => {
             executionOrder.push(2);
           });
 
-        await service.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
+        await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements());
 
         expect(executionOrder).toEqual([1, 2]);
       });
@@ -652,12 +649,12 @@ describe("x402ResourceService", () => {
         let hookExecuted = false;
         let hookResult: any;
 
-        service.onAfterSettle(async context => {
+        server.onAfterSettle(async context => {
           hookExecuted = true;
           hookResult = context.result;
         });
 
-        const result = await service.settlePayment(
+        const result = await server.settlePayment(
           buildPaymentPayload(),
           buildPaymentRequirements(),
         );
@@ -673,14 +670,13 @@ describe("x402ResourceService", () => {
 
         mockClient.setSettleResponse(new Error("Settlement failed"));
 
-        service.onSettleFailure(async context => {
+        server.onSettleFailure(async context => {
           hookExecuted = true;
           expect(context.error.message).toBe("Settlement failed");
         });
 
         await expect(
-          async () =>
-            await service.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
+          async () => await server.settlePayment(buildPaymentPayload(), buildPaymentRequirements()),
         ).rejects.toThrow();
 
         expect(hookExecuted).toBe(true);
@@ -689,14 +685,14 @@ describe("x402ResourceService", () => {
       it("should allow recovery from failure", async () => {
         mockClient.setSettleResponse(new Error("Temporary failure"));
 
-        service.onSettleFailure(async () => {
+        server.onSettleFailure(async () => {
           return {
             recovered: true,
             result: { success: true, extra: "recovered" },
           };
         });
 
-        const result = await service.settlePayment(
+        const result = await server.settlePayment(
           buildPaymentPayload(),
           buildPaymentRequirements(),
         );
@@ -716,7 +712,7 @@ describe("x402ResourceService", () => {
         buildVerifyResponse({ isValid: true }),
       );
 
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
@@ -724,24 +720,24 @@ describe("x402ResourceService", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await service.verifyPayment(payload, requirements);
+      const result = await server.verifyPayment(payload, requirements);
 
       expect(result.isValid).toBe(true);
       expect(mockClient.verifyCalls.length).toBe(1);
     });
 
     it("should throw if no facilitator found", async () => {
-      // Create service with mock that throws an error
+      // Create server with mock that throws an error
       const mockClient = new MockFacilitatorClient(
         buildSupportedResponse(),
         new Error("No facilitator supports this payment"),
       );
 
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
       await expect(
         async () =>
-          await service.verifyPayment(
+          await server.verifyPayment(
             buildPaymentPayload(),
             buildPaymentRequirements({ scheme: "exact", network: "eip155:8453" as Network }),
           ),
@@ -759,7 +755,7 @@ describe("x402ResourceService", () => {
         buildSettleResponse({ success: true }),
       );
 
-      const service = new x402ResourceService(mockClient);
+      const server = new x402ResourceServer(mockClient);
 
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
@@ -767,7 +763,7 @@ describe("x402ResourceService", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await service.settlePayment(payload, requirements);
+      const result = await server.settlePayment(payload, requirements);
 
       expect(result.success).toBe(true);
       expect(mockClient.settleCalls.length).toBe(1);
@@ -776,7 +772,7 @@ describe("x402ResourceService", () => {
 
   describe("findMatchingRequirements", () => {
     it("should match v2 requirements by deep equality", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
       const req1 = buildPaymentRequirements({
         scheme: "exact",
@@ -797,13 +793,13 @@ describe("x402ResourceService", () => {
         accepted: req1,
       });
 
-      const result = service.findMatchingRequirements([req1, req2], payload);
+      const result = server.findMatchingRequirements([req1, req2], payload);
 
       expect(result).toEqual(req1);
     });
 
     it("should match v1 requirements by scheme and network", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
       const req1 = buildPaymentRequirements({
         scheme: "exact",
@@ -820,26 +816,26 @@ describe("x402ResourceService", () => {
         }),
       });
 
-      const result = service.findMatchingRequirements([req1], payload);
+      const result = server.findMatchingRequirements([req1], payload);
 
       expect(result).toEqual(req1);
     });
 
     it("should return undefined if no match found", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
       const req1 = buildPaymentRequirements({ scheme: "exact", network: "eip155:8453" as Network });
       const payload = buildPaymentPayload({
         accepted: buildPaymentRequirements({ scheme: "intent", network: "eip155:8453" as Network }),
       });
 
-      const result = service.findMatchingRequirements([req1], payload);
+      const result = server.findMatchingRequirements([req1], payload);
 
       expect(result).toBeUndefined();
     });
 
     it("should handle objects with different property order (v2)", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
       const req = {
         scheme: "exact",
@@ -864,7 +860,7 @@ describe("x402ResourceService", () => {
 
       const payload = buildPaymentPayload({ x402Version: 2, accepted });
 
-      const result = service.findMatchingRequirements([req], payload);
+      const result = server.findMatchingRequirements([req], payload);
 
       expect(result).toBeDefined();
     });
@@ -872,7 +868,7 @@ describe("x402ResourceService", () => {
 
   describe("createPaymentRequiredResponse", () => {
     it("should create v2 response", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
       const requirements = [buildPaymentRequirements()];
       const resourceInfo = {
@@ -881,7 +877,7 @@ describe("x402ResourceService", () => {
         mimeType: "application/json",
       };
 
-      const result = service.createPaymentRequiredResponse(requirements, resourceInfo);
+      const result = server.createPaymentRequiredResponse(requirements, resourceInfo);
 
       expect(result.x402Version).toBe(2);
       expect(result.resource).toEqual(resourceInfo);
@@ -889,9 +885,9 @@ describe("x402ResourceService", () => {
     });
 
     it("should include error message if provided", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
-      const result = service.createPaymentRequiredResponse(
+      const result = server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         "Payment required",
@@ -901,9 +897,9 @@ describe("x402ResourceService", () => {
     });
 
     it("should include extensions if provided", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
-      const result = service.createPaymentRequiredResponse(
+      const result = server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         undefined,
@@ -914,9 +910,9 @@ describe("x402ResourceService", () => {
     });
 
     it("should omit extensions if empty", () => {
-      const service = new x402ResourceService();
+      const server = new x402ResourceServer();
 
-      const result = service.createPaymentRequiredResponse(
+      const result = server.createPaymentRequiredResponse(
         [buildPaymentRequirements()],
         { url: "https://example.com", description: "", mimeType: "" },
         undefined,
@@ -942,10 +938,10 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      await service.initialize();
+      const server = new x402ResourceServer(mockClient);
+      await server.initialize();
 
-      const supportedKind = service.getSupportedKind(2, "eip155:8453" as Network, "exact");
+      const supportedKind = server.getSupportedKind(2, "eip155:8453" as Network, "exact");
 
       expect(supportedKind).toBeDefined();
       expect(supportedKind?.scheme).toBe("exact");
@@ -959,10 +955,10 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      await service.initialize();
+      const server = new x402ResourceServer(mockClient);
+      await server.initialize();
 
-      const supportedKind = service.getSupportedKind(2, "solana:mainnet" as Network, "exact");
+      const supportedKind = server.getSupportedKind(2, "solana:mainnet" as Network, "exact");
 
       expect(supportedKind).toBeUndefined();
     });
@@ -975,10 +971,10 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      await service.initialize();
+      const server = new x402ResourceServer(mockClient);
+      await server.initialize();
 
-      const extensions = service.getFacilitatorExtensions(2, "eip155:8453" as Network, "exact");
+      const extensions = server.getFacilitatorExtensions(2, "eip155:8453" as Network, "exact");
 
       expect(extensions).toEqual(["bazaar", "sign_in_with_x"]);
     });
@@ -990,10 +986,10 @@ describe("x402ResourceService", () => {
         }),
       );
 
-      const service = new x402ResourceService(mockClient);
-      await service.initialize();
+      const server = new x402ResourceServer(mockClient);
+      await server.initialize();
 
-      const extensions = service.getFacilitatorExtensions(2, "eip155:8453" as Network, "exact");
+      const extensions = server.getFacilitatorExtensions(2, "eip155:8453" as Network, "exact");
 
       expect(extensions).toEqual([]);
     });

@@ -1,8 +1,8 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { paymentMiddlewareFromConfig } from "@x402/hono";
-import { ExactEvmService } from "@x402/evm";
-import { ExactSvmService } from "@x402/svm";
+import { ExactEvmServer } from "@x402/evm";
+import { ExactSvmServer } from "@x402/svm";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
@@ -117,11 +117,11 @@ app.use(
     [
       {
         network: EVM_NETWORK,
-        server: new ExactEvmService(),
+        server: new ExactEvmServer(),
       },
       {
         network: SVM_NETWORK,
-        server: new ExactSvmService(),
+        server: new ExactSvmServer(),
       },
     ],
     // No custom paywall configuration (uses defaults)
@@ -191,7 +191,7 @@ const server = serve({
   port: parseInt(PORT),
 });
 
-  console.log(`
+console.log(`
 ╔════════════════════════════════════════════════════════╗
 ║           x402 Hono E2E Test Server                    ║
 ╠════════════════════════════════════════════════════════╣

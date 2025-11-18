@@ -47,7 +47,7 @@ func (m *mockHTTPAdapter) GetUserAgent() string {
 	return m.agent
 }
 
-func TestNewx402HTTPResourceService(t *testing.T) {
+func TestNewx402HTTPResourceServer(t *testing.T) {
 	routes := RoutesConfig{
 		"GET /api": RouteConfig{
 			Scheme:  "exact",
@@ -57,14 +57,14 @@ func TestNewx402HTTPResourceService(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes)
-	if service == nil {
-		t.Fatal("Expected service to be created")
+	server := Newx402HTTPResourceServer(routes)
+	if server == nil {
+		t.Fatal("Expected server to be created")
 	}
-	if service.X402ResourceService == nil {
-		t.Fatal("Expected embedded resource service")
+	if server.X402ResourceServer == nil {
+		t.Fatal("Expected embedded resource server")
 	}
-	if len(service.compiledRoutes) != 1 {
+	if len(server.compiledRoutes) != 1 {
 		t.Fatal("Expected 1 compiled route")
 	}
 }
@@ -81,7 +81,7 @@ func TestProcessHTTPRequestNoPaymentRequired(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(routes)
+	server := Newx402HTTPResourceServer(routes)
 
 	// Request to non-protected path
 	adapter := &mockHTTPAdapter{
@@ -96,7 +96,7 @@ func TestProcessHTTPRequestNoPaymentRequired(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(ctx, reqCtx, nil)
+	result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 	if result.Type != ResultNoPaymentRequired {
 		t.Errorf("Expected no payment required, got %s", result.Type)
@@ -116,8 +116,8 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 		},
 	}
 
-	// Create mock scheme service
-	mockService := &mockSchemeService{
+	// Create mock scheme server
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			return x402.AssetAmount{
@@ -142,12 +142,12 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(
+	server := Newx402HTTPResourceServer(
 		routes,
 		x402.WithFacilitatorClient(mockClient),
-		x402.WithSchemeService("eip155:1", mockService),
+		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	// Request to protected path without payment
 	adapter := &mockHTTPAdapter{
@@ -163,7 +163,7 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 		Method:  "GET",
 	}
 
-	result := service.ProcessHTTPRequest(ctx, reqCtx, nil)
+	result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error, got %s", result.Type)
@@ -192,15 +192,15 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 		},
 	}
 
-	mockService := &mockSchemeService{scheme: "exact"}
+	mockServer := &mockSchemeServer{scheme: "exact"}
 	mockClient := &mockFacilitatorClient{}
 
-	service := Newx402HTTPResourceService(
+	server := Newx402HTTPResourceServer(
 		routes,
 		x402.WithFacilitatorClient(mockClient),
-		x402.WithSchemeService("eip155:1", mockService),
+		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	// Browser request
 	adapter := &mockHTTPAdapter{
@@ -222,7 +222,7 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 		CDPClientKey: "test-key",
 	}
 
-	result := service.ProcessHTTPRequest(ctx, reqCtx, paywallConfig)
+	result := server.ProcessHTTPRequest(ctx, reqCtx, paywallConfig)
 
 	if result.Type != ResultPaymentError {
 		t.Errorf("Expected payment error, got %s", result.Type)
@@ -262,7 +262,7 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		},
 	}
 
-	mockService := &mockSchemeService{
+	mockServer := &mockSchemeServer{
 		scheme: "exact",
 		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 			return x402.AssetAmount{
@@ -292,12 +292,12 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(
+	server := Newx402HTTPResourceServer(
 		routes,
 		x402.WithFacilitatorClient(mockClient),
-		x402.WithSchemeService("eip155:1", mockService),
+		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	// Create payment payload that matches the route requirements exactly
 	acceptedRequirements := x402.PaymentRequirements{
@@ -337,7 +337,7 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		Method:  "POST",
 	}
 
-	result := service.ProcessHTTPRequest(ctx, reqCtx, nil)
+	result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 	if result.Type != ResultPaymentVerified {
 		errMsg := ""
@@ -375,11 +375,11 @@ func TestProcessSettlement(t *testing.T) {
 		},
 	}
 
-	service := Newx402HTTPResourceService(
+	server := Newx402HTTPResourceServer(
 		RoutesConfig{},
 		x402.WithFacilitatorClient(mockClient),
 	)
-	service.Initialize(ctx)
+	server.Initialize(ctx)
 
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
@@ -396,7 +396,7 @@ func TestProcessSettlement(t *testing.T) {
 	}
 
 	// Test successful response (should settle)
-	headers, err := service.ProcessSettlement(ctx, payload, requirements, 200)
+	headers, err := server.ProcessSettlement(ctx, payload, requirements, 200)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -408,7 +408,7 @@ func TestProcessSettlement(t *testing.T) {
 	}
 
 	// Test failed response (should not settle)
-	headers, err = service.ProcessSettlement(ctx, payload, requirements, 400)
+	headers, err = server.ProcessSettlement(ctx, payload, requirements, 400)
 	if err != nil {
 		t.Fatalf("Unexpected error for 400: %v", err)
 	}
@@ -497,7 +497,7 @@ func TestNormalizePath(t *testing.T) {
 }
 
 func TestGetDisplayAmount(t *testing.T) {
-	service := Newx402HTTPResourceService(RoutesConfig{})
+	server := Newx402HTTPResourceServer(RoutesConfig{})
 
 	tests := []struct {
 		name     string
@@ -540,7 +540,7 @@ func TestGetDisplayAmount(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := service.getDisplayAmount(tt.required)
+			result := server.getDisplayAmount(tt.required)
 			if result != tt.expected {
 				t.Errorf("Expected %f, got %f", tt.expected, result)
 			}
@@ -548,18 +548,18 @@ func TestGetDisplayAmount(t *testing.T) {
 	}
 }
 
-// Mock scheme service for testing
-type mockSchemeService struct {
+// Mock scheme server for testing
+type mockSchemeServer struct {
 	scheme      string
 	parsePrice  func(price x402.Price, network x402.Network) (x402.AssetAmount, error)
 	enhanceReqs func(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error)
 }
 
-func (m *mockSchemeService) Scheme() string {
+func (m *mockSchemeServer) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeService) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
+func (m *mockSchemeServer) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
 	if m.parsePrice != nil {
 		return m.parsePrice(price, network)
 	}
@@ -569,7 +569,7 @@ func (m *mockSchemeService) ParsePrice(price x402.Price, network x402.Network) (
 	}, nil
 }
 
-func (m *mockSchemeService) EnhancePaymentRequirements(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error) {
+func (m *mockSchemeServer) EnhancePaymentRequirements(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error) {
 	if m.enhanceReqs != nil {
 		return m.enhanceReqs(ctx, base, supported, extensions)
 	}

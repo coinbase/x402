@@ -5,49 +5,49 @@ import (
 )
 
 // ============================================================================
-// Resource Service Hook Context Types
+// Resource Server Hook Context Types
 // ============================================================================
 
 // VerifyContext contains information passed to verify hooks
 type VerifyContext struct {
-	Ctx              context.Context
-	PayloadBytes     []byte
+	Ctx               context.Context
+	PayloadBytes      []byte
 	RequirementsBytes []byte
 }
 
 // VerifyResultContext contains verify operation result and context
 type VerifyResultContext struct {
 	VerifyContext
-	Result   VerifyResponse
+	Result VerifyResponse
 }
 
 // VerifyFailureContext contains verify operation failure and context
 type VerifyFailureContext struct {
 	VerifyContext
-	Error    error
+	Error error
 }
 
 // SettleContext contains information passed to settle hooks
 type SettleContext struct {
-	Ctx              context.Context
-	PayloadBytes     []byte
+	Ctx               context.Context
+	PayloadBytes      []byte
 	RequirementsBytes []byte
 }
 
 // SettleResultContext contains settle operation result and context
 type SettleResultContext struct {
 	SettleContext
-	Result   SettleResponse
+	Result SettleResponse
 }
 
 // SettleFailureContext contains settle operation failure and context
 type SettleFailureContext struct {
 	SettleContext
-	Error    error
+	Error error
 }
 
 // ============================================================================
-// Resource Service Hook Result Types
+// Resource Server Hook Result Types
 // ============================================================================
 
 // BeforeHookResult represents the result of a "before" hook
@@ -71,7 +71,7 @@ type SettleFailureHookResult struct {
 }
 
 // ============================================================================
-// Resource Service Hook Function Types
+// Resource Server Hook Function Types
 // ============================================================================
 
 // BeforeVerifyHook is called before payment verification
@@ -103,48 +103,47 @@ type AfterSettleHook func(SettleResultContext) error
 type OnSettleFailureHook func(SettleFailureContext) (*SettleFailureHookResult, error)
 
 // ============================================================================
-// Resource Service Hook Registration Options
+// Resource Server Hook Registration Options
 // ============================================================================
 
 // WithBeforeVerifyHook registers a hook to execute before payment verification
-func WithBeforeVerifyHook(hook BeforeVerifyHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithBeforeVerifyHook(hook BeforeVerifyHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.beforeVerifyHooks = append(s.beforeVerifyHooks, hook)
 	}
 }
 
 // WithAfterVerifyHook registers a hook to execute after successful payment verification
-func WithAfterVerifyHook(hook AfterVerifyHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithAfterVerifyHook(hook AfterVerifyHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.afterVerifyHooks = append(s.afterVerifyHooks, hook)
 	}
 }
 
 // WithOnVerifyFailureHook registers a hook to execute when payment verification fails
-func WithOnVerifyFailureHook(hook OnVerifyFailureHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithOnVerifyFailureHook(hook OnVerifyFailureHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.onVerifyFailureHooks = append(s.onVerifyFailureHooks, hook)
 	}
 }
 
 // WithBeforeSettleHook registers a hook to execute before payment settlement
-func WithBeforeSettleHook(hook BeforeSettleHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithBeforeSettleHook(hook BeforeSettleHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.beforeSettleHooks = append(s.beforeSettleHooks, hook)
 	}
 }
 
 // WithAfterSettleHook registers a hook to execute after successful payment settlement
-func WithAfterSettleHook(hook AfterSettleHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithAfterSettleHook(hook AfterSettleHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.afterSettleHooks = append(s.afterSettleHooks, hook)
 	}
 }
 
 // WithOnSettleFailureHook registers a hook to execute when payment settlement fails
-func WithOnSettleFailureHook(hook OnSettleFailureHook) ResourceServiceOption {
-	return func(s *x402ResourceService) {
+func WithOnSettleFailureHook(hook OnSettleFailureHook) ResourceServerOption {
+	return func(s *x402ResourceServer) {
 		s.onSettleFailureHooks = append(s.onSettleFailureHooks, hook)
 	}
 }
-

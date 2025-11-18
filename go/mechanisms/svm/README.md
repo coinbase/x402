@@ -8,7 +8,7 @@ SVM (Solana Virtual Machine) implementation of the x402 payment protocol using t
 svm/
 ├── client.go       # ExactSvmClient (V2)
 ├── facilitator.go  # ExactSvmFacilitator (V2)
-├── service.go      # ExactSvmService (V2)
+├── server.go       # ExactEvmServer (V2)
 ├── builder.go      # NewSvmClient() convenience builder
 ├── v1/
 │   ├── client.go      # ExactSvmClientV1
@@ -62,17 +62,17 @@ settleResp, err := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 
 ### Service (Payment Requirements)
 
-**V2:** `ExactSvmService` - Builds payment requirements for protected resources
+**V2:** `ExactEvmServer` - Builds payment requirements for protected resources
 
 ```go
-service := x402.Newx402ResourceService(
-    svm.RegisterService("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")...,
+server := x402.Newx402ResourceServer(
+    svm.RegisterServer("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")...,
 )
 
-// Service handles price parsing and requirement building
+// Server handles price parsing and requirement building
 ```
 
-**V1:** V1 service not separately exported (use V2 service)
+**V1:** V1 server not separately exported (use V2 server)
 
 ## Convenience Builder
 

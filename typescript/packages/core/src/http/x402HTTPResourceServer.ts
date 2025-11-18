@@ -1,4 +1,4 @@
-import { x402ResourceService } from "../server";
+import { x402ResourceServer } from "../server";
 import {
   decodePaymentSignatureHeader,
   encodePaymentRequiredHeader,
@@ -161,19 +161,19 @@ export type HTTPProcessResult =
  * HTTP-enhanced x402 resource server
  * Provides framework-agnostic HTTP protocol handling
  */
-export class x402HTTPResourceService {
-  private resourceService: x402ResourceService;
+export class x402HTTPResourceServer {
+  private ResourceServer: x402ResourceServer;
   private compiledRoutes: CompiledRoute[] = [];
   private paywallProvider?: PaywallProvider;
 
   /**
-   * Creates a new x402HTTPResourceService instance.
+   * Creates a new x402HTTPResourceServer instance.
    *
-   * @param resourceService - The core x402ResourceService instance to use
+   * @param ResourceServer - The core x402ResourceServer instance to use
    * @param routes - Route configuration for payment-protected endpoints
    */
-  constructor(resourceService: x402ResourceService, routes: RoutesConfig) {
-    this.resourceService = resourceService;
+  constructor(ResourceServer: x402ResourceServer, routes: RoutesConfig) {
+    this.ResourceServer = ResourceServer;
 
     // Handle both single route and multiple routes
     const normalizedRoutes =
@@ -237,7 +237,7 @@ export class x402HTTPResourceService {
 
     // Build requirements from all payment options
     // (this method handles resolving dynamic functions internally)
-    const requirements = await this.resourceService.buildPaymentRequirementsFromOptions(
+    const requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
       paymentOptions,
       context,
     );
@@ -252,10 +252,10 @@ export class x402HTTPResourceService {
 
     let extensions = routeConfig.extensions;
     if (extensions) {
-      extensions = this.resourceService.enrichExtensions(extensions, context);
+      extensions = this.ResourceServer.enrichExtensions(extensions, context);
     }
 
-    const paymentRequired = this.resourceService.createPaymentRequiredResponse(
+    const paymentRequired = this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
@@ -277,13 +277,13 @@ export class x402HTTPResourceService {
 
     // Verify payment
     try {
-      const matchingRequirements = this.resourceService.findMatchingRequirements(
+      const matchingRequirements = this.ResourceServer.findMatchingRequirements(
         paymentRequired.accepts,
         paymentPayload,
       );
 
       if (!matchingRequirements) {
-        const errorResponse = this.resourceService.createPaymentRequiredResponse(
+        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements",
@@ -295,13 +295,13 @@ export class x402HTTPResourceService {
         };
       }
 
-      const verifyResult = await this.resourceService.verifyPayment(
+      const verifyResult = await this.ResourceServer.verifyPayment(
         paymentPayload,
         matchingRequirements,
       );
 
       if (!verifyResult.isValid) {
-        const errorResponse = this.resourceService.createPaymentRequiredResponse(
+        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           verifyResult.invalidReason,
@@ -320,7 +320,7 @@ export class x402HTTPResourceService {
         paymentRequirements: matchingRequirements,
       };
     } catch (error) {
-      const errorResponse = this.resourceService.createPaymentRequiredResponse(
+      const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
@@ -352,7 +352,7 @@ export class x402HTTPResourceService {
     }
 
     try {
-      const settleResult = await this.resourceService.settlePayment(paymentPayload, requirements);
+      const settleResult = await this.ResourceServer.settlePayment(paymentPayload, requirements);
       return this.createSettlementHeaders(settleResult);
     } catch (error) {
       console.error("Settlement failed:", error);

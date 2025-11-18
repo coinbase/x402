@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ExactSvmService } from "../../src/exact";
+import { ExactSvmServer } from "../../src/exact";
 import {
   USDC_MAINNET_ADDRESS,
   USDC_DEVNET_ADDRESS,
@@ -8,39 +8,39 @@ import {
   SOLANA_TESTNET_CAIP2,
 } from "../../src/constants";
 
-describe("ExactSvmService", () => {
-  const service = new ExactSvmService();
+describe("ExactSvmServer", () => {
+  const server = new ExactSvmServer();
 
   describe("parsePrice", () => {
     describe("Solana Mainnet network", () => {
       const network = SOLANA_MAINNET_CAIP2;
 
       it("should parse dollar string prices", async () => {
-        const result = await service.parsePrice("$0.10", network);
+        const result = await server.parsePrice("$0.10", network);
         expect(result.amount).toBe("100000"); // 0.10 USDC = 100000 smallest units
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
         expect(result.extra).toEqual({});
       });
 
       it("should parse simple number string prices", async () => {
-        const result = await service.parsePrice("0.10", network);
+        const result = await server.parsePrice("0.10", network);
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
       it("should parse number prices", async () => {
-        const result = await service.parsePrice(0.1, network);
+        const result = await server.parsePrice(0.1, network);
         expect(result.amount).toBe("100000");
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
       it("should handle larger amounts", async () => {
-        const result = await service.parsePrice("100.50", network);
+        const result = await server.parsePrice("100.50", network);
         expect(result.amount).toBe("100500000"); // 100.50 USDC
       });
 
       it("should handle whole numbers", async () => {
-        const result = await service.parsePrice("1", network);
+        const result = await server.parsePrice("1", network);
         expect(result.amount).toBe("1000000"); // 1 USDC
       });
     });
@@ -49,7 +49,7 @@ describe("ExactSvmService", () => {
       const network = SOLANA_DEVNET_CAIP2;
 
       it("should use Devnet USDC address", async () => {
-        const result = await service.parsePrice("1.00", network);
+        const result = await server.parsePrice("1.00", network);
         expect(result.asset).toBe(USDC_DEVNET_ADDRESS);
         expect(result.amount).toBe("1000000");
       });
@@ -59,7 +59,7 @@ describe("ExactSvmService", () => {
       const network = SOLANA_TESTNET_CAIP2;
 
       it("should use Testnet USDC address (same as devnet)", async () => {
-        const result = await service.parsePrice("1.00", network);
+        const result = await server.parsePrice("1.00", network);
         expect(result.asset).toBe(USDC_DEVNET_ADDRESS);
         expect(result.amount).toBe("1000000");
       });
@@ -67,7 +67,7 @@ describe("ExactSvmService", () => {
 
     describe("pre-parsed price objects", () => {
       it("should handle pre-parsed price objects with asset", async () => {
-        const result = await service.parsePrice(
+        const result = await server.parsePrice(
           {
             amount: "123456",
             asset: "CustomTokenAddress11111111111111111111",
@@ -82,7 +82,7 @@ describe("ExactSvmService", () => {
 
       it("should throw for price objects without asset", async () => {
         await expect(
-          async () => await service.parsePrice({ amount: "123456" } as never, SOLANA_MAINNET_CAIP2),
+          async () => await server.parsePrice({ amount: "123456" } as never, SOLANA_MAINNET_CAIP2),
         ).rejects.toThrow("Asset address must be specified");
       });
     });
@@ -90,13 +90,13 @@ describe("ExactSvmService", () => {
     describe("error cases", () => {
       it("should throw for invalid money formats", async () => {
         await expect(
-          async () => await service.parsePrice("not-a-price!", SOLANA_MAINNET_CAIP2),
+          async () => await server.parsePrice("not-a-price!", SOLANA_MAINNET_CAIP2),
         ).rejects.toThrow("Invalid money format");
       });
 
       it("should throw for invalid amounts", async () => {
         await expect(
-          async () => await service.parsePrice("abc", SOLANA_MAINNET_CAIP2),
+          async () => await server.parsePrice("abc", SOLANA_MAINNET_CAIP2),
         ).rejects.toThrow("Invalid money format");
       });
     });
@@ -115,7 +115,7 @@ describe("ExactSvmService", () => {
       };
 
       const facilitatorAddress = "FacilitatorAddress1111111111111111111";
-      const result = await service.enhancePaymentRequirements(
+      const result = await server.enhancePaymentRequirements(
         requirements as never,
         {
           x402Version: 2,
@@ -143,7 +143,7 @@ describe("ExactSvmService", () => {
         extra: { custom: "value" },
       };
 
-      const result = await service.enhancePaymentRequirements(
+      const result = await server.enhancePaymentRequirements(
         requirements as never,
         {
           x402Version: 2,

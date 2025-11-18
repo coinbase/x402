@@ -132,8 +132,8 @@ func main() {
 		Routes:      routes,
 		Facilitator: facilitatorClient,
 		Schemes: []ginmw.SchemeConfig{
-			{Network: evmNetwork, Service: evm.NewExactEvmService()},
-			{Network: svmNetwork, Service: svm.NewExactSvmService()},
+			{Network: evmNetwork, Server: evm.NewExactEvmServer()},
+			{Network: svmNetwork, Server: svm.NewExactEvmServer()},
 		},
 		Initialize: true,
 		Timeout:    30 * time.Second,

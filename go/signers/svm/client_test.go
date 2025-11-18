@@ -42,16 +42,16 @@ func TestNewClientSignerFromPrivateKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			signer, err := NewClientSignerFromPrivateKey(tt.key)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewClientSignerFromPrivateKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if err != nil {
 				return
 			}
-			
+
 			if signer == nil {
 				t.Error("expected non-nil signer")
 			}
@@ -66,12 +66,12 @@ func TestClientSigner_Address(t *testing.T) {
 	}
 
 	addr := signer.Address()
-	
+
 	// Should return a valid Solana public key
 	if addr == (solana.PublicKey{}) {
 		t.Error("Address() returned zero public key")
 	}
-	
+
 	// Should be 32 bytes
 	if len(addr) != 32 {
 		t.Errorf("Address() length = %d, want 32", len(addr))
@@ -87,14 +87,14 @@ func TestClientSigner_SignTransaction(t *testing.T) {
 	// Create a simple test transaction with a transfer instruction
 	recentBlockhash := solana.MustHashFromBase58("11111111111111111111111111111111")
 	recipient := solana.MustPublicKeyFromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-	
+
 	// Create a system transfer instruction
 	transferIx := system.NewTransferInstruction(
 		1000000, // 0.001 SOL in lamports
 		signer.Address(),
 		recipient,
 	).Build()
-	
+
 	tx, err := solana.NewTransactionBuilder().
 		AddInstruction(transferIx).
 		SetRecentBlockHash(recentBlockhash).
@@ -123,7 +123,7 @@ func TestClientSigner_SignTransaction(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !hasNonZeroSignature {
 		t.Error("SignTransaction() added zero signature")
 	}
@@ -138,13 +138,13 @@ func TestClientSigner_SignTransaction_SignatureArray(t *testing.T) {
 	// Create a transaction with a transfer instruction
 	recentBlockhash := solana.MustHashFromBase58("11111111111111111111111111111111")
 	recipient := solana.MustPublicKeyFromBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-	
+
 	transferIx := system.NewTransferInstruction(
 		1000000,
 		signer.Address(),
 		recipient,
 	).Build()
-	
+
 	tx, err := solana.NewTransactionBuilder().
 		AddInstruction(transferIx).
 		SetRecentBlockHash(recentBlockhash).
@@ -173,4 +173,3 @@ func TestClientSigner_SignTransaction_SignatureArray(t *testing.T) {
 		t.Error("SignTransaction() added zero signature")
 	}
 }
-

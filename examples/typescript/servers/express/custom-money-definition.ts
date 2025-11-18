@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, x402ResourceService } from "@x402/express";
-import { ExactEvmService } from "@x402/evm";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmServer } from "@x402/evm";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -28,9 +28,9 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceService().registerScheme(
+    new x402ResourceServer().registerScheme(
       "eip155:84532",
-      new ExactEvmService().registerMoneyParser(async (amount, network) => {
+      new ExactEvmServer().registerMoneyParser(async (amount, network) => {
         // Custom money parser such that on the Gnosis Chain (xDai) network, we use Wrapped XDAI (WXDAI) when describing money
         // NOTE: Wrapped XDAI is not an EIP-3009 complaint token, and would fail the current ExactEvm implementation. This example is for demonstration purposes
         if (network == "eip155:100") {

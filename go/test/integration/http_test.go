@@ -59,9 +59,9 @@ func (m *mockHTTPAdapter) GetUserAgent() string {
 	return "TestClient/1.0"
 }
 
-// TestHTTPIntegration tests the integration between x402HTTPClient, x402HTTPResourceService, and x402Facilitator
+// TestHTTPIntegration tests the integration between x402HTTPClient, x402HTTPResourceServer, and x402Facilitator
 func TestHTTPIntegration(t *testing.T) {
-	t.Run("Cash Flow - x402HTTPClient / x402HTTPResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("Cash Flow - x402HTTPClient / x402HTTPResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Setup routes configuration
@@ -86,21 +86,21 @@ func TestHTTPIntegration(t *testing.T) {
 		// Setup x402 client with cash scheme
 		x402Client := x402.Newx402Client()
 		x402Client.RegisterScheme("x402:cash", cash.NewSchemeNetworkClient("John"))
-		
+
 		// Setup HTTP client wrapper
 		httpClient := x402http.Newx402HTTPClient(x402Client)
 
-		// Setup HTTP service
-		service := x402http.Newx402HTTPResourceService(
+		// Setup HTTP server
+		server := x402http.Newx402HTTPResourceServer(
 			routes,
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme("x402:cash", cash.NewSchemeNetworkService())
+		server.RegisterScheme("x402:cash", cash.NewSchemeNetworkServer())
 
-		// Initialize service to fetch supported kinds
-		err := service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err := server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Create mock adapter for initial request (no payment)
@@ -119,7 +119,7 @@ func TestHTTPIntegration(t *testing.T) {
 		}
 
 		// Process initial request without payment - should get 402 response
-		httpProcessResult := service.ProcessHTTPRequest(ctx, reqCtx, nil)
+		httpProcessResult := server.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 		if httpProcessResult.Type != x402http.ResultPaymentError {
 			t.Fatalf("Expected payment-error result, got %s", httpProcessResult.Type)
@@ -184,7 +184,7 @@ func TestHTTPIntegration(t *testing.T) {
 		mockAdapter.headers = requestHeaders
 
 		// Process request with payment
-		httpProcessResult2 := service.ProcessHTTPRequest(ctx, reqCtx, nil)
+		httpProcessResult2 := server.ProcessHTTPRequest(ctx, reqCtx, nil)
 
 		if httpProcessResult2.Type != x402http.ResultPaymentVerified {
 			t.Fatalf("Expected payment-verified result, got %s", httpProcessResult2.Type)
@@ -199,7 +199,7 @@ func TestHTTPIntegration(t *testing.T) {
 		}
 
 		// Process settlement (simulating successful response)
-		settlementHeaders, err := service.ProcessSettlement(
+		settlementHeaders, err := server.ProcessSettlement(
 			ctx,
 			*httpProcessResult2.PaymentPayload,
 			*httpProcessResult2.PaymentRequirements,
@@ -234,4 +234,3 @@ func TestHTTPIntegration(t *testing.T) {
 		}
 	})
 }
-

@@ -1,4 +1,4 @@
-export interface ResourceServiceExtension {
+export interface ResourceServerExtension {
   key: string;
   enrichDeclaration?: (declaration: unknown, transportContext: unknown) => unknown;
 }

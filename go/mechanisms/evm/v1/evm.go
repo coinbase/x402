@@ -37,8 +37,8 @@ func RegisterFacilitator(facilitator *x402.X402Facilitator, signer evm.Facilitat
 	return facilitator.RegisterScheme(evm.SchemeExact, evmFacilitator)
 }
 
-// RegisterService returns the option to register the V1 EVM service with an x402ResourceService
-func RegisterService() x402.ResourceServiceOption {
-	evmService := NewExactEvmServiceV1()
-	return x402.WithSchemeService(evm.SchemeExact, evmService)
+// RegisterServer returns the option to register the V1 EVM server with an x402ResourceServer
+func RegisterServer() x402.ResourceServerOption {
+	evmServer := NewExactEvmServerV1()
+	return x402.WithSchemeServer(evm.SchemeExact, evmServer)
 }

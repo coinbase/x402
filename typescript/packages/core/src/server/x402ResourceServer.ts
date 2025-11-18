@@ -1,7 +1,7 @@
 import { SettleResponse, VerifyResponse, SupportedResponse } from "../types/facilitator";
 import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
-import { SchemeNetworkService } from "../types/mechanisms";
-import { Price, Network, ResourceServiceExtension } from "../types";
+import { SchemeNetworkServer } from "../types/mechanisms";
+import { Price, Network, ResourceServerExtension } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
 import { FacilitatorClient, HTTPFacilitatorClient } from "../http/httpFacilitatorClient";
 import { x402Version } from "..";
@@ -85,14 +85,14 @@ export type OnSettleFailureHook = (
  * Core x402 protocol server for resource protection
  * Transport-agnostic implementation of the x402 payment protocol
  */
-export class x402ResourceService {
+export class x402ResourceServer {
   private facilitatorClients: FacilitatorClient[];
-  private registeredServerSchemes: Map<string, Map<string, SchemeNetworkService>> = new Map();
+  private registeredServerSchemes: Map<string, Map<string, SchemeNetworkServer>> = new Map();
   private supportedResponsesMap: Map<number, Map<string, Map<string, SupportedResponse>>> =
     new Map();
   private facilitatorClientsMap: Map<number, Map<string, Map<string, FacilitatorClient>>> =
     new Map();
-  private registeredExtensions: Map<string, ResourceServiceExtension> = new Map();
+  private registeredExtensions: Map<string, ResourceServerExtension> = new Map();
 
   private beforeVerifyHooks: BeforeVerifyHook[] = [];
   private afterVerifyHooks: AfterVerifyHook[] = [];
@@ -102,7 +102,7 @@ export class x402ResourceService {
   private onSettleFailureHooks: OnSettleFailureHook[] = [];
 
   /**
-   * Creates a new x402ResourceService instance.
+   * Creates a new x402ResourceServer instance.
    *
    * @param facilitatorClients - Optional facilitator client(s) for payment processing
    */
@@ -126,9 +126,9 @@ export class x402ResourceService {
    *
    * @param network - The network identifier
    * @param server - The scheme/network server implementation
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  registerScheme(network: Network, server: SchemeNetworkService): x402ResourceService {
+  registerScheme(network: Network, server: SchemeNetworkServer): x402ResourceServer {
     if (!this.registeredServerSchemes.has(network)) {
       this.registeredServerSchemes.set(network, new Map());
     }
@@ -145,9 +145,9 @@ export class x402ResourceService {
    * Registers a resource service extension that can enrich extension declarations.
    *
    * @param extension - The extension to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  registerExtension(extension: ResourceServiceExtension): this {
+  registerExtension(extension: ResourceServerExtension): this {
     this.registeredExtensions.set(extension.key, extension);
     return this;
   }
@@ -183,9 +183,9 @@ export class x402ResourceService {
    * Can abort verification by returning { abort: true, reason: string }
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onBeforeVerify(hook: BeforeVerifyHook): x402ResourceService {
+  onBeforeVerify(hook: BeforeVerifyHook): x402ResourceServer {
     this.beforeVerifyHooks.push(hook);
     return this;
   }
@@ -194,9 +194,9 @@ export class x402ResourceService {
    * Register a hook to execute after successful payment verification.
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onAfterVerify(hook: AfterVerifyHook): x402ResourceService {
+  onAfterVerify(hook: AfterVerifyHook): x402ResourceServer {
     this.afterVerifyHooks.push(hook);
     return this;
   }
@@ -206,9 +206,9 @@ export class x402ResourceService {
    * Can recover from failure by returning { recovered: true, result: VerifyResponse }
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onVerifyFailure(hook: OnVerifyFailureHook): x402ResourceService {
+  onVerifyFailure(hook: OnVerifyFailureHook): x402ResourceServer {
     this.onVerifyFailureHooks.push(hook);
     return this;
   }
@@ -218,9 +218,9 @@ export class x402ResourceService {
    * Can abort settlement by returning { abort: true, reason: string }
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onBeforeSettle(hook: BeforeSettleHook): x402ResourceService {
+  onBeforeSettle(hook: BeforeSettleHook): x402ResourceServer {
     this.beforeSettleHooks.push(hook);
     return this;
   }
@@ -229,9 +229,9 @@ export class x402ResourceService {
    * Register a hook to execute after successful payment settlement.
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onAfterSettle(hook: AfterSettleHook): x402ResourceService {
+  onAfterSettle(hook: AfterSettleHook): x402ResourceServer {
     this.afterSettleHooks.push(hook);
     return this;
   }
@@ -241,9 +241,9 @@ export class x402ResourceService {
    * Can recover from failure by returning { recovered: true, result: SettleResponse }
    *
    * @param hook - The hook function to register
-   * @returns The x402ResourceService instance for chaining
+   * @returns The x402ResourceServer instance for chaining
    */
-  onSettleFailure(hook: OnSettleFailureHook): x402ResourceService {
+  onSettleFailure(hook: OnSettleFailureHook): x402ResourceServer {
     this.onSettleFailureHooks.push(hook);
     return this;
   }
@@ -356,13 +356,13 @@ export class x402ResourceService {
 
     // Find the matching server implementation
     const scheme = resourceConfig.scheme;
-    const SchemeNetworkService = findByNetworkAndScheme(
+    const SchemeNetworkServer = findByNetworkAndScheme(
       this.registeredServerSchemes,
       scheme,
       resourceConfig.network,
     );
 
-    if (!SchemeNetworkService) {
+    if (!SchemeNetworkServer) {
       // Fallback to placeholder implementation if no server registered
       // TODO: Remove this fallback once implementations are registered
       console.warn(
@@ -375,12 +375,12 @@ export class x402ResourceService {
     const supportedKind = this.getSupportedKind(
       x402Version,
       resourceConfig.network,
-      SchemeNetworkService.scheme,
+      SchemeNetworkServer.scheme,
     );
 
     if (!supportedKind) {
       throw new Error(
-        `Facilitator does not support ${SchemeNetworkService.scheme} on ${resourceConfig.network}. ` +
+        `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
           `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
@@ -389,18 +389,18 @@ export class x402ResourceService {
     const facilitatorExtensions = this.getFacilitatorExtensions(
       x402Version,
       resourceConfig.network,
-      SchemeNetworkService.scheme,
+      SchemeNetworkServer.scheme,
     );
 
     // Parse the price using the scheme's price parser
-    const parsedPrice = await SchemeNetworkService.parsePrice(
+    const parsedPrice = await SchemeNetworkServer.parsePrice(
       resourceConfig.price,
       resourceConfig.network,
     );
 
     // Build base payment requirements from resource config
     const baseRequirements: PaymentRequirements = {
-      scheme: SchemeNetworkService.scheme,
+      scheme: SchemeNetworkServer.scheme,
       network: resourceConfig.network,
       amount: parsedPrice.amount,
       asset: parsedPrice.asset,
@@ -412,7 +412,7 @@ export class x402ResourceService {
     };
 
     // Delegate to the implementation for scheme-specific enhancements
-    const requirement = await SchemeNetworkService.enhancePaymentRequirements(
+    const requirement = await SchemeNetworkServer.enhancePaymentRequirements(
       baseRequirements,
       supportedKind,
       facilitatorExtensions,
@@ -795,4 +795,4 @@ export class x402ResourceService {
   }
 }
 
-export default x402ResourceService;
+export default x402ResourceServer;

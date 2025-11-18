@@ -44,32 +44,33 @@ type EvmClientConfig struct {
 // - V1: All supported EVM networks with ExactEvmClientV1 (if NewEvmClientV1 factory provided)
 //
 // Example:
-//   import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
 //
-//   client := evm.NewEvmClient(evm.EvmClientConfig{
-//       Signer: myEvmSigner,
-//       NewEvmClientV1: func(s evm.ClientEvmSigner) x402.SchemeNetworkClient {
-//           return evmv1.NewExactEvmClientV1(s)
-//       },
-//   })
+//	import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+//
+//	client := evm.NewEvmClient(evm.EvmClientConfig{
+//	    Signer: myEvmSigner,
+//	    NewEvmClientV1: func(s evm.ClientEvmSigner) x402.SchemeNetworkClient {
+//	        return evmv1.NewExactEvmClientV1(s)
+//	    },
+//	})
 func NewEvmClient(config EvmClientConfig) *x402.X402Client {
 	// Build client options
 	opts := []x402.ClientOption{}
-	
+
 	if config.PaymentRequirementsSelector != nil {
 		opts = append(opts, x402.WithPaymentSelector(config.PaymentRequirementsSelector))
 	}
-	
+
 	for _, policy := range config.Policies {
 		opts = append(opts, x402.WithPolicy(policy))
 	}
-	
+
 	client := x402.Newx402Client(opts...)
-	
+
 	// Register V2 wildcard scheme
 	evmClient := NewExactEvmClient(config.Signer)
 	client.RegisterScheme("eip155:*", evmClient)
-	
+
 	// Register all V1 networks if factory provided
 	if config.NewEvmClientV1 != nil {
 		evmClientV1 := config.NewEvmClientV1(config.Signer)
@@ -77,7 +78,6 @@ func NewEvmClient(config EvmClientConfig) *x402.X402Client {
 			client.RegisterSchemeV1(x402.Network(network), evmClientV1)
 		}
 	}
-	
+
 	return client
 }
-

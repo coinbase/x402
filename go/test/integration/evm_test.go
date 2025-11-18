@@ -249,7 +249,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		t.Skip("Skipping EVM integration test: EVM_CLIENT_PRIVATE_KEY, EVM_FACILITATOR_PRIVATE_KEY, and EVM_RESOURCE_SERVER_ADDRESS must be set")
 	}
 
-	t.Run("EVM V2 Flow - x402Client / x402ResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("EVM V2 Flow - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Create real client signer
@@ -279,17 +279,17 @@ func TestEVMIntegrationV2(t *testing.T) {
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
-		// Setup resource service with EVM v2
-		evmService := evm.NewExactEvmService()
-		service := x402.Newx402ResourceService(
+		// Setup resource server with EVM v2
+		evmServer := evm.NewExactEvmServer()
+		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme("eip155:84532", evmService)
+		server.RegisterScheme("eip155:84532", evmServer)
 
-		// Initialize service to fetch supported kinds
-		err = service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err = server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Server - builds PaymentRequired response for 0.001 USDC
@@ -311,7 +311,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 			Description: "Premium API Access",
 			MimeType:    "application/json",
 		}
-		paymentRequiredResponse := service.CreatePaymentRequiredResponse(accepts, resource, "", nil)
+		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
 
 		// Verify it's V2
 		if paymentRequiredResponse.X402Version != 2 {
@@ -375,7 +375,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(accepts, payloadBytes)
+		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
@@ -386,7 +386,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 			t.Fatalf("Failed to marshal accepted requirements: %v", err)
 		}
 
-		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -402,7 +402,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment
-		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -437,7 +437,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		t.Skip("Skipping EVM V1 integration test: EVM_CLIENT_PRIVATE_KEY, EVM_FACILITATOR_PRIVATE_KEY, and EVM_RESOURCE_SERVER_ADDRESS must be set")
 	}
 
-	t.Run("EVM V1 Flow (Legacy) - x402Client / x402ResourceService / x402Facilitator", func(t *testing.T) {
+	t.Run("EVM V1 Flow (Legacy) - x402Client / x402ResourceServer / x402Facilitator", func(t *testing.T) {
 		ctx := context.Background()
 
 		// Create real client signer
@@ -467,17 +467,17 @@ func TestEVMIntegrationV1(t *testing.T) {
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
-		// Setup resource service with EVM v1
-		evmServiceV1 := evmv1.NewExactEvmServiceV1()
-		service := x402.Newx402ResourceService(
+		// Setup resource server with EVM v1
+		evmServerV1 := evmv1.NewExactEvmServerV1()
+		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme("eip155:84532", evmServiceV1)
+		server.RegisterScheme("eip155:84532", evmServerV1)
 
-		// Initialize service to fetch supported kinds
-		err = service.Initialize(ctx)
+		// Initialize server to fetch supported kinds
+		err = server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Server - builds PaymentRequired response for 0.001 USDC (V1 uses version 1)
@@ -551,7 +551,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		}
 
 		// Server - maps payment payload to payment requirements
-		accepted := service.FindMatchingRequirements(accepts, payloadBytes)
+		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
@@ -562,7 +562,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 			t.Fatalf("Failed to marshal accepted requirements: %v", err)
 		}
 
-		verifyResponse, err := service.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -578,7 +578,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		// Server does work here...
 
 		// Server - settles payment (REAL ON-CHAIN TRANSACTION)
-		settleResponse, err := service.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}

@@ -19,8 +19,8 @@ type (
 	// HTTPClient is an alias for x402HTTPClient
 	HTTPClient = x402HTTPClient
 
-	// HTTPService is an alias for x402HTTPResourceService
-	HTTPService = x402HTTPResourceService
+	// HTTPServer is an alias for x402HTTPResourceServer
+	HTTPServer = x402HTTPResourceServer
 )
 
 // ============================================================================
@@ -32,9 +32,9 @@ func NewClient(client *x402.X402Client) *x402HTTPClient {
 	return Newx402HTTPClient(client)
 }
 
-// NewService creates a new HTTP resource service
-func NewService(routes RoutesConfig, opts ...x402.ResourceServiceOption) *x402HTTPResourceService {
-	return Newx402HTTPResourceService(routes, opts...)
+// NewServer creates a new HTTP resource server
+func NewServer(routes RoutesConfig, opts ...x402.ResourceServerOption) *x402HTTPResourceServer {
+	return Newx402HTTPResourceServer(routes, opts...)
 }
 
 // NewFacilitatorClient creates a new HTTP facilitator client

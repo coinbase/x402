@@ -1,8 +1,8 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, x402ResourceService } from "@x402/express";
-import { ExactEvmService } from "@x402/evm";
-import { ExactSvmService } from "@x402/svm";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmServer } from "@x402/svm";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -37,9 +37,9 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceService()
-      .registerScheme("eip155:84532", new ExactEvmService())
-      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmService()),
+    new x402ResourceServer()
+      .registerScheme("eip155:84532", new ExactEvmServer())
+      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactEvmServer()),
   ),
 );
 

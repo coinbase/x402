@@ -57,15 +57,15 @@ routes := x402http.RoutesConfig{
 }
 
 // Create services
-evmService := evm.NewExactEvmService()
-svmService := svm.NewExactSvmService()
+evmServer := evm.NewExactEvmServer()
+svmServer := svm.NewExactEvmServer()
 
 // Apply payment middleware
 r.Use(gin.PaymentMiddleware(
     routes,
     gin.WithFacilitatorClient(facilitatorClient),
-    gin.WithScheme("eip155:84532", evmService),
-    gin.WithScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmService),
+    gin.WithScheme("eip155:84532", evmServer),
+    gin.WithScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmServer),
     gin.WithInitializeOnStart(true),
 ))
 
@@ -170,8 +170,8 @@ Content-Type: application/json
 - `github.com/coinbase/x402/go` - Core x402
 - `github.com/coinbase/x402/go/http` - HTTP integration
 - `github.com/coinbase/x402/go/http/gin` - Gin middleware
-- `github.com/coinbase/x402/go/mechanisms/evm` - EVM service
-- `github.com/coinbase/x402/go/mechanisms/svm` - SVM service
+- `github.com/coinbase/x402/go/mechanisms/evm` - EVM server
+- `github.com/coinbase/x402/go/mechanisms/svm` - SVM server
 - `github.com/coinbase/x402/go/extensions/bazaar` - Discovery extension
 - `github.com/gin-gonic/gin` - HTTP framework
 
@@ -186,8 +186,8 @@ Content-Type: application/json
 - **Timeout Handling** - Configurable facilitator timeouts
 
 ### Service Integration
-- **EVM Service** - Base Sepolia USDC
-- **SVM Service** - Solana Devnet USDC
+- **EVM Server** - Base Sepolia USDC
+- **SVM Server** - Solana Devnet USDC
 - **Initialization** - Fetches supported kinds from facilitator
 - **Price Parsing** - Dollar strings → token amounts
 

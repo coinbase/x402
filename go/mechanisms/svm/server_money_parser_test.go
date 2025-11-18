@@ -9,10 +9,10 @@ import (
 
 // TestRegisterMoneyParser_SingleCustomParser tests a single custom money parser
 func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
-	service := NewExactSvmService()
+	server := NewExactEvmServer()
 
 	// Register custom parser: large amounts use custom token
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 100 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e9), // Custom token with 9 decimals
@@ -27,7 +27,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	})
 
 	// Test large amount - should use custom parser
-	result1, err := service.ParsePrice(150.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result1, err := server.ParsePrice(150.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -46,7 +46,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	}
 
 	// Test small amount - should fall back to default (USDC)
-	result2, err := service.ParsePrice(50.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result2, err := server.ParsePrice(50.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -64,10 +64,10 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 
 // TestRegisterMoneyParser_MultipleInChain tests multiple money parsers in chain
 func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
-	service := NewExactSvmService()
+	server := NewExactEvmServer()
 
 	// Parser 1: Premium tier (> 1000)
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 1000 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e9),
@@ -79,7 +79,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Parser 2: Large tier (> 100)
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 100 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e9),
@@ -91,7 +91,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Test premium tier (first parser)
-	result1, err := service.ParsePrice(2000.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result1, err := server.ParsePrice(2000.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -100,7 +100,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test large tier (second parser)
-	result2, err := service.ParsePrice(200.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result2, err := server.ParsePrice(200.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -109,7 +109,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test default (no parser matches)
-	result3, err := service.ParsePrice(50.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result3, err := server.ParsePrice(50.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -121,9 +121,9 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 
 // TestRegisterMoneyParser_StringPrices tests parsing with string prices
 func TestRegisterMoneyParser_StringPrices(t *testing.T) {
-	service := NewExactSvmService()
+	server := NewExactEvmServer()
 
-	service.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
+	server.RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 		if amount > 50 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e9),
@@ -138,15 +138,15 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 		price         string
 		expectedAsset string
 	}{
-		{"Dollar format", "$100", "CustomMint111111111111111111111111"},    // > 50
+		{"Dollar format", "$100", "CustomMint111111111111111111111111"},            // > 50
 		{"Plain decimal", "25.50", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"}, // <= 50 (USDC)
-		{"Large amount", "75", "CustomMint111111111111111111111111"},       // > 50
-		{"Small amount", "10", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},      // <= 50
+		{"Large amount", "75", "CustomMint111111111111111111111111"},               // > 50
+		{"Small amount", "10", "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"},     // <= 50
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.ParsePrice(tt.price, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+			result, err := server.ParsePrice(tt.price, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 			if err != nil {
 				t.Fatalf("Expected no error, got %v", err)
 			}
@@ -159,9 +159,9 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 
 // TestRegisterMoneyParser_Chainability tests that RegisterMoneyParser returns the service for chaining
 func TestRegisterMoneyParser_Chainability(t *testing.T) {
-	service := NewExactSvmService()
+	server := NewExactEvmServer()
 
-	result := service.
+	result := server.
 		RegisterMoneyParser(func(amount float64, network x402.Network) (*x402.AssetAmount, error) {
 			return nil, nil
 		}).
@@ -169,17 +169,17 @@ func TestRegisterMoneyParser_Chainability(t *testing.T) {
 			return nil, nil
 		})
 
-	if result != service {
-		t.Error("Expected RegisterMoneyParser to return service for chaining")
+	if result != server {
+		t.Error("Expected RegisterMoneyParser to return server for chaining")
 	}
 }
 
 // TestRegisterMoneyParser_NoCustomParsers tests default behavior with no custom parsers
 func TestRegisterMoneyParser_NoCustomParsers(t *testing.T) {
-	service := NewExactSvmService()
+	server := NewExactEvmServer()
 
 	// No custom parsers registered, should use default
-	result, err := service.ParsePrice(10.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
+	result, err := server.ParsePrice(10.0, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -194,4 +194,3 @@ func TestRegisterMoneyParser_NoCustomParsers(t *testing.T) {
 		t.Errorf("Expected amount %s, got %s", expectedAmount, result.Amount)
 	}
 }
-

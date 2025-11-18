@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/types"
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	"github.com/coinbase/x402/go/types"
 )
 
 // Mock signer for testing
@@ -176,7 +176,7 @@ func TestV1FacilitatorVerify(t *testing.T) {
 }
 
 func TestV1ServiceParsePrice(t *testing.T) {
-	service := NewExactEvmServiceV1()
+	server := NewExactEvmServerV1()
 
 	tests := []struct {
 		name     string
@@ -206,7 +206,7 @@ func TestV1ServiceParsePrice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assetAmount, err := service.ParsePrice(tt.price, tt.network)
+			assetAmount, err := server.ParsePrice(tt.price, tt.network)
 			if err != nil {
 				t.Fatalf("Failed to parse price: %v", err)
 			}
@@ -218,8 +218,8 @@ func TestV1ServiceParsePrice(t *testing.T) {
 	}
 }
 
-func TestV1ServiceEnhancePaymentRequirements(t *testing.T) {
-	service := NewExactEvmServiceV1()
+func TestV1ServerEnhancePaymentRequirements(t *testing.T) {
+	server := NewExactEvmServerV1()
 
 	requirements := x402.PaymentRequirements{
 		Scheme:  "exact",
@@ -235,7 +235,7 @@ func TestV1ServiceEnhancePaymentRequirements(t *testing.T) {
 		Network:     "base",
 	}
 
-	enhanced, err := service.EnhancePaymentRequirements(
+	enhanced, err := server.EnhancePaymentRequirements(
 		context.Background(),
 		requirements,
 		supportedKind,
@@ -260,14 +260,14 @@ func TestV1ServiceEnhancePaymentRequirements(t *testing.T) {
 
 	// Test with v2 supportedKind - should fail
 	supportedKind.X402Version = 2
-	_, err = service.EnhancePaymentRequirements(
+	_, err = server.EnhancePaymentRequirements(
 		context.Background(),
 		requirements,
 		supportedKind,
 		[]string{},
 	)
 	if err == nil {
-		t.Error("Expected error when using version 2 with V1 service")
+		t.Error("Expected error when using version 2 with V1 server")
 	}
 	if err.Error() != "v1 only supports x402 version 1" {
 		t.Errorf("Unexpected error message: %v", err)

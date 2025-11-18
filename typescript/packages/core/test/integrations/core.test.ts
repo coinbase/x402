@@ -4,22 +4,22 @@ import { x402Facilitator } from "../../src/facilitator";
 import {
   HTTPAdapter,
   HTTPResponseInstructions,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
 } from "../../src/server";
 import {
   buildCashPaymentRequirements,
   CashFacilitatorClient,
   CashSchemeNetworkClient,
   CashSchemeNetworkFacilitator,
-  CashSchemeNetworkService,
+  CashSchemeNetworkServer,
 } from "../mocks";
 import { Network, PaymentPayload, PaymentRequirements } from "../../src/types";
 
 describe("Core Integration Tests", () => {
-  describe("x402Client / x402ResourceService / x402Facilitator - Cash Flow", () => {
+  describe("x402Client / x402ResourceServer / x402Facilitator - Cash Flow", () => {
     let client: x402Client;
-    let server: x402ResourceService;
+    let server: x402ResourceServer;
 
     beforeEach(async () => {
       client = new x402Client().registerScheme("x402:cash", new CashSchemeNetworkClient("John"));
@@ -30,8 +30,8 @@ describe("Core Integration Tests", () => {
       );
 
       const facilitatorClient = new CashFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
-      server.registerScheme("x402:cash", new CashSchemeNetworkService());
+      server = new x402ResourceServer(facilitatorClient);
+      server.registerScheme("x402:cash", new CashSchemeNetworkServer());
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
@@ -62,9 +62,9 @@ describe("Core Integration Tests", () => {
     });
   });
 
-  describe("x402HTTPClient / x402HTTPResourceService / x402Facilitator - Cash Flow", () => {
+  describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - Cash Flow", () => {
     let client: x402HTTPClient;
-    let service: x402HTTPResourceService;
+    let httpServer: x402HTTPResourceServer;
 
     const routes = {
       "/api/protected": {
@@ -108,13 +108,13 @@ describe("Core Integration Tests", () => {
       );
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      // Create resource service and register schemes
-      const resourceService = new x402ResourceService(facilitatorClient);
-      resourceService.registerScheme("x402:cash", new CashSchemeNetworkService());
-      await resourceService.initialize(); // Initialize to fetch supported kinds
+      // Create resource server and register schemes
+      const ResourceServer = new x402ResourceServer(facilitatorClient);
+      ResourceServer.registerScheme("x402:cash", new CashSchemeNetworkServer());
+      await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
-      // Create HTTP service with the resource service
-      service = new x402HTTPResourceService(resourceService, routes);
+      // Create HTTP server with the resource server
+      httpServer = new x402HTTPResourceServer(ResourceServer, routes);
     });
 
     it("middleware should successfully verify and settle a cash payment from an http client", async () => {
@@ -125,7 +125,7 @@ describe("Core Integration Tests", () => {
         method: "GET",
       };
       // No payment made, get PaymentRequired response & header
-      const httpProcessResult = (await service.processHTTPRequest(context))!;
+      const httpProcessResult = (await httpServer.processHTTPRequest(context))!;
 
       expect(httpProcessResult.type).toBe("payment-error");
 
@@ -155,7 +155,7 @@ describe("Core Integration Tests", () => {
         }
         return undefined;
       };
-      const httpProcessResult2 = await service.processHTTPRequest(context);
+      const httpProcessResult2 = await httpServer.processHTTPRequest(context);
 
       // No need to reason respond, can continue with request
       expect(httpProcessResult2.type).toBe("payment-verified");
@@ -168,7 +168,7 @@ describe("Core Integration Tests", () => {
         paymentRequirements: PaymentRequirements;
       };
 
-      const settlementHeaders = await service.processSettlement(
+      const settlementHeaders = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
         200,
