@@ -5,7 +5,7 @@ Next.js middleware integration for the x402 Payment Protocol. This package allow
 ## Installation
 
 ```bash
-npm install x402-next
+pnpm install x402-next
 ```
 
 ## Quick Start
@@ -30,9 +30,8 @@ export const middleware = paymentMiddleware(
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: [
-    '/protected/:path*',
-  ]
+  matcher: ['/protected/:path*'],
+  runtime: "nodejs",
 };
 ```
 
@@ -105,7 +104,7 @@ To use the official Coinbase facilitator package (`@coinbase/x402`) in your Next
 1. Install the Coinbase facilitator package:
 
 ```bash
-npm install @coinbase/x402
+pnpm install @coinbase/x402
 ```
 
 2. Use it in your middleware file::
