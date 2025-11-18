@@ -23,6 +23,7 @@ fetchWithPayment(url, {
 })
   .then(async response => {
     const data = await response.json();
+    console.log("data", data);
     const paymentResponse = response.headers.get("x-payment-response");
 
     const result = {

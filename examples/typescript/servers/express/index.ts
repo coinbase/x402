@@ -20,7 +20,6 @@ app.use(
       "GET /weather": {
         // USDC amount in dollars
         price: "$0.001",
-        // network: "base" // uncomment for Base mainnet
         network: "arc-testnet",
       },
       "/premium/*": {
@@ -37,7 +36,6 @@ app.use(
             },
           },
         },
-        // network: "base" // uncomment for Base mainnet
         network: "arc-testnet",
       },
     },

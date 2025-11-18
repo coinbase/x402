@@ -133,7 +133,6 @@ app.get("/delayed-settlement", async (req, res) => {
   const paymentRequirements = [
     createExactPaymentRequirements(
       "$0.001",
-      // network: "base" // uncomment for Base mainnet
       "base-sepolia",
       resource,
       "Access to weather data (async)",
@@ -180,7 +179,7 @@ app.get("/dynamic-price", async (req, res) => {
     createExactPaymentRequirements(
       price, // Expect dynamic pricing
       // network: "base" // uncomment for Base mainnet
-      "base-sepolia",
+      "arc-testnet",
       resource,
       "Access to weather data",
     ),
@@ -225,7 +224,7 @@ app.get("/multiple-payment-requirements", async (req, res) => {
       {
         amount: "1000",
         asset: {
-          address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          address: "0x36000000000000000000000000000000000000000",
           decimals: 6,
           eip712: {
             name: "USDC",
@@ -233,8 +232,7 @@ app.get("/multiple-payment-requirements", async (req, res) => {
           },
         },
       },
-      // network: "base" // uncomment for Base mainnet
-      "base-sepolia",
+      "arc-testnet",
       resource,
     ),
   ];

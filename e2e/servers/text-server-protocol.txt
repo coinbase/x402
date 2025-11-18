@@ -8,7 +8,6 @@
 ## Protocol Family Support
 Servers must declare which protocol family each payment endpoint requires in their test.config.json:
 - **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, Arc Testnet etc.)
-- **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
 
 Example configuration:
 ```json
@@ -29,31 +28,6 @@ Example configuration:
       "method": "GET",
       "description": "Health check endpoint",
       "health": true
-    }
-  ]
-}
-```
-
-Multi-protocol server example:
-```json
-{
-  "name": "universal-server",
-  "type": "server",
-  "language": "typescript", 
-  "endpoints": [
-    {
-      "path": "/evm-protected",
-      "method": "GET",
-      "description": "Protected endpoint requiring EVM payment",
-      "requiresPayment": true,
-      "protocolFamily": "evm"
-    },
-    {
-      "path": "/svm-protected", 
-      "method": "GET",
-      "description": "Protected endpoint requiring SVM payment",
-      "requiresPayment": true,
-      "protocolFamily": "svm"
     }
   ]
 }

@@ -92,7 +92,7 @@ The server includes example endpoints that demonstrate different payment scenari
 
 - `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
 - Allows clients to pay using different assets (e.g., USDC or USDT)
-- Supports multiple networks (e.g., Base and Base Sepolia)
+- Supports multiple networks (e.g., Arc Testnet)
 - Useful for providing flexibility in payment methods and networks
 
 ## Response Format

@@ -10,6 +10,7 @@ This example demonstrates how to use the x402 discovery feature to find and list
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -18,6 +19,7 @@ cd examples/typescript/discovery
 ```
 
 2. Start the discovery example:
+
 ```bash
 pnpm dev
 ```
@@ -25,6 +27,7 @@ pnpm dev
 ## How It Works
 
 The example demonstrates how to:
+
 1. Use the x402 facilitator to discover available resources
 2. List all x402-protected endpoints in the network
 3. View detailed information about each resource including:
@@ -38,15 +41,16 @@ The example demonstrates how to:
 
 ```typescript
 import { useFacilitator } from "x402/verify";
-import { facilitator } from "@coinbase/x402";
 
 // No API keys required for discovery
-const { list } = useFacilitator(facilitator);
+const { list } = useFacilitator({
+  facilitatorUrl: "https://facilitator-testnet.lynox.io",
+});
 
 list().then(response => {
-  console.log('\nDiscovered X402 Resources:');
-  console.log('========================\n');
-  
+  console.log("\nDiscovered X402 Resources:");
+  console.log("========================\n");
+
   response.items.forEach((item, index) => {
     console.log(`Resource ${index + 1}:`);
     console.log(`  Resource URL: ${item.resource}`);
@@ -57,7 +61,7 @@ list().then(response => {
     if (item.metadata && Object.keys(item.metadata).length > 0) {
       console.log(`  Metadata: ${JSON.stringify(item.metadata, null, 2)}`);
     }
-    console.log('------------------------\n');
+    console.log("------------------------\n");
   });
 });
 ```

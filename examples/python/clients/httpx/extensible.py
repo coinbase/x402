@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from eth_account import Account
 from x402.clients.httpx import x402_payment_hooks
-from x402.clients.base import decode_x_payment_response
+from x402.clients.base import decode_x_payment_response, x402Client
 import httpx
 
 # Load environment variables
@@ -23,11 +23,31 @@ account = Account.from_key(private_key)
 print(f"Initialized account: {account.address}")
 
 
+def custom_payment_selector(
+    accepts, network_filter=None, scheme_filter=None, max_value=None
+):
+    """Custom payment selector that filters by network."""
+    # Ignore the network_filter parameter for this example - we hardcode arc-testnet
+    _ = network_filter
+
+    # NOTE: In a real application, you'd want to dynamically choose the most
+    # appropriate payment requirement based on user preferences, available funds,
+    # network conditions, or other business logic rather than hardcoding a network.
+
+    # Filter by arc-testnet network (testnet)
+    return x402Client.default_payment_requirements_selector(
+        accepts,
+        network_filter="arc-testnet",
+        scheme_filter=scheme_filter,
+        max_value=max_value,
+    )
+
+
 async def main():
     # Create httpx client with x402 payment hooks
     async with httpx.AsyncClient(base_url=base_url) as client:
         # Add payment hooks directly to client.event_hooks
-        client.event_hooks = x402_payment_hooks(account)
+        client.event_hooks = x402_payment_hooks(account, None, custom_payment_selector)
 
         # Make request
         try:
