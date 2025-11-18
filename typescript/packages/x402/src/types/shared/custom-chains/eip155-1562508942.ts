@@ -13,7 +13,7 @@ export const skaleBase = {
   rpcUrls: {
     default: {
       http: ["https://skale-base.skalenodes.com/v1/base"],
-      webSocket: ["wss://skale-base.skalenodes.com/v1/ws/base"]
+      webSocket: ["wss://skale-base.skalenodes.com/v1/ws/base"],
     },
   },
   blockExplorers: {
@@ -23,5 +23,5 @@ export const skaleBase = {
       apiUrl: "https://skale-base-explorer.skalenodes.com/api",
     },
   },
-  blockTime: 1
+  blockTime: 1,
 } satisfies Chain;

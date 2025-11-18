@@ -22,5 +22,5 @@ export const skaleBaseSepolia = {
       apiUrl: "https://base-sepolia-testnet-explorer.skalenodes.com/api",
     },
   },
-  blockTime: 1
+  blockTime: 1,
 } satisfies Chain;
