@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   console.log("Response body:", body);
 
   const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
-    name => response.headers[name],
+    name => response.headers[name.toLowerCase()],
   );
   console.log("\nPayment response:", paymentResponse);
 }

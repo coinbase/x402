@@ -1220,7 +1220,7 @@ importers:
         specifier: ^19.0.0
         version: 19.2.0(react@19.2.0)
       viem:
-        specifier: ^2.39.3
+        specifier: ^2.21.26
         version: 2.39.3(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.1.12)
       wagmi:
         specifier: ^2.15.6

@@ -1,8 +1,9 @@
 import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
-import { ExactEvmServer } from "@x402/evm";
-import { ExactEvmServer } from "@x402/svm";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
@@ -12,6 +13,16 @@ if (!evmAddress || !svmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+// Create HTTP facilitator client
+const facilitatorUrl = process.env.FACILITATOR_URL;
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 const app = express();
 
@@ -37,9 +48,9 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer()
-      .registerScheme("eip155:84532", new ExactEvmServer())
-      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactEvmServer()),
+    new x402ResourceServer(facilitatorClient)
+      .registerScheme("eip155:84532", new ExactEvmScheme())
+      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
   ),
 );
 
