@@ -14,7 +14,7 @@ if (!baseURL || !evmPrivateKey || !endpointPath) {
   process.exit(1);
 }
 
-const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
+const evmSigner = await createSigner("arc-testnet", evmPrivateKey);
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, evmSigner);
 
