@@ -43,12 +43,28 @@ app.use(
 );
 
 app.get("/weather", (req, res) => {
-  res.send({
-    report: {
-      weather: "sunny",
-      temperature: 70,
-    },
-  });
+  const tier = req.query.tier ?? "standard";
+
+  if (tier === "premium") {
+    // Premium tier gets detailed weather data
+    res.send({
+      report: {
+        weather: "sunny",
+        temperature: 70,
+        humidity: 45,
+        windSpeed: 12,
+        precipitation: 0,
+      },
+    });
+  } else {
+    // Standard tier gets basic weather data
+    res.send({
+      report: {
+        weather: "sunny",
+        temperature: 70,
+      },
+    });
+  }
 });
 
 app.listen(4021, () => {

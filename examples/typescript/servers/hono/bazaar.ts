@@ -36,23 +36,18 @@ app.use(
         mimeType: "application/json",
         extensions: {
           ...declareDiscoveryExtension({
-            input: {
-              queryParams: {
-                weather: { type: "string" },
-                temperature: { type: "number" },
-              },
-            },
+            input: { city: "San Francisco" },
             inputSchema: {
               properties: {
-                weather: { type: "string" },
-                temperature: { type: "number" },
+                city: { type: "string" },
               },
-              required: ["weather", "temperature"],
+              required: ["city"],
             },
             output: {
               example: {
-                weather: "sunny",
-                temperature: 70,
+                city: "San Francisco",
+                weather: "foggy",
+                temperature: 60,
               },
             },
           }),
@@ -64,11 +59,19 @@ app.use(
 );
 
 app.get("/weather", c => {
+  const city = c.req.query("city") || "San Francisco";
+
+  const weatherData: Record<string, { weather: string; temperature: number }> = {
+    "San Francisco": { weather: "foggy", temperature: 60 },
+    "New York": { weather: "cloudy", temperature: 55 },
+  };
+
+  const data = weatherData[city] || { weather: "sunny", temperature: 70 };
+
   return c.json({
-    report: {
-      weather: "sunny",
-      temperature: 70,
-    },
+    city,
+    weather: data.weather,
+    temperature: data.temperature,
   });
 });
 

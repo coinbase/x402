@@ -35,29 +35,54 @@ app.use(
         mimeType: "application/json",
         extensions: {
           ...declareDiscoveryExtension({
-            input: {
-              queryParams: {
-                weather: { type: "string" },
-                temperature: { type: "number" },
-              },
-            },
+            input: { city: "San Francisco" },
             inputSchema: {
               properties: {
-                weather: { type: "string" },
-                temperature: { type: "number" },
+                city: { type: "string" },
               },
-              required: ["weather", "temperature"],
+              required: ["city"],
             },
             output: {
               example: {
-                weather: "sunny",
-                temperature: 70,
+                city: "San Francisco",
+                weather: "foggy",
+                temperature: 60,
               },
             },
           }),
         },
       },
     },
+<<<<<<< HEAD
     new x402ResourceServer(facilitatorClient).registerScheme("eip155:84532", new ExactEvmScheme()),
   ),
 );
+=======
+    new x402ResourceService(facilitatorClient).registerScheme(
+      "eip155:84532",
+      new ExactEvmService(),
+    ),
+  ),
+);
+
+app.get("/weather", (req, res) => {
+  const city = (req.query.city as string) || "San Francisco";
+
+  const weatherData: Record<string, { weather: string; temperature: number }> = {
+    "San Francisco": { weather: "foggy", temperature: 60 },
+    "New York": { weather: "cloudy", temperature: 55 },
+  };
+
+  const data = weatherData[city] || { weather: "sunny", temperature: 70 };
+
+  res.send({
+    city,
+    weather: data.weather,
+    temperature: data.temperature,
+  });
+});
+
+app.listen(4021, () => {
+  console.log(`Server listening at http://localhost:${4021}`);
+});
+>>>>>>> 8fc4b1e (improve examples)
