@@ -380,10 +380,10 @@ export function paymentMiddleware(
       return;
     }
 
-    const selectedPaymentRequirements = findMatchingPaymentRequirements(
-      paymentRequirements,
-      decodedPayment,
-    );
+    const selectedPaymentRequirements =
+      findMatchingPaymentRequirements(paymentRequirements, decodedPayment) ||
+      paymentRequirements[0];
+
     if (!selectedPaymentRequirements) {
       res.status(402).json({
         x402Version,
