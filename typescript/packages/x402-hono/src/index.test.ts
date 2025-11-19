@@ -530,7 +530,7 @@ describe("paymentMiddleware()", () => {
     );
   });
 
-  it("should handle custom error messages for no matching requirements", async () => {
+  it("should fallback to first payment requirement when no specific match found", async () => {
     const customErrorConfig: PaymentMiddlewareConfig = {
       ...middlewareConfig,
       errorMessages: {
@@ -566,16 +566,14 @@ describe("paymentMiddleware()", () => {
     // Mock findMatchingPaymentRequirements to return undefined
     vi.mocked(findMatchingPaymentRequirements).mockReturnValue(undefined);
 
+    // Mock verify to succeed
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+
     await middlewareCustom(mockContext, mockNext);
 
-    expect(mockContext.json).toHaveBeenCalledWith(
-      expect.objectContaining({
-        error: "Custom no matching requirements message",
-        accepts: expect.any(Array),
-        x402Version: 1,
-      }),
-      402,
-    );
+    // Should proceed to verification using the fallback requirement (index 0)
+    expect(mockVerify).toHaveBeenCalledWith(validPayment, expect.anything());
+    expect(mockNext).toHaveBeenCalled();
   });
 
   it("should handle custom error messages for verification failed", async () => {
