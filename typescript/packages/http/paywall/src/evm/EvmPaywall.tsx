@@ -3,7 +3,7 @@ import { createPublicClient, formatUnits, http, publicActions, type Chain } from
 import * as allChains from "viem/chains";
 import { useAccount, useSwitchChain, useWalletClient, useConnect, useDisconnect } from "wagmi";
 
-import { registerEvmToClient } from "@x402/evm/register";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { x402Client } from "@x402/core/client";
 import type { PaymentRequired } from "@x402/core/types";
 import { getUSDCBalance } from "x402/shared/evm";
@@ -157,7 +157,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       // Create client and register EVM schemes (handles v1 and v2)
       const signer = wagmiToClientSigner(walletClient);
       const client = new x402Client();
-      registerEvmToClient(client, { signer });
+      registerExactEvmScheme(client, { signer });
 
       // Create payment payload - client automatically handles version
       const paymentPayload = await client.createPaymentPayload(paymentRequired);

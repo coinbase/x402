@@ -40,16 +40,16 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@solana/kit": "^2.1.1",
     "@coinbase/cdp-sdk": "^1.22.0",
-    "viem": "^2.21.26",
+    "@solana/kit": "^2.1.1",
     "@x402/core": "workspace:^",
     "@x402/extensions": "workspace:^",
+    "viem": "^2.39.3",
     "zod": "^3.24.2"
   },
   "peerDependencies": {
-    "express": "^4.0.0 || ^5.0.0",
-    "@x402/paywall": "workspace:*"
+    "@x402/paywall": "workspace:*",
+    "express": "^4.0.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
     "@x402/paywall": {

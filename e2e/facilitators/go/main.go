@@ -19,10 +19,12 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
-	"github.com/coinbase/x402/go/mechanisms/svm"
-	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
+	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
+	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -110,8 +112,8 @@ func (s *realFacilitatorEvmSigner) GetChainID() (*big.Int, error) {
 
 func (s *realFacilitatorEvmSigner) VerifyTypedData(
 	address string,
-	domain evm.TypedDataDomain,
-	types map[string][]evm.TypedDataField,
+	domain evmmech.TypedDataDomain,
+	types map[string][]evmmech.TypedDataField,
 	primaryType string,
 	message map[string]interface{},
 	signature []byte,
@@ -409,7 +411,7 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
-func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evm.TransactionReceipt, error) {
+func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmech.TransactionReceipt, error) {
 	ctx := context.Background()
 	hash := common.HexToHash(txHash)
 
@@ -417,7 +419,7 @@ func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*ev
 	for i := 0; i < 30; i++ { // 30 seconds timeout
 		receipt, err := s.client.TransactionReceipt(ctx, hash)
 		if err == nil && receipt != nil {
-			return &evm.TransactionReceipt{
+			return &evmmech.TransactionReceipt{
 				Status:      uint64(receipt.Status),
 				BlockNumber: receipt.BlockNumber.Uint64(),
 				TxHash:      receipt.TxHash.Hex(),
@@ -528,7 +530,7 @@ func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 
 	rpcURL := s.rpcURL
 	if rpcURL == "" {
-		config, err := svm.GetNetworkConfig(network)
+		config, err := svmmech.GetNetworkConfig(network)
 		if err != nil {
 			return nil, err
 		}
@@ -574,7 +576,7 @@ func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *sola
 
 	sig, err := rpcClient.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
 		SkipPreflight:       true,
-		PreflightCommitment: svm.DefaultCommitment,
+		PreflightCommitment: svmmech.DefaultCommitment,
 	})
 	if err != nil {
 		return solana.Signature{}, fmt.Errorf("failed to send transaction: %w", err)
@@ -589,7 +591,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		return err
 	}
 
-	for attempt := 0; attempt < svm.MaxConfirmAttempts; attempt++ {
+	for attempt := 0; attempt < svmmech.MaxConfirmAttempts; attempt++ {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
@@ -616,7 +618,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		if err != nil {
 			txResult, txErr := rpcClient.GetTransaction(ctx, signature, &rpc.GetTransactionOpts{
 				Encoding:   solana.EncodingBase58,
-				Commitment: svm.DefaultCommitment,
+				Commitment: svmmech.DefaultCommitment,
 			})
 
 			if txErr == nil && txResult != nil && txResult.Meta != nil {
@@ -628,10 +630,10 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		}
 
 		// Wait before retrying
-		time.Sleep(svm.ConfirmRetryDelay)
+		time.Sleep(svmmech.ConfirmRetryDelay)
 	}
 
-	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
+	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
 func (s *realFacilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
@@ -677,18 +679,18 @@ func main() {
 	facilitator := x402.Newx402Facilitator()
 
 	// Register EVM schemes
-	evmFacilitator := evm.NewExactEvmFacilitator(evmSigner)
-	facilitator.RegisterScheme("eip155:84532", evmFacilitator)
+	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner)
+	facilitator.RegisterScheme("eip155:84532", evmFacilitatorScheme)
 
-	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
-	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner)
+	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1Scheme)
 
 	// Register SVM schemes
-	svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
-	facilitator.RegisterScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitator) // Devnet
+	svmFacilitatorScheme := svm.NewExactSvmScheme(svmSigner)
+	facilitator.RegisterScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitatorScheme) // Devnet
 
-	svmFacilitatorV1 := svmv1.NewExactSvmFacilitatorV1(svmSigner)
-	facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1)
+	svmFacilitatorV1Scheme := svmv1.NewExactSvmSchemeV1(svmSigner)
+	facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1Scheme)
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)

@@ -8,7 +8,8 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+	evmv1client "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
 	"github.com/coinbase/x402/go/types"
 )
 
@@ -114,7 +115,7 @@ func TestEVMVersionMismatch(t *testing.T) {
 		// Setup V1 client
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
-		evmClientV1 := evmv1.NewExactEvmClientV1(clientSigner)
+		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		client.RegisterSchemeV1("eip155:8453", evmClientV1)
 
 		// V1 client should succeed when explicitly requesting v1
@@ -151,7 +152,7 @@ func TestEVMVersionMismatch(t *testing.T) {
 		// Setup V2 client
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
-		evmClient := evm.NewExactEvmClient(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.RegisterScheme("eip155:8453", evmClient)
 
 		// V1 requirements
@@ -196,11 +197,11 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		client := x402.Newx402Client()
 
 		// Register V1 implementation
-		evmClientV1 := evmv1.NewExactEvmClientV1(clientSigner)
+		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		client.RegisterSchemeV1("eip155:8453", evmClientV1)
 
 		// Register V2 implementation
-		evmClient := evm.NewExactEvmClient(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.RegisterScheme("eip155:8453", evmClient)
 
 		// V1 requirements (uses MaxAmountRequired)
@@ -269,11 +270,11 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		client := x402.Newx402Client()
 
 		// Register V1 implementation
-		evmClientV1 := evmv1.NewExactEvmClientV1(clientSigner)
+		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		client.RegisterSchemeV1("eip155:8453", evmClientV1)
 
 		// Register V2 implementation
-		evmClient := evm.NewExactEvmClient(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.RegisterScheme("eip155:8453", evmClient)
 
 		// V2 requirements

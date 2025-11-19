@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactEvmClientV1 } from "../../../src/exact/v1";
+import { ExactEvmSchemeV1 } from "../../../src/exact/v1";
 import type { ClientEvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 
-describe("ExactEvmClientV1", () => {
+describe("ExactEvmSchemeV1", () => {
   let mockSigner: ClientEvmSigner;
 
   beforeEach(() => {
@@ -15,14 +15,14 @@ describe("ExactEvmClientV1", () => {
 
   describe("constructor", () => {
     it("should create instance with correct scheme", () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
       expect(client.scheme).toBe("exact");
     });
   });
 
   describe("createPaymentPayload", () => {
     it("should create V1 payment payload with scheme and network fields", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -48,7 +48,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should use maxAmountRequired from V1 requirements", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -69,7 +69,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should set correct authorization fields", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -93,7 +93,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should set validAfter to 10 minutes before now", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
       const now = Math.floor(Date.now() / 1000);
 
       const requirements: PaymentRequirementsV1 = {
@@ -117,7 +117,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should set validBefore based on maxTimeoutSeconds", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
       const now = Math.floor(Date.now() / 1000);
 
       const requirements: PaymentRequirementsV1 = {
@@ -141,7 +141,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should throw if EIP-712 domain parameters are missing", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -159,7 +159,7 @@ describe("ExactEvmClientV1", () => {
     });
 
     it("should call signTypedData with correct parameters", async () => {
-      const client = new ExactEvmClientV1(mockSigner);
+      const client = new ExactEvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",

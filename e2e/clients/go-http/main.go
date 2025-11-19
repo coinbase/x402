@@ -10,10 +10,10 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
-	"github.com/coinbase/x402/go/mechanisms/svm"
-	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
+	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/client"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	svmsigners "github.com/coinbase/x402/go/signers/svm"
 )
@@ -63,12 +63,12 @@ func main() {
 
 	// Create x402 client with fluent API
 	x402Client := x402.Newx402Client().
-		RegisterScheme("eip155:*", evm.NewExactEvmClient(evmSigner)).
-		RegisterScheme("solana:*", svm.NewExactSvmClient(svmSigner)).
-		RegisterSchemeV1("base-sepolia", evmv1.NewExactEvmClientV1(evmSigner)).
-		RegisterSchemeV1("base", evmv1.NewExactEvmClientV1(evmSigner)).
-		RegisterSchemeV1("solana-devnet", svmv1.NewExactSvmClientV1(svmSigner)).
-		RegisterSchemeV1("solana", svmv1.NewExactSvmClientV1(svmSigner))
+		RegisterScheme("eip155:*", evm.NewExactEvmScheme(evmSigner)).
+		RegisterScheme("solana:*", svm.NewExactSvmScheme(svmSigner)).
+		RegisterSchemeV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
+		RegisterSchemeV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).
+		RegisterSchemeV1("solana-devnet", svmv1.NewExactSvmSchemeV1(svmSigner)).
+		RegisterSchemeV1("solana", svmv1.NewExactSvmSchemeV1(svmSigner))
 
 	// Create HTTP client wrapper
 	httpClient := x402http.Newx402HTTPClient(x402Client)

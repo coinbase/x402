@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { ExactEvmServer } from "../../src/exact";
+import { ExactEvmScheme } from "../../src/exact/server/scheme";
 
-describe("ExactEvmServer", () => {
-  const server = new ExactEvmServer();
+describe("ExactEvmScheme (Server)", () => {
+  const server = new ExactEvmScheme();
 
   describe("parsePrice", () => {
     describe("Base Sepolia network", () => {

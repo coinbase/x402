@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { ExactSvmServer } from "../../src/exact";
+import { ExactSvmScheme } from "../../src/exact/server/scheme";
 import { MoneyParser } from "@x402/core/types";
 
-describe("ExactSvmServer - registerMoneyParser", () => {
+describe("ExactSvmScheme - registerMoneyParser", () => {
   describe("Single custom parser", () => {
     it("should use custom parser for Money values", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       const customParser: MoneyParser = async (amount, _network) => {
         // Custom logic: different conversion for large amounts
@@ -34,7 +34,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should receive decimal number, not raw string", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       let receivedAmount: number | null = null;
       let receivedNetwork: string | null = null;
 
@@ -56,7 +56,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should not call parser for AssetAmount (pass-through)", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       let parserCalled = false;
 
       server.registerMoneyParser(async (_amount, _network) => {
@@ -80,7 +80,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should support async parsers", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async (amount, _network) => {
         // Simulate async operation
@@ -100,7 +100,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should fall back to default if parser returns null", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async _amount => {
         return null; // Always delegate
@@ -116,7 +116,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Multiple parsers - chain of responsibility", () => {
     it("should try parsers in registration order", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -141,7 +141,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should stop at first non-null result", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -165,7 +165,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should use default if all parsers return null", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server
         .registerMoneyParser(async () => null)
@@ -182,7 +182,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Error handling", () => {
     it("should propagate errors from parser", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async _amount => {
         throw new Error("Parser error: amount exceeds limit");
@@ -194,7 +194,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should throw for invalid money format", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       await expect(
         async () =>
@@ -203,7 +203,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should throw for NaN values", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       await expect(
         async () => await server.parsePrice("xyz", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"),
@@ -213,7 +213,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Real-world use cases", () => {
     it("should support network-specific tokens", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async (amount, _network) => {
         // Mainnet uses USDC, devnet uses custom test token
@@ -237,7 +237,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should support tiered pricing", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server
         .registerMoneyParser(async amount => {
@@ -273,7 +273,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should support dynamic exchange rates with metadata", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       const mockRate = 0.98; // 1 USD = 0.98 USDC (fee included)
 
@@ -307,7 +307,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Multiple parsers - chain of responsibility", () => {
     it("should execute parsers in registration order", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -332,7 +332,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should stop at first non-null result", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -356,7 +356,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should use default if all parsers return null", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server
         .registerMoneyParser(async () => null)
@@ -371,7 +371,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should handle different networks in chain", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server
         .registerMoneyParser(async (amount, network) => {
@@ -407,7 +407,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Error handling", () => {
     it("should propagate errors from parser", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async _amount => {
         throw new Error("Parser error: invalid configuration");
@@ -419,7 +419,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should throw for invalid money format", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       await expect(
         async () =>
@@ -428,7 +428,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should propagate errors even with multiple parsers", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server
         .registerMoneyParser(async () => null) // Skip
@@ -444,7 +444,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Chaining and fluent API", () => {
     it("should return this for chaining", () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       const parser1: MoneyParser = async () => null;
       const parser2: MoneyParser = async () => null;
@@ -457,7 +457,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Edge cases", () => {
     it("should handle zero amounts", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -470,7 +470,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should handle very small decimal amounts", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -483,7 +483,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should handle very large amounts", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -496,7 +496,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
     });
 
     it("should handle negative amounts (parser can validate)", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
 
       server.registerMoneyParser(async amount => {
         if (amount < 0) {
@@ -513,7 +513,7 @@ describe("ExactSvmServer - registerMoneyParser", () => {
 
   describe("Integration with parsePrice flow", () => {
     it("should work with all Money input formats", async () => {
-      const server = new ExactSvmServer();
+      const server = new ExactSvmScheme();
       const callLog: Array<{ amount: number; input: any }> = [];
 
       server.registerMoneyParser(async amount => {

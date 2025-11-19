@@ -37,7 +37,7 @@ client.RegisterScheme("eip155:*", evmClient)
 **V1:** `ExactEvmClientV1` - Legacy implementation with simple network names
 
 ```go
-import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1"
 
 evmClientV1 := evmv1.NewExactEvmClientV1(mySigner)
 client.RegisterSchemeV1("base-sepolia", evmClientV1)
@@ -128,7 +128,7 @@ type FacilitatorEvmSigner interface {
 ```bash
 go test ./...                    # All tests
 go test -v ./mechanisms/evm      # V2 tests
-go test -v ./mechanisms/evm/v1   # V1 tests
+go test -v ./mechanisms/evm/exact/v1   # V1 tests
 ```
 
 ## Dependencies

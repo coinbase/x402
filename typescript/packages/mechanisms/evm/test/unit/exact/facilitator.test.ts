@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ExactEvmFacilitator } from "../../../src/exact/facilitator";
-import { ExactEvmClient } from "../../../src/exact/client";
+import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
+import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
 
-describe("ExactEvmFacilitator (V2)", () => {
-  let facilitator: ExactEvmFacilitator;
+describe("ExactEvmScheme (Facilitator)", () => {
+  let facilitator: ExactEvmScheme;
   let mockFacilitatorSigner: FacilitatorEvmSigner;
-  let client: ExactEvmClient;
+  let client: ClientExactEvmScheme;
   let mockClientSigner: ClientEvmSigner;
 
   beforeEach(() => {
@@ -16,7 +16,7 @@ describe("ExactEvmFacilitator (V2)", () => {
       address: "0x1234567890123456789012345678901234567890",
       signTypedData: vi.fn().mockResolvedValue("0xmocksignature"),
     };
-    client = new ExactEvmClient(mockClientSigner);
+    client = new ClientExactEvmScheme(mockClientSigner);
 
     // Create mock facilitator signer
     mockFacilitatorSigner = {
@@ -25,7 +25,7 @@ describe("ExactEvmFacilitator (V2)", () => {
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
     };
-    facilitator = new ExactEvmFacilitator(mockFacilitatorSigner);
+    facilitator = new ExactEvmScheme(mockFacilitatorSigner);
   });
 
   describe("Construction", () => {

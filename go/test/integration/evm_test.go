@@ -21,7 +21,11 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	evmv1client "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
+	evmv1facilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -260,7 +264,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup client with EVM v2 scheme
 		client := x402.Newx402Client()
-		evmClient := evm.NewExactEvmClient(clientSigner)
+		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		// Register for Base Sepolia
 		client.RegisterScheme("eip155:84532", evmClient)
 
@@ -272,7 +276,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup facilitator with EVM v2 scheme
 		facilitator := x402.Newx402Facilitator()
-		evmFacilitator := evm.NewExactEvmFacilitator(facilitatorSigner)
+		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner)
 		// Register for Base Sepolia
 		facilitator.RegisterScheme("eip155:84532", evmFacilitator)
 
@@ -280,7 +284,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		// Setup resource server with EVM v2
-		evmServer := evm.NewExactEvmServer()
+		evmServer := evmserver.NewExactEvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -448,7 +452,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 
 		// Setup client with EVM v1 scheme
 		client := x402.Newx402Client()
-		evmClientV1 := evmv1.NewExactEvmClientV1(clientSigner)
+		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		// Register for Base Sepolia using V1 registration
 		client.RegisterSchemeV1("eip155:84532", evmClientV1)
 
@@ -460,7 +464,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 
 		// Setup facilitator with EVM v1 scheme
 		facilitator := x402.Newx402Facilitator()
-		evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(facilitatorSigner)
+		evmFacilitatorV1 := evmv1facilitator.NewExactEvmSchemeV1(facilitatorSigner)
 		// Register for Base Sepolia using V1 registration
 		facilitator.RegisterSchemeV1("eip155:84532", evmFacilitatorV1)
 
@@ -468,7 +472,8 @@ func TestEVMIntegrationV1(t *testing.T) {
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
 
 		// Setup resource server with EVM v1
-		evmServerV1 := evmv1.NewExactEvmServerV1()
+		// V1 doesn't have separate server, uses V2 server
+		evmServerV1 := evmserver.NewExactEvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)

@@ -16,12 +16,9 @@ import {
   SettleResponse,
   SupportedResponse,
 } from "@x402/core/types";
-import {
-  ExactSvmClient,
-  ExactSvmFacilitator,
-  ExactSvmServer,
-  toFacilitatorSvmSigner,
-} from "../../src";
+import { ExactSvmScheme as ExactSvmClient, toFacilitatorSvmSigner } from "../../src";
+import { ExactSvmScheme as ExactSvmServer } from "../../src/exact/server/scheme";
+import { ExactSvmScheme as ExactSvmFacilitator } from "../../src/exact/facilitator/scheme";
 import type { ExactSvmPayloadV2 } from "../../src/types";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -335,7 +332,7 @@ describe("SVM Integration Tests", () => {
 
   describe("Price Parsing Integration", () => {
     let server: x402ResourceServer;
-    let svmServer: ExactSvmServer;
+    let svmServer: ExactSvmScheme;
 
     beforeEach(async () => {
       const facilitatorBytes = base58.decode(FACILITATOR_PRIVATE_KEY);

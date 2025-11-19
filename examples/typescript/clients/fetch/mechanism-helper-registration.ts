@@ -1,7 +1,7 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { x402Client } from "@x402/fetch";
-import { registerEvmToClient } from "@x402/evm/register";
-import { registerSvmToClient } from "@x402/svm/register";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 
@@ -27,9 +27,9 @@ export async function createMechanismHelperClient(
   const client = new x402Client();
 
   // Helper that registers all EVM networks in v2 (eip155:*) and all v1 networks for backwards compatibility
-  registerEvmToClient(client, { signer: evmSigner });
+  registerExactEvmScheme(client, { signer: evmSigner });
   // Helper that registers all SVM networks in v2 (solana:*) and all v1 networks for backwards compatibility
-  registerSvmToClient(client, { signer: svmSigner });
+  registerExactSvmScheme(client, { signer: svmSigner });
 
   return client;
 }

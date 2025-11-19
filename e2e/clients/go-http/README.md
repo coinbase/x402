@@ -27,9 +27,9 @@ import (
     x402 "github.com/coinbase/x402/go"
     x402http "github.com/coinbase/x402/go/http"
     "github.com/coinbase/x402/go/mechanisms/evm"
-    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1"
     "github.com/coinbase/x402/go/mechanisms/svm"
-    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1"
 )
 
 // Create x402 client with direct registration

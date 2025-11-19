@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ExactSvmServer } from "../../src/exact";
+import { ExactSvmScheme } from "../../src/exact/server/scheme";
 import {
   USDC_MAINNET_ADDRESS,
   USDC_DEVNET_ADDRESS,
@@ -8,8 +8,8 @@ import {
   SOLANA_TESTNET_CAIP2,
 } from "../../src/constants";
 
-describe("ExactSvmServer", () => {
-  const server = new ExactSvmServer();
+describe("ExactSvmScheme", () => {
+  const server = new ExactSvmScheme();
 
   describe("parsePrice", () => {
     describe("Solana Mainnet network", () => {

@@ -36,7 +36,7 @@ client.RegisterScheme("solana:*", svmClient)
 **V1:** `ExactSvmClientV1` - Legacy implementation with simple network names
 
 ```go
-import svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+import svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1"
 
 svmClientV1 := svmv1.NewExactSvmClientV1(mySigner)
 client.RegisterSchemeV1("solana-devnet", svmClientV1)
@@ -151,7 +151,7 @@ svmClient := svm.NewExactSvmClient(signer, &svm.ClientConfig{
 ```bash
 go test ./...                    # All tests
 go test -v ./mechanisms/svm      # V2 tests
-go test -v ./mechanisms/svm/v1   # V1 tests
+go test -v ./mechanisms/svm/exact/v1   # V1 tests
 ```
 
 ## Dependencies

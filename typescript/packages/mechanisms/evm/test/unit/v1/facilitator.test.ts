@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactEvmFacilitatorV1 } from "../../../src/exact/v1";
+import { ExactEvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorEvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
 
-describe("ExactEvmFacilitatorV1", () => {
+describe("ExactEvmSchemeV1", () => {
   let mockSigner: FacilitatorEvmSigner;
 
   beforeEach(() => {
@@ -18,14 +18,14 @@ describe("ExactEvmFacilitatorV1", () => {
 
   describe("constructor", () => {
     it("should create instance with correct scheme", () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
       expect(facilitator.scheme).toBe("exact");
     });
   });
 
   describe("verify", () => {
     it("should verify valid V1 payment payload", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -64,7 +64,7 @@ describe("ExactEvmFacilitatorV1", () => {
     });
 
     it("should reject if scheme does not match", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -99,7 +99,7 @@ describe("ExactEvmFacilitatorV1", () => {
     });
 
     it("should reject if network does not match", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -135,7 +135,7 @@ describe("ExactEvmFacilitatorV1", () => {
     });
 
     it("should reject if amount is insufficient (maxAmountRequired)", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -173,7 +173,7 @@ describe("ExactEvmFacilitatorV1", () => {
     it("should reject if balance is insufficient", async () => {
       mockSigner.readContract = vi.fn().mockResolvedValue(BigInt("50000")); // Low balance
 
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -209,7 +209,7 @@ describe("ExactEvmFacilitatorV1", () => {
     });
 
     it("should reject if recipient does not match", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -247,7 +247,7 @@ describe("ExactEvmFacilitatorV1", () => {
 
   describe("settle", () => {
     it("should settle valid V1 payment", async () => {
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -290,7 +290,7 @@ describe("ExactEvmFacilitatorV1", () => {
     it("should fail settlement if verification fails", async () => {
       mockSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
 
-      const facilitator = new ExactEvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactEvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,

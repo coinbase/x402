@@ -9,9 +9,9 @@ import {
   VerifyResponse
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { registerEvmToFacilitator } from "@x402/evm/register";
+import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { registerSvmToFacilitator } from "@x402/svm/register";
+import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
@@ -101,8 +101,8 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 const facilitator = new x402Facilitator();
 
 // Register EVM and SVM schemes using the new register helpers
-registerEvmToFacilitator(facilitator, { signer: evmSigner });
-registerSvmToFacilitator(facilitator, {
+registerExactEvmScheme(facilitator, { signer: evmSigner });
+registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   extras: { feePayer: svmAccount.address },
 });

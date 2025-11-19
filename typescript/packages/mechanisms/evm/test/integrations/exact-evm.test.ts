@@ -16,12 +16,9 @@ import {
   SettleResponse,
   SupportedResponse,
 } from "@x402/core/types";
-import {
-  ExactEvmClient,
-  ExactEvmFacilitator,
-  ExactEvmServer,
-  toFacilitatorEvmSigner,
-} from "../../src";
+import { ExactEvmScheme as ExactEvmClient, toFacilitatorEvmSigner } from "../../src";
+import { ExactEvmScheme as ExactEvmServer } from "../../src/exact/server/scheme";
+import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitator/scheme";
 import type { ExactEvmPayloadV2 } from "../../src/types";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
@@ -390,7 +387,7 @@ describe("EVM Integration Tests", () => {
 
   describe("Price Parsing Integration", () => {
     let server: x402ResourceServer;
-    let evmServer: ExactEvmServer;
+    let evmServer: ExactEvmScheme;
 
     beforeEach(async () => {
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);

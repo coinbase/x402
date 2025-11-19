@@ -16,7 +16,11 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
-	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+	svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
+	svmfacilitator "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+	svmserver "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
+	svmv1client "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/client"
+	svmv1facilitator "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	svmsigners "github.com/coinbase/x402/go/signers/svm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -260,7 +264,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 
 		// Setup client with SVM v2 scheme
 		client := x402.Newx402Client()
-		svmClient := svm.NewExactSvmClient(clientSigner, &svm.ClientConfig{
+		svmClient := svmclient.NewExactSvmScheme(clientSigner, &svm.ClientConfig{
 			RPCURL: "https://api.devnet.solana.com",
 		})
 		// Register for Solana Devnet
@@ -274,7 +278,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 
 		// Setup facilitator with SVM v2 scheme
 		facilitator := x402.Newx402Facilitator()
-		svmFacilitator := svm.NewExactSvmFacilitator(facilitatorSigner)
+		svmFacilitator := svmfacilitator.NewExactSvmScheme(facilitatorSigner)
 		// Register for Solana Devnet
 		facilitator.RegisterScheme(svm.SolanaDevnetCAIP2, svmFacilitator)
 
@@ -285,7 +289,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		}
 
 		// Setup resource server with SVM v2
-		svmServer := svm.NewExactEvmServer()
+		svmServer := svmserver.NewExactSvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
@@ -460,7 +464,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 
 		// Setup client with SVM v1 scheme
 		client := x402.Newx402Client()
-		svmClient := svmv1.NewExactSvmClientV1(clientSigner, &svm.ClientConfig{
+		svmClient := svmv1client.NewExactSvmSchemeV1(clientSigner, &svm.ClientConfig{
 			RPCURL: "https://api.devnet.solana.com",
 		})
 		// Register for Solana Devnet (V1 uses simple name)
@@ -474,7 +478,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 
 		// Setup facilitator with SVM v1 scheme
 		facilitator := x402.Newx402Facilitator()
-		svmFacilitator := svmv1.NewExactSvmFacilitatorV1(facilitatorSigner)
+		svmFacilitator := svmv1facilitator.NewExactSvmSchemeV1(facilitatorSigner)
 		// Register for Solana Devnet
 		facilitator.RegisterSchemeV1(svm.SolanaDevnetV1, svmFacilitator)
 
@@ -485,7 +489,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		}
 
 		// Setup resource server with SVM v2 (server is V2 only)
-		svmServer := svm.NewExactEvmServer()
+		svmServer := svmserver.NewExactSvmScheme()
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)

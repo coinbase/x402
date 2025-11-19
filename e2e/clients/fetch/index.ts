@@ -1,8 +1,8 @@
 import { config } from "dotenv";
 import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
-import { registerEvmToClient } from "@x402/evm/register";
-import { registerSvmToClient } from "@x402/svm/register";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
@@ -17,8 +17,8 @@ const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.S
 
 // Create client and register EVM and SVM schemes using the new register helpers
 const client = new x402Client();
-registerEvmToClient(client, { signer: evmAccount });
-registerSvmToClient(client, { signer: svmSigner });
+registerExactEvmScheme(client, { signer: evmAccount });
+registerExactSvmScheme(client, { signer: svmSigner });
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 

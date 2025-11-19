@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactSvmClient } from "../../src/exact";
+import { ExactSvmScheme } from "../../src/exact";
 import type { ClientSvmSigner } from "../../src/signer";
 import type { PaymentRequirements } from "@x402/core/types";
 import { USDC_DEVNET_ADDRESS, SOLANA_DEVNET_CAIP2 } from "../../src/constants";
 
-describe("ExactSvmClient", () => {
+describe("ExactSvmScheme", () => {
   let mockSigner: ClientSvmSigner;
 
   beforeEach(() => {
@@ -21,12 +21,12 @@ describe("ExactSvmClient", () => {
 
   describe("constructor", () => {
     it("should create instance with correct scheme", () => {
-      const client = new ExactSvmClient(mockSigner);
+      const client = new ExactSvmScheme(mockSigner);
       expect(client.scheme).toBe("exact");
     });
 
     it("should accept optional config", () => {
-      const client = new ExactSvmClient(mockSigner, {
+      const client = new ExactSvmScheme(mockSigner, {
         rpcUrl: "https://custom-rpc.com",
       });
       expect(client.scheme).toBe("exact");
@@ -35,7 +35,7 @@ describe("ExactSvmClient", () => {
 
   describe("createPaymentPayload", () => {
     it("should create V2 payment payload", async () => {
-      const client = new ExactSvmClient(mockSigner);
+      const client = new ExactSvmScheme(mockSigner);
 
       const requirements: PaymentRequirements = {
         scheme: "exact",
@@ -59,7 +59,7 @@ describe("ExactSvmClient", () => {
     });
 
     it("should throw if feePayer is missing from requirements", () => {
-      const client = new ExactSvmClient(mockSigner);
+      const client = new ExactSvmScheme(mockSigner);
 
       const requirements: PaymentRequirements = {
         scheme: "exact",
@@ -77,7 +77,7 @@ describe("ExactSvmClient", () => {
     });
 
     it("should accept V2 requirements with amount field", () => {
-      const client = new ExactSvmClient(mockSigner);
+      const client = new ExactSvmScheme(mockSigner);
 
       // Verify the client accepts PaymentRequirements (v2) with amount field
       type V2Requirements = PaymentRequirements & { amount: string };

@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { ExactEvmServer } from "../../src/exact";
+import { ExactEvmScheme } from "../../src/exact/server/scheme";
 import { MoneyParser } from "@x402/core/types";
 
-describe("ExactEvmServer - registerMoneyParser", () => {
+describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
   describe("Single custom parser", () => {
     it("should use custom parser for Money values", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       const customParser: MoneyParser = async (amount, _network) => {
         // Custom logic: use DAI for large amounts
@@ -34,7 +34,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should receive decimal number, not raw string", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let receivedAmount: number | null = null;
       let receivedNetwork: string | null = null;
 
@@ -56,7 +56,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should handle $ prefix removal before parsing", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -69,7 +69,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should not call parser for AssetAmount (pass-through)", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let parserCalled = false;
 
       server.registerMoneyParser(async (_amount, _network) => {
@@ -90,7 +90,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should support async parsers with API calls", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async (amount, _network) => {
         // Simulate async operation (e.g., fetching exchange rate)
@@ -111,7 +111,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should fall back to default if parser returns null", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async _amount => {
         return null; // Always delegate
@@ -127,7 +127,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Multiple parsers - chain of responsibility", () => {
     it("should try parsers in registration order", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -152,7 +152,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should stop at first non-null result", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -176,7 +176,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should fall back to default if all parsers return null", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server
         .registerMoneyParser(async () => null)
@@ -191,7 +191,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should handle mix of sync and async parsers", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server
         .registerMoneyParser(async amount => {
@@ -216,7 +216,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Error handling", () => {
     it("should propagate errors from parser", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async _amount => {
         throw new Error("Parser error: amount too large");
@@ -228,7 +228,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should throw for invalid money format", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       await expect(
         async () => await server.parsePrice("not-a-number", "eip155:8453"),
@@ -236,7 +236,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should throw for NaN values", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       await expect(async () => await server.parsePrice("abc123", "eip155:8453")).rejects.toThrow(
         "Invalid money format",
@@ -244,7 +244,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should throw from second parser if first returns null", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server
         .registerMoneyParser(async () => null) // Skip
@@ -258,7 +258,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should not catch errors - they should propagate", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async amount => {
         if (amount < 0) {
@@ -275,7 +275,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Real-world use cases", () => {
     it("should support tiered pricing by amount", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async (amount, _network) => {
         if (amount > 10000) {
@@ -312,7 +312,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should support dynamic exchange rates", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       // Mock exchange rate API response
       const mockExchangeRate = 1.02; // 1 USD = 1.02 USDC
@@ -340,7 +340,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should support custom token selection based on amount", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async (amount, _network) => {
         // Micro-payments: use WETH
@@ -372,7 +372,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should support network-specific logic in parser", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async (amount, network) => {
         // Use DAI on Ethereum mainnet, USDC elsewhere
@@ -408,7 +408,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Multiple parsers - chain of responsibility", () => {
     it("should execute parsers in registration order", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -433,7 +433,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should stop at first non-null result", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       const executionOrder: number[] = [];
 
       server
@@ -457,7 +457,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should use default if all parsers return null", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server
         .registerMoneyParser(async () => null)
@@ -472,7 +472,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should support complex multi-tier logic", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server
         // Tier 1: Very large amounts (>$10k) → DAI
@@ -529,7 +529,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Chaining and fluent API", () => {
     it("should return this for chaining", () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       const parser1: MoneyParser = async () => null;
       const parser2: MoneyParser = async () => null;
@@ -540,7 +540,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should allow chaining with multiple registrations", () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       const result = server
         .registerMoneyParser(async () => null)
@@ -553,7 +553,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Integration with parsePrice flow", () => {
     it("should work with AssetAmount pass-through", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       // Register parser (should not be called for AssetAmount)
       server.registerMoneyParser(async () => {
@@ -572,7 +572,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should work with all Money formats", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       const callLog: Array<{ amount: number; format: string }> = [];
 
       server.registerMoneyParser(async amount => {
@@ -595,7 +595,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
 
   describe("Edge cases", () => {
     it("should handle zero amounts", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -608,7 +608,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should handle very small decimal amounts", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -621,7 +621,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should handle very large amounts", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
       let receivedAmount: number | null = null;
 
       server.registerMoneyParser(async amount => {
@@ -634,7 +634,7 @@ describe("ExactEvmServer - registerMoneyParser", () => {
     });
 
     it("should handle decimal precision correctly", async () => {
-      const server = new ExactEvmServer();
+      const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async amount => {
         // Return amount with high precision

@@ -1,7 +1,7 @@
 import express from "express";
 import { paymentMiddlewareFromConfig } from "@x402/express";
-import { ExactEvmServer } from "@x402/evm";
-import { ExactSvmServer } from "@x402/svm";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
@@ -113,11 +113,11 @@ app.use(
     [
       {
         network: EVM_NETWORK,
-        server: new ExactEvmServer(),
+        server: new ExactEvmScheme(),
       },
       {
         network: SVM_NETWORK,
-        server: new ExactSvmServer(),
+        server: new ExactSvmScheme(),
       },
     ],
     // No custom paywall configuration (uses defaults)

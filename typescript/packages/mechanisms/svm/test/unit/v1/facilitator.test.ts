@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactSvmFacilitatorV1 } from "../../../src/exact/v1";
+import { ExactSvmSchemeV1 } from "../../../src/exact/v1/facilitator/scheme";
 import type { FacilitatorSvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import type { PaymentPayloadV1 } from "@x402/core/types/v1";
 import { USDC_DEVNET_ADDRESS } from "../../../src/constants";
 
-describe("ExactSvmFacilitatorV1", () => {
+describe("ExactSvmSchemeV1", () => {
   let mockSigner: FacilitatorSvmSigner;
 
   beforeEach(() => {
@@ -39,14 +39,14 @@ describe("ExactSvmFacilitatorV1", () => {
 
   describe("constructor", () => {
     it("should create instance with correct scheme", () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
       expect(facilitator.scheme).toBe("exact");
     });
   });
 
   describe("verify", () => {
     it("should reject if scheme does not match", async () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -76,7 +76,7 @@ describe("ExactSvmFacilitatorV1", () => {
     });
 
     it("should reject if network does not match", async () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -107,7 +107,7 @@ describe("ExactSvmFacilitatorV1", () => {
     });
 
     it("should reject if feePayer is missing", async () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -135,7 +135,7 @@ describe("ExactSvmFacilitatorV1", () => {
     });
 
     it("should reject if transaction cannot be decoded", async () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
@@ -168,7 +168,7 @@ describe("ExactSvmFacilitatorV1", () => {
 
   describe("settle", () => {
     it("should fail settlement if verification fails", async () => {
-      const facilitator = new ExactSvmFacilitatorV1(mockSigner);
+      const facilitator = new ExactSvmSchemeV1(mockSigner);
 
       const payload: PaymentPayloadV1 = {
         x402Version: 1,

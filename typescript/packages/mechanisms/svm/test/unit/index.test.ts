@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  ExactSvmClient,
-  ExactSvmFacilitator,
-  ExactSvmServer,
+  ExactSvmScheme,
   validateSvmAddress,
   normalizeNetwork,
   getUsdcAddress,
@@ -14,12 +12,13 @@ import {
   USDC_MAINNET_ADDRESS,
   USDC_DEVNET_ADDRESS,
 } from "../../src/index";
+import { ExactSvmScheme as ServerExactSvmScheme } from "../../src/exact/server/scheme";
 
 describe("@x402/svm", () => {
   it("should export main classes", () => {
-    expect(ExactSvmClient).toBeDefined();
-    expect(ExactSvmFacilitator).toBeDefined();
-    expect(ExactSvmServer).toBeDefined();
+    expect(ExactSvmScheme).toBeDefined();
+    expect(ExactSvmScheme).toBeDefined();
+    expect(ExactSvmScheme).toBeDefined();
   });
 
   describe("validateSvmAddress", () => {
@@ -107,8 +106,8 @@ describe("@x402/svm", () => {
     });
   });
 
-  describe("ExactSvmServer", () => {
-    const server = new ExactSvmServer();
+  describe("ExactSvmScheme (Server)", () => {
+    const server = new ServerExactSvmScheme();
 
     describe("parsePrice", () => {
       it("should parse dollar string prices", async () => {
@@ -225,8 +224,8 @@ describe("@x402/svm", () => {
 
   // Integration tests would require mocking Solana RPC and transaction signing
   describe("Integration (placeholder)", () => {
-    it.todo("should create a valid payment payload with ExactSvmClient");
-    it.todo("should verify a valid payment with ExactSvmFacilitator");
+    it.todo("should create a valid payment payload with ExactSvmScheme");
+    it.todo("should verify a valid payment with ExactSvmScheme");
     it.todo("should reject invalid signatures");
     it.todo("should reject insufficient amounts");
     it.todo("should reject wrong recipients");

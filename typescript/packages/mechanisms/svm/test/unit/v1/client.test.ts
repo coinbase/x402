@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactSvmClientV1 } from "../../../src/exact/v1";
+import { ExactSvmSchemeV1 } from "../../../src/exact/v1";
 import type { ClientSvmSigner } from "../../../src/signer";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import { USDC_DEVNET_ADDRESS } from "../../../src/constants";
 
-describe("ExactSvmClientV1", () => {
+describe("ExactSvmSchemeV1", () => {
   let mockSigner: ClientSvmSigner;
 
   beforeEach(() => {
@@ -21,14 +21,14 @@ describe("ExactSvmClientV1", () => {
 
   describe("constructor", () => {
     it("should create instance with correct scheme", () => {
-      const client = new ExactSvmClientV1(mockSigner);
+      const client = new ExactSvmSchemeV1(mockSigner);
       expect(client.scheme).toBe("exact");
     });
   });
 
   describe("createPaymentPayload", () => {
     it("should create V1 payment payload with scheme and network fields", async () => {
-      const client = new ExactSvmClientV1(mockSigner);
+      const client = new ExactSvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -79,7 +79,7 @@ describe("ExactSvmClientV1", () => {
     });
 
     it("should throw if feePayer is missing", () => {
-      const client = new ExactSvmClientV1(mockSigner);
+      const client = new ExactSvmSchemeV1(mockSigner);
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
@@ -98,7 +98,7 @@ describe("ExactSvmClientV1", () => {
     });
 
     it("should accept V1 requirements with maxAmountRequired field", () => {
-      const client = new ExactSvmClientV1(mockSigner);
+      const client = new ExactSvmSchemeV1(mockSigner);
 
       // Verify the client accepts PaymentRequirementsV1 with maxAmountRequired field
       type V1Requirements = PaymentRequirementsV1 & { maxAmountRequired: string };

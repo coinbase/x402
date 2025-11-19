@@ -21,12 +21,12 @@ import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axio
  * import axios from 'axios';
  * import { wrapAxiosWithPayment } from '@x402/axios';
  * import { x402Client } from '@x402/core/client';
- * import { registerEvmToClient } from '@x402/evm/register';
+ * import { registerExactEvmScheme } from '@x402/evm/exact/client';
  * import { privateKeyToAccount } from 'viem/accounts';
  *
  * const account = privateKeyToAccount('0x...');
  * const client = new x402Client();
- * registerEvmToClient(client, { signer: account });
+ * registerExactEvmScheme(client, { signer: account });
  *
  * const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
  *

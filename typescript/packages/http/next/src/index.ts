@@ -160,10 +160,10 @@ export interface SchemeRegistration {
  * ```typescript
  * import { paymentMiddleware } from "@x402/next";
  * import { x402ResourceServer } from "@x402/core/server";
- * import { registerEvmToResourceServer } from "@x402/evm/register";
+ * import { registerExactEvmScheme } from "@x402/evm/exact/server";
  *
  * const server = new x402ResourceServer(myFacilitatorClient);
- * registerEvmToResourceServer(server, {});
+ * registerExactEvmScheme(server, {});
  *
  * export const middleware = paymentMiddleware(routes, server, paywallConfig);
  * ```
