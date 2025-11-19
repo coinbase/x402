@@ -1,62 +1,73 @@
 import { config } from "dotenv";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
-import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import { Hono } from "hono";
+import { serve } from "@hono/node-server";
 
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-
 if (!evmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
-const ResourceServer = new x402ResourceServer()
-  .registerScheme("eip155:84532", new ExactEvmServer())
-  .onBeforeVerify(async (context) => {
+const facilitatorUrl = process.env.FACILITATOR_URL;
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .registerScheme("eip155:84532", new ExactEvmScheme())
+  .onBeforeVerify(async context => {
     console.log("Before verify hook", context);
     // Abort verification by returning { abort: true, reason: string }
   })
-  .onAfterVerify(async (context) => {
+  .onAfterVerify(async context => {
     console.log("After verify hook", context);
   })
-  .onVerifyFailure(async (context) => {
+  .onVerifyFailure(async context => {
     console.log("Verify failure hook", context);
     // Return a result with Recovered=true to recover from the failure
     // return { recovered: true, result: { isValid: true, invalidReason: "Recovered from failure" } };
   })
-  .onBeforeSettle(async (context) => {
+  .onBeforeSettle(async context => {
     console.log("Before settle hook", context);
     // Abort settlement by returning { abort: true, reason: string }
   })
-  .onAfterSettle(async (context) => {
+  .onAfterSettle(async context => {
     console.log("After settle hook", context);
   })
-  .onSettleFailure(async (context) => {
+  .onSettleFailure(async context => {
     console.log("Settle failure hook", context);
     // Return a result with Recovered=true to recover from the failure
     // return { recovered: true, result: { success: true, transaction: "0x123..." } };
-  })
+  });
 
 const app = new Hono();
 
 app.use(
-  paymentMiddleware({
-    "GET /weather": {
-      accepts: {
-        scheme: "exact",
-        price: "$0.001",
-        network: "eip155:84532",
-        payTo: evmAddress,
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+        description: "Weather data",
+        mimeType: "application/json",
       },
-      description: "Weather data",
-      mimeType: "application/json",
     },
-  }, ResourceServer)
+    resourceServer,
+  ),
 );
 
-app.get("/weather", (c) => {
+app.get("/weather", c => {
   return c.json({
     report: {
       weather: "sunny",
@@ -65,9 +76,9 @@ app.get("/weather", (c) => {
   });
 });
 
-export default {
-  port: 4021,
+serve({
   fetch: app.fetch,
-};
+  port: 4021,
+});
 
 console.log(`Server listening at http://localhost:4021`);

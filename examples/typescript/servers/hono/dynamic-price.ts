@@ -1,15 +1,23 @@
 import { config } from "dotenv";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { Hono } from "hono";
-import { ExactEvmServer } from "@x402/evm";
+import { serve } from "@hono/node-server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-
 if (!evmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+const facilitatorUrl = process.env.FACILITATOR_URL;
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const app = new Hono();
 
@@ -31,11 +39,11 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer().registerScheme("eip155:84532", new ExactEvmServer()),
+    new x402ResourceServer(facilitatorClient).registerScheme("eip155:84532", new ExactEvmScheme()),
   ),
 );
 
-app.get("/weather", (c) => {
+app.get("/weather", c => {
   return c.json({
     report: {
       weather: "sunny",
@@ -44,9 +52,9 @@ app.get("/weather", (c) => {
   });
 });
 
-export default {
-  port: 4021,
+serve({
   fetch: app.fetch,
-};
+  port: 4021,
+});
 
 console.log(`Server listening at http://localhost:4021`);

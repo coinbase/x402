@@ -1,15 +1,22 @@
 import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
-import { ExactEvmServer } from "@x402/evm";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-
 if (!evmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+const facilitatorUrl = process.env.FACILITATOR_URL;
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const app = express();
 
@@ -31,7 +38,7 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer().registerScheme("eip155:84532", new ExactEvmServer()),
+    new x402ResourceServer(facilitatorClient).registerScheme("eip155:84532", new ExactEvmScheme()),
   ),
 );
 

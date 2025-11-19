@@ -2474,6 +2474,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.6(hono@4.10.6)
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm

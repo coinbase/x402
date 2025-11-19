@@ -8,21 +8,17 @@ config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
 const svmAddress = process.env.SVM_ADDRESS;
-
 if (!evmAddress || !svmAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
-// Create HTTP facilitator client
 const facilitatorUrl = process.env.FACILITATOR_URL;
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
   process.exit(1);
 }
-
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
-console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 const app = express();
 
