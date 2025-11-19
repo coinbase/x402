@@ -267,7 +267,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Invalid payment"),
+      error: "Invalid payment",
       accepts: [
         {
           scheme: "exact",
@@ -300,7 +300,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Unexpected error"),
+      error: "Unexpected error",
       accepts: [
         {
           scheme: "exact",
@@ -360,7 +360,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Settlement failed"),
+      error: "Settlement failed",
       accepts: [
         {
           scheme: "exact",

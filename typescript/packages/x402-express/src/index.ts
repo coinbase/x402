@@ -245,7 +245,7 @@ export function paymentMiddleware(
       console.error(error);
       res.status(402).json({
         x402Version,
-        error: error || "Invalid or malformed payment header",
+        error: error instanceof Error ? error.message : "Invalid or malformed payment header",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -279,7 +279,7 @@ export function paymentMiddleware(
       console.error(error);
       res.status(402).json({
         x402Version,
-        error,
+        error: error instanceof Error ? error.message : "Payment verification failed",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -332,7 +332,7 @@ export function paymentMiddleware(
       if (!res.headersSent) {
         res.status(402).json({
           x402Version,
-          error,
+          error: error instanceof Error ? error.message : "Payment settlement failed",
           accepts: toJsonSafe(paymentRequirements),
         });
         return;
