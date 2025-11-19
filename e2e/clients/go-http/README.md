@@ -36,12 +36,12 @@ import (
 x402Client := x402.Newx402Client()
 
 // Register EVM support
-x402Client.RegisterScheme("eip155:*", evm.NewExactEvmClient(evmSigner))
-x402Client.RegisterSchemeV1("base-sepolia", evmv1.NewExactEvmClientV1(evmSigner))
+x402Client.Register("eip155:*", evm.NewExactEvmClient(evmSigner))
+x402Client.RegisterV1("base-sepolia", evmv1.NewExactEvmClientV1(evmSigner))
 
 // Register SVM support  
-x402Client.RegisterScheme("solana:*", svm.NewExactSvmClient(svmSigner))
-x402Client.RegisterSchemeV1("solana-devnet", svmv1.NewExactSvmClientV1(svmSigner))
+x402Client.Register("solana:*", svm.NewExactSvmClient(svmSigner))
+x402Client.RegisterV1("solana-devnet", svmv1.NewExactSvmClientV1(svmSigner))
 
 // Create HTTP wrapper
 httpClient := x402http.Newx402HTTPClient(x402Client)

@@ -140,7 +140,7 @@ func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (s *x402ResourceServer) RegisterScheme(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
+func (s *x402ResourceServer) Register(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
 	return s.registerScheme(network, schemeServer)
 }
 

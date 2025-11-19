@@ -32,7 +32,7 @@ type ClientSigner struct {
 //	    log.Fatal(err)
 //	}
 //	client := x402.Newx402Client().
-//	    RegisterScheme("solana:*", svm.NewExactSvmClient(signer))
+//	    Register("solana:*", svm.NewExactSvmClient(signer))
 func NewClientSignerFromPrivateKey(privateKeyBase58 string) (x402svm.ClientSvmSigner, error) {
 	// Parse base58-encoded private key
 	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)

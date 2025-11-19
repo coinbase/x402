@@ -31,7 +31,7 @@ import (
 
 client := x402.Newx402Client()
 evmClient := evm.NewExactEvmClient(mySigner)
-client.RegisterScheme("eip155:*", evmClient)
+client.Register("eip155:*", evmClient)
 ```
 
 **V1:** `ExactEvmClientV1` - Legacy implementation with simple network names
@@ -40,7 +40,7 @@ client.RegisterScheme("eip155:*", evmClient)
 import evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1"
 
 evmClientV1 := evmv1.NewExactEvmClientV1(mySigner)
-client.RegisterSchemeV1("base-sepolia", evmClientV1)
+client.RegisterV1("base-sepolia", evmClientV1)
 ```
 
 ### Facilitator (Payment Verification & Settlement)
@@ -50,7 +50,7 @@ client.RegisterSchemeV1("base-sepolia", evmClientV1)
 ```go
 facilitator := x402.Newx402Facilitator()
 evmFacilitator := evm.NewExactEvmFacilitator(myFacilitatorSigner)
-facilitator.RegisterScheme("eip155:8453", evmFacilitator)
+facilitator.Register("eip155:8453", evmFacilitator)
 
 // Verify payment
 verifyResp, err := facilitator.Verify(ctx, payloadBytes, requirementsBytes)

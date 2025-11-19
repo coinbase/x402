@@ -81,12 +81,12 @@ func TestNewx402Facilitator(t *testing.T) {
 	}
 }
 
-func TestFacilitatorRegisterScheme(t *testing.T) {
+func TestFacilitatorRegister(t *testing.T) {
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 
 	// Test v2 registration
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	if len(facilitator.schemes) != 1 {
 		t.Fatalf("Expected 1 version, got %d", len(facilitator.schemes))
@@ -99,7 +99,7 @@ func TestFacilitatorRegisterScheme(t *testing.T) {
 	}
 
 	// Test v1 registration
-	facilitator.RegisterSchemeV1("eip155:1", mockFacilitator)
+	facilitator.RegisterV1("eip155:1", mockFacilitator)
 	if len(facilitator.schemes) != 2 {
 		t.Fatalf("Expected 2 versions, got %d", len(facilitator.schemes))
 	}
@@ -157,7 +157,7 @@ func TestFacilitatorVerify(t *testing.T) {
 		},
 	}
 
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -206,7 +206,7 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -279,7 +279,7 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -339,7 +339,7 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -399,7 +399,7 @@ func TestFacilitatorSettle(t *testing.T) {
 		},
 	}
 
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -445,7 +445,7 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 		},
 	}
 
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -485,9 +485,9 @@ func TestFacilitatorGetSupported(t *testing.T) {
 	mockFacilitator1 := &mockSchemeNetworkFacilitator{scheme: "exact"}
 	mockFacilitator2 := &mockSchemeNetworkFacilitator{scheme: "transfer"}
 
-	facilitator.RegisterScheme("eip155:1", mockFacilitator1)
-	facilitator.RegisterScheme("eip155:8453", mockFacilitator2)
-	facilitator.RegisterSchemeV1("eip155:1", mockFacilitator1)
+	facilitator.Register("eip155:1", mockFacilitator1)
+	facilitator.Register("eip155:8453", mockFacilitator2)
+	facilitator.RegisterV1("eip155:1", mockFacilitator1)
 	facilitator.RegisterExtension("bazaar")
 
 	supported := facilitator.GetSupported()
@@ -527,7 +527,7 @@ func TestFacilitatorGetSupported(t *testing.T) {
 func TestFacilitatorCanHandle(t *testing.T) {
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	if !facilitator.CanHandle(2, "eip155:1", "exact") {
 		t.Fatal("Expected facilitator to handle registered scheme")
@@ -546,7 +546,7 @@ func TestLocalFacilitatorClient(t *testing.T) {
 	ctx := context.Background()
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
-	facilitator.RegisterScheme("eip155:1", mockFacilitator)
+	facilitator.Register("eip155:1", mockFacilitator)
 
 	client := NewLocalFacilitatorClient(facilitator)
 	if client.identifier != "local" {
@@ -605,7 +605,7 @@ func TestFacilitatorNetworkPatternMatching(t *testing.T) {
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 
 	// Register with wildcard
-	facilitator.RegisterScheme("eip155:*", mockFacilitator)
+	facilitator.Register("eip155:*", mockFacilitator)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",

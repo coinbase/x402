@@ -188,7 +188,7 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 
 	// Register schemes
 	for _, scheme := range config.Schemes {
-		server.RegisterScheme(scheme.Network, scheme.Server)
+		server.Register(scheme.Network, scheme.Server)
 	}
 
 	// Initialize if requested

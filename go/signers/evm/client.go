@@ -38,7 +38,7 @@ type ClientSigner struct {
 //	    log.Fatal(err)
 //	}
 //	client := x402.Newx402Client().
-//	    RegisterScheme("eip155:*", evm.NewExactEvmClient(signer))
+//	    Register("eip155:*", evm.NewExactEvmClient(signer))
 func NewClientSignerFromPrivateKey(privateKeyHex string) (x402evm.ClientEvmSigner, error) {
 	// Strip 0x prefix if present
 	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")

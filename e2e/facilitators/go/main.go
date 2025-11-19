@@ -680,17 +680,17 @@ func main() {
 
 	// Register EVM schemes
 	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner)
-	facilitator.RegisterScheme("eip155:84532", evmFacilitatorScheme)
+	facilitator.Register("eip155:84532", evmFacilitatorScheme)
 
 	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner)
-	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1Scheme)
+	facilitator.RegisterV1("base-sepolia", evmFacilitatorV1Scheme)
 
 	// Register SVM schemes
 	svmFacilitatorScheme := svm.NewExactSvmScheme(svmSigner)
-	facilitator.RegisterScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitatorScheme) // Devnet
+	facilitator.Register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitatorScheme) // Devnet
 
 	svmFacilitatorV1Scheme := svmv1.NewExactSvmSchemeV1(svmSigner)
-	facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1Scheme)
+	facilitator.RegisterV1("solana-devnet", svmFacilitatorV1Scheme)
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)

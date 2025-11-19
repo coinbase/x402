@@ -30,7 +30,7 @@ import (
 
 client := x402.Newx402Client()
 svmClient := svm.NewExactSvmClient(mySigner)
-client.RegisterScheme("solana:*", svmClient)
+client.Register("solana:*", svmClient)
 ```
 
 **V1:** `ExactSvmClientV1` - Legacy implementation with simple network names
@@ -39,7 +39,7 @@ client.RegisterScheme("solana:*", svmClient)
 import svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1"
 
 svmClientV1 := svmv1.NewExactSvmClientV1(mySigner)
-client.RegisterSchemeV1("solana-devnet", svmClientV1)
+client.RegisterV1("solana-devnet", svmClientV1)
 ```
 
 ### Facilitator (Payment Verification & Settlement)
@@ -49,7 +49,7 @@ client.RegisterSchemeV1("solana-devnet", svmClientV1)
 ```go
 facilitator := x402.Newx402Facilitator()
 svmFacilitator := svm.NewExactSvmFacilitator(myFacilitatorSigner)
-facilitator.RegisterScheme("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", svmFacilitator)
+facilitator.Register("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", svmFacilitator)
 
 // Verify payment (checks signatures, doesn't submit)
 verifyResp, err := facilitator.Verify(ctx, payloadBytes, requirementsBytes)

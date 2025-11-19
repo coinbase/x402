@@ -51,7 +51,7 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 			return VerifyResponse{IsValid: true, Payer: "0xTestPayer"}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:8453", mockScheme)
+	facilitator.Register("eip155:8453", mockScheme)
 
 	// Register hook to capture result
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
@@ -91,7 +91,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 			return VerifyResponse{IsValid: false}, errors.New("verification failed")
 		},
 	}
-	facilitator.RegisterScheme("eip155:8453", mockScheme)
+	facilitator.Register("eip155:8453", mockScheme)
 
 	// Register hook that recovers from failure
 	facilitator.OnVerifyFailure(func(ctx FacilitatorVerifyFailureContext) (*FacilitatorVerifyFailureHookResult, error) {
@@ -165,7 +165,7 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 			return SettleResponse{Success: true, Transaction: "0xFacilitatorTx"}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:8453", mockScheme)
+	facilitator.Register("eip155:8453", mockScheme)
 
 	// Register hook to capture settlement result
 	facilitator.OnAfterSettle(func(ctx FacilitatorSettleResultContext) error {
@@ -205,7 +205,7 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 			return SettleResponse{Success: false}, errors.New("settlement failed")
 		},
 	}
-	facilitator.RegisterScheme("eip155:8453", mockScheme)
+	facilitator.Register("eip155:8453", mockScheme)
 
 	// Register hook that recovers from failure
 	facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error) {
@@ -251,7 +251,7 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 			return VerifyResponse{IsValid: true}, nil
 		},
 	}
-	facilitator.RegisterScheme("eip155:8453", mockScheme)
+	facilitator.Register("eip155:8453", mockScheme)
 
 	// Register multiple hooks in order
 	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {

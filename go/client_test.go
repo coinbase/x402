@@ -63,12 +63,12 @@ func TestNewx402Client(t *testing.T) {
 	}
 }
 
-func TestClientRegisterScheme(t *testing.T) {
+func TestClientRegister(t *testing.T) {
 	client := Newx402Client()
 	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
 
 	// Test v2 registration
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	if len(client.schemes) != 1 {
 		t.Fatalf("Expected 1 version, got %d", len(client.schemes))
@@ -81,7 +81,7 @@ func TestClientRegisterScheme(t *testing.T) {
 	}
 
 	// Test v1 registration
-	client.RegisterSchemeV1("eip155:1", mockClient)
+	client.RegisterV1("eip155:1", mockClient)
 	if len(client.schemes) != 2 {
 		t.Fatalf("Expected 2 versions, got %d", len(client.schemes))
 	}
@@ -105,7 +105,7 @@ func TestClientWithScheme(t *testing.T) {
 func TestClientSelectPaymentRequirements(t *testing.T) {
 	client := Newx402Client()
 	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	requirements := []PaymentRequirements{
 		{
@@ -175,7 +175,7 @@ func TestClientSelectPaymentRequirementsWithCustomSelector(t *testing.T) {
 
 	client := Newx402Client(WithPaymentSelector(customSelector))
 	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	requirements := []PaymentRequirements{
 		{
@@ -222,7 +222,7 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		},
 	}
 
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",
@@ -301,7 +301,7 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 
 	// Register a different scheme so we get past the version check
 	mockClient := &mockSchemeNetworkClient{scheme: "different", version: 2}
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	requirements := PaymentRequirements{
 		Scheme:  "unregistered",
@@ -331,9 +331,9 @@ func TestClientGetRegisteredSchemes(t *testing.T) {
 	mockClient1 := &mockSchemeNetworkClient{scheme: "exact"}
 	mockClient2 := &mockSchemeNetworkClient{scheme: "transfer"}
 
-	client.RegisterScheme("eip155:1", mockClient1)
-	client.RegisterScheme("eip155:8453", mockClient2)
-	client.RegisterSchemeV1("eip155:1", mockClient1)
+	client.Register("eip155:1", mockClient1)
+	client.Register("eip155:8453", mockClient2)
+	client.RegisterV1("eip155:1", mockClient1)
 
 	schemes := client.GetRegisteredSchemes()
 	if len(schemes) != 2 {
@@ -350,7 +350,7 @@ func TestClientGetRegisteredSchemes(t *testing.T) {
 func TestClientCanPay(t *testing.T) {
 	client := Newx402Client()
 	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	requirements := []PaymentRequirements{
 		{
@@ -385,7 +385,7 @@ func TestClientCreatePaymentForRequired(t *testing.T) {
 	ctx := context.Background()
 	client := Newx402Client()
 	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.RegisterScheme("eip155:1", mockClient)
+	client.Register("eip155:1", mockClient)
 
 	required := PaymentRequired{
 		X402Version: 2,
@@ -433,7 +433,7 @@ func TestClientNetworkPatternMatching(t *testing.T) {
 	mockClient := &mockSchemeNetworkClient{scheme: "exact", version: 2}
 
 	// Register with wildcard
-	client.RegisterScheme("eip155:*", mockClient)
+	client.Register("eip155:*", mockClient)
 
 	requirements := PaymentRequirements{
 		Scheme:  "exact",

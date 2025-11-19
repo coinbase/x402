@@ -266,7 +266,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		client := x402.Newx402Client()
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		// Register for Base Sepolia
-		client.RegisterScheme("eip155:84532", evmClient)
+		client.Register("eip155:84532", evmClient)
 
 		// Create real facilitator signer
 		facilitatorSigner, err := newRealFacilitatorEvmSigner(facilitatorPrivateKey, "https://sepolia.base.org")
@@ -278,7 +278,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner)
 		// Register for Base Sepolia
-		facilitator.RegisterScheme("eip155:84532", evmFacilitator)
+		facilitator.Register("eip155:84532", evmFacilitator)
 
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
@@ -288,7 +288,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		server.RegisterScheme("eip155:84532", evmServer)
+		server.Register("eip155:84532", evmServer)
 
 		// Initialize server to fetch supported kinds
 		err = server.Initialize(ctx)
@@ -454,7 +454,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		client := x402.Newx402Client()
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		// Register for Base Sepolia using V1 registration
-		client.RegisterSchemeV1("eip155:84532", evmClientV1)
+		client.RegisterV1("eip155:84532", evmClientV1)
 
 		// Create real facilitator signer
 		facilitatorSigner, err := newRealFacilitatorEvmSigner(facilitatorPrivateKey, "https://sepolia.base.org")
@@ -466,7 +466,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		evmFacilitatorV1 := evmv1facilitator.NewExactEvmSchemeV1(facilitatorSigner)
 		// Register for Base Sepolia using V1 registration
-		facilitator.RegisterSchemeV1("eip155:84532", evmFacilitatorV1)
+		facilitator.RegisterV1("eip155:84532", evmFacilitatorV1)
 
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
@@ -477,7 +477,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		server.RegisterScheme("eip155:84532", evmServerV1)
+		server.Register("eip155:84532", evmServerV1)
 
 		// Initialize server to fetch supported kinds
 		err = server.Initialize(ctx)

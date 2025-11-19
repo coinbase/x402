@@ -21,8 +21,8 @@ svmSigner, _ := svmsigners.NewClientSignerFromPrivateKey("5J...")
 
 // Use with x402 client
 client := x402.Newx402Client().
-    RegisterScheme("eip155:*", evm.NewExactEvmClient(evmSigner)).
-    RegisterScheme("solana:*", svm.NewExactSvmClient(svmSigner))
+    Register("eip155:*", evm.NewExactEvmClient(evmSigner)).
+    Register("solana:*", svm.NewExactSvmClient(svmSigner))
 ```
 
 **Before:** 200+ lines of EIP-712 and Ed25519 signing implementation  
@@ -136,8 +136,8 @@ func main() {
     
     // Build client with fluent API
     client := x402.Newx402Client().
-        RegisterScheme("eip155:*", evm.NewExactEvmClient(evmSigner)).
-        RegisterScheme("solana:*", svm.NewExactSvmClient(svmSigner))
+        Register("eip155:*", evm.NewExactEvmClient(evmSigner)).
+        Register("solana:*", svm.NewExactSvmClient(svmSigner))
     
     // Make payment-enabled requests
     httpClient := x402http.Newx402HTTPClient(client)

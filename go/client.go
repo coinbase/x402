@@ -135,13 +135,13 @@ func defaultPaymentSelector(version int, requirements []PaymentRequirements) Pay
 	return requirements[0]
 }
 
-// RegisterScheme registers a payment mechanism for protocol v2
-func (c *x402Client) RegisterScheme(network Network, client SchemeNetworkClient) *x402Client {
+// Register registers a payment mechanism for protocol v2
+func (c *x402Client) Register(network Network, client SchemeNetworkClient) *x402Client {
 	return c.registerScheme(ProtocolVersion, network, client)
 }
 
-// RegisterSchemeV1 registers a payment mechanism for protocol v1
-func (c *x402Client) RegisterSchemeV1(network Network, client SchemeNetworkClient) *x402Client {
+// RegisterV1 registers a payment mechanism for protocol v1
+func (c *x402Client) RegisterV1(network Network, client SchemeNetworkClient) *x402Client {
 	return c.registerScheme(ProtocolVersionV1, network, client)
 }
 

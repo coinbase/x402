@@ -116,7 +116,7 @@ func TestEVMVersionMismatch(t *testing.T) {
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterSchemeV1("eip155:8453", evmClientV1)
+		client.RegisterV1("eip155:8453", evmClientV1)
 
 		// V1 client should succeed when explicitly requesting v1
 		// Note: V1 needs MaxAmountRequired, so create v1-compatible requirements
@@ -153,7 +153,7 @@ func TestEVMVersionMismatch(t *testing.T) {
 		clientSigner := &mockClientEvmSigner{}
 		client := x402.Newx402Client()
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
-		client.RegisterScheme("eip155:8453", evmClient)
+		client.Register("eip155:8453", evmClient)
 
 		// V1 requirements
 		requirements := x402.PaymentRequirements{
@@ -198,11 +198,11 @@ func TestEVMDualVersionSupport(t *testing.T) {
 
 		// Register V1 implementation
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterSchemeV1("eip155:8453", evmClientV1)
+		client.RegisterV1("eip155:8453", evmClientV1)
 
 		// Register V2 implementation
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
-		client.RegisterScheme("eip155:8453", evmClient)
+		client.Register("eip155:8453", evmClient)
 
 		// V1 requirements (uses MaxAmountRequired)
 		v1Requirements := x402.PaymentRequirements{
@@ -271,11 +271,11 @@ func TestEVMDualVersionSupport(t *testing.T) {
 
 		// Register V1 implementation
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
-		client.RegisterSchemeV1("eip155:8453", evmClientV1)
+		client.RegisterV1("eip155:8453", evmClientV1)
 
 		// Register V2 implementation
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
-		client.RegisterScheme("eip155:8453", evmClient)
+		client.Register("eip155:8453", evmClient)
 
 		// V2 requirements
 		requirements := x402.PaymentRequirements{

@@ -78,14 +78,14 @@ func TestHTTPIntegration(t *testing.T) {
 
 		// Setup facilitator with cash scheme
 		facilitator := x402.Newx402Facilitator()
-		facilitator.RegisterScheme("x402:cash", cash.NewSchemeNetworkFacilitator())
+		facilitator.Register("x402:cash", cash.NewSchemeNetworkFacilitator())
 
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)
 
 		// Setup x402 client with cash scheme
 		x402Client := x402.Newx402Client()
-		x402Client.RegisterScheme("x402:cash", cash.NewSchemeNetworkClient("John"))
+		x402Client.Register("x402:cash", cash.NewSchemeNetworkClient("John"))
 
 		// Setup HTTP client wrapper
 		httpClient := x402http.Newx402HTTPClient(x402Client)
@@ -95,7 +95,7 @@ func TestHTTPIntegration(t *testing.T) {
 			routes,
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		server.RegisterScheme("x402:cash", cash.NewSchemeNetworkServer())
+		server.Register("x402:cash", cash.NewSchemeNetworkServer())
 
 		// Initialize server to fetch supported kinds
 		err := server.Initialize(ctx)

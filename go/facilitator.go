@@ -32,7 +32,7 @@ func Newx402Facilitator() *x402Facilitator {
 	}
 }
 
-func (f *x402Facilitator) RegisterScheme(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
+func (f *x402Facilitator) Register(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
 	var extraData interface{}
 	if len(extra) > 0 {
 		extraData = extra[0]
@@ -40,7 +40,7 @@ func (f *x402Facilitator) RegisterScheme(network Network, facilitator SchemeNetw
 	return f.registerScheme(ProtocolVersion, network, facilitator, extraData)
 }
 
-func (f *x402Facilitator) RegisterSchemeV1(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
+func (f *x402Facilitator) RegisterV1(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
 	var extraData interface{}
 	if len(extra) > 0 {
 		extraData = extra[0]

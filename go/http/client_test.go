@@ -265,7 +265,7 @@ func TestPaymentRoundTripper(t *testing.T) {
 
 	// Create x402 client
 	x402Client := x402.Newx402Client()
-	x402Client.RegisterScheme("test:1", mockClient)
+	x402Client.Register("test:1", mockClient)
 
 	// Create HTTP client wrapper
 	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, Newx402HTTPClient(x402Client))

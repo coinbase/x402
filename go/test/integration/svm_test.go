@@ -268,7 +268,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 			RPCURL: "https://api.devnet.solana.com",
 		})
 		// Register for Solana Devnet
-		client.RegisterScheme(svm.SolanaDevnetCAIP2, svmClient)
+		client.Register(svm.SolanaDevnetCAIP2, svmClient)
 
 		// Create real facilitator signer
 		facilitatorSigner, err := newRealFacilitatorSvmSigner(facilitatorPrivateKey, "https://api.devnet.solana.com")
@@ -280,7 +280,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		svmFacilitator := svmfacilitator.NewExactSvmScheme(facilitatorSigner)
 		// Register for Solana Devnet
-		facilitator.RegisterScheme(svm.SolanaDevnetCAIP2, svmFacilitator)
+		facilitator.Register(svm.SolanaDevnetCAIP2, svmFacilitator)
 
 		// Create facilitator client wrapper (adds feePayer via GetSupported override)
 		facilitatorClient := &localSvmFacilitatorClient{
@@ -293,7 +293,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		server.RegisterScheme(svm.SolanaDevnetCAIP2, svmServer)
+		server.Register(svm.SolanaDevnetCAIP2, svmServer)
 
 		// Initialize server to fetch supported kinds
 		err = server.Initialize(ctx)
@@ -468,7 +468,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 			RPCURL: "https://api.devnet.solana.com",
 		})
 		// Register for Solana Devnet (V1 uses simple name)
-		client.RegisterSchemeV1(svm.SolanaDevnetV1, svmClient)
+		client.RegisterV1(svm.SolanaDevnetV1, svmClient)
 
 		// Create real facilitator signer
 		facilitatorSigner, err := newRealFacilitatorSvmSigner(facilitatorPrivateKey, "https://api.devnet.solana.com")
@@ -480,7 +480,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		svmFacilitator := svmv1facilitator.NewExactSvmSchemeV1(facilitatorSigner)
 		// Register for Solana Devnet
-		facilitator.RegisterSchemeV1(svm.SolanaDevnetV1, svmFacilitator)
+		facilitator.RegisterV1(svm.SolanaDevnetV1, svmFacilitator)
 
 		// Create facilitator client wrapper (adds feePayer via GetSupported override)
 		facilitatorClient := &localSvmFacilitatorClient{
@@ -494,7 +494,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
 		// Register for CAIP-2 network (server uses V2 format)
-		server.RegisterScheme(svm.SolanaDevnetCAIP2, svmServer)
+		server.Register(svm.SolanaDevnetCAIP2, svmServer)
 
 		// Initialize server to fetch supported kinds
 		err = server.Initialize(ctx)

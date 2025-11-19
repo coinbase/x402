@@ -63,12 +63,12 @@ func main() {
 
 	// Create x402 client with fluent API
 	x402Client := x402.Newx402Client().
-		RegisterScheme("eip155:*", evm.NewExactEvmScheme(evmSigner)).
-		RegisterScheme("solana:*", svm.NewExactSvmScheme(svmSigner)).
-		RegisterSchemeV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
-		RegisterSchemeV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).
-		RegisterSchemeV1("solana-devnet", svmv1.NewExactSvmSchemeV1(svmSigner)).
-		RegisterSchemeV1("solana", svmv1.NewExactSvmSchemeV1(svmSigner))
+		Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
+		Register("solana:*", svm.NewExactSvmScheme(svmSigner)).
+		RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
+		RegisterV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).
+		RegisterV1("solana-devnet", svmv1.NewExactSvmSchemeV1(svmSigner)).
+		RegisterV1("solana", svmv1.NewExactSvmSchemeV1(svmSigner))
 
 	// Create HTTP client wrapper
 	httpClient := x402http.Newx402HTTPClient(x402Client)
