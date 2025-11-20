@@ -29,7 +29,6 @@ app.use(
           asset: {
             address: "0xabc",
             decimals: 6,
-            // omit eip712 for Solana
             eip712: {
               name: "USDC",
               version: "1",

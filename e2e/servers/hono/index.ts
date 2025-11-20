@@ -2,7 +2,6 @@ import { config } from "dotenv";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { paymentMiddleware, Network } from "x402-hono";
-import { facilitator } from "@coinbase/x402";
 
 config();
 
@@ -32,7 +31,7 @@ app.use(
       ? {
           url: facilitatorUrl,
         }
-      : facilitator,
+      : undefined,
   ),
 );
 

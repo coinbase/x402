@@ -1,6 +1,5 @@
 import express from "express";
 import { Network, paymentMiddleware } from "x402-express";
-import { facilitator } from "@coinbase/x402";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -30,7 +29,7 @@ app.use(
       ? {
           url: facilitatorUrl,
         }
-      : facilitator,
+      : undefined,
   ),
 );
 

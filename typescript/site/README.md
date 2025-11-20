@@ -28,18 +28,18 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 
 1. Install dependencies:
 
-  ```bash
-  pnpm install
-  ```
+```bash
+pnpm install
+```
 
 2. Configure your environment variables in `.env`:
 
-  ```bash
-  NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
-  RESOURCE_WALLET_ADDRESS=your_wallet_address
-  NETWORK=sepolia
-  PRIVATE_KEY=your_private_key
-  ```
+```bash
+NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
+RESOURCE_WALLET_ADDRESS=your_wallet_address
+NETWORK=sepolia
+PRIVATE_KEY=your_private_key
+```
 
 ### Running the Development Server
 
@@ -55,7 +55,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
   - `/facilitator` - Payment facilitator API routes
   - `/protected` - Example protected route
 - `/middleware.ts` - x402 payment middleware configuration
-- `/ecosystem` - Directory of ecosystem builders 
+- `/ecosystem` - Directory of ecosystem builders
 
 ## How It Works
 
@@ -94,7 +94,7 @@ We welcome projects that are building with x402! To add your project to our ecos
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://your-facilitator.com",
-    "networks": ["base", "base-sepolia", "polygon", "solana"],
+    "networks": ["arc-testnet"],
     "schemes": ["exact"],
     "assets": ["ERC20"],
     "supports": {
@@ -107,32 +107,36 @@ We welcome projects that are building with x402! To add your project to our ecos
 }
 ```
 
-
 5. Submit a pull request
 
 ### Requirements by Category
 
 #### Client-Side Integrations
+
 - Must demonstrate a working integration with x402
 - Should include a link to documentation, quickstart, or code examples
 - Must be actively maintained
 
 #### Services/Endpoints
+
 - Must have a working mainnet integration
 - Should include API documentation
 - Should maintain 99% uptime
 
 #### Infrastructure & Tooling
+
 - Should include comprehensive documentation
 - Should demonstrate clear value to the x402 ecosystem
 
 #### Learning & Community Resources
+
 - Must include a GitHub template or starter kit
 - Should be shared on social media (Twitter/X, Discord, etc.)
 - Must include clear setup instructions
 - Should demonstrate a practical use case
 
 #### Facilitators
+
 - Must implement the x402 facilitator API specification
 - Should support at least one payment scheme (e.g., "exact")
 - Must provide working verify and/or settle endpoints
@@ -143,7 +147,7 @@ We welcome projects that are building with x402! To add your project to our ecos
 
 1. Our team will review your submission within 5 business days
 2. We may request additional information or changes
-3. Once approved, your project will be added to the ecosystem page, and we'd love to do some co-marketing around your use case! 
+3. Once approved, your project will be added to the ecosystem page, and we'd love to do some co-marketing around your use case!
 
 ## Learn More
 
@@ -162,7 +166,3 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guidelines](https://github.com/coinbase/x402/blob/main/CONTRIBUTING.md) for details.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/coinbase/x402/blob/main/LICENSE) file for details.
