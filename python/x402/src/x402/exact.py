@@ -1,6 +1,6 @@
 import time
 import secrets
-from typing import Dict, Any
+from typing import Dict, Any, Union
 from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
@@ -18,9 +18,36 @@ def create_nonce() -> bytes:
     return secrets.token_bytes(32)
 
 
+class PaymentAuthorization(TypedDict):
+    """Authorization data for a payment header."""
+
+    from_: str  # Note: The actual dict key is "from", but we use from_ for TypedDict
+    to: str
+    value: str
+    validAfter: str
+    validBefore: str
+    nonce: bytes  # Raw bytes for internal use, converted to hex string for JSON serialization
+
+
+class PaymentPayload(TypedDict):
+    """Payload data for a payment header."""
+
+    signature: Union[str, None]  # None for unsigned headers, hex string for signed
+    authorization: PaymentAuthorization
+
+
+class PaymentHeader(TypedDict):
+    """Complete payment header structure."""
+
+    x402Version: int
+    scheme: str
+    network: str
+    payload: PaymentPayload
+
+
 def prepare_payment_header(
     sender_address: str, x402_version: int, payment_requirements: PaymentRequirements
-) -> Dict[str, Any]:
+) -> PaymentHeader:
     """Prepare an unsigned payment header with sender address, x402 version, and payment requirements."""
     nonce = create_nonce()
     valid_after = str(int(time.time()) - 60)  # 60 seconds before
@@ -44,21 +71,13 @@ def prepare_payment_header(
     }
 
 
-class PaymentHeader(TypedDict):
-    x402Version: int
-    scheme: str
-    network: str
-    payload: dict[str, Any]
-
-
 def sign_payment_header(
     account: Account, payment_requirements: PaymentRequirements, header: PaymentHeader
 ) -> str:
     """Sign a payment header using the account's private key."""
     try:
         auth = header["payload"]["authorization"]
-
-        nonce_bytes = bytes.fromhex(auth["nonce"])
+        nonce = auth["nonce"]
 
         typed_data = {
             "types": {
@@ -84,7 +103,7 @@ def sign_payment_header(
                 "value": int(auth["value"]),
                 "validAfter": int(auth["validAfter"]),
                 "validBefore": int(auth["validBefore"]),
-                "nonce": nonce_bytes,
+                "nonce": nonce,
             },
         }
 
@@ -99,7 +118,7 @@ def sign_payment_header(
 
         header["payload"]["signature"] = signature
 
-        header["payload"]["authorization"]["nonce"] = f"0x{auth['nonce']}"
+        header["payload"]["authorization"]["nonce"] = f"0x{nonce.hex()}"
 
         encoded = encode_payment(header)
         return encoded
