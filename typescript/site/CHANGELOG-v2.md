@@ -29,7 +29,7 @@ Increment `x402Version` to `2`.
 
 1. Resource
 
-**What**: `resource` to be added to the top level `PaymentRequired` object. This object will contain the `url`, `description`, and `mimeType` fields that were previously on `PaymentRequirements`
+**What**: `resource` to be added to the top level `PaymentRequired` object. This object will contain the `url`, `description`, and `mimeType` fields that were previously on `PaymentRequirements`. In addition, `website` will be included in `resource`.
 
 **Why**: These fields describe the resource being gated, rather than the payment itself. The data was duplicated between each `PaymentRequirement` in the `PaymentRequired`'s `accepts`' array.
 
@@ -58,6 +58,7 @@ Increment `x402Version` to `2`.
   "resource": {
     "url": "https://api.example.com/v1/ai/generate",
     "description": "Text to image generator using AI",
+    "website": "https://api.example.com",
     "mimeType": "image/png"
   },
   "accepts": [
@@ -395,26 +396,119 @@ Clients sign the CAIP-122 message and include it in their response:
 
 ### Supported Endpoint Update
 
-**What**: The facilitator's `/supported` endpoint is being updated to include a new `extensions` field, an array of extension keys that the facilitator supports. This allows facilitators to declare which optional extensions they have implemented.
+The facilitator's `/supported` endpoint is being updated with three key improvements:
+
+#### 1. Version-Grouped Kinds
+
+**What**: The `kinds` array is being restructured to group supported payment kinds by `x402Version`, eliminating redundant version declarations.
 
 ```git
-{
-  "kinds":[
-    {
-      "x402Version":2,
-      "scheme":"exact",
-      "network": "eip155:84532"
-    },
-  ],
-+ "extensions": [
-+   "discovery",
-+ ]
-}
+- "kinds": [
+-   {
+-     "x402Version": 2,
+-     "scheme": "exact",
+-     "network": "eip155:84532"
+-   },
+-   {
+-     "x402Version": 2,
+-     "scheme": "exact",
+-     "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+-   }
+- ]
+
++ "kinds": {
++   "1": [
++     {
++       "scheme": "exact",
++       "network": "base-sepolia"
++     }
++   ],
++   "2": [
++     {
++       "scheme": "exact",
++       "network": "eip155:84532"
++     },
++     {
++       "scheme": "exact",
++       "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
++       "extra": {
++         "feePayer": "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"
++       }
++     }
++   ]
++ }
 ```
 
-**Why**: Not every facilitator will implement every extension. This explicit declaration enables resource servers to verify extension compatibility before use, preventing runtime failures when servers attempt to use unsupported extensions. Servers can query this endpoint to dynamically adapt their behavior based on facilitator capabilities. 
+**Why**: Facilitators supporting both v1 and v2 of the protocol were repeating the `x402Version` field for every payment kind. Grouping by version reduces payload size and improves readability, especially for facilitators supporting multiple versions with many network/scheme combinations.
+
+#### 2. Public Signer Registry
+
+**What**: A new `signers` field mapping network patterns to arrays of public addresses that the facilitator uses for settlement operations.
+
+```git
++ "signers": {
++   "eip155:*": ["0x209693Bc6afc0C5329bA36FaF03C514EF312287C"],
++   "solana:*": ["CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"]
++ }
+```
+
+**Why**: Public declaration of facilitator signing addresses enables:
+- **Transparency**: Resource servers and clients can verify who they're trusting
+- **Tracking**: On-chain analysis tools can identify facilitator activity across networks
+
+Network patterns follow CAIP-2 with wildcard support (e.g., `eip155:*` matches all EVM chains).
+
+#### 3. Extensions Support Declaration
+
+**What**: A new `extensions` field listing the extension keys that the facilitator has implemented.
+
+```git
++ "extensions": ["discovery", "bazaar"]
+```
+
+**Why**: Not every facilitator will implement every extension. This explicit declaration enables resource servers to verify extension compatibility before use, preventing runtime failures when servers attempt to use unsupported extensions. Servers can query this endpoint to dynamically adapt their behavior based on facilitator capabilities.
 
 **Note**: Not all extensions require facilitator involvement. Extensions that operate solely between resource servers and clients (such as Sign-In-With-X) can be used regardless of facilitator support. Facilitators only need to declare support for extensions where they play an active role in the extension's functionality (such as Discovery, where the facilitator performs the crawling).
+
+#### Updated /supported Response Shape
+
+```json
+{
+  "kinds": {
+    "1": [
+      {
+        "scheme": "exact",
+        "network": "base-sepolia"
+      },
+      {
+        "scheme": "exact",
+        "network": "solana-devnet",
+        "extra": {
+          "feePayer": "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"
+        }
+      }
+    ],
+    "2": [
+      {
+        "scheme": "exact",
+        "network": "eip155:84532"
+      },
+      {
+        "scheme": "exact",
+        "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        "extra": {
+          "feePayer": "CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"
+        }
+      }
+    ]
+  },
+  "extensions": ["discovery", "bazaar"],
+  "signers": {
+    "eip155:*": ["0x209693Bc6afc0C5329bA36FaF03C514EF312287C"],
+    "solana:*": ["CKPKJWNdJEqa81x7CkZ14BVPiY6y16Sxs7owznqtWYp5"]
+  }
+}
+```
 
 ## HTTP Transport
 
@@ -452,7 +546,7 @@ The new `PAYMENT-SIGNATURE` name is more descriptive and follows modern HTTP hea
 
 ### Modularize Schemes & Networks
 
-**What**: Replace hardcoded if/else chains with a single `SchemeNetworkImplementation` interface and builder pattern registration.
+**What**: Replace hardcoded if/else chains with a `SchemeNetworkClient`, `SchemeNetworkServer` and `SchemeNetworkFacilitator` interfaces and builder pattern registration.
 
 ```typescript
 interface SchemeNetworkClient {
@@ -460,6 +554,13 @@ interface SchemeNetworkClient {
 
   createPaymentPayload(signer, requirements, version): Promise<string>;
   signPaymentPayload(string): Promise<string>;
+}
+
+interface SchemeNetworkServer {
+  readonly scheme: string; // ex: "exact"
+
+  parsePrice(price: Price, network: Network): Promise<AssetAmount>;
+  enhancePaymentRequirements(paymentRequirements: PaymentRequirements, supportedKind: SupportedKind, facilitatorExtensions: string[]): Promise<PaymentRequirements>;
 }
 
 interface SchemeNetworkFacilitator {
@@ -471,21 +572,25 @@ interface SchemeNetworkFacilitator {
 
 // Usage
 const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmImplementation(evmWallet))
-  .registerScheme("solana:*", new ExactSvmImplementation(svmWallet))
+  .register("eip155:*", new ExactEvmScheme(evmWallet))
+  .register("solana:*", new ExactEvmScheme(svmWallet))
   .withIndentitySigner(svmWallet);
+
+const server = new x402Server()
+  .register("eip155:*", new ExactEvmScheme())
+  .register("solana:*", new ExactEvmScheme()).
 
 // Facilitator
 const facilitator = new x402Facilitator()
-  .registerScheme("eip155:*", new ExactEvmImplementation(evmWallet))
-  .registerScheme("solana:*", new ExactSvmImplementation(svmWallet));
+  .register("eip155:*", new ExactEvmScheme(evmWallet))
+  .register("solana:*", new ExactEvmScheme(svmWallet));
 ```
 
 **Why**: Currently, contributors must navigate nested directories, modify core switching logic in `client/createPaymentHeader.ts` and `facilitator/facilitator.ts`, and understand internal coupling to add support for new blockchains or payment schemes. This refactor eliminates these barriers by providing a single interface to implement and explicit registration.
 
 **Implementation Packaging**: The EVM and SVM implementations to be extracted into separate packages (`@x402/evm` and `@x402/svm`) to serve as reference implementations. For developer experience, they will be imported by default in the core `@x402/core` package, but their separation allows them to demonstrate the implementation pattern for future schemes and networks.
 
-**Extensibility**: After this refactor, adding support for new networks, schemes, or implementations will not require a PR to the core repository. Developers can create their own packages implementing the `SchemeNetworkClient` and `SchemeNetworkFacilitator` interfaces and use them immediately. We will continue to welcome PRs to add new implementations as official packages, but unofficial packages will be fully compatible with plug-and-play functionality.
+**Extensibility**: After this refactor, adding support for new networks, schemes, or implementations will not require a PR to the core repository. Developers can create their own packages implementing the `SchemeNetworkClient`, `SchemeNetworkServer` and `SchemeNetworkFacilitator` interfaces and use them immediately. We will continue to welcome PRs to add new implementations as official packages, but unofficial packages will be fully compatible with plug-and-play functionality.
 
 ### Client Configuration
 
@@ -503,9 +608,9 @@ The sdk will export a client type contructed via a builder pattern, that is leve
 
 ```typescript
 client
-  .addPolicy(paymentReq => paymentReq.maxAmountRequired <= 100_000)
-  .addPolicy(paymentReq => paymentReq.network !== "eip155:1") // no mainnet
-  .addPolicy((paymentReq, context) => context.timestamp > startTime);
+  .registerPolicy(paymentReq => paymentReq.amount <= 100_000)
+  .registerPolicy(paymentReq => paymentReq.network !== "eip155:1") // no mainnet
+  .registerPolicy((paymentReq, context) => context.timestamp > startTime);
 ```
 
 **Why**: Current clients hardcode specific wallet types and schemes, creating friction for developers experimenting with new payment schemes or integrating different wallet libraries. This composable approach enables:
