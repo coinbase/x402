@@ -1,7 +1,7 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { x402Client } from "@x402/fetch";
-import { ExactEvmClient } from "@x402/evm";
-import { ExactSvmClient } from "@x402/svm";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 
@@ -25,12 +25,12 @@ export async function createBuilderPatternClient(
   const solanaDevnetSigner = svmSigner; // Say you wanted a different signer for Solana Devnet
 
   const client = new x402Client()
-    .registerScheme("eip155:*", new ExactEvmClient(evmSigner))
-    .registerScheme("eip155:1", new ExactEvmClient(ethereumSigner))
-    .registerScheme("solana:*", new ExactSvmClient(svmSigner))
+    .registerScheme("eip155:*", new ExactEvmScheme(evmSigner))
+    .registerScheme("eip155:1", new ExactEvmScheme(ethereumSigner))
+    .registerScheme("solana:*", new ExactSvmScheme(svmSigner))
     .registerScheme(
       "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-      new ExactSvmClient(solanaDevnetSigner),
+      new ExactSvmScheme(solanaDevnetSigner),
     );
 
   // The result is a specific signer for Ethereum mainnet & Solana devnet

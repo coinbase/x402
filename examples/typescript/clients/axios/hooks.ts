@@ -1,6 +1,6 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { x402Client } from "@x402/axios";
-import { ExactEvmClient } from "@x402/evm";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 
 /**
  * Creates an x402Client with custom hooks for payment lifecycle events.
@@ -18,7 +18,7 @@ export async function createHooksClient(evmPrivateKey: `0x${string}`): Promise<x
   const evmSigner = privateKeyToAccount(evmPrivateKey);
 
   const client = new x402Client()
-    .registerScheme("eip155:*", new ExactEvmClient(evmSigner))
+    .registerScheme("eip155:*", new ExactEvmScheme(evmSigner))
     .onBeforePaymentCreation(async (context: unknown) => {
       console.log("Before payment creation", context);
       // If payment creation should be aborted, we can return aborted

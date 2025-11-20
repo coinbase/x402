@@ -53,15 +53,7 @@ app.use(
         },
       },
     },
-<<<<<<< HEAD
     new x402ResourceServer(facilitatorClient).registerScheme("eip155:84532", new ExactEvmScheme()),
-  ),
-);
-=======
-    new x402ResourceService(facilitatorClient).registerScheme(
-      "eip155:84532",
-      new ExactEvmService(),
-    ),
   ),
 );
 
@@ -85,4 +77,3 @@ app.get("/weather", (req, res) => {
 app.listen(4021, () => {
   console.log(`Server listening at http://localhost:${4021}`);
 });
->>>>>>> 8fc4b1e (improve examples)
