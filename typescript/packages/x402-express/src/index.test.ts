@@ -170,6 +170,9 @@ describe("paymentMiddleware()", () => {
       send: vi.fn().mockReturnThis(),
       setHeader: vi.fn().mockReturnThis(),
       end: vi.fn().mockReturnThis(),
+      write: vi.fn().mockReturnValue(true),
+      writeHead: vi.fn().mockReturnThis(),
+      flushHeaders: vi.fn(),
       headersSent: false,
     } as unknown as Response;
     mockNext = vi.fn();
