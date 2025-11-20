@@ -23,10 +23,6 @@ Examples of different client implementations for interacting with X402 services:
 - `clients/axios/` - Axios client with x402 payment interceptor from `x402-axios`.
 - `clients/fetch/` - Client using the `x402-fetch` wrapper around the native fetch API.
 
-### Discovery
-
-- `discovery/` - Uses the facilitator to list available x402-protected resources (Bazaar).
-
 ### Facilitator
 
 - `facilitator/` - Example implementation of an x402 payment facilitator exposing `/verify` and `/settle`.

@@ -32,10 +32,6 @@ Examples of different client implementations for interacting with x402-protected
 - `clients/httpx/` - Two approaches with httpx: a pre-configured `x402HttpxClient` and an extensible `event_hooks` integration.
 - `clients/requests/` - Two approaches with requests: a simple `x402_requests` session and an extensible HTTP adapter.
 
-### Discovery
-
-- `discovery/` - Uses the facilitator to list available x402-protected resources (Bazaar) with CDP credentials.
-
 ### Servers
 
 Examples of different server implementations:
