@@ -97,18 +97,14 @@ export function wrapFetchWithPayment(
       config,
     );
 
-    if (!init) {
-      throw new Error("Missing fetch request configuration");
-    }
-
-    if ((init as { __is402Retry?: boolean }).__is402Retry) {
+    if (init && (init as { __is402Retry?: boolean }).__is402Retry) {
       throw new Error("Payment already attempted");
     }
 
     const newInit = {
       ...init,
       headers: {
-        ...(init.headers || {}),
+        ...(init?.headers || {}),
         "X-PAYMENT": paymentHeader,
         "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
       },
