@@ -25,13 +25,31 @@ import {
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
+export interface PaymentMiddlewareOptions {
+  facilitator?: FacilitatorConfig;
+  paywall?: PaywallConfig;
+  /**
+   * Controls when payment settlement occurs relative to the request handler.
+   * 
+   * - 'after' (default): Verifies payment, executes handler, then settles. Lower latency but creates
+   *   an authorization replay risk window where multiple concurrent requests can execute with the same
+   *   signed payment authorization before settlement confirms payment on-chain.
+   * 
+   * - 'before': Settles payment on-chain first, then executes handler. Eliminates authorization replay
+   *   risk but adds blockchain confirmation latency to every request.
+   * 
+   * Use 'before' for endpoints that perform irreversible side effects (token issuance, account creation,
+   * inventory updates). Use 'after' for read-only or idempotent endpoints.
+   */
+  settlementTiming?: 'before' | 'after';
+}
+
 /**
  * Creates a payment middleware factory for Express
  *
  * @param payTo - The address to receive payments
  * @param routes - Configuration for protected routes and their payment requirements
- * @param facilitator - Optional configuration for the payment facilitator service
- * @param paywall - Optional configuration for the default paywall
+ * @param options - Optional configuration including facilitator, paywall, and settlement timing
  * @returns An Express middleware handler
  *
  * @example
@@ -58,16 +76,19 @@ import { useFacilitator } from "x402/verify";
  *     }
  *   },
  *   {
- *     url: 'https://facilitator.example.com',
- *     createAuthHeaders: async () => ({
- *       verify: { "Authorization": "Bearer token" },
- *       settle: { "Authorization": "Bearer token" }
- *     })
- *   },
- *   {
- *     cdpClientKey: 'your-cdp-client-key',
- *     appLogo: '/images/logo.svg',
- *     appName: 'My App',
+ *     facilitator: {
+ *       url: 'https://facilitator.example.com',
+ *       createAuthHeaders: async () => ({
+ *         verify: { "Authorization": "Bearer token" },
+ *         settle: { "Authorization": "Bearer token" }
+ *       })
+ *     },
+ *     paywall: {
+ *       cdpClientKey: 'your-cdp-client-key',
+ *       appLogo: '/images/logo.svg',
+ *       appName: 'My App',
+ *     },
+ *     settlementTiming: 'before' // Settle before handler for critical operations
  *   }
  * ));
  * ```
@@ -75,9 +96,25 @@ import { useFacilitator } from "x402/verify";
 export function paymentMiddleware(
   payTo: Address | SolanaAddress,
   routes: RoutesConfig,
-  facilitator?: FacilitatorConfig,
+  facilitatorOrOptions?: FacilitatorConfig | PaymentMiddlewareOptions,
   paywall?: PaywallConfig,
 ) {
+  // Handle both old and new API signatures for backward compatibility
+  let facilitator: FacilitatorConfig | undefined;
+  let paywallConfig: PaywallConfig | undefined;
+  let settlementTiming: 'before' | 'after' = 'after';
+
+  if (facilitatorOrOptions && typeof facilitatorOrOptions === 'object' && 'facilitator' in facilitatorOrOptions) {
+    // New API with options object
+    facilitator = facilitatorOrOptions.facilitator;
+    paywallConfig = facilitatorOrOptions.paywall;
+    settlementTiming = facilitatorOrOptions.settlementTiming ?? 'after';
+  } else {
+    // Legacy API: third param is facilitator, fourth is paywall
+    facilitator = facilitatorOrOptions as FacilitatorConfig | undefined;
+    paywallConfig = paywall;
+  }
+
   const { verify, settle, supported } = useFacilitator(facilitator);
   const x402Version = 1;
 
@@ -221,10 +258,10 @@ export function paymentMiddleware(
             >[0]["paymentRequirements"],
             currentUrl: req.originalUrl,
             testnet: network === "base-sepolia",
-            cdpClientKey: paywall?.cdpClientKey,
-            appName: paywall?.appName,
-            appLogo: paywall?.appLogo,
-            sessionTokenEndpoint: paywall?.sessionTokenEndpoint,
+            cdpClientKey: paywallConfig?.cdpClientKey,
+            appName: paywallConfig?.appName,
+            appLogo: paywallConfig?.appLogo,
+            sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
           });
         res.status(402).send(html);
         return;
@@ -264,6 +301,7 @@ export function paymentMiddleware(
       return;
     }
 
+    // Verify the payment authorization signature and requirements
     try {
       const response = await verify(decodedPayment, selectedPaymentRequirements);
       if (!response.isValid) {
@@ -285,6 +323,49 @@ export function paymentMiddleware(
       return;
     }
 
+    // IMPORTANT: Authorization Replay Risk
+    // At this point, the payment authorization is cryptographically valid but NOT yet settled on-chain.
+    // Multiple concurrent requests can pass verification using the same signed authorization before
+    // settlement confirms the payment. This creates a window where side effects (token minting, account
+    // creation, inventory updates) could execute multiple times for a single payment.
+    //
+    // To eliminate this risk for critical operations, use settlementTiming: 'before' in the middleware
+    // configuration. This settles the payment on-chain BEFORE executing your handler, ensuring the
+    // payment is confirmed before any side effects occur.
+    //
+    // For read-only or idempotent endpoints, the default 'after' timing provides lower latency.
+
+    if (settlementTiming === 'before') {
+      // Settle payment BEFORE executing the handler to eliminate authorization replay risk
+      try {
+        const settleResponse = await settle(decodedPayment, selectedPaymentRequirements);
+        const responseHeader = settleResponseHeader(settleResponse);
+        res.setHeader("X-PAYMENT-RESPONSE", responseHeader);
+
+        if (!settleResponse.success) {
+          res.status(402).json({
+            x402Version,
+            error: settleResponse.errorReason,
+            accepts: toJsonSafe(paymentRequirements),
+          });
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(402).json({
+          x402Version,
+          error,
+          accepts: toJsonSafe(paymentRequirements),
+        });
+        return;
+      }
+
+      // Payment is now confirmed on-chain, safe to proceed with handler
+      return next();
+    }
+
+    // Default 'after' settlement timing: verify → execute handler → settle
+    // This provides lower latency but creates an authorization replay risk window
     /* eslint-disable @typescript-eslint/no-explicit-any */
     type EndArgs =
       | [cb?: () => void]
