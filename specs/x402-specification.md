@@ -29,8 +29,6 @@ x402 is made up of three core components:
 
 x402 is an open payment standard that enables clients to pay for external resources. The protocol defines standardized message formats and payment flows that can be implemented over various transport layers, providing a standardized mechanism for payments across different payment schemes, networks and transport layers.
 
-This specification is based on the x402 protocol implementation and documentation available in the [Coinbase x402 repository](https://github.com/coinbase/x402). It aims to provide a comprehensive and implementation-agnostic specification for the x402 protocol.
-
 **2. Core Payment Flow**
 
 The x402 protocol follows a standard request-response cycle with payment integration:
@@ -76,7 +74,7 @@ When a resource server requires payment, it responds with a payment required sig
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "arc-testnet",
       "maxAmountRequired": "10000",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -107,19 +105,19 @@ The `PaymentRequirementsResponse` schema contains the following fields:
 
 Each `PaymentRequirements` object in the `accepts` array contains:
 
-| Field Name          | Type     | Required | Description                                                              |
-| ------------------- | -------- | -------- | ------------------------------------------------------------------------ |
-| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                                |
-| `network`           | `string` | Required | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                            |
-| `asset`             | `string` | Required | Token contract address                                                   |
-| `payTo`             | `string` | Required | Recipient wallet address for the payment                                 |
-| `resource`          | `string` | Required | URL of the protected resource                                            |
-| `description`       | `string` | Required | Human-readable description of the resource                               |
-| `mimeType`          | `string` | Optional | MIME type of the expected response                                       |
-| `outputSchema`      | `object` | Optional | JSON schema describing the response format                               |
-| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                              |
-| `extra`             | `object` | Optional | Scheme-specific additional information                                   |
+| Field Name          | Type     | Required | Description                                                             |
+| ------------------- | -------- | -------- | ----------------------------------------------------------------------- |
+| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                               |
+| `network`           | `string` | Required | Blockchain network identifier (e.g., "arc-testnet", "ethereum-mainnet") |
+| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                           |
+| `asset`             | `string` | Required | Token contract address                                                  |
+| `payTo`             | `string` | Required | Recipient wallet address for the payment                                |
+| `resource`          | `string` | Required | URL of the protected resource                                           |
+| `description`       | `string` | Required | Human-readable description of the resource                              |
+| `mimeType`          | `string` | Optional | MIME type of the expected response                                      |
+| `outputSchema`      | `object` | Optional | JSON schema describing the response format                              |
+| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                             |
+| `extra`             | `object` | Optional | Scheme-specific additional information                                  |
 
 **5.2 PaymentPayload Schema**
 
@@ -131,7 +129,7 @@ The client includes payment authorization as JSON in the payment payload field:
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "base-sepolia",
+  "network": "arc-testnet",
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "authorization": {
@@ -152,12 +150,12 @@ The `PaymentPayload` schema contains the following fields:
 
 **All fields are required.**
 
-| Field Name    | Type     | Description                                                              |
-| ------------- | -------- | ------------------------------------------------------------------------ |
-| `x402Version` | `number` | Protocol version identifier (must be 1)                                  |
-| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                                |
-| `network`     | `string` | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `payload`     | `object` | Payment data object                                                      |
+| Field Name    | Type     | Description                                                             |
+| ------------- | -------- | ----------------------------------------------------------------------- |
+| `x402Version` | `number` | Protocol version identifier (must be 1)                                 |
+| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                               |
+| `network`     | `string` | Blockchain network identifier (e.g., "arc-testnet", "ethereum-mainnet") |
+| `payload`     | `object` | Payment data object                                                     |
 
 The `payload` field contains a `SchemePayload` object with scheme-specific data:
 
@@ -191,7 +189,7 @@ After payment settlement, the server includes transaction details in the payment
 {
   "success": true,
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "base-sepolia",
+  "network": "arc-testnet",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
 }
 ```
@@ -229,12 +227,12 @@ The authorization follows the EIP-3009 standard for `transferWithAuthorization`:
 ```javascript
 const authorizationTypes = {
   TransferWithAuthorization: [
-    { name: "from", type: "address" },
-    { name: "to", type: "address" },
-    { name: "value", type: "uint256" },
-    { name: "validAfter", type: "uint256" },
-    { name: "validBefore", type: "uint256" },
-    { name: "nonce", type: "bytes32" },
+    { name: 'from', type: 'address' },
+    { name: 'to', type: 'address' },
+    { name: 'value', type: 'uint256' },
+    { name: 'validAfter', type: 'uint256' },
+    { name: 'validBefore', type: 'uint256' },
+    { name: 'nonce', type: 'bytes32' },
   ],
 };
 ```
@@ -253,18 +251,6 @@ The facilitator performs the following verification steps:
 **6.1.3 Settlement**
 
 Settlement is performed by calling the `transferWithAuthorization` function on the ERC-20 contract with the signature and authorization parameters provided in the payment payload.
-
-**6.2 Exact Scheme (SVM overview)**
-
-For Solana (SVM), the `exact` scheme is implemented using `TransferChecked` for SPL tokens. Critical verification requirements include:
-
-- Enforcing a strict instruction layout (Compute Unit Limit, Compute Unit Price, optional ATA Create, TransferChecked)
-- Ensuring the facilitator fee payer does not appear in any instruction accounts and is not the transfer `authority` or `source`
-- Bounding compute unit price to mitigate gas abuse
-- Verifying the destination ATA matches the `payTo`/`asset` PDA and account existence rules
-- Requiring the transfer `amount` to exactly equal `maxAmountRequired`
-
-Full SVM details are specified in `specs/schemes/exact/scheme_exact_svm.md`.
 
 **7. Facilitator Interface**
 
@@ -294,7 +280,7 @@ Example with actual data:
   "paymentPayload": {
     "x402Version": 1,
     "scheme": "exact",
-    "network": "base-sepolia",
+    "network": "arc-testnet",
     "payload": {
       "signature": "0x...",
       "authorization": {
@@ -309,7 +295,7 @@ Example with actual data:
   },
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base-sepolia",
+    "network": "arc-testnet",
     "maxAmountRequired": "10000",
     "resource": "https://api.example.com/premium-data",
     "description": "Access to premium market data",
@@ -357,7 +343,7 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
   "success": true,
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "base-sepolia"
+  "network": "arc-testnet"
 }
 ```
 
@@ -369,7 +355,7 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
   "errorReason": "insufficient_funds",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
   "transaction": "",
-  "network": "base-sepolia"
+  "network": "arc-testnet"
 }
 ```
 
@@ -385,12 +371,12 @@ Returns the list of payment schemes and networks supported by the facilitator.
     {
       "x402Version": 1,
       "scheme": "exact",
-      "network": "base-sepolia"
+      "network": "arc-testnet"
     },
     {
       "x402Version": 1,
       "scheme": "exact",
-      "network": "base"
+      "network": "base-sepolia"
     },
     {
       "x402Version": 1,
@@ -442,7 +428,7 @@ List discoverable x402 resources from the Bazaar.
       "accepts": [
         {
           "scheme": "exact",
-          "network": "base-sepolia",
+          "network": "arc-testnet",
           "maxAmountRequired": "10000",
           "resource": "https://api.example.com/premium-data",
           "description": "Access to premium market data",
@@ -532,20 +518,13 @@ The x402 protocol implements multiple layers of protection against replay attack
 - **Time Constraints**: Authorizations have explicit valid time windows to limit their lifetime
 - **Signature Verification**: All authorizations are cryptographically signed by the payer
 
-**10.2 Authentication Integration**
-
-The protocol supports integration with authentication systems (e.g., Sign-In with Ethereum - SIWE) to enable authenticated pricing models where verified users receive discounted rates or special access terms.
-
 **11. Implementation Notes**
 
 **11.1 Supported Networks**
 
 The following blockchain networks are currently supported by the reference implementation:
 
-- **`base-sepolia`**: Base Sepolia testnet (Chain ID: 84532)
-- **`base`**: Base mainnet (Chain ID: 8453)
-- **`avalanche-fuji`**: Avalanche Fuji testnet (Chain ID: 43113)
-- **`avalanche`**: Avalanche mainnet (Chain ID: 43114)
+- **`arc-testnet`**: Arc Testnet (Chain ID: 5042002)
 
 **11.2 Supported Assets**
 
@@ -564,17 +543,7 @@ Token support depends on:
 
 The x402 protocol enables diverse monetization scenarios across the internet. While the core protocol is HTTP-native and chain-agnostic, specific implementations can vary based on use case requirements.
 
-### 12.1 AI Agent Integration
-
-AI agents can use x402 to autonomously pay for resources and services. The protocol supports:
-
-- **Automatic payment handling** for resource access
-- **Resource discovery** through facilitator services
-- **Budget management** and spending controls (implementation-specific)
-- **Correlation tracking** for operation grouping (implementation-specific)
-- **Multi-transport support** allowing agents to work across HTTP APIs, MCP tools, and other protocol layers
-
-### 12.2 Human User Applications
+### 12.1 Human User Applications
 
 Applications can implement x402 for:
 
@@ -584,13 +553,11 @@ Applications can implement x402 for:
 - **Authentication-based pricing** (discounted rates for verified users)
 - **Cross-protocol payments** supporting web, desktop, and AI applications
 
-### 12.3 Transport Support
+### 12.2 Transport Support
 
 x402 integrates across multiple transport layers:
 
 - **HTTP**: Web APIs, REST services, server frameworks (Express.js, FastAPI, Next.js, etc.)
-- **MCP (Model Context Protocol)**: AI agent tools and resources
-- **A2A (Agent-to-Agent Protocol)**: Direct agent-to-agent payments
 - **Custom Protocols**: Any request-response based system can implement x402 payment flows
 
 ### 12.3 Server Frameworks
@@ -601,15 +568,12 @@ x402 integrates with popular frameworks:
 - **FastAPI/Flask**: Framework-specific middleware
 - **Hono**: Edge runtime support
 - **Next.js**: Fullstack integration
-- **ai/agents**: AI agent and MCP frameworks
 
 ### 12.4 Client Libraries
 
 Clients across different transports can be enhanced with x402 payment capabilities:
 
 - **HTTP clients**: axios/fetch (browser), httpx/requests (Python), curl (CLI)
-- **MCP clients**: ai/agents MCP Clients
-- **A2A**: x402_a2a (python)
 - **Custom integrations**: Application-specific payment handling
 
 ### 12.5 Advanced Patterns
@@ -622,12 +586,3 @@ The protocol enables sophisticated monetization strategies:
 - **Subscription models** built on micropayments
 
 _Note: Implementation details for specific patterns (such as budget management, correlation tracking, or session handling) are available in application notes and implementation guides. Transport-specific implementation details are covered in the transport specification documents._
-
----
-
-## Version History
-
-| Version | Date      | Changes                     | Author                    |
-| ------- | --------- | --------------------------- | ------------------------- |
-| v0.2    | 2025-10-3 | Transport-agnostic redesign | Ethan Niser               |
-| v0.1    | 2025-8-29 | Initial draft               | [derived from repository] |

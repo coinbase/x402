@@ -85,6 +85,7 @@ payment_middleware.add(
 ### Simple Usage
 
 #### Httpx Client
+
 ```py
 from eth_account import Account
 from x402.clients.httpx import x402HttpxClient
@@ -99,6 +100,7 @@ async with x402HttpxClient(account=account, base_url="https://api.example.com") 
 ```
 
 #### Requests Session Client
+
 ```py
 from eth_account import Account
 from x402.clients.requests import x402_requests
@@ -115,6 +117,7 @@ print(response.content)
 ### Advanced Usage
 
 #### Httpx Extensible Example
+
 ```py
 import httpx
 from eth_account import Account
@@ -127,13 +130,14 @@ account = Account.from_key("your_private_key")
 async with httpx.AsyncClient(base_url="https://api.example.com") as client:
     # Add payment hooks directly to client
     client.event_hooks = x402_payment_hooks(account)
-    
+
     # Make request - payment handling is automatic
     response = await client.get("/protected-endpoint")
     print(await response.aread())
 ```
 
 #### Requests Session Extensible Example
+
 ```py
 import requests
 from eth_account import Account
@@ -190,7 +194,7 @@ async def foo(req: request: Request):
             content=payment_required.model_dump(by_alias=True),
             status_code=402,
         )
-    
+
     payment = PaymentPayload(**json.loads(safe_base64_decode(payment_header)))
 
     verify_response = await facilitator.verify(payment, payment_requirements)
@@ -213,5 +217,3 @@ async def foo(req: request: Request):
             status_code=402,
         )
 ```
-
-For more examples and advanced usage patterns, check out our [examples directory](https://github.com/coinbase/x402/tree/main/examples/python).
