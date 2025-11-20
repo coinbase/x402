@@ -23,7 +23,7 @@ app.middleware("http")(
         path="/weather",
         price="$0.001",
         pay_to_address=ADDRESS,
-        network="base-sepolia",
+        network="arc-testnet",
     )
 )
 
@@ -34,13 +34,13 @@ app.middleware("http")(
         price=TokenAmount(
             amount="10000",
             asset=TokenAsset(
-                address="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                address="0x36000000000000000000000000000000000000000",
                 decimals=6,
                 eip712=EIP712Domain(name="USDC", version="2"),
             ),
         ),
         pay_to_address=ADDRESS,
-        network="base-sepolia",
+        network="arc-testnet",
     )
 )
 

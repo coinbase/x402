@@ -1,7 +1,8 @@
 import { useFacilitator } from "x402/verify";
-import { facilitator } from "@coinbase/x402";
 
-const { list } = useFacilitator(facilitator);
+const { list } = useFacilitator({
+  url: "https://facilitator-testnet.lynox.io",
+});
 
 list().then(response => {
   console.log("\nDiscovered X402 Resources:");

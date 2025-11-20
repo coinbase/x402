@@ -1,11 +1,15 @@
 import json
 import asyncio
 from datetime import datetime
-from x402.facilitator import FacilitatorClient
-from cdp.x402 import create_facilitator_config
+from x402.facilitator import FacilitatorClient, FacilitatorConfig
 
+facilitator_config = FacilitatorConfig(
+    {
+        "url": "https://facilitator-testnet.lynox.io ",
+    }
+)
 # Initialize facilitator client
-facilitator = FacilitatorClient(create_facilitator_config())
+facilitator = FacilitatorClient(facilitator_config)
 
 
 async def main():

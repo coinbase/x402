@@ -66,9 +66,6 @@ async def payment_required_handler(request: Request, exc: PaymentRequiredExcepti
     )
 
 
-
-
-
 def create_exact_payment_requirements(
     price: Price,
     network: SupportedNetworks,
@@ -157,9 +154,10 @@ async def verify_payment(
         raise PaymentRequiredException(error_data)
 
     try:
-        selected_payment_requirement = find_matching_payment_requirements(
-            payment_requirements, decoded_payment
-        ) or payment_requirements[0]
+        selected_payment_requirement = (
+            find_matching_payment_requirements(payment_requirements, decoded_payment)
+            or payment_requirements[0]
+        )
         verify_response = await facilitator.verify(
             decoded_payment, selected_payment_requirement
         )
@@ -209,7 +207,7 @@ async def delayed_settlement(request: Request) -> Dict[str, Any]:
     payment_requirements = [
         create_exact_payment_requirements(
             price="$0.001",
-            network="base-sepolia",
+            network="arc-testnet",
             resource=resource,
             description="Access to weather data (async)",
         )
@@ -272,7 +270,7 @@ async def dynamic_price(request: Request, response: Response) -> Dict[str, Any]:
     payment_requirements = [
         create_exact_payment_requirements(
             price=f"${dynamic_price_value}",
-            network="base-sepolia",
+            network="arc-testnet",
             resource=resource,
             description="Access to weather data",
         )
@@ -319,7 +317,7 @@ async def multiple_payment_requirements(
         # Option 1: USD price (automatically converts to USDC)
         create_exact_payment_requirements(
             price="$0.001",
-            network="base",
+            network="arc-testnet",
             resource=resource,
             description="Access to weather data (USDC)",
         ),
@@ -328,12 +326,12 @@ async def multiple_payment_requirements(
             price=TokenAmount(
                 amount="1000",
                 asset=TokenAsset(
-                    address="0x036CbD53842c5426634e7929541eC2318f3dCF7e",  # USDC on Base Sepolia
+                    address="0x36000000000000000000000000000000000000000",
                     decimals=6,
                     eip712=EIP712Domain(name="USDC", version="2"),
                 ),
             ),
-            network="base-sepolia",
+            network="arc-testnet",
             resource=resource,
             description="Access to weather data (Custom Token)",
         ),
@@ -350,9 +348,10 @@ async def multiple_payment_requirements(
     decoded_payment = PaymentPayload(**decoded_payment_dict)
 
     # Find the matching payment requirement
-    selected_payment_requirement = find_matching_payment_requirements(
-        payment_requirements, decoded_payment
-    ) or payment_requirements[0]
+    selected_payment_requirement = (
+        find_matching_payment_requirements(payment_requirements, decoded_payment)
+        or payment_requirements[0]
+    )
 
     settle_response = await facilitator.settle(
         decoded_payment, selected_payment_requirement

@@ -11,13 +11,6 @@
       "protocolFamily": "evm"
     },
     {
-      "path": "/protected-svm",
-      "method": "GET",
-      "description": "Protected endpoint requiring payment on SVM network",
-      "requiresPayment": true,
-      "protocolFamily": "svm"
-    },
-    {
       "path": "/health",
       "method": "GET",
       "description": "Health check endpoint",
@@ -31,17 +24,7 @@
     }
   ],
   "environment": {
-    "required": [
-      "PORT",
-      "USE_CDP_FACILITATOR",
-      "EVM_NETWORK",
-      "SVM_NETWORK",
-      "EVM_ADDRESS",
-      "SVM_ADDRESS"
-    ],
-    "optional": [
-      "CDP_API_KEY_ID",
-      "CDP_API_KEY_SECRET"
-    ]
+    "required": ["PORT", "EVM_NETWORK", "EVM_ADDRESS"],
+    "optional": ["CDP_API_KEY_ID", "CDP_API_KEY_SECRET"]
   }
 }

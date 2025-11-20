@@ -32,16 +32,17 @@ args.forEach((arg, index) => {
 });
 
 // Parse filter arguments
-const clientFilter = args.find(arg => arg.startsWith('--client='))?.split('=')[1];
-const serverFilter = args.find(arg => arg.startsWith('--server='))?.split('=')[1];
-const networkFilter = isDevMode ? ['base-sepolia', 'solana-devnet'] :
-  args.find(arg => arg.startsWith('--network='))?.split('=')[1] ?
-    [args.find(arg => arg.startsWith('--network='))?.split('=')[1]!] :
-    undefined;
-const prodFilter = isDevMode ? 'false' : args.find(arg => arg.startsWith('--prod='))?.split('=')[1];
+const clientFilter = args.find((arg) => arg.startsWith('--client='))?.split('=')[1];
+const serverFilter = args.find((arg) => arg.startsWith('--server='))?.split('=')[1];
+const networkFilter = isDevMode
+  ? ['base-sepolia', 'solana-devnet', 'arc-testnet']
+  : args.find((arg) => arg.startsWith('--network='))?.split('=')[1]
+  ? [args.find((arg) => arg.startsWith('--network='))?.split('=')[1]!]
+  : undefined;
+const prodFilter = isDevMode ? 'false' : args.find((arg) => arg.startsWith('--prod='))?.split('=')[1];
 
 // Parse log file argument
-const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
+const logFile = args.find((arg) => arg.startsWith('--log-file='))?.split('=')[1];
 
 // Initialize logger
 loggerConfig({ logFile, verbose: isVerbose });
@@ -62,7 +63,11 @@ async function runCallProtectedScenario(
 
     while (healthCheckAttempts < maxHealthCheckAttempts) {
       const healthResult = await server.health();
-      verboseLog(`  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${healthResult.success ? '✅' : '❌'}`);
+      verboseLog(
+        `  🔍 Health check attempt ${healthCheckAttempts + 1}/${maxHealthCheckAttempts}: ${
+          healthResult.success ? '✅' : '❌'
+        }`
+      );
 
       if (healthResult.success) {
         verboseLog(`  ✅ Server is healthy after ${healthCheckAttempts + 1} attempts`);
@@ -70,14 +75,14 @@ async function runCallProtectedScenario(
       }
 
       healthCheckAttempts++;
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
     if (healthCheckAttempts >= maxHealthCheckAttempts) {
       verboseLog(`  ❌ Server failed to become healthy after ${maxHealthCheckAttempts} attempts`);
       return {
         success: false,
-        error: 'Server failed to become healthy after maximum attempts'
+        error: 'Server failed to become healthy after maximum attempts',
       };
     }
 
@@ -91,20 +96,19 @@ async function runCallProtectedScenario(
         success: true,
         data: result.data,
         status_code: result.status_code,
-        payment_response: result.payment_response
+        payment_response: result.payment_response,
       };
     } else {
       return {
         success: false,
-        error: result.error
+        error: result.error,
       };
     }
-
   } catch (error) {
     verboseLog(`  💥 Scenario failed with error: ${error}`);
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     };
   } finally {
     // Cleanup
@@ -161,7 +165,9 @@ async function runTest() {
 
   if (!serverEvmAddress || !serverSvmAddress || !clientEvmPrivateKey || !clientSvmPrivateKey) {
     errorLog('❌ Missing required environment variables:');
-    errorLog('   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set');
+    errorLog(
+      '   SERVER_EVM_ADDRESS, SERVER_SVM_ADDRESS, CLIENT_EVM_PRIVATE_KEY and CLIENT_SVM_PRIVATE_KEY must be set'
+    );
     process.exit(1);
   }
 
@@ -188,7 +194,7 @@ async function runTest() {
     serverFilter && { name: 'Server', value: serverFilter },
     networkFilter && { name: 'Network', value: networkFilter.join(', ') },
     prodFilter && { name: 'Production', value: prodFilter },
-    protocolFamilyFilters.length > 0 && { name: 'Protocol Families', value: protocolFamilyFilters.join(', ') }
+    protocolFamilyFilters.length > 0 && { name: 'Protocol Families', value: protocolFamilyFilters.join(', ') },
   ].filter((f): f is FilterInfo => f !== null && f !== undefined);
 
   log('📊 Test Scenarios');
@@ -196,7 +202,7 @@ async function runTest() {
   log(`Total unfiltered scenarios: ${scenarios.length}`);
   if (activeFilters.length > 0) {
     log(`Active filters (${activeFilters.length}):`);
-    activeFilters.forEach(filter => {
+    activeFilters.forEach((filter) => {
       log(`   - ${filter.name}: ${filter.value}`);
     });
   } else {
@@ -204,12 +210,11 @@ async function runTest() {
   }
 
   // Filter scenarios based on command line arguments
-  const filteredScenarios = scenarios.filter(scenario => {
+  const filteredScenarios = scenarios.filter((scenario) => {
     // Language filter - if languages specified, both client and server must match one of them
     if (languageFilters.length > 0) {
-      const matchesLanguage = languageFilters.some(lang =>
-        scenario.client.config.language.includes(lang) &&
-        scenario.server.config.language.includes(lang)
+      const matchesLanguage = languageFilters.some(
+        (lang) => scenario.client.config.language.includes(lang) && scenario.server.config.language.includes(lang)
       );
       if (!matchesLanguage) return false;
     }
@@ -221,7 +226,7 @@ async function runTest() {
     if (serverFilter && scenario.server.name !== serverFilter) return false;
 
     // Network filter - if set, only run tests for these networks
-    if (networkFilter && !(networkFilter.includes(scenario.facilitatorNetworkCombo.network))) return false;
+    if (networkFilter && !networkFilter.includes(scenario.facilitatorNetworkCombo.network)) return false;
 
     // Protocol family filter - if set, only run tests for these protocol families
     if (protocolFamilyFilters.length > 0 && !protocolFamilyFilters.includes(scenario.protocolFamily)) return false;
@@ -229,7 +234,11 @@ async function runTest() {
     // Production filter - if set, filter by production vs testnet scenarios
     if (prodFilter !== undefined) {
       const isProd = prodFilter.toLowerCase() === 'true';
-      const isTestnetOnly = !scenario.facilitatorNetworkCombo.useCdpFacilitator && (scenario.facilitatorNetworkCombo.network === 'base-sepolia' || scenario.facilitatorNetworkCombo.network === 'solana-devnet');
+      const isTestnetOnly =
+        !scenario.facilitatorNetworkCombo.useCdpFacilitator &&
+        (scenario.facilitatorNetworkCombo.network === 'base-sepolia' ||
+          scenario.facilitatorNetworkCombo.network === 'solana-devnet' ||
+          scenario.facilitatorNetworkCombo.network === 'arc-testnet');
       if (isProd && isTestnetOnly) return false;
       if (!isProd && !isTestnetOnly) return false;
     }
@@ -269,7 +278,7 @@ async function runTest() {
       evmPrivateKey: clientEvmPrivateKey,
       svmPrivateKey: clientSvmPrivateKey,
       serverUrl: scenario.server.proxy.getUrl(),
-      endpointPath: scenario.endpoint.path
+      endpointPath: scenario.endpoint.path,
     };
 
     try {
@@ -329,4 +338,4 @@ async function runTest() {
 }
 
 // Run the test
-runTest().catch(error => errorLog(error));
+runTest().catch((error) => errorLog(error));

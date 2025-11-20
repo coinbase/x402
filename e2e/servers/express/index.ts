@@ -1,18 +1,16 @@
 import express from "express";
-import { Network, paymentMiddleware, SolanaAddress } from "x402-express";
+import { Network, paymentMiddleware } from "x402-express";
 import { facilitator } from "@coinbase/x402";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
+const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const evmNetwork = process.env.EVM_NETWORK as Network;
-const svmNetwork = process.env.SVM_NETWORK as Network;
 const payToEvm = process.env.EVM_ADDRESS as `0x${string}`;
-const payToSvm = process.env.SVM_ADDRESS as SolanaAddress;
 const port = process.env.PORT || "4021";
 
-if (!payToEvm || !evmNetwork) {
+if (!payToEvm || !evmNetwork || !facilitatorUrl) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -28,33 +26,17 @@ app.use(
         network: evmNetwork,
       },
     },
-    useCdpFacilitator ? facilitator : undefined
-  ),
-);
-
-app.use(
-  paymentMiddleware(
-    payToSvm,
-    {
-      "GET /protected-svm": {
-        price: "$0.001",
-        network: svmNetwork,
-      },
-    },
-    useCdpFacilitator ? facilitator : undefined
+    facilitatorUrl
+      ? {
+          url: facilitatorUrl,
+        }
+      : facilitator,
   ),
 );
 
 app.get("/protected", (req, res) => {
   res.json({
     message: "Protected endpoint accessed successfully",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.get("/protected-svm", (req, res) => {
-  res.json({
-    message: "Protected endpoint #2 accessed successfully",
     timestamp: new Date().toISOString(),
   });
 });
@@ -71,4 +53,4 @@ app.post("/close", (req, res) => {
 
 app.listen(parseInt(port), () => {
   console.log(`Server listening at http://localhost:${port}`);
-}); 
+});

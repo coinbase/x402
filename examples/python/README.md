@@ -36,11 +36,6 @@ Examples of different client implementations for interacting with x402-protected
 
 - `discovery/` - Uses the facilitator to list available x402-protected resources (Bazaar) with CDP credentials.
 
-### Fullstack
-
-- `fullstack/fastapi/` - FastAPI application with x402 middleware protecting routes. Includes simple UI assets.
-- `fullstack/flask/` - Flask application with x402 middleware protecting routes. Includes simple UI assets.
-
 ### Servers
 
 Examples of different server implementations:
@@ -48,7 +43,6 @@ Examples of different server implementations:
 - `servers/fastapi/` - FastAPI server using x402 middleware to protect endpoints.
 - `servers/flask/` - Flask server using x402 middleware to protect endpoints.
 - `servers/advanced/` - FastAPI server without middleware: delayed settlement, dynamic pricing, multiple requirements.
-- `servers/mainnet/` - Server example for accepting real USDC on Base mainnet using the Coinbase hosted facilitator.
 
 ## Running Examples
 
@@ -71,9 +65,3 @@ This workspace uses:
 - Python 3.10+ and standard tooling
 
 The examples are independent projects; install dependencies per example before running.
-
-## A note on private keys
-
-The examples in this folder commonly use private keys to sign messages. **Never put a private key with mainnet funds in a `.env` file**. This can result in keys getting checked into codebases and being drained.
-
-Use a development wallet funded on testnets (e.g., Base Sepolia USDC/ETH). You can fund a dev wallet via the testnet [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet).

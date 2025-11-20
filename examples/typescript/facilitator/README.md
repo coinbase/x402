@@ -4,8 +4,8 @@ This is an example implementation of an x402 facilitator service that handles pa
 
 For production use, we recommend using:
 
-- Testnet: https://x402.org/facilitator
-- Production: https://api.cdp.coinbase.com/platform/v2/x402
+- Testnet: https://facilitator-testnet.lynox.io
+- Production: https://facilitator-testnet.lynox.io
 
 ## Overview
 
@@ -25,8 +25,8 @@ This example demonstrates how to:
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum private key and/or Solana private key
-- Base Sepolia testnet ETH and/or Solana Devnet SOL for transaction fees
+- A valid Ethereum private key
+- USDC on Arc Testnet for transaction fees
 
 ## Setup
 
@@ -43,7 +43,6 @@ cd facilitator
 
 ```env
 EVM_PRIVATE_KEY=0xYourPrivateKey
-SVM_PRIVATE_KEY=base58EncodedSolanaPrivateKey
 ```
 
 3. Start the server:
@@ -67,16 +66,8 @@ Sample Response
   {
     "x402Version": 1,
     "scheme": "exact",
-    "network": "base-sepolia"
+    "network": "arc-testnet"
     "extra": {}
-  },
-  {
-    "x402Version": 1,
-    "scheme": "exact",
-    "network": "solana-devnet"
-    "extra": {
-      "feePayer": "SolanaAddress"
-    }
   },
 ]
 ```
@@ -120,4 +111,4 @@ Request body:
 This example is designed to help you understand how x402 facilitators work. For more information about the x402 protocol and its implementation, visit:
 
 - [x402 Protocol Documentation](https://x402.org)
-- [Coinbase Developer Platform](https://www.coinbase.com/developer-platform)
+

@@ -44,7 +44,7 @@ import { config } from "dotenv";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { wrapFetchWithPayment } from "x402-fetch";
-import { baseSepolia } from "viem/chains";
+import { arcTestnet } from "viem/chains";
 
 config();
 
@@ -55,7 +55,7 @@ const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
 const client = createWalletClient({
   account,
   transport: http(),
-  chain: baseSepolia,
+  chain: arcTestnet,
 });
 
 // Wrap fetch with payment handling

@@ -6,3 +6,5 @@ coverage/
 src/client
 **/**/*.json
 *.md
+.env
+.env.*

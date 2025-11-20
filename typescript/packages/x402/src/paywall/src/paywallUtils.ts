@@ -2,7 +2,7 @@ import { selectPaymentRequirements } from "../../client";
 import type { PaymentRequirements } from "../../types/verify";
 import { Network, SupportedEVMNetworks, SupportedSVMNetworks } from "../../types/shared";
 
-const EVM_TESTNETS = new Set<Network>(["base-sepolia"]);
+const EVM_TESTNETS = new Set<Network>(["base-sepolia", "arc-testnet"]);
 const SVM_TESTNETS = new Set<Network>(["solana-devnet"]);
 
 /**
@@ -78,6 +78,8 @@ export function isSvmNetwork(network: string): network is Network {
  */
 export function getNetworkDisplayName(network: Network): string {
   switch (network) {
+    case "arc-testnet":
+      return "Arc Testnet";
     case "base":
       return "Base";
     case "base-sepolia":

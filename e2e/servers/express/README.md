@@ -7,8 +7,7 @@ This is an example Express.js server that demonstrates how to use the `x402-expr
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet) -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
 
 ## Setup
 
@@ -19,6 +18,7 @@ cp .env-local .env
 ```
 
 2. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -27,6 +27,7 @@ cd servers/express
 ```
 
 3. Run the server
+
 ```bash
 pnpm install
 pnpm dev
@@ -37,6 +38,7 @@ pnpm dev
 You can test the server using one of the example clients:
 
 ### Using the Fetch Client
+
 ```bash
 cd ../clients/fetch
 # Ensure .env is setup
@@ -45,6 +47,7 @@ pnpm dev
 ```
 
 ### Using the Axios Client
+
 ```bash
 cd ../clients/axios
 # Ensure .env is setup
@@ -53,25 +56,27 @@ pnpm dev
 ```
 
 These clients will demonstrate how to:
+
 1. Make an initial request to get payment requirements
 2. Process the payment requirements
 3. Make a second request with the payment token
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
+The server includes a single example endpoint at `/protected` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
 
 ## Response Format
 
 ### Payment Required (402)
+
 ```json
 {
   "error": "X-PAYMENT header is required",
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base",
+    "network": "arc-testnet",
     "maxAmountRequired": "1000",
-    "resource": "http://localhost:4021/weather",
+    "resource": "http://localhost:4021/protected",
     "description": "",
     "mimeType": "",
     "payTo": "0xYourAddress",
@@ -84,6 +89,7 @@ The server includes a single example endpoint at `/weather` that requires a paym
 ```
 
 ### Successful Response
+
 ```ts
 // Body
 {
@@ -105,30 +111,27 @@ To add more paid endpoints, follow this pattern:
 ```typescript
 // First, configure the payment middleware with your routes
 app.use(
-  paymentMiddleware(
-    payTo,
-    {
-      // Define your routes and their payment requirements
-      "GET /your-endpoint": {
-        price: "$0.10",
-        network: "base-sepolia",
-      },
-      "/premium/*": {
-        price: {
-          amount: "100000",
-          asset: {
-            address: "0xabc",
-            decimals: 18,
-            eip712: {
-              name: "WETH",
-              version: "1",
-            },
+  paymentMiddleware(payTo, {
+    // Define your routes and their payment requirements
+    "GET /your-endpoint": {
+      price: "$0.10",
+      network: "arc-testnet",
+    },
+    "/premium/*": {
+      price: {
+        amount: "100000",
+        asset: {
+          address: "0xabc",
+          decimals: 6,
+          eip712: {
+            name: "USDC",
+            version: "1",
           },
         },
-        network: "base-sepolia",
       },
+      network: "arc-testnet",
     },
-  ),
+  }),
 );
 
 // Then define your routes as normal

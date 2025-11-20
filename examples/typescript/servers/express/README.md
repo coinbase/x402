@@ -7,8 +7,6 @@ This is an example Express.js server that demonstrates how to use the `x402-expr
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
 
 ## Setup
 
@@ -69,7 +67,7 @@ The server includes a single example endpoint at `/weather` that requires a paym
   "error": "X-PAYMENT header is required",
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base",
+    "network": "arc-testnet",
     "maxAmountRequired": "1000",
     "resource": "http://localhost:4021/weather",
     "description": "",
@@ -111,21 +109,21 @@ app.use(
       // Define your routes and their payment requirements
       "GET /your-endpoint": {
         price: "$0.10",
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
       "/premium/*": {
         price: {
           amount: "100000",
           asset: {
             address: "0xabc",
-            decimals: 18,
+            decimals: 6,
             eip712: {
-              name: "WETH",
+              name: "USDC",
               version: "1",
             },
           },
         },
-        network: "base-sepolia",
+        network: "arc-testnet",
       },
     },
   ),

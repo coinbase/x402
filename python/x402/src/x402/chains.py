@@ -1,4 +1,5 @@
 NETWORK_TO_ID = {
+    "arc-testnet": "5042002",
     "base-sepolia": "84532",
     "base": "8453",
     "avalanche-fuji": "43113",
@@ -21,6 +22,15 @@ def get_chain_id(network: str) -> str:
 
 
 KNOWN_TOKENS = {
+    "5042002": [
+        {
+            "human_name": "usdc",
+            "address": "0x3600000000000000000000000000000000000000",
+            "name": "USDC",
+            "decimals": 6,
+            "version": "2",
+        }
+    ],
     "84532": [
         {
             "human_name": "usdc",
