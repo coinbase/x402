@@ -1268,12 +1268,12 @@ importers:
       '@solana/kit':
         specifier: ^2.1.1
         version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
-      '@x402/axios':
-        specifier: workspace:*
-        version: link:../../../../typescript/packages/http/axios
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/fetch':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/http/fetch
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2410,6 +2410,9 @@ importers:
 
   servers/express:
     dependencies:
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
@@ -2471,6 +2474,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.14.0
         version: 1.19.6(hono@4.10.6)
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/core
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm

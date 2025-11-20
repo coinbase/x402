@@ -1,5 +1,5 @@
 {
-  "name": "fetch",
+  "name": "axios",
   "type": "client",
   "language": "typescript",
   "protocolFamilies": [
