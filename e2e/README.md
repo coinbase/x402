@@ -5,6 +5,7 @@ End-to-end test suite for validating client-server-facilitator communication acr
 ## Environment Variables
 
 Required:
+
 - `ADDRESS`: Server wallet address
 - `PRIVATE_KEY`: Client private key (when running single client)
 
@@ -21,19 +22,19 @@ pnpm test -d -v               # Test with verbose logging
 # Language filters
 pnpm test -d -ts              # Test TypeScript implementations
 pnpm test -d -py              # Test Python implementations
-pnpm test -d -go              # Test Go implementations
 ```
 
 ## Filtering Tests
 
 ### Implementation Filters
+
 ```bash
 --client=<name>               # Test specific client
 --server=<name>              # Test specific server
 
 # Available implementations
 Clients: httpx, axios, fetch, requests
-Servers: express, fastapi, flask, gin, hono, next
+Servers: express, fastapi, flask, hono, next
 
 # Examples
 pnpm test -d -ts --client=axios     # Test TypeScript axios client
@@ -41,24 +42,24 @@ pnpm test -d -py --server=fastapi   # Test Python FastAPI server
 ```
 
 ### Language Flags (can combine)
+
 ```bash
 -ts, --typescript              # TypeScript implementations
 -py, --python                  # Python implementations
--go, --go                      # Go implementations
 
 # Examples
 pnpm test -ts -py             # Test TypeScript and Python together
-pnpm test -py -go             # Test Python and Go together
 ```
 
 ### Environment Filters
+
 ```bash
---network=<name>              # base or base-sepolia
---prod=<true|false>          # true=CDP facilitator, false=no CDP
+--network=<name>              # arc-testnet
+--prod=<true|false>
 
 # Examples
 pnpm test --prod=true        # Test production scenarios
-pnpm test --network=base     # Test on base network
+pnpm test --network=arc-testnet     # Test on arc-testnet network
 ```
 
 ### Common Workflows
@@ -72,17 +73,16 @@ pnpm test -d -py --client=httpx      # Python httpx client development
 
 # Cross-Language Testing
 pnpm test -ts -py                    # Test TypeScript/Python compatibility
-pnpm test -d -py -go                 # Test Python/Go on testnet
 
 # Production Testing
 pnpm test --prod=true -ts            # Test TypeScript in production
-pnpm test --network=base -py         # Test Python on base network
+pnpm test --network=arc-testnet -py         # Test Python on arc-testnet network
 ```
 
 ### Environment Options
 
 ```bash
--d, --dev                  # Development mode (testnet, no CDP)
+-d, --dev                  # Development mode (testnet)
 -v, --verbose              # Detailed logging
 --log-file=<path>          # Save output to file
 ```

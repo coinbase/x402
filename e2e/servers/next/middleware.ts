@@ -1,6 +1,5 @@
 import { Address } from "viem";
 import { paymentMiddleware, Network } from "x402-next";
-import { facilitator } from "@coinbase/x402";
 
 const facilitatorUrl = process.env.FACILITATOR_URL as `${string}://${string}`;
 const payTo = process.env.EVM_ADDRESS as Address;
@@ -11,7 +10,7 @@ const facilitatorConfig = facilitatorUrl
   ? {
       url: facilitatorUrl,
     }
-  : facilitator;
+  : undefined;
 
 export const middleware = paymentMiddleware(
   payTo,

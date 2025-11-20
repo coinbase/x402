@@ -44,7 +44,7 @@ import { POST } from "./api/session-token";
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: 'base-sepolia'
+ *     network: 'arc-testnet'
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * );
@@ -55,7 +55,7 @@ import { POST } from "./api/session-token";
  *   {
  *     '/protected/*': {
  *       price: '$0.001', // USDC amount in dollars
- *       network: 'base',
+ *       network: 'arc-testnet',
  *       config: {
  *         description: 'Access to protected content'
  *       }
