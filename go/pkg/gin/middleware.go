@@ -179,7 +179,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		paymentPayload.X402Version = x402Version
 
 		// Verify payment
-		response, err := facilitatorClient.Verify(paymentPayload, paymentRequirements)
+		response, err := facilitatorClient.Verify(c.Request.Context(), paymentPayload, paymentRequirements)
 		if err != nil {
 			fmt.Println("failed to verify", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -218,7 +218,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		}
 
 		// Settle payment
-		settleResponse, err := facilitatorClient.Settle(paymentPayload, paymentRequirements)
+		settleResponse, err := facilitatorClient.Settle(c.Request.Context(), paymentPayload, paymentRequirements)
 		if err != nil {
 			fmt.Println("Settlement failed:", err)
 			// Reset the response writer
