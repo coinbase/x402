@@ -50,15 +50,15 @@ const (
 
 // Request/Response types
 type VerifyRequest struct {
-	X402Version         int                      `json:"x402Version"`
-	PaymentPayload      x402.PaymentPayload      `json:"paymentPayload"`
-	PaymentRequirements x402.PaymentRequirements `json:"paymentRequirements"`
+	X402Version         int             `json:"x402Version"`
+	PaymentPayload      json.RawMessage `json:"paymentPayload"`
+	PaymentRequirements json.RawMessage `json:"paymentRequirements"`
 }
 
 type SettleRequest struct {
-	X402Version         int                      `json:"x402Version"`
-	PaymentPayload      x402.PaymentPayload      `json:"paymentPayload"`
-	PaymentRequirements x402.PaymentRequirements `json:"paymentRequirements"`
+	X402Version         int             `json:"x402Version"`
+	PaymentPayload      json.RawMessage `json:"paymentPayload"`
+	PaymentRequirements json.RawMessage `json:"paymentRequirements"`
 }
 
 // Real EVM signer for facilitator using ethclient
@@ -890,23 +890,12 @@ func main() {
 		// - Track verified payment (OnAfterVerify)
 		// - Extract and catalog discovery info (OnAfterVerify)
 		
-		// Marshal to bytes for facilitator API (network boundary)
-		payloadBytes, err := json.Marshal(req.PaymentPayload)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
-			return
-		}
-		
-		requirementsBytes, err := json.Marshal(req.PaymentRequirements)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid requirements"})
-			return
-		}
-		
+		// json.RawMessage is already []byte, so we can use it directly
+		// This preserves the exact JSON without re-marshaling (important for v1/v2 compatibility)
 		response, err := facilitator.Verify(
 			context.Background(),
-			payloadBytes,
-			requirementsBytes,
+			[]byte(req.PaymentPayload),
+			[]byte(req.PaymentRequirements),
 		)
 		if err != nil {
 			log.Printf("Verify error: %v", err)
@@ -955,29 +944,13 @@ func main() {
 			return
 		}
 
-		// Debug: Log parsed request
-		log.Printf("🔍 [FACILITATOR SETTLE] Parsed request:")
-		log.Printf("   X402Version: %d", req.X402Version)
-		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
-		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
 
-		// Marshal to bytes for facilitator API (network boundary)
-		payloadBytes, err := json.Marshal(req.PaymentPayload)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
-			return
-		}
-		
-		requirementsBytes, err := json.Marshal(req.PaymentRequirements)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid requirements"})
-			return
-		}
-
+		// json.RawMessage is already []byte, so we can use it directly
+		// This preserves the exact JSON without re-marshaling (important for v1/v2 compatibility)
 		response, err := facilitator.Settle(
 			context.Background(),
-			payloadBytes,
-			requirementsBytes,
+			[]byte(req.PaymentPayload),
+			[]byte(req.PaymentRequirements),
 		)
 
 		// Debug: Log response
@@ -992,7 +965,7 @@ func main() {
 				c.JSON(http.StatusOK, x402.SettleResponse{
 					Success:     false,
 					ErrorReason: strings.TrimPrefix(err.Error(), "settlement aborted: "),
-					Network:     x402.Network(req.PaymentPayload.Accepted.Network),
+					Network:     "", // Network not available in error case since we don't parse the raw JSON
 				})
 				return
 			}
