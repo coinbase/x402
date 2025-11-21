@@ -66,7 +66,6 @@ export async function verify<
 
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
-  // Check if this is an undeployed smart wallet
   // EIP-3009 requires on-chain signature verification which needs the wallet to be deployed
   const payerAddress = exactEvmPayload.authorization.from as Address;
   const bytecode = await client.getCode({ address: payerAddress });
