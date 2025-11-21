@@ -11,7 +11,6 @@ import {
   Address,
   assertIsInstructionWithAccounts,
   assertIsInstructionWithData,
-  CompilableTransactionMessage,
   decompileTransactionMessage,
   fetchEncodedAccounts,
   getCompiledTransactionMessageDecoder,
@@ -24,6 +23,9 @@ import {
   AccountLookupMeta,
   AccountMeta,
   InstructionWithData,
+  BaseTransactionMessage,
+  TransactionMessageWithFeePayer,
+  TransactionMessageWithLifetime,
 } from "@solana/kit";
 import {
   parseSetComputeUnitLimitInstruction,
@@ -168,9 +170,7 @@ export async function transactionIntrospection(
   const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
     decodedTransaction.messageBytes,
   );
-  const transactionMessage: CompilableTransactionMessage = decompileTransactionMessage(
-    compiledTransactionMessage,
-  );
+  const transactionMessage = decompileTransactionMessage(compiledTransactionMessage);
 
   await verifyTransactionInstructions(transactionMessage, paymentRequirements, signer, rpc);
 }
@@ -185,7 +185,9 @@ export async function transactionIntrospection(
  * @throws Error if the transaction does not contain the expected instructions
  */
 export async function verifyTransactionInstructions(
-  transactionMessage: CompilableTransactionMessage,
+  transactionMessage: BaseTransactionMessage &
+    TransactionMessageWithFeePayer &
+    TransactionMessageWithLifetime,
   paymentRequirements: PaymentRequirements,
   signer: TransactionSigner,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
