@@ -2,17 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
-import {
-  computeRoutePatterns,
-  findMatchingRoute,
-} from "x402/shared";
-import {
-  FacilitatorConfig,
-  Resource,
-  RoutesConfig,
-  RouteConfig,
-  PaywallConfig,
-} from "x402/types";
+import { computeRoutePatterns, findMatchingRoute } from "x402/shared";
+import { FacilitatorConfig, Resource, RoutesConfig, RouteConfig, PaywallConfig } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
 import { POST } from "./api/session-token";
@@ -109,33 +100,21 @@ export function paymentMiddleware(
     }
 
     const { price, network, config = {} } = matchingRoute.config;
-    const {
-      customPaywallHtml,
-      resource,
-      errorMessages,
-    } = config;
+    const { customPaywallHtml, resource, errorMessages } = config;
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
 
     // Build payment requirements
-    let paymentRequirements;
-    try {
-      paymentRequirements = await buildPaymentRequirements(
-        payTo,
-        price,
-        network,
-        config,
-        resourceUrl,
-        method,
-        supported,
-      );
-    } catch (error) {
-      return new NextResponse(
-        error instanceof Error ? error.message : "Failed to build payment requirements",
-        { status: 500 },
-      );
-    }
+    const paymentRequirements = await buildPaymentRequirements(
+      payTo,
+      price,
+      network,
+      config,
+      resourceUrl,
+      method,
+      supported,
+    );
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");
@@ -190,7 +169,7 @@ export function paymentMiddleware(
 
 /**
  * Creates a payment wrapper for Next.js App Router API routes
- * 
+ *
  * Unlike paymentMiddleware, this wrapper guarantees payment settlement only after
  * successful API responses (status < 400).
  *
@@ -239,33 +218,21 @@ export function withX402<T = unknown>(
     const method = request.method.toUpperCase();
     const pathname = request.nextUrl.pathname;
     const { price, network, config = {} } = routeConfig;
-    const {
-      customPaywallHtml,
-      resource,
-      errorMessages,
-    } = config;
+    const { customPaywallHtml, resource, errorMessages } = config;
 
     const resourceUrl =
       resource || (`${request.nextUrl.protocol}//${request.nextUrl.host}${pathname}` as Resource);
 
     // Build payment requirements
-    let paymentRequirements;
-    try {
-      paymentRequirements = await buildPaymentRequirements(
-        payTo,
-        price,
-        network,
-        config,
-        resourceUrl,
-        method,
-        supported,
-      );
-    } catch (error) {
-      return new NextResponse(
-        error instanceof Error ? error.message : "Failed to build payment requirements",
-        { status: 500 },
-      ) as NextResponse<T>;
-    }
+    const paymentRequirements = await buildPaymentRequirements(
+      payTo,
+      price,
+      network,
+      config,
+      resourceUrl,
+      method,
+      supported,
+    );
 
     // Check for payment header
     const paymentHeader = request.headers.get("X-PAYMENT");
@@ -306,7 +273,7 @@ export function withX402<T = unknown>(
     }
 
     // Settle payment after successful response
-    return await settlePayment(
+    return (await settlePayment(
       response,
       decodedPayment,
       selectedRequirements,
@@ -314,7 +281,7 @@ export function withX402<T = unknown>(
       x402Version,
       errorMessages,
       paymentRequirements,
-    ) as NextResponse<T>;
+    )) as NextResponse<T>;
   };
 }
 
@@ -327,7 +294,6 @@ export type {
   RoutesConfig,
 } from "x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
-export type { Address } from "viem";
 
 // Export session token API handlers for Onramp
 export { POST };

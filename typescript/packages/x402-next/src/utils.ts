@@ -18,7 +18,6 @@ import {
   ERC20TokenAmount,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
-  RouteConfig,
   Network,
   Price,
   PaymentMiddlewareConfig,
@@ -27,6 +26,15 @@ import { safeBase64Encode } from "x402/shared";
 
 /**
  * Builds payment requirements from route configuration
+ *
+ * @param payTo - The address to receive payment
+ * @param price - The price for the resource
+ * @param network - The blockchain network to use
+ * @param config - The payment middleware configuration
+ * @param resourceUrl - The URL of the resource being protected
+ * @param method - The HTTP method for the resource
+ * @param supported - Function that returns supported payment kinds
+ * @returns Promise resolving to an array of payment requirements
  */
 export async function buildPaymentRequirements(
   payTo: Address | SolanaAddress,
@@ -35,16 +43,12 @@ export async function buildPaymentRequirements(
   config: PaymentMiddlewareConfig,
   resourceUrl: Resource,
   method: string,
-  supported: () => Promise<{ kinds: Array<{ network: string; scheme: string; extra?: { feePayer?: string } }> }>,
+  supported: () => Promise<{
+    kinds: Array<{ network: string; scheme: string; extra?: { feePayer?: string } }>;
+  }>,
 ): Promise<PaymentRequirements[]> {
-  const {
-    description,
-    mimeType,
-    maxTimeoutSeconds,
-    inputSchema,
-    outputSchema,
-    discoverable,
-  } = config;
+  const { description, mimeType, maxTimeoutSeconds, inputSchema, outputSchema, discoverable } =
+    config;
 
   const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
   if ("error" in atomicAmountForAsset) {
@@ -130,6 +134,16 @@ export async function buildPaymentRequirements(
 
 /**
  * Handles missing payment header by returning 402 response
+ *
+ * @param request - The Next.js request object
+ * @param price - The price for the resource
+ * @param network - The blockchain network to use
+ * @param paymentRequirements - Array of payment requirements
+ * @param x402Version - The X402 protocol version
+ * @param errorMessages - Custom error messages configuration
+ * @param customPaywallHtml - Custom HTML for the paywall
+ * @param paywall - Paywall configuration options
+ * @returns NextResponse with 402 status and payment requirements
  */
 export function handleMissingPaymentHeader(
   request: NextRequest,
@@ -190,14 +204,27 @@ export function handleMissingPaymentHeader(
 
 /**
  * Verifies payment and returns decoded payment or error response
+ *
+ * @param paymentHeader - The X-PAYMENT header value
+ * @param paymentRequirements - Array of payment requirements
+ * @param x402Version - The X402 protocol version
+ * @param verify - Function to verify the payment
+ * @param errorMessages - Custom error messages configuration
+ * @returns Promise resolving to decoded payment and requirements, or an error response
  */
 export async function verifyPayment(
   paymentHeader: string,
   paymentRequirements: PaymentRequirements[],
   x402Version: number,
-  verify: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<{ isValid: boolean; invalidReason?: string; payer?: string }>,
+  verify: (
+    payment: PaymentPayload,
+    requirements: PaymentRequirements,
+  ) => Promise<{ isValid: boolean; invalidReason?: string; payer?: string }>,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
-): Promise<{ decodedPayment: PaymentPayload; selectedRequirements: PaymentRequirements } | { error: NextResponse }> {
+): Promise<
+  | { decodedPayment: PaymentPayload; selectedRequirements: PaymentRequirements }
+  | { error: NextResponse }
+> {
   // Decode payment
   let decodedPayment: PaymentPayload;
   try {
@@ -209,7 +236,8 @@ export async function verifyPayment(
         JSON.stringify({
           x402Version,
           error:
-            errorMessages?.invalidPayment || (error instanceof Error ? error.message : "Invalid payment"),
+            errorMessages?.invalidPayment ||
+            (error instanceof Error ? error.message : "Invalid payment"),
           accepts: paymentRequirements,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
@@ -278,12 +306,24 @@ export async function verifyPayment(
 
 /**
  * Settles payment and adds response header
+ *
+ * @param response - The Next.js response object
+ * @param decodedPayment - The decoded payment payload
+ * @param selectedPaymentRequirements - The selected payment requirements
+ * @param settle - Function to settle the payment
+ * @param x402Version - The X402 protocol version
+ * @param errorMessages - Custom error messages configuration
+ * @param paymentRequirements - Array of payment requirements for error responses
+ * @returns Promise resolving to the response with settlement header or error response
  */
 export async function settlePayment(
   response: NextResponse,
   decodedPayment: PaymentPayload,
   selectedPaymentRequirements: PaymentRequirements,
-  settle: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<{ success: boolean; transaction?: string; network?: string; payer?: string }>,
+  settle: (
+    payment: PaymentPayload,
+    requirements: PaymentRequirements,
+  ) => Promise<{ success: boolean; transaction?: string; network?: string; payer?: string }>,
   x402Version: number,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
   paymentRequirements?: PaymentRequirements[],
@@ -309,13 +349,10 @@ export async function settlePayment(
     return new NextResponse(
       JSON.stringify({
         x402Version,
-        error:
-          errorMessages?.settlementFailed ||
-          (error instanceof Error ? error.message : "Settlement failed"),
+        error: errorMessages?.settlementFailed || error,
         accepts: paymentRequirements,
       }),
       { status: 402, headers: { "Content-Type": "application/json" } },
     );
   }
 }
-

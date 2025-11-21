@@ -13,8 +13,6 @@ const network = process.env.NETWORK as Network;
  * @returns JSON response with weather data
  */
 const handler = async (_: NextRequest) => {
-  console.log(`[ROUTE ${new Date().toISOString()}] /api/weather handler executing`);
-
   const response = NextResponse.json(
     {
       report: {
@@ -22,11 +20,7 @@ const handler = async (_: NextRequest) => {
         temperature: 70,
       },
     },
-    { status: 500 },
-  );
-
-  console.log(
-    `[ROUTE ${new Date().toISOString()}] /api/weather handler completed (NextResponse.json called)`,
+    { status: 200 },
   );
   return response;
 };
