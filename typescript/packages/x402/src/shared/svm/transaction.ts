@@ -13,6 +13,9 @@ import {
   SolanaRpcApiMainnet,
   Transaction,
   CompiledTransactionMessage,
+  TransactionWithLifetime,
+  TransactionWithinSizeLimit,
+  type SignatureDictionary,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
@@ -116,20 +119,22 @@ export async function signAndSimulateTransaction(
  * @param transaction - Compiled transaction to sign
  * @returns The transaction including any signatures added by the signer
  */
-export async function signTransactionWithSigner(
+export async function signTransactionWithSigner<TTransaction extends Transaction>(
   signer: TransactionSigner,
-  transaction: Transaction,
-): Promise<Transaction> {
+  transaction: TTransaction,
+): Promise<TTransaction> {
   if (isTransactionModifyingSigner(signer)) {
     const [modifiedTransaction] = await signer.modifyAndSignTransactions([transaction]);
     if (!modifiedTransaction) {
       throw new Error("transaction_signer_failed_to_return_transaction");
     }
-    return modifiedTransaction;
+    return modifiedTransaction as TTransaction;
   }
 
   if (isTransactionPartialSigner(signer)) {
-    const [signatures] = await signer.signTransactions([transaction]);
+    const [signatures] = await signer.signTransactions([
+      transaction as Transaction & TransactionWithinSizeLimit & TransactionWithLifetime,
+    ]);
     if (!signatures) {
       throw new Error("transaction_signer_failed_to_return_signatures");
     }
@@ -146,15 +151,15 @@ export async function signTransactionWithSigner(
  * @param signatures - Map of addresses to new signature bytes
  * @returns A frozen transaction containing the merged signature map
  */
-function mergeTransactionSignatures(
-  transaction: Transaction,
-  signatures: Record<string, Uint8Array>,
-): Transaction {
+function mergeTransactionSignatures<TTransaction extends Transaction>(
+  transaction: TTransaction,
+  signatures: SignatureDictionary,
+): TTransaction {
   return Object.freeze({
     ...transaction,
     signatures: Object.freeze({
       ...transaction.signatures,
       ...signatures,
     }),
-  });
+  }) as TTransaction;
 }
