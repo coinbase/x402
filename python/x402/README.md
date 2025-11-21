@@ -5,7 +5,7 @@ Python package for the x402 payments protocol.
 ## Installation
 
 ```bash
-pip install x402
+pip install lynox-x402
 ```
 
 ## Overview

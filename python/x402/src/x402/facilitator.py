@@ -28,7 +28,7 @@ class FacilitatorConfig(TypedDict, total=False):
 class FacilitatorClient:
     def __init__(self, config: Optional[FacilitatorConfig] = None):
         if config is None:
-            config = {"url": "https://x402.org/facilitator"}
+            config = {"url": "https://facilitator-testnet.lynox.io"}
 
         # Validate URL format
         url = config.get("url", "")
