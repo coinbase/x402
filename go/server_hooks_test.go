@@ -4,7 +4,42 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/coinbase/x402/go/types"
 )
+
+// Mock facilitator client for testing
+type mockFacilitatorClient struct {
+	verify func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error)
+	settle func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error)
+	kinds  []SupportedKind // Configurable supported kinds
+}
+
+func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+	if m.verify != nil {
+		return m.verify(ctx, payloadBytes, requirementsBytes)
+	}
+	return VerifyResponse{IsValid: true, Payer: "0xmock"}, nil // Default to success
+}
+
+func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+	if m.settle != nil {
+		return m.settle(ctx, payloadBytes, requirementsBytes)
+	}
+	return SettleResponse{Success: true, Transaction: "0xmock"}, nil // Default to success
+}
+
+func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (SupportedResponse, error) {
+	if m.kinds != nil {
+		return SupportedResponse{Kinds: m.kinds}, nil
+	}
+	// Default kinds for backward compatibility with server_hooks tests
+	return SupportedResponse{
+		Kinds: []SupportedKind{
+			{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+		},
+	}, nil
+}
 
 // Test BeforeVerify hook - abort verification
 func TestBeforeVerifyHook_Abort(t *testing.T) {
@@ -19,10 +54,13 @@ func TestBeforeVerifyHook_Abort(t *testing.T) {
 	})
 
 	// Try to verify (should be aborted by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err != nil {
@@ -52,10 +90,13 @@ func TestBeforeVerifyHook_Continue(t *testing.T) {
 	})
 
 	// Try to verify (will fail due to no facilitators, but hook should be called)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	_, _ = server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if !called {
@@ -82,13 +123,19 @@ func TestAfterVerifyHook(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	// Setup facilitator in the map
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
-	// Verify payment
+	// Verify payment (typed)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err != nil {
@@ -127,13 +174,18 @@ func TestOnVerifyFailureHook_Recover(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
 	// Verify payment (should be recovered by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err != nil {
@@ -165,13 +217,18 @@ func TestOnVerifyFailureHook_NoRecover(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
 	// Verify payment (should fail)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	_, err := server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err == nil {
@@ -196,10 +253,13 @@ func TestBeforeSettleHook_Abort(t *testing.T) {
 	})
 
 	// Try to settle (should be aborted by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.SettlePayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err == nil {
@@ -210,7 +270,7 @@ func TestBeforeSettleHook_Abort(t *testing.T) {
 		t.Error("Expected settlement to be aborted (Success=false)")
 	}
 
-	if result.ErrorReason != "Settlement aborted: Insufficient funds" {
+	if result.ErrorReason != "Insufficient funds" {
 		t.Errorf("Expected specific error reason, got '%s'", result.ErrorReason)
 	}
 }
@@ -237,13 +297,18 @@ func TestAfterSettleHook(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
 	// Settle payment
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.SettlePayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err != nil {
@@ -282,13 +347,18 @@ func TestOnSettleFailureHook_Recover(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
 	// Settle payment (should be recovered by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	result, err := server.SettlePayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if err != nil {
@@ -338,13 +408,18 @@ func TestMultipleHooks_ExecutionOrder(t *testing.T) {
 		},
 	}
 
-	server.facilitatorClients = []FacilitatorClient{mockFacilitator}
+	server.facilitatorClients[Network("eip155:8453")] = map[string]FacilitatorClient{
+		"exact": mockFacilitator,
+	}
 
 	// Verify payment
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	_, _ = server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	// Check execution order
@@ -374,10 +449,13 @@ func TestHooks_FunctionalOptions(t *testing.T) {
 	)
 
 	// Verify
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
 	_, _ = server.VerifyPayment(
 		context.Background(),
-		[]byte(`{"x402Version":2}`),
-		[]byte(`{"scheme":"exact","network":"eip155:8453"}`),
+		payload,
+		requirements,
 	)
 
 	if !hookCalled {

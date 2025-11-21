@@ -40,11 +40,11 @@ export function registerExactEvmScheme(
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      server.registerScheme(network, new ExactEvmScheme());
+      server.register(network, new ExactEvmScheme());
     });
   } else {
     // Register wildcard for all EVM chains
-    server.registerScheme("eip155:*", new ExactEvmScheme());
+    server.register("eip155:*", new ExactEvmScheme());
   }
 
   return server;

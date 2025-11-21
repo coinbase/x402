@@ -9,10 +9,14 @@ import (
 // ============================================================================
 
 // FacilitatorVerifyContext contains information passed to facilitator verify hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type FacilitatorVerifyContext struct {
-	Ctx                 context.Context
-	PaymentPayload      PaymentPayload
-	PaymentRequirements PaymentRequirements
+	Ctx               context.Context
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // FacilitatorVerifyResultContext contains facilitator verify operation result and context
@@ -28,10 +32,14 @@ type FacilitatorVerifyFailureContext struct {
 }
 
 // FacilitatorSettleContext contains information passed to facilitator settle hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type FacilitatorSettleContext struct {
-	Ctx                 context.Context
-	PaymentPayload      PaymentPayload
-	PaymentRequirements PaymentRequirements
+	Ctx               context.Context
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // FacilitatorSettleResultContext contains facilitator settle operation result and context

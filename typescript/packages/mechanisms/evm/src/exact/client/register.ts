@@ -59,16 +59,16 @@ export function registerExactEvmScheme(client: x402Client, config: EvmClientConf
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      client.registerScheme(network, new ExactEvmScheme(config.signer));
+      client.register(network, new ExactEvmScheme(config.signer));
     });
   } else {
     // Register wildcard for all EVM chains
-    client.registerScheme("eip155:*", new ExactEvmScheme(config.signer));
+    client.register("eip155:*", new ExactEvmScheme(config.signer));
   }
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
-    client.registerSchemeV1(network as Network, new ExactEvmSchemeV1(config.signer));
+    client.registerV1(network as Network, new ExactEvmSchemeV1(config.signer));
   });
 
   // Apply policies if provided

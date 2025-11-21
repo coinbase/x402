@@ -50,14 +50,12 @@ app.use(
 );
 
 app.get("/weather", (req, res) => {
-  // Demonstrate vulnerability: use streaming methods that bypass middleware interception
-  res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.write(JSON.stringify({
+  res.send({
     report: {
       weather: "sunny",
       temperature: 70,
     },
-  }));
+  });
 });
 
 app.get("/premium/content", (req, res) => {

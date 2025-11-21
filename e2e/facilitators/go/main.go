@@ -17,7 +17,6 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/bazaar"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
 	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
@@ -700,29 +699,100 @@ func main() {
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
 			// Hook 1: Track verified payment for verify→settle flow validation
 			if ctx.Result.IsValid {
-				paymentHash := createPaymentHash(ctx.PaymentPayload)
+				// Hooks now use view interfaces - create hash from payload view
+				paymentHash := fmt.Sprintf("v%d-%s-%s", 
+					ctx.Payload.GetVersion(),
+					ctx.Payload.GetScheme(), 
+					ctx.Payload.GetNetwork())
 				verificationMutex.Lock()
 				verifiedPayments[paymentHash] = time.Now().Unix()
 				verificationMutex.Unlock()
 				
-				// Hook 2: Extract and catalog bazaar discovery info
-				discovered, err := bazaar.ExtractDiscoveryInfo(ctx.PaymentPayload, ctx.PaymentRequirements, true)
-				if err == nil && discovered != nil {
-					bazaarCatalog.CatalogResource(
-						discovered.ResourceURL,
-						discovered.Method,
-						discovered.X402Version,
-						discovered.DiscoveryInfo,
-						ctx.PaymentRequirements,
-					)
-					log.Printf("📦 Discovered resource: %s %s", discovered.Method, discovered.ResourceURL)
+				log.Printf("✅ Payment verified: %s", paymentHash)
+				
+				// Hook 2: Extract and catalog Bazaar discovery info (uses raw bytes escape hatch)
+				version := ctx.Payload.GetVersion()
+				var resourceURL string
+				var discoveryExt map[string]interface{}
+				
+				if version == 2 {
+					// V2: Unmarshal payload to get Extensions and Resource
+					var payloadV2 x402.PaymentPayload
+					if err := json.Unmarshal(ctx.PayloadBytes, &payloadV2); err == nil {
+						if payloadV2.Resource != nil {
+							resourceURL = payloadV2.Resource.URL
+						}
+						if payloadV2.Extensions != nil {
+							if bazaar, ok := payloadV2.Extensions[exttypes.BAZAAR]; ok {
+								if bazaarMap, ok := bazaar.(map[string]interface{}); ok {
+									discoveryExt = bazaarMap
+								}
+							}
+						}
+					}
+				} else if version == 1 {
+					// V1: Unmarshal requirements to get Resource and OutputSchema
+					var reqsV1 x402.PaymentRequirements
+					if err := json.Unmarshal(ctx.RequirementsBytes, &reqsV1); err == nil {
+						// V1 uses requirements for resource URL
+						if reqsV1.Extra != nil {
+							if resource, ok := reqsV1.Extra["resource"].(string); ok {
+								resourceURL = resource
+							}
+						}
+						// V1 uses outputSchema for discovery info
+						if reqsV1.Extra != nil {
+							if outputSchema, ok := reqsV1.Extra["outputSchema"]; ok {
+								if schemaMap, ok := outputSchema.(map[string]interface{}); ok {
+									discoveryExt = schemaMap
+								}
+							}
+						}
+					}
+				}
+				
+				// Catalog if we found discovery info
+				if resourceURL != "" && discoveryExt != nil {
+					// Extract method from discovery extension
+					method := "GET" // Default
+					if input, ok := discoveryExt["input"].(map[string]interface{}); ok {
+						if m, ok := input["method"].(string); ok {
+							method = m
+						}
+					}
+					
+					// Unmarshal requirements to generic PaymentRequirements type
+					// NOTE: This is a simplified e2e test implementation. It does not properly
+					// handle V1 vs V2 type differences (V1 uses maxAmountRequired, V2 uses amount).
+					// For production Bazaar cataloging, use proper V1/V2 type handling.
+					// This is sufficient for testing that the extension mechanism works.
+					var requirements x402.PaymentRequirements
+					if err := json.Unmarshal(ctx.RequirementsBytes, &requirements); err == nil {
+						// Convert discoveryExt to DiscoveryInfo (simplified)
+						// In production, would use bazaar.ExtractDiscoveryInfo() with proper types
+						discoveryInfoJSON, _ := json.Marshal(discoveryExt)
+						var discoveryInfo exttypes.DiscoveryInfo
+						json.Unmarshal(discoveryInfoJSON, &discoveryInfo)
+						
+						log.Printf("📝 Cataloging discovered resource: %s %s", method, resourceURL)
+						bazaarCatalog.CatalogResource(
+							resourceURL,
+							method,
+							version,
+							&discoveryInfo,
+							requirements,
+						)
+					}
 				}
 			}
 			return nil
 		}).
 		OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
 			// Hook 3: Validate payment was previously verified
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.RLock()
 			verificationTimestamp, verified := verifiedPayments[paymentHash]
 			verificationMutex.RUnlock()
@@ -751,7 +821,10 @@ func main() {
 		}).
 		OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
 			// Hook 4: Clean up verified payment tracking after successful settlement
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -763,7 +836,10 @@ func main() {
 		}).
 		OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
 			// Hook 5: Clean up verified payment tracking on failure too
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -813,10 +889,24 @@ func main() {
 		// Hooks will automatically:
 		// - Track verified payment (OnAfterVerify)
 		// - Extract and catalog discovery info (OnAfterVerify)
+		
+		// Marshal to bytes for facilitator API (network boundary)
+		payloadBytes, err := json.Marshal(req.PaymentPayload)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
+		
+		requirementsBytes, err := json.Marshal(req.PaymentRequirements)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid requirements"})
+			return
+		}
+		
 		response, err := facilitator.Verify(
 			context.Background(),
-			req.PaymentPayload,
-			req.PaymentRequirements,
+			payloadBytes,
+			requirementsBytes,
 		)
 		if err != nil {
 			log.Printf("Verify error: %v", err)
@@ -871,10 +961,23 @@ func main() {
 		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
 		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
 
+		// Marshal to bytes for facilitator API (network boundary)
+		payloadBytes, err := json.Marshal(req.PaymentPayload)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
+		
+		requirementsBytes, err := json.Marshal(req.PaymentRequirements)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid requirements"})
+			return
+		}
+
 		response, err := facilitator.Settle(
 			context.Background(),
-			req.PaymentPayload,
-			req.PaymentRequirements,
+			payloadBytes,
+			requirementsBytes,
 		)
 
 		// Debug: Log response
@@ -889,7 +992,7 @@ func main() {
 				c.JSON(http.StatusOK, x402.SettleResponse{
 					Success:     false,
 					ErrorReason: strings.TrimPrefix(err.Error(), "settlement aborted: "),
-					Network:     req.PaymentPayload.Accepted.Network,
+					Network:     x402.Network(req.PaymentPayload.Accepted.Network),
 				})
 				return
 			}

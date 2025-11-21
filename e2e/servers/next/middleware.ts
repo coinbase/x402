@@ -1,8 +1,8 @@
-import { paymentMiddlewareFromConfig } from "@x402/next";
-import { ExactEvmServer } from "@x402/evm";
-import { ExactSvmServer } from "@x402/svm";
-import { HTTPFacilitatorClient } from "@x402/core/server";
-import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { paymentMiddleware } from "@x402/next";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
@@ -18,9 +18,19 @@ if (!facilitatorUrl) {
 // Create HTTP facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
+// Create x402 resource server with builder pattern (cleaner!)
+const server = new x402ResourceServer(facilitatorClient);
+
+// Register server schemes
+registerExactEvmScheme(server);
+registerExactSvmScheme(server);
+
+// Register Bazaar discovery extension
+server.registerExtension(bazaarResourceServerExtension);
+
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
-export const middleware = paymentMiddlewareFromConfig(
+export const middleware = paymentMiddleware(
   {
     "/api/protected": {
       accepts: {
@@ -73,21 +83,7 @@ export const middleware = paymentMiddlewareFromConfig(
       },
     },
   },
-  // Use facilitator (either remote or local)
-  facilitatorClient,
-  // Register the EVM and SVM servers for handling exact payments
-  [
-    {
-      network: EVM_NETWORK,
-      server: new ExactEvmServer(),
-    },
-    {
-      network: SVM_NETWORK,
-      server: new ExactSvmServer(),
-    },
-  ],
-  // No custom paywall configuration (uses defaults)
-  undefined,
+  server, // Pass pre-configured server instance
 );
 
 // Configure which paths the middleware should run on

@@ -16,7 +16,7 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// ExactSvmSchemeV1 implements the SchemeNetworkClient interface for SVM (Solana) exact payments (V1)
+// ExactSvmSchemeV1 implements the SchemeNetworkClientV1 interface for SVM (Solana) exact payments (V1)
 type ExactSvmSchemeV1 struct {
 	signer svm.ClientSvmSigner
 	config *svm.ClientConfig // Optional custom RPC configuration
@@ -40,29 +40,22 @@ func (c *ExactSvmSchemeV1) Scheme() string {
 	return svm.SchemeExact
 }
 
-// CreatePaymentPayload creates a payment payload for the Exact scheme (V1)
-// Returns complete v1 payload (x402Version + scheme + network + payload)
+// CreatePaymentPayload creates a V1 payment payload for the Exact scheme
 func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	ctx context.Context,
-	version int,
-	requirementsBytes []byte,
-) ([]byte, error) {
-	// Unmarshal to v1 requirements using helper
-	requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal v1 requirements: %w", err)
-	}
+	requirements types.PaymentRequirementsV1,
+) (types.PaymentPayloadV1, error) {
 
 	// Validate network (V1 uses simple names, normalize to CAIP-2 internally)
 	networkStr := requirements.Network
 	if !svm.IsValidNetwork(networkStr) {
-		return nil, fmt.Errorf("unsupported network: %s", requirements.Network)
+		return types.PaymentPayloadV1{}, fmt.Errorf("unsupported network: %s", requirements.Network)
 	}
 
 	// Get network configuration
 	config, err := svm.GetNetworkConfig(networkStr)
 	if err != nil {
-		return nil, err
+		return types.PaymentPayloadV1{}, err
 	}
 
 	// Get RPC URL (custom or default)
@@ -77,43 +70,43 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	// Parse mint address
 	mintPubkey, err := solana.PublicKeyFromBase58(requirements.Asset)
 	if err != nil {
-		return nil, fmt.Errorf("invalid asset address: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("invalid asset address: %w", err)
 	}
 
 	// Get mint account to determine token program
 	mintAccount, err := rpcClient.GetAccountInfo(ctx, mintPubkey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get mint account: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to get mint account: %w", err)
 	}
 
 	// Determine token program (Token or Token-2022)
 	tokenProgramID := mintAccount.Value.Owner
 	if tokenProgramID != solana.TokenProgramID && tokenProgramID != solana.Token2022ProgramID {
-		return nil, fmt.Errorf("asset was not created by a known token program")
+		return types.PaymentPayloadV1{}, fmt.Errorf("asset was not created by a known token program")
 	}
 
 	// Parse payTo address
 	payToPubkey, err := solana.PublicKeyFromBase58(requirements.PayTo)
 	if err != nil {
-		return nil, fmt.Errorf("invalid payTo address: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("invalid payTo address: %w", err)
 	}
 
 	// Find source ATA (client's token account)
 	sourceATA, _, err := solana.FindAssociatedTokenAddress(c.signer.Address(), mintPubkey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive source ATA: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to derive source ATA: %w", err)
 	}
 
 	// Find destination ATA (recipient's token account)
 	destinationATA, _, err := solana.FindAssociatedTokenAddress(payToPubkey, mintPubkey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive destination ATA: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to derive destination ATA: %w", err)
 	}
 
 	// Check that source ATA exists
 	sourceAccount, err := rpcClient.GetAccountInfo(ctx, sourceATA)
 	if err != nil || sourceAccount == nil || sourceAccount.Value == nil {
-		return nil, fmt.Errorf(
+		return types.PaymentPayloadV1{}, fmt.Errorf(
 			"invalid_exact_solana_payload_ata_not_found: Source ATA does not exist for client %s",
 			c.signer.Address(),
 		)
@@ -122,7 +115,7 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	// Check that destination ATA exists
 	destAccount, err := rpcClient.GetAccountInfo(ctx, destinationATA)
 	if err != nil || destAccount == nil || destAccount.Value == nil {
-		return nil, fmt.Errorf(
+		return types.PaymentPayloadV1{}, fmt.Errorf(
 			"invalid_exact_solana_payload_ata_not_found: Destination ATA does not exist for recipient %s",
 			requirements.PayTo,
 		)
@@ -133,7 +126,7 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 
 	amount, err := strconv.ParseUint(amountStr, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid amount: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("invalid amount: %w", err)
 	}
 
 	// Get fee payer from requirements.extra (unmarshal Extra from json.RawMessage)
@@ -144,25 +137,25 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 
 	feePayerAddr, ok := extraMap["feePayer"].(string)
 	if !ok {
-		return nil, fmt.Errorf("feePayer is required in paymentRequirements.extra for Solana transactions")
+		return types.PaymentPayloadV1{}, fmt.Errorf("feePayer is required in paymentRequirements.extra for Solana transactions")
 	}
 
 	feePayer, err := solana.PublicKeyFromBase58(feePayerAddr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid feePayer address: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("invalid feePayer address: %w", err)
 	}
 
 	// Get mint account data to get decimals
 	var mintData token.Mint
 	err = bin.NewBinDecoder(mintAccount.Value.Data.GetBinary()).Decode(&mintData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode mint data: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to decode mint data: %w", err)
 	}
 
 	// Get latest blockhash
 	latestBlockhash, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest blockhash: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to get latest blockhash: %w", err)
 	}
 	recentBlockhash := latestBlockhash.Value.Blockhash
 
@@ -174,14 +167,14 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		SetUnits(estimatedUnits).
 		ValidateAndBuild()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build compute limit instruction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to build compute limit instruction: %w", err)
 	}
 
 	cuPrice, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
 		SetMicroLamports(svm.DefaultComputeUnitPrice).
 		ValidateAndBuild()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build compute price instruction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to build compute price instruction: %w", err)
 	}
 
 	// Build final transfer instruction
@@ -194,7 +187,7 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		SetOwnerAccount(c.signer.Address()).
 		ValidateAndBuild()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build transfer instruction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to build transfer instruction: %w", err)
 	}
 
 	// Create final transaction
@@ -206,18 +199,18 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		SetFeePayer(feePayer).
 		Build()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
 	// Partially sign with client's key
 	if err := c.signer.SignTransaction(tx); err != nil {
-		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
 	// Encode transaction to base64
 	base64Tx, err := svm.EncodeTransaction(tx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode transaction: %w", err)
+		return types.PaymentPayloadV1{}, fmt.Errorf("failed to encode transaction: %w", err)
 	}
 
 	// Create SVM payload
@@ -226,12 +219,10 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	}
 
 	// Build complete v1 payload (scheme/network at top level)
-	v1Payload := types.PaymentPayloadV1{
-		X402Version: version,
+	return types.PaymentPayloadV1{
+		X402Version: 1,
 		Scheme:      requirements.Scheme,
 		Network:     requirements.Network,
 		Payload:     svmPayload.ToMap(),
-	}
-
-	return json.Marshal(v1Payload)
+	}, nil
 }

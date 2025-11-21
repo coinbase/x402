@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -118,31 +117,24 @@ func TestEVMVersionMismatch(t *testing.T) {
 		evmClientV1 := evmv1client.NewExactEvmSchemeV1(clientSigner)
 		client.RegisterV1("eip155:8453", evmClientV1)
 
-		// V1 client should succeed when explicitly requesting v1
-		// Note: V1 needs MaxAmountRequired, so create v1-compatible requirements
-		v1Requirements := x402.PaymentRequirements{
+		// V1 client should succeed
+		v1Requirements := types.PaymentRequirementsV1{
 			Scheme:            evm.SchemeExact,
 			Network:           "eip155:8453",
 			Asset:             "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			MaxAmountRequired: "1000000",
 			PayTo:             "0x9876543210987654321098765432109876543210",
 		}
-		requirementsBytes, _ := json.Marshal(v1Requirements)
-		payloadBytes, err := client.CreatePaymentPayload(ctx, 1, requirementsBytes, nil, nil)
+		payload, err := client.CreatePaymentPayloadV1(ctx, v1Requirements)
 		if err != nil {
 			t.Fatalf("Failed to create payment: %v", err)
 		}
 		// Verify it created a V1 payload
-		var payload types.PaymentPayloadV1
-		json.Unmarshal(payloadBytes, &payload)
 		if payload.X402Version != 1 {
 			t.Errorf("Expected V1 payload from V1 client, got v%d", payload.X402Version)
 		}
-
-		// V1 client should fail when explicitly requesting v2
-		_, err = client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
-		if err == nil {
-			t.Error("Expected error when V1 client is asked to create v2 payload")
+		if payload.Scheme != evm.SchemeExact {
+			t.Errorf("Expected scheme %s, got %s", evm.SchemeExact, payload.Scheme)
 		}
 	})
 
@@ -155,8 +147,8 @@ func TestEVMVersionMismatch(t *testing.T) {
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.Register("eip155:8453", evmClient)
 
-		// V1 requirements
-		requirements := x402.PaymentRequirements{
+		// V2 requirements (typed)
+		requirements := types.PaymentRequirements{
 			Scheme:  evm.SchemeExact,
 			Network: "eip155:8453",
 			Asset:   "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -164,23 +156,17 @@ func TestEVMVersionMismatch(t *testing.T) {
 			PayTo:   "0x9876543210987654321098765432109876543210",
 		}
 
-		// V2 client should succeed when explicitly requesting v2
-		requirementsBytes, _ := json.Marshal(requirements)
-		payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
+		// V2 client creates V2 payload (typed API)
+		payload, err := client.CreatePaymentPayload(ctx, requirements, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create payment: %v", err)
 		}
-		// Verify it created a V2 payload - v2 returns wrapped payload with accepted
-		var payload types.PaymentPayloadV2
-		json.Unmarshal(payloadBytes, &payload)
+		// Verify it created a V2 payload
 		if payload.X402Version != 2 {
 			t.Errorf("Expected V2 payload from V2 client, got v%d", payload.X402Version)
 		}
-
-		// V2 client should fail when explicitly requesting v1
-		_, err = client.CreatePaymentPayload(ctx, 1, requirementsBytes, nil, nil)
-		if err == nil {
-			t.Error("Expected error when V2 client is asked to create v1 payload")
+		if payload.Accepted.Scheme != evm.SchemeExact {
+			t.Errorf("Expected scheme in accepted field")
 		}
 	})
 }
@@ -204,28 +190,21 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.Register("eip155:8453", evmClient)
 
-		// V1 requirements (uses MaxAmountRequired)
-		v1Requirements := x402.PaymentRequirements{
+		// V1 requirements (typed)
+		v1Requirements := types.PaymentRequirementsV1{
 			Scheme:            evm.SchemeExact,
 			Network:           "eip155:8453",
 			Asset:             "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
 			MaxAmountRequired: "1000000",
 			PayTo:             "0x9876543210987654321098765432109876543210",
-			Extra: map[string]interface{}{
-				"name":    "USD Coin",
-				"version": "2",
-			},
 		}
 
-		// Client should handle V1 request
-		v1ReqBytes, _ := json.Marshal(v1Requirements)
-		payloadV1Bytes, err := client.CreatePaymentPayload(ctx, 1, v1ReqBytes, nil, nil)
+		// Client handles V1 request (typed API)
+		payloadV1, err := client.CreatePaymentPayloadV1(ctx, v1Requirements)
 		if err != nil {
 			t.Fatalf("Failed to create V1 payment: %v", err)
 		}
 
-		var payloadV1 types.PaymentPayloadV1
-		json.Unmarshal(payloadV1Bytes, &payloadV1)
 		if payloadV1.X402Version != 1 {
 			t.Errorf("Expected V1 payload, got v%d", payloadV1.X402Version)
 		}
@@ -235,8 +214,8 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			t.Error("Expected V1 payload to have top-level Scheme")
 		}
 
-		// V2 requirements (uses Amount)
-		v2Requirements := x402.PaymentRequirements{
+		// V2 requirements (typed, uses Amount)
+		v2Requirements := types.PaymentRequirements{
 			Scheme:  evm.SchemeExact,
 			Network: "eip155:8453",
 			Asset:   "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -248,17 +227,17 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			},
 		}
 
-		// Client should handle V2 request
-		v2ReqBytes, _ := json.Marshal(v2Requirements)
-		payloadV2Bytes, err := client.CreatePaymentPayload(ctx, 2, v2ReqBytes, nil, nil)
+		// Client handles V2 request (typed API)
+		payloadV2, err := client.CreatePaymentPayload(ctx, v2Requirements, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create V2 payment: %v", err)
 		}
 
-		var payloadV2 types.PaymentPayloadV2
-		json.Unmarshal(payloadV2Bytes, &payloadV2)
 		if payloadV2.X402Version != 2 {
 			t.Errorf("Expected V2 payload, got v%d", payloadV2.X402Version)
+		}
+		if payloadV2.Accepted.Scheme == "" {
+			t.Error("Expected V2 payload to have Accepted.Scheme")
 		}
 	})
 
@@ -277,8 +256,8 @@ func TestEVMDualVersionSupport(t *testing.T) {
 		evmClient := evmclient.NewExactEvmScheme(clientSigner)
 		client.Register("eip155:8453", evmClient)
 
-		// V2 requirements
-		requirements := x402.PaymentRequirements{
+		// V2 requirements (typed)
+		requirements := types.PaymentRequirements{
 			Scheme:  evm.SchemeExact,
 			Network: "eip155:8453",
 			Asset:   "erc20:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
@@ -286,15 +265,12 @@ func TestEVMDualVersionSupport(t *testing.T) {
 			PayTo:   "0x9876543210987654321098765432109876543210",
 		}
 
-		// Client should handle V2 request using V2 implementation
-		requirementsBytes, _ := json.Marshal(requirements)
-		payloadV2Bytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
+		// Client handles V2 request using V2 implementation (typed API)
+		payloadV2, err := client.CreatePaymentPayload(ctx, requirements, nil, nil)
 		if err != nil {
 			t.Fatalf("Failed to create V2 payment: %v", err)
 		}
 
-		var payloadV2 types.PaymentPayloadV2
-		json.Unmarshal(payloadV2Bytes, &payloadV2)
 		if payloadV2.X402Version != 2 {
 			t.Errorf("Expected V2 payload, got v%d", payloadV2.X402Version)
 		}

@@ -9,10 +9,14 @@ import (
 // ============================================================================
 
 // VerifyContext contains information passed to verify hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type VerifyContext struct {
 	Ctx               context.Context
-	PayloadBytes      []byte
-	RequirementsBytes []byte
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // VerifyResultContext contains verify operation result and context
@@ -28,10 +32,14 @@ type VerifyFailureContext struct {
 }
 
 // SettleContext contains information passed to settle hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type SettleContext struct {
 	Ctx               context.Context
-	PayloadBytes      []byte
-	RequirementsBytes []byte
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // SettleResultContext contains settle operation result and context

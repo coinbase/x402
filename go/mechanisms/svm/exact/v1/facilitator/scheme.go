@@ -34,41 +34,12 @@ func (f *ExactSvmSchemeV1) Scheme() string {
 	return svm.SchemeExact
 }
 
-// Verify verifies a payment payload against requirements (V1)
+// Verify verifies a V1 payment payload against requirements
 func (f *ExactSvmSchemeV1) Verify(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayloadV1,
+	requirements types.PaymentRequirementsV1,
 ) (x402.VerifyResponse, error) {
-	// Unmarshal to v1 types using helpers
-	payload, err := types.ToPaymentPayloadV1(payloadBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_payload",
-			Payer:         "",
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_requirements",
-			Payer:         "",
-		}, nil
-	}
-
-	// V1 specific: only handle version 1
-	if version != 1 {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "v1 only supports x402 version 1",
-			Payer:         "",
-		}, nil
-	}
-
 	// Step 1: Validate Payment Requirements
 	// V1: Check scheme from top level (not in Accepted)
 	if payload.Scheme != svm.SchemeExact || requirements.Scheme != svm.SchemeExact {
@@ -158,18 +129,8 @@ func (f *ExactSvmSchemeV1) Verify(
 		}, nil
 	}
 
-	// Convert requirements to old struct format for helper methods
-	reqStruct := x402.PaymentRequirements{
-		Scheme:  requirements.Scheme,
-		Network: x402.Network(requirements.Network),
-		Asset:   requirements.Asset,
-		Amount:  requirements.MaxAmountRequired, // V1 uses MaxAmountRequired
-		PayTo:   requirements.PayTo,
-		Extra:   reqExtraMap, // Already unmarshaled above
-	}
-
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], reqStruct); err != nil {
+	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], requirements); err != nil {
 		return x402.VerifyResponse{
 			IsValid:       false,
 			InvalidReason: err.Error(),
@@ -218,12 +179,11 @@ func (f *ExactSvmSchemeV1) Verify(
 // Settle settles a payment by submitting the transaction (V1)
 func (f *ExactSvmSchemeV1) Settle(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayloadV1,
+	requirements types.PaymentRequirementsV1,
 ) (x402.SettleResponse, error) {
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, version, payloadBytes, requirementsBytes)
+	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		return x402.SettleResponse{}, err
 	}
@@ -235,23 +195,6 @@ func (f *ExactSvmSchemeV1) Settle(
 			Transaction: "",
 			Network:     "",
 			Payer:       verifyResp.Payer,
-		}, nil
-	}
-
-	// Unmarshal to v1 types for processing
-	payload, err := types.ToPaymentPayloadV1(payloadBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_payload",
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_requirements",
 		}, nil
 	}
 
@@ -390,7 +333,7 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	ctx context.Context,
 	tx *solana.Transaction,
 	inst solana.CompiledInstruction,
-	requirements x402.PaymentRequirements,
+	requirements types.PaymentRequirementsV1,
 ) error {
 	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
 
@@ -421,7 +364,13 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	// SECURITY: Verify that the fee payer is not transferring their own funds
 	// Prevent facilitator from signing away their own tokens
 	authorityAddr := accounts[3].PublicKey.String() // TransferChecked: [source, mint, destination, authority, ...]
-	feePayerAddr, ok := requirements.Extra["feePayer"].(string)
+	
+	// Parse Extra to get feePayer
+	var reqExtraMap map[string]interface{}
+	if requirements.Extra != nil {
+		json.Unmarshal(*requirements.Extra, &reqExtraMap)
+	}
+	feePayerAddr, ok := reqExtraMap["feePayer"].(string)
 	if ok && authorityAddr == feePayerAddr {
 		return fmt.Errorf("invalid_exact_solana_payload_transaction_fee_payer_transferring_funds")
 	}
@@ -455,9 +404,6 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 
 	// Verify amount - V1: Use MaxAmountRequired
 	amountStr := requirements.MaxAmountRequired
-	if amountStr == "" {
-		amountStr = requirements.Amount
-	}
 
 	requiredAmount, err := strconv.ParseUint(amountStr, 10, 64)
 	if err != nil {

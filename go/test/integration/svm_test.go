@@ -5,7 +5,6 @@ package integration_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -19,8 +18,6 @@ import (
 	svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
 	svmfacilitator "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
 	svmserver "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
-	svmv1client "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/client"
-	svmv1facilitator "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	svmsigners "github.com/coinbase/x402/go/signers/svm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -191,18 +188,8 @@ func (l *localSvmFacilitatorClient) Verify(
 	payloadBytes []byte,
 	requirementsBytes []byte,
 ) (x402.VerifyResponse, error) {
-	// Bridge: unmarshal bytes to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	return l.facilitator.Verify(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it handles unmarshaling internally)
+	return l.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
 
 func (l *localSvmFacilitatorClient) Settle(
@@ -210,18 +197,8 @@ func (l *localSvmFacilitatorClient) Settle(
 	payloadBytes []byte,
 	requirementsBytes []byte,
 ) (x402.SettleResponse, error) {
-	// Bridge: unmarshal bytes to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	return l.facilitator.Settle(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it handles unmarshaling internally)
+	return l.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }
 
 func (l *localSvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
@@ -301,8 +278,8 @@ func TestSVMIntegrationV2(t *testing.T) {
 			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
-		// Server - builds PaymentRequired response for 0.001 USDC
-		accepts := []x402.PaymentRequirements{
+		// Server - builds PaymentRequired response for 0.001 USDC (V2 typed)
+		accepts := []types.PaymentRequirements{
 			{
 				Scheme:  svm.SchemeExact,
 				Network: svm.SolanaDevnetCAIP2,
@@ -314,7 +291,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 				},
 			},
 		}
-		resource := x402.ResourceInfo{
+		resource := &types.ResourceInfo{
 			URL:         "https://api.example.com/premium",
 			Description: "Premium API Access",
 			MimeType:    "application/json",
@@ -336,37 +313,16 @@ func TestSVMIntegrationV2(t *testing.T) {
 			t.Fatal("Expected feePayer in payment requirements extra")
 		}
 
-		// Client - responds with PaymentPayload response
-		selected, err := client.SelectPaymentRequirements(paymentRequiredResponse.X402Version, paymentRequiredResponse.Accepts)
+		// Client - selects payment requirement (V2 typed)
+		selected, err := client.SelectPaymentRequirements(paymentRequiredResponse.Accepts)
 		if err != nil {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		// Marshal selected requirements to bytes
-		selectedBytes, err := json.Marshal(selected)
-		if err != nil {
-			t.Fatalf("Failed to marshal requirements: %v", err)
-		}
-
-		// Convert resource for v2
-		var resourceV2 *types.ResourceInfoV2
-		if paymentRequiredResponse.Resource != nil {
-			resourceV2 = &types.ResourceInfoV2{
-				URL:         paymentRequiredResponse.Resource.URL,
-				Description: paymentRequiredResponse.Resource.Description,
-				MimeType:    paymentRequiredResponse.Resource.MimeType,
-			}
-		}
-
-		payloadBytes, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selectedBytes, resourceV2, paymentRequiredResponse.Extensions)
+		// Client - creates payment payload (V2 typed)
+		paymentPayload, err := client.CreatePaymentPayload(ctx, selected, paymentRequiredResponse.Resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
-		}
-
-		// Unmarshal to v2 payload for verification
-		paymentPayload, err := types.ToPaymentPayloadV2(payloadBytes)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal payment payload: %v", err)
 		}
 
 		// Verify payload is V2
@@ -388,20 +344,14 @@ func TestSVMIntegrationV2(t *testing.T) {
 			t.Error("Expected transaction in payload")
 		}
 
-		// Server - maps payment payload to payment requirements
-		accepted := server.FindMatchingRequirements(paymentRequiredResponse.Accepts, payloadBytes)
+		// Server - finds matching requirements (typed)
+		accepted := server.FindMatchingRequirements(accepts, paymentPayload)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
 
-		// Marshal accepted requirements to bytes
-		acceptedBytes, err := json.Marshal(accepted)
-		if err != nil {
-			t.Fatalf("Failed to marshal accepted requirements: %v", err)
-		}
-
-		// Server - verifies payment
-		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		// Server - verifies payment (typed)
+		verifyResponse, err := server.VerifyPayment(ctx, paymentPayload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -416,8 +366,8 @@ func TestSVMIntegrationV2(t *testing.T) {
 
 		// Server does work here...
 
-		// Server - settles payment (REAL ON-CHAIN TRANSACTION)
-		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		// Server - settles payment (REAL ON-CHAIN TRANSACTION, typed)
+		settleResponse, err := server.SettlePayment(ctx, paymentPayload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -442,6 +392,8 @@ func TestSVMIntegrationV2(t *testing.T) {
 }
 
 // TestSVMIntegrationV1 tests the full V1 SVM payment flow with real on-chain transactions (legacy)
+// TestSVMIntegrationV1 - SKIPPED: V1 flow not supported in V2-only server
+/*
 func TestSVMIntegrationV1(t *testing.T) {
 	// Skip if environment variables not set
 	clientPrivateKey := os.Getenv("SVM_CLIENT_PRIVATE_KEY")
@@ -601,3 +553,4 @@ func TestSVMIntegrationV1(t *testing.T) {
 		}
 	})
 }
+*/

@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -28,46 +27,39 @@ func (c *ExactEvmScheme) Scheme() string {
 	return evm.SchemeExact
 }
 
-// CreatePaymentPayload creates a payment payload for the exact scheme (V2)
-// Returns partial payload (x402Version + payload), core wraps with accepted/resource/extensions
+// CreatePaymentPayload creates a V2 payment payload for the exact scheme
 func (c *ExactEvmScheme) CreatePaymentPayload(
 	ctx context.Context,
-	version int,
-	requirementsBytes []byte,
-) (payloadBytes []byte, err error) {
-	// Unmarshal to v2 requirements using helper
-	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal v2 requirements: %w", err)
-	}
+	requirements types.PaymentRequirements,
+) (types.PaymentPayload, error) {
 	// Validate network
-	networkStr := requirements.Network
+	networkStr := string(requirements.Network)
 	if !evm.IsValidNetwork(networkStr) {
-		return nil, fmt.Errorf("unsupported network: %s", requirements.Network)
+		return types.PaymentPayload{}, fmt.Errorf("unsupported network: %s", requirements.Network)
 	}
 
 	// Get network configuration
 	config, err := evm.GetNetworkConfig(networkStr)
 	if err != nil {
-		return nil, err
+		return types.PaymentPayload{}, err
 	}
 
 	// Get asset info
 	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
-		return nil, err
+		return types.PaymentPayload{}, err
 	}
 
 	// Requirements.Amount is already in the smallest unit
 	value, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok {
-		return nil, fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return types.PaymentPayload{}, fmt.Errorf("invalid amount: %s", requirements.Amount)
 	}
 
 	// Create nonce
 	nonce, err := evm.CreateNonce()
 	if err != nil {
-		return nil, err
+		return types.PaymentPayload{}, err
 	}
 
 	// V2 specific: No buffer on validAfter (can use immediately)
@@ -80,8 +72,8 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 		if name, ok := requirements.Extra["name"].(string); ok {
 			tokenName = name
 		}
-		if version, ok := requirements.Extra["version"].(string); ok {
-			tokenVersion = version
+		if ver, ok := requirements.Extra["version"].(string); ok {
+			tokenVersion = ver
 		}
 	}
 
@@ -98,7 +90,7 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	// Sign the authorization
 	signature, err := c.signAuthorization(ctx, authorization, config.ChainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign authorization: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf("failed to sign authorization: %w", err)
 	}
 
 	// Create EVM payload
@@ -107,14 +99,11 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 		Authorization: authorization,
 	}
 
-	// Return PARTIAL payload (just version + payload field)
-	// Core will wrap with accepted, resource, extensions
-	partial := types.PayloadBase{
-		X402Version: version,
+	// Return partial V2 payload (core will add accepted, resource, extensions)
+	return types.PaymentPayload{
+		X402Version: 2,
 		Payload:     evmPayload.ToMap(),
-	}
-
-	return json.Marshal(partial)
+	}, nil
 }
 
 // signAuthorization signs the EIP-3009 authorization using EIP-712

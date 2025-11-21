@@ -18,7 +18,7 @@ export async function createHooksClient(evmPrivateKey: `0x${string}`): Promise<x
   const evmSigner = privateKeyToAccount(evmPrivateKey);
 
   const client = new x402Client()
-    .registerScheme("eip155:*", new ExactEvmScheme(evmSigner))
+    .register("eip155:*", new ExactEvmScheme(evmSigner))
     .onBeforePaymentCreation(async (context: unknown) => {
       console.log("Before payment creation", context);
       // If payment creation should be aborted, we can return aborted

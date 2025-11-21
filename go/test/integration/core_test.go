@@ -2,11 +2,11 @@ package integration_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/test/mocks/cash"
+	"github.com/coinbase/x402/go/types"
 )
 
 // TestCoreIntegration tests the integration between x402Client, x402ResourceServer, and x402Facilitator
@@ -25,60 +25,49 @@ func TestCoreIntegration(t *testing.T) {
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)
 
-		// Setup resource server
+		// Setup resource server (V2 only)
 		server := x402.Newx402ResourceServer(
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
 		server.Register("x402:cash", cash.NewSchemeNetworkServer())
 
-		// Initialize server to fetch supported kinds
+		// Initialize server to populate facilitator clients
 		err := server.Initialize(ctx)
 		if err != nil {
 			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
-		// Server - builds PaymentRequired response
-		accepts := []x402.PaymentRequirements{
+		// Server - builds PaymentRequired response (V2)
+		accepts := []types.PaymentRequirements{
 			cash.BuildPaymentRequirements("Company Co.", "USD", "1"),
 		}
-		resource := x402.ResourceInfo{
+		resource := &types.ResourceInfo{
 			URL:         "https://company.co",
 			Description: "Company Co. resource",
 			MimeType:    "application/json",
 		}
 		paymentRequiredResponse := server.CreatePaymentRequiredResponse(accepts, resource, "", nil)
 
-		// Client - responds with PaymentPayload response
-		selected, err := client.SelectPaymentRequirements(paymentRequiredResponse.X402Version, accepts)
+		// Client - selects payment requirement (V2 typed)
+		selected, err := client.SelectPaymentRequirements(accepts)
 		if err != nil {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		// Marshal selected requirements to bytes
-		selectedBytes, err := json.Marshal(selected)
-		if err != nil {
-			t.Fatalf("Failed to marshal requirements: %v", err)
-		}
-
-		payloadBytes, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selectedBytes, nil, nil)
+		// Client - creates payment payload (V2 typed)
+		payload, err := client.CreatePaymentPayload(ctx, selected, resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
 
-		// Server - maps payment payload to payment requirements
-		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
+		// Server - finds matching requirements (typed)
+		accepted := server.FindMatchingRequirements(accepts, payload)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
 
-		// Marshal accepted requirements to bytes
-		acceptedBytes, err := json.Marshal(accepted)
-		if err != nil {
-			t.Fatalf("Failed to marshal accepted requirements: %v", err)
-		}
-
-		// Server - verifies payment
-		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		// Server - verifies payment (typed)
+		verifyResponse, err := server.VerifyPayment(ctx, payload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -89,8 +78,8 @@ func TestCoreIntegration(t *testing.T) {
 
 		// Server does work here...
 
-		// Server - settles payment
-		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		// Server - settles payment (typed)
+		settleResponse, err := server.SettlePayment(ctx, payload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}

@@ -25,10 +25,10 @@ export async function createBuilderPatternClient(
   const solanaDevnetSigner = svmSigner; // Say you wanted a different signer for Solana Devnet
 
   const client = new x402Client()
-    .registerScheme("eip155:*", new ExactEvmScheme(evmSigner))
-    .registerScheme("eip155:1", new ExactEvmScheme(ethereumSigner))
-    .registerScheme("solana:*", new ExactSvmScheme(svmSigner))
-    .registerScheme(
+    .register("eip155:*", new ExactEvmScheme(evmSigner))
+    .register("eip155:1", new ExactEvmScheme(ethereumSigner))
+    .register("solana:*", new ExactSvmScheme(svmSigner))
+    .register(
       "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
       new ExactSvmScheme(solanaDevnetSigner),
     );

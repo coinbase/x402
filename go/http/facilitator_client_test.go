@@ -10,6 +10,90 @@ import (
 	x402 "github.com/coinbase/x402/go"
 )
 
+// Test helper functions
+
+func NewStaticAuthProvider(token string) AuthProvider {
+	return &staticAuthProvider{token: token}
+}
+
+type staticAuthProvider struct {
+	token string
+}
+
+func (p *staticAuthProvider) GetAuthHeaders(ctx context.Context) (AuthHeaders, error) {
+	auth := "Bearer " + p.token
+	return AuthHeaders{
+		Verify:    map[string]string{"Authorization": auth},
+		Settle:    map[string]string{"Authorization": auth},
+		Supported: map[string]string{"Authorization": auth},
+	}, nil
+}
+
+func NewFuncAuthProvider(fn func(context.Context) (AuthHeaders, error)) AuthProvider {
+	return &funcAuthProvider{fn: fn}
+}
+
+type funcAuthProvider struct {
+	fn func(context.Context) (AuthHeaders, error)
+}
+
+func (p *funcAuthProvider) GetAuthHeaders(ctx context.Context) (AuthHeaders, error) {
+	return p.fn(ctx)
+}
+
+func NewMultiFacilitatorClient(clients ...x402.FacilitatorClient) x402.FacilitatorClient {
+	return &multiFacilitatorClient{clients: clients}
+}
+
+type multiFacilitatorClient struct {
+	clients []x402.FacilitatorClient
+}
+
+func (m *multiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+	for _, client := range m.clients {
+		result, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+		if err == nil && result.IsValid {
+			return result, nil
+		}
+	}
+	return x402.VerifyResponse{IsValid: false}, nil
+}
+
+func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+	for _, client := range m.clients {
+		result, err := client.Settle(ctx, payloadBytes, requirementsBytes)
+		if err == nil && result.Success {
+			return result, nil
+		}
+	}
+	return x402.SettleResponse{Success: false}, nil
+}
+
+func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
+	var allKinds []x402.SupportedKind
+	extensionMap := make(map[string]bool)
+	
+	for _, client := range m.clients {
+		supported, err := client.GetSupported(ctx)
+		if err == nil {
+			allKinds = append(allKinds, supported.Kinds...)
+			for _, ext := range supported.Extensions {
+				extensionMap[ext] = true
+			}
+		}
+	}
+	
+	var extensions []string
+	for ext := range extensionMap {
+		extensions = append(extensions, ext)
+	}
+	
+	return x402.SupportedResponse{
+		Kinds:      allKinds,
+		Extensions: extensions,
+	}, nil
+}
+
 func TestNewHTTPFacilitatorClient(t *testing.T) {
 	// Test with default config
 	client := NewHTTPFacilitatorClient(nil)

@@ -2,52 +2,50 @@ package x402
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/coinbase/x402/go/types"
 )
 
-// Mock client for testing
-type mockSchemeNetworkClient struct {
-	scheme        string
-	createPayload func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error)
-	version       int
+// Mock V1 client for testing
+type mockSchemeNetworkClientV1 struct {
+	scheme string
 }
 
-func (m *mockSchemeNetworkClient) Scheme() string {
+func (m *mockSchemeNetworkClientV1) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-	if m.createPayload != nil {
-		return m.createPayload(ctx, version, requirementsBytes)
-	}
-
-	// Build mock payload based on version
-	if version == 1 {
-		payload := types.PaymentPayloadV1{
-			X402Version: version,
-			Scheme:      m.scheme,
-			Network:     "eip155:1",
-			Payload: map[string]interface{}{
-				"signature": "mock_signature",
-				"from":      "0xmock",
-			},
-		}
-		return json.Marshal(payload)
-	}
-
-	// V2: return partial (just version + payload)
-	partial := types.PayloadBase{
-		X402Version: version,
+func (m *mockSchemeNetworkClientV1) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error) {
+	return types.PaymentPayloadV1{
+		X402Version: 1,
+		Scheme:      m.scheme,
+		Network:     "eip155:1",
 		Payload: map[string]interface{}{
 			"signature": "mock_signature",
 			"from":      "0xmock",
 		},
-	}
-	return json.Marshal(partial)
+	}, nil
+}
+
+// Mock V2 client for testing
+type mockSchemeNetworkClientV2 struct {
+	scheme string
+}
+
+func (m *mockSchemeNetworkClientV2) Scheme() string {
+	return m.scheme
+}
+
+func (m *mockSchemeNetworkClientV2) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+	return types.PaymentPayload{
+		X402Version: 2,
+		Payload: map[string]interface{}{
+			"signature": "mock_signature",
+			"from":      "0xmock",
+		},
+	}, nil
 }
 
 func TestNewx402Client(t *testing.T) {
@@ -55,9 +53,7 @@ func TestNewx402Client(t *testing.T) {
 	if client == nil {
 		t.Fatal("Expected client to be created")
 	}
-	if client.schemes == nil {
-		t.Fatal("Expected schemes map to be initialized")
-	}
+	// Schemes are now split into schemesV1 and schemesV2 (private)
 	if client.requirementsSelector == nil {
 		t.Fatal("Expected default selector to be set")
 	}
@@ -65,49 +61,47 @@ func TestNewx402Client(t *testing.T) {
 
 func TestClientRegister(t *testing.T) {
 	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
+	mockClientV1 := &mockSchemeNetworkClientV1{scheme: "exact"}
+	mockClientV2 := &mockSchemeNetworkClientV2{scheme: "exact"}
 
 	// Test v2 registration
-	client.Register("eip155:1", mockClient)
+	client.Register("eip155:1", mockClientV2)
 
-	if len(client.schemes) != 1 {
-		t.Fatalf("Expected 1 version, got %d", len(client.schemes))
+	// Verify registration using GetRegisteredSchemes
+	schemes := client.GetRegisteredSchemes()
+	if len(schemes[2]) != 1 {
+		t.Fatal("Expected 1 scheme for v2")
 	}
-	if len(client.schemes[2]) != 1 {
-		t.Fatal("Expected 1 network for v2")
-	}
-	if client.schemes[2]["eip155:1"]["exact"] != mockClient {
-		t.Fatal("Expected mock client to be registered")
+	if schemes[2][0].Scheme != "exact" {
+		t.Fatal("Expected exact scheme to be registered")
 	}
 
 	// Test v1 registration
-	client.RegisterV1("eip155:1", mockClient)
-	if len(client.schemes) != 2 {
-		t.Fatalf("Expected 2 versions, got %d", len(client.schemes))
-	}
-	if client.schemes[1]["eip155:1"]["exact"] != mockClient {
-		t.Fatal("Expected mock client to be registered for v1")
+	client.RegisterV1("eip155:1", mockClientV1)
+	schemes = client.GetRegisteredSchemes()
+	if len(schemes[1]) != 1 {
+		t.Fatal("Expected 1 scheme for v1")
 	}
 }
 
 func TestClientWithScheme(t *testing.T) {
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
+	mockClientV2 := &mockSchemeNetworkClientV2{scheme: "exact"}
 
-	client := Newx402Client(
-		WithScheme(2, "eip155:1", mockClient),
-	)
+	client := Newx402Client()
+	client.Register("eip155:1", mockClientV2)
 
-	if client.schemes[2]["eip155:1"]["exact"] != mockClient {
-		t.Fatal("Expected mock client to be registered via option")
+	schemes := client.GetRegisteredSchemes()
+	if len(schemes[2]) != 1 || schemes[2][0].Scheme != "exact" {
+		t.Fatal("Expected mock client to be registered")
 	}
 }
 
 func TestClientSelectPaymentRequirements(t *testing.T) {
 	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
+	mockClient := &mockSchemeNetworkClientV2{scheme: "exact"}
 	client.Register("eip155:1", mockClient)
 
-	requirements := []PaymentRequirements{
+	requirements := []types.PaymentRequirements{
 		{
 			Scheme:  "exact",
 			Network: "eip155:1",
@@ -125,7 +119,7 @@ func TestClientSelectPaymentRequirements(t *testing.T) {
 	}
 
 	// Should select the first supported requirement
-	selected, err := client.SelectPaymentRequirements(2, requirements)
+	selected, err := client.SelectPaymentRequirements(requirements)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -137,7 +131,7 @@ func TestClientSelectPaymentRequirements(t *testing.T) {
 	}
 
 	// Test with no supported requirements
-	unsupportedReqs := []PaymentRequirements{
+	unsupportedReqs := []types.PaymentRequirements{
 		{
 			Scheme:  "unsupported",
 			Network: "eip155:1",
@@ -147,7 +141,7 @@ func TestClientSelectPaymentRequirements(t *testing.T) {
 		},
 	}
 
-	_, err = client.SelectPaymentRequirements(2, unsupportedReqs)
+	_, err = client.SelectPaymentRequirements(unsupportedReqs)
 	if err == nil {
 		t.Fatal("Expected error for unsupported requirements")
 	}
@@ -159,14 +153,14 @@ func TestClientSelectPaymentRequirements(t *testing.T) {
 }
 
 func TestClientSelectPaymentRequirementsWithCustomSelector(t *testing.T) {
-	// Custom selector that chooses the highest amount
-	customSelector := func(version int, requirements []PaymentRequirements) PaymentRequirements {
+	// Custom selector that chooses the highest amount (uses view interface)
+	customSelector := func(requirements []PaymentRequirementsView) PaymentRequirementsView {
 		if len(requirements) == 0 {
 			panic("no requirements")
 		}
 		highest := requirements[0]
 		for _, req := range requirements[1:] {
-			if req.Amount > highest.Amount {
+			if req.GetAmount() > highest.GetAmount() {
 				highest = req
 			}
 		}
@@ -174,10 +168,10 @@ func TestClientSelectPaymentRequirementsWithCustomSelector(t *testing.T) {
 	}
 
 	client := Newx402Client(WithPaymentSelector(customSelector))
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
+	mockClient := &mockSchemeNetworkClientV2{scheme: "exact"}
 	client.Register("eip155:1", mockClient)
 
-	requirements := []PaymentRequirements{
+	requirements := []types.PaymentRequirements{
 		{
 			Scheme:  "exact",
 			Network: "eip155:1",
@@ -194,7 +188,7 @@ func TestClientSelectPaymentRequirementsWithCustomSelector(t *testing.T) {
 		},
 	}
 
-	selected, err := client.SelectPaymentRequirements(2, requirements)
+	selected, err := client.SelectPaymentRequirements(requirements)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -207,24 +201,10 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 	ctx := context.Background()
 	client := Newx402Client()
 
-	mockClient := &mockSchemeNetworkClient{
-		scheme:  "exact",
-		version: 2,
-		createPayload: func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-			partial := types.PayloadBase{
-				X402Version: version,
-				Payload: map[string]interface{}{
-					"signature": "test_sig",
-					"from":      "0xsender",
-				},
-			}
-			return json.Marshal(partial)
-		},
-	}
-
+	mockClient := &mockSchemeNetworkClientV2{scheme: "exact"}
 	client.Register("eip155:1", mockClient)
 
-	requirements := PaymentRequirements{
+	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
@@ -232,7 +212,7 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	resourceV2 := &types.ResourceInfoV2{
+	resourceV2 := &types.ResourceInfo{
 		URL:         "https://example.com/api",
 		Description: "Test API",
 		MimeType:    "application/json",
@@ -242,20 +222,13 @@ func TestClientCreatePaymentPayload(t *testing.T) {
 		"test": "value",
 	}
 
-	// Marshal requirements to bytes
-	requirementsBytes, _ := json.Marshal(requirements)
-
-	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, resourceV2, extensions)
+	// Call typed API (no marshaling needed)
+	payload, err := client.CreatePaymentPayload(ctx, requirements, resourceV2, extensions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Unmarshal to check fields
-	var payload types.PaymentPayloadV2
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		t.Fatalf("Failed to unmarshal payload: %v", err)
-	}
-
+	// Check fields directly (already typed!)
 	if payload.X402Version != 2 {
 		t.Fatalf("Expected version 2, got %d", payload.X402Version)
 	}
@@ -280,16 +253,15 @@ func TestClientCreatePaymentPayloadValidation(t *testing.T) {
 	ctx := context.Background()
 	client := Newx402Client()
 
-	// Test with invalid requirements (missing scheme)
-	invalidReqs := PaymentRequirements{
+	// Try to create payload with invalid requirements (typed, missing scheme)
+	invalidReqsV2 := types.PaymentRequirements{
 		Network: "eip155:1",
 		Asset:   "USDC",
 		Amount:  "1000000",
 		PayTo:   "0xrecipient",
+		// Missing Scheme - should error
 	}
-
-	invalidReqsBytes, _ := json.Marshal(invalidReqs)
-	_, err := client.CreatePaymentPayload(ctx, 2, invalidReqsBytes, nil, nil)
+	_, err := client.CreatePaymentPayload(ctx, invalidReqsV2, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for invalid requirements")
 	}
@@ -299,11 +271,11 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 	ctx := context.Background()
 	client := Newx402Client()
 
-	// Register a different scheme so we get past the version check
-	mockClient := &mockSchemeNetworkClient{scheme: "different", version: 2}
+	// Register a different scheme
+	mockClient := &mockSchemeNetworkClientV2{scheme: "different"}
 	client.Register("eip155:1", mockClient)
 
-	requirements := PaymentRequirements{
+	requirements := types.PaymentRequirements{
 		Scheme:  "unregistered",
 		Network: "eip155:1",
 		Asset:   "USDC",
@@ -311,8 +283,7 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 		PayTo:   "0xrecipient",
 	}
 
-	requirementsBytes, _ := json.Marshal(requirements)
-	_, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
+	_, err := client.CreatePaymentPayload(ctx, requirements, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error for unregistered scheme")
 	}
@@ -328,12 +299,13 @@ func TestClientCreatePaymentPayloadNoScheme(t *testing.T) {
 
 func TestClientGetRegisteredSchemes(t *testing.T) {
 	client := Newx402Client()
-	mockClient1 := &mockSchemeNetworkClient{scheme: "exact"}
-	mockClient2 := &mockSchemeNetworkClient{scheme: "transfer"}
+	mockClientV2_1 := &mockSchemeNetworkClientV2{scheme: "exact"}
+	mockClientV2_2 := &mockSchemeNetworkClientV2{scheme: "transfer"}
+	mockClientV1_1 := &mockSchemeNetworkClientV1{scheme: "exact"}
 
-	client.Register("eip155:1", mockClient1)
-	client.Register("eip155:8453", mockClient2)
-	client.RegisterV1("eip155:1", mockClient1)
+	client.Register("eip155:1", mockClientV2_1)
+	client.Register("eip155:8453", mockClientV2_2)
+	client.RegisterV1("eip155:1", mockClientV1_1)
 
 	schemes := client.GetRegisteredSchemes()
 	if len(schemes) != 2 {
@@ -347,95 +319,20 @@ func TestClientGetRegisteredSchemes(t *testing.T) {
 	}
 }
 
-func TestClientCanPay(t *testing.T) {
-	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.Register("eip155:1", mockClient)
+// TestClientCanPay - SKIPPED: CanPay method removed in refactoring
+// func TestClientCanPay(t *testing.T) { ... }
 
-	requirements := []PaymentRequirements{
-		{
-			Scheme:  "exact",
-			Network: "eip155:1",
-			Asset:   "USDC",
-			Amount:  "1000000",
-			PayTo:   "0xrecipient",
-		},
-	}
-
-	if !client.CanPay(2, requirements) {
-		t.Fatal("Expected client to be able to pay")
-	}
-
-	unsupportedReqs := []PaymentRequirements{
-		{
-			Scheme:  "unsupported",
-			Network: "eip155:1",
-			Asset:   "USDC",
-			Amount:  "1000000",
-			PayTo:   "0xrecipient",
-		},
-	}
-
-	if client.CanPay(2, unsupportedReqs) {
-		t.Fatal("Expected client to not be able to pay unsupported requirements")
-	}
-}
-
-func TestClientCreatePaymentForRequired(t *testing.T) {
-	ctx := context.Background()
-	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact"}
-	client.Register("eip155:1", mockClient)
-
-	required := PaymentRequired{
-		X402Version: 2,
-		Error:       "Payment required",
-		Resource: &ResourceInfo{
-			URL:         "https://example.com/api",
-			Description: "Test API",
-			MimeType:    "application/json",
-		},
-		Accepts: []PaymentRequirements{
-			{
-				Scheme:  "exact",
-				Network: "eip155:1",
-				Asset:   "USDC",
-				Amount:  "1000000",
-				PayTo:   "0xrecipient",
-			},
-		},
-		Extensions: map[string]interface{}{
-			"test": "value",
-		},
-	}
-
-	payload, err := client.CreatePaymentForRequired(ctx, required)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if payload.X402Version != 2 {
-		t.Fatalf("Expected version 2, got %d", payload.X402Version)
-	}
-	if payload.Accepted.Scheme != "exact" {
-		t.Fatalf("Expected accepted scheme 'exact', got %s", payload.Accepted.Scheme)
-	}
-	if payload.Resource == nil {
-		t.Fatal("Expected resource to be set from PaymentRequired")
-	}
-	if payload.Extensions == nil {
-		t.Fatal("Expected extensions to be set from PaymentRequired")
-	}
-}
+// TestClientCreatePaymentForRequired - SKIPPED: CreatePaymentForRequired method removed in refactoring
+// func TestClientCreatePaymentForRequired(t *testing.T) { ... }
 
 func TestClientNetworkPatternMatching(t *testing.T) {
 	client := Newx402Client()
-	mockClient := &mockSchemeNetworkClient{scheme: "exact", version: 2}
+	mockClient := &mockSchemeNetworkClientV2{scheme: "exact"}
 
 	// Register with wildcard
 	client.Register("eip155:*", mockClient)
 
-	requirements := PaymentRequirements{
+	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:8453", // Specific network
 		Asset:   "USDC",
@@ -445,18 +342,12 @@ func TestClientNetworkPatternMatching(t *testing.T) {
 
 	// Should match the wildcard pattern
 	ctx := context.Background()
-	requirementsBytes, _ := json.Marshal(requirements)
-	payloadBytes, err := client.CreatePaymentPayload(ctx, 2, requirementsBytes, nil, nil)
+	payload, err := client.CreatePaymentPayload(ctx, requirements, nil, nil)
 	if err != nil {
 		t.Fatalf("Expected pattern match to work: %v", err)
 	}
 
-	// Unmarshal to check fields
-	var payload types.PaymentPayloadV2
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		t.Fatalf("Failed to unmarshal payload: %v", err)
-	}
-
+	// Check fields directly (typed)
 	if payload.Accepted.Scheme != "exact" {
 		t.Fatal("Expected payload to be created with pattern match")
 	}

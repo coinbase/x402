@@ -35,7 +35,7 @@ app.use(
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer(facilitatorClient).registerScheme(
+    new x402ResourceServer(facilitatorClient).register(
       "eip155:84532",
       new ExactEvmScheme().registerMoneyParser(async (amount, network) => {
         // Custom money parser such that on the Gnosis Chain (xDai) network, we use Wrapped XDAI (WXDAI) when describing money

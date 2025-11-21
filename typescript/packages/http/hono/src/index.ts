@@ -21,7 +21,7 @@ export class HonoAdapter implements HTTPAdapter {
    *
    * @param c - The Hono context object
    */
-  constructor(private c: Context) {}
+  constructor(private c: Context) { }
 
   /**
    * Gets a header value from the request.

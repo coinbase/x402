@@ -191,13 +191,11 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 		server.Register(scheme.Network, scheme.Server)
 	}
 
-	// Initialize if requested
+	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
 	if config.InitializeOnStart {
 		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 		defer cancel()
-
 		if err := server.Initialize(ctx); err != nil {
-			// Log initialization error but don't fail - facilitator might come online later
 			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
 		}
 	}

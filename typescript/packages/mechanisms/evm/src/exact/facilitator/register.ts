@@ -58,16 +58,16 @@ export function registerExactEvmScheme(
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      facilitator.registerScheme(network, new ExactEvmScheme(config.signer), config.extras);
+      facilitator.register(network, new ExactEvmScheme(config.signer), config.extras);
     });
   } else {
     // Register wildcard for all EVM chains
-    facilitator.registerScheme("eip155:*", new ExactEvmScheme(config.signer), config.extras);
+    facilitator.register("eip155:*", new ExactEvmScheme(config.signer), config.extras);
   }
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
-    facilitator.registerSchemeV1(
+    facilitator.registerV1(
       network as Network,
       new ExactEvmSchemeV1(config.signer),
       config.extras,

@@ -2,13 +2,13 @@ package cash
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ============================================================================
@@ -32,26 +32,18 @@ func (c *SchemeNetworkClient) Scheme() string {
 	return "cash"
 }
 
-// CreatePaymentPayload creates a payment payload for the cash scheme
-func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-	// Unmarshal requirements
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return nil, err
-	}
-
+// CreatePaymentPayload creates a V2 payment payload for the cash scheme
+func (c *SchemeNetworkClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
 	validUntil := time.Now().Add(time.Duration(requirements.MaxTimeoutSeconds) * time.Second).Unix()
 
-	payload := x402.PartialPaymentPayload{
-		X402Version: version,
+	return types.PaymentPayload{
+		X402Version: 2,
 		Payload: map[string]interface{}{
 			"signature":  fmt.Sprintf("~%s", c.payer),
 			"validUntil": strconv.FormatInt(validUntil, 10),
 			"name":       c.payer,
 		},
-	}
-
-	return json.Marshal(payload)
+	}, nil
 }
 
 // ============================================================================
@@ -71,18 +63,8 @@ func (f *SchemeNetworkFacilitator) Scheme() string {
 	return "cash"
 }
 
-// Verify verifies a payment payload against requirements
-func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
-	// Unmarshal payload to check signature
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
+// Verify verifies a V2 payment payload against requirements (typed)
+func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (x402.VerifyResponse, error) {
 	// Extract payload fields
 	signature, ok := payload.Payload["signature"].(string)
 	if !ok {
@@ -140,10 +122,10 @@ func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, version int, payl
 	}, nil
 }
 
-// Settle settles a payment based on the payload and requirements
-func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+// Settle settles a V2 payment (typed)
+func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (x402.SettleResponse, error) {
 	// First verify the payment
-	verifyResponse, err := f.Verify(ctx, version, payloadBytes, requirementsBytes)
+	verifyResponse, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		return x402.SettleResponse{
 			Success:     false,
@@ -159,20 +141,13 @@ func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, version int, payl
 		}, nil
 	}
 
-	// Unmarshal to extract transaction details
-	var payload x402.PaymentPayload
-	json.Unmarshal(payloadBytes, &payload)
-
-	var requirements x402.PaymentRequirements
-	json.Unmarshal(requirementsBytes, &requirements)
-
 	// Extract name for transaction message
 	name, _ := payload.Payload["name"].(string)
 
 	return x402.SettleResponse{
 		Success:     true,
 		Transaction: fmt.Sprintf("%s transferred %s %s to %s", name, requirements.Amount, requirements.Asset, requirements.PayTo),
-		Network:     requirements.Network,
+		Network:     x402.Network(requirements.Network),
 		Payer:       verifyResponse.Payer,
 	}, nil
 }
@@ -253,10 +228,10 @@ func (s *SchemeNetworkServer) ParsePrice(price x402.Price, network x402.Network)
 // EnhancePaymentRequirements enhances payment requirements with cash-specific details
 func (s *SchemeNetworkServer) EnhancePaymentRequirements(
 	ctx context.Context,
-	requirements x402.PaymentRequirements,
-	supportedKind x402.SupportedKind,
+	requirements types.PaymentRequirements,
+	supportedKind types.SupportedKind,
 	facilitatorExtensions []string,
-) (x402.PaymentRequirements, error) {
+) (types.PaymentRequirements, error) {
 	// Cash scheme doesn't need any special enhancements
 	return requirements, nil
 }
@@ -279,34 +254,14 @@ func NewFacilitatorClient(facilitator *x402.X402Facilitator) *FacilitatorClient 
 
 // Verify verifies a payment payload against requirements
 func (c *FacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
-	// Unmarshal to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	return c.facilitator.Verify(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it will unmarshal internally)
+	return c.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
 
 // Settle settles a payment based on the payload and requirements
 func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
-	// Unmarshal to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	return c.facilitator.Settle(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it will unmarshal internally)
+	return c.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }
 
 // GetSupported gets supported payment kinds and extensions
@@ -334,8 +289,8 @@ func (c *FacilitatorClient) Identifier() string {
 // ============================================================================
 
 // BuildPaymentRequirements creates a payment requirements object for the cash scheme
-func BuildPaymentRequirements(payTo string, asset string, amount string) x402.PaymentRequirements {
-	return x402.PaymentRequirements{
+func BuildPaymentRequirements(payTo string, asset string, amount string) types.PaymentRequirements {
+	return types.PaymentRequirements{
 		Scheme:            "cash",
 		Network:           "x402:cash",
 		Asset:             asset,

@@ -33,31 +33,12 @@ func (f *ExactSvmScheme) Scheme() string {
 	return svm.SchemeExact
 }
 
-// Verify verifies a payment payload against requirements (V2)
+// Verify verifies a V2 payment payload against requirements
 func (f *ExactSvmScheme) Verify(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
 ) (x402.VerifyResponse, error) {
-	// Unmarshal to v2 types using helpers
-	payload, err := types.ToPaymentPayloadV2(payloadBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_payload",
-			Payer:         "",
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_requirements",
-			Payer:         "",
-		}, nil
-	}
 
 	// Step 1: Validate Payment Requirements
 	if payload.Accepted.Scheme != svm.SchemeExact || requirements.Scheme != svm.SchemeExact {
@@ -138,7 +119,7 @@ func (f *ExactSvmScheme) Verify(
 	// Convert requirements to old struct format for helper methods
 	reqStruct := x402.PaymentRequirements{
 		Scheme:  requirements.Scheme,
-		Network: x402.Network(requirements.Network),
+		Network: requirements.Network,
 		Asset:   requirements.Asset,
 		Amount:  requirements.Amount,
 		PayTo:   requirements.PayTo,
@@ -195,12 +176,11 @@ func (f *ExactSvmScheme) Verify(
 // Settle settles a payment by submitting the transaction (V2)
 func (f *ExactSvmScheme) Settle(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
 ) (x402.SettleResponse, error) {
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, version, payloadBytes, requirementsBytes)
+	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		return x402.SettleResponse{}, err
 	}
@@ -212,23 +192,6 @@ func (f *ExactSvmScheme) Settle(
 			Transaction: "",
 			Network:     "",
 			Payer:       verifyResp.Payer,
-		}, nil
-	}
-
-	// Unmarshal to v2 types for processing
-	payload, err := types.ToPaymentPayloadV2(payloadBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_payload",
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_requirements",
 		}, nil
 	}
 

@@ -1,9 +1,9 @@
 import express from "express";
-import { paymentMiddlewareFromConfig } from "@x402/express";
-import { ExactEvmScheme } from "@x402/evm/exact/server";
-import { ExactSvmScheme } from "@x402/svm/exact/server";
-import { HTTPFacilitatorClient } from "@x402/core/server";
-import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -43,17 +43,27 @@ const app = express();
 // Create HTTP facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
+// Create x402 resource server
+const server = new x402ResourceServer(facilitatorClient);
+
+// Register server schemes
+registerExactEvmScheme(server);
+registerExactSvmScheme(server);
+
+// Register Bazaar discovery extension
+server.registerExtension(bazaarResourceServerExtension);
+
 console.log(`Facilitator account: ${process.env.EVM_PRIVATE_KEY ? process.env.EVM_PRIVATE_KEY.substring(0, 10) + '...' : 'not configured'}`);
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 /**
- * Configure x402 payment middleware
+ * Configure x402 payment middleware using builder pattern
  *
- * This middleware protects the /protected endpoint with a $0.001 USDC payment requirement
- * on the Base Sepolia testnet with bazaar discovery extension.
+ * This middleware protects endpoints with $0.001 USDC payment requirements
+ * on Base Sepolia and Solana Devnet with bazaar discovery extension.
  */
 app.use(
-  paymentMiddlewareFromConfig(
+  paymentMiddleware(
     {
       // Route-specific payment configuration
       "GET /protected": {
@@ -107,21 +117,7 @@ app.use(
         },
       },
     },
-    // Use facilitator (either remote or local)
-    facilitatorClient,
-    // Register the EVM server for handling exact payments
-    [
-      {
-        network: EVM_NETWORK,
-        server: new ExactEvmScheme(),
-      },
-      {
-        network: SVM_NETWORK,
-        server: new ExactSvmScheme(),
-      },
-    ],
-    // No custom paywall configuration (uses defaults)
-    undefined,
+    server, // Pass pre-configured server instance
   ),
 );
 

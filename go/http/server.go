@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ============================================================================
@@ -125,8 +127,8 @@ type HTTPResponseInstructions struct {
 type HTTPProcessResult struct {
 	Type                string
 	Response            *HTTPResponseInstructions
-	PaymentPayload      *x402.PaymentPayload
-	PaymentRequirements *x402.PaymentRequirements
+	PaymentPayload      *types.PaymentPayload      // V2 only
+	PaymentRequirements *types.PaymentRequirements // V2 only
 }
 
 // Result type constants
@@ -252,11 +254,17 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		}
 	}
 
-	// Check for payment header
-	paymentPayload := s.extractPayment(reqCtx.Adapter)
+	// Check for payment header (V2 only)
+	typedPayload, err := s.extractPaymentV2(reqCtx.Adapter)
+	if err != nil {
+		return HTTPProcessResult{
+			Type:     ResultPaymentError,
+			Response: &HTTPResponseInstructions{Status: 400, Body: map[string]string{"error": "Invalid payment"}},
+		}
+	}
 
 	// Build payment requirements from RESOLVED config
-	requirements, err := s.BuildPaymentRequirements(ctx, x402.ResourceConfig{
+	requirements, err := s.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
 		Scheme:            resolvedConfig.Scheme,
 		PayTo:             resolvedConfig.PayTo,
 		Price:             resolvedConfig.Price,
@@ -276,7 +284,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Create resource info from RESOLVED config
-	resourceInfo := x402.ResourceInfo{
+	resourceInfo := &types.ResourceInfo{
 		URL:         reqCtx.Adapter.GetURL(),
 		Description: resolvedConfig.Description,
 		MimeType:    resolvedConfig.MimeType,
@@ -290,11 +298,12 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	extensions := resolvedConfig.Extensions
-	if extensions != nil && len(extensions) > 0 {
-		extensions = s.EnrichExtensions(extensions, reqCtx)
-	}
+	// TODO: Add EnrichExtensions method if needed
+	// if extensions != nil && len(extensions) > 0 {
+	// 	extensions = s.EnrichExtensions(extensions, reqCtx)
+	// }
 
-	if paymentPayload == nil {
+	if typedPayload == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
 			resourceInfo,
@@ -304,7 +313,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 		return HTTPProcessResult{
 			Type: ResultPaymentError,
-			Response: s.createHTTPResponse(
+			Response: s.createHTTPResponseV2(
 				paymentRequired,
 				s.isWebBrowser(reqCtx.Adapter),
 				paywallConfig,
@@ -313,17 +322,8 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		}
 	}
 
-	// Marshal payment payload to bytes for matching/verification
-	payloadBytes, err := json.Marshal(paymentPayload)
-	if err != nil {
-		return HTTPProcessResult{
-			Type:     ResultPaymentError,
-			Response: &HTTPResponseInstructions{Status: 500},
-		}
-	}
-
-	// Find matching requirements
-	matchingReqs := s.FindMatchingRequirements(requirements, payloadBytes)
+	// Find matching requirements (type-safe)
+	matchingReqs := s.FindMatchingRequirements(requirements, *typedPayload)
 	if matchingReqs == nil {
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
@@ -334,21 +334,12 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponse(paymentRequired, false, paywallConfig, ""),
+			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, ""),
 		}
 	}
 
-	// Marshal requirements to bytes for verification
-	requirementsBytes, err := json.Marshal(matchingReqs)
-	if err != nil {
-		return HTTPProcessResult{
-			Type:     ResultPaymentError,
-			Response: &HTTPResponseInstructions{Status: 500},
-		}
-	}
-
-	// Verify payment
-	verifyResult, err := s.VerifyPayment(ctx, payloadBytes, requirementsBytes)
+	// Verify payment (type-safe)
+	verifyResult, err := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
 	if err != nil || !verifyResult.IsValid {
 		errorMsg := "Payment verification failed"
 		if err != nil {
@@ -366,37 +357,27 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponse(paymentRequired, false, paywallConfig, ""),
+			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, ""),
 		}
 	}
 
 	// Payment verified
 	return HTTPProcessResult{
 		Type:                ResultPaymentVerified,
-		PaymentPayload:      paymentPayload,
+		PaymentPayload:      typedPayload,
 		PaymentRequirements: matchingReqs,
 	}
 }
 
 // ProcessSettlement handles settlement after successful response
-func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload x402.PaymentPayload, requirements x402.PaymentRequirements, responseStatus int) (map[string]string, error) {
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, responseStatus int) (map[string]string, error) {
 	// Don't settle if response failed
 	if responseStatus >= 400 {
 		return nil, nil
 	}
 
-	// Marshal to bytes for settlement
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	requirementsBytes, err := json.Marshal(requirements)
-	if err != nil {
-		return nil, err
-	}
-
-	settleResult, err := s.SettlePayment(ctx, payloadBytes, requirementsBytes)
+	// Settle payment (type-safe, no marshal needed)
+	settleResult, err := s.SettlePayment(ctx, payload, requirements)
 	if err != nil {
 		return nil, err
 	}
@@ -424,35 +405,64 @@ func (s *x402HTTPResourceServer) getRouteConfig(path, method string) *RouteConfi
 	return nil
 }
 
-// extractPayment extracts payment from headers
-func (s *x402HTTPResourceServer) extractPayment(adapter HTTPAdapter) *x402.PaymentPayload {
+// extractPaymentV2 extracts V2 payment from headers (V2 only)
+func (s *x402HTTPResourceServer) extractPaymentV2(adapter HTTPAdapter) (*types.PaymentPayload, error) {
 	// Check v2 header
 	header := adapter.GetHeader("PAYMENT-SIGNATURE")
 	if header == "" {
 		header = adapter.GetHeader("payment-signature")
 	}
 
-	if header != "" {
-		payload, err := decodePaymentSignatureHeader(header)
-		if err == nil {
-			return &payload
-		}
-	}
-
-	// Check v1 header
-	header = adapter.GetHeader("X-PAYMENT")
 	if header == "" {
-		header = adapter.GetHeader("x-payment")
+		return nil, nil // No payment header
 	}
 
-	if header != "" {
-		payload, err := decodePaymentSignatureHeader(header)
-		if err == nil {
-			return &payload
-		}
+	// Decode base64 header
+	jsonBytes, err := decodeBase64Header(header)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode payment header: %w", err)
 	}
 
-	return nil
+	// Detect version
+	version, err := types.DetectVersion(jsonBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect version: %w", err)
+	}
+
+	// V2 server only accepts V2 payments
+	if version != 2 {
+		return nil, fmt.Errorf("only V2 payments supported, got V%d", version)
+	}
+
+	// Unmarshal to V2 payload
+	payload, err := types.ToPaymentPayload(jsonBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal V2 payload: %w", err)
+	}
+
+	return payload, nil
+}
+
+// extractPayment extracts payment from headers (legacy method, now calls extractPaymentV2)
+func (s *x402HTTPResourceServer) extractPayment(adapter HTTPAdapter) *x402.PaymentPayload {
+	payload, err := s.extractPaymentV2(adapter)
+	if err != nil || payload == nil {
+		return nil
+	}
+
+	// Convert V2 to generic PaymentPayload for compatibility
+	return &x402.PaymentPayload{
+		X402Version: payload.X402Version,
+		Payload:     payload.Payload,
+		Accepted:    x402.PaymentRequirements{}, // TODO: Convert
+		Resource:    nil,
+		Extensions:  payload.Extensions,
+	}
+}
+
+// decodeBase64Header decodes a base64 header to JSON bytes
+func decodeBase64Header(header string) ([]byte, error) {
+	return base64.StdEncoding.DecodeString(header)
 }
 
 // isWebBrowser checks if request is from a web browser
@@ -462,10 +472,10 @@ func (s *x402HTTPResourceServer) isWebBrowser(adapter HTTPAdapter) bool {
 	return strings.Contains(accept, "text/html") && strings.Contains(userAgent, "Mozilla")
 }
 
-// createHTTPResponse creates response instructions
-func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+// createHTTPResponseV2 creates response instructions for V2 PaymentRequired
+func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
 	if isWebBrowser {
-		html := s.generatePaywallHTML(paymentRequired, paywallConfig, customHTML)
+		html := s.generatePaywallHTMLV2(paymentRequired, paywallConfig, customHTML)
 		return &HTTPResponseInstructions{
 			Status: 402,
 			Headers: map[string]string{
@@ -485,11 +495,63 @@ func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.Payment
 	}
 }
 
+// createHTTPResponse creates response instructions (legacy method)
+func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+	// Convert to V2 and call V2 method
+	v2Required := types.PaymentRequired{
+		X402Version: 2,
+		Error:       paymentRequired.Error,
+		Resource:    nil, // TODO: convert
+		Extensions:  paymentRequired.Extensions,
+	}
+	return s.createHTTPResponseV2(v2Required, isWebBrowser, paywallConfig, customHTML)
+}
+
 // createSettlementHeaders creates settlement response headers
 func (s *x402HTTPResourceServer) createSettlementHeaders(response x402.SettleResponse) map[string]string {
 	return map[string]string{
 		"PAYMENT-RESPONSE": encodePaymentResponseHeader(response),
 	}
+}
+
+// generatePaywallHTMLV2 generates HTML paywall for V2 PaymentRequired
+func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.PaymentRequired, config *PaywallConfig, customHTML string) string {
+	if customHTML != "" {
+		return customHTML
+	}
+
+	// Convert V2 to generic format to reuse existing HTML generation
+	genericRequired := x402.PaymentRequired{
+		X402Version: paymentRequired.X402Version,
+		Error:       paymentRequired.Error,
+		Resource:    nil, // Will convert
+		Accepts:     []x402.PaymentRequirements{}, // Will convert
+		Extensions:  paymentRequired.Extensions,
+	}
+
+	// Convert resource
+	if paymentRequired.Resource != nil {
+		genericRequired.Resource = &x402.ResourceInfo{
+			URL:         paymentRequired.Resource.URL,
+			Description: paymentRequired.Resource.Description,
+			MimeType:    paymentRequired.Resource.MimeType,
+		}
+	}
+
+	// Convert accepts
+	for _, reqV2 := range paymentRequired.Accepts {
+		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements{
+			Scheme:  reqV2.Scheme,
+			Network: reqV2.Network,
+			Asset:   reqV2.Asset,
+			Amount:  reqV2.Amount,
+			PayTo:   reqV2.PayTo,
+			Extra:   reqV2.Extra,
+		})
+	}
+
+	// Reuse existing HTML generation
+	return s.generatePaywallHTML(genericRequired, config, customHTML)
 }
 
 // generatePaywallHTML generates HTML paywall for browsers

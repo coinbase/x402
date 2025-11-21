@@ -10,6 +10,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
 	"github.com/coinbase/x402/go/test/mocks/cash"
+	"github.com/coinbase/x402/go/types"
 )
 
 // mockHTTPAdapter implements the HTTPAdapter interface for testing
@@ -153,24 +154,27 @@ func TestHTTPIntegration(t *testing.T) {
 			t.Fatalf("Failed to get payment required response: %v", err)
 		}
 
-		selected, err := x402Client.SelectPaymentRequirements(
-			paymentRequired.X402Version,
-			paymentRequired.Accepts,
-		)
+		// Convert PaymentRequired.Accepts to V2 (assuming response is V2)
+		var acceptsV2 []types.PaymentRequirements
+		for _, acc := range paymentRequired.Accepts {
+			acceptsV2 = append(acceptsV2, types.PaymentRequirements{
+				Scheme:  acc.Scheme,
+				Network: string(acc.Network),
+				Asset:   acc.Asset,
+				Amount:  acc.Amount,
+				PayTo:   acc.PayTo,
+				Extra:   acc.Extra,
+			})
+		}
+
+		selected, err := x402Client.SelectPaymentRequirements(acceptsV2)
 		if err != nil {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		// Marshal selected requirements to bytes
-		selectedBytes, err := json.Marshal(selected)
-		if err != nil {
-			t.Fatalf("Failed to marshal requirements: %v", err)
-		}
-
-		payloadBytes, err := x402Client.CreatePaymentPayload(
+		payload, err := x402Client.CreatePaymentPayload(
 			ctx,
-			paymentRequired.X402Version,
-			selectedBytes,
+			selected,
 			nil, // Cash doesn't use resource
 			nil, // Cash doesn't use extensions
 		)
@@ -178,6 +182,8 @@ func TestHTTPIntegration(t *testing.T) {
 			t.Fatalf("Failed to create payment payload: %v", err)
 		}
 
+		// Marshal payload to bytes for header encoding
+		payloadBytes, _ := json.Marshal(payload)
 		requestHeaders := httpClient.EncodePaymentSignatureHeader(payloadBytes)
 
 		// Update mock adapter with payment header

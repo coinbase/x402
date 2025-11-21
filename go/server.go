@@ -11,14 +11,19 @@ import (
 )
 
 // x402ResourceServer manages payment requirements and verification for protected resources
-// This is used by servers/APIs that want to charge for access
+// V2 ONLY - This server only produces and accepts V2 payments
 type x402ResourceServer struct {
-	mu                    sync.RWMutex
-	schemes               map[Network]map[string]SchemeNetworkServer
-	facilitatorClients    []FacilitatorClient
-	registeredExtensions  map[string]types.ResourceServerExtension
-	supportedCache        *SupportedCache
-	facilitatorClientsMap map[int]map[Network]map[string]FacilitatorClient
+	mu sync.RWMutex
+
+	// V2 only - server only produces/accepts V2 (default, no suffix)
+	schemes map[Network]map[string]SchemeNetworkServer
+
+	// Facilitator clients by network/scheme (can handle both V1 and V2)
+	facilitatorClients     map[Network]map[string]FacilitatorClient
+	tempFacilitatorClients []FacilitatorClient // Temp storage until Initialize
+
+	registeredExtensions map[string]types.ResourceServerExtension
+	supportedCache       *SupportedCache
 
 	// Lifecycle hooks
 	beforeVerifyHooks    []BeforeVerifyHook
@@ -37,20 +42,50 @@ type SupportedCache struct {
 	ttl    time.Duration
 }
 
+// Set stores a supported response in the cache
+func (c *SupportedCache) Set(key string, response SupportedResponse) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data[key] = response
+	c.expiry[key] = time.Now().Add(c.ttl)
+}
+
+// Get retrieves a supported response from the cache
+func (c *SupportedCache) Get(key string) (SupportedResponse, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	response, exists := c.data[key]
+	if !exists {
+		return SupportedResponse{}, false
+	}
+
+	// Check if expired
+	if time.Now().After(c.expiry[key]) {
+		return SupportedResponse{}, false
+	}
+
+	return response, true
+}
+
 // ResourceServerOption configures the server
 type ResourceServerOption func(*x402ResourceServer)
 
 // WithFacilitatorClient adds a facilitator client
 func WithFacilitatorClient(client FacilitatorClient) ResourceServerOption {
 	return func(s *x402ResourceServer) {
-		s.facilitatorClients = append(s.facilitatorClients, client)
+		// Store temporarily - will populate map in Initialize
+		if s.tempFacilitatorClients == nil {
+			s.tempFacilitatorClients = []FacilitatorClient{}
+		}
+		s.tempFacilitatorClients = append(s.tempFacilitatorClients, client)
 	}
 }
 
-// WithSchemeServer registers a scheme server implementation
+// WithSchemeServer registers a scheme server implementation (V2, default)
 func WithSchemeServer(network Network, schemeServer SchemeNetworkServer) ResourceServerOption {
 	return func(s *x402ResourceServer) {
-		s.registerScheme(network, schemeServer)
+		s.Register(network, schemeServer)
 	}
 }
 
@@ -64,87 +99,58 @@ func WithCacheTTL(ttl time.Duration) ResourceServerOption {
 func Newx402ResourceServer(opts ...ResourceServerOption) *x402ResourceServer {
 	s := &x402ResourceServer{
 		schemes:              make(map[Network]map[string]SchemeNetworkServer),
-		facilitatorClients:   []FacilitatorClient{},
+		facilitatorClients:   make(map[Network]map[string]FacilitatorClient),
 		registeredExtensions: make(map[string]types.ResourceServerExtension),
 		supportedCache: &SupportedCache{
 			data:   make(map[string]SupportedResponse),
 			expiry: make(map[string]time.Time),
 			ttl:    5 * time.Minute,
 		},
-		facilitatorClientsMap: make(map[int]map[Network]map[string]FacilitatorClient),
 	}
 
 	for _, opt := range opts {
 		opt(s)
 	}
 
-	// If no facilitator clients provided, this is an error for production
-	// but we'll allow it for testing
-	if len(s.facilitatorClients) == 0 {
-		// Log warning - in production should have at least one facilitator
-	}
-
 	return s
 }
 
-// Initialize fetches supported payment kinds from all facilitators
-// Should be called on startup to populate cache and build facilitator mapping
+// Initialize populates facilitator clients by querying GetSupported
 func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Clear existing mappings
-	s.facilitatorClientsMap = make(map[int]map[Network]map[string]FacilitatorClient)
-
-	var lastErr error
-	successCount := 0
-
-	// Process facilitators in order (earlier ones get precedence)
-	for i, client := range s.facilitatorClients {
+	for _, client := range s.tempFacilitatorClients {
+		// Get supported kinds
 		supported, err := client.GetSupported(ctx)
 		if err != nil {
-			lastErr = fmt.Errorf("facilitator %d: %w", i, err)
-			continue
+			return fmt.Errorf("failed to get supported from facilitator: %w", err)
 		}
 
-		// Cache the supported kinds
-		key := fmt.Sprintf("facilitator_%d", i)
-		s.supportedCache.Set(key, supported)
-		successCount++
-
-		// Build the facilitatorClientsMap for quick lookup
+		// Populate facilitatorClients map from kinds
 		for _, kind := range supported.Kinds {
-			// Get or create version map
-			if s.facilitatorClientsMap[kind.X402Version] == nil {
-				s.facilitatorClientsMap[kind.X402Version] = make(map[Network]map[string]FacilitatorClient)
-			}
-			versionMap := s.facilitatorClientsMap[kind.X402Version]
+			network := Network(kind.Network)
+			scheme := kind.Scheme
 
-			// Get or create network map
-			if versionMap[kind.Network] == nil {
-				versionMap[kind.Network] = make(map[string]FacilitatorClient)
+			if s.facilitatorClients[network] == nil {
+				s.facilitatorClients[network] = make(map[string]FacilitatorClient)
 			}
-			networkMap := versionMap[kind.Network]
-
-			// Only store if not already present (gives precedence to earlier facilitators)
-			if _, exists := networkMap[kind.Scheme]; !exists {
-				networkMap[kind.Scheme] = client
+			
+			// Only set if not already present (precedence to earlier clients)
+			if s.facilitatorClients[network][scheme] == nil {
+				s.facilitatorClients[network][scheme] = client
 			}
 		}
-	}
 
-	if successCount == 0 && lastErr != nil {
-		return fmt.Errorf("failed to initialize any facilitators: %w", lastErr)
+		// Cache the supported response
+		s.supportedCache.Set(fmt.Sprintf("facilitator_%p", client), supported)
 	}
 
 	return nil
 }
 
+// Register registers a payment mechanism (V2, default)
 func (s *x402ResourceServer) Register(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
-	return s.registerScheme(network, schemeServer)
-}
-
-func (s *x402ResourceServer) registerScheme(network Network, schemeServer SchemeNetworkServer) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -153,7 +159,6 @@ func (s *x402ResourceServer) registerScheme(network Network, schemeServer Scheme
 	}
 
 	s.schemes[network][schemeServer.Scheme()] = schemeServer
-
 	return s
 }
 
@@ -169,16 +174,6 @@ func (s *x402ResourceServer) RegisterExtension(extension types.ResourceServerExt
 // Hook Registration Methods (Chainable)
 // ============================================================================
 
-// OnBeforeVerify registers a hook to execute before payment verification
-// Can abort verification by returning a result with Abort=true
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnBeforeVerify(hook BeforeVerifyHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -186,15 +181,6 @@ func (s *x402ResourceServer) OnBeforeVerify(hook BeforeVerifyHook) *x402Resource
 	return s
 }
 
-// OnAfterVerify registers a hook to execute after successful payment verification
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnAfterVerify(hook AfterVerifyHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -202,16 +188,6 @@ func (s *x402ResourceServer) OnAfterVerify(hook AfterVerifyHook) *x402ResourceSe
 	return s
 }
 
-// OnVerifyFailure registers a hook to execute when payment verification fails
-// Can recover from failure by returning a result with Recovered=true
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnVerifyFailure(hook OnVerifyFailureHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -219,16 +195,6 @@ func (s *x402ResourceServer) OnVerifyFailure(hook OnVerifyFailureHook) *x402Reso
 	return s
 }
 
-// OnBeforeSettle registers a hook to execute before payment settlement
-// Can abort settlement by returning a result with Abort=true
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnBeforeSettle(hook BeforeSettleHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -236,15 +202,6 @@ func (s *x402ResourceServer) OnBeforeSettle(hook BeforeSettleHook) *x402Resource
 	return s
 }
 
-// OnAfterSettle registers a hook to execute after successful payment settlement
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnAfterSettle(hook AfterSettleHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -252,16 +209,6 @@ func (s *x402ResourceServer) OnAfterSettle(hook AfterSettleHook) *x402ResourceSe
 	return s
 }
 
-// OnSettleFailure registers a hook to execute when payment settlement fails
-// Can recover from failure by returning a result with Recovered=true
-//
-// Args:
-//
-//	hook: The hook function to register
-//
-// Returns:
-//
-//	The server instance for chaining
 func (s *x402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *x402ResourceServer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -269,566 +216,295 @@ func (s *x402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *x402Reso
 	return s
 }
 
-func (s *x402ResourceServer) EnrichExtensions(
-	declaredExtensions map[string]interface{},
-	transportContext interface{},
-) map[string]interface{} {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	enriched := make(map[string]interface{})
-
-	for key, declaration := range declaredExtensions {
-		if extension, ok := s.registeredExtensions[key]; ok {
-			enriched[key] = extension.EnrichDeclaration(declaration, transportContext)
-		} else {
-			enriched[key] = declaration
-		}
-	}
-
-	return enriched
-}
+// ============================================================================
+// Core Payment Methods (V2 Only)
+// ============================================================================
 
 // BuildPaymentRequirements creates payment requirements for a resource
-func (s *x402ResourceServer) BuildPaymentRequirements(ctx context.Context, config ResourceConfig) ([]PaymentRequirements, error) {
+func (s *x402ResourceServer) BuildPaymentRequirements(
+	ctx context.Context,
+	config ResourceConfig,
+	supportedKind types.SupportedKind,
+	extensions []string,
+) (types.PaymentRequirements, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Find the scheme server
-	schemeServer := findByNetworkAndScheme(s.schemes, config.Scheme, config.Network)
+	scheme := config.Scheme
+	network := config.Network
+
+	schemeServer := s.schemes[network][scheme]
 	if schemeServer == nil {
-		return nil, &PaymentError{
+		return types.PaymentRequirements{}, &PaymentError{
 			Code:    ErrCodeUnsupportedScheme,
-			Message: fmt.Sprintf("no server registered for scheme %s on network %s", config.Scheme, config.Network),
+			Message: fmt.Sprintf("no scheme server for %s on %s", scheme, network),
 		}
 	}
 
-	// Get supported kinds from facilitators
-	supportedKind := s.findSupportedKind(ProtocolVersion, config.Network, config.Scheme)
-	if supportedKind == nil {
-		return nil, &PaymentError{
-			Code:    ErrCodeUnsupportedNetwork,
-			Message: fmt.Sprintf("facilitator does not support %s on %s", config.Scheme, config.Network),
-			Details: map[string]interface{}{
-				"hint": "call Initialize() to fetch supported kinds from facilitators",
-			},
-		}
-	}
-
-	// Parse the price using the scheme's parser
-	assetAmount, err := schemeServer.ParsePrice(config.Price, config.Network)
+	// Parse price to get asset/amount
+	assetAmount, err := schemeServer.ParsePrice(config.Price, network)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse price: %w", err)
+		return types.PaymentRequirements{}, err
+	}
+
+	// Apply default timeout if not specified
+	maxTimeout := config.MaxTimeoutSeconds
+	if maxTimeout == 0 {
+		maxTimeout = 60 // Default to 60 seconds
 	}
 
 	// Build base requirements
-	baseRequirements := PaymentRequirements{
-		Scheme:            config.Scheme,
-		Network:           config.Network,
+	requirements := types.PaymentRequirements{
+		Scheme:            scheme,
+		Network:           string(network),
 		Asset:             assetAmount.Asset,
 		Amount:            assetAmount.Amount,
 		PayTo:             config.PayTo,
-		MaxTimeoutSeconds: config.MaxTimeoutSeconds,
+		MaxTimeoutSeconds: maxTimeout,
 		Extra:             assetAmount.Extra,
 	}
 
-	// Set default timeout if not specified
-	if baseRequirements.MaxTimeoutSeconds == 0 {
-		baseRequirements.MaxTimeoutSeconds = 300 // 5 minutes default
-	}
-
-	// Get facilitator extensions
-	extensions := s.getFacilitatorExtensions(ProtocolVersion, config.Network, config.Scheme)
-
 	// Enhance with scheme-specific details
-	enhanced, err := schemeServer.EnhancePaymentRequirements(ctx, baseRequirements, *supportedKind, extensions)
+	enhanced, err := schemeServer.EnhancePaymentRequirements(ctx, requirements, supportedKind, extensions)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enhance payment requirements: %w", err)
+		return types.PaymentRequirements{}, err
 	}
 
-	return []PaymentRequirements{enhanced}, nil
-}
-
-// CreatePaymentRequiredResponse creates a 402 response
-func (s *x402ResourceServer) CreatePaymentRequiredResponse(
-	requirements []PaymentRequirements,
-	info ResourceInfo,
-	errorMsg string,
-	extensions map[string]interface{},
-) PaymentRequired {
-	response := PaymentRequired{
-		X402Version: ProtocolVersion,
-		Error:       errorMsg,
-		Resource:    &info,
-		Accepts:     requirements,
-		Extensions:  extensions,
-	}
-
-	if errorMsg == "" {
-		response.Error = "Payment required"
-	}
-
-	return response
-}
-
-// VerifyPayment verifies a payment against requirements
-// Server is boundary: accepts bytes (from client), routes to facilitator
-//
-// Args:
-//
-//	ctx: Context for cancellation and metadata
-//	payloadBytes: Serialized payment payload
-//	requirementsBytes: Serialized payment requirements
-//
-// Returns:
-//
-//	VerifyResponse and error if verification fails
-func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
-	// Build hook context
-	hookCtx := VerifyContext{
-		Ctx:               ctx,
-		PayloadBytes:      payloadBytes,
-		RequirementsBytes: requirementsBytes,
-	}
-
-	// Execute beforeVerify hooks
-	s.mu.RLock()
-	beforeHooks := s.beforeVerifyHooks
-	s.mu.RUnlock()
-
-	for _, hook := range beforeHooks {
-		result, err := hook(hookCtx)
-		if err != nil {
-			// Log error but continue (hook errors don't abort)
-			// In production, you might want to log this
-		}
-		if result != nil && result.Abort {
-			return VerifyResponse{
-				IsValid:       false,
-				InvalidReason: result.Reason,
-			}, nil
-		}
-	}
-
-	// Perform verification
-	var verifyResult VerifyResponse
-	var verifyErr error
-
-	// Detect version
-	version, err := types.DetectVersion(payloadBytes)
-	if err != nil {
-		verifyErr = err
-		verifyResult = VerifyResponse{IsValid: false, InvalidReason: "invalid version"}
-	} else {
-		// Extract scheme/network from requirements for routing
-		reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
-		if err != nil {
-			verifyErr = err
-			verifyResult = VerifyResponse{IsValid: false, InvalidReason: "invalid requirements"}
-		} else {
-			// Find appropriate facilitator
-			facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
-			if facilitator == nil {
-				// Try all facilitators as fallback
-				var lastErr error
-				for _, client := range s.facilitatorClients {
-					resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
-					if err == nil {
-						verifyResult = resp
-						break
-					}
-					lastErr = err
-				}
-
-				if verifyResult.IsValid || lastErr != nil {
-					if lastErr != nil {
-						verifyErr = &PaymentError{
-							Code:    ErrCodeUnsupportedNetwork,
-							Message: "no facilitator supports this payment type",
-						}
-						verifyResult = VerifyResponse{
-							IsValid:       false,
-							InvalidReason: "no facilitator available for verification",
-						}
-					}
-				}
-			} else {
-				// Use specific facilitator
-				verifyResult, verifyErr = facilitator.Verify(ctx, payloadBytes, requirementsBytes)
-			}
-		}
-	}
-
-	// Handle success case
-	if verifyErr == nil {
-		// Execute afterVerify hooks
-		s.mu.RLock()
-		afterHooks := s.afterVerifyHooks
-		s.mu.RUnlock()
-
-		resultCtx := VerifyResultContext{
-			VerifyContext: hookCtx,
-			Result:        verifyResult,
-		}
-
-		for _, hook := range afterHooks {
-			if err := hook(resultCtx); err != nil {
-				// Log error but don't fail the verification
-				// In production, you might want to log this
-			}
-		}
-
-		return verifyResult, nil
-	}
-
-	// Handle failure case
-	s.mu.RLock()
-	failureHooks := s.onVerifyFailureHooks
-	s.mu.RUnlock()
-
-	failureCtx := VerifyFailureContext{
-		VerifyContext: hookCtx,
-		Error:         verifyErr,
-	}
-
-	// Execute onVerifyFailure hooks
-	for _, hook := range failureHooks {
-		result, err := hook(failureCtx)
-		if err != nil {
-			// Log error but continue
-		}
-		if result != nil && result.Recovered {
-			// Hook recovered from failure
-			return result.Result, nil
-		}
-	}
-
-	// No recovery, return original error
-	return verifyResult, verifyErr
-}
-
-// SettlePayment settles a verified payment
-// Server is boundary: accepts bytes (from client), routes to facilitator
-//
-// Args:
-//
-//	ctx: Context for cancellation and metadata
-//	payloadBytes: Serialized payment payload
-//	requirementsBytes: Serialized payment requirements
-//
-// Returns:
-//
-//	SettleResponse and error if settlement fails
-func (s *x402ResourceServer) SettlePayment(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
-	// Build hook context
-	hookCtx := SettleContext{
-		Ctx:               ctx,
-		PayloadBytes:      payloadBytes,
-		RequirementsBytes: requirementsBytes,
-	}
-
-	// Execute beforeSettle hooks
-	s.mu.RLock()
-	beforeHooks := s.beforeSettleHooks
-	s.mu.RUnlock()
-
-	for _, hook := range beforeHooks {
-		result, err := hook(hookCtx)
-		if err != nil {
-			// Log error but continue (hook errors don't abort)
-			// In production, you might want to log this
-		}
-		if result != nil && result.Abort {
-			return SettleResponse{
-				Success:     false,
-				ErrorReason: fmt.Sprintf("Settlement aborted: %s", result.Reason),
-			}, fmt.Errorf("settlement aborted: %s", result.Reason)
-		}
-	}
-
-	// Perform settlement
-	var settleResult SettleResponse
-	var settleErr error
-
-	// Detect version
-	version, err := types.DetectVersion(payloadBytes)
-	if err != nil {
-		settleErr = err
-		settleResult = SettleResponse{Success: false, ErrorReason: "invalid version"}
-	} else {
-		// Extract scheme/network from requirements for routing
-		reqInfo, err := types.ExtractRequirementsInfo(requirementsBytes)
-		if err != nil {
-			settleErr = err
-			settleResult = SettleResponse{Success: false, ErrorReason: "invalid requirements"}
-		} else {
-			// Find appropriate facilitator
-			facilitator := s.findFacilitatorForPayment(version, Network(reqInfo.Network), reqInfo.Scheme)
-			if facilitator == nil {
-				// Try all facilitators as fallback
-				var lastErr error
-				for _, client := range s.facilitatorClients {
-					resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
-					if err == nil {
-						settleResult = resp
-						break
-					}
-					lastErr = err
-				}
-
-				if !settleResult.Success && lastErr != nil {
-					settleErr = &PaymentError{
-						Code:    ErrCodeSettlementFailed,
-						Message: "no facilitator supports this payment type",
-					}
-					settleResult = SettleResponse{
-						Success:     false,
-						ErrorReason: "no facilitator available for settlement",
-					}
-				}
-			} else {
-				// Use specific facilitator
-				settleResult, settleErr = facilitator.Settle(ctx, payloadBytes, requirementsBytes)
-			}
-		}
-	}
-
-	// Handle success case
-	if settleErr == nil && settleResult.Success {
-		// Execute afterSettle hooks
-		s.mu.RLock()
-		afterHooks := s.afterSettleHooks
-		s.mu.RUnlock()
-
-		resultCtx := SettleResultContext{
-			SettleContext: hookCtx,
-			Result:        settleResult,
-		}
-
-		for _, hook := range afterHooks {
-			if err := hook(resultCtx); err != nil {
-				// Log error but don't fail the settlement
-				// In production, you might want to log this
-			}
-		}
-
-		return settleResult, nil
-	}
-
-	// Handle failure case
-	s.mu.RLock()
-	failureHooks := s.onSettleFailureHooks
-	s.mu.RUnlock()
-
-	failureCtx := SettleFailureContext{
-		SettleContext: hookCtx,
-		Error:         settleErr,
-	}
-
-	// Execute onSettleFailure hooks
-	for _, hook := range failureHooks {
-		result, err := hook(failureCtx)
-		if err != nil {
-			// Log error but continue
-		}
-		if result != nil && result.Recovered {
-			// Hook recovered from failure
-			return result.Result, nil
-		}
-	}
-
-	// No recovery, return original error
-	return settleResult, settleErr
+	return enhanced, nil
 }
 
 // FindMatchingRequirements finds requirements that match a payment payload
-// Server boundary: takes bytes (payload) + structs (available requirements)
-func (s *x402ResourceServer) FindMatchingRequirements(available []PaymentRequirements, payloadBytes []byte) *PaymentRequirements {
-	// Detect version from payload
-	version, err := types.DetectVersion(payloadBytes)
-	if err != nil {
-		return nil
-	}
-
-	// Check each requirement using version-aware matching
+func (s *x402ResourceServer) FindMatchingRequirements(available []types.PaymentRequirements, payload types.PaymentPayload) *types.PaymentRequirements {
 	for _, req := range available {
-		reqBytes, err := json.Marshal(req)
-		if err != nil {
-			continue
-		}
-
-		match, err := types.MatchPayloadToRequirements(version, payloadBytes, reqBytes)
-		if err == nil && match {
+		if payload.Accepted.Scheme == req.Scheme &&
+			payload.Accepted.Network == req.Network &&
+			payload.Accepted.Amount == req.Amount &&
+			payload.Accepted.Asset == req.Asset &&
+			payload.Accepted.PayTo == req.PayTo {
 			return &req
 		}
 	}
-
 	return nil
+}
+
+// VerifyPayment verifies a V2 payment
+func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+	// Marshal to bytes early for hooks (escape hatch for extensions)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+	
+	requirementsBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return VerifyResponse{IsValid: false}, err
+	}
+
+	// Execute beforeVerify hooks
+	hookCtx := VerifyContext{
+		Ctx:               ctx,
+		Payload:           payload,
+		Requirements:      requirements,
+		PayloadBytes:      payloadBytes,
+		RequirementsBytes: requirementsBytes,
+	}
+
+	for _, hook := range s.beforeVerifyHooks {
+		result, err := hook(hookCtx)
+		if err != nil {
+			return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+		}
+		if result != nil && result.Abort {
+			return VerifyResponse{IsValid: false, InvalidReason: result.Reason}, nil
+		}
+	}
+
+	s.mu.RLock()
+	scheme := requirements.Scheme
+	network := Network(requirements.Network)
+
+	facilitator := s.facilitatorClients[network][scheme]
+	s.mu.RUnlock()
+
+	if facilitator == nil {
+		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+	}
+
+	// Use already marshaled bytes for network call
+	verifyResult, verifyErr := facilitator.Verify(ctx, payloadBytes, requirementsBytes)
+
+	// Handle failure
+	if verifyErr != nil {
+		failureCtx := VerifyFailureContext{VerifyContext: hookCtx, Error: verifyErr}
+		for _, hook := range s.onVerifyFailureHooks {
+			result, _ := hook(failureCtx)
+			if result != nil && result.Recovered {
+				return result.Result, nil
+			}
+		}
+		return verifyResult, verifyErr
+	}
+
+	// Execute afterVerify hooks
+	resultCtx := VerifyResultContext{VerifyContext: hookCtx, Result: verifyResult}
+	for _, hook := range s.afterVerifyHooks {
+		_ = hook(resultCtx) // Log errors but don't fail
+	}
+
+	return verifyResult, nil
+}
+
+// SettlePayment settles a V2 payment
+func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+	// Marshal to bytes early for hooks (escape hatch for extensions)
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+	
+	requirementsBytes, err := json.Marshal(requirements)
+	if err != nil {
+		return SettleResponse{Success: false}, err
+	}
+
+	// Execute beforeSettle hooks
+	hookCtx := SettleContext{
+		Ctx:               ctx,
+		Payload:           payload,
+		Requirements:      requirements,
+		PayloadBytes:      payloadBytes,
+		RequirementsBytes: requirementsBytes,
+	}
+
+	for _, hook := range s.beforeSettleHooks {
+		result, err := hook(hookCtx)
+		if err != nil {
+			return SettleResponse{Success: false, ErrorReason: err.Error()}, err
+		}
+		if result != nil && result.Abort {
+			return SettleResponse{Success: false, ErrorReason: result.Reason}, fmt.Errorf("%s", result.Reason)
+		}
+	}
+
+	s.mu.RLock()
+	scheme := requirements.Scheme
+	network := Network(requirements.Network)
+
+	facilitator := s.facilitatorClients[network][scheme]
+	s.mu.RUnlock()
+
+	if facilitator == nil {
+		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+	}
+
+	// Use already marshaled bytes for network call
+	settleResult, settleErr := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+
+	// Handle failure
+	if settleErr != nil {
+		failureCtx := SettleFailureContext{SettleContext: hookCtx, Error: settleErr}
+		for _, hook := range s.onSettleFailureHooks {
+			result, _ := hook(failureCtx)
+			if result != nil && result.Recovered {
+				return result.Result, nil
+			}
+		}
+		return settleResult, settleErr
+	}
+
+	// Execute afterSettle hooks
+	resultCtx := SettleResultContext{SettleContext: hookCtx, Result: settleResult}
+	for _, hook := range s.afterSettleHooks {
+		_ = hook(resultCtx) // Log errors but don't fail
+	}
+
+	return settleResult, nil
+}
+
+// CreatePaymentRequiredResponse creates a V2 PaymentRequired response
+func (s *x402ResourceServer) CreatePaymentRequiredResponse(
+	requirements []types.PaymentRequirements,
+	resourceInfo *types.ResourceInfo,
+	errorMsg string,
+	extensions map[string]interface{},
+) types.PaymentRequired {
+	return types.PaymentRequired{
+		X402Version: 2,
+		Error:       errorMsg,
+		Resource:    resourceInfo,
+		Accepts:     requirements,
+		Extensions:  extensions,
+	}
 }
 
 // ProcessPaymentRequest processes a payment request end-to-end
 func (s *x402ResourceServer) ProcessPaymentRequest(
 	ctx context.Context,
-	paymentPayload *PaymentPayload,
-	resourceConfig ResourceConfig,
-	resourceInfo ResourceInfo,
-	extensions map[string]interface{},
-) (*ProcessResult, error) {
-	requirements, err := s.BuildPaymentRequirements(ctx, resourceConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	if paymentPayload == nil {
-		return &ProcessResult{
-			Success: false,
-			RequiresPayment: &PaymentRequired{
-				X402Version: ProtocolVersion,
-				Error:       "Payment required",
-				Resource:    &resourceInfo,
-				Accepts:     requirements,
-				Extensions:  extensions,
-			},
-		}, nil
-	}
-
-	// Marshal payment payload to bytes for matching
-	payloadBytes, err := json.Marshal(paymentPayload)
-	if err != nil {
-		return nil, err
-	}
-
-	// Find matching requirements
-	matchingRequirements := s.FindMatchingRequirements(requirements, payloadBytes)
-	if matchingRequirements == nil {
-		return &ProcessResult{
-			Success: false,
-			RequiresPayment: &PaymentRequired{
-				X402Version: ProtocolVersion,
-				Error:       "No matching payment requirements found",
-				Resource:    &resourceInfo,
-				Accepts:     requirements,
-				Extensions:  extensions,
-			},
-		}, nil
-	}
-
-	// Marshal requirements to bytes for verification
-	requirementsBytes, err := json.Marshal(matchingRequirements)
-	if err != nil {
-		return nil, err
-	}
-
-	// Verify payment
-	verificationResult, err := s.VerifyPayment(ctx, payloadBytes, requirementsBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	if !verificationResult.IsValid {
-		return &ProcessResult{
-			Success:            false,
-			Error:              verificationResult.InvalidReason,
-			VerificationResult: &verificationResult,
-		}, nil
-	}
-
-	// Payment verified, ready for settlement
-	return &ProcessResult{
-		Success:            true,
-		VerificationResult: &verificationResult,
-	}, nil
+	config ResourceConfig,
+	payload *types.PaymentPayload,
+) (*types.PaymentRequirements, VerifyResponse, error) {
+	// This is a stub - needs full implementation
+	// For now, return error
+	return nil, VerifyResponse{IsValid: false}, fmt.Errorf("not implemented")
 }
 
-// ProcessResult contains the result of processing a payment request
-type ProcessResult struct {
-	Success            bool
-	RequiresPayment    *PaymentRequired
-	VerificationResult *VerifyResponse
-	SettlementResult   *SettleResponse
-	Error              string
-}
-
-// Helper methods
-
-// findSupportedKind finds a supported kind from cache
-func (s *x402ResourceServer) findSupportedKind(version int, network Network, scheme string) *SupportedKind {
-	s.supportedCache.mu.RLock()
-	defer s.supportedCache.mu.RUnlock()
-
-	for key, supported := range s.supportedCache.data {
-		// Check if cache entry is still valid
-		if expiry, exists := s.supportedCache.expiry[key]; exists {
-			if time.Now().After(expiry) {
-				continue // Skip expired entries
-			}
-		}
-
-		// Look for matching kind
-		for _, kind := range supported.Kinds {
-			if kind.X402Version == version &&
-				kind.Scheme == scheme &&
-				Network(kind.Network).Match(network) {
-				return &SupportedKind{
-					X402Version: kind.X402Version,
-					Scheme:      kind.Scheme,
-					Network:     kind.Network,
-					Extra:       kind.Extra,
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// getFacilitatorExtensions gets extensions for a payment type
-func (s *x402ResourceServer) getFacilitatorExtensions(version int, network Network, scheme string) []string {
-	s.supportedCache.mu.RLock()
-	defer s.supportedCache.mu.RUnlock()
-
-	for _, supported := range s.supportedCache.data {
-		for _, kind := range supported.Kinds {
-			if kind.X402Version == version &&
-				kind.Scheme == scheme &&
-				Network(kind.Network).Match(network) {
-				return supported.Extensions
-			}
-		}
-	}
-
-	return []string{}
-}
-
-// findFacilitatorForPayment finds the facilitator that supports a payment type
-// Uses the facilitatorClientsMap built during Initialize() for O(1) lookup
-func (s *x402ResourceServer) findFacilitatorForPayment(version int, network Network, scheme string) FacilitatorClient {
+// BuildPaymentRequirementsFromConfig builds payment requirements from config
+// This wraps the single requirement builder with facilitator data
+func (s *x402ResourceServer) BuildPaymentRequirementsFromConfig(ctx context.Context, config ResourceConfig) ([]types.PaymentRequirements, error) {
+	// Find supported kind for this scheme/network
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	versionMap, exists := s.facilitatorClientsMap[version]
-	if !exists {
-		return nil
+	schemeServer := s.schemes[config.Network][config.Scheme]
+	if schemeServer == nil {
+		return nil, fmt.Errorf("no scheme server for %s on %s", config.Scheme, config.Network)
 	}
 
-	// Use the utility function to find with pattern matching support
-	return findByNetworkAndScheme(versionMap, scheme, network)
+	// Look up cached supported kinds from facilitator
+	// This was populated during Initialize() by querying facilitator's /supported endpoint
+	var supportedKind types.SupportedKind
+	foundKind := false
+
+	// Check each cached facilitator response for matching supported kind
+	s.supportedCache.mu.RLock()
+	for _, cachedResponse := range s.supportedCache.data {
+		for _, kind := range cachedResponse.Kinds {
+			// Match on scheme and network
+			if kind.Scheme == config.Scheme && string(kind.Network) == string(config.Network) && kind.X402Version == 2 {
+				// Convert SupportedKind to SupportedKindV2
+				supportedKind = types.SupportedKind{
+					X402Version: kind.X402Version,
+					Scheme:      kind.Scheme,
+					Network:     string(kind.Network),
+					Extra:       kind.Extra, // This includes feePayer for SVM!
+				}
+				foundKind = true
+				break
+			}
+		}
+		if foundKind {
+			break
+		}
+	}
+	s.supportedCache.mu.RUnlock()
+
+	// If no cached kind found, create a basic one (fallback for cases without facilitator)
+	if !foundKind {
+		supportedKind = types.SupportedKind{
+			X402Version: 2,
+			Scheme:      config.Scheme,
+			Network:     string(config.Network),
+			Extra:       make(map[string]interface{}),
+		}
+	}
+
+	requirement, err := s.BuildPaymentRequirements(ctx, config, supportedKind, []string{})
+	if err != nil {
+		return nil, err
+	}
+
+	return []types.PaymentRequirements{requirement}, nil
 }
 
-// Set adds an item to the cache
-func (c *SupportedCache) Set(key string, value SupportedResponse) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.data[key] = value
-	c.expiry[key] = time.Now().Add(c.ttl)
-}
-
-// Clear clears the cache
-func (c *SupportedCache) Clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.data = make(map[string]SupportedResponse)
-	c.expiry = make(map[string]time.Time)
-}
+// Helper functions use the generic findSchemesByNetwork from utils.go

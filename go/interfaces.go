@@ -1,6 +1,10 @@
 package x402
 
-import "context"
+import (
+	"context"
+
+	"github.com/coinbase/x402/go/types"
+)
 
 // MoneyParser is a function that converts a decimal amount to an AssetAmount
 // If the parser cannot handle the conversion, it should return nil
@@ -17,62 +21,85 @@ import "context"
 //	AssetAmount or nil if this parser cannot handle the conversion
 type MoneyParser func(amount float64, network Network) (*AssetAmount, error)
 
-// SchemeNetworkClient is implemented by client-side payment mechanisms
-// This interface is used by clients who sign/create payments
+// ============================================================================
+// V1 Interfaces (Legacy - explicitly versioned)
+// ============================================================================
+
+// SchemeNetworkClientV1 is implemented by client-side V1 payment mechanisms
+type SchemeNetworkClientV1 interface {
+	Scheme() string
+	CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirementsV1) (types.PaymentPayloadV1, error)
+}
+
+// SchemeNetworkFacilitatorV1 is implemented by facilitator-side V1 payment mechanisms
+type SchemeNetworkFacilitatorV1 interface {
+	Scheme() string
+	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (SettleResponse, error)
+}
+
+// Note: No SchemeNetworkServerV1 - new SDK servers are V2 only
+
+// ============================================================================
+// V2 Interfaces (Current - default, no version suffix)
+// ============================================================================
+
+// SchemeNetworkClient is implemented by client-side payment mechanisms (V2)
 type SchemeNetworkClient interface {
-	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
-
-	// CreatePaymentPayload creates a signed payment for the given requirements
-	// For v2: Returns partial payload (x402Version + payload), core wraps with accepted/resource/extensions
-	// For v1: Returns complete payload (x402Version + scheme + network + payload)
-	CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) (payloadBytes []byte, err error)
+	CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error)
 }
 
-// SchemeNetworkFacilitator is implemented by facilitator-side payment mechanisms
-// This interface is used by facilitators who verify and settle payments
-type SchemeNetworkFacilitator interface {
-	// Scheme returns the payment scheme identifier (e.g., "exact")
-	Scheme() string
-
-	// Verify checks if a payment is valid without executing it
-	// Receives version + raw bytes, mechanisms unmarshal to version-specific types
-	Verify(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
-
-	// Settle executes the payment on-chain
-	// Receives version + raw bytes, mechanisms unmarshal to version-specific types
-	Settle(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
-}
-
-// SchemeNetworkServer is implemented by server-side payment mechanisms
-// This interface is used by servers who create payment requirements
+// SchemeNetworkServer is implemented by server-side payment mechanisms (V2)
 type SchemeNetworkServer interface {
-	// Scheme returns the payment scheme identifier (e.g., "exact")
 	Scheme() string
-
-	// ParsePrice converts a user-friendly price to asset/amount format
 	ParsePrice(price Price, network Network) (AssetAmount, error)
-
-	// EnhancePaymentRequirements adds scheme-specific details to requirements
 	EnhancePaymentRequirements(
 		ctx context.Context,
-		requirements PaymentRequirements,
-		supportedKind SupportedKind,
+		requirements types.PaymentRequirements,
+		supportedKind types.SupportedKind,
 		extensions []string,
-	) (PaymentRequirements, error)
+	) (types.PaymentRequirements, error)
 }
 
-// FacilitatorClient interface for services to interact with facilitators
-// Updated to use bytes for version-agnostic communication
+// SchemeNetworkFacilitator is implemented by facilitator-side payment mechanisms (V2)
+type SchemeNetworkFacilitator interface {
+	Scheme() string
+	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error)
+}
+
+// ============================================================================
+// FacilitatorClient Interfaces (Network Boundary - uses bytes)
+// ============================================================================
+
+// FacilitatorClient interface for new facilitators that support both V1 and V2
+// Uses bytes at network boundary - SDK internal routing unmarshals and routes to typed mechanisms
 type FacilitatorClient interface {
-	// Verify a payment against requirements
-	// Accepts raw bytes (payload and requirements)
+	// Verify a payment (detects version from bytes, routes internally)
 	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
 
-	// Settle a payment
-	// Accepts raw bytes (payload and requirements)
+	// Settle a payment (detects version from bytes, routes internally)
 	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
 
-	// Get supported payment kinds
+	// GetSupported returns supported payment kinds (new format - includes both V1/V2)
 	GetSupported(ctx context.Context) (SupportedResponse, error)
+}
+
+// LegacyFacilitatorClient interface for old facilitators (V1 only)
+// Same signatures but GetSupported returns old format
+type LegacyFacilitatorClient interface {
+	// Verify a V1 payment only
+	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
+
+	// Settle a V1 payment only
+	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
+
+	// GetSupported returns V1 supported format (no extensions)
+	GetSupported(ctx context.Context) (SupportedResponseV1, error)
+}
+
+// SupportedResponseV1 is the old supported response format (V1 only, no extensions)
+type SupportedResponseV1 struct {
+	Kinds []types.SupportedKindV1 `json:"kinds"`
 }

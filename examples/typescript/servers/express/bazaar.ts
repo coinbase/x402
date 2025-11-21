@@ -53,7 +53,7 @@ app.use(
         },
       },
     },
-    new x402ResourceServer(facilitatorClient).registerScheme("eip155:84532", new ExactEvmScheme()),
+    new x402ResourceServer(facilitatorClient).register("eip155:84532", new ExactEvmScheme()),
   ),
 );
 

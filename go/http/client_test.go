@@ -254,13 +254,6 @@ func TestPaymentRoundTripper(t *testing.T) {
 	// Create mock scheme client
 	mockClient := &mockSchemeClient{
 		scheme: "mock",
-		createPayload: func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-			partial := types.PayloadBase{
-				X402Version: version,
-				Payload:     map[string]interface{}{"sig": "test"},
-			}
-			return json.Marshal(partial)
-		},
 	}
 
 	// Create x402 client
@@ -379,21 +372,16 @@ func TestPostWithPayment(t *testing.T) {
 
 // Mock scheme client for testing
 type mockSchemeClient struct {
-	scheme        string
-	createPayload func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error)
+	scheme string
 }
 
 func (m *mockSchemeClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-	if m.createPayload != nil {
-		return m.createPayload(ctx, version, requirementsBytes)
-	}
-	partial := types.PayloadBase{
-		X402Version: version,
-		Payload:     map[string]interface{}{},
-	}
-	return json.Marshal(partial)
+func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+	return types.PaymentPayload{
+		X402Version: 2,
+		Payload:     map[string]interface{}{"mock": "payload"},
+	}, nil
 }

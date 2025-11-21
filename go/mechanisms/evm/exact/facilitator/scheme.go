@@ -28,29 +28,12 @@ func (f *ExactEvmScheme) Scheme() string {
 	return evm.SchemeExact
 }
 
-// Verify verifies a payment payload against requirements (V2)
+// Verify verifies a V2 payment payload against requirements
 func (f *ExactEvmScheme) Verify(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
 ) (x402.VerifyResponse, error) {
-	// Unmarshal to v2 types using helpers
-	payload, err := types.ToPaymentPayloadV2(payloadBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid payload: %v", err),
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid requirements: %v", err),
-		}, nil
-	}
 
 	// Validate scheme (v2 has scheme in Accepted field)
 	if payload.Accepted.Scheme != evm.SchemeExact {
@@ -202,28 +185,16 @@ func (f *ExactEvmScheme) Verify(
 	}, nil
 }
 
-// Settle settles a payment on-chain (V2)
+// Settle settles a V2 payment on-chain
 func (f *ExactEvmScheme) Settle(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayload,
+	requirements types.PaymentRequirements,
 ) (x402.SettleResponse, error) {
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, version, payloadBytes, requirementsBytes)
+	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		return x402.SettleResponse{}, err
-	}
-
-	// Unmarshal to v2 types for settlement
-	payload, err := types.ToPaymentPayloadV2(payloadBytes)
-	if err != nil {
-		return x402.SettleResponse{Success: false, ErrorReason: "invalid_payload"}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV2(requirementsBytes)
-	if err != nil {
-		return x402.SettleResponse{Success: false, ErrorReason: "invalid_requirements"}, nil
 	}
 	if !verifyResp.IsValid {
 		return x402.SettleResponse{

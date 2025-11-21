@@ -6,7 +6,6 @@ package integration_test
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
@@ -24,8 +23,6 @@ import (
 	evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
 	evmfacilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
 	evmserver "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-	evmv1client "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/client"
-	evmv1facilitator "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
 	evmsigners "github.com/coinbase/x402/go/signers/evm"
 	"github.com/coinbase/x402/go/types"
 )
@@ -205,18 +202,8 @@ func (l *localEvmFacilitatorClient) Verify(
 	payloadBytes []byte,
 	requirementsBytes []byte,
 ) (x402.VerifyResponse, error) {
-	// Bridge: unmarshal bytes to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.VerifyResponse{IsValid: false}, err
-	}
-
-	return l.facilitator.Verify(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it handles unmarshaling internally)
+	return l.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
 
 func (l *localEvmFacilitatorClient) Settle(
@@ -224,18 +211,8 @@ func (l *localEvmFacilitatorClient) Settle(
 	payloadBytes []byte,
 	requirementsBytes []byte,
 ) (x402.SettleResponse, error) {
-	// Bridge: unmarshal bytes to structs for x402Facilitator
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	var requirements x402.PaymentRequirements
-	if err := json.Unmarshal(requirementsBytes, &requirements); err != nil {
-		return x402.SettleResponse{Success: false}, err
-	}
-
-	return l.facilitator.Settle(ctx, payload, requirements)
+	// Pass bytes directly to facilitator (it handles unmarshaling internally)
+	return l.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }
 
 func (l *localEvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
@@ -297,7 +274,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		}
 
 		// Server - builds PaymentRequired response for 0.001 USDC
-		accepts := []x402.PaymentRequirements{
+		accepts := []types.PaymentRequirements{
 			{
 				Scheme:  evm.SchemeExact,
 				Network: "eip155:84532",                               // Base Sepolia
@@ -310,7 +287,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 				},
 			},
 		}
-		resource := x402.ResourceInfo{
+		resource := &types.ResourceInfo{
 			URL:         "https://api.example.com/premium",
 			Description: "Premium API Access",
 			MimeType:    "application/json",
@@ -322,37 +299,16 @@ func TestEVMIntegrationV2(t *testing.T) {
 			t.Errorf("Expected X402Version 2, got %d", paymentRequiredResponse.X402Version)
 		}
 
-		// Client - responds with PaymentPayload response
-		selected, err := client.SelectPaymentRequirements(paymentRequiredResponse.X402Version, accepts)
+		// Client - selects payment requirement (V2 typed)
+		selected, err := client.SelectPaymentRequirements(accepts)
 		if err != nil {
 			t.Fatalf("Failed to select payment requirements: %v", err)
 		}
 
-		// Marshal selected requirements to bytes
-		selectedBytes, err := json.Marshal(selected)
-		if err != nil {
-			t.Fatalf("Failed to marshal requirements: %v", err)
-		}
-
-		// Convert resource for v2
-		var resourceV2 *types.ResourceInfoV2
-		if paymentRequiredResponse.Resource != nil {
-			resourceV2 = &types.ResourceInfoV2{
-				URL:         paymentRequiredResponse.Resource.URL,
-				Description: paymentRequiredResponse.Resource.Description,
-				MimeType:    paymentRequiredResponse.Resource.MimeType,
-			}
-		}
-
-		payloadBytes, err := client.CreatePaymentPayload(ctx, paymentRequiredResponse.X402Version, selectedBytes, resourceV2, paymentRequiredResponse.Extensions)
+		// Client - creates payment payload (V2 typed)
+		paymentPayload, err := client.CreatePaymentPayload(ctx, selected, resource, paymentRequiredResponse.Extensions)
 		if err != nil {
 			t.Fatalf("Failed to create payment payload: %v", err)
-		}
-
-		// Unmarshal to v2 payload for verification
-		paymentPayload, err := types.ToPaymentPayloadV2(payloadBytes)
-		if err != nil {
-			t.Fatalf("Failed to unmarshal payment payload: %v", err)
 		}
 
 		// Verify payload is V2
@@ -378,19 +334,14 @@ func TestEVMIntegrationV2(t *testing.T) {
 			t.Errorf("Expected value 1000, got %s", evmPayload.Authorization.Value)
 		}
 
-		// Server - maps payment payload to payment requirements
-		accepted := server.FindMatchingRequirements(accepts, payloadBytes)
+		// Server - finds matching requirements (typed)
+		accepted := server.FindMatchingRequirements(accepts, paymentPayload)
 		if accepted == nil {
 			t.Fatal("No matching payment requirements found")
 		}
 
-		// Server - verifies payment (marshal accepted requirements)
-		acceptedBytes, err := json.Marshal(accepted)
-		if err != nil {
-			t.Fatalf("Failed to marshal accepted requirements: %v", err)
-		}
-
-		verifyResponse, err := server.VerifyPayment(ctx, payloadBytes, acceptedBytes)
+		// Server - verifies payment (typed)
+		verifyResponse, err := server.VerifyPayment(ctx, paymentPayload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
@@ -405,8 +356,8 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Server does work here...
 
-		// Server - settles payment
-		settleResponse, err := server.SettlePayment(ctx, payloadBytes, acceptedBytes)
+		// Server - settles payment (typed)
+		settleResponse, err := server.SettlePayment(ctx, paymentPayload, *accepted)
 		if err != nil {
 			t.Fatalf("Failed to settle payment: %v", err)
 		}
@@ -430,7 +381,9 @@ func TestEVMIntegrationV2(t *testing.T) {
 	})
 }
 
-// TestEVMIntegrationV1 tests the full V1 EVM payment flow with real on-chain transactions (legacy)
+// TestEVMIntegrationV1 - SKIPPED: V1 flow not supported in V2-only server
+// TODO: Reimplement if legacy server support is needed
+/*
 func TestEVMIntegrationV1(t *testing.T) {
 	// Skip if environment variables not set
 	clientPrivateKey := os.Getenv("EVM_CLIENT_PRIVATE_KEY")
@@ -602,3 +555,4 @@ func TestEVMIntegrationV1(t *testing.T) {
 		}
 	})
 }
+*/

@@ -2,8 +2,11 @@ package x402
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/coinbase/x402/go/types"
 )
 
 // Test Facilitator BeforeVerify hook - abort verification
@@ -19,10 +22,18 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 	})
 
 	// Try to verify (should be aborted by hook)
+	// Note: Hooks are not fully integrated yet - this test validates hook registration works
+	// TODO: Integrate hooks into Verify execution
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Verify(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err != nil {
@@ -47,7 +58,7 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, version int, payload []byte, reqs []byte) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
 			return VerifyResponse{IsValid: true, Payer: "0xTestPayer"}, nil
 		},
 	}
@@ -59,11 +70,17 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 		return nil
 	})
 
-	// Verify payment
+	// Verify payment (marshal to bytes for facilitator API)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Verify(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err != nil {
@@ -87,7 +104,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, version int, payload []byte, reqs []byte) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
 			return VerifyResponse{IsValid: false}, errors.New("verification failed")
 		},
 	}
@@ -105,10 +122,16 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 	})
 
 	// Verify payment (should be recovered by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Verify(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err != nil {
@@ -137,10 +160,16 @@ func TestFacilitatorBeforeSettleHook_Abort(t *testing.T) {
 	})
 
 	// Try to settle (should be aborted by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Settle(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err == nil {
@@ -161,7 +190,7 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		settleFunc: func(ctx context.Context, version int, payload []byte, reqs []byte) (SettleResponse, error) {
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error) {
 			return SettleResponse{Success: true, Transaction: "0xFacilitatorTx"}, nil
 		},
 	}
@@ -174,10 +203,16 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 	})
 
 	// Settle payment
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Settle(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err != nil {
@@ -201,7 +236,7 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		settleFunc: func(ctx context.Context, version int, payload []byte, reqs []byte) (SettleResponse, error) {
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error) {
 			return SettleResponse{Success: false}, errors.New("settlement failed")
 		},
 	}
@@ -219,10 +254,16 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	})
 
 	// Settle payment (should be recovered by hook)
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	result, err := facilitator.Settle(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	if err != nil {
@@ -247,7 +288,7 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, version int, payload []byte, reqs []byte) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
 			return VerifyResponse{IsValid: true}, nil
 		},
 	}
@@ -275,10 +316,16 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 	})
 
 	// Verify payment
+	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
+	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
+	
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+	
 	_, _ = facilitator.Verify(
 		context.Background(),
-		PaymentPayload{X402Version: 2},
-		PaymentRequirements{Scheme: "exact", Network: "eip155:8453"},
+		payloadBytes,
+		requirementsBytes,
 	)
 
 	// Check execution order
@@ -298,24 +345,24 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 // Mock scheme facilitator for testing
 type mockSchemeFacilitator struct {
 	scheme     string
-	verifyFunc func(ctx context.Context, version int, payload []byte, reqs []byte) (VerifyResponse, error)
-	settleFunc func(ctx context.Context, version int, payload []byte, reqs []byte) (SettleResponse, error)
+	verifyFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error)
+	settleFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error)
 }
 
 func (m *mockSchemeFacilitator) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeFacilitator) Verify(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
 	if m.verifyFunc != nil {
-		return m.verifyFunc(ctx, version, payloadBytes, requirementsBytes)
+		return m.verifyFunc(ctx, payload, requirements)
 	}
 	return VerifyResponse{IsValid: false}, errors.New("not implemented")
 }
 
-func (m *mockSchemeFacilitator) Settle(ctx context.Context, version int, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+func (m *mockSchemeFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
 	if m.settleFunc != nil {
-		return m.settleFunc(ctx, version, payloadBytes, requirementsBytes)
+		return m.settleFunc(ctx, payload, requirements)
 	}
 	return SettleResponse{Success: false}, errors.New("not implemented")
 }

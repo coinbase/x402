@@ -46,8 +46,8 @@ app.use(
       },
     },
     new x402ResourceServer(facilitatorClient)
-      .registerScheme("eip155:84532", new ExactEvmScheme())
-      .registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
+      .register("eip155:84532", new ExactEvmScheme())
+      .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
   ),
 );
 

@@ -127,7 +127,7 @@ func main() {
 		},
 	}
 
-	// Apply payment middleware
+	// Apply payment middleware with detailed error logging
 	r.Use(ginmw.X402Payment(ginmw.Config{
 		Routes:      routes,
 		Facilitator: facilitatorClient,
@@ -137,6 +137,27 @@ func main() {
 		},
 		Initialize: true,
 		Timeout:    30 * time.Second,
+		ErrorHandler: func(c *ginfw.Context, err error) {
+			// Log detailed error information for debugging
+			fmt.Printf("❌ [E2E SERVER ERROR] Payment error occurred\n")
+			fmt.Printf("   Path: %s\n", c.Request.URL.Path)
+			fmt.Printf("   Method: %s\n", c.Request.Method)
+			fmt.Printf("   Error: %v\n", err)
+			fmt.Printf("   Headers: %v\n", c.Request.Header)
+			
+			// Default error response
+			c.JSON(http.StatusPaymentRequired, ginfw.H{
+				"error": err.Error(),
+			})
+		},
+		SettlementHandler: func(c *ginfw.Context, settleResp x402.SettleResponse) {
+			// Log successful settlement
+			fmt.Printf("✅ [E2E SERVER SUCCESS] Payment settled\n")
+			fmt.Printf("   Path: %s\n", c.Request.URL.Path)
+			fmt.Printf("   Transaction: %s\n", settleResp.Transaction)
+			fmt.Printf("   Network: %s\n", settleResp.Network)
+			fmt.Printf("   Payer: %s\n", settleResp.Payer)
+		},
 	}))
 
 	/**

@@ -16,12 +16,6 @@ func TestDynamicPayTo(t *testing.T) {
 	// Create mock scheme server
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			return x402.AssetAmount{
-				Amount: "1000000",
-				Asset:  "0xUSDC",
-			}, nil
-		},
 	}
 
 	routes := RoutesConfig{
@@ -88,16 +82,6 @@ func TestDynamicPrice(t *testing.T) {
 
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			// Capture the resolved price
-			if priceStr, ok := price.(string); ok {
-				capturedPrices = append(capturedPrices, priceStr)
-			}
-			return x402.AssetAmount{
-				Amount: "1000000",
-				Asset:  "0xUSDC",
-			}, nil
-		},
 	}
 
 	mockFacilitator := &mockFacilitatorClient{
@@ -187,12 +171,6 @@ func TestDynamicPrice(t *testing.T) {
 func TestDynamicPayToAndPrice(t *testing.T) {
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			return x402.AssetAmount{
-				Amount: "1000000",
-				Asset:  "0xUSDC",
-			}, nil
-		},
 	}
 
 	routes := RoutesConfig{
@@ -346,12 +324,6 @@ func TestDynamicPrice_Error(t *testing.T) {
 func TestStaticPayToAndPrice(t *testing.T) {
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			return x402.AssetAmount{
-				Amount: "1000000",
-				Asset:  "0xUSDC",
-			}, nil
-		},
 	}
 
 	routes := RoutesConfig{

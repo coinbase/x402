@@ -19,7 +19,7 @@ if (!facilitatorUrl) {
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 const resourceServer = new x402ResourceServer(facilitatorClient)
-  .registerScheme("eip155:84532", new ExactEvmScheme())
+  .register("eip155:84532", new ExactEvmScheme())
   .onBeforeVerify(async context => {
     console.log("Before verify hook", context);
     // Abort verification by returning { abort: true, reason: string }

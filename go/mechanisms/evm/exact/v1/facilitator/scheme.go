@@ -13,7 +13,7 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
-// ExactEvmSchemeV1 implements the SchemeNetworkFacilitator interface for EVM exact payments (V1)
+// ExactEvmSchemeV1 implements the SchemeNetworkFacilitatorV1 interface for EVM exact payments (V1)
 type ExactEvmSchemeV1 struct {
 	signer evm.FacilitatorEvmSigner
 }
@@ -30,37 +30,12 @@ func (f *ExactEvmSchemeV1) Scheme() string {
 	return evm.SchemeExact
 }
 
-// Verify verifies a payment payload against requirements (V1)
+// Verify verifies a V1 payment payload against requirements
 func (f *ExactEvmSchemeV1) Verify(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayloadV1,
+	requirements types.PaymentRequirementsV1,
 ) (x402.VerifyResponse, error) {
-	// V1 specific: only handle version 1
-	if version != 1 {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "v1 only supports x402 version 1",
-		}, nil
-	}
-
-	// Unmarshal to v1 types using helpers
-	payload, err := types.ToPaymentPayloadV1(payloadBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid payload: %v", err),
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
-	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid requirements: %v", err),
-		}, nil
-	}
 
 	// Validate scheme (v1 has scheme at top level)
 	if payload.Scheme != evm.SchemeExact || requirements.Scheme != evm.SchemeExact {
@@ -239,36 +214,16 @@ func (f *ExactEvmSchemeV1) Verify(
 	}, nil
 }
 
-// Settle settles a payment on-chain (V1)
+// Settle settles a V1 payment on-chain
 func (f *ExactEvmSchemeV1) Settle(
 	ctx context.Context,
-	version int,
-	payloadBytes []byte,
-	requirementsBytes []byte,
+	payload types.PaymentPayloadV1,
+	requirements types.PaymentRequirementsV1,
 ) (x402.SettleResponse, error) {
 	// First verify the payment
-	verifyResp, err := f.Verify(ctx, version, payloadBytes, requirementsBytes)
+	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		return x402.SettleResponse{}, err
-	}
-
-	// Unmarshal to v1 types for settlement
-	payload, err := types.ToPaymentPayloadV1(payloadBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_payload",
-			Network:     x402.Network(""),
-		}, nil
-	}
-
-	requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
-	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_requirements",
-			Network:     x402.Network(""),
-		}, nil
 	}
 
 	if !verifyResp.IsValid {

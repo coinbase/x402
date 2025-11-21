@@ -9,16 +9,17 @@ import (
 // ============================================================================
 
 // PaymentCreationContext contains information passed to payment creation hooks
+// Uses view interfaces for version-agnostic hooks
 type PaymentCreationContext struct {
 	Ctx                  context.Context
-	PaymentRequired      PaymentRequired
-	SelectedRequirements PaymentRequirements
+	Version              int // V1 or V2
+	SelectedRequirements PaymentRequirementsView
 }
 
 // PaymentCreatedContext contains payment creation result and context
 type PaymentCreatedContext struct {
 	PaymentCreationContext
-	PaymentPayload PaymentPayload
+	Payload PaymentPayloadView
 }
 
 // PaymentCreationFailureContext contains payment creation failure and context
@@ -42,7 +43,7 @@ type BeforePaymentCreationHookResult struct {
 // If Recovered is true, the hook has recovered from the failure with the given payload
 type PaymentCreationFailureHookResult struct {
 	Recovered bool
-	Payload   PaymentPayload
+	Payload   PaymentPayloadView
 }
 
 // ============================================================================

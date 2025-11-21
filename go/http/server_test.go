@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // Mock HTTP adapter for testing
@@ -119,12 +120,6 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 	// Create mock scheme server
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			return x402.AssetAmount{
-				Asset:  "USDC",
-				Amount: "1000000",
-			}, nil
-		},
 	}
 
 	// Create mock facilitator client
@@ -264,17 +259,6 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 
 	mockServer := &mockSchemeServer{
 		scheme: "exact",
-		parsePrice: func(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-			return x402.AssetAmount{
-				Asset:  "USDC",
-				Amount: "1000000",
-				Extra:  map[string]interface{}{},
-			}, nil
-		},
-		enhanceReqs: func(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error) {
-			// Return the base requirements as-is
-			return base, nil
-		},
 	}
 	mockClient := &mockFacilitatorClient{
 		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
@@ -381,7 +365,7 @@ func TestProcessSettlement(t *testing.T) {
 	)
 	server.Initialize(ctx)
 
-	requirements := x402.PaymentRequirements{
+	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
 		Network: "eip155:1",
 		Asset:   "USDC",
@@ -389,7 +373,7 @@ func TestProcessSettlement(t *testing.T) {
 		PayTo:   "0xtest",
 	}
 
-	payload := x402.PaymentPayload{
+	payload := types.PaymentPayload{
 		X402Version: 2,
 		Accepted:    requirements,
 		Payload:     map[string]interface{}{},
@@ -550,9 +534,7 @@ func TestGetDisplayAmount(t *testing.T) {
 
 // Mock scheme server for testing
 type mockSchemeServer struct {
-	scheme      string
-	parsePrice  func(price x402.Price, network x402.Network) (x402.AssetAmount, error)
-	enhanceReqs func(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error)
+	scheme string
 }
 
 func (m *mockSchemeServer) Scheme() string {
@@ -560,19 +542,13 @@ func (m *mockSchemeServer) Scheme() string {
 }
 
 func (m *mockSchemeServer) ParsePrice(price x402.Price, network x402.Network) (x402.AssetAmount, error) {
-	if m.parsePrice != nil {
-		return m.parsePrice(price, network)
-	}
 	return x402.AssetAmount{
 		Asset:  "USDC",
 		Amount: "1000000",
 	}, nil
 }
 
-func (m *mockSchemeServer) EnhancePaymentRequirements(ctx context.Context, base x402.PaymentRequirements, supported x402.SupportedKind, extensions []string) (x402.PaymentRequirements, error) {
-	if m.enhanceReqs != nil {
-		return m.enhanceReqs(ctx, base, supported, extensions)
-	}
+func (m *mockSchemeServer) EnhancePaymentRequirements(ctx context.Context, base types.PaymentRequirements, supported types.SupportedKind, extensions []string) (types.PaymentRequirements, error) {
 	return base, nil
 }
 

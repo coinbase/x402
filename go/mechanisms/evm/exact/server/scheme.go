@@ -9,6 +9,7 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ExactEvmScheme implements the SchemeNetworkServer interface for EVM exact payments (V2)
@@ -204,18 +205,13 @@ func (s *ExactEvmScheme) defaultMoneyConversion(amount float64, network x402.Net
 	}, nil
 }
 
-// EnhancePaymentRequirements adds scheme-specific enhancements to payment requirements (V2)
+// EnhancePaymentRequirements adds scheme-specific enhancements to V2 payment requirements
 func (s *ExactEvmScheme) EnhancePaymentRequirements(
 	ctx context.Context,
-	requirements x402.PaymentRequirements,
-	supportedKind x402.SupportedKind,
+	requirements types.PaymentRequirements,
+	supportedKind types.SupportedKind,
 	extensionKeys []string,
-) (x402.PaymentRequirements, error) {
-	// V2 specific: only handle version 2
-	if supportedKind.X402Version != 2 {
-		return requirements, fmt.Errorf("v2 only supports x402 version 2")
-	}
-
+) (types.PaymentRequirements, error) {
 	// Get network config
 	networkStr := string(requirements.Network)
 	config, err := evm.GetNetworkConfig(networkStr)
