@@ -150,6 +150,8 @@ export function paymentMiddleware(
     const response = await NextResponse.next();
 
     // if the response from the protected route is >= 400, do not settle the payment
+    // NOTE: This check is ineffective in Next.js middleware as NextResponse.next() does not provide access to the actual route handler's response
+    // For API routes, use withX402 instead to guarantee payment settlement only after successful responses (status < 400)
     if (response.status >= 400) {
       return response;
     }
@@ -170,8 +172,8 @@ export function paymentMiddleware(
 /**
  * Creates a payment wrapper for Next.js App Router API routes
  *
- * Unlike paymentMiddleware, this wrapper guarantees payment settlement only after
- * successful API responses (status < 400).
+ * This is the recommended approach for protecting API routes. Unlike paymentMiddleware,
+ * this wrapper guarantees payment settlement only after successful API responses (status < 400).
  *
  * @param handler - The API route handler function
  * @param payTo - The address to receive payments
