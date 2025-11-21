@@ -58,7 +58,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
-      throw new Error(`Failed to verify payment: ${res.statusText}`);
+      let errorMessage = `Failed to verify payment: ${res.statusText}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // JSON parsing failed, use default error message
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await res.json();
@@ -95,8 +104,16 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     });
 
     if (res.status !== 200) {
-      const text = res.statusText;
-      throw new Error(`Failed to settle payment: ${res.status} ${text}`);
+      let errorMessage = `Failed to settle payment: ${res.status} ${res.statusText}`;
+      try {
+        const errorData = await res.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // JSON parsing failed, use default error message
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await res.json();

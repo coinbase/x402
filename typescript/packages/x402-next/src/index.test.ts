@@ -479,6 +479,75 @@ describe("paymentMiddleware()", () => {
     });
   });
 
+  it("should return 402 if payment verification throws an error", async () => {
+    const invalidPayment = "invalid-payment-header";
+    const request = {
+      ...mockRequest,
+      headers: new Headers({
+        "X-PAYMENT": invalidPayment,
+      }),
+    } as NextRequest;
+
+    const decodedPayment = {
+      scheme: "exact",
+      network: "base-sepolia",
+      x402Version: 1,
+    };
+    mockDecodePayment.mockReturnValue(decodedPayment);
+
+    // Mock findMatchingPaymentRequirements to return a match for this test
+    (findMatchingPaymentRequirements as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      outputSchema,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error(
+        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+      ),
+    );
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(402);
+    const json = await response.json();
+    expect(json).toEqual({
+      x402Version: 1,
+      error:
+        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          outputSchema,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
   it("should handle settlement after response", async () => {
     const validPayment = "valid-payment-header";
     const request = {
