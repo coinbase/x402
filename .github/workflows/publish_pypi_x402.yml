@@ -1,4 +1,4 @@
-name: Publish x402 to PyPI
+name: Publish LynoX x402 to PyPI
 
 on:
   workflow_dispatch:
