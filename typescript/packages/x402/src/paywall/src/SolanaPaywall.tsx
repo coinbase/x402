@@ -225,7 +225,18 @@ export function SolanaPaywall({ paymentRequirement, onSuccessfulResponse }: Sola
         throw new Error(`Payment failed: ${response.statusText}`);
       }
 
-      throw new Error(`Payment failed: ${response.status} ${response.statusText}`);
+      let errorMessage = `Payment failed: ${response.status} ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.errorReason) {
+          errorMessage = `Payment failed: ${errorData.errorReason}`;
+        }
+      } catch {
+        // Use default error message if parsing fails
+      }
+      throw new Error(errorMessage);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Payment failed.");
     } finally {

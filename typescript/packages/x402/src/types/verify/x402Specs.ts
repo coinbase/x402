@@ -18,6 +18,7 @@ export const ErrorReasons = [
   "invalid_exact_evm_payload_authorization_valid_before",
   "invalid_exact_evm_payload_authorization_value",
   "invalid_exact_evm_payload_signature",
+  "invalid_exact_evm_payload_undeployed_smart_wallet",
   "invalid_exact_evm_payload_recipient_mismatch",
   "invalid_exact_svm_payload_transaction",
   "invalid_exact_svm_payload_transaction_amount_mismatch",
