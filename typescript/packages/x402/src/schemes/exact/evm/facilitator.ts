@@ -9,7 +9,7 @@ import {
   Transport,
 } from "viem";
 import { getNetworkId } from "../../../shared";
-import { getVersion, getERC20Balance, ERC_6492_MAGIC_BYTES } from "../../../shared/evm";
+import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
   usdcABI as abi,
   authorizationTypes,
@@ -66,13 +66,15 @@ export async function verify<
 
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
-  // EIP-3009 requires on-chain signature verification which needs the wallet to be deployed
   const payerAddress = exactEvmPayload.authorization.from as Address;
-  const bytecode = await client.getCode({ address: payerAddress });
-  if (!bytecode || bytecode === "0x") {
-    // Check if signature is ERC-6492 wrapped (indicates undeployed smart wallet)
-    const signature = exactEvmPayload.signature;
-    if (signature && signature.endsWith(ERC_6492_MAGIC_BYTES)) {
+  const signature = exactEvmPayload.signature;
+
+  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  const isSmartWallet = signatureLength > 130;
+
+  if (isSmartWallet) {
+    const bytecode = await client.getCode({ address: payerAddress });
+    if (!bytecode || bytecode === "0x") {
       return {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
