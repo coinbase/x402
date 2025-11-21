@@ -169,6 +169,14 @@ export function EvmPaywall({ paymentRequirement, onSuccessfulResponse }: EvmPayw
         await onSuccessfulResponse(response);
       } else if (response.status === 402) {
         const errorData = await response.json().catch(() => ({}));
+
+        // Check for undeployed smart wallet error before retrying
+        if (errorData.error === "invalid_exact_evm_payload_undeployed_smart_wallet") {
+          throw new Error(
+            "Smart wallet must be deployed before making payments. Please deploy your wallet first.",
+          );
+        }
+
         if (errorData && typeof errorData.x402Version === "number") {
           const retryPayment = await exact.evm.createPayment(
             walletClient,

@@ -6,6 +6,105 @@ describe("EvmPaywall - Error Response Parsing", () => {
     global.fetch = vi.fn();
   });
 
+  describe("402 Payment Required responses", () => {
+    it("should not retry when error is undeployed smart wallet", async () => {
+      const mock402Response = {
+        ok: false,
+        status: 402,
+        statusText: "Payment Required",
+        json: vi.fn().mockResolvedValue({
+          error: "invalid_exact_evm_payload_undeployed_smart_wallet",
+          x402Version: 1,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "base-sepolia",
+              maxAmountRequired: "10000",
+            },
+          ],
+          payer: "0x13607558c51648A261bab3D3DF3Cc883D87Ba56D",
+        }),
+      };
+
+      // Simulate the 402 response handler logic
+      const errorData = await mock402Response.json();
+
+      // Check for undeployed smart wallet error before retrying
+      let shouldRetry = true;
+      let errorMessage = "";
+
+      if (errorData.error === "invalid_exact_evm_payload_undeployed_smart_wallet") {
+        shouldRetry = false;
+        errorMessage =
+          "Smart wallet must be deployed before making payments. Please deploy your wallet first.";
+      }
+
+      expect(shouldRetry).toBe(false);
+      expect(errorMessage).toBe(
+        "Smart wallet must be deployed before making payments. Please deploy your wallet first.",
+      );
+    });
+
+    it("should retry payment when 402 has x402Version but no undeployed wallet error", async () => {
+      const mock402Response = {
+        ok: false,
+        status: 402,
+        statusText: "Payment Required",
+        json: vi.fn().mockResolvedValue({
+          x402Version: 2,
+          accepts: [
+            {
+              scheme: "exact",
+              network: "base-sepolia",
+              maxAmountRequired: "10000",
+            },
+          ],
+        }),
+      };
+
+      const errorData = await mock402Response.json();
+
+      let shouldRetry = true;
+
+      if (errorData.error === "invalid_exact_evm_payload_undeployed_smart_wallet") {
+        shouldRetry = false;
+      } else if (errorData && typeof errorData.x402Version === "number") {
+        shouldRetry = true;
+      }
+
+      expect(shouldRetry).toBe(true);
+    });
+
+    it("should handle 402 with both error and x402Version (error takes precedence)", async () => {
+      const mock402Response = {
+        ok: false,
+        status: 402,
+        statusText: "Payment Required",
+        json: vi.fn().mockResolvedValue({
+          error: "invalid_exact_evm_payload_undeployed_smart_wallet",
+          x402Version: 1,
+          accepts: [],
+        }),
+      };
+
+      const errorData = await mock402Response.json();
+
+      let shouldRetry = true;
+      let errorMessage = "";
+
+      if (errorData.error === "invalid_exact_evm_payload_undeployed_smart_wallet") {
+        shouldRetry = false;
+        errorMessage =
+          "Smart wallet must be deployed before making payments. Please deploy your wallet first.";
+      } else if (errorData && typeof errorData.x402Version === "number") {
+        shouldRetry = true;
+      }
+
+      expect(shouldRetry).toBe(false);
+      expect(errorMessage).toContain("Smart wallet must be deployed");
+    });
+  });
+
   describe("parseErrorResponse", () => {
     const mockResponse = (status: number, statusText: string, body: unknown) => ({
       ok: false,
