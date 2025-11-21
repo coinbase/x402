@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.22.0",
-    "@solana/kit": "^2.1.1",
+    "@solana/kit": "^5.0.0",
     "hono": "^4.7.1",
     "viem": "^2.21.26",
     "x402": "workspace:^",
