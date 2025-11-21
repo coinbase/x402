@@ -271,7 +271,8 @@ async function runTest() {
       allClients,
       allServers,
       allFacilitators,
-      allScenarios
+      allScenarios,
+      parsedArgs.minimize
     );
 
     if (!selections) {
@@ -436,12 +437,23 @@ async function runTest() {
 
   // Track running servers to stop/restart them as needed
   const runningServers = new Map<string, any>(); // serverName -> server proxy
+  
+  // Track which facilitators processed which servers (for discovery validation)
+  const facilitatorServerMap = new Map<string, Set<string>>(); // facilitatorName -> Set<serverName>
 
   // Run tests grouped by server+facilitator combination
   for (const combo of serverFacilitatorCombos) {
     const { serverName, facilitatorName, scenarios } = combo;
     const server = uniqueServers.get(serverName)!;
     const port = serverPorts.get(serverName)!;
+    
+    // Track that this facilitator is processing this server
+    if (facilitatorName) {
+      if (!facilitatorServerMap.has(facilitatorName)) {
+        facilitatorServerMap.set(facilitatorName, new Set());
+      }
+      facilitatorServerMap.get(facilitatorName)!.add(serverName);
+    }
 
     // Stop server if it's already running (from previous combo)
     if (runningServers.has(serverName)) {
@@ -561,7 +573,8 @@ async function runTest() {
     await handleDiscoveryValidation(
       facilitatorsWithConfig,
       serversArray,
-      serverPorts
+      serverPorts,
+      facilitatorServerMap
     );
   }
 

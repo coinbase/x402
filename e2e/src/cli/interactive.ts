@@ -9,12 +9,19 @@ export interface InteractiveSelections extends TestFilters {
 
 /**
  * Run interactive mode to select test scenarios
+ * 
+ * @param allClients - All discovered clients
+ * @param allServers - All discovered servers
+ * @param allFacilitators - All discovered facilitators
+ * @param allScenarios - All test scenarios
+ * @param minimize - If true (--min flag), default all items selected. If false, default none selected.
  */
 export async function runInteractiveMode(
   allClients: DiscoveredClient[],
   allServers: DiscoveredServer[],
   allFacilitators: DiscoveredFacilitator[],
-  allScenarios: TestScenario[]
+  allScenarios: TestScenario[],
+  minimize: boolean = false
 ): Promise<InteractiveSelections | null> {
 
   log('\n🎯 Interactive Mode');
@@ -24,7 +31,7 @@ export async function runInteractiveMode(
   const facilitatorChoices = allFacilitators.map(f => ({
     title: `${f.name} (${formatVersions(f.config.x402Versions)}) [${f.config.protocolFamilies?.join(', ') || ''}]${f.config.extensions ? ' {' + f.config.extensions.join(', ') + '}' : ''}`,
     value: f.name,
-    selected: true // Default all selected
+    selected: minimize // With --min: all selected. Without --min: none selected
   }));
 
   const facilitatorsResponse = await prompts({
@@ -48,7 +55,7 @@ export async function runInteractiveMode(
     return {
       title: `${s.name} (v${s.config.x402Version}) [${families.join(', ')}]${extInfo}`,
       value: s.name,
-      selected: false
+      selected: minimize // With --min: all selected. Without --min: none selected
     };
   });
 
@@ -70,7 +77,7 @@ export async function runInteractiveMode(
   const clientChoices = allClients.map(c => ({
     title: `${c.name} (${formatVersions(c.config.x402Versions)}) [${c.config.protocolFamilies?.join(', ') || ''}]`,
     value: c.name,
-    selected: false
+    selected: minimize // With --min: all selected. Without --min: none selected
   }));
 
   const clientsResponse = await prompts({
