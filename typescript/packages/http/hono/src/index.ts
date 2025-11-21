@@ -305,7 +305,7 @@ export function paymentMiddlewareFromConfig(
 
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
-      ResourceServer.registerScheme(network, schemeServer);
+      ResourceServer.register(network, schemeServer);
     });
   }
 

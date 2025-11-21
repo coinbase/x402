@@ -41,15 +41,15 @@ export function registerExactSvmScheme(client: x402Client, config: SvmClientConf
   // Register V2 scheme
   if (config.networks && config.networks.length > 0) {
     config.networks.forEach(network => {
-      client.registerScheme(network, new ExactSvmScheme(config.signer));
+      client.register(network, new ExactSvmScheme(config.signer));
     });
   } else {
-    client.registerScheme("solana:*", new ExactSvmScheme(config.signer));
+    client.register("solana:*", new ExactSvmScheme(config.signer));
   }
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
-    client.registerSchemeV1(network as Network, new ExactSvmSchemeV1(config.signer));
+    client.registerV1(network as Network, new ExactSvmSchemeV1(config.signer));
   });
 
   if (config.policies) {

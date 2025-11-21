@@ -7,24 +7,42 @@ import {
   VerifyResponse,
 } from "@x402/core/types";
 import { PaymentRequirementsV1 } from "@x402/core/types/v1";
-import { getAddress, parseErc6492Signature } from "viem";
+import { getAddress, Hex, isAddressEqual, parseErc6492Signature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
 import { getEvmChainId } from "../../../utils";
+
+export interface ExactEvmSchemeV1Config {
+  /**
+   * If enabled, the facilitator will deploy ERC-4337 smart wallets
+   * via EIP-6492 when encountering undeployed contract signatures.
+   * @default false
+   */
+  deployERC4337WithEIP6492?: boolean;
+}
 
 /**
  * EVM facilitator implementation for the Exact payment scheme (V1).
  */
 export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
+  private readonly config: Required<ExactEvmSchemeV1Config>;
 
   /**
    * Creates a new ExactEvmFacilitatorV1 instance.
    *
    * @param signer - The EVM signer for facilitator operations
+   * @param config - Optional configuration for the facilitator
    */
-  constructor(private readonly signer: FacilitatorEvmSigner) {}
+  constructor(
+    private readonly signer: FacilitatorEvmSigner,
+    config?: ExactEvmSchemeV1Config,
+  ) {
+    this.config = {
+      deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
+    };
+  }
 
   /**
    * Verifies a payment payload (V1).
@@ -208,7 +226,48 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
 
     try {
       // Parse ERC-6492 signature if applicable
-      const { signature } = parseErc6492Signature(exactEvmPayload.signature!);
+      const parseResult = parseErc6492Signature(exactEvmPayload.signature!);
+      const { signature, address: factoryAddress, data: factoryCalldata } = parseResult;
+
+      // Deploy ERC-4337 smart wallet via EIP-6492 if configured and needed
+      if (
+        this.config.deployERC4337WithEIP6492 &&
+        factoryAddress &&
+        factoryCalldata &&
+        !isAddressEqual(factoryAddress, "0x0000000000000000000000000000000000000000")
+      ) {
+        try {
+          console.log(
+            `Deploying ERC-4337 smart wallet for ${exactEvmPayload.authorization.from} via EIP-6492`,
+          );
+
+          // Call the factory to deploy the smart wallet
+          // Note: Most ERC-4337 factories are idempotent - they won't redeploy if already exists
+          const deployTx = await this.signer.writeContract({
+            address: factoryAddress as Hex,
+            abi: [
+              {
+                inputs: [{ type: "bytes" }],
+                name: "createAccount",
+                outputs: [{ type: "address" }],
+                stateMutability: "nonpayable",
+                type: "function",
+              },
+            ] as const,
+            functionName: "createAccount",
+            args: [factoryCalldata as Hex],
+          });
+
+          // Wait for deployment transaction
+          await this.signer.waitForTransactionReceipt({ hash: deployTx });
+          console.log(
+            `Successfully processed smart wallet deployment for ${exactEvmPayload.authorization.from}`,
+          );
+        } catch (deployError) {
+          // Log but don't fail - the wallet might already be deployed
+          console.warn("Smart wallet deployment transaction reverted (may already exist):", deployError);
+        }
+      }
 
       // Execute transferWithAuthorization
       const tx = await this.signer.writeContract({

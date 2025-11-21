@@ -120,7 +120,7 @@ import { ExactEvmClient } from "@x402/evm";
 import { ExactEvmClientV1 } from "@x402/evm/v1";
 
 const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmClient(signer))
+  .register("eip155:*", new ExactEvmClient(signer))
   .registerSchemeV1("base-sepolia", new ExactEvmClientV1(signer))
   .registerSchemeV1("base", new ExactEvmClientV1(signer));
 ```

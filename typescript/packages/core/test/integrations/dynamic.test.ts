@@ -74,9 +74,9 @@ class MockHTTPAdapter implements HTTPAdapter {
     const queryString =
       Object.keys(this._queryParams).length > 0
         ? "?" +
-          Object.entries(this._queryParams)
-            .map(([k, v]) => `${k}=${v}`)
-            .join("&")
+        Object.entries(this._queryParams)
+          .map(([k, v]) => `${k}=${v}`)
+          .join("&")
         : "";
     return `https://example.com${this._path}${queryString}`;
   }
@@ -128,14 +128,14 @@ describe("Dynamic Pricing & PayTo Integration Tests", () => {
   let ResourceServer: x402ResourceServer;
 
   beforeEach(async () => {
-    const facilitator = new x402Facilitator().registerScheme(
+    const facilitator = new x402Facilitator().register(
       "x402:cash",
       new CashSchemeNetworkFacilitator(),
     );
 
     const facilitatorClient = new CashFacilitatorClient(facilitator);
     ResourceServer = new x402ResourceServer(facilitatorClient);
-    ResourceServer.registerScheme("x402:cash", new CashSchemeNetworkServer());
+    ResourceServer.register("x402:cash", new CashSchemeNetworkServer());
     await ResourceServer.initialize();
   });
 

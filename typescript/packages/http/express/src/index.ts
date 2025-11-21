@@ -21,7 +21,7 @@ export class ExpressAdapter implements HTTPAdapter {
    *
    * @param req - The Express request object
    */
-  constructor(private req: Request) {}
+  constructor(private req: Request) { }
 
   /**
    * Gets a header value from the request.
@@ -314,7 +314,7 @@ export function paymentMiddlewareFromConfig(
 
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
-      ResourceServer.registerScheme(network, schemeServer);
+      ResourceServer.register(network, schemeServer);
     });
   }
 

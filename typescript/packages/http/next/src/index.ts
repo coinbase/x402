@@ -21,7 +21,7 @@ export class NextAdapter implements HTTPAdapter {
    *
    * @param req - The Next.js request object
    */
-  constructor(private req: NextRequest) {}
+  constructor(private req: NextRequest) { }
 
   /**
    * Gets a header value from the request.
@@ -314,7 +314,7 @@ export function paymentMiddlewareFromConfig(
 
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
-      ResourceServer.registerScheme(network, schemeServer);
+      ResourceServer.register(network, schemeServer);
     });
   }
 

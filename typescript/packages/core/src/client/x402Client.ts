@@ -125,9 +125,9 @@ export class x402Client {
     const client = new x402Client(config.paymentRequirementsSelector);
     config.schemes.forEach(scheme => {
       if (scheme.x402Version === 1) {
-        client.registerSchemeV1(scheme.network, scheme.client);
+        client.registerV1(scheme.network, scheme.client);
       } else {
-        client.registerScheme(scheme.network, scheme.client);
+        client.register(scheme.network, scheme.client);
       }
     });
     config.policies?.forEach(policy => {
@@ -143,7 +143,7 @@ export class x402Client {
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  registerScheme(network: Network, client: SchemeNetworkClient): x402Client {
+  register(network: Network, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(x402Version, network, client);
   }
 
@@ -154,7 +154,7 @@ export class x402Client {
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  registerSchemeV1(network: string, client: SchemeNetworkClient): x402Client {
+  registerV1(network: string, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(1, network as Network, client);
   }
 

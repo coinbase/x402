@@ -104,7 +104,7 @@ describe("x402HTTPResourceServer", () => {
       extra: {},
     });
 
-    ResourceServer.registerScheme("eip155:8453" as Network, mockScheme);
+    ResourceServer.register("eip155:8453" as Network, mockScheme);
     await ResourceServer.initialize();
   });
 

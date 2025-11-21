@@ -128,7 +128,7 @@ export class x402ResourceServer {
    * @param server - The scheme/network server implementation
    * @returns The x402ResourceServer instance for chaining
    */
-  registerScheme(network: Network, server: SchemeNetworkServer): x402ResourceServer {
+  register(network: Network, server: SchemeNetworkServer): x402ResourceServer {
     if (!this.registeredServerSchemes.has(network)) {
       this.registeredServerSchemes.set(network, new Map());
     }
@@ -381,7 +381,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 

@@ -22,16 +22,16 @@ describe("Core Integration Tests", () => {
     let server: x402ResourceServer;
 
     beforeEach(async () => {
-      client = new x402Client().registerScheme("x402:cash", new CashSchemeNetworkClient("John"));
+      client = new x402Client().register("x402:cash", new CashSchemeNetworkClient("John"));
 
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "x402:cash",
         new CashSchemeNetworkFacilitator(),
       );
 
       const facilitatorClient = new CashFacilitatorClient(facilitator);
       server = new x402ResourceServer(facilitatorClient);
-      server.registerScheme("x402:cash", new CashSchemeNetworkServer());
+      server.register("x402:cash", new CashSchemeNetworkServer());
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
@@ -95,14 +95,14 @@ describe("Core Integration Tests", () => {
     };
 
     beforeEach(async () => {
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "x402:cash",
         new CashSchemeNetworkFacilitator(),
       );
 
       const facilitatorClient = new CashFacilitatorClient(facilitator);
 
-      const paymentClient = new x402Client().registerScheme(
+      const paymentClient = new x402Client().register(
         "x402:cash",
         new CashSchemeNetworkClient("John"),
       );
@@ -110,7 +110,7 @@ describe("Core Integration Tests", () => {
 
       // Create resource server and register schemes
       const ResourceServer = new x402ResourceServer(facilitatorClient);
-      ResourceServer.registerScheme("x402:cash", new CashSchemeNetworkServer());
+      ResourceServer.register("x402:cash", new CashSchemeNetworkServer());
       await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
       // Create HTTP server with the resource server

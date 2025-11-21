@@ -89,7 +89,7 @@ export class x402Facilitator {
    * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  registerScheme(
+  register(
     network: Network,
     facilitator: SchemeNetworkFacilitator,
     extra?: Record<string, unknown> | (() => Record<string, unknown>),
@@ -105,7 +105,7 @@ export class x402Facilitator {
    * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  registerSchemeV1(
+  registerV1(
     network: Network,
     facilitator: SchemeNetworkFacilitator,
     extra?: Record<string, unknown> | (() => Record<string, unknown>),

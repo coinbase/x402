@@ -62,12 +62,12 @@ describe("x402ResourceServer", () => {
     });
   });
 
-  describe("registerScheme", () => {
+  describe("register", () => {
     it("should register scheme for network", () => {
       const server = new x402ResourceServer();
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      const result = server.registerScheme("test:network" as Network, mockScheme);
+      const result = server.register("test:network" as Network, mockScheme);
 
       expect(result).toBe(server); // Chaining
     });
@@ -78,8 +78,8 @@ describe("x402ResourceServer", () => {
       const scheme2 = new MockSchemeNetworkServer("scheme2");
 
       const result = server
-        .registerScheme("test:network" as Network, scheme1)
-        .registerScheme("test:network" as Network, scheme2);
+        .register("test:network" as Network, scheme1)
+        .register("test:network" as Network, scheme2);
 
       expect(result).toBe(server);
     });
@@ -90,8 +90,8 @@ describe("x402ResourceServer", () => {
       const secondScheme = new MockSchemeNetworkServer("test-scheme");
 
       server
-        .registerScheme("test:network" as Network, firstScheme)
-        .registerScheme("test:network" as Network, secondScheme);
+        .register("test:network" as Network, firstScheme)
+        .register("test:network" as Network, secondScheme);
 
       // This is verified implicitly - both registrations succeed without error
       expect(server).toBeDefined();
@@ -122,7 +122,7 @@ describe("x402ResourceServer", () => {
 
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("exact");
-      server.registerScheme("eip155:8453" as Network, mockScheme);
+      server.register("eip155:8453" as Network, mockScheme);
 
       await server.initialize();
 
@@ -231,7 +231,7 @@ describe("x402ResourceServer", () => {
         extra: {},
       });
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       const requirements = await server.buildPaymentRequirements({
@@ -258,7 +258,7 @@ describe("x402ResourceServer", () => {
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       await server.buildPaymentRequirements({
@@ -284,7 +284,7 @@ describe("x402ResourceServer", () => {
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       await server.buildPaymentRequirements({
@@ -307,7 +307,7 @@ describe("x402ResourceServer", () => {
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       const requirements = await server.buildPaymentRequirements({
@@ -330,7 +330,7 @@ describe("x402ResourceServer", () => {
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       const requirements = await server.buildPaymentRequirements({
@@ -368,7 +368,7 @@ describe("x402ResourceServer", () => {
       const server = new x402ResourceServer(mockClient);
       const mockScheme = new MockSchemeNetworkServer("test-scheme");
 
-      server.registerScheme("test:network" as Network, mockScheme);
+      server.register("test:network" as Network, mockScheme);
       await server.initialize();
 
       await expect(

@@ -25,10 +25,10 @@ export function registerExactSvmScheme(
 ): x402ResourceServer {
   if (config.networks && config.networks.length > 0) {
     config.networks.forEach(network => {
-      server.registerScheme(network, new ExactSvmScheme());
+      server.register(network, new ExactSvmScheme());
     });
   } else {
-    server.registerScheme("solana:*", new ExactSvmScheme());
+    server.register("solana:*", new ExactSvmScheme());
   }
 
   return server;

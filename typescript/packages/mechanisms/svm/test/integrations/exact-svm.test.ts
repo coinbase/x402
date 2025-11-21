@@ -54,7 +54,7 @@ class SvmFacilitatorClient implements FacilitatorClient {
    *
    * @param facilitator - The x402 facilitator to wrap
    */
-  constructor(private readonly facilitator: x402Facilitator) {}
+  constructor(private readonly facilitator: x402Facilitator) { }
 
   /**
    * Verifies a payment payload
@@ -146,7 +146,7 @@ describe("SVM Integration Tests", () => {
       const svmClient = new ExactSvmClient(clientSigner, {
         rpcUrl: "https://api.devnet.solana.com",
       });
-      client = new x402Client().registerScheme(
+      client = new x402Client().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         svmClient,
       );
@@ -156,14 +156,14 @@ describe("SVM Integration Tests", () => {
       const facilitatorSigner = toFacilitatorSvmSigner(facilitatorKeypair);
 
       const svmFacilitator = new ExactSvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         svmFacilitator,
       );
 
       const facilitatorClient = new SvmFacilitatorClient(facilitator);
       server = new x402ResourceServer(facilitatorClient);
-      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmServer());
+      server.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmServer());
       await server.initialize();
     });
 
@@ -237,7 +237,7 @@ describe("SVM Integration Tests", () => {
       const facilitatorSigner = toFacilitatorSvmSigner(facilitatorKeypair);
 
       const svmFacilitator = new ExactSvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         svmFacilitator,
       );
@@ -250,7 +250,7 @@ describe("SVM Integration Tests", () => {
       const svmClient = new ExactSvmClient(clientSigner, {
         rpcUrl: "https://api.devnet.solana.com",
       });
-      const paymentClient = new x402Client().registerScheme(
+      const paymentClient = new x402Client().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         svmClient,
       );
@@ -258,7 +258,7 @@ describe("SVM Integration Tests", () => {
 
       // Create resource server and register schemes (composition pattern)
       const ResourceServer = new x402ResourceServer(facilitatorClient);
-      ResourceServer.registerScheme(
+      ResourceServer.register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         new ExactSvmServer(),
       );
@@ -343,7 +343,7 @@ describe("SVM Integration Tests", () => {
         rpcUrl: "https://api.devnet.solana.com",
       });
 
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         new ExactSvmFacilitator(facilitatorEvmSigner),
       );
@@ -352,7 +352,7 @@ describe("SVM Integration Tests", () => {
       server = new x402ResourceServer(facilitatorClient);
 
       svmServer = new ExactSvmServer();
-      server.registerScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmServer);
+      server.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmServer);
       await server.initialize();
     });
 

@@ -77,7 +77,7 @@ const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
 
 // Configure client with builder pattern
 const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmClient(signer));
+  .register("eip155:*", new ExactEvmClient(signer));
 
 // Wrap fetch with payment handling
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);

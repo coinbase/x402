@@ -48,7 +48,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    *
    * @param facilitator - The x402 facilitator to wrap
    */
-  constructor(private readonly facilitator: x402Facilitator) {}
+  constructor(private readonly facilitator: x402Facilitator) { }
 
   /**
    * Verifies a payment payload
@@ -140,7 +140,7 @@ describe("EVM Integration Tests", () => {
       clientAddress = clientAccount.address;
 
       const evmClient = new ExactEvmClient(clientAccount);
-      client = new x402Client().registerScheme("eip155:84532", evmClient);
+      client = new x402Client().register("eip155:84532", evmClient);
 
       // Create facilitator account and signer from environment variable
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
@@ -173,11 +173,11 @@ describe("EVM Integration Tests", () => {
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme("eip155:84532", evmFacilitator);
+      const facilitator = new x402Facilitator().register("eip155:84532", evmFacilitator);
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
       server = new x402ResourceServer(facilitatorClient);
-      server.registerScheme("eip155:84532", new ExactEvmServer());
+      server.register("eip155:84532", new ExactEvmServer());
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
@@ -297,7 +297,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme("eip155:84532", evmFacilitator);
+      const facilitator = new x402Facilitator().register("eip155:84532", evmFacilitator);
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
 
@@ -305,12 +305,12 @@ describe("EVM Integration Tests", () => {
       const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
 
       const evmClient = new ExactEvmClient(clientAccount);
-      const paymentClient = new x402Client().registerScheme("eip155:84532", evmClient);
+      const paymentClient = new x402Client().register("eip155:84532", evmClient);
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
       // Create resource server and register schemes (composition pattern)
       const ResourceServer = new x402ResourceServer(facilitatorClient);
-      ResourceServer.registerScheme("eip155:84532", new ExactEvmServer());
+      ResourceServer.register("eip155:84532", new ExactEvmServer());
       await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
       httpServer = new x402HTTPResourceServer(ResourceServer, routes);
@@ -402,7 +402,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const facilitatorSigner = toFacilitatorEvmSigner({ publicClient, walletClient });
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "eip155:84532",
         new ExactEvmFacilitator(facilitatorSigner),
       );
@@ -411,7 +411,7 @@ describe("EVM Integration Tests", () => {
       server = new x402ResourceServer(facilitatorClient);
 
       evmServer = new ExactEvmServer();
-      server.registerScheme("eip155:84532", evmServer);
+      server.register("eip155:84532", evmServer);
       await server.initialize();
     });
 
@@ -458,7 +458,7 @@ describe("EVM Integration Tests", () => {
     });
 
     it("should use registerMoneyParser for custom conversion", async () => {
-      // Register custom parser: large amounts use DAI
+      // register custom parser: large amounts use DAI
       evmServer.registerMoneyParser(async (amount, _network) => {
         if (amount > 100) {
           return {

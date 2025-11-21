@@ -38,15 +38,15 @@ export function registerExactSvmScheme(
 ): x402Facilitator {
   if (config.networks && config.networks.length > 0) {
     config.networks.forEach(network => {
-      facilitator.registerScheme(network, new ExactSvmScheme(config.signer), config.extras);
+      facilitator.register(network, new ExactSvmScheme(config.signer), config.extras);
     });
   } else {
-    facilitator.registerScheme("solana:*", new ExactSvmScheme(config.signer), config.extras);
+    facilitator.register("solana:*", new ExactSvmScheme(config.signer), config.extras);
   }
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
-    facilitator.registerSchemeV1(
+    facilitator.registerV1(
       network as Network,
       new ExactSvmSchemeV1(config.signer),
       config.extras,

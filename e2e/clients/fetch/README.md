@@ -31,12 +31,12 @@ import { ExactSvmClientV1 } from "@x402/svm/v1";
 
 // Build x402 client with direct registration
 const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmClient(evmAccount))
-  .registerScheme("solana:*", new ExactSvmClient(svmSigner))
-  .registerSchemeV1("base-sepolia", new ExactEvmClientV1(evmAccount))
-  .registerSchemeV1("base", new ExactEvmClientV1(evmAccount))
-  .registerSchemeV1("solana-devnet", new ExactSvmClientV1(svmSigner))
-  .registerSchemeV1("solana", new ExactSvmClientV1(svmSigner));
+  .register("eip155:*", new ExactEvmClient(evmAccount))
+  .register("solana:*", new ExactSvmClient(svmSigner))
+  .registerV1("base-sepolia", new ExactEvmClientV1(evmAccount))
+  .registerV1("base", new ExactEvmClientV1(evmAccount))
+  .registerV1("solana-devnet", new ExactSvmClientV1(svmSigner))
+  .registerV1("solana", new ExactSvmClientV1(svmSigner));
 
 // Wrap fetch with payment handling
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);

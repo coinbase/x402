@@ -21,7 +21,7 @@ class MockSchemeFacilitator implements SchemeNetworkFacilitator {
       payload: PaymentPayload,
       requirements: PaymentRequirements,
     ) => Promise<SettleResponse>,
-  ) {}
+  ) { }
 
   async verify(
     payload: PaymentPayload,
@@ -72,7 +72,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
   describe("onBeforeVerify", () => {
     it("should execute hook before verification", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       let hookCalled = false;
       facilitator.onBeforeVerify(async context => {
@@ -87,7 +87,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
 
     it("should abort verification when hook returns abort", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       facilitator.onBeforeVerify(async () => {
         return { abort: true, reason: "Facilitator security check failed" };
@@ -101,7 +101,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
 
     it("should execute multiple hooks in order", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       const executionOrder: number[] = [];
 
@@ -122,7 +122,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
 
     it("should stop on first abort", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       const executionOrder: number[] = [];
 
@@ -146,7 +146,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
   describe("onAfterVerify", () => {
     it("should execute hook after successful verification", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       let capturedResult: VerifyResponse | undefined;
 
@@ -162,7 +162,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
 
     it("should execute multiple hooks in order", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       const executionOrder: number[] = [];
 
@@ -186,7 +186,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const mockScheme = new MockSchemeFacilitator(async () => {
         throw new Error("Verification failed");
       });
-      facilitator.registerScheme("eip155:8453", mockScheme);
+      facilitator.register("eip155:8453", mockScheme);
 
       let hookCalled = false;
       let capturedError: Error | undefined;
@@ -210,7 +210,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const mockScheme = new MockSchemeFacilitator(async () => {
         throw new Error("Verification failed");
       });
-      facilitator.registerScheme("eip155:8453", mockScheme);
+      facilitator.register("eip155:8453", mockScheme);
 
       facilitator.onVerifyFailure(async () => {
         return {
@@ -229,7 +229,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
   describe("onBeforeSettle", () => {
     it("should abort settlement when hook returns abort", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       facilitator.onBeforeSettle(async () => {
         return { abort: true, reason: "Gas price too high" };
@@ -244,7 +244,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
   describe("onAfterSettle", () => {
     it("should execute hook after successful settlement", async () => {
       const facilitator = new x402Facilitator();
-      facilitator.registerScheme("eip155:8453", new MockSchemeFacilitator());
+      facilitator.register("eip155:8453", new MockSchemeFacilitator());
 
       let capturedTx: string | undefined;
 
@@ -266,7 +266,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const mockScheme = new MockSchemeFacilitator(undefined, async () => {
         throw new Error("Settlement failed");
       });
-      facilitator.registerScheme("eip155:8453", mockScheme);
+      facilitator.register("eip155:8453", mockScheme);
 
       let hookCalled = false;
 
@@ -287,7 +287,7 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const mockScheme = new MockSchemeFacilitator(undefined, async () => {
         throw new Error("Settlement failed");
       });
-      facilitator.registerScheme("eip155:8453", mockScheme);
+      facilitator.register("eip155:8453", mockScheme);
 
       facilitator.onSettleFailure(async () => {
         return {
@@ -312,12 +312,12 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const facilitator = new x402Facilitator();
 
       const result = facilitator
-        .onBeforeVerify(async () => {})
-        .onAfterVerify(async () => {})
-        .onVerifyFailure(async () => {})
-        .onBeforeSettle(async () => {})
-        .onAfterSettle(async () => {})
-        .onSettleFailure(async () => {});
+        .onBeforeVerify(async () => { })
+        .onAfterVerify(async () => { })
+        .onVerifyFailure(async () => { })
+        .onBeforeSettle(async () => { })
+        .onAfterSettle(async () => { })
+        .onSettleFailure(async () => { });
 
       expect(result).toBe(facilitator);
     });

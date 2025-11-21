@@ -124,7 +124,7 @@ import { ExactSvmClient } from "@x402/svm";
 import { ExactSvmClientV1 } from "@x402/svm/v1";
 
 const client = new x402Client()
-  .registerScheme("solana:*", new ExactSvmClient(signer))
+  .register("solana:*", new ExactSvmClient(signer))
   .registerSchemeV1("solana-devnet", new ExactSvmClientV1(signer))
   .registerSchemeV1("solana", new ExactSvmClientV1(signer));
 ```
