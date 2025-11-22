@@ -7,6 +7,14 @@ import { getUserNotificationDetails } from "@/lib/notification";
 
 const appUrl = process.env.NEXT_PUBLIC_URL || "";
 
+// Allow-list of trusted domains for notification endpoint
+const ALLOWED_NOTIFICATION_HOSTNAMES = [
+  // Add trusted hosts here, e.g.:
+  "api.trustedservice.com",
+  "notifications.example.com",
+  // "localhost",
+];
+
 type SendFrameNotificationResult =
   | {
       state: "error";
@@ -34,7 +42,19 @@ export async function sendFrameNotification({
     return { state: "no_token" };
   }
 
-  const response = await fetch(notificationDetails.url, {
+  // Validate that notificationDetails.url is in allow-list
+  let notificationUrl: URL;
+  try {
+    notificationUrl = new URL(notificationDetails.url);
+  } catch (e) {
+    return { state: "error", error: "Invalid notificationDetails.url" };
+  }
+  // Only allow allow-listed hostnames
+  if (!ALLOWED_NOTIFICATION_HOSTNAMES.includes(notificationUrl.hostname)) {
+    return { state: "error", error: "Unapproved notification endpoint host" };
+  }
+
+  const response = await fetch(notificationUrl.toString(), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
