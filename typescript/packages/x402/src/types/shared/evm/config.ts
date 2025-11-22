@@ -18,6 +18,17 @@ export const config: Record<string, ChainConfig> = {
     usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
     usdcName: "USD Coin",
   },
+  // bsc mainnet
+  "56": {
+    // Circle USDC on BSC mainnet
+    usdcAddress: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+    usdcName: "USD Coin",
+  },
+  // bsc testnet – SDT (mock ERC-20) for development
+  "97": {
+    usdcAddress: "0x64544969ed7EBf5f083679233325356EbE738930",
+    usdcName: "SDT",
+  },
   "4689": {
     usdcAddress: "0xcdf79194c6c285077a58da47641d4dbe51f63542",
     usdcName: "Bridged USDC",
