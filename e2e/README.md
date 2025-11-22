@@ -2,112 +2,88 @@
 
 End-to-end test suite for validating client-server-facilitator communication across languages and frameworks.
 
+## Usage
+
+### Interactive Test Mode
+
+```bash
+pnpm test
+```
+
+Launches an interactive CLI where you can select:
+- **Facilitators** - Payment verification/settlement services (Go, TypeScript)
+- **Servers** - Protected endpoints requiring payment (Express, Gin, Hono, Next.js, FastAPI, Flask, etc.)
+- **Clients** - Payment-capable HTTP clients (axios, fetch, httpx, requests, etc.)
+- **Extensions** - Additional features like Bazaar discovery
+- **Protocols** - EVM and/or SVM networks
+
+Every valid combination of your selections will be tested. For example, selecting 2 facilitators, 3 servers, and 2 clients will generate and run all compatible test scenarios.
+
+### Minimized Test Mode
+
+```bash
+pnpm test --min
+```
+
+Same interactive CLI, but with intelligent test minimization:
+- **90% fewer tests** compared to full mode
+- Each selected component is tested at least once across all variations
+- Skips redundant combinations that provide no additional coverage
+- Example: `legacy-hono` (v1 only) tests once, while `express` (v1+v2, EVM+SVM) tests all 4 combinations
+
+Perfect for rapid iteration during development while maintaining comprehensive coverage.
+
+### Verbose Logging
+
+```bash
+pnpm test -v
+pnpm test --min -v
+```
+
+Add the `-v` flag to any command for verbose output:
+- Prints all facilitator logs
+- Prints all server logs  
+- Prints all client logs
+- Shows detailed information after each test scenario
+
+Useful for debugging test failures or understanding the payment flow.
+
 ## Environment Variables
 
-Required:
-- `ADDRESS`: Server wallet address
-- `PRIVATE_KEY`: Client private key (when running single client)
-
-## Quick Start
-
-```bash
-# Full suite
-pnpm test                     # Run all tests
-
-# Development mode (recommended)
-pnpm test -d                  # Test on testnet
-pnpm test -d -v               # Test with verbose logging
-
-# Language filters
-pnpm test -d -ts              # Test TypeScript implementations
-pnpm test -d -py              # Test Python implementations
-pnpm test -d -go              # Test Go implementations
-
-# Legacy compatibility testing
-pnpm test --legacy            # Include legacy implementations
-pnpm test --legacy -d -ts     # Test legacy + new TypeScript implementations
-```
-
-## Filtering Tests
-
-### Implementation Filters
-```bash
---client=<name>               # Test specific client
---server=<name>              # Test specific server
-
-# Available implementations
-Clients: httpx, axios, fetch, requests
-Servers: express, fastapi, flask, gin, hono, next
-
-# Examples
-pnpm test -d -ts --client=axios     # Test TypeScript axios client
-pnpm test -d -py --server=fastapi   # Test Python FastAPI server
-```
-
-### Language Flags (can combine)
-```bash
--ts, --typescript              # TypeScript implementations
--py, --python                  # Python implementations
--go, --go                      # Go implementations
-
-# Examples
-pnpm test -ts -py             # Test TypeScript and Python together
-pnpm test -py -go             # Test Python and Go together
-```
-
-### Environment Filters
-```bash
---network=<name>              # base or base-sepolia
---prod=<true|false>          # true=CDP facilitator, false=no CDP
-
-# Examples
-pnpm test --prod=true        # Test production scenarios
-pnpm test --network=base     # Test on base network
-```
-
-### Common Workflows
-
-```bash
-# Local Development
-pnpm test -d -ts                     # TypeScript development
-pnpm test -d -py                     # Python development
-pnpm test -d -ts --server=next       # Next.js middleware development
-pnpm test -d -py --client=httpx      # Python httpx client development
-
-# Cross-Language Testing
-pnpm test -ts -py                    # Test TypeScript/Python compatibility
-pnpm test -d -py -go                 # Test Python/Go on testnet
-
-# Legacy Compatibility Testing
-pnpm test --legacy -d                # Test both new and legacy implementations
-pnpm test --legacy --client=legacy-axios # Test specific legacy client with new servers
-pnpm test --legacy --server=legacy-express # Test specific legacy server with new clients
-
-# Production Testing
-pnpm test --prod=true -ts            # Test TypeScript in production
-pnpm test --network=base -py         # Test Python on base network
-```
-
-### Environment Variables
-
 Required environment variables (set in `.env` file):
-```bash
-CLIENT_EVM_PRIVATE_KEY=0x...  # Private key for client wallet
-CLIENT_SVM_PRIVATE_KEY=...    # Solana private key for client
-SERVER_EVM_ADDRESS=0x...      # Server's EVM payment address
-SERVER_SVM_ADDRESS=...        # Server's Solana payment address
-FACILITATOR_EVM_PRIVATE_KEY=...  # EVM private key for facilitator
-FACILITATOR_SVM_PRIVATE_KEY=...  # Solana private key for facilitator
 
-# Optional (for real blockchain facilitator)
-EVM_RPC_URL=https://sepolia.base.org  # RPC endpoint for blockchain access (defaults to Base Sepolia)
+```bash
+# Client wallets
+CLIENT_EVM_PRIVATE_KEY=0x...        # EVM private key for client payments
+CLIENT_SVM_PRIVATE_KEY=...          # Solana private key for client payments
+
+# Server payment addresses
+SERVER_EVM_ADDRESS=0x...            # Where servers receive EVM payments
+SERVER_SVM_ADDRESS=...              # Where servers receive Solana payments
+
+# Facilitator wallets (for payment verification/settlement)
+FACILITATOR_EVM_PRIVATE_KEY=0x...   # EVM private key for facilitator
+FACILITATOR_SVM_PRIVATE_KEY=...     # Solana private key for facilitator
 ```
 
-### Environment Options
+## Example Session
 
 ```bash
--d, --dev                  # Development mode (testnet, no CDP)
--v, --verbose              # Detailed logging
---legacy                   # Include legacy implementations from /legacy directory
---log-file=<path>          # Save output to file
+$ pnpm test --min
+
+🎯 Interactive Mode
+==================
+
+✔ Select facilitators › go, typescript
+✔ Select servers › express, hono, legacy-express
+✔ Select clients › axios, fetch, httpx
+✔ Select extensions › bazaar
+✔ Select protocol families › EVM, SVM
+
+📊 Coverage-Based Minimization
+Total scenarios: 156
+Selected scenarios: 18 (88.5% reduction)
+
+✅ Passed: 18
+❌ Failed: 0
 ```

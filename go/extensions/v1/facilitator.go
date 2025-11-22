@@ -322,6 +322,3 @@ func ExtractResourceMetadataV1(paymentRequirements interface{}) map[string]strin
 
 	return result
 }
-
-
-

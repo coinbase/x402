@@ -12,7 +12,7 @@ import { type PaymentRequired } from "@x402/core/types";
  * 4. Retry the request with the payment header
  *
  * @param fetch - The fetch function to wrap (typically globalThis.fetch)
- * @param client - Configured x402Client instance for handling payments
+ * @param client - Configured x402Client or x402HTTPClient instance for handling payments
  * @returns A wrapped fetch function that handles 402 responses automatically
  *
  * @example
@@ -38,8 +38,11 @@ import { type PaymentRequired } from "@x402/core/types";
  * @throws {Error} If a payment has already been attempted for this request
  * @throws {Error} If there's an error creating the payment header
  */
-export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x402Client) {
-  const httpClient = new x402HTTPClient(client);
+export function wrapFetchWithPayment(
+  fetch: typeof globalThis.fetch,
+  client: x402Client | x402HTTPClient,
+) {
+  const httpClient = client instanceof x402HTTPClient ? client : new x402HTTPClient(client);
 
   return async (input: RequestInfo, init?: RequestInit) => {
     const response = await fetch(input, init);
@@ -51,10 +54,8 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x40
     // Parse payment requirements from response
     let paymentRequired: PaymentRequired;
     try {
-      const responseHeaders: Record<string, string> = {};
-      response.headers.forEach((value, key) => {
-        responseHeaders[key.toUpperCase()] = value;
-      });
+      // Create getHeader function for case-insensitive header lookup
+      const getHeader = (name: string) => response.headers.get(name);
 
       // Try to get from headers first (v2), then from body (v1)
       let body: PaymentRequired | undefined;
@@ -67,7 +68,7 @@ export function wrapFetchWithPayment(fetch: typeof globalThis.fetch, client: x40
         // Ignore JSON parse errors - might be header-only response
       }
 
-      paymentRequired = httpClient.getPaymentRequiredResponse(responseHeaders, body);
+      paymentRequired = httpClient.getPaymentRequiredResponse(getHeader, body);
     } catch (error) {
       throw new Error(
         `Failed to parse payment requirements: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -130,7 +131,7 @@ export function wrapFetchWithPaymentFromConfig(
 }
 
 // Re-export types and utilities for convenience
-export { x402HTTPClient } from "@x402/core/client";
+export { x402Client, x402HTTPClient } from "@x402/core/client";
 export type {
   PaymentPolicy,
   SchemeRegistration,

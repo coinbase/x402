@@ -86,7 +86,7 @@ export { BAZAAR } from "./types";
 // Export resource service functions (for servers)
 export { declareDiscoveryExtension } from "./resource-service";
 
-export { bazaarResourceServiceExtension } from "./server";
+export { bazaarResourceServerExtension } from "./server";
 
 // Export facilitator functions (for facilitators)
 export {

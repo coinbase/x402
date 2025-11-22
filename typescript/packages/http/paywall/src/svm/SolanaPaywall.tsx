@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WalletAccount } from "@wallet-standard/base";
 import type { WalletWithSolanaFeatures } from "@solana/wallet-standard-features";
 
-import { createSvmClient } from "@x402/svm/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { x402Client } from "@x402/core/client";
 import type { PaymentRequired } from "@x402/core/types";
 
 import { Spinner } from "./Spinner";
@@ -179,7 +180,8 @@ export function SolanaPaywall({ paymentRequired, onSuccessfulResponse }: SolanaP
 
       setStatus("Creating payment signature...");
 
-      const client = createSvmClient({ signer: walletSigner });
+      const client = new x402Client();
+      registerExactSvmScheme(client, { signer: walletSigner });
 
       const paymentPayload = await client.createPaymentPayload(paymentRequired);
 

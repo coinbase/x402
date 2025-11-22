@@ -10,6 +10,7 @@ export interface ParsedArgs {
   logFile?: string;
   filters: TestFilters;
   showHelp: boolean;
+  minimize: boolean;
 }
 
 export function parseArgs(): ParsedArgs {
@@ -21,7 +22,8 @@ export function parseArgs(): ParsedArgs {
       mode: 'interactive',
       verbose: false,
       filters: {},
-      showHelp: true
+      showHelp: true,
+      minimize: false
     };
   }
 
@@ -43,6 +45,9 @@ export function parseArgs(): ParsedArgs {
   // Parse log file
   const logFile = args.find(arg => arg.startsWith('--log-file='))?.split('=')[1];
 
+  // Parse minimize flag
+  const minimize = args.includes('--min');
+
   // Parse filters (comma-separated lists)
   const facilitators = parseListArg(args, '--facilitators');
   const servers = parseListArg(args, '--servers');
@@ -63,7 +68,8 @@ export function parseArgs(): ParsedArgs {
       versions,
       protocolFamilies: families,
     },
-    showHelp: false
+    showHelp: false,
+    minimize
   };
 }
 
@@ -92,16 +98,20 @@ export function printHelp(): void {
   console.log('Options:');
   console.log('  -v, --verbose              Enable verbose logging');
   console.log('  --log-file=<path>          Save verbose output to file');
+  console.log('  --min                      Minimize tests (coverage-based skipping)');
   console.log('  -h, --help                 Show this help message');
   console.log('');
   console.log('Examples:');
   console.log('  pnpm test                                           # Interactive mode');
   console.log('  pnpm test -v                                        # Interactive with verbose');
+  console.log('  pnpm test --min                                     # Minimize tests');
   console.log('  pnpm test --facilitators=go --servers=express       # Programmatic');
   console.log('  pnpm test --facilitators=go,typescript \\');
   console.log('            --servers=legacy-express \\');
   console.log('            --clients=go-http \\');
   console.log('            --extensions=bazaar -v                    # Full example');
+  console.log('  pnpm test --min --facilitators=go,typescript \\');
+  console.log('            --extensions=bazaar -v                    # Minimized with filters');
   console.log('');
   console.log('Note: Extensions control test output visibility, not scenario filtering');
   console.log('');

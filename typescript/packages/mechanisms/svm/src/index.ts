@@ -5,7 +5,7 @@
  */
 
 // Export V2 implementations (default)
-export { ExactSvmClient, ExactSvmFacilitator, ExactSvmService } from "./exact";
+export { ExactSvmScheme } from "./exact";
 
 // Export signer utilities and types
 export { toClientSvmSigner, toFacilitatorSvmSigner } from "./signer";

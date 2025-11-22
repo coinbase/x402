@@ -1,2 +1,2 @@
-export { ExactEvmClientV1 } from "./client";
-export { ExactEvmFacilitatorV1 } from "./facilitator";
+export { ExactEvmSchemeV1 } from "./client/scheme";
+export { ExactEvmSchemeV1 as ExactEvmSchemeV1Facilitator } from "./facilitator/scheme";

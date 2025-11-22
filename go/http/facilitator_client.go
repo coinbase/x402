@@ -10,6 +10,7 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
+	"github.com/coinbase/x402/go/types"
 )
 
 // ============================================================================
@@ -17,6 +18,7 @@ import (
 // ============================================================================
 
 // HTTPFacilitatorClient communicates with remote facilitator services over HTTP
+// Implements FacilitatorClient interface (supports both V1 and V2)
 type HTTPFacilitatorClient struct {
 	url          string
 	httpClient   *http.Client
@@ -94,28 +96,86 @@ func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient 
 }
 
 // ============================================================================
-// FacilitatorClient Implementation
+// FacilitatorClient Implementation (Network Boundary - uses bytes)
 // ============================================================================
 
-// Verify checks if a payment is valid without executing it
+// Verify checks if a payment is valid (supports both V1 and V2)
 func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
-	// Unmarshal to get version (for request body)
-	var payloadPartial struct {
-		X402Version int `json:"x402Version"`
-	}
-	if err := json.Unmarshal(payloadBytes, &payloadPartial); err != nil {
+	// Detect version from bytes
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
 		return x402.VerifyResponse{}, fmt.Errorf("failed to detect version: %w", err)
 	}
 
-	// Unmarshal to maps for sending to facilitator
-	var payloadMap map[string]interface{}
-	var requirementsMap map[string]interface{}
+	return c.verifyHTTP(ctx, version, payloadBytes, requirementsBytes)
+}
+
+// Settle executes a payment (supports both V1 and V2)
+func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+	// Detect version from bytes
+	version, err := types.DetectVersion(payloadBytes)
+	if err != nil {
+		return x402.SettleResponse{}, fmt.Errorf("failed to detect version: %w", err)
+	}
+
+	return c.settleHTTP(ctx, version, payloadBytes, requirementsBytes)
+}
+
+// GetSupported gets supported payment kinds (shared by both V1 and V2)
+func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, "GET", c.url+"/supported", nil)
+	if err != nil {
+		return x402.SupportedResponse{}, fmt.Errorf("failed to create supported request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Add auth headers if available
+	if c.authProvider != nil {
+		authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
+		if err != nil {
+			return x402.SupportedResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
+		}
+		for k, v := range authHeaders.Supported {
+			req.Header.Set(k, v)
+		}
+	}
+
+	// Make request
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return x402.SupportedResponse{}, fmt.Errorf("supported request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return x402.SupportedResponse{}, fmt.Errorf("facilitator supported failed (%d): %s", resp.StatusCode, string(body))
+	}
+
+	// Parse response
+	var supportedResponse x402.SupportedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&supportedResponse); err != nil {
+		return x402.SupportedResponse{}, fmt.Errorf("failed to decode supported response: %w", err)
+	}
+
+	return supportedResponse, nil
+}
+
+// ============================================================================
+// Internal HTTP Methods (shared by V1 and V2)
+// ============================================================================
+
+func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (x402.VerifyResponse, error) {
+	// Build request body
+	var payloadMap, requirementsMap map[string]interface{}
 	json.Unmarshal(payloadBytes, &payloadMap)
 	json.Unmarshal(requirementsBytes, &requirementsMap)
 
-	// Build request body
 	requestBody := map[string]interface{}{
-		"x402Version":         payloadPartial.X402Version,
+		"x402Version":         version,
 		"paymentPayload":      payloadMap,
 		"paymentRequirements": requirementsMap,
 	}
@@ -166,25 +226,14 @@ func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte,
 	return verifyResponse, nil
 }
 
-// Settle executes a payment on-chain
-func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
-	// Unmarshal to get version (for request body)
-	var payloadPartial struct {
-		X402Version int `json:"x402Version"`
-	}
-	if err := json.Unmarshal(payloadBytes, &payloadPartial); err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("failed to detect version: %w", err)
-	}
-
-	// Unmarshal to maps for sending to facilitator
-	var payloadMap map[string]interface{}
-	var requirementsMap map[string]interface{}
+func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (x402.SettleResponse, error) {
+	// Build request body
+	var payloadMap, requirementsMap map[string]interface{}
 	json.Unmarshal(payloadBytes, &payloadMap)
 	json.Unmarshal(requirementsBytes, &requirementsMap)
 
-	// Build request body
 	requestBody := map[string]interface{}{
-		"x402Version":         payloadPartial.X402Version,
+		"x402Version":         version,
 		"paymentPayload":      payloadMap,
 		"paymentRequirements": requirementsMap,
 	}
@@ -233,204 +282,4 @@ func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte,
 	}
 
 	return settleResponse, nil
-}
-
-// GetSupported returns the payment kinds this facilitator supports
-func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, "GET", c.url+"/supported", nil)
-	if err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("failed to create supported request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	// Add auth headers if available
-	if c.authProvider != nil {
-		authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
-		if err != nil {
-			return x402.SupportedResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
-		}
-		for k, v := range authHeaders.Supported {
-			req.Header.Set(k, v)
-		}
-	}
-
-	// Make request
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("supported request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return x402.SupportedResponse{}, fmt.Errorf("facilitator getSupported failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
-	var supportedResponse x402.SupportedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&supportedResponse); err != nil {
-		return x402.SupportedResponse{}, fmt.Errorf("failed to decode supported response: %w", err)
-	}
-
-	return supportedResponse, nil
-}
-
-// Identifier returns the identifier for this facilitator client
-func (c *HTTPFacilitatorClient) Identifier() string {
-	return c.identifier
-}
-
-// ============================================================================
-// Authentication Providers
-// ============================================================================
-
-// StaticAuthProvider provides static authentication headers
-type StaticAuthProvider struct {
-	headers AuthHeaders
-}
-
-// NewStaticAuthProvider creates an auth provider with static headers
-func NewStaticAuthProvider(apiKey string) *StaticAuthProvider {
-	headers := map[string]string{
-		"Authorization": "Bearer " + apiKey,
-	}
-	return &StaticAuthProvider{
-		headers: AuthHeaders{
-			Verify:    headers,
-			Settle:    headers,
-			Supported: headers,
-		},
-	}
-}
-
-// GetAuthHeaders returns the static headers
-func (p *StaticAuthProvider) GetAuthHeaders(ctx context.Context) (AuthHeaders, error) {
-	return p.headers, nil
-}
-
-// FuncAuthProvider uses functions to generate auth headers
-type FuncAuthProvider struct {
-	fn func(ctx context.Context) (AuthHeaders, error)
-}
-
-// NewFuncAuthProvider creates an auth provider from a function
-func NewFuncAuthProvider(fn func(ctx context.Context) (AuthHeaders, error)) *FuncAuthProvider {
-	return &FuncAuthProvider{fn: fn}
-}
-
-// GetAuthHeaders calls the function to get headers
-func (p *FuncAuthProvider) GetAuthHeaders(ctx context.Context) (AuthHeaders, error) {
-	return p.fn(ctx)
-}
-
-// ============================================================================
-// Multiple Facilitator Client
-// ============================================================================
-
-// MultiFacilitatorClient tries multiple facilitators in order
-type MultiFacilitatorClient struct {
-	clients []x402.FacilitatorClient
-}
-
-// NewMultiFacilitatorClient creates a client that tries multiple facilitators
-func NewMultiFacilitatorClient(clients ...x402.FacilitatorClient) *MultiFacilitatorClient {
-	return &MultiFacilitatorClient{
-		clients: clients,
-	}
-}
-
-// Verify tries each facilitator until one succeeds
-func (m *MultiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
-	var lastErr error
-
-	for _, client := range m.clients {
-		resp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
-		if err == nil {
-			return resp, nil
-		}
-		lastErr = err
-	}
-
-	if lastErr != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("all facilitators failed: %w", lastErr)
-	}
-
-	return x402.VerifyResponse{}, fmt.Errorf("no facilitators configured")
-}
-
-// Settle tries each facilitator until one succeeds
-func (m *MultiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
-	var lastErr error
-
-	for _, client := range m.clients {
-		resp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
-		if err == nil {
-			return resp, nil
-		}
-		lastErr = err
-	}
-
-	if lastErr != nil {
-		return x402.SettleResponse{}, fmt.Errorf("all facilitators failed: %w", lastErr)
-	}
-
-	return x402.SettleResponse{}, fmt.Errorf("no facilitators configured")
-}
-
-// GetSupported returns combined supported kinds from all facilitators
-func (m *MultiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	combined := x402.SupportedResponse{
-		Kinds:      []x402.SupportedKind{},
-		Extensions: []string{},
-	}
-
-	extensionSet := make(map[string]bool)
-
-	for _, client := range m.clients {
-		resp, err := client.GetSupported(ctx)
-		if err != nil {
-			continue // Skip failed facilitators
-		}
-
-		combined.Kinds = append(combined.Kinds, resp.Kinds...)
-
-		for _, ext := range resp.Extensions {
-			extensionSet[ext] = true
-		}
-	}
-
-	for ext := range extensionSet {
-		combined.Extensions = append(combined.Extensions, ext)
-	}
-
-	if len(combined.Kinds) == 0 {
-		return combined, fmt.Errorf("no facilitators returned supported kinds")
-	}
-
-	return combined, nil
-}
-
-// Identifier returns a combined identifier for multiple facilitators
-func (m *MultiFacilitatorClient) Identifier() string {
-	return "multi-facilitator"
-}
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-// toJSONSafe converts values to JSON-safe format (handles BigInt, etc.)
-func toJSONSafe(v interface{}) interface{} {
-	// Marshal and unmarshal to normalize
-	data, err := json.Marshal(v)
-	if err != nil {
-		return v
-	}
-
-	var result interface{}
-	json.Unmarshal(data, &result)
-	return result
 }

@@ -35,7 +35,7 @@ This package provides three main components for handling x402 payments on Solana
 - `FacilitatorRpcClient` - RPC client interface
 
 **Service:**
-- `ExactSvmService` - V2 service for building payment requirements
+- `ExactEvmServer` - V2 service for building payment requirements
 
 **Utilities:**
 - Network validation, asset info lookup, amount formatting, transaction encoding
@@ -124,7 +124,7 @@ import { ExactSvmClient } from "@x402/svm";
 import { ExactSvmClientV1 } from "@x402/svm/v1";
 
 const client = new x402Client()
-  .registerScheme("solana:*", new ExactSvmClient(signer))
+  .register("solana:*", new ExactSvmClient(signer))
   .registerSchemeV1("solana-devnet", new ExactSvmClientV1(signer))
   .registerSchemeV1("solana", new ExactSvmClientV1(signer));
 ```

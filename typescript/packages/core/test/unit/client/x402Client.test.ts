@@ -22,7 +22,7 @@ describe("x402Client", () => {
 
       const client = new x402Client(customSelector);
       const mockClient = new MockSchemeNetworkClient("test-scheme");
-      client.registerScheme("test:network" as Network, mockClient);
+      client.register("test:network" as Network, mockClient);
 
       const paymentRequired = buildPaymentRequired({
         accepts: [
@@ -47,7 +47,7 @@ describe("x402Client", () => {
     it("should use default selector that chooses first requirement", async () => {
       const client = new x402Client();
       const mockClient = new MockSchemeNetworkClient("test-scheme");
-      client.registerScheme("test:network" as Network, mockClient);
+      client.register("test:network" as Network, mockClient);
 
       const firstReq = buildPaymentRequirements({
         scheme: "test-scheme",
@@ -167,12 +167,12 @@ describe("x402Client", () => {
     });
   });
 
-  describe("registerScheme", () => {
+  describe("register", () => {
     it("should register scheme for v2", () => {
       const client = new x402Client();
       const mockClient = new MockSchemeNetworkClient("test-scheme");
 
-      const result = client.registerScheme("test:network" as Network, mockClient);
+      const result = client.register("test:network" as Network, mockClient);
 
       expect(result).toBe(client); // Chaining
     });
@@ -183,8 +183,8 @@ describe("x402Client", () => {
       const intentClient = new MockSchemeNetworkClient("intent");
 
       client
-        .registerScheme("eip155:8453" as Network, exactClient)
-        .registerScheme("eip155:8453" as Network, intentClient);
+        .register("eip155:8453" as Network, exactClient)
+        .register("eip155:8453" as Network, intentClient);
 
       const paymentRequired = buildPaymentRequired({
         accepts: [buildPaymentRequirements({ scheme: "exact", network: "eip155:8453" as Network })],
@@ -201,8 +201,8 @@ describe("x402Client", () => {
       const svmClient = new MockSchemeNetworkClient("exact");
 
       client
-        .registerScheme("eip155:8453" as Network, evmClient)
-        .registerScheme("solana:mainnet" as Network, svmClient);
+        .register("eip155:8453" as Network, evmClient)
+        .register("solana:mainnet" as Network, svmClient);
 
       // Should be able to create payload for either network
       const evmPaymentRequired = buildPaymentRequired({
@@ -215,12 +215,12 @@ describe("x402Client", () => {
     });
   });
 
-  describe("registerSchemeV1", () => {
+  describe("registerV1", () => {
     it("should register scheme for v1", () => {
       const client = new x402Client();
       const mockClient = new MockSchemeNetworkClient("exact");
 
-      const result = client.registerSchemeV1("base-sepolia", mockClient);
+      const result = client.registerV1("base-sepolia", mockClient);
 
       expect(result).toBe(client);
     });
@@ -252,7 +252,7 @@ describe("x402Client", () => {
       it("should create payment payload from PaymentRequired", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           x402Version: 2,
@@ -275,7 +275,7 @@ describe("x402Client", () => {
       it("should call scheme client's createPaymentPayload", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -309,7 +309,7 @@ describe("x402Client", () => {
       it("should throw if no matching scheme/network client found", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -328,7 +328,7 @@ describe("x402Client", () => {
       it("should throw if PaymentRequired has empty accepts array", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [],
@@ -344,7 +344,7 @@ describe("x402Client", () => {
       it("should filter requirements based on policy", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         // Policy that prefers cheap options
         const cheapPolicy: PaymentPolicy = (version, reqs) =>
@@ -376,7 +376,7 @@ describe("x402Client", () => {
       it("should apply multiple policies in order", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:*" as Network, mockClient);
+        client.register("eip155:*" as Network, mockClient);
 
         const executionOrder: number[] = [];
 
@@ -422,7 +422,7 @@ describe("x402Client", () => {
       it("should throw if all requirements filtered out by policies", async () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         // Policy that filters everything out
         const rejectAllPolicy: PaymentPolicy = (_version, _reqs) => [];
@@ -447,7 +447,7 @@ describe("x402Client", () => {
         const exactClient = new MockSchemeNetworkClient("exact");
 
         // Only register exact scheme
-        client.registerScheme("eip155:8453" as Network, exactClient);
+        client.register("eip155:8453" as Network, exactClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -467,7 +467,7 @@ describe("x402Client", () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
 
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -489,7 +489,7 @@ describe("x402Client", () => {
         const evmClient = new MockSchemeNetworkClient("exact");
 
         // Register with wildcard
-        client.registerScheme("eip155:*" as Network, evmClient);
+        client.register("eip155:*" as Network, evmClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -507,7 +507,7 @@ describe("x402Client", () => {
         const client = new x402Client();
         const mockClient = new MockSchemeNetworkClient("exact");
 
-        client.registerScheme("eip155:8453" as Network, mockClient);
+        client.register("eip155:8453" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -526,7 +526,7 @@ describe("x402Client", () => {
         const client = new x402Client();
         const exactClient = new MockSchemeNetworkClient("exact");
 
-        client.registerScheme("eip155:*" as Network, exactClient);
+        client.register("eip155:*" as Network, exactClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [
@@ -564,7 +564,7 @@ describe("x402Client", () => {
 
         const client = new x402Client(cheapestSelector);
         const mockClient = new MockSchemeNetworkClient("exact");
-        client.registerScheme("eip155:*" as Network, mockClient);
+        client.register("eip155:*" as Network, mockClient);
 
         const paymentRequired = buildPaymentRequired({
           accepts: [

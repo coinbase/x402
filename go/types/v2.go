@@ -1,70 +1,109 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
-// PaymentPayloadV2 represents a v2 payment payload structure
+// PaymentPayload represents a v2 payment payload structure
 // V2 has accepted field with nested scheme/network/requirements
-type PaymentPayloadV2 struct {
+type PaymentPayload struct {
 	X402Version int                    `json:"x402Version"`
 	Payload     map[string]interface{} `json:"payload"`
-	Accepted    PaymentRequirementsV2  `json:"accepted"`
-	Resource    *ResourceInfoV2        `json:"resource,omitempty"`
+	Accepted    PaymentRequirements    `json:"accepted"`
+	Resource    *ResourceInfo          `json:"resource,omitempty"`
 	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// PaymentRequirementsV2 represents v2 payment requirements structure
-type PaymentRequirementsV2 struct {
+// PaymentPayloadView interface implementation for V2
+func (p PaymentPayload) GetVersion() int                    { return p.X402Version }
+func (p PaymentPayload) GetScheme() string                  { return p.Accepted.Scheme }
+func (p PaymentPayload) GetNetwork() string                 { return p.Accepted.Network }
+func (p PaymentPayload) GetPayload() map[string]interface{} { return p.Payload }
+
+// PaymentRequirements represents v2 payment requirements structure
+type PaymentRequirements struct {
 	Scheme            string                 `json:"scheme"`
 	Network           string                 `json:"network"`
 	Asset             string                 `json:"asset"`
 	Amount            string                 `json:"amount"`
 	PayTo             string                 `json:"payTo"`
-	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds,omitempty"`
+	MaxTimeoutSeconds int                    `json:"maxTimeoutSeconds"`
 	Extra             map[string]interface{} `json:"extra,omitempty"`
 }
 
-// PaymentRequiredV2 represents a v2 402 response structure
-type PaymentRequiredV2 struct {
-	X402Version int                      `json:"x402Version"`
-	Error       string                   `json:"error,omitempty"`
-	Resource    *ResourceInfoV2          `json:"resource,omitempty"`
-	Accepts     []PaymentRequirementsV2  `json:"accepts"`
-	Extensions  map[string]interface{}   `json:"extensions,omitempty"`
+// PaymentRequirementsView interface implementation for V2
+func (r PaymentRequirements) GetScheme() string                  { return r.Scheme }
+func (r PaymentRequirements) GetNetwork() string                 { return r.Network }
+func (r PaymentRequirements) GetAsset() string                   { return r.Asset }
+func (r PaymentRequirements) GetAmount() string                  { return r.Amount }
+func (r PaymentRequirements) GetPayTo() string                   { return r.PayTo }
+func (r PaymentRequirements) GetMaxTimeoutSeconds() int          { return r.MaxTimeoutSeconds }
+func (r PaymentRequirements) GetExtra() map[string]interface{} { return r.Extra }
+
+// PaymentRequired represents a v2 402 response structure
+type PaymentRequired struct {
+	X402Version int                   `json:"x402Version"`
+	Error       string                `json:"error,omitempty"`
+	Resource    *ResourceInfo         `json:"resource,omitempty"`
+	Accepts     []PaymentRequirements `json:"accepts"`
+	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 
-// ResourceInfoV2 describes the resource being accessed
-type ResourceInfoV2 struct {
+// ResourceInfo describes the resource being accessed
+type ResourceInfo struct {
 	URL         string `json:"url"`
 	Description string `json:"description,omitempty"`
 	MimeType    string `json:"mimeType,omitempty"`
 }
 
+// SupportedKind represents a V2 supported payment configuration
+type SupportedKind struct {
+	X402Version int                    `json:"x402Version"`
+	Scheme      string                 `json:"scheme"`
+	Network     string                 `json:"network"`
+	Extra       map[string]interface{} `json:"extra,omitempty"`
+}
+
+// SupportedResponse describes what payment kinds a facilitator supports
+type SupportedResponse struct {
+	Kinds      []SupportedKind `json:"kinds"`
+	Extensions []string        `json:"extensions"`
+}
+
 // Unmarshal helpers
 
-// ToPaymentPayloadV2 unmarshals bytes to v2 payment payload
-func ToPaymentPayloadV2(data []byte) (*PaymentPayloadV2, error) {
-	var payload PaymentPayloadV2
+// ToPaymentPayload unmarshals bytes to v2 payment payload
+func ToPaymentPayload(data []byte) (*PaymentPayload, error) {
+	var payload PaymentPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		return nil, err
 	}
 	return &payload, nil
 }
 
-// ToPaymentRequirementsV2 unmarshals bytes to v2 payment requirements
-func ToPaymentRequirementsV2(data []byte) (*PaymentRequirementsV2, error) {
-	var requirements PaymentRequirementsV2
+// ToPaymentRequirements unmarshals bytes to v2 payment requirements
+func ToPaymentRequirements(data []byte) (*PaymentRequirements, error) {
+	var requirements PaymentRequirements
 	if err := json.Unmarshal(data, &requirements); err != nil {
 		return nil, err
 	}
 	return &requirements, nil
 }
 
-// ToPaymentRequiredV2 unmarshals bytes to v2 payment required response
-func ToPaymentRequiredV2(data []byte) (*PaymentRequiredV2, error) {
-	var required PaymentRequiredV2
+// ToPaymentRequired unmarshals bytes to v2 payment required response
+func ToPaymentRequired(data []byte) (*PaymentRequired, error) {
+	var required PaymentRequired
 	if err := json.Unmarshal(data, &required); err != nil {
 		return nil, err
 	}
 	return &required, nil
 }
 
+// ToSupportedKind unmarshals bytes to v2 supported kind
+func ToSupportedKind(data []byte) (*SupportedKind, error) {
+	var kind SupportedKind
+	if err := json.Unmarshal(data, &kind); err != nil {
+		return nil, err
+	}
+	return &kind, nil
+}

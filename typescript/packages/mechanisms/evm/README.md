@@ -33,7 +33,7 @@ This package provides three main components for handling x402 payments on EVM-co
 - `FacilitatorEvmSigner` - TypeScript type for facilitator signers
 
 **Service:**
-- `ExactEvmService` - V2 service for building payment requirements
+- `ExactEvmServer` - V2 service for building payment requirements
 
 ### V1 Package (`@x402/evm/v1`)
 
@@ -120,7 +120,7 @@ import { ExactEvmClient } from "@x402/evm";
 import { ExactEvmClientV1 } from "@x402/evm/v1";
 
 const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmClient(signer))
+  .register("eip155:*", new ExactEvmClient(signer))
   .registerSchemeV1("base-sepolia", new ExactEvmClientV1(signer))
   .registerSchemeV1("base", new ExactEvmClientV1(signer));
 ```

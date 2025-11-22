@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  x402HTTPResourceService,
+  x402HTTPResourceServer,
   HTTPRequestContext,
   HTTPAdapter,
-} from "../../../src/http/x402HTTPResourceService";
-import { x402ResourceService } from "../../../src/server/x402ResourceService";
+} from "../../../src/http/x402HTTPResourceServer";
+import { x402ResourceServer } from "../../../src/server/x402ResourceServer";
 import {
   MockFacilitatorClient,
-  MockSchemeNetworkService,
+  MockSchemeNetworkServer,
   buildSupportedResponse,
   buildVerifyResponse,
   buildPaymentPayload,
@@ -83,10 +83,10 @@ class MockHTTPAdapter implements HTTPAdapter {
   }
 }
 
-describe("x402HTTPResourceService", () => {
-  let resourceService: x402ResourceService;
+describe("x402HTTPResourceServer", () => {
+  let ResourceServer: x402ResourceServer;
   let mockFacilitator: MockFacilitatorClient;
-  let mockScheme: MockSchemeNetworkService;
+  let mockScheme: MockSchemeNetworkServer;
 
   beforeEach(async () => {
     mockFacilitator = new MockFacilitatorClient(
@@ -96,66 +96,74 @@ describe("x402HTTPResourceService", () => {
       buildVerifyResponse({ isValid: true }),
     );
 
-    resourceService = new x402ResourceService(mockFacilitator);
+    ResourceServer = new x402ResourceServer(mockFacilitator);
 
-    mockScheme = new MockSchemeNetworkService("exact", {
+    mockScheme = new MockSchemeNetworkServer("exact", {
       amount: "1000000",
       asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       extra: {},
     });
 
-    resourceService.registerScheme("eip155:8453" as Network, mockScheme);
-    await resourceService.initialize();
+    ResourceServer.register("eip155:8453" as Network, mockScheme);
+    await ResourceServer.initialize();
   });
 
   describe("Construction", () => {
-    it("should accept resourceService and routes via composition", () => {
+    it("should accept ResourceServer and routes via composition", () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
-      expect(httpService).toBeDefined();
+      expect(httpServer).toBeDefined();
     });
 
     it("should compile single route config", () => {
       const singleRoute = {
-        scheme: "exact",
-        payTo: "0xabc",
-        price: 1.0 as Price,
-        network: "eip155:8453" as Network,
-      };
-
-      const httpService = new x402HTTPResourceService(resourceService, singleRoute);
-
-      expect(httpService).toBeDefined();
-    });
-
-    it("should compile multiple route configs", () => {
-      const routes = {
-        "GET /api/route1": {
+        accepts: {
           scheme: "exact",
           payTo: "0xabc",
           price: 1.0 as Price,
           network: "eip155:8453" as Network,
         },
+      };
+
+      const httpServer = new x402HTTPResourceServer(ResourceServer, singleRoute);
+
+      expect(httpServer).toBeDefined();
+    });
+
+    it("should compile multiple route configs", () => {
+      const routes = {
+        "GET /api/route1": {
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: 1.0 as Price,
+            network: "eip155:8453" as Network,
+          },
+        },
         "POST /api/route2": {
-          scheme: "exact",
-          payTo: "0xdef",
-          price: 2.0 as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xdef",
+            price: 2.0 as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
-      expect(httpService).toBeDefined();
+      expect(httpServer).toBeDefined();
     });
   });
 
@@ -165,17 +173,19 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/dynamic": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: async (context: HTTPRequestContext) => {
-            contextReceived = context;
-            return "$5.00" as Price;
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: async (context: HTTPRequestContext) => {
+              contextReceived = context;
+              return "$5.00" as Price;
+            },
+            network: "eip155:8453" as Network,
           },
-          network: "eip155:8453" as Network,
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -184,7 +194,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(contextReceived).toBeDefined();
       expect(contextReceived?.path).toBe("/api/dynamic");
@@ -194,14 +204,16 @@ describe("x402HTTPResourceService", () => {
     it("should use static price if not a function", async () => {
       const routes = {
         "/api/static": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -210,7 +222,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error");
     });
@@ -220,17 +232,19 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: async (context: HTTPRequestContext) => {
-            headerValue = context.adapter.getHeader("x-api-key");
-            return "$1.00" as Price;
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: async (context: HTTPRequestContext) => {
+              headerValue = context.adapter.getHeader("x-api-key");
+              return "$1.00" as Price;
+            },
+            network: "eip155:8453" as Network,
           },
-          network: "eip155:8453" as Network,
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter({ "x-api-key": "secret123" });
       const context: HTTPRequestContext = {
@@ -239,7 +253,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      await httpService.processHTTPRequest(context);
+      await httpServer.processHTTPRequest(context);
 
       expect(headerValue).toBe("secret123");
     });
@@ -251,17 +265,19 @@ describe("x402HTTPResourceService", () => {
 
       const routes = {
         "/api/dynamic": {
-          scheme: "exact",
-          payTo: async (context: HTTPRequestContext) => {
-            contextReceived = context;
-            return "0xdynamic";
+          accepts: {
+            scheme: "exact",
+            payTo: async (context: HTTPRequestContext) => {
+              contextReceived = context;
+              return "0xdynamic";
+            },
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
           },
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -270,7 +286,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      await httpService.processHTTPRequest(context);
+      await httpServer.processHTTPRequest(context);
 
       expect(contextReceived).toBeDefined();
       expect(contextReceived?.path).toBe("/api/dynamic");
@@ -279,14 +295,16 @@ describe("x402HTTPResourceService", () => {
     it("should use static payTo if not a function", async () => {
       const routes = {
         "/api/static": {
-          scheme: "exact",
-          payTo: "0xstatic",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xstatic",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -295,7 +313,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error");
     });
@@ -305,14 +323,16 @@ describe("x402HTTPResourceService", () => {
     it("should match exact path", async () => {
       const routes = {
         "/api/exact": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -321,7 +341,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error"); // Route matched, no payment
     });
@@ -329,14 +349,16 @@ describe("x402HTTPResourceService", () => {
     it("should match wildcard paths", async () => {
       const routes = {
         "/api/*": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -345,7 +367,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error"); // Route matched
     });
@@ -353,14 +375,16 @@ describe("x402HTTPResourceService", () => {
     it("should return no-payment-required for unmatched routes", async () => {
       const routes = {
         "/api/protected": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -369,7 +393,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("no-payment-required");
     });
@@ -377,14 +401,16 @@ describe("x402HTTPResourceService", () => {
     it("should match HTTP methods", async () => {
       const routes = {
         "POST /api/create": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       adapter.getMethod = () => "POST";
@@ -395,7 +421,7 @@ describe("x402HTTPResourceService", () => {
         method: "POST",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error"); // Route matched
     });
@@ -403,14 +429,16 @@ describe("x402HTTPResourceService", () => {
     it("should not match wrong HTTP method", async () => {
       const routes = {
         "POST /api/create": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -419,7 +447,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET", // Wrong method
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("no-payment-required");
     });
@@ -429,14 +457,16 @@ describe("x402HTTPResourceService", () => {
     it("should return payment-error if no payment provided", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       const context: HTTPRequestContext = {
@@ -445,7 +475,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       expect(result.type).toBe("payment-error");
       if (result.type === "payment-error") {
@@ -457,14 +487,16 @@ describe("x402HTTPResourceService", () => {
     it("should delegate verification to resource service", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       // Create valid payment header
       const adapter = new MockHTTPAdapter({
@@ -479,7 +511,7 @@ describe("x402HTTPResourceService", () => {
 
       // This would normally fail because we don't have a real payment,
       // but it shows delegation happens
-      await httpService.processHTTPRequest(context);
+      await httpServer.processHTTPRequest(context);
 
       // Verification was attempted (may fail on decoding, but that's ok for this test)
     });
@@ -489,14 +521,16 @@ describe("x402HTTPResourceService", () => {
     it("should not settle if response status >= 400", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
@@ -504,7 +538,7 @@ describe("x402HTTPResourceService", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await httpService.processSettlement(payload, requirements, 404);
+      const result = await httpServer.processSettlement(payload, requirements, 404);
 
       expect(result).toBeNull();
       expect(mockFacilitator.settleCalls.length).toBe(0);
@@ -513,14 +547,16 @@ describe("x402HTTPResourceService", () => {
     it("should settle if response status < 400", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const payload = buildPaymentPayload();
       const requirements = buildPaymentRequirements({
@@ -528,7 +564,7 @@ describe("x402HTTPResourceService", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await httpService.processSettlement(payload, requirements, 200);
+      const result = await httpServer.processSettlement(payload, requirements, 200);
 
       expect(result).toBeDefined();
       expect(result?.["PAYMENT-RESPONSE"]).toBeDefined();
@@ -540,14 +576,16 @@ describe("x402HTTPResourceService", () => {
     it("should detect web browser from accept header and user agent", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       adapter.getAcceptHeader = () => "text/html,application/xhtml+xml";
@@ -559,7 +597,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       // Should return HTML paywall for browsers
       if (result.type === "payment-error") {
@@ -570,14 +608,16 @@ describe("x402HTTPResourceService", () => {
     it("should not treat API clients as browsers", async () => {
       const routes = {
         "/api/test": {
-          scheme: "exact",
-          payTo: "0xabc",
-          price: "$1.00" as Price,
-          network: "eip155:8453" as Network,
+          accepts: {
+            scheme: "exact",
+            payTo: "0xabc",
+            price: "$1.00" as Price,
+            network: "eip155:8453" as Network,
+          },
         },
       };
 
-      const httpService = new x402HTTPResourceService(resourceService, routes);
+      const httpServer = new x402HTTPResourceServer(ResourceServer, routes);
 
       const adapter = new MockHTTPAdapter();
       adapter.getAcceptHeader = () => "application/json";
@@ -589,7 +629,7 @@ describe("x402HTTPResourceService", () => {
         method: "GET",
       };
 
-      const result = await httpService.processHTTPRequest(context);
+      const result = await httpServer.processHTTPRequest(context);
 
       // Should return JSON response for API clients
       if (result.type === "payment-error") {

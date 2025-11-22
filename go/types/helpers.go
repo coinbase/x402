@@ -41,7 +41,7 @@ func GetSchemeAndNetwork(version int, payloadBytes []byte) (scheme string, netwo
 
 // MatchPayloadToRequirements checks if payment payload matches requirements
 // This is one of TWO version-aware functions in core (co-located for maintainability)
-// Used by service.FindMatchingRequirements
+// Used by server.FindMatchingRequirements
 func MatchPayloadToRequirements(
 	version int,
 	payloadBytes []byte,
@@ -98,4 +98,3 @@ func MatchPayloadToRequirements(
 		return false, fmt.Errorf("unsupported version: %d", version)
 	}
 }
-

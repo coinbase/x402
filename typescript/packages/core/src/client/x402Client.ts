@@ -4,6 +4,37 @@ import { PaymentPayload, PaymentRequirements } from "../types/payments";
 import { Network, PaymentRequired } from "../types";
 import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 
+/**
+ * Client Hook Context Interfaces
+ */
+
+export interface PaymentCreationContext {
+  paymentRequired: PaymentRequired;
+  selectedRequirements: PaymentRequirements;
+}
+
+export interface PaymentCreatedContext extends PaymentCreationContext {
+  paymentPayload: PaymentPayload;
+}
+
+export interface PaymentCreationFailureContext extends PaymentCreationContext {
+  error: Error;
+}
+
+/**
+ * Client Hook Type Definitions
+ */
+
+export type BeforePaymentCreationHook = (
+  context: PaymentCreationContext,
+) => Promise<void | { abort: true; reason: string }>;
+
+export type AfterPaymentCreationHook = (context: PaymentCreatedContext) => Promise<void>;
+
+export type OnPaymentCreationFailureHook = (
+  context: PaymentCreationFailureContext,
+) => Promise<void | { recovered: true; payload: PaymentPayload }>;
+
 export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
 
 /**
@@ -71,6 +102,10 @@ export class x402Client {
   private readonly registeredClientSchemes: Map<number, Map<string, Map<string, SchemeNetworkClient>>> = new Map();
   private readonly policies: PaymentPolicy[] = [];
 
+  private beforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
+  private afterPaymentCreationHooks: AfterPaymentCreationHook[] = [];
+  private onPaymentCreationFailureHooks: OnPaymentCreationFailureHook[] = [];
+
   /**
    * Creates a new x402Client instance.
    *
@@ -90,9 +125,9 @@ export class x402Client {
     const client = new x402Client(config.paymentRequirementsSelector);
     config.schemes.forEach(scheme => {
       if (scheme.x402Version === 1) {
-        client.registerSchemeV1(scheme.network, scheme.client);
+        client.registerV1(scheme.network, scheme.client);
       } else {
-        client.registerScheme(scheme.network, scheme.client);
+        client.register(scheme.network, scheme.client);
       }
     });
     config.policies?.forEach(policy => {
@@ -108,7 +143,7 @@ export class x402Client {
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  registerScheme(network: Network, client: SchemeNetworkClient): x402Client {
+  register(network: Network, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(x402Version, network, client);
   }
 
@@ -119,7 +154,7 @@ export class x402Client {
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  registerSchemeV1(network: string, client: SchemeNetworkClient): x402Client {
+  registerV1(network: string, client: SchemeNetworkClient): x402Client {
     return this._registerScheme(1, network as Network, client);
   }
 
@@ -151,6 +186,41 @@ export class x402Client {
   }
 
   /**
+   * Register a hook to execute before payment payload creation.
+   * Can abort creation by returning { abort: true, reason: string }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402Client instance for chaining
+   */
+  onBeforePaymentCreation(hook: BeforePaymentCreationHook): x402Client {
+    this.beforePaymentCreationHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute after successful payment payload creation.
+   *
+   * @param hook - The hook function to register
+   * @returns The x402Client instance for chaining
+   */
+  onAfterPaymentCreation(hook: AfterPaymentCreationHook): x402Client {
+    this.afterPaymentCreationHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Register a hook to execute when payment payload creation fails.
+   * Can recover from failure by returning { recovered: true, payload: PaymentPayload }
+   *
+   * @param hook - The hook function to register
+   * @returns The x402Client instance for chaining
+   */
+  onPaymentCreationFailure(hook: OnPaymentCreationFailureHook): x402Client {
+    this.onPaymentCreationFailureHooks.push(hook);
+    return this;
+  }
+
+  /**
    * Creates a payment payload based on a PaymentRequired response.
    *
    * Automatically extracts x402Version, resource, and extensions from the PaymentRequired
@@ -169,23 +239,66 @@ export class x402Client {
 
     const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);
 
-    const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
-    if (schemeNetworkClient) {
-      const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
+    const context: PaymentCreationContext = {
+      paymentRequired,
+      selectedRequirements: requirements,
+    };
 
-      if (partialPayload.x402Version == 1) {
-        return partialPayload as PaymentPayload;
-      }
-
-      return {
-        ...partialPayload,
-        extensions: paymentRequired.extensions,
-        resource: paymentRequired.resource,
-        accepted: requirements,
+    // Execute beforePaymentCreation hooks
+    for (const hook of this.beforePaymentCreationHooks) {
+      const result = await hook(context);
+      if (result && "abort" in result && result.abort) {
+        throw new Error(`Payment creation aborted: ${result.reason}`);
       }
     }
 
-    throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
+    try {
+      const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
+      if (!schemeNetworkClient) {
+        throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
+      }
+
+      const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
+
+      let paymentPayload: PaymentPayload;
+      if (partialPayload.x402Version == 1) {
+        paymentPayload = partialPayload as PaymentPayload;
+      } else {
+        paymentPayload = {
+          ...partialPayload,
+          extensions: paymentRequired.extensions,
+          resource: paymentRequired.resource,
+          accepted: requirements,
+        };
+      }
+
+      // Execute afterPaymentCreation hooks
+      const createdContext: PaymentCreatedContext = {
+        ...context,
+        paymentPayload,
+      };
+
+      for (const hook of this.afterPaymentCreationHooks) {
+        await hook(createdContext);
+      }
+
+      return paymentPayload;
+    } catch (error) {
+      const failureContext: PaymentCreationFailureContext = {
+        ...context,
+        error: error as Error,
+      };
+
+      // Execute onPaymentCreationFailure hooks
+      for (const hook of this.onPaymentCreationFailureHooks) {
+        const result = await hook(failureContext);
+        if (result && "recovered" in result && result.recovered) {
+          return result.payload;
+        }
+      }
+
+      throw error;
+    }
   }
 
 

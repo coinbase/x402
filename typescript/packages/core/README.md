@@ -39,7 +39,7 @@ import { EVMExactScheme } from '@x402/evm'; // Implementation package
 const client = new x402HTTPClient();
 
 // Register payment schemes for networks you support
-client.registerScheme('eip155:8453', new EVMExactScheme({
+client.register('eip155:8453', new EVMExactScheme({
   signer: wallet, // Your wallet/signer
 }));
 
@@ -51,22 +51,14 @@ const response = await fetch('https://api.example.com/protected', {
 });
 
 if (response.status === 402) {
-  // Extract payment requirements
+  // Extract payment requirements using getHeader function
   const paymentRequired = client.getPaymentRequiredResponse(
-    response.headers,
+    (name) => response.headers.get(name),
     await response.json()
   );
   
-  // Select and create payment
-  const requirements = client.selectPaymentRequirements(
-    paymentRequired.x402Version,
-    paymentRequired.accepts
-  );
-  
-  const paymentPayload = await client.createPaymentPayload(
-    paymentRequired.x402Version,
-    requirements
-  );
+  // Create payment payload
+  const paymentPayload = await client.createPaymentPayload(paymentRequired);
   
   // Retry with payment
   const paidResponse = await fetch('https://api.example.com/protected', {
@@ -77,7 +69,7 @@ if (response.status === 402) {
   });
   
   // Get settlement confirmation
-  const settleResponse = client.getPaymentSettleResponse(paidResponse.headers);
+  const settleResponse = client.getPaymentSettleResponse((name) => paidResponse.headers.get(name));
   console.log('Payment settled:', settleResponse.transaction);
 }
 ```
@@ -85,7 +77,7 @@ if (response.status === 402) {
 ### Server Usage
 
 ```typescript
-import { x402HTTPResourceService, HTTPFacilitatorClient } from '@x402/core/server';
+import { x402HTTPResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
 import { EVMExactScheme } from '@x402/evm';
 
 // Configure routes with payment requirements
@@ -112,10 +104,10 @@ const facilitator = new HTTPFacilitatorClient({
   url: 'https://x402.org/facilitator',
 });
 
-const server = new x402HTTPResourceService(routes, facilitator);
+const server = new x402HTTPResourceServer(routes, facilitator);
 
 // Register supported schemes
-server.registerScheme('eip155:8453', new EVMExactScheme());
+server.register('eip155:8453', new EVMExactScheme());
 
 // Initialize to fetch supported kinds from facilitator
 await server.initialize();
@@ -165,7 +157,7 @@ import { EVMExactFacilitator } from '@x402/evm';
 const facilitator = new x402Facilitator();
 
 // Register scheme implementations
-facilitator.registerScheme('eip155:8453', new EVMExactFacilitator({
+facilitator.register('eip155:8453', new EVMExactFacilitator({
   rpcUrl: 'https://base.infura.io/v3/YOUR_KEY',
 }));
 
@@ -197,7 +189,7 @@ if (verifyResult.isValid) {
 Base client for creating and managing payments.
 
 **Methods:**
-- `registerScheme(network: Network, client: SchemeNetworkClient)`: Register a payment scheme
+- `register(network: Network, client: SchemeNetworkClient)`: Register a payment scheme
 - `registerSchemeV1(network: Network, client: SchemeNetworkClient)`: Register v1 scheme
 - `selectPaymentRequirements(x402Version: number, requirements: PaymentRequirements[])`: Choose payment method
 - `createPaymentPayload(x402Version: number, requirements: PaymentRequirements)`: Create payment
@@ -208,29 +200,29 @@ HTTP-specific client extending base client.
 
 **Methods:**
 - `encodePaymentSignatureHeader(payload: PaymentPayload)`: Create payment header
-- `getPaymentRequiredResponse(headers: Record<string, string>, body?: PaymentRequired)`: Parse 402 response
-- `getPaymentSettleResponse(headers: Record<string, string>)`: Extract settlement info
+- `getPaymentRequiredResponse(getHeader: (name: string) => string | null | undefined, body?: PaymentRequired)`: Parse 402 response
+- `getPaymentSettleResponse(getHeader: (name: string) => string | null | undefined)`: Extract settlement info
 
 ### Server Classes
 
-#### `x402ResourceService`
+#### `x402ResourceServer`
 
 Core server for protecting resources with payments.
 
 **Methods:**
-- `registerScheme(network: Network, server: SchemeNetworkService)`: Register scheme handler
+- `register(network: Network, server: SchemeNetworkServer)`: Register scheme handler
 - `initialize()`: Fetch supported payment types from facilitators
 - `buildPaymentRequirements(config: ResourceConfig)`: Create payment requirements
 - `verifyPayment(payload: PaymentPayload, requirements: PaymentRequirements)`: Verify payment
 - `settlePayment(payload: PaymentPayload, requirements: PaymentRequirements)`: Settle payment
 
-#### `x402HTTPResourceService`
+#### `x402HTTPResourceServer`
 
 HTTP-enhanced server with routing and transport handling.
 
 **Constructor:**
 ```typescript
-new x402HTTPResourceService(
+new x402HTTPResourceServer(
   routes: RoutesConfig,
   facilitatorClients?: FacilitatorClient | FacilitatorClient[]
 )
@@ -247,7 +239,7 @@ new x402HTTPResourceService(
 Local facilitator for payment verification and settlement.
 
 **Methods:**
-- `registerScheme(network: Network, facilitator: SchemeNetworkFacilitator)`: Register handler
+- `register(network: Network, facilitator: SchemeNetworkFacilitator)`: Register handler
 - `verify(client: any, payload: PaymentPayload, requirements: PaymentRequirements)`: Verify payment
 - `settle(signer: any, payload: PaymentPayload, requirements: PaymentRequirements)`: Settle payment
 
@@ -321,7 +313,7 @@ interface SchemeNetworkClient {
   ): Promise<PaymentPayload>;
 }
 
-interface SchemeNetworkService {
+interface SchemeNetworkServer {
   readonly scheme: string;
   parsePrice(price: Price, network: Network): AssetAmount;
   enhancePaymentRequirements(
@@ -381,10 +373,10 @@ The package supports network pattern matching for multi-chain support:
 
 ```typescript
 // Register handler for all EIP-155 (EVM) networks
-server.registerScheme('eip155:*', evmHandler);
+server.register('eip155:*', evmHandler);
 
 // Specific network takes precedence
-server.registerScheme('eip155:8453', baseHandler);
+server.register('eip155:8453', baseHandler);
 ```
 
 ## Framework Integration

@@ -2,7 +2,6 @@ package x402
 
 import (
 	"context"
-	"time"
 )
 
 // ============================================================================
@@ -10,49 +9,49 @@ import (
 // ============================================================================
 
 // FacilitatorVerifyContext contains information passed to facilitator verify hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type FacilitatorVerifyContext struct {
 	Ctx               context.Context
-	PaymentPayload    PaymentPayload
-	PaymentRequirements PaymentRequirements
-	Timestamp         time.Time
-	RequestMetadata   map[string]interface{}
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // FacilitatorVerifyResultContext contains facilitator verify operation result and context
 type FacilitatorVerifyResultContext struct {
 	FacilitatorVerifyContext
-	Result   VerifyResponse
-	Duration time.Duration
+	Result VerifyResponse
 }
 
 // FacilitatorVerifyFailureContext contains facilitator verify operation failure and context
 type FacilitatorVerifyFailureContext struct {
 	FacilitatorVerifyContext
-	Error    error
-	Duration time.Duration
+	Error error
 }
 
 // FacilitatorSettleContext contains information passed to facilitator settle hooks
+// Uses view interfaces for version-agnostic hooks
+// PayloadBytes and RequirementsBytes provide escape hatch for extensions (e.g., Bazaar)
 type FacilitatorSettleContext struct {
 	Ctx               context.Context
-	PaymentPayload    PaymentPayload
-	PaymentRequirements PaymentRequirements
-	Timestamp         time.Time
-	RequestMetadata   map[string]interface{}
+	Payload           PaymentPayloadView
+	Requirements      PaymentRequirementsView
+	PayloadBytes      []byte // Raw bytes for extensions needing full data
+	RequirementsBytes []byte // Raw bytes for extensions needing full data
 }
 
 // FacilitatorSettleResultContext contains facilitator settle operation result and context
 type FacilitatorSettleResultContext struct {
 	FacilitatorSettleContext
-	Result   SettleResponse
-	Duration time.Duration
+	Result SettleResponse
 }
 
 // FacilitatorSettleFailureContext contains facilitator settle operation failure and context
 type FacilitatorSettleFailureContext struct {
 	FacilitatorSettleContext
-	Error    error
-	Duration time.Duration
+	Error error
 }
 
 // ============================================================================
@@ -110,4 +109,3 @@ type FacilitatorAfterSettleHook func(FacilitatorSettleResultContext) error
 // If it returns a result with Recovered=true, the provided SettleResponse
 // will be returned instead of the error
 type FacilitatorOnSettleFailureHook func(FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error)
-

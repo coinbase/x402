@@ -6,11 +6,12 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	svm "github.com/coinbase/x402/go/mechanisms/svm"
+	svmserver "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 )
 
-// TestSolanaServicePriceParsing tests V2 service price parsing
-func TestSolanaServicePriceParsing(t *testing.T) {
-	service := svm.NewExactSvmService()
+// TestSolanaServerPriceParsing tests V2 server price parsing
+func TestSolanaServerPriceParsing(t *testing.T) {
+	server := svmserver.NewExactSvmScheme()
 	network := x402.Network(svm.SolanaDevnetCAIP2)
 
 	tests := []struct {
@@ -53,7 +54,7 @@ func TestSolanaServicePriceParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := service.ParsePrice(tt.price, network)
+			result, err := server.ParsePrice(tt.price, network)
 			if tt.shouldError && err == nil {
 				t.Fatal("Expected error but got none")
 			}

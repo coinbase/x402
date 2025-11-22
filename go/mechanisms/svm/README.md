@@ -1,166 +1,104 @@
-# SVM Mechanism for x402
+# SVM Mechanisms
 
-SVM (Solana Virtual Machine) implementation of the x402 payment protocol using the **Exact** payment scheme with SPL Token transfers.
+This directory contains payment mechanism implementations for **SVM (Solana Virtual Machine)** networks.
 
-## Package Structure
+## What This Exports
 
+This package provides scheme implementations for Solana-based blockchains that can be used by clients, servers, and facilitators.
+
+## Exact Payment Scheme
+
+The **exact** scheme implementation enables fixed-amount payments using Solana token transfers for USDC SPL tokens.
+
+### Export Paths
+
+The exact scheme is organized by role:
+
+#### For Clients
+
+**Import Path:**
 ```
-svm/
-├── client.go       # ExactSvmClient (V2)
-├── facilitator.go  # ExactSvmFacilitator (V2)
-├── service.go      # ExactSvmService (V2)
-├── builder.go      # NewSvmClient() convenience builder
-├── v1/
-│   ├── client.go      # ExactSvmClientV1
-│   ├── facilitator.go # ExactSvmFacilitatorV1
-│   └── svm.go         # V1 helpers + NETWORKS constant
-```
-
-## Components
-
-### Client (Payment Creation)
-
-**V2:** `ExactSvmClient` - Creates payments using SPL Token with CAIP-2 networks
-
-```go
-import (
-    x402 "github.com/coinbase/x402/go"
-    "github.com/coinbase/x402/go/mechanisms/svm"
-)
-
-client := x402.Newx402Client()
-svmClient := svm.NewExactSvmClient(mySigner)
-client.RegisterScheme("solana:*", svmClient)
+github.com/coinbase/x402/go/mechanisms/svm/exact/client
 ```
 
-**V1:** `ExactSvmClientV1` - Legacy implementation with simple network names
+**Exports:**
+- `NewExactSvmScheme(signer)` - Creates client-side SVM exact payment mechanism
+- Used for creating payment payloads with partial transaction signatures
 
-```go
-import svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+#### For Servers
 
-svmClientV1 := svmv1.NewExactSvmClientV1(mySigner)
-client.RegisterSchemeV1("solana-devnet", svmClientV1)
+**Import Path:**
+```
+github.com/coinbase/x402/go/mechanisms/svm/exact/server
 ```
 
-### Facilitator (Payment Verification & Settlement)
+**Exports:**
+- `NewExactSvmScheme()` - Creates server-side SVM exact payment mechanism
+- Used for building payment requirements and parsing prices
+- Supports custom money parsers via `RegisterMoneyParser()`
 
-**V2:** `ExactSvmFacilitator` - Verifies and settles SPL Token payments
+#### For Facilitators
 
-```go
-facilitator := x402.Newx402Facilitator()
-svmFacilitator := svm.NewExactSvmFacilitator(myFacilitatorSigner)
-facilitator.RegisterScheme("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", svmFacilitator)
-
-// Verify payment (checks signatures, doesn't submit)
-verifyResp, err := facilitator.Verify(ctx, payloadBytes, requirementsBytes)
-
-// Settle on-chain (signs and submits transaction)
-settleResp, err := facilitator.Settle(ctx, payloadBytes, requirementsBytes)
+**Import Path:**
+```
+github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator
 ```
 
-**V1:** `ExactSvmFacilitatorV1` - Legacy verification and settlement
-
-### Service (Payment Requirements)
-
-**V2:** `ExactSvmService` - Builds payment requirements for protected resources
-
-```go
-service := x402.Newx402ResourceService(
-    svm.RegisterService("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")...,
-)
-
-// Service handles price parsing and requirement building
-```
-
-**V1:** V1 service not separately exported (use V2 service)
-
-## Convenience Builder
-
-**`NewSvmClient(config)`** - Pre-configured client with V1+V2 support
-
-```go
-import (
-    "github.com/coinbase/x402/go/mechanisms/svm"
-    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
-)
-
-client := svm.NewSvmClient(svm.SvmClientConfig{
-    Signer: mySvmSigner,
-    NewSvmClientV1: func(s svm.ClientSvmSigner) x402.SchemeNetworkClient {
-        return svmv1.NewExactSvmClientV1(s)
-    },
-})
-// Registers solana:* for V2 + all V1 networks automatically
-```
+**Exports:**
+- `NewExactSvmScheme(signer)` - Creates facilitator-side SVM exact payment mechanism
+- Used for verifying transaction signatures and settling payments on-chain
+- Requires facilitator signer with Solana RPC integration
 
 ## Supported Networks
 
-**V2 Networks** (CAIP-2 format):
-- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` - Mainnet Beta
-- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` - Devnet
-- `solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z` - Testnet
-- `solana:*` - Wildcard (all Solana networks)
+All Solana networks using CAIP-2 network identifiers:
 
-**V1 Networks** (see `v1.NETWORKS`):
-- `solana` - Mainnet
-- `solana-devnet` - Devnet
-- `solana-testnet` - Testnet
+- **Solana Mainnet**: `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`
+- **Solana Devnet**: `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`
+- **Solana Testnet**: `solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z`
 
-## Signer Interfaces
+Use `solana:*` wildcard to support all Solana networks.
 
-### ClientSvmSigner (Client-side)
-```go
-type ClientSvmSigner interface {
-    Address() solana.PublicKey
-    SignTransaction(tx *solana.Transaction) error
-}
+## Scheme Implementation
+
+The **exact** scheme implements fixed-amount payments:
+
+- **Method**: Solana token transfers
+- **Token**: USDC SPL token
+- **Signing**: Partial transaction signing (client + facilitator)
+- **Fees**: Rent and transaction fees paid by facilitator
+- **Confirmation**: On-chain settlement with transaction signature
+
+## Future Schemes
+
+This directory currently contains only the **exact** scheme implementation. As new payment schemes are developed for Solana networks, they will be added here alongside the exact implementation:
+
+```
+svm/
+├── exact/          - Fixed amount payments (current)
+├── upto/           - Variable amount up to a limit (planned)
+├── subscription/   - Recurring payments (planned)
+└── batch/          - Batched payments (planned)
 ```
 
-### FacilitatorSvmSigner (Facilitator-side)
-```go
-type FacilitatorSvmSigner interface {
-    SendAndConfirmTransaction(ctx, tx) (solana.Signature, error)
-}
-```
+Each new scheme will follow the same three-role structure (client, server, facilitator).
 
-## Optional Configuration
+## Contributing New Schemes
 
-**ClientConfig** - Customize RPC behavior (optional, uses network defaults if not provided):
+We welcome contributions of new payment scheme implementations for Solana networks!
 
-```go
-svmClient := svm.NewExactSvmClient(signer, &svm.ClientConfig{
-    RPCURL: "https://custom.rpc.com",
-})
-```
+To contribute a new scheme:
 
-## Transaction Details
+1. Create directory structure: `svm/{scheme_name}/client/`, `svm/{scheme_name}/server/`, `svm/{scheme_name}/facilitator/`
+2. Implement the required interfaces for each role
+3. Add comprehensive tests
+4. Document the scheme specification
+5. Provide usage examples
 
-**Transaction Structure:**
-1. Compute Budget Instructions (unit limit + price)
-2. SPL Token `TransferChecked` instruction
-3. Partially signed by client (client's signature)
-4. Completed and submitted by facilitator (fee payer signature)
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for more details.
 
-**Requirements:**
-- Source ATA must exist (client's token account)
-- Destination ATA must exist (recipient's token account)
-- Fee payer specified in `requirements.extra.feePayer`
+## Related Documentation
 
-## Testing
-
-```bash
-go test ./...                    # All tests
-go test -v ./mechanisms/svm      # V2 tests
-go test -v ./mechanisms/svm/v1   # V1 tests
-```
-
-## Dependencies
-
-- `github.com/gagliardetto/solana-go` - Solana Go SDK
-- `github.com/coinbase/x402/go` - Core x402 protocol
-
-## Related Packages
-
-- `github.com/coinbase/x402/go` - Core x402 client
-- `github.com/coinbase/x402/go/http` - HTTP integration
-- `github.com/coinbase/x402/go/mechanisms/evm` - EVM implementation
+- **[Mechanisms Overview](../README.md)** - About mechanisms in general
+- **[EVM Mechanisms](../evm/README.md)** - Ethereum implementations
+- **[Exact Scheme Specification](../../../specs/schemes/exact/)** - Exact scheme specifications

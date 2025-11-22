@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { ExactEvmClient } from "../../../src/exact/client";
+import { ExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner } from "../../../src/signer";
 import { PaymentRequirements } from "@x402/core/types";
 
-describe("ExactEvmClient (V2)", () => {
-  let client: ExactEvmClient;
+describe("ExactEvmScheme (Client)", () => {
+  let client: ExactEvmScheme;
   let mockSigner: ClientEvmSigner;
 
   beforeEach(() => {
@@ -13,7 +13,7 @@ describe("ExactEvmClient (V2)", () => {
       address: "0x1234567890123456789012345678901234567890",
       signTypedData: vi.fn().mockResolvedValue("0xmocksignature123456789"),
     };
-    client = new ExactEvmClient(mockSigner);
+    client = new ExactEvmScheme(mockSigner);
   });
 
   describe("Construction", () => {

@@ -1,13 +1,11 @@
 import { config } from "dotenv";
-import { wrapFetchWithPayment, decodePaymentResponseHeader, Network } from "@x402/fetch";
+import { wrapFetchWithPayment, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
-import { ExactEvmClient } from "@x402/evm";
-import { ExactEvmClientV1 } from "@x402/evm/v1";
-import { ExactSvmClientV1 } from "@x402/svm/v1";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
-import { ExactSvmClient } from "@x402/svm";
-import { x402Client } from "@x402/core/client";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
 
 config();
 
@@ -17,13 +15,10 @@ const url = `${baseURL}${endpointPath}`;
 const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 const svmSigner = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
 
-const client = new x402Client()
-  .registerScheme("eip155:*", new ExactEvmClient(evmAccount))
-  .registerScheme("solana:*", new ExactSvmClient(svmSigner))
-  .registerSchemeV1("base-sepolia", new ExactEvmClientV1(evmAccount))
-  .registerSchemeV1("base", new ExactEvmClientV1(evmAccount))
-  .registerSchemeV1("solana-devnet", new ExactSvmClientV1(svmSigner))
-  .registerSchemeV1("solana", new ExactSvmClientV1(svmSigner))
+// Create client and register EVM and SVM schemes using the new register helpers
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: evmAccount });
+registerExactSvmScheme(client, { signer: svmSigner });
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
@@ -31,8 +26,7 @@ fetchWithPayment(url, {
   method: "GET",
 }).then(async response => {
   const data = await response.json();
-  // Check both v2 (PAYMENT-RESPONSE) and v1 (X-PAYMENT-RESPONSE) headers
-  const paymentResponse = response.headers.get("PAYMENT-RESPONSE") || response.headers.get("X-PAYMENT-RESPONSE");
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse((name) => response.headers.get(name));
 
   if (!paymentResponse) {
     // No payment was required
@@ -46,13 +40,11 @@ fetchWithPayment(url, {
     return;
   }
 
-  const decodedPaymentResponse = decodePaymentResponseHeader(paymentResponse);
-
   const result = {
-    success: decodedPaymentResponse.success,
+    success: paymentResponse.success,
     data: data,
     status_code: response.status,
-    payment_response: decodedPaymentResponse,
+    payment_response: paymentResponse,
   };
 
   // Output structured result as JSON for proxy to parse

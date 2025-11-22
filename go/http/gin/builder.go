@@ -22,7 +22,7 @@ type Config struct {
 	// Use this OR Facilitator (not both)
 	Facilitators []x402.FacilitatorClient
 
-	// Schemes to register with the service
+	// Schemes to register with the server
 	Schemes []SchemeConfig
 
 	// PaywallConfig for browser-based payment UI (optional)
@@ -46,26 +46,28 @@ type Config struct {
 // SchemeConfig configures a payment scheme for a network.
 type SchemeConfig struct {
 	Network x402.Network
-	Service x402.SchemeNetworkService
+	Server  x402.SchemeNetworkServer
 }
 
 // X402Payment creates payment middleware using struct-based configuration.
 // This is a cleaner, more readable alternative to PaymentMiddleware with variadic options.
 //
 // Args:
-//   config: Payment middleware configuration
+//
+//	config: Payment middleware configuration
 //
 // Returns:
-//   Gin middleware handler
+//
+//	Gin middleware handler
 //
 // Example:
 //
-//	r.Use(gin.X402Payment(gin.Config{
+//	r.Use(ginmw.X402Payment(ginmw.Config{
 //	    Routes: routes,
 //	    Facilitator: facilitatorClient,
-//	    Schemes: []gin.SchemeConfig{
-//	        {Network: "eip155:*", Service: evm.NewExactEvmService()},
-//	        {Network: "solana:*", Service: svm.NewExactSvmService()},
+//	    Schemes: []ginmw.SchemeConfig{
+//	        {Network: "eip155:*", Server: evm.NewExactEvmServer()},
+//	        {Network: "solana:*", Server: svm.NewExactEvmServer()},
 //	    },
 //	    Initialize: true,
 //	    Timeout: 30 * time.Second,
@@ -109,7 +111,7 @@ func X402Payment(config Config) gin.HandlerFunc {
 
 	// Add schemes
 	for _, scheme := range config.Schemes {
-		opts = append(opts, WithScheme(scheme.Network, scheme.Service))
+		opts = append(opts, WithScheme(scheme.Network, scheme.Server))
 	}
 
 	// Add optional handlers
@@ -131,13 +133,15 @@ func X402Payment(config Config) gin.HandlerFunc {
 // Uses a single route pattern and facilitator for the simplest possible setup.
 //
 // Args:
-//   payTo: Payment recipient address
-//   price: Payment amount (e.g., "$0.001")
-//   network: Payment network
-//   facilitatorURL: Facilitator service URL
+//
+//	payTo: Payment recipient address
+//	price: Payment amount (e.g., "$0.001")
+//	network: Payment network
+//	facilitatorURL: Facilitator server URL
 //
 // Returns:
-//   Gin middleware handler
+//
+//	Gin middleware handler
 //
 // Example:
 //
@@ -169,4 +173,3 @@ func SimpleX402Payment(payTo string, price string, network x402.Network, facilit
 		Initialize:  true,
 	})
 }
-

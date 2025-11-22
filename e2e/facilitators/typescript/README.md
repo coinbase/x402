@@ -26,7 +26,7 @@ This e2e facilitator showcases **production-ready lifecycle hook patterns**:
 
 ```typescript
 const facilitator = new x402Facilitator()
-  .registerScheme("eip155:*", new ExactEvmFacilitator(evmSigner))
+  .register("eip155:*", new ExactEvmFacilitator(evmSigner))
   .registerExtension(BAZAAR)
   // Hook 1: Track verified payments + extract discovery info
   .onAfterVerify(async (context) => {
@@ -81,7 +81,7 @@ const facilitator = new x402Facilitator()
   .registerExtension("bazaar");
 
 // Register EVM V2 wildcard
-facilitator.registerScheme(
+facilitator.register(
   "eip155:*",
   new ExactEvmFacilitator(evmSigner)
 );

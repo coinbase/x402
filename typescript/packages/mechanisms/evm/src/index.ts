@@ -7,6 +7,6 @@
 // Export EVM implementation modules here
 // The actual implementation logic will be added by copying from the core/src/schemes/evm folder
 
-export { ExactEvmClient, ExactEvmFacilitator, ExactEvmService } from "./exact";
+export { ExactEvmScheme } from "./exact";
 export { toClientEvmSigner, toFacilitatorEvmSigner } from "./signer";
 export type { ClientEvmSigner, FacilitatorEvmSigner } from "./signer";

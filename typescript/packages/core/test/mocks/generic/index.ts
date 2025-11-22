@@ -1,5 +1,5 @@
 export { MockFacilitatorClient } from "./MockFacilitatorClient";
-export { MockSchemeNetworkService } from "./MockSchemeService";
+export { MockSchemeNetworkServer } from "./MockSchemeServer";
 export { MockSchemeNetworkClient } from "./MockSchemeClient";
 export {
   buildPaymentRequired,

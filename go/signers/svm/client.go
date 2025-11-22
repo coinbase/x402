@@ -17,11 +17,13 @@ type ClientSigner struct {
 // NewClientSignerFromPrivateKey creates a client signer from a base58-encoded private key.
 //
 // Args:
-//   privateKeyBase58: Base58-encoded Solana private key
+//
+//	privateKeyBase58: Base58-encoded Solana private key
 //
 // Returns:
-//   ClientSvmSigner implementation ready for use with svm.NewExactSvmClient()
-//   Error if private key is invalid
+//
+//	ClientSvmSigner implementation ready for use with svm.NewExactSvmClient()
+//	Error if private key is invalid
 //
 // Example:
 //
@@ -30,7 +32,7 @@ type ClientSigner struct {
 //	    log.Fatal(err)
 //	}
 //	client := x402.Newx402Client().
-//	    RegisterScheme("solana:*", svm.NewExactSvmClient(signer))
+//	    Register("solana:*", svm.NewExactSvmClient(signer))
 func NewClientSignerFromPrivateKey(privateKeyBase58 string) (x402svm.ClientSvmSigner, error) {
 	// Parse base58-encoded private key
 	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
@@ -52,10 +54,12 @@ func (s *ClientSigner) Address() solana.PublicKey {
 // This adds the client's signature to the transaction at the appropriate index.
 //
 // Args:
-//   tx: The transaction to sign
+//
+//	tx: The transaction to sign
 //
 // Returns:
-//   Error if signing fails
+//
+//	Error if signing fails
 func (s *ClientSigner) SignTransaction(tx *solana.Transaction) error {
 	// Marshal transaction message to bytes
 	messageBytes, err := tx.Message.MarshalBinary()
@@ -87,4 +91,3 @@ func (s *ClientSigner) SignTransaction(tx *solana.Transaction) error {
 
 	return nil
 }
-

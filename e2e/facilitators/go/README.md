@@ -10,7 +10,7 @@ This e2e facilitator showcases **production-ready lifecycle hook patterns**:
 
 ```go
 facilitator := x402.Newx402Facilitator()
-	.RegisterScheme("eip155:*", evmFacilitator)
+	.Register("eip155:*", evmFacilitator)
 	.RegisterExtension(exttypes.BAZAAR)
 	// Hook 1: Track verified payments + extract discovery info
 	.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
@@ -85,9 +85,9 @@ facilitator := x402.Newx402Facilitator()
 import (
     x402 "github.com/coinbase/x402/go"
     "github.com/coinbase/x402/go/mechanisms/evm"
-    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
+    evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1"
     "github.com/coinbase/x402/go/mechanisms/svm"
-    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+    svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1"
     "github.com/coinbase/x402/go/extensions/bazaar"
 )
 
@@ -97,19 +97,19 @@ facilitator.RegisterExtension(bazaar.EXTENSION_NAME)
 
 // Register EVM V2 wildcard
 evmFacilitator := evm.NewExactEvmFacilitator(evmSigner)
-facilitator.RegisterScheme("eip155:*", evmFacilitator)
+facilitator.Register("eip155:*", evmFacilitator)
 
 // Register EVM V1 networks
 evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
-facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+facilitator.RegisterV1("base-sepolia", evmFacilitatorV1)
 
 // Register SVM V2 wildcard
 svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
-facilitator.RegisterScheme("solana:*", svmFacilitator)
+facilitator.Register("solana:*", svmFacilitator)
 
 // Register SVM V1 networks
 svmFacilitatorV1 := svmv1.NewExactSvmFacilitatorV1(svmSigner)
-facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1)
+facilitator.RegisterV1("solana-devnet", svmFacilitatorV1)
 ```
 
 ### HTTP Server

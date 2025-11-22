@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@x402/evm` package provides EVM blockchain implementations for x402 payment schemes. It serves as the **reference implementation** for how mechanism packages should be structured, providing scheme clients, facilitators, and resource services for EVM-compatible chains.
+The `@x402/evm` package provides EVM blockchain implementations for x402 payment schemes. It serves as the **reference implementation** for how mechanism packages should be structured, providing scheme clients, facilitators, and resource servers for EVM-compatible chains.
 
 ## Current Implementation Status
 
@@ -16,7 +16,7 @@ The `@x402/evm` package provides EVM blockchain implementations for x402 payment
 The package exports three core classes following the x402 pattern:
 - `ExactEvmClient`: Client-side payment creation and signing
 - `ExactEvmFacilitator`: Facilitator for payment settlement
-- `ExactEvmResourceService`: Server-side payment verification
+- `ExactEvmResourceServer`: Server-side payment verification
 
 ## Planned Expansions
 

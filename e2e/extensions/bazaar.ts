@@ -243,6 +243,7 @@ async function validateFacilitatorDiscovery(
  * @param facilitators - Array of facilitator proxies with their configs
  * @param servers - Array of discovered servers with their configs
  * @param serverPorts - Map of server name to port number
+ * @param facilitatorServerMap - Optional map tracking which facilitators processed which servers (for minimized test runs)
  * @returns Validation result
  * 
  * @example
@@ -261,7 +262,8 @@ async function validateFacilitatorDiscovery(
 export async function handleDiscoveryValidation(
   facilitators: Array<{ proxy: FacilitatorProxy; config: TestConfig }>,
   servers: DiscoveredServer[],
-  serverPorts: Map<string, number>
+  serverPorts: Map<string, number>,
+  facilitatorServerMap?: Map<string, Set<string>>
 ): Promise<DiscoveryValidationResult> {
   log('\n╔════════════════════════════════════════════════════════╗');
   log('║         Bazaar Discovery Extension Validation          ║');
@@ -295,10 +297,25 @@ export async function handleDiscoveryValidation(
   let totalDiscovered = 0;
 
   for (const { proxy, config } of facilitators) {
+    // Filter expected endpoints to only those from servers this facilitator actually processed
+    let facilitatorExpectedEndpoints = allExpectedEndpoints;
+
+    if (facilitatorServerMap) {
+      const processedServers = facilitatorServerMap.get(config.name);
+      if (processedServers && processedServers.size > 0) {
+        facilitatorExpectedEndpoints = allExpectedEndpoints.filter(
+          endpoint => processedServers.has(endpoint.serverName)
+        );
+
+        verboseLog(`\n  📋 Facilitator ${config.name} processed ${processedServers.size} server(s): ${Array.from(processedServers).join(', ')}`);
+        verboseLog(`     Expected to discover ${facilitatorExpectedEndpoints.length} endpoint(s) from those servers`);
+      }
+    }
+
     const result = await validateFacilitatorDiscovery(
       proxy,
       config,
-      allExpectedEndpoints
+      facilitatorExpectedEndpoints
     );
 
     facilitatorResults.push(result);

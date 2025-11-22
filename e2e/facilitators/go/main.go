@@ -17,12 +17,13 @@ import (
 	"time"
 
 	x402 "github.com/coinbase/x402/go"
-	"github.com/coinbase/x402/go/extensions/bazaar"
 	exttypes "github.com/coinbase/x402/go/extensions/types"
-	"github.com/coinbase/x402/go/mechanisms/evm"
-	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/v1"
-	"github.com/coinbase/x402/go/mechanisms/svm"
-	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/v1"
+	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
+	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
+	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
+	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -49,15 +50,15 @@ const (
 
 // Request/Response types
 type VerifyRequest struct {
-	X402Version         int                      `json:"x402Version"`
-	PaymentPayload      x402.PaymentPayload      `json:"paymentPayload"`
-	PaymentRequirements x402.PaymentRequirements `json:"paymentRequirements"`
+	X402Version         int             `json:"x402Version"`
+	PaymentPayload      json.RawMessage `json:"paymentPayload"`
+	PaymentRequirements json.RawMessage `json:"paymentRequirements"`
 }
 
 type SettleRequest struct {
-	X402Version         int                      `json:"x402Version"`
-	PaymentPayload      x402.PaymentPayload      `json:"paymentPayload"`
-	PaymentRequirements x402.PaymentRequirements `json:"paymentRequirements"`
+	X402Version         int             `json:"x402Version"`
+	PaymentPayload      json.RawMessage `json:"paymentPayload"`
+	PaymentRequirements json.RawMessage `json:"paymentRequirements"`
 }
 
 // Real EVM signer for facilitator using ethclient
@@ -110,8 +111,8 @@ func (s *realFacilitatorEvmSigner) GetChainID() (*big.Int, error) {
 
 func (s *realFacilitatorEvmSigner) VerifyTypedData(
 	address string,
-	domain evm.TypedDataDomain,
-	types map[string][]evm.TypedDataField,
+	domain evmmech.TypedDataDomain,
+	types map[string][]evmmech.TypedDataField,
 	primaryType string,
 	message map[string]interface{},
 	signature []byte,
@@ -409,7 +410,7 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
-func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evm.TransactionReceipt, error) {
+func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmech.TransactionReceipt, error) {
 	ctx := context.Background()
 	hash := common.HexToHash(txHash)
 
@@ -417,7 +418,7 @@ func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*ev
 	for i := 0; i < 30; i++ { // 30 seconds timeout
 		receipt, err := s.client.TransactionReceipt(ctx, hash)
 		if err == nil && receipt != nil {
-			return &evm.TransactionReceipt{
+			return &evmmech.TransactionReceipt{
 				Status:      uint64(receipt.Status),
 				BlockNumber: receipt.BlockNumber.Uint64(),
 				TxHash:      receipt.TxHash.Hex(),
@@ -528,7 +529,7 @@ func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 
 	rpcURL := s.rpcURL
 	if rpcURL == "" {
-		config, err := svm.GetNetworkConfig(network)
+		config, err := svmmech.GetNetworkConfig(network)
 		if err != nil {
 			return nil, err
 		}
@@ -574,7 +575,7 @@ func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *sola
 
 	sig, err := rpcClient.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
 		SkipPreflight:       true,
-		PreflightCommitment: svm.DefaultCommitment,
+		PreflightCommitment: svmmech.DefaultCommitment,
 	})
 	if err != nil {
 		return solana.Signature{}, fmt.Errorf("failed to send transaction: %w", err)
@@ -589,7 +590,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		return err
 	}
 
-	for attempt := 0; attempt < svm.MaxConfirmAttempts; attempt++ {
+	for attempt := 0; attempt < svmmech.MaxConfirmAttempts; attempt++ {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
@@ -616,7 +617,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		if err != nil {
 			txResult, txErr := rpcClient.GetTransaction(ctx, signature, &rpc.GetTransactionOpts{
 				Encoding:   solana.EncodingBase58,
-				Commitment: svm.DefaultCommitment,
+				Commitment: svmmech.DefaultCommitment,
 			})
 
 			if txErr == nil && txResult != nil && txResult.Meta != nil {
@@ -628,10 +629,10 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 		}
 
 		// Wait before retrying
-		time.Sleep(svm.ConfirmRetryDelay)
+		time.Sleep(svmmech.ConfirmRetryDelay)
 	}
 
-	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
+	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
 func (s *realFacilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
@@ -677,18 +678,18 @@ func main() {
 	facilitator := x402.Newx402Facilitator()
 
 	// Register EVM schemes
-	evmFacilitator := evm.NewExactEvmFacilitator(evmSigner)
-	facilitator.RegisterScheme("eip155:84532", evmFacilitator)
+	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner)
+	facilitator.Register("eip155:84532", evmFacilitatorScheme)
 
-	evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
-	facilitator.RegisterSchemeV1("base-sepolia", evmFacilitatorV1)
+	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner)
+	facilitator.RegisterV1("base-sepolia", evmFacilitatorV1Scheme)
 
 	// Register SVM schemes
-	svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
-	facilitator.RegisterScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitator) // Devnet
+	svmFacilitatorScheme := svm.NewExactSvmScheme(svmSigner)
+	facilitator.Register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitatorScheme) // Devnet
 
-	svmFacilitatorV1 := svmv1.NewExactSvmFacilitatorV1(svmSigner)
-	facilitator.RegisterSchemeV1("solana-devnet", svmFacilitatorV1)
+	svmFacilitatorV1Scheme := svmv1.NewExactSvmSchemeV1(svmSigner)
+	facilitator.RegisterV1("solana-devnet", svmFacilitatorV1Scheme)
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
@@ -698,29 +699,100 @@ func main() {
 		OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
 			// Hook 1: Track verified payment for verify→settle flow validation
 			if ctx.Result.IsValid {
-				paymentHash := createPaymentHash(ctx.PaymentPayload)
+				// Hooks now use view interfaces - create hash from payload view
+				paymentHash := fmt.Sprintf("v%d-%s-%s", 
+					ctx.Payload.GetVersion(),
+					ctx.Payload.GetScheme(), 
+					ctx.Payload.GetNetwork())
 				verificationMutex.Lock()
-				verifiedPayments[paymentHash] = ctx.Timestamp.Unix()
+				verifiedPayments[paymentHash] = time.Now().Unix()
 				verificationMutex.Unlock()
 				
-				// Hook 2: Extract and catalog bazaar discovery info
-				discovered, err := bazaar.ExtractDiscoveryInfo(ctx.PaymentPayload, ctx.PaymentRequirements, true)
-				if err == nil && discovered != nil {
-					bazaarCatalog.CatalogResource(
-						discovered.ResourceURL,
-						discovered.Method,
-						discovered.X402Version,
-						discovered.DiscoveryInfo,
-						ctx.PaymentRequirements,
-					)
-					log.Printf("📦 Discovered resource: %s %s", discovered.Method, discovered.ResourceURL)
+				log.Printf("✅ Payment verified: %s", paymentHash)
+				
+				// Hook 2: Extract and catalog Bazaar discovery info (uses raw bytes escape hatch)
+				version := ctx.Payload.GetVersion()
+				var resourceURL string
+				var discoveryExt map[string]interface{}
+				
+				if version == 2 {
+					// V2: Unmarshal payload to get Extensions and Resource
+					var payloadV2 x402.PaymentPayload
+					if err := json.Unmarshal(ctx.PayloadBytes, &payloadV2); err == nil {
+						if payloadV2.Resource != nil {
+							resourceURL = payloadV2.Resource.URL
+						}
+						if payloadV2.Extensions != nil {
+							if bazaar, ok := payloadV2.Extensions[exttypes.BAZAAR]; ok {
+								if bazaarMap, ok := bazaar.(map[string]interface{}); ok {
+									discoveryExt = bazaarMap
+								}
+							}
+						}
+					}
+				} else if version == 1 {
+					// V1: Unmarshal requirements to get Resource and OutputSchema
+					var reqsV1 x402.PaymentRequirements
+					if err := json.Unmarshal(ctx.RequirementsBytes, &reqsV1); err == nil {
+						// V1 uses requirements for resource URL
+						if reqsV1.Extra != nil {
+							if resource, ok := reqsV1.Extra["resource"].(string); ok {
+								resourceURL = resource
+							}
+						}
+						// V1 uses outputSchema for discovery info
+						if reqsV1.Extra != nil {
+							if outputSchema, ok := reqsV1.Extra["outputSchema"]; ok {
+								if schemaMap, ok := outputSchema.(map[string]interface{}); ok {
+									discoveryExt = schemaMap
+								}
+							}
+						}
+					}
+				}
+				
+				// Catalog if we found discovery info
+				if resourceURL != "" && discoveryExt != nil {
+					// Extract method from discovery extension
+					method := "GET" // Default
+					if input, ok := discoveryExt["input"].(map[string]interface{}); ok {
+						if m, ok := input["method"].(string); ok {
+							method = m
+						}
+					}
+					
+					// Unmarshal requirements to generic PaymentRequirements type
+					// NOTE: This is a simplified e2e test implementation. It does not properly
+					// handle V1 vs V2 type differences (V1 uses maxAmountRequired, V2 uses amount).
+					// For production Bazaar cataloging, use proper V1/V2 type handling.
+					// This is sufficient for testing that the extension mechanism works.
+					var requirements x402.PaymentRequirements
+					if err := json.Unmarshal(ctx.RequirementsBytes, &requirements); err == nil {
+						// Convert discoveryExt to DiscoveryInfo (simplified)
+						// In production, would use bazaar.ExtractDiscoveryInfo() with proper types
+						discoveryInfoJSON, _ := json.Marshal(discoveryExt)
+						var discoveryInfo exttypes.DiscoveryInfo
+						json.Unmarshal(discoveryInfoJSON, &discoveryInfo)
+						
+						log.Printf("📝 Cataloging discovered resource: %s %s", method, resourceURL)
+						bazaarCatalog.CatalogResource(
+							resourceURL,
+							method,
+							version,
+							&discoveryInfo,
+							requirements,
+						)
+					}
 				}
 			}
 			return nil
 		}).
 		OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
 			// Hook 3: Validate payment was previously verified
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.RLock()
 			verificationTimestamp, verified := verifiedPayments[paymentHash]
 			verificationMutex.RUnlock()
@@ -733,7 +805,7 @@ func main() {
 			}
 			
 			// Check verification isn't too old (5 minute timeout)
-			age := ctx.Timestamp.Unix() - verificationTimestamp
+			age := time.Now().Unix() - verificationTimestamp
 			if age > 5*60 {
 				verificationMutex.Lock()
 				delete(verifiedPayments, paymentHash)
@@ -749,7 +821,10 @@ func main() {
 		}).
 		OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
 			// Hook 4: Clean up verified payment tracking after successful settlement
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -761,7 +836,10 @@ func main() {
 		}).
 		OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
 			// Hook 5: Clean up verified payment tracking on failure too
-			paymentHash := createPaymentHash(ctx.PaymentPayload)
+			paymentHash := fmt.Sprintf("v%d-%s-%s",
+				ctx.Payload.GetVersion(),
+				ctx.Payload.GetScheme(),
+				ctx.Payload.GetNetwork())
 			verificationMutex.Lock()
 			delete(verifiedPayments, paymentHash)
 			verificationMutex.Unlock()
@@ -811,10 +889,13 @@ func main() {
 		// Hooks will automatically:
 		// - Track verified payment (OnAfterVerify)
 		// - Extract and catalog discovery info (OnAfterVerify)
+		
+		// json.RawMessage is already []byte, so we can use it directly
+		// This preserves the exact JSON without re-marshaling (important for v1/v2 compatibility)
 		response, err := facilitator.Verify(
 			context.Background(),
-			req.PaymentPayload,
-			req.PaymentRequirements,
+			[]byte(req.PaymentPayload),
+			[]byte(req.PaymentRequirements),
 		)
 		if err != nil {
 			log.Printf("Verify error: %v", err)
@@ -863,16 +944,13 @@ func main() {
 			return
 		}
 
-		// Debug: Log parsed request
-		log.Printf("🔍 [FACILITATOR SETTLE] Parsed request:")
-		log.Printf("   X402Version: %d", req.X402Version)
-		log.Printf("   PaymentPayload: %+v", req.PaymentPayload)
-		log.Printf("   PaymentRequirements: %+v", req.PaymentRequirements)
 
+		// json.RawMessage is already []byte, so we can use it directly
+		// This preserves the exact JSON without re-marshaling (important for v1/v2 compatibility)
 		response, err := facilitator.Settle(
 			context.Background(),
-			req.PaymentPayload,
-			req.PaymentRequirements,
+			[]byte(req.PaymentPayload),
+			[]byte(req.PaymentRequirements),
 		)
 
 		// Debug: Log response
@@ -887,7 +965,7 @@ func main() {
 				c.JSON(http.StatusOK, x402.SettleResponse{
 					Success:     false,
 					ErrorReason: strings.TrimPrefix(err.Error(), "settlement aborted: "),
-					Network:     req.PaymentPayload.Accepted.Network,
+					Network:     "", // Network not available in error case since we don't parse the raw JSON
 				})
 				return
 			}

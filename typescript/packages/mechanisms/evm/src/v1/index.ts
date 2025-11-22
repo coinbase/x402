@@ -1,4 +1,4 @@
-export { ExactEvmClientV1, ExactEvmFacilitatorV1 } from "../exact/v1";
+export { ExactEvmSchemeV1 } from "../exact/v1";
 
 export const NETWORKS: string[] = [
   "abstract",

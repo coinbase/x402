@@ -76,22 +76,22 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 
 		// Setup facilitator with cash scheme
 		facilitator := x402.Newx402Facilitator()
-		facilitator.RegisterScheme("x402:cash", cash.NewSchemeNetworkFacilitator())
+		facilitator.Register("x402:cash", cash.NewSchemeNetworkFacilitator())
 
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)
 
-		// Setup HTTP service
-		service := x402http.Newx402HTTPResourceService(
+		// Setup HTTP server
+		server := x402http.Newx402HTTPResourceServer(
 			routes,
 			x402.WithFacilitatorClient(facilitatorClient),
 		)
-		service.RegisterScheme("x402:cash", cash.NewSchemeNetworkService())
+		server.Register("x402:cash", cash.NewSchemeNetworkServer())
 
-		// Initialize service
-		err := service.Initialize(ctx)
+		// Initialize server
+		err := server.Initialize(ctx)
 		if err != nil {
-			t.Fatalf("Failed to initialize service: %v", err)
+			t.Fatalf("Failed to initialize server: %v", err)
 		}
 
 		// Create mock browser adapter
@@ -118,7 +118,7 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 		}
 
 		// Process browser request without payment
-		httpProcessResult := service.ProcessHTTPRequest(ctx, reqCtx, paywallConfig)
+		httpProcessResult := server.ProcessHTTPRequest(ctx, reqCtx, paywallConfig)
 
 		if httpProcessResult.Type != x402http.ResultPaymentError {
 			t.Fatalf("Expected payment-error result, got %s", httpProcessResult.Type)

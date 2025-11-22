@@ -104,7 +104,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
   }
 
   /**
-   * Gets the supported payment kinds from the facilitator service.
+   * Gets the supported payment kinds from the facilitator server.
    *
    * @returns A promise that resolves to the supported payment kinds
    */

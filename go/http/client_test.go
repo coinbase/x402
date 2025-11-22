@@ -66,7 +66,7 @@ func TestEncodePaymentSignatureHeader(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to marshal payload: %v", err)
 			}
-			
+
 			headers := client.EncodePaymentSignatureHeader(payloadBytes)
 			if _, exists := headers[tt.expected]; !exists {
 				t.Errorf("Expected header %s not found", tt.expected)
@@ -254,18 +254,11 @@ func TestPaymentRoundTripper(t *testing.T) {
 	// Create mock scheme client
 	mockClient := &mockSchemeClient{
 		scheme: "mock",
-		createPayload: func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-			partial := types.PayloadBase{
-				X402Version: version,
-				Payload:     map[string]interface{}{"sig": "test"},
-			}
-			return json.Marshal(partial)
-		},
 	}
 
 	// Create x402 client
 	x402Client := x402.Newx402Client()
-	x402Client.RegisterScheme("test:1", mockClient)
+	x402Client.Register("test:1", mockClient)
 
 	// Create HTTP client wrapper
 	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, Newx402HTTPClient(x402Client))
@@ -379,21 +372,16 @@ func TestPostWithPayment(t *testing.T) {
 
 // Mock scheme client for testing
 type mockSchemeClient struct {
-	scheme        string
-	createPayload func(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error)
+	scheme string
 }
 
 func (m *mockSchemeClient) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, version int, requirementsBytes []byte) ([]byte, error) {
-	if m.createPayload != nil {
-		return m.createPayload(ctx, version, requirementsBytes)
-	}
-	partial := types.PayloadBase{
-		X402Version: version,
-		Payload:     map[string]interface{}{},
-	}
-	return json.Marshal(partial)
+func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, requirements types.PaymentRequirements) (types.PaymentPayload, error) {
+	return types.PaymentPayload{
+		X402Version: 2,
+		Payload:     map[string]interface{}{"mock": "payload"},
+	}, nil
 }

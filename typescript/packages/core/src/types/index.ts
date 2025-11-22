@@ -9,11 +9,11 @@ export type { PaymentRequirements, PaymentPayload, PaymentRequired } from "./pay
 export type {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,
-  SchemeNetworkService,
+  SchemeNetworkServer,
   MoneyParser,
 } from "./mechanisms";
 export type { PaymentRequirementsV1, PaymentRequiredV1, PaymentPayloadV1 } from "./v1";
-export type { ResourceServiceExtension } from "./extensions";
+export type { ResourceServerExtension } from "./extensions";
 
 export type Network = `${string}:${string}`;
 

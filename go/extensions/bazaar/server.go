@@ -5,13 +5,13 @@ import (
 	"github.com/coinbase/x402/go/http"
 )
 
-type bazaarResourceServiceExtension struct{}
+type bazaarResourceServerExtension struct{}
 
-func (e *bazaarResourceServiceExtension) Key() string {
+func (e *bazaarResourceServerExtension) Key() string {
 	return types.BAZAAR
 }
 
-func (e *bazaarResourceServiceExtension) EnrichDeclaration(
+func (e *bazaarResourceServerExtension) EnrichDeclaration(
 	declaration interface{},
 	transportContext interface{},
 ) interface{} {
@@ -55,4 +55,4 @@ func (e *bazaarResourceServiceExtension) EnrichDeclaration(
 	return extension
 }
 
-var BazaarResourceServiceExtension = &bazaarResourceServiceExtension{}
+var BazaarResourceServerExtension = &bazaarResourceServerExtension{}

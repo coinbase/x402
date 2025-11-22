@@ -1,4 +1,7 @@
 packages:
+  - "clients/*"
+  - "servers/*"
+  - "facilitator"
   - "legacy/facilitator"
   - "legacy/servers/*"
   - "legacy/clients/*"
@@ -8,4 +11,8 @@ packages:
   - "legacy/mcp-embedded-wallet"
   - "legacy/mpc"
   - "legacy/discovery"
+  - "../../typescript/packages/core"
+  - "../../typescript/packages/extensions"
+  - "../../typescript/packages/http/*"
+  - "../../typescript/packages/mechanisms/*"
   - "../../typescript/packages/legacy/*"

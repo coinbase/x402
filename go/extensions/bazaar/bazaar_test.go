@@ -354,7 +354,7 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
-		bodyInput, ok := info.Input.(bazaar.BodyInput)
+		bodyInput, ok := info.DiscoveryInfo.Input.(bazaar.BodyInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
 		assert.Equal(t, "http", bodyInput.Type)
@@ -399,7 +399,7 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
-		queryInput, ok := info.Input.(bazaar.QueryInput)
+		queryInput, ok := info.DiscoveryInfo.Input.(bazaar.QueryInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
 		assert.Equal(t, "http", queryInput.Type)
@@ -853,7 +853,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
-		bodyInput, ok := info.Input.(bazaar.BodyInput)
+		bodyInput, ok := info.DiscoveryInfo.Input.(bazaar.BodyInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
 		assert.Equal(t, "http", bodyInput.Type)
@@ -898,7 +898,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, v2Info)
 
-		queryInput, ok := v2Info.Input.(bazaar.QueryInput)
+		queryInput, ok := v2Info.DiscoveryInfo.Input.(bazaar.QueryInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
 
@@ -929,11 +929,11 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, v1Info)
 
-		queryInput2, ok := v1Info.Input.(bazaar.QueryInput)
+		queryInput2, ok := v1Info.DiscoveryInfo.Input.(bazaar.QueryInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput2.Method)
 
 		// Both v1 and v2 return the same DiscoveryInfo structure
-		assert.IsType(t, v2Info.Input, v1Info.Input)
+		assert.IsType(t, v2Info.DiscoveryInfo.Input, v1Info.DiscoveryInfo.Input)
 	})
 }

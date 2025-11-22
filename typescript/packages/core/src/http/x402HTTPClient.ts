@@ -47,14 +47,18 @@ export class x402HTTPClient {
   /**
    * Extracts payment required information from HTTP response.
    *
-   * @param headers - The HTTP response headers
+   * @param getHeader - Function to retrieve header value by name (case-insensitive)
    * @param body - Optional response body for v1 compatibility
    * @returns The payment required object
    */
-  getPaymentRequiredResponse(headers: Record<string, string>, body?: unknown): PaymentRequired {
+  getPaymentRequiredResponse(
+    getHeader: (name: string) => string | null | undefined,
+    body?: unknown,
+  ): PaymentRequired {
     // v2
-    if (headers["PAYMENT-REQUIRED"]) {
-      return decodePaymentRequiredHeader(headers["PAYMENT-REQUIRED"]);
+    const paymentRequired = getHeader("PAYMENT-REQUIRED");
+    if (paymentRequired) {
+      return decodePaymentRequiredHeader(paymentRequired);
     }
 
     // v1
@@ -73,18 +77,20 @@ export class x402HTTPClient {
   /**
    * Extracts payment settlement response from HTTP headers.
    *
-   * @param headers - The HTTP response headers
+   * @param getHeader - Function to retrieve header value by name (case-insensitive)
    * @returns The settlement response object
    */
-  getPaymentSettleResponse(headers: Record<string, string>): SettleResponse {
+  getPaymentSettleResponse(getHeader: (name: string) => string | null | undefined): SettleResponse {
     // v2
-    if (headers["PAYMENT-RESPONSE"]) {
-      return decodePaymentResponseHeader(headers["PAYMENT-RESPONSE"]);
+    const paymentResponse = getHeader("PAYMENT-RESPONSE");
+    if (paymentResponse) {
+      return decodePaymentResponseHeader(paymentResponse);
     }
 
     // v1
-    if (headers["X-PAYMENT-RESPONSE"]) {
-      return decodePaymentResponseHeader(headers["X-PAYMENT-RESPONSE"]);
+    const xPaymentResponse = getHeader("X-PAYMENT-RESPONSE");
+    if (xPaymentResponse) {
+      return decodePaymentResponseHeader(xPaymentResponse);
     }
 
     throw new Error("Payment response header not found");

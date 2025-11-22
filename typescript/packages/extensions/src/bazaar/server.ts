@@ -1,4 +1,4 @@
-import type { ResourceServiceExtension } from "@x402/core/types";
+import type { ResourceServerExtension } from "@x402/core/types";
 import type { HTTPRequestContext } from "@x402/core/http";
 import { BAZAAR } from "./types";
 
@@ -30,7 +30,7 @@ interface ExtensionDeclaration {
   };
 }
 
-export const bazaarResourceServiceExtension: ResourceServiceExtension = {
+export const bazaarResourceServerExtension: ResourceServerExtension = {
   key: BAZAAR,
 
   enrichDeclaration: (declaration, transportContext) => {

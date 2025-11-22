@@ -31,7 +31,7 @@ export interface SchemeNetworkFacilitator {
   settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
 }
 
-export interface SchemeNetworkService {
+export interface SchemeNetworkServer {
   readonly scheme: string;
 
   /**

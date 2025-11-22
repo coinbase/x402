@@ -4,7 +4,6 @@
   "description": "End-to-end tests for X402 protocol",
   "main": "dist/test.js",
   "scripts": {
-    "build": "tsc",
     "test": "tsx test.ts",
     "test:watch": "tsc --watch",
     "setup": "./setup.sh",

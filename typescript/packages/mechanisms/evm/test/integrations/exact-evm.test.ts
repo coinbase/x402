@@ -4,8 +4,8 @@ import { x402Facilitator } from "@x402/core/facilitator";
 import {
   HTTPAdapter,
   HTTPResponseInstructions,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
   FacilitatorClient,
 } from "@x402/core/server";
 import {
@@ -16,12 +16,9 @@ import {
   SettleResponse,
   SupportedResponse,
 } from "@x402/core/types";
-import {
-  ExactEvmClient,
-  ExactEvmFacilitator,
-  ExactEvmService,
-  toFacilitatorEvmSigner,
-} from "../../src";
+import { ExactEvmScheme as ExactEvmClient, toFacilitatorEvmSigner } from "../../src";
+import { ExactEvmScheme as ExactEvmServer } from "../../src/exact/server/scheme";
+import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitator/scheme";
 import type { ExactEvmPayloadV2 } from "../../src/types";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
@@ -39,7 +36,7 @@ if (!CLIENT_PRIVATE_KEY || !FACILITATOR_PRIVATE_KEY) {
 
 /**
  * EVM Facilitator Client wrapper
- * Wraps the x402Facilitator for use with x402ResourceService
+ * Wraps the x402Facilitator for use with x402ResourceServer
  */
 class EvmFacilitatorClient implements FacilitatorClient {
   readonly scheme = "exact";
@@ -51,7 +48,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    *
    * @param facilitator - The x402 facilitator to wrap
    */
-  constructor(private readonly facilitator: x402Facilitator) {}
+  constructor(private readonly facilitator: x402Facilitator) { }
 
   /**
    * Verifies a payment payload
@@ -132,9 +129,9 @@ function buildEvmPaymentRequirements(
 }
 
 describe("EVM Integration Tests", () => {
-  describe("x402Client / x402ResourceService / x402Facilitator - EVM Flow", () => {
+  describe("x402Client / x402ResourceServer / x402Facilitator - EVM Flow", () => {
     let client: x402Client;
-    let server: x402ResourceService;
+    let server: x402ResourceServer;
     let clientAddress: `0x${string}`;
 
     beforeEach(async () => {
@@ -143,7 +140,7 @@ describe("EVM Integration Tests", () => {
       clientAddress = clientAccount.address;
 
       const evmClient = new ExactEvmClient(clientAccount);
-      client = new x402Client().registerScheme("eip155:84532", evmClient);
+      client = new x402Client().register("eip155:84532", evmClient);
 
       // Create facilitator account and signer from environment variable
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
@@ -176,11 +173,11 @@ describe("EVM Integration Tests", () => {
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme("eip155:84532", evmFacilitator);
+      const facilitator = new x402Facilitator().register("eip155:84532", evmFacilitator);
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
-      server.registerScheme("eip155:84532", new ExactEvmService());
+      server = new x402ResourceServer(facilitatorClient);
+      server.register("eip155:84532", new ExactEvmServer());
       await server.initialize(); // Initialize to fetch supported kinds
     });
 
@@ -240,16 +237,18 @@ describe("EVM Integration Tests", () => {
     });
   });
 
-  describe("x402HTTPClient / x402HTTPResourceService / x402Facilitator - EVM Flow", () => {
+  describe("x402HTTPClient / x402HTTPResourceServer / x402Facilitator - EVM Flow", () => {
     let client: x402HTTPClient;
-    let service: x402HTTPResourceService;
+    let httpServer: x402HTTPResourceServer;
 
     const routes = {
       "/api/protected": {
-        scheme: "exact",
-        payTo: "0x9876543210987654321098765432109876543210",
-        price: "$0.001",
-        network: "eip155:84532" as Network,
+        accepts: {
+          scheme: "exact",
+          payTo: "0x9876543210987654321098765432109876543210",
+          price: "$0.001",
+          network: "eip155:84532" as Network,
+        },
         description: "Access to protected API",
         mimeType: "application/json",
       },
@@ -298,7 +297,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
-      const facilitator = new x402Facilitator().registerScheme("eip155:84532", evmFacilitator);
+      const facilitator = new x402Facilitator().register("eip155:84532", evmFacilitator);
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
 
@@ -306,15 +305,15 @@ describe("EVM Integration Tests", () => {
       const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
 
       const evmClient = new ExactEvmClient(clientAccount);
-      const paymentClient = new x402Client().registerScheme("eip155:84532", evmClient);
+      const paymentClient = new x402Client().register("eip155:84532", evmClient);
       client = new x402HTTPClient(paymentClient) as x402HTTPClient;
 
-      // Create resource service and register schemes (composition pattern)
-      const resourceService = new x402ResourceService(facilitatorClient);
-      resourceService.registerScheme("eip155:84532", new ExactEvmService());
-      await resourceService.initialize(); // Initialize to fetch supported kinds
+      // Create resource server and register schemes (composition pattern)
+      const ResourceServer = new x402ResourceServer(facilitatorClient);
+      ResourceServer.register("eip155:84532", new ExactEvmServer());
+      await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
-      service = new x402HTTPResourceService(resourceService, routes);
+      httpServer = new x402HTTPResourceServer(ResourceServer, routes);
     });
 
     it("middleware should successfully verify and settle an EVM payment from an http client", async () => {
@@ -326,7 +325,7 @@ describe("EVM Integration Tests", () => {
       };
 
       // No payment made, get PaymentRequired response & header
-      const httpProcessResult = (await service.processHTTPRequest(context))!;
+      const httpProcessResult = (await httpServer.processHTTPRequest(context))!;
 
       expect(httpProcessResult.type).toBe("payment-error");
 
@@ -341,7 +340,7 @@ describe("EVM Integration Tests", () => {
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(
-        initial402Response.headers,
+        name => initial402Response.headers[name],
         initial402Response.body,
       );
       const paymentPayload = await client.createPaymentPayload(paymentRequired);
@@ -359,7 +358,7 @@ describe("EVM Integration Tests", () => {
         return undefined;
       };
 
-      const httpProcessResult2 = await service.processHTTPRequest(context);
+      const httpProcessResult2 = await httpServer.processHTTPRequest(context);
 
       // No need to respond, can continue with request
       expect(httpProcessResult2.type).toBe("payment-verified");
@@ -375,7 +374,7 @@ describe("EVM Integration Tests", () => {
       expect(verifiedPaymentPayload).toBeDefined();
       expect(verifiedPaymentRequirements).toBeDefined();
 
-      const settlementHeaders = await service.processSettlement(
+      const settlementHeaders = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
         200,
@@ -387,8 +386,8 @@ describe("EVM Integration Tests", () => {
   });
 
   describe("Price Parsing Integration", () => {
-    let server: x402ResourceService;
-    let evmService: ExactEvmService;
+    let server: x402ResourceServer;
+    let evmServer: ExactEvmScheme;
 
     beforeEach(async () => {
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
@@ -403,16 +402,16 @@ describe("EVM Integration Tests", () => {
       });
 
       const facilitatorSigner = toFacilitatorEvmSigner({ publicClient, walletClient });
-      const facilitator = new x402Facilitator().registerScheme(
+      const facilitator = new x402Facilitator().register(
         "eip155:84532",
         new ExactEvmFacilitator(facilitatorSigner),
       );
 
       const facilitatorClient = new EvmFacilitatorClient(facilitator);
-      server = new x402ResourceService(facilitatorClient);
+      server = new x402ResourceServer(facilitatorClient);
 
-      evmService = new ExactEvmService();
-      server.registerScheme("eip155:84532", evmService);
+      evmServer = new ExactEvmServer();
+      server.register("eip155:84532", evmServer);
       await server.initialize();
     });
 
@@ -459,8 +458,8 @@ describe("EVM Integration Tests", () => {
     });
 
     it("should use registerMoneyParser for custom conversion", async () => {
-      // Register custom parser: large amounts use DAI
-      evmService.registerMoneyParser(async (amount, _network) => {
+      // register custom parser: large amounts use DAI
+      evmServer.registerMoneyParser(async (amount, _network) => {
         if (amount > 100) {
           return {
             amount: (amount * 1e18).toString(), // DAI has 18 decimals
@@ -497,7 +496,7 @@ describe("EVM Integration Tests", () => {
     });
 
     it("should support multiple MoneyParser in chain", async () => {
-      evmService
+      evmServer
         .registerMoneyParser(async amount => {
           if (amount > 1000) {
             return {
@@ -553,7 +552,7 @@ describe("EVM Integration Tests", () => {
     it("should work with async MoneyParser (e.g., exchange rate lookup)", async () => {
       const mockExchangeRate = 1.02;
 
-      evmService.registerMoneyParser(async (amount, _network) => {
+      evmServer.registerMoneyParser(async (amount, _network) => {
         // Simulate async API call
         await new Promise(resolve => setTimeout(resolve, 10));
 

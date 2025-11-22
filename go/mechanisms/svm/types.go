@@ -56,11 +56,11 @@ type AssetInfo struct {
 
 // NetworkConfig contains network-specific configuration
 type NetworkConfig struct {
-	Name            string                 // Network name
-	CAIP2           string                 // CAIP-2 identifier
-	RPCURL          string                 // Default RPC URL
-	DefaultAsset    AssetInfo              // Default token (USDC)
-	SupportedAssets map[string]AssetInfo   // Symbol -> AssetInfo
+	Name            string               // Network name
+	CAIP2           string               // CAIP-2 identifier
+	RPCURL          string               // Default RPC URL
+	DefaultAsset    AssetInfo            // Default token (USDC)
+	SupportedAssets map[string]AssetInfo // Symbol -> AssetInfo
 }
 
 // ClientConfig contains optional client configuration
@@ -109,4 +109,3 @@ func IsValidNetwork(network string) bool {
 
 	return false
 }
-

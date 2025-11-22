@@ -97,10 +97,10 @@ type MiddlewareConfig struct {
 	Timeout time.Duration
 }
 
-// SchemeRegistration registers a scheme with the service
+// SchemeRegistration registers a scheme with the server
 type SchemeRegistration struct {
 	Network x402.Network
-	Service x402.SchemeNetworkService
+	Server  x402.SchemeNetworkServer
 }
 
 // MiddlewareOption configures the middleware
@@ -113,12 +113,12 @@ func WithFacilitatorClient(client x402.FacilitatorClient) MiddlewareOption {
 	}
 }
 
-// WithScheme registers a scheme service
-func WithScheme(network x402.Network, service x402.SchemeNetworkService) MiddlewareOption {
+// WithScheme registers a scheme server
+func WithScheme(network x402.Network, schemeServer x402.SchemeNetworkServer) MiddlewareOption {
 	return func(c *MiddlewareConfig) {
 		c.Schemes = append(c.Schemes, SchemeRegistration{
 			Network: network,
-			Service: service,
+			Server:  schemeServer,
 		})
 	}
 }
@@ -177,28 +177,26 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 		opt(config)
 	}
 
-	serviceOpts := []x402.ResourceServiceOption{}
+	serverOpts := []x402.ResourceServerOption{}
 	for _, client := range config.FacilitatorClients {
-		serviceOpts = append(serviceOpts, x402.WithFacilitatorClient(client))
+		serverOpts = append(serverOpts, x402.WithFacilitatorClient(client))
 	}
 
-	service := x402http.Newx402HTTPResourceService(config.Routes, serviceOpts...)
+	server := x402http.Newx402HTTPResourceServer(config.Routes, serverOpts...)
 
-	service.RegisterExtension(bazaar.BazaarResourceServiceExtension)
+	server.RegisterExtension(bazaar.BazaarResourceServerExtension)
 
 	// Register schemes
 	for _, scheme := range config.Schemes {
-		service.RegisterScheme(scheme.Network, scheme.Service)
+		server.Register(scheme.Network, scheme.Server)
 	}
 
-	// Initialize if requested
+	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
 	if config.InitializeOnStart {
 		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 		defer cancel()
-
-		if err := service.Initialize(ctx); err != nil {
-			// Log initialization error but don't fail - facilitator might come online later
-			fmt.Printf("Warning: failed to initialize x402 service: %v\n", err)
+		if err := server.Initialize(ctx); err != nil {
+			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
 		}
 	}
 
@@ -217,7 +215,7 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 		}
 
 		// Process HTTP request
-		result := service.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
+		result := server.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
 
 		// Debug logging for request processing
 		fmt.Printf("🔍 [GIN REQUEST DEBUG] Processed HTTP request\n")
@@ -236,7 +234,7 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 
 		case x402http.ResultPaymentVerified:
 			// Payment verified, continue with settlement handling
-			handlePaymentVerified(c, service, ctx, result, config)
+			handlePaymentVerified(c, server, ctx, result, config)
 		}
 	}
 }
@@ -263,7 +261,7 @@ func handlePaymentError(c *gin.Context, response *x402http.HTTPResponseInstructi
 }
 
 // handlePaymentVerified handles verified payments with settlement
-func handlePaymentVerified(c *gin.Context, service *x402http.HTTPService, ctx context.Context, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
+func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx context.Context, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
 	// Capture response for settlement
 	writer := &responseCapture{
 		ResponseWriter: c.Writer,
@@ -299,7 +297,7 @@ func handlePaymentVerified(c *gin.Context, service *x402http.HTTPService, ctx co
 	fmt.Printf("   PaymentRequirements: %+v\n", result.PaymentRequirements)
 
 	// Process settlement
-	settlementHeaders, err := service.ProcessSettlement(
+	settlementHeaders, err := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,

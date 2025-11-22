@@ -72,12 +72,12 @@ describe("x402Facilitator", () => {
     });
   });
 
-  describe("registerScheme", () => {
+  describe("register", () => {
     it("should register scheme for current version (v2)", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("test-scheme");
 
-      const result = facilitator.registerScheme("test:network" as Network, testFacilitator);
+      const result = facilitator.register("test:network" as Network, testFacilitator);
 
       expect(result).toBe(facilitator); // Chaining
     });
@@ -88,8 +88,8 @@ describe("x402Facilitator", () => {
       const scheme2 = new TestFacilitator("scheme2");
 
       const result = facilitator
-        .registerScheme("network1" as Network, scheme1)
-        .registerScheme("network2" as Network, scheme2);
+        .register("network1" as Network, scheme1)
+        .register("network2" as Network, scheme2);
 
       expect(result).toBe(facilitator);
     });
@@ -100,8 +100,8 @@ describe("x402Facilitator", () => {
       const intentFacilitator = new TestFacilitator("intent");
 
       facilitator
-        .registerScheme("eip155:8453" as Network, exactFacilitator)
-        .registerScheme("eip155:8453" as Network, intentFacilitator);
+        .register("eip155:8453" as Network, exactFacilitator)
+        .register("eip155:8453" as Network, intentFacilitator);
 
       // Should be able to verify with both schemes
       const payload1 = buildPaymentPayload({ x402Version: 2 });
@@ -123,8 +123,8 @@ describe("x402Facilitator", () => {
       const svmFacilitator = new TestFacilitator("exact");
 
       facilitator
-        .registerScheme("eip155:8453" as Network, evmFacilitator)
-        .registerScheme("solana:mainnet" as Network, svmFacilitator);
+        .register("eip155:8453" as Network, evmFacilitator)
+        .register("solana:mainnet" as Network, svmFacilitator);
 
       const payload1 = buildPaymentPayload({ x402Version: 2 });
       const req1 = buildPaymentRequirements({ scheme: "exact", network: "eip155:8453" as Network });
@@ -140,12 +140,12 @@ describe("x402Facilitator", () => {
     });
   });
 
-  describe("registerSchemeV1", () => {
+  describe("registerV1", () => {
     it("should register scheme for v1", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("test-scheme");
 
-      const result = facilitator.registerSchemeV1("test-network" as Network, testFacilitator);
+      const result = facilitator.registerV1("test-network" as Network, testFacilitator);
 
       expect(result).toBe(facilitator);
     });
@@ -154,7 +154,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.registerSchemeV1("base-sepolia" as Network, testFacilitator);
+      facilitator.registerV1("base-sepolia" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 1 });
       const requirements = buildPaymentRequirements({
@@ -220,7 +220,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact", { isValid: true });
 
-      facilitator.registerScheme("eip155:8453" as Network, testFacilitator);
+      facilitator.register("eip155:8453" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -241,7 +241,7 @@ describe("x402Facilitator", () => {
       const testFacilitator = new TestFacilitator("exact");
 
       // Register with wildcard pattern
-      facilitator.registerScheme("eip155:*" as Network, testFacilitator);
+      facilitator.register("eip155:*" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -273,7 +273,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.registerScheme("eip155:8453" as Network, testFacilitator);
+      facilitator.register("eip155:8453" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -293,7 +293,7 @@ describe("x402Facilitator", () => {
         new Error("Verification failed: invalid signature"),
       );
 
-      facilitator.registerScheme("eip155:8453" as Network, errorFacilitator);
+      facilitator.register("eip155:8453" as Network, errorFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -312,7 +312,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact", undefined, { success: true });
 
-      facilitator.registerScheme("eip155:8453" as Network, testFacilitator);
+      facilitator.register("eip155:8453" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -332,7 +332,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.registerScheme("solana:*" as Network, testFacilitator);
+      facilitator.register("solana:*" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -364,7 +364,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.registerScheme("eip155:8453" as Network, testFacilitator);
+      facilitator.register("eip155:8453" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -385,7 +385,7 @@ describe("x402Facilitator", () => {
         new Error("Settlement failed: insufficient funds"),
       );
 
-      facilitator.registerScheme("eip155:8453" as Network, errorFacilitator);
+      facilitator.register("eip155:8453" as Network, errorFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -405,8 +405,8 @@ describe("x402Facilitator", () => {
       const v1Facilitator = new TestFacilitator("exact", { isValid: true, extra: "v1" });
       const v2Facilitator = new TestFacilitator("exact", { isValid: true, extra: "v2" });
 
-      facilitator.registerSchemeV1("eip155:8453" as Network, v1Facilitator);
-      facilitator.registerScheme("eip155:8453" as Network, v2Facilitator);
+      facilitator.registerV1("eip155:8453" as Network, v1Facilitator);
+      facilitator.register("eip155:8453" as Network, v2Facilitator);
 
       const v1Payload = buildPaymentPayload({ x402Version: 1 });
       const v2Payload = buildPaymentPayload({ x402Version: 2 });
@@ -429,8 +429,8 @@ describe("x402Facilitator", () => {
       const exactFacilitator = new TestFacilitator("exact", { isValid: true, extra: "exact" });
       const patternFacilitator = new TestFacilitator("exact", { isValid: true, extra: "pattern" });
 
-      facilitator.registerScheme("eip155:8453" as Network, exactFacilitator);
-      facilitator.registerScheme("eip155:*" as Network, patternFacilitator);
+      facilitator.register("eip155:8453" as Network, exactFacilitator);
+      facilitator.register("eip155:*" as Network, patternFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({

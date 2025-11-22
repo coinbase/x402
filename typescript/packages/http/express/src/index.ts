@@ -3,14 +3,14 @@ import {
   HTTPRequestContext,
   PaywallConfig,
   PaywallProvider,
-  x402HTTPResourceService,
-  x402ResourceService,
+  x402HTTPResourceServer,
+  x402ResourceServer,
   RoutesConfig,
   FacilitatorClient,
 } from "@x402/core/server";
-import { SchemeNetworkService, Network } from "@x402/core/types";
+import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
-import { bazaarResourceServiceExtension } from "@x402/extensions/bazaar";
+import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
 
 /**
  * Express adapter implementation
@@ -21,7 +21,7 @@ export class ExpressAdapter implements HTTPAdapter {
    *
    * @param req - The Express request object
    */
-  constructor(private req: Request) {}
+  constructor(private req: Request) { }
 
   /**
    * Gets a header value from the request.
@@ -122,50 +122,60 @@ export interface SchemeRegistration {
   /**
    * The scheme server implementation for this network
    */
-  server: SchemeNetworkService;
+  server: SchemeNetworkServer;
 }
 
 /**
- * Express payment middleware for x402 protocol
+ * Express payment middleware for x402 protocol (direct server instance).
+ *
+ * Use this when you want to pass a pre-configured x402ResourceServer instance.
+ * This provides more flexibility for testing, custom configuration, and reusing
+ * server instances across multiple middlewares.
  *
  * @param routes - Route configurations for protected endpoints
- * @param facilitatorClients - Optional facilitator client(s) for payment processing
- * @param schemes - Optional array of scheme registrations for server-side payment processing
+ * @param server - Pre-configured x402ResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup
+ * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
  * @returns Express middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { paymentMiddleware } from "@x402/express";
+ * import { x402ResourceServer } from "@x402/core/server";
+ * import { registerExactEvmScheme } from "@x402/evm/exact/server";
+ *
+ * const server = new x402ResourceServer(myFacilitatorClient);
+ * registerExactEvmScheme(server, { signer: myServerSigner });
+ *
+ * app.use(paymentMiddleware(routes, server, paywallConfig));
+ * ```
  */
 export function paymentMiddleware(
   routes: RoutesConfig,
-  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
-  schemes?: SchemeRegistration[],
+  server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   initializeOnStart: boolean = true,
 ) {
-  const resourceService = new x402ResourceService(facilitatorClients);
-
-  resourceService.registerExtension(bazaarResourceServiceExtension);
-
-  if (schemes) {
-    schemes.forEach(({ network, server: schemeServer }) => {
-      resourceService.registerScheme(network, schemeServer);
-    });
-  }
-  if (initializeOnStart) {
-    resourceService.initialize();
-  }
-
-  // Create the x402 HTTP server instance with the resource service
-  const server = new x402HTTPResourceService(resourceService, routes);
+  // Create the x402 HTTP server instance with the resource server
+  const httpServer = new x402HTTPResourceServer(server, routes);
 
   // Register custom paywall provider if provided
   if (paywall) {
-    server.registerPaywallProvider(paywall);
+    httpServer.registerPaywallProvider(paywall);
   }
 
+  // Store initialization promise (not the result)
+  let initPromise: Promise<void> | null = initializeOnStart ? server.initialize() : null;
+
   return async (req: Request, res: Response, next: NextFunction) => {
+    // Ensure initialization completes before processing
+    if (initPromise) {
+      await initPromise;
+      initPromise = null; // Clear after first await
+    }
+
     // Create adapter and context
     const adapter = new ExpressAdapter(req);
     const context: HTTPRequestContext = {
@@ -176,7 +186,7 @@ export function paymentMiddleware(
     };
 
     // Process payment requirement check
-    const result = await server.processHTTPRequest(context, paywallConfig);
+    const result = await httpServer.processHTTPRequest(context, paywallConfig);
 
     // Handle the different result types
     switch (result.type) {
@@ -230,7 +240,7 @@ export function paymentMiddleware(
         }
 
         try {
-          const settlementHeaders = await server.processSettlement(
+          const settlementHeaders = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
             res.statusCode,
@@ -264,12 +274,62 @@ export function paymentMiddleware(
   };
 }
 
+/**
+ * Express payment middleware for x402 protocol (configuration-based).
+ *
+ * Use this when you want to quickly set up middleware with simple configuration.
+ * This function creates and configures the x402ResourceServer internally.
+ *
+ * @param routes - Route configurations for protected endpoints
+ * @param facilitatorClients - Optional facilitator client(s) for payment processing
+ * @param schemes - Optional array of scheme registrations for server-side payment processing
+ * @param paywallConfig - Optional configuration for the built-in paywall UI
+ * @param paywall - Optional custom paywall provider (overrides default)
+ * @param initializeOnStart - Whether to initialize the server on startup
+ * @returns Express middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { paymentMiddlewareFromConfig } from "@x402/express";
+ *
+ * app.use(paymentMiddlewareFromConfig(
+ *   routes,
+ *   myFacilitatorClient,
+ *   [{ network: "eip155:8453", server: evmSchemeServer }],
+ *   paywallConfig
+ * ));
+ * ```
+ */
+export function paymentMiddlewareFromConfig(
+  routes: RoutesConfig,
+  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
+  schemes?: SchemeRegistration[],
+  paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
+  initializeOnStart: boolean = true,
+) {
+  const ResourceServer = new x402ResourceServer(facilitatorClients);
+
+  ResourceServer.registerExtension(bazaarResourceServerExtension);
+
+  if (schemes) {
+    schemes.forEach(({ network, server: schemeServer }) => {
+      ResourceServer.register(network, schemeServer);
+    });
+  }
+
+  // Use the direct paymentMiddleware with the configured server
+  return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, initializeOnStart);
+}
+
+export { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";
+
 export type {
   PaymentRequired,
   PaymentRequirements,
   PaymentPayload,
   Network,
-  SchemeNetworkService,
+  SchemeNetworkServer,
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig } from "@x402/core/server";
