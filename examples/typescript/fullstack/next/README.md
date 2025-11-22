@@ -63,6 +63,7 @@ export const middleware = paymentMiddleware(
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/protected/:path*"],
+  runtime: "nodejs",
 };
 ```
 
@@ -123,5 +124,6 @@ export const middleware = paymentMiddleware(
 
 export const config = {
   matcher: ["/protected/:path*", "/api/premium/:path*"],
+  runtime: "nodejs",
 };
 ```

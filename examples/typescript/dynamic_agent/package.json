@@ -20,9 +20,9 @@
     "hono": "^4.7.7",
     "llamaindex": "^0.10.2",
     "viem": "^2.28.3",
-    "x402": "^0.2.0",
-    "x402-axios": "^0.1.0",
-    "x402-hono": "^0.1.0",
+    "x402": "workspace:*",
+    "x402-axios": "workspace:*",
+    "x402-hono": "workspace:*",
     "zod": "^3.24.3"
   },
   "devDependencies": {

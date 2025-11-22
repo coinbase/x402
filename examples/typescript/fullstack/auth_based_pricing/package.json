@@ -23,16 +23,16 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "@coinbase/x402": "^0.3.3",
+    "@coinbase/x402": "workspace:*",
     "@hono/node-server": "^1.11.2",
     "dotenv": "^16.4.5",
     "hono": "^4.4.0",
     "node-fetch": "^3.3.2",
     "siwe": "^2.3.2",
     "viem": "^2.13.8",
-    "x402": "^0.3.2",
-    "x402-fetch": "^0.3.2",
-    "x402-hono": "^0.3.2"
+    "x402": "workspace:*",
+    "x402-fetch": "workspace:*",
+    "x402-hono": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",

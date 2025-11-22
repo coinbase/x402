@@ -295,7 +295,24 @@ export function paymentMiddleware(
       );
     }
 
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
+    let verification;
+    try {
+      verification = await verify(decodedPayment, selectedPaymentRequirements);
+    } catch (error) {
+      // TODO(v2): Preserve original HTTP status code from facilitator for semantic correctness
+      // - 400 for validation errors (invalid network, malformed request)
+      // - 402 for payment errors (insufficient funds, invalid signature)
+      // - 500 for server errors
+      // This is a minor breaking change, so defer to v2
+      return new NextResponse(
+        JSON.stringify({
+          x402Version,
+          error: error instanceof Error ? error.message : "Payment verification failed",
+          accepts: paymentRequirements,
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     if (!verification.isValid) {
       return new NextResponse(
