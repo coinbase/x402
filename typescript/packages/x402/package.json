@@ -56,6 +56,7 @@
     "@solana-program/token-2022": "^0.6.1",
     "@solana/kit": "^5.0.0",
     "@solana/transaction-confirmation": "^5.0.0",
+    "starknet": "^7.6.4",
     "@solana/wallet-standard-features": "^1.3.0",
     "@wallet-standard/app": "^1.1.0",
     "@wallet-standard/base": "^1.1.0",

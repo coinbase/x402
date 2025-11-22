@@ -7,6 +7,7 @@ import {
   SettleResponse,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
+  SupportedStarknetNetworks,
   createSigner,
 } from "x402/types";
 import { ALLOWED_NETWORKS } from "../config";
@@ -48,7 +49,9 @@ export async function POST(req: Request) {
     ? process.env.PRIVATE_KEY
     : SupportedSVMNetworks.includes(network)
       ? process.env.SOLANA_PRIVATE_KEY
-      : undefined;
+      : SupportedStarknetNetworks.includes(network)
+        ? process.env.STARKNET_PRIVATE_KEY
+        : undefined;
 
   if (!privateKey) {
     return Response.json(

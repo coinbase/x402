@@ -1,6 +1,10 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import {
+  SupportedEVMNetworks,
+  SupportedSVMNetworks,
+  SupportedStarknetNetworks,
+} from "../types/shared";
 import { X402Config } from "../types/config";
 import {
   ConnectedClient as EvmConnectedClient,
@@ -13,9 +17,13 @@ import {
   SettleResponse,
   VerifyResponse,
   ExactEvmPayload,
+  VerifyRequest,
+  SettleRequest,
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { TransactionSigner } from "@solana/kit";
+import { X402StarknetFacilitator } from "../shared/starknet/facilitator";
+import { StarknetSigner } from "../shared/starknet/wallet";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -57,6 +65,11 @@ export async function verify<
         config,
       );
     }
+
+    // starknet
+    if (SupportedStarknetNetworks.includes(paymentRequirements.network)) {
+      return await verifyExactStarknet(client as StarknetSigner, payload, paymentRequirements);
+    }
   }
 
   // unsupported scheme
@@ -79,7 +92,7 @@ export async function verify<
  * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
-export async function settle<transport extends Transport, chain extends Chain>(
+export async function settle(
   client: Signer,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
@@ -89,11 +102,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
   if (paymentRequirements.scheme === "exact") {
     // evm
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactEvm(
-        client as EvmSignerWallet<chain, transport>,
-        payload,
-        paymentRequirements,
-      );
+      return await settleExactEvm(client as EvmSignerWallet, payload, paymentRequirements);
     }
 
     // svm
@@ -104,6 +113,11 @@ export async function settle<transport extends Transport, chain extends Chain>(
         paymentRequirements,
         config,
       );
+    }
+
+    // starknet
+    if (SupportedStarknetNetworks.includes(paymentRequirements.network)) {
+      return await settleExactStarknet(client as StarknetSigner, payload, paymentRequirements);
     }
   }
 
@@ -116,6 +130,62 @@ export async function settle<transport extends Transport, chain extends Chain>(
       ? (payload.payload as ExactEvmPayload).authorization.from
       : "",
   };
+}
+
+/**
+ * Wrapper function to verify Starknet payments using X402StarknetFacilitator
+ *
+ * @param client - The Starknet signer
+ * @param payload - The payment payload
+ * @param paymentRequirements - The payment requirements
+ * @returns Promise resolving to verification response
+ */
+export async function verifyExactStarknet(
+  client: StarknetSigner,
+  payload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<VerifyResponse> {
+  // Create facilitator instance with the signer
+  const facilitator = new X402StarknetFacilitator(
+    paymentRequirements.network as "starknet" | "starknet-sepolia",
+    client,
+  );
+
+  // Create verify request
+  const verifyRequest: VerifyRequest = {
+    paymentPayload: payload,
+    paymentRequirements,
+  };
+
+  return await facilitator.verify(verifyRequest);
+}
+
+/**
+ * Wrapper function to settle Starknet payments using X402StarknetFacilitator
+ *
+ * @param client - The Starknet signer
+ * @param payload - The payment payload
+ * @param paymentRequirements - The payment requirements
+ * @returns Promise resolving to settlement response
+ */
+export async function settleExactStarknet(
+  client: StarknetSigner,
+  payload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<SettleResponse> {
+  // Create facilitator instance with the signer
+  const facilitator = new X402StarknetFacilitator(
+    paymentRequirements.network as "starknet" | "starknet-sepolia",
+    client,
+  );
+
+  // Create settle request
+  const settleRequest: SettleRequest = {
+    paymentPayload: payload,
+    paymentRequirements,
+  };
+
+  return await facilitator.settle(settleRequest);
 }
 
 export type Supported = {

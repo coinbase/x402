@@ -384,7 +384,7 @@ describe("paymentMiddleware()", () => {
     );
 
     await expect(middlewareUnsupported(mockContext, mockNext)).rejects.toThrow(
-      "Unsupported network: unsupported-network",
+      "Network unsupported-network does not have a numeric chain ID",
     );
   });
 
