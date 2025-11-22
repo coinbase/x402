@@ -30,8 +30,11 @@ async function main(): Promise<void> {
   const body = await response.json();
   console.log(body);
 
-  const paymentResponse = decodeXPaymentResponse(response.headers.get("x-payment-response")!);
-  console.log(paymentResponse);
+  const paymentResponseHeader = response.headers.get("x-payment-response");
+  if (paymentResponseHeader) {
+    const paymentResponse = decodeXPaymentResponse(paymentResponseHeader);
+    console.log(paymentResponse);
+  }
 }
 
 main().catch(error => {
