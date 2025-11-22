@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { base, baseSepolia, avalancheFuji, abstract } from "viem/chains";
-import { skaleBaseSepolia } from "../custom-chains";
+import { skaleBase, skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createConnectedClient, createSigner } from "./wallet";
 
@@ -89,6 +89,13 @@ describe("createConnectedClient", () => {
     const client = createConnectedClient("skale-base-sepolia");
 
     expect(client.chain).toEqual(skaleBaseSepolia);
+    expect(client.transport).toBe("mock-transport");
+  });
+
+  it("should create a public client for skale-base network", () => {
+    const client = createConnectedClient("skale-base");
+
+    expect(client.chain).toEqual(skaleBase);
     expect(client.transport).toBe("mock-transport");
   });
 
