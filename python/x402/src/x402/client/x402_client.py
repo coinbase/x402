@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 from x402.core import X402_VERSION
-from x402.core.types import Version
+from x402.core.types import Network, Version
 from x402.core.types.mechanisms import SchemeNetworkClient
 from x402.core.types.payments import (
     PaymentPayload,
@@ -31,7 +31,7 @@ PaymentPolicy = Callable[
 @dataclass
 class SchemeRegistration:
     # The network identifier (e.g., 'eip155:8453', 'solana:mainnet')
-    network: str
+    network: Network
 
     # The scheme client implementation for this network
     client: SchemeNetworkClient
@@ -160,11 +160,11 @@ class X402Client:
             client.register_policy(policy)
         return client
 
-    def register(self, network: str, client: SchemeNetworkClient) -> "X402Client":
+    def register(self, network: Network, client: SchemeNetworkClient) -> "X402Client":
         """Registers a scheme client for the current x402 version.
 
         Args:
-            network (`str`): The network to register the client for
+            network (`Network`): The network to register the client for
             client (`SchemeNetworkClient`): The scheme network client to register
 
         Returns:
@@ -172,11 +172,13 @@ class X402Client:
         """
         return self._register_scheme(X402_VERSION, network, client)
 
-    def register_V1(self, network: str, client: SchemeNetworkClient) -> "X402Client":
+    def register_V1(
+        self, network: Network, client: SchemeNetworkClient
+    ) -> "X402Client":
         """Registers a scheme client for x402 version 1.
 
         Args:
-            network (`str`): The network to register the client for
+            network (`Network`): The network to register the client for
             client (`SchemeNetworkClient`): The scheme network client to register
 
         Returns:
@@ -386,7 +388,7 @@ class X402Client:
         )
 
     def _get_client_by_network_and_scheme(
-        self, x402_version: Version, network: str, scheme: str
+        self, x402_version: Version, network: Network, scheme: str
     ) -> SchemeNetworkClient:
         """Internal method to get a single SchemeNetworkClient from the map"""
         assert type(scheme) is str
@@ -397,10 +399,10 @@ class X402Client:
 
     # TODO: Implement pattern matching for registered network patterns
     def _get_scheme_clients_map_by_network(
-        self, x402_version: Version, network: str
+        self, x402_version: Version, network: Network
     ) -> SchemeClientsMap:
         """Internal method to get SchemeClientsMap from x402_version and network"""
-        assert type(network) is str
+        assert type(network) is Network
         network_scheme_clients_map = self._get_network_scheme_clients_map_by_version(
             x402_version
         )
@@ -468,7 +470,7 @@ class X402Client:
         return payment_requirements
 
     def _register_scheme(
-        self, x402_version: Version, network: str, client: SchemeNetworkClient
+        self, x402_version: Version, network: Network, client: SchemeNetworkClient
     ) -> "X402Client":
         """Internal method to register a scheme client on the instance"""
         assert type(x402_version) is int

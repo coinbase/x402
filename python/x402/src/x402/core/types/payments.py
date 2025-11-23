@@ -2,7 +2,7 @@ from typing import Any, Optional
 
 from pydantic import Field, field_validator
 
-from x402.core.types import BaseCompoundType, Version
+from x402.core.types import BaseCompoundType, Network, Version
 
 Payload = dict[str, Any]
 
@@ -20,7 +20,7 @@ class ResourceInfo(BaseCompoundType):
 
 class PaymentRequirements(BaseCompoundType):
     scheme: str
-    network: str
+    network: Network
     asset: str
     amount: str
     pay_to: str
@@ -48,7 +48,7 @@ class PaymentRequired(BaseCompoundType):
 class PaymentPayloadV1(BaseCompoundType):
     x402_version: Version
     scheme: str
-    network: str
+    network: Network
     payload: Payload
 
 
