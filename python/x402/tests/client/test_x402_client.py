@@ -1,5 +1,5 @@
 from typing import Callable, Optional
-from unittest.mock import create_autospec
+from unittest.mock import AsyncMock, create_autospec
 
 import pytest
 
@@ -514,10 +514,10 @@ async def test_x402_client_respects_custom_selector(scheme_network_client):
 def test_x402_client_can_add_before_payment_creation_hooks():
     client = X402Client()
 
-    def hook1(_: PaymentCreationContext) -> Optional[AbortResult]:
+    async def hook1(_: PaymentCreationContext) -> Optional[AbortResult]:
         return None
 
-    def hook2(_: PaymentCreationContext) -> Optional[AbortResult]:
+    async def hook2(_: PaymentCreationContext) -> Optional[AbortResult]:
         return AbortResult(abort=True, reason="testing")
 
     client.on_before_payment_creation(hook1)
@@ -530,10 +530,10 @@ def test_x402_client_can_add_before_payment_creation_hooks():
 def test_x402_client_can_add_after_payment_creation_hooks():
     client = X402Client()
 
-    def hook1(_: PaymentCreatedContext) -> None:
+    async def hook1(_: PaymentCreatedContext) -> None:
         return None
 
-    def hook2(_: PaymentCreatedContext) -> None:
+    async def hook2(_: PaymentCreatedContext) -> None:
         return None
 
     client.on_after_payment_creation(hook1)
@@ -546,10 +546,10 @@ def test_x402_client_can_add_after_payment_creation_hooks():
 def test_x402_client_can_add_on_payment_creation_failure_hooks(payment_payload):
     client = X402Client()
 
-    def hook1(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
+    async def hook1(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
         return None
 
-    def hook2(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
+    async def hook2(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
         return RecoveredResult(recoverd=True, payload=payment_payload)
 
     client.on_after_payment_creation(hook1)
@@ -557,3 +557,77 @@ def test_x402_client_can_add_on_payment_creation_failure_hooks(payment_payload):
 
     assert isinstance(result, X402Client)
     assert client.after_payment_creation_hooks == [hook1, hook2]
+
+
+async def test_x402_client_calls_hooks(scheme_network_client, payment_required):
+    before_payment_hook_1 = AsyncMock(return_value=None)
+    before_payment_hook_2 = AsyncMock(return_value=None)
+    after_payment_hook_1 = AsyncMock(return_value=None)
+    after_payment_hook_2 = AsyncMock()
+    after_payment_hook_2.side_effect = Exception(
+        "after payment hook 2"
+    )  # Ensure that on payment failure hooks will be executed
+    on_payment_failure_hook_1 = AsyncMock(return_value=None)
+    on_payment_failure_hook_2 = AsyncMock(return_value=None)
+
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
+    client.on_before_payment_creation(before_payment_hook_1)
+    client.on_before_payment_creation(before_payment_hook_2)
+    client.on_after_payment_creation(after_payment_hook_1)
+    client.on_after_payment_creation(after_payment_hook_2)
+    client.on_payment_creation_failure(on_payment_failure_hook_1)
+    client.on_payment_creation_failure(on_payment_failure_hook_2)
+
+    with pytest.raises(Exception) as exc:
+        await client.create_payment_payload(payment_required)
+    assert "after payment hook 2" in str(exc.value)
+
+    # Ensure that the hooks were awaited once with the correct context types
+    before_payment_hook_1.assert_awaited_once()
+    assert isinstance(before_payment_hook_1.await_args[0][0], PaymentCreationContext)
+    before_payment_hook_2.assert_awaited_once()
+    assert isinstance(before_payment_hook_2.await_args[0][0], PaymentCreationContext)
+    after_payment_hook_1.assert_awaited_once()
+    assert isinstance(after_payment_hook_1.await_args[0][0], PaymentCreatedContext)
+    after_payment_hook_2.assert_awaited_once()
+    assert isinstance(after_payment_hook_2.await_args[0][0], PaymentCreatedContext)
+    on_payment_failure_hook_1.assert_awaited_once()
+    assert isinstance(
+        on_payment_failure_hook_1.await_args[0][0], PaymentCreationFailureContext
+    )
+    on_payment_failure_hook_2.assert_awaited_once()
+    assert isinstance(
+        on_payment_failure_hook_2.await_args[0][0], PaymentCreationFailureContext
+    )
+
+
+async def test_x402_client_before_payment_creation_hook_can_abort(
+    scheme_network_client, payment_required
+):
+    before_payment_hook = AsyncMock(
+        return_value=AbortResult(abort=True, reason="testing")
+    )
+
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
+    client.on_before_payment_creation(before_payment_hook)
+
+    with pytest.raises(Exception) as exc:
+        await client.create_payment_payload(payment_required)
+    assert "Payment creation aborted: testing" in str(exc.value)
+
+
+async def test_x402_client_on_payment_creation_failure_hook_can_recover(
+    scheme_network_client, payment_required, payment_payload
+):
+    after_payment_hook = AsyncMock()
+    after_payment_hook.side_effect = Exception()
+    on_payment_failure_hook = AsyncMock(
+        return_value=RecoveredResult(recovered=True, payload=payment_payload)
+    )
+
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
+    client.on_after_payment_creation(after_payment_hook)
+    client.on_payment_creation_failure(on_payment_failure_hook)
+
+    result = await client.create_payment_payload(payment_required)
+    assert result == payment_payload

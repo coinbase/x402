@@ -309,9 +309,10 @@ class X402Client:
                 selected_requirements=requirements,
                 error=error,
             )
-            recovered_payload = self._execute_on_payment_creation_failure_hooks(
+            recovered_payload = await self._execute_on_payment_creation_failure_hooks(
                 payment_creation_failure_context
             )
+
             if recovered_payload:
                 return recovered_payload
             raise error
