@@ -238,7 +238,7 @@ def test_x402_register_scheme_for_current_version(scheme_network_client, payload
     client = X402Client()
 
     # Asserts the scheme network client is being registered
-    result = client.register_scheme(TEST_NETWORK, scheme_network_client)
+    result = client.register(TEST_NETWORK, scheme_network_client)
     assert result is client
     assert (
         client.registered_client_schemes[X402_VERSION][TEST_NETWORK][TEST_SCHEME]
@@ -253,7 +253,7 @@ def test_x402_register_scheme_for_current_version(scheme_network_client, payload
         "x402_version": X402_VERSION,
         "payload": payload,
     }
-    client.register_scheme(TEST_NETWORK, another_mock_network_client)
+    client.register(TEST_NETWORK, another_mock_network_client)
     assert (
         client.registered_client_schemes[X402_VERSION][TEST_NETWORK][another_scheme]
         is another_mock_network_client
@@ -261,14 +261,14 @@ def test_x402_register_scheme_for_current_version(scheme_network_client, payload
 
     # Verify the same scheme can be on another network
     another_network = "another:network"
-    client.register_scheme(another_network, scheme_network_client)
+    client.register(another_network, scheme_network_client)
     assert (
         client.registered_client_schemes[X402_VERSION][another_network][TEST_SCHEME]
         is scheme_network_client
     )
 
     # Verify that can register scheme for V1
-    result = client.register_scheme_V1(TEST_NETWORK, scheme_network_client)
+    result = client.register_V1(TEST_NETWORK, scheme_network_client)
     assert result is client
     assert (
         client.registered_client_schemes[1][TEST_NETWORK][TEST_SCHEME]
@@ -291,7 +291,7 @@ async def test_x402_client_registers_policies_in_order(
 
     client = X402Client()
     result = (
-        client.register_scheme(TEST_NETWORK, scheme_network_client)
+        client.register(TEST_NETWORK, scheme_network_client)
         .register_policy(policy1)
         .register_policy(policy2)
     )
@@ -310,7 +310,7 @@ async def test_x402_client_create_payment_payload(
     payload,
     extension,
 ):
-    client = X402Client().register_scheme(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
 
     result: PaymentPayload = await client.create_payment_payload(payment_required)
 
@@ -340,7 +340,7 @@ async def test_x402_client_create_payment_payload_for_v1(
         "network": TEST_NETWORK,
         "payload": payload,
     }
-    client = X402Client().register_scheme_V1(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register_V1(TEST_NETWORK, scheme_network_client)
 
     result: PaymentPayloadV1 = await client.create_payment_payload(v1_payment_required)
 
@@ -368,7 +368,7 @@ async def test_x402_client_raises_error_when_no_scheme_network_client_is_registe
 async def test_x402_client_raises_error_when_no_matching_client_is_found(
     scheme_network_client, payment_required
 ):
-    client = X402Client().register_scheme("another:network", scheme_network_client)
+    client = X402Client().register("another:network", scheme_network_client)
     with pytest.raises(Exception) as exc:
         await client.create_payment_payload(payment_required)
     assert str(exc.value).startswith(
@@ -379,7 +379,7 @@ async def test_x402_client_raises_error_when_no_matching_client_is_found(
 async def test_x402_client_raises_error_when_payment_required_accepted_list_is_empty(
     scheme_network_client, empty_payment_required
 ):
-    client = X402Client().register_scheme(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
     with pytest.raises(Exception) as exc:
         await client.create_payment_payload(empty_payment_required)
     assert str(exc.value).startswith(
@@ -397,7 +397,7 @@ async def test_x402_client_filters_requirement_based_on_policy(
 
     client = (
         X402Client()
-        .register_scheme(TEST_NETWORK, scheme_network_client)
+        .register(TEST_NETWORK, scheme_network_client)
         .register_policy(limited_timeout_policy)
     )
 
@@ -421,7 +421,7 @@ async def test_x402_client_applies_multiple_policies_in_order(
 
     client = (
         X402Client()
-        .register_scheme(TEST_NETWORK, scheme_network_client)
+        .register(TEST_NETWORK, scheme_network_client)
         .register_policy(limited_timeout_policy)
         .register_policy(cheap_policy)
     )
@@ -440,7 +440,7 @@ async def test_x402_client_raises_error_when_all_requirements_are_filtered_out_b
     )
     client = (
         X402Client()
-        .register_scheme(TEST_NETWORK, scheme_network_client)
+        .register(TEST_NETWORK, scheme_network_client)
         .register_policy(very_cheap_policy)
     )
 
@@ -456,7 +456,7 @@ async def test_x402_client_only_selects_requirements_for_registered_schemes(
     scheme_network_client,
 ):
     # Only register "test-scheme"
-    client = X402Client().register_scheme(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
 
     req1 = build_payment_requirements(scheme="another-scheme")
     req2 = build_payment_requirements(scheme="test-scheme")
@@ -472,7 +472,7 @@ async def test_x402_client_raises_error_when_no_registered_scheme_matches_any_re
     scheme_network_client,
 ):
     # Only register "test-scheme"
-    client = X402Client().register_scheme(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
 
     req1 = build_payment_requirements(scheme="another-scheme")
     req2 = build_payment_requirements(network="another:network")
@@ -488,7 +488,7 @@ async def test_x402_client_raises_error_when_no_registered_scheme_matches_any_re
 async def test_x402_client_default_selector_chooses_first_requirements_available(
     scheme_network_client, payment_required, payment_requirements_1
 ):
-    client = X402Client().register_scheme(TEST_NETWORK, scheme_network_client)
+    client = X402Client().register(TEST_NETWORK, scheme_network_client)
 
     result = await client.create_payment_payload(payment_required)
     # Default selector chooses first
@@ -500,9 +500,7 @@ async def test_x402_client_respects_custom_selector(scheme_network_client):
     custom_selector = lambda version, reqs: sorted(
         reqs, key=lambda req: int(req.amount)
     )[0]
-    client = X402Client(custom_selector).register_scheme(
-        TEST_NETWORK, scheme_network_client
-    )
+    client = X402Client(custom_selector).register(TEST_NETWORK, scheme_network_client)
 
     req1 = build_payment_requirements(amount="3000")
     req2 = build_payment_requirements(amount="1000")

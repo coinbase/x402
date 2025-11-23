@@ -153,16 +153,14 @@ class X402Client:
         client = X402Client(config.payment_requirements_selector)
         for scheme in config.schemes:
             if scheme.x402_version == 1:
-                client.register_scheme_V1(scheme.network, scheme.client)
+                client.register_V1(scheme.network, scheme.client)
             else:
-                client.register_scheme(scheme.network, scheme.client)
+                client.register(scheme.network, scheme.client)
         for policy in config.policies:
             client.register_policy(policy)
         return client
 
-    def register_scheme(
-        self, network: str, client: SchemeNetworkClient
-    ) -> "X402Client":
+    def register(self, network: str, client: SchemeNetworkClient) -> "X402Client":
         """Registers a scheme client for the current x402 version.
 
         Args:
@@ -174,9 +172,7 @@ class X402Client:
         """
         return self._register_scheme(X402_VERSION, network, client)
 
-    def register_scheme_V1(
-        self, network: str, client: SchemeNetworkClient
-    ) -> "X402Client":
+    def register_V1(self, network: str, client: SchemeNetworkClient) -> "X402Client":
         """Registers a scheme client for x402 version 1.
 
         Args:
