@@ -1,0 +1,7 @@
+{
+  "name": "AI Agent Store",
+  "description": "Pay-per-answer micro-pay APIs on Base via x402 - understand demand, do not build product which will be hard to sell: POST /demand-insights (AI Agent Store visitor chat insights), POST /ai-early-adopters-goals (agentic AI early adopters 1-year goals dataset), POST /analytics/agent-conversions (AI products conversion analytics).",
+  "logoUrl": "/logos/aiagentstore.svg",
+  "websiteUrl": "https://aiagentstore.ai/developer",
+  "category": "Services/Endpoints"
+}
