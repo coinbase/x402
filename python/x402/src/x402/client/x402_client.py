@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 from x402.core import X402_VERSION
 from x402.core.types import Version
@@ -54,6 +54,62 @@ class X402ClientConfig:
     payment_requirements_selector: Optional[SelectPaymentRequirements] = None
 
 
+# Client Hook Context Dataclasses
+
+
+@dataclass
+class PaymentCreationContext:
+    payment_required: PaymentRequired
+    selected_requirements: PaymentRequirements
+
+
+@dataclass
+class PaymentCreatedContext(PaymentCreationContext):
+    payment_payload: PaymentPayload | PaymentPayloadV1
+
+
+@dataclass
+class PaymentCreationFailureContext(PaymentCreationContext):
+    error: Exception
+
+
+# Client Hook Result Dataclasses
+
+
+@dataclass
+class AbortResult:
+    abort: bool
+    reason: str
+
+
+@dataclass
+class RecoveredResult:
+    recovered: bool
+    payload: PaymentPayload | PaymentPayloadV1
+
+
+# Client Hook Type Definitions
+
+
+@runtime_checkable
+class BeforePaymentCreationHook(Protocol):
+    async def __call__(
+        self, context: PaymentCreationContext
+    ) -> Optional[AbortResult]: ...
+
+
+@runtime_checkable
+class AfterPaymentCreationHook(Protocol):
+    async def __call__(self, context: PaymentCreatedContext) -> None: ...
+
+
+@runtime_checkable
+class OnPaymentCreationFailureHook(Protocol):
+    async def __call__(
+        self, context: PaymentCreationFailureContext
+    ) -> Optional[RecoveredResult]: ...
+
+
 class X402Client:
     """Core client for managing x402 payment schemes and creating payment payloads.
 
@@ -70,15 +126,19 @@ class X402Client:
     ):
         """Instantiates a new X402Client
 
+        Set the payment requirement selector from input or uses the default one
         Set an empty dictionary as the client scheme map
         Set an empty list of payment policies
-        Set the payment requirement selector from input or uses the default one
+        Set lists of hook functions
         """
-        self.registered_client_schemes: dict[Version, NetworkSchemeClientsMap] = {}
-        self.policies: list[PaymentPolicy] = []
         self.payment_requirements_selector = payment_requirements_selector or (
             lambda _, accepts: accepts[0]
         )
+        self.registered_client_schemes: dict[Version, NetworkSchemeClientsMap] = {}
+        self.policies: list[PaymentPolicy] = []
+        self.before_payment_creation_hooks: list[BeforePaymentCreationHook] = []
+        self.after_payment_creation_hooks: list[AfterPaymentCreationHook] = []
+        self.on_payment_creation_failure_hooks: list[OnPaymentCreationFailureHook] = []
 
     @classmethod
     def from_config(cls, config: X402ClientConfig) -> "X402Client":
@@ -154,6 +214,50 @@ class X402Client:
         self.policies.append(policy)
         return self
 
+    def on_before_payment_creation(
+        self, hook: BeforePaymentCreationHook
+    ) -> "X402Client":
+        """Register a hook to execute before payment payload creation.
+        Can abort creation by returning AbortResult(abort=True, reason="string")
+
+        Args:
+            hook (`BeforePaymentCreationHook`): The hook function to register
+
+        Returns:
+            `X402Client`: The X402Client instance for chaining
+        """
+        self.before_payment_creation_hooks.append(hook)
+        return self
+
+    def on_after_payment_creation(self, hook: AfterPaymentCreationHook) -> "X402Client":
+        """Register a hook to execute after successful payment payload creation.
+
+        Args:
+            hook (`AfterPaymentCreationHook`): The hook function to register
+
+        Returns:
+            `X402Client`: The X402Client instance for chaining
+        """
+        assert isinstance(hook, AfterPaymentCreationHook)
+        self.after_payment_creation_hooks.append(hook)
+        return self
+
+    def on_payment_creation_failure(
+        self, hook: OnPaymentCreationFailureHook
+    ) -> "X402Client":
+        """Register a hook to execute when payment payload creation fails.
+        Can recover from failure by returning RecoveredResult(recovered=True, payload=PaymentPayload(...))
+
+        Args:
+            hook (`OnPaymentCreationFailureHook`): The hook function to register
+
+        Returns:
+            `X402Client`: The X402Client instance for chaining
+        """
+        assert isinstance(hook, OnPaymentCreationFailureHook)
+        self.on_payment_creation_failure_hooks.append(hook)
+        return self
+
     async def create_payment_payload(
         self, payment_required: PaymentRequired
     ) -> PaymentPayload | PaymentPayloadV1:
@@ -173,23 +277,46 @@ class X402Client:
         requirements = self.select_payment_requirements(
             payment_required.x402_version, payment_required.accepts
         )
+
+        payment_creation_context = PaymentCreationContext(
+            payment_required=payment_required, selected_requirements=requirements
+        )
+        await self._execute_before_payment_creation_hooks(payment_creation_context)
+
         scheme_network_client = self._get_client_by_network_and_scheme(
             payment_required.x402_version, requirements.network, requirements.scheme
         )
-        payment_payload = await scheme_network_client.create_payment_payload(
-            payment_required.x402_version, requirements
-        )
 
-        if payment_payload.get("x402_version") == 1:
-            return PaymentPayloadV1(**payment_payload)
+        try:
+            raw_payment_payload = await scheme_network_client.create_payment_payload(
+                payment_required.x402_version, requirements
+            )
+            payment_payload = self._parse_payment_payload(
+                raw_payment_payload,
+                requirements,
+                payment_required,
+            )
 
-        return PaymentPayload(
-            x402_version=payment_payload.get("x402_version"),
-            payload=payment_payload.get("payload"),
-            accepted=requirements,
-            resource=payment_required.resource,
-            extensions=payment_required.extensions,
-        )
+            payment_created_context = PaymentCreatedContext(
+                payment_required=payment_required,
+                selected_requirements=requirements,
+                payment_payload=payment_payload,
+            )
+            await self._execute_after_payment_creation_hooks(payment_created_context)
+
+            return payment_payload
+        except Exception as error:
+            payment_creation_failure_context = PaymentCreationFailureContext(
+                payment_required=payment_required,
+                selected_requirements=requirements,
+                error=error,
+            )
+            recovered_payload = self._execute_on_payment_creation_failure_hooks(
+                payment_creation_failure_context
+            )
+            if recovered_payload:
+                return recovered_payload
+            raise error
 
     def select_payment_requirements(
         self, x402_version: Version, payment_requirements: list[PaymentRequirements]
@@ -292,6 +419,45 @@ class X402Client:
         if not network_scheme_clients_map:
             raise Exception(f"No client registered for x402 version: {x402_version}")
         return network_scheme_clients_map
+
+    def _parse_payment_payload(
+        self,
+        payload: dict[str, Any],
+        requirements: PaymentRequirements,
+        payment_required: PaymentRequired,
+    ) -> PaymentPayload | PaymentPayloadV1:
+        if payload.get("x402_version") == 1:
+            return PaymentPayloadV1(**payload)
+
+        return PaymentPayload(
+            x402_version=payload.get("x402_version"),
+            payload=payload.get("payload"),
+            accepted=requirements,
+            resource=payment_required.resource,
+            extensions=payment_required.extensions,
+        )
+
+    async def _execute_before_payment_creation_hooks(
+        self, context: PaymentCreationContext
+    ):
+        for hook in self.before_payment_creation_hooks:
+            result: Optional[AbortResult] = await hook(context)
+            if result and result.abort:
+                raise Exception(f"Payment creation aborted: {result.reason}")
+
+    async def _execute_after_payment_creation_hooks(
+        self, context: PaymentCreatedContext
+    ):
+        for hook in self.after_payment_creation_hooks:
+            await hook(context)
+
+    async def _execute_on_payment_creation_failure_hooks(
+        self, context: PaymentCreationFailureContext
+    ) -> Optional[PaymentPayload | PaymentPayloadV1]:
+        for hook in self.on_payment_creation_failure_hooks:
+            result: Optional[RecoveredResult] = await hook(context)
+            if result and result.recovered:
+                return result.payload
 
     def _apply_policies(
         self, x402_version: Version, payment_requirements: list[PaymentRequirements]

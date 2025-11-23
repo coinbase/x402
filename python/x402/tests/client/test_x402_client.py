@@ -1,11 +1,19 @@
-from typing import Any, Callable
-from unittest.mock import AsyncMock, create_autospec
+from typing import Callable, Optional
+from unittest.mock import create_autospec
 
 import pytest
 
-from x402.client.x402_client import SchemeRegistration, X402Client, X402ClientConfig
+from x402.client.x402_client import (
+    AbortResult,
+    PaymentCreatedContext,
+    PaymentCreationContext,
+    PaymentCreationFailureContext,
+    RecoveredResult,
+    SchemeRegistration,
+    X402Client,
+    X402ClientConfig,
+)
 from x402.core import X402_VERSION
-from x402.core.types import Version
 from x402.core.types.mechanisms import SchemeNetworkClient
 from x402.core.types.payments import (
     Extension,
@@ -37,7 +45,7 @@ def build_payment_requirements(
     )
 
 
-def build_resource_info():
+def build_resource_info() -> ResourceInfo:
     return ResourceInfo(
         url="https://example.com/api/locked",
         description="Pay to access this resource.",
@@ -45,7 +53,9 @@ def build_resource_info():
     )
 
 
-def build_payment_required(x402_version=X402_VERSION, accepts=[], extensions=None):
+def build_payment_required(
+    x402_version=X402_VERSION, accepts=[], extensions=None
+) -> PaymentRequired:
     return PaymentRequired(
         x402_version=x402_version,
         resource=build_resource_info(),
@@ -54,8 +64,7 @@ def build_payment_required(x402_version=X402_VERSION, accepts=[], extensions=Non
     )
 
 
-@pytest.fixture
-def payload():
+def build_payload() -> dict:
     return {
         "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
         "authorization": {
@@ -67,6 +76,20 @@ def payload():
             "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
         },
     }
+
+
+def build_payment_payload(x402_version=X402_VERSION) -> PaymentPayload:
+    return PaymentPayload(
+        x402_version=x402_version,
+        resource=build_resource_info(),
+        accepted=build_payment_requirements(),
+        payload=build_payload(),
+    )
+
+
+@pytest.fixture
+def payload():
+    return build_payload()
 
 
 @pytest.fixture
@@ -134,6 +157,11 @@ def v1_payment_required(payment_requirements_1, payment_requirements_2, extensio
 @pytest.fixture
 def empty_payment_required(resource_info):
     return build_payment_required(accepts=[])
+
+
+@pytest.fixture
+def payment_payload():
+    return build_payment_payload()
 
 
 def test_x402_default_client_creation(payment_requirements_1, payment_requirements_2):
@@ -483,3 +511,51 @@ async def test_x402_client_respects_custom_selector(scheme_network_client):
 
     result = await client.create_payment_payload(payment_required)
     assert result.accepted == req2
+
+
+def test_x402_client_can_add_before_payment_creation_hooks():
+    client = X402Client()
+
+    def hook1(_: PaymentCreationContext) -> Optional[AbortResult]:
+        return None
+
+    def hook2(_: PaymentCreationContext) -> Optional[AbortResult]:
+        return AbortResult(abort=True, reason="testing")
+
+    client.on_before_payment_creation(hook1)
+    result = client.on_before_payment_creation(hook2)
+
+    assert isinstance(result, X402Client)
+    assert client.before_payment_creation_hooks == [hook1, hook2]
+
+
+def test_x402_client_can_add_after_payment_creation_hooks():
+    client = X402Client()
+
+    def hook1(_: PaymentCreatedContext) -> None:
+        return None
+
+    def hook2(_: PaymentCreatedContext) -> None:
+        return None
+
+    client.on_after_payment_creation(hook1)
+    result = client.on_after_payment_creation(hook2)
+
+    assert isinstance(result, X402Client)
+    assert client.after_payment_creation_hooks == [hook1, hook2]
+
+
+def test_x402_client_can_add_on_payment_creation_failure_hooks(payment_payload):
+    client = X402Client()
+
+    def hook1(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
+        return None
+
+    def hook2(_: PaymentCreationFailureContext) -> Optional[RecoveredResult]:
+        return RecoveredResult(recoverd=True, payload=payment_payload)
+
+    client.on_after_payment_creation(hook1)
+    result = client.on_after_payment_creation(hook2)
+
+    assert isinstance(result, X402Client)
+    assert client.after_payment_creation_hooks == [hook1, hook2]
