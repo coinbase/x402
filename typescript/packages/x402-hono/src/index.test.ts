@@ -857,6 +857,56 @@ describe("paymentMiddleware()", () => {
     expect(mockNext).toHaveBeenCalled();
   });
 
+  it("should expose payer information in context after successful verification", async () => {
+    const payerAddress = "0xPayerAddress123456789012345678901234567890";
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    // Mock verification to return valid with a payer address
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({
+      isValid: true,
+      payer: payerAddress,
+    });
+
+    // Add a set method mock to the context
+    const setSpy = vi.fn();
+    mockContext.set = setSpy;
+
+    await middleware(mockContext, mockNext);
+
+    // Verify that c.set was called with the payer information
+    expect(setSpy).toHaveBeenCalledWith("x402.payer", payerAddress);
+    expect(mockNext).toHaveBeenCalled();
+  });
+
   it("should return 402 if payment verification fails", async () => {
     const invalidPayment = "invalid-payment-header";
     (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
