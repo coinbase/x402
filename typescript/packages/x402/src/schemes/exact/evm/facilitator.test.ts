@@ -72,68 +72,41 @@ describe("facilitator - smart wallet deployment check", () => {
     vi.clearAllMocks();
   });
 
-  describe("smart wallet detection (signature length > 130)", () => {
-    it("should reject undeployed smart wallet when bytecode is 0x", async () => {
+  describe("ERC-6492 signature support", () => {
+    it("should accept undeployed smart wallet with ERC-6492 signature", async () => {
       const client = createMockClient("0x");
       const payload = createMockPayload({ signatureLength: 200 });
 
       const result = await verify(client, payload, mockPaymentRequirements);
 
-      expect(result).toEqual({
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-        payer: (payload.payload as ExactEvmPayload).authorization.from,
-      });
+      expect(result.isValid).toBe(true);
     });
 
-    it("should reject undeployed smart wallet when bytecode is undefined", async () => {
-      const client = createMockClient(undefined);
-      const payload = createMockPayload({ signatureLength: 200 });
-
-      const result = await verify(client, payload, mockPaymentRequirements);
-
-      expect(result).toEqual({
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-        payer: (payload.payload as ExactEvmPayload).authorization.from,
-      });
-    });
-
-    it("should allow payment from EOA with standard signature length", async () => {
+    it("should accept EOA with standard signature", async () => {
       const client = createMockClient("0x");
       const payload = createMockPayload({ signatureLength: 130 });
 
       const result = await verify(client, payload, mockPaymentRequirements);
 
-      expect(result.invalidReason).not.toBe("invalid_exact_evm_payload_undeployed_smart_wallet");
+      expect(result.isValid).toBe(true);
     });
 
-    it("should allow payment from deployed smart wallet", async () => {
+    it("should accept deployed smart wallet", async () => {
       const client = createMockClient("0x608060405234801561001057600080fd5b50");
       const payload = createMockPayload({ signatureLength: 256 });
 
       const result = await verify(client, payload, mockPaymentRequirements);
 
-      expect(result.invalidReason).not.toBe("invalid_exact_evm_payload_undeployed_smart_wallet");
+      expect(result.isValid).toBe(true);
     });
 
-    it("should NOT check bytecode for EOA signatures", async () => {
+    it("should NOT check bytecode", async () => {
       const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 130 });
+      const payload = createMockPayload({ signatureLength: 200 });
 
       await verify(client, payload, mockPaymentRequirements);
 
       expect(client.getCode).not.toHaveBeenCalled();
-    });
-
-    it("should check bytecode for smart wallet signatures", async () => {
-      const payerAddress = "0x9999999999999999999999999999999999999999" as Address;
-      const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 200, from: payerAddress });
-
-      await verify(client, payload, mockPaymentRequirements);
-
-      expect(client.getCode).toHaveBeenCalledWith({ address: payerAddress });
     });
   });
 });
