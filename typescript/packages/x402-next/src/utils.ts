@@ -344,13 +344,17 @@ export async function settlePayment(
           }),
         ),
       );
+      return response;
+    } else {
+      throw new Error(settlement.errorReason);
     }
-    return response;
   } catch (error) {
     return new NextResponse(
       JSON.stringify({
         x402Version,
-        error: errorMessages?.settlementFailed || error,
+        error:
+          errorMessages?.settlementFailed ||
+          (error instanceof Error ? error.message : "Failed to settle payment"),
         accepts: paymentRequirements,
       }),
       { status: 402, headers: { "Content-Type": "application/json" } },
