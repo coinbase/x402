@@ -58,17 +58,15 @@ class TestCreateX402Config:
             scheme="exact",
             network="base-sepolia",
             max_amount_required="1000000",  # 1 USDC in atomic units
-            resource="https://example.com/api/data",
-            description="API data access",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
 
         error = "Payment required"
 
-        config = create_x402_config(error, [payment_req])
+    config = create_x402_config(error, [payment_req], None, resource="https://example.com/api/data")
 
         assert config["amount"] == 1.0  # 1 USDC
         assert config["testnet"] is True
@@ -82,15 +80,12 @@ class TestCreateX402Config:
             scheme="exact",
             network="base",  # Mainnet
             max_amount_required="500000",  # 0.5 USDC
-            resource="https://example.com/api/data",
-            description="API data access",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
-
-        config = create_x402_config("Payment required", [payment_req])
+        config = create_x402_config("Payment required", [payment_req], None, resource="https://example.com/api/data")
 
         assert config["testnet"] is False
         assert config["amount"] == 0.5
@@ -100,12 +95,10 @@ class TestCreateX402Config:
             scheme="exact",
             network="base-sepolia",
             max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
 
         paywall_config = PaywallConfig(
@@ -115,7 +108,7 @@ class TestCreateX402Config:
             session_token_endpoint="https://example.com/token",
         )
 
-        config = create_x402_config("Payment required", [payment_req], paywall_config)
+    config = create_x402_config("Payment required", [payment_req], paywall_config, resource="https://example.com")
 
         assert config["cdpClientKey"] == "test-key"
         assert config["appName"] == "Test App"
@@ -150,15 +143,13 @@ class TestInjectPaymentData:
             scheme="exact",
             network="base-sepolia",
             max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
 
-        result = inject_payment_data(html_content, "Payment required", [payment_req])
+        result = inject_payment_data(html_content, "Payment required", [payment_req], resource="https://example.com")
 
         assert "window.x402 = " in result
         assert "console.log('Payment requirements initialized" in result
@@ -181,15 +172,13 @@ class TestInjectPaymentData:
             scheme="exact",
             network="base",  # Mainnet
             max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
 
-        result = inject_payment_data(html_content, "Payment required", [payment_req])
+        result = inject_payment_data(html_content, "Payment required", [payment_req], resource="https://example.com")
 
         assert "window.x402 = " in result
         assert "console.log('Payment requirements initialized" not in result
@@ -211,15 +200,13 @@ class TestInjectPaymentData:
             scheme="exact",
             network="base-sepolia",
             max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x123",
-            max_timeout_seconds=60,
             asset="0xUSDC",
+            extra=None,
         )
 
-        result = inject_payment_data(html_content, "Payment required", [payment_req])
+        result = inject_payment_data(html_content, "Payment required", [payment_req], resource="https://example.com")
 
         # Check that HTML structure is preserved
         assert "<!DOCTYPE html>" in result
@@ -240,12 +227,10 @@ class TestGetPaywallHtml:
             scheme="exact",
             network="base-sepolia",
             max_amount_required="2000000",  # 2 USDC
-            resource="https://example.com/api/premium",
-            description="Premium API access",
-            mime_type="application/json",
+            output_schema=None,
             pay_to="0x456",
-            max_timeout_seconds=120,
             asset="0xUSDC",
+            extra=None,
         )
 
         paywall_config = PaywallConfig(
@@ -253,7 +238,7 @@ class TestGetPaywallHtml:
             app_logo="https://example.com/logo.png",
         )
 
-        result = get_paywall_html("Payment required", [payment_req], paywall_config)
+    result = get_paywall_html("Payment required", [payment_req], paywall_config, resource="https://example.com/api/premium")
 
         assert isinstance(result, str)
         assert "window.x402 = " in result
