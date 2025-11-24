@@ -10,7 +10,9 @@ pnpm install x402-next
 
 ## Quick Start
 
-Create a middleware file in your Next.js project (e.g., `middleware.ts`):
+### Protecting Page Routes
+
+Page routes are protected using the x402-next middleware. Create a middleware file in your Next.js project (e.g., `middleware.ts`):
 
 ```typescript
 import { paymentMiddleware, Network } from 'x402-next';
@@ -35,14 +37,50 @@ export const config = {
 };
 ```
 
+### Protecting API Routes
+
+API routes are protected using the `withX402` route wrapper. This is the recommended approach to protect API routes as it guarantees payment settlement only AFTER successful API responses (status < 400). API routes can also be protected by `paymentMiddleware`, however this will charge clients for failed API responses:
+
+```typescript
+// app/api/your-endpoint/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "x402-next";
+
+const handler = async (_: NextRequest) => {
+  return NextResponse.json({ data: "your response" });
+};
+
+export const GET = withX402(
+  handler,
+  "0xYourAddress",
+  {
+    price: "$0.01",
+    network: "base-sepolia",
+    config: { description: "Access to API endpoint" }
+  }
+);
+```
+
 ## Configuration
 
-The `paymentMiddleware` function accepts three parameters:
+### paymentMiddleware
+
+The `paymentMiddleware` function is used to protect page routes. It can also protect API routes, however this will charge clients for failed API responses. It accepts four parameters:
 
 1. `payTo`: Your receiving address (`0x${string}`)
 2. `routes`: Route configurations for protected endpoints
 3. `facilitator`: (Optional) Configuration for the x402 facilitator service
 4. `paywall`: (Optional) Configuration for the built-in paywall
+
+### withX402
+
+The `withX402` function wraps API route handlers. This is the recommended approach to protect API routes as it guarantees payment settlement only AFTER successful API responses (status < 400). It accepts five parameters:
+
+1. `handler`: Your API route handler function
+2. `payTo`: Your receiving address (`0x${string}`)
+3. `routeConfig`: Payment configuration for this specific route
+4. `facilitator`: (Optional) Configuration for the x402 facilitator service
+5. `paywall`: (Optional) Configuration for the built-in paywall
 
 See the Middleware Options section below for detailed configuration options.
 
