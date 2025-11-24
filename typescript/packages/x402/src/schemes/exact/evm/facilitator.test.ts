@@ -21,7 +21,18 @@ vi.mock("viem", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    parseErc6492Signature: vi.fn((sig: string) => ({ signature: sig })),
+    parseErc6492Signature: vi.fn((sig: string) => {
+      // Mock EIP-6492 detection: if signature contains "EIP6492" marker, return deployment info
+      if (sig.includes("EIP6492")) {
+        return {
+          signature: sig,
+          address: "0xFactoryAddress000000000000000000000000",
+          data: "0xfactoryCa11data",
+        };
+      }
+      // Non-EIP-6492: just return signature
+      return { signature: sig };
+    }),
     parseSignature: vi.fn(() => ({
       r: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
       s: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
@@ -48,19 +59,26 @@ describe("facilitator - smart wallet deployment check", () => {
     options: {
       signatureLength?: number;
       from?: Address;
+      isEip6492?: boolean;
     } = {},
   ): PaymentPayload => {
     const {
       signatureLength = 130,
       from = "0xabcdef1234567890123456789012345678901234" as Address,
+      isEip6492 = false,
     } = options;
 
     // Create a valid signature format: 65 bytes for standard EOA (r=32, s=32, v=1)
     // For longer signatures (smart wallets), just pad with zeros
     const baseSignature =
       "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b";
-    const signature =
+    let signature =
       signatureLength > 130 ? baseSignature + "0".repeat(signatureLength - 130) : baseSignature;
+
+    // Add EIP6492 marker if requested (for mock detection)
+    if (isEip6492) {
+      signature = signature + "EIP6492";
+    }
 
     return {
       x402Version: 1,
@@ -103,10 +121,11 @@ describe("facilitator - smart wallet deployment check", () => {
     vi.clearAllMocks();
   });
 
-  describe("verify - accepts EIP-6492 signatures from undeployed wallets", () => {
-    it("should accept undeployed smart wallet signatures (EIP-6492)", async () => {
+  describe("verify - smart wallet deployment checks", () => {
+    it("should accept undeployed smart wallet with EIP-6492 deployment info", async () => {
       const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 200 });
+      // Create EIP-6492 wrapped signature (has factory address + calldata)
+      const payload = createMockPayload({ signatureLength: 200, isEip6492: true });
 
       const result = await verify(client, payload, mockPaymentRequirements);
 
@@ -114,9 +133,33 @@ describe("facilitator - smart wallet deployment check", () => {
       expect(result.invalidReason).toBeUndefined();
     });
 
-    it("should NOT check bytecode during verification", async () => {
+    it("should reject undeployed smart wallet without EIP-6492 deployment info", async () => {
       const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 200 });
+      // Regular smart wallet signature (no deployment info)
+      const payload = createMockPayload({ signatureLength: 200, isEip6492: false });
+
+      const result = await verify(client, payload, mockPaymentRequirements);
+
+      expect(result).toEqual({
+        isValid: false,
+        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: (payload.payload as ExactEvmPayload).authorization.from,
+      });
+    });
+
+    it("should check bytecode for undeployed smart wallets", async () => {
+      const payerAddress = "0x9999999999999999999999999999999999999999" as Address;
+      const client = createMockClient("0x");
+      const payload = createMockPayload({ signatureLength: 200, from: payerAddress });
+
+      await verify(client, payload, mockPaymentRequirements);
+
+      expect(client.getCode).toHaveBeenCalledWith({ address: payerAddress });
+    });
+
+    it("should NOT check bytecode for EOA signatures", async () => {
+      const client = createMockClient("0x");
+      const payload = createMockPayload({ signatureLength: 130 });
 
       await verify(client, payload, mockPaymentRequirements);
 
