@@ -86,15 +86,7 @@ The example uses `eip155:84532` (Base Sepolia testnet). You can configure differ
 
 ### Middleware Configuration
 
-```go
-r.Use(ginmw.X402Payment(ginmw.Config{
-    Routes:      routes,           // Payment requirements per route
-    Facilitator: facilitatorClient,// Client for payment verification
-    Schemes:     schemes,          // Supported payment schemes
-    Initialize:  true,             // Initialize on startup
-    Timeout:     30 * time.Second, // Payment verification timeout
-}))
-```
+The middleware is configured with routes, schemes, and a facilitator client. See `main.go` for the complete setup.
 
 ## Next Steps
 
@@ -105,6 +97,5 @@ r.Use(ginmw.X402Payment(ginmw.Config{
 ## Related Resources
 
 - [Gin Documentation](https://gin-gonic.com/docs/)
-- [x402 Protocol Specification](../../../../specs/)
 - [x402 Go Package Documentation](../../../../go/)
 

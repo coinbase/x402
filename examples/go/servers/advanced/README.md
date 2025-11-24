@@ -114,72 +114,23 @@ go run custom-money-definition.go
 
 ### Dynamic Configuration
 
-Both `dynamic-pay-to.go` and `dynamic-price.go` demonstrate how to use functions instead of static values:
-
-```go
-// Static
-RouteConfig{
-    PayTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-    Price: "$0.001",
-}
-
-// Dynamic
-RouteConfig{
-    PayTo: func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
-        // Custom logic here
-        return address, nil
-    },
-    Price: func(ctx context.Context, reqCtx HTTPRequestContext) (Price, error) {
-        // Custom logic here
-        return price, nil
-    },
-}
-```
+Both `dynamic-pay-to.go` and `dynamic-price.go` demonstrate using functions for runtime resolution. Instead of static values, you can provide functions that calculate the recipient address or price based on the request context.
 
 ### Custom Money Parsers
 
-The `custom-money-definition.go` example shows how to register parsers in a chain:
-
-```go
-evmScheme := evm.NewExactEvmScheme().RegisterMoneyParser(
-    func(amount float64, network Network) (*AssetAmount, error) {
-        if /* custom condition */ {
-            return &AssetAmount{
-                Amount: "...",
-                Asset: "0x...",
-                Extra: map[string]interface{}{"token": "CUSTOM"},
-            }, nil
-        }
-        return nil, nil // Pass to next parser
-    },
-)
-```
+The `custom-money-definition.go` example shows how to register custom token parsers. Parsers are tried in order until one returns a result, allowing you to support multiple tokens.
 
 ### Lifecycle Hooks
 
-The `hooks.go` example demonstrates all available hooks:
+The `hooks.go` example demonstrates all six lifecycle hooks:
+- `OnBeforeVerify`: Run before verification (can abort)
+- `OnAfterVerify`: Run after successful verification
+- `OnVerifyFailure`: Run when verification fails (can recover)
+- `OnBeforeSettle`: Run before settlement (can abort)
+- `OnAfterSettle`: Run after successful settlement  
+- `OnSettleFailure`: Run when settlement fails (can recover)
 
-```go
-resourceServer.
-    OnBeforeVerify(func(ctx VerifyContext) (*BeforeHookResult, error) {
-        // Run before verification, can abort
-    }).
-    OnAfterVerify(func(ctx VerifyResultContext) error {
-        // Run after successful verification
-    }).
-    OnVerifyFailure(func(ctx VerifyFailureContext) (*VerifyFailureHookResult, error) {
-        // Run when verification fails, can recover
-    }).
-    OnBeforeSettle(func(ctx SettleContext) (*BeforeHookResult, error) {
-        // Run before settlement, can abort
-    }).
-    OnAfterSettle(func(ctx SettleResultContext) error {
-        // Run after successful settlement
-    }).
-    OnSettleFailure(func(ctx SettleFailureContext) (*SettleFailureHookResult, error) {
-        // Run when settlement fails, can recover
-    })
-```
+See `hooks.go` for complete hook implementations including structured error extraction from `*x402.VerifyError` and `*x402.SettleError`.
 
 ## Next Steps
 
@@ -189,7 +140,6 @@ resourceServer.
 
 ## Related Resources
 
-- [x402 Protocol Specification](../../../../specs/)
 - [Go Package Documentation](../../../../go/)
-- [TypeScript Examples](../../../typescript/servers/) (for comparison)
+- [TypeScript Examples](../../../typescript/servers/)
 

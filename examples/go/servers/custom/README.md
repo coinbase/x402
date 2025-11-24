@@ -23,58 +23,13 @@ You should implement custom middleware when you need to:
 
 The custom middleware demonstrates these key components:
 
-### 1. HTTP Adapter (`CustomGinAdapter`)
+### Key Components
 
-Translates framework-specific HTTP operations to the x402 HTTP interface:
+1. **HTTP Adapter**: Translates Gin-specific HTTP operations to the x402 HTTP interface
+2. **Response Capture**: Captures the response before sending to client for settlement processing
+3. **Middleware Logic**: Processes payment verification and settlement
 
-```go
-type CustomGinAdapter struct {
-    ctx *gin.Context
-}
-
-func (a *CustomGinAdapter) GetHeader(name string) string {
-    return a.ctx.GetHeader(name)
-}
-// ... other methods
-```
-
-### 2. Response Capture (`ResponseCapture`)
-
-Captures the response before sending to client, allowing settlement processing:
-
-```go
-type ResponseCapture struct {
-    gin.ResponseWriter
-    body       *bytes.Buffer
-    statusCode int
-}
-```
-
-### 3. Middleware Logic (`customPaymentMiddleware`)
-
-The core payment processing logic:
-
-```go
-func customPaymentMiddleware(server *x402http.HTTPServer, timeout time.Duration) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        // 1. Create adapter and context
-        adapter := NewCustomGinAdapter(c)
-        
-        // 2. Process HTTP request through x402
-        result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
-        
-        // 3. Handle result (NoPaymentRequired, PaymentError, PaymentVerified)
-        switch result.Type {
-        case x402http.ResultNoPaymentRequired:
-            c.Next() // Continue to handler
-        case x402http.ResultPaymentError:
-            handlePaymentError(c, result.Response)
-        case x402http.ResultPaymentVerified:
-            handlePaymentVerified(c, server, ctx, result)
-        }
-    }
-}
-```
+See `main.go` for complete implementations of all components.
 
 ## Payment Flow
 
@@ -154,83 +109,23 @@ See the [client examples](../../clients/) for how to make paid requests.
 
 ## Customization Examples
 
-### Custom Logging
+With custom middleware, you can add:
+- **Custom Logging**: Log at each payment processing step
+- **Custom Metrics**: Track verification/settlement timing and success rates
+- **Custom Validation**: Add business logic before processing payments
+- **Custom Error Handling**: Implement retry logic or alternative flows
 
-Add detailed logging at each step:
-
-```go
-func customPaymentMiddleware(server *x402http.HTTPServer, timeout time.Duration) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        log.Printf("[x402] Processing %s %s", c.Request.Method, c.Request.URL.Path)
-        
-        result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
-        
-        log.Printf("[x402] Result: %s", result.Type)
-        // ... rest of logic
-    }
-}
-```
-
-### Custom Metrics
-
-Add metrics collection:
-
-```go
-func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx context.Context, result x402http.HTTPProcessResult) {
-    startTime := time.Now()
-    
-    // ... existing logic ...
-    
-    metrics.RecordSettlement(time.Since(startTime))
-}
-```
-
-### Custom Validation
-
-Add business logic before settlement:
-
-```go
-func handlePaymentVerified(...) {
-    // Check user tier, rate limits, etc.
-    if !isUserAllowed(c) {
-        c.JSON(http.StatusForbidden, gin.H{"error": "User tier insufficient"})
-        c.Abort()
-        return
-    }
-    
-    // ... continue with settlement
-}
-```
+See `main.go` for the complete implementation that can be modified for your needs.
 
 ## Adapting to Other Frameworks
 
 To use this with other frameworks (Echo, chi, net/http, etc.):
 
-1. **Implement HTTPAdapter** for your framework:
+1. Implement the `x402http.HTTPAdapter` interface for your framework
+2. Create a middleware function that uses `server.ProcessHTTPRequest()`
+3. Handle the three result types: `NoPaymentRequired`, `PaymentError`, `PaymentVerified`
 
-```go
-type EchoAdapter struct {
-    ctx echo.Context
-}
-
-func (a *EchoAdapter) GetHeader(name string) string {
-    return a.ctx.Request().Header.Get(name)
-}
-// ... implement other methods
-```
-
-2. **Create middleware function** for your framework:
-
-```go
-func EchoMiddleware(server *x402http.HTTPServer) echo.MiddlewareFunc {
-    return func(next echo.HandlerFunc) echo.HandlerFunc {
-        return func(c echo.Context) error {
-            adapter := NewEchoAdapter(c)
-            // ... same processing logic
-        }
-    }
-}
-```
+The pattern in `main.go` can be adapted to any Go web framework.
 
 ## Next Steps
 
@@ -240,7 +135,6 @@ func EchoMiddleware(server *x402http.HTTPServer) echo.MiddlewareFunc {
 
 ## Related Resources
 
-- [x402 HTTP Package Documentation](../../../../go/http/)
-- [x402 Core Package Documentation](../../../../go/)
+- [x402 Go Package Documentation](../../../../go/)
 - [Gin Framework Documentation](https://gin-gonic.com/docs/)
 

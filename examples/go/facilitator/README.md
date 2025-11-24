@@ -184,51 +184,7 @@ Settles a payment on-chain.
 
 ## Lifecycle Hooks
 
-The example demonstrates all six lifecycle hooks for logging:
-
-### Verify Hooks
-
-```go
-// Before verification
-facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*BeforeHookResult, error) {
-    fmt.Printf("📋 Verifying payment for %s\n", ctx.Requirements.GetNetwork())
-    return nil, nil
-})
-
-// After successful verification
-facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
-    fmt.Printf("✅ Payment verified\n")
-    return nil
-})
-
-// On verification failure
-facilitator.OnVerifyFailure(func(ctx FacilitatorVerifyFailureContext) (*VerifyFailureHookResult, error) {
-    fmt.Printf("⚠️ Verification failed: %v\n", ctx.Error)
-    return nil, nil
-})
-```
-
-### Settle Hooks
-
-```go
-// Before settlement
-facilitator.OnBeforeSettle(func(ctx FacilitatorSettleContext) (*BeforeHookResult, error) {
-    fmt.Printf("💰 Settling payment for %s\n", ctx.Requirements.GetNetwork())
-    return nil, nil
-})
-
-// After successful settlement
-facilitator.OnAfterSettle(func(ctx FacilitatorSettleResultContext) error {
-    fmt.Printf("🎉 Transaction: %s\n", ctx.Result.Transaction)
-    return nil
-})
-
-// On settlement failure
-facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*SettleFailureHookResult, error) {
-    fmt.Printf("⚠️ Settlement failed: %v\n", ctx.Error)
-    return nil, nil
-})
-```
+The example registers hooks for logging verification and settlement events. See `main.go` for the complete implementation.
 
 ## Testing the Facilitator
 
@@ -238,7 +194,7 @@ facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*SettleFa
 go run .
 ```
 
-w### 2. Test with Client and Server
+### 2. Test with Client and Server
 
 Start a resource server (in another terminal):
 
@@ -254,107 +210,6 @@ cd ../clients/http
 go run . builder-pattern
 ```
 
-Watch the facilitator logs to see the payment flow!
-
-## Example Console Output
-
-```
-🚀 Starting x402 Facilitator...
-   Network: eip155:84532
-   RPC: https://sepolia.base.org
-   Facilitator address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-
-╔════════════════════════════════════════════════════════╗
-║        x402 Facilitator Example                        ║
-║  Server:     http://localhost:4022                     ║
-║  Network:    eip155:84532                              ║
-╚════════════════════════════════════════════════════════╝
-
-📋 [BeforeVerify] Verifying payment...
-   Scheme: exact
-   Network: eip155:84532
-✅ [AfterVerify] Payment verified successfully
-
-💰 [BeforeSettle] Settling payment...
-   Scheme: exact
-   Network: eip155:84532
-🎉 [AfterSettle] Payment settled successfully
-   Transaction: 0x1234567890abcdef...
-   Payer: 0xabcd1234...
-```
-
-## Hook Use Cases
-
-### Logging to Database
-
-```go
-facilitator.OnAfterSettle(func(ctx FacilitatorSettleResultContext) error {
-    // Log to database
-    db.LogTransaction(ctx.Result.Transaction, ctx.Result.Payer)
-    return nil
-})
-```
-
-### Metrics Collection
-
-```go
-facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
-    metrics.IncrementCounter("payments.verified")
-    return nil
-})
-```
-
-### Custom Validation
-
-```go
-facilitator.OnBeforeSettle(func(ctx FacilitatorSettleContext) (*BeforeHookResult, error) {
-    // Check if payer is on allowlist
-    if !isAllowed(ctx.Payload.GetPayer()) {
-        return &BeforeHookResult{
-            Abort: true,
-            Reason: "Payer not allowed",
-        }, nil
-    }
-    return nil, nil
-})
-```
-
-### Error Recovery
-
-```go
-facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*SettleFailureHookResult, error) {
-    // Retry with higher gas price
-    if isGasError(ctx.Error) {
-        recovered := retryWithHigherGas(ctx)
-        if recovered != nil {
-            return &SettleFailureHookResult{
-                Recovered: true,
-                Result: *recovered,
-            }, nil
-        }
-    }
-    return nil, nil
-})
-```
-
-## Security Considerations
-
-1. **Private Key Security**: Store facilitator keys securely (use HSM in production)
-2. **Rate Limiting**: Add rate limiting to prevent abuse
-3. **Gas Management**: Monitor gas prices and balance
-4. **Transaction Monitoring**: Watch for failed transactions
-5. **Access Control**: Add authentication if needed
-
-## Production Deployment
-
-For production use, consider:
-
-- **Multiple Networks**: Support Ethereum, Base, Optimism, etc.
-- **Multiple Signers**: Use different accounts per network
-- **Transaction Queuing**: Queue settlements for batching
-- **Gas Optimization**: Use EIP-1559 with proper gas estimation
-- **Monitoring**: Add comprehensive logging and alerting
-- **High Availability**: Run multiple instances with load balancing
 
 
 ## Next Steps
