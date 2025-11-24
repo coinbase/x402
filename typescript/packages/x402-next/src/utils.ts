@@ -217,10 +217,7 @@ export async function verifyPayment(
   paymentHeader: string,
   paymentRequirements: PaymentRequirements[],
   x402Version: number,
-  verify: (
-    payment: PaymentPayload,
-    requirements: PaymentRequirements,
-  ) => Promise<VerifyResponse>,
+  verify: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<VerifyResponse>,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
 ): Promise<
   | { decodedPayment: PaymentPayload; selectedRequirements: PaymentRequirements }
@@ -321,10 +318,7 @@ export async function settlePayment(
   response: NextResponse,
   decodedPayment: PaymentPayload,
   selectedPaymentRequirements: PaymentRequirements,
-  settle: (
-    payment: PaymentPayload,
-    requirements: PaymentRequirements,
-  ) => Promise<SettleResponse>,
+  settle: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<SettleResponse>,
   x402Version: number,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
   paymentRequirements?: PaymentRequirements[],
