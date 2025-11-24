@@ -1,4 +1,13 @@
-import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
+import {
+  Account,
+  Address,
+  Chain,
+  getAddress,
+  Hex,
+  parseErc6492Signature,
+  parseSignature,
+  Transport,
+} from "viem";
 import { getNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
@@ -56,6 +65,23 @@ export async function verify<
     */
 
   const exactEvmPayload = payload.payload as ExactEvmPayload;
+
+  const payerAddress = exactEvmPayload.authorization.from as Address;
+  const signature = exactEvmPayload.signature;
+
+  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  const isSmartWallet = signatureLength > 130;
+
+  if (isSmartWallet) {
+    const bytecode = await client.getCode({ address: payerAddress });
+    if (!bytecode || bytecode === "0x") {
+      return {
+        isValid: false,
+        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: payerAddress,
+      };
+    }
+  }
 
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
@@ -203,6 +229,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
 
   // Returns the original signature (no-op) if the signature is not a 6492 signature
   const { signature } = parseErc6492Signature(payload.signature as Hex);
+  const parsedSig = parseSignature(signature);
 
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,
@@ -215,7 +242,9 @@ export async function settle<transport extends Transport, chain extends Chain>(
       BigInt(payload.authorization.validAfter),
       BigInt(payload.authorization.validBefore),
       payload.authorization.nonce as Hex,
-      signature,
+      (parsedSig.v as number | undefined) || parsedSig.yParity,
+      parsedSig.r,
+      parsedSig.s,
     ],
     chain: wallet.chain as Chain,
   });

@@ -11,7 +11,7 @@ import {
   partiallySignTransactionMessageWithSigners,
   getBase64EncodedWireTransaction,
   generateKeyPairSigner,
-  type KeyPairSigner,
+  type TransactionSigner,
 } from "@solana/kit";
 import {
   findAssociatedTokenPda,
@@ -142,7 +142,7 @@ describe("getTokenPayerFromTransaction", () => {
  * @returns The base64-encoded wire transaction string
  */
 async function buildSignedBase64TransferTx(
-  authority: KeyPairSigner,
+  authority: TransactionSigner,
   payTo: Address,
   mint: Address,
   tokenProgram: Address,

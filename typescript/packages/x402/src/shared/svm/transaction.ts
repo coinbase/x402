@@ -4,14 +4,18 @@ import {
   getBase64Encoder,
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
-  KeyPairSigner,
-  partiallySignTransaction,
+  type TransactionSigner,
+  isTransactionModifyingSigner,
+  isTransactionPartialSigner,
   RpcDevnet,
   SolanaRpcApiDevnet,
   RpcMainnet,
   SolanaRpcApiMainnet,
   Transaction,
   CompiledTransactionMessage,
+  TransactionWithLifetime,
+  TransactionWithinSizeLimit,
+  type SignatureDictionary,
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
@@ -78,12 +82,11 @@ export function getTokenPayerFromTransaction(transaction: Transaction): string {
  * @returns The transaction simulation result
  */
 export async function signAndSimulateTransaction(
-  signer: KeyPairSigner,
+  signer: TransactionSigner,
   transaction: Transaction,
   rpc: RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet>,
 ) {
-  // sign the transaction as the fee payer
-  const signedTransaction = await partiallySignTransaction([signer.keyPair], transaction);
+  const signedTransaction = await signTransactionWithSigner(signer, transaction);
 
   // serialize the signed transaction into a base64 encoded wire transaction
   const base64EncodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
@@ -104,4 +107,59 @@ export async function signAndSimulateTransaction(
     .send();
 
   return simulateResult;
+}
+
+/**
+ * Signs a transaction using the provided {@link TransactionSigner}.
+ *
+ * Prefers modifying signers (wallets that can rewrite the transaction) and falls
+ * back to partial signers that only append signatures.
+ *
+ * @param signer - Wallet or signer capable of producing transaction signatures
+ * @param transaction - Compiled transaction to sign
+ * @returns The transaction including any signatures added by the signer
+ */
+export async function signTransactionWithSigner<TTransaction extends Transaction>(
+  signer: TransactionSigner,
+  transaction: TTransaction,
+): Promise<TTransaction> {
+  if (isTransactionModifyingSigner(signer)) {
+    const [modifiedTransaction] = await signer.modifyAndSignTransactions([transaction]);
+    if (!modifiedTransaction) {
+      throw new Error("transaction_signer_failed_to_return_transaction");
+    }
+    return modifiedTransaction as TTransaction;
+  }
+
+  if (isTransactionPartialSigner(signer)) {
+    const [signatures] = await signer.signTransactions([
+      transaction as Transaction & TransactionWithinSizeLimit & TransactionWithLifetime,
+    ]);
+    if (!signatures) {
+      throw new Error("transaction_signer_failed_to_return_signatures");
+    }
+    return mergeTransactionSignatures(transaction, signatures);
+  }
+
+  throw new Error("transaction_signer_must_support_offline_signing");
+}
+
+/**
+ * Returns a copy of `transaction` with additional signatures merged in.
+ *
+ * @param transaction - Transaction whose signature map should be augmented
+ * @param signatures - Map of addresses to new signature bytes
+ * @returns A frozen transaction containing the merged signature map
+ */
+function mergeTransactionSignatures<TTransaction extends Transaction>(
+  transaction: TTransaction,
+  signatures: SignatureDictionary,
+): TTransaction {
+  return Object.freeze({
+    ...transaction,
+    signatures: Object.freeze({
+      ...transaction.signatures,
+      ...signatures,
+    }),
+  }) as TTransaction;
 }
