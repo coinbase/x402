@@ -100,22 +100,22 @@ func NewHTTPFacilitatorClient(config *FacilitatorConfig) *HTTPFacilitatorClient 
 // ============================================================================
 
 // Verify checks if a payment is valid (supports both V1 and V2)
-func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (c *HTTPFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	// Detect version from bytes
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to detect version: %w", err)
+		return nil, fmt.Errorf("failed to detect version: %w", err)
 	}
 
 	return c.verifyHTTP(ctx, version, payloadBytes, requirementsBytes)
 }
 
 // Settle executes a payment (supports both V1 and V2)
-func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (c *HTTPFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	// Detect version from bytes
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("failed to detect version: %w", err)
+		return nil, fmt.Errorf("failed to detect version: %w", err)
 	}
 
 	return c.settleHTTP(ctx, version, payloadBytes, requirementsBytes)
@@ -168,7 +168,7 @@ func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 // Internal HTTP Methods (shared by V1 and V2)
 // ============================================================================
 
-func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	// Build request body
 	var payloadMap, requirementsMap map[string]interface{}
 	json.Unmarshal(payloadBytes, &payloadMap)
@@ -182,13 +182,13 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to marshal verify request: %w", err)
+		return nil, fmt.Errorf("failed to marshal verify request: %w", err)
 	}
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "POST", c.url+"/verify", bytes.NewReader(body))
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to create verify request: %w", err)
+		return nil, fmt.Errorf("failed to create verify request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -197,7 +197,7 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	if c.authProvider != nil {
 		authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
 		if err != nil {
-			return x402.VerifyResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
+			return nil, fmt.Errorf("failed to get auth headers: %w", err)
 		}
 		for k, v := range authHeaders.Verify {
 			req.Header.Set(k, v)
@@ -207,26 +207,26 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	// Make request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("verify request failed: %w", err)
+		return nil, fmt.Errorf("verify request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Check status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return x402.VerifyResponse{}, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var verifyResponse x402.VerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&verifyResponse); err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to decode verify response: %w", err)
+		return nil, fmt.Errorf("failed to decode verify response: %w", err)
 	}
 
-	return verifyResponse, nil
+	return &verifyResponse, nil
 }
 
-func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	// Build request body
 	var payloadMap, requirementsMap map[string]interface{}
 	json.Unmarshal(payloadBytes, &payloadMap)
@@ -240,13 +240,13 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 
 	body, err := json.Marshal(requestBody)
 	if err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("failed to marshal settle request: %w", err)
+		return nil, fmt.Errorf("failed to marshal settle request: %w", err)
 	}
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "POST", c.url+"/settle", bytes.NewReader(body))
 	if err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("failed to create settle request: %w", err)
+		return nil, fmt.Errorf("failed to create settle request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -255,7 +255,7 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	if c.authProvider != nil {
 		authHeaders, err := c.authProvider.GetAuthHeaders(ctx)
 		if err != nil {
-			return x402.SettleResponse{}, fmt.Errorf("failed to get auth headers: %w", err)
+			return nil, fmt.Errorf("failed to get auth headers: %w", err)
 		}
 		for k, v := range authHeaders.Settle {
 			req.Header.Set(k, v)
@@ -265,21 +265,21 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	// Make request
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("settle request failed: %w", err)
+		return nil, fmt.Errorf("settle request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Check status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return x402.SettleResponse{}, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
 	var settleResponse x402.SettleResponse
 	if err := json.NewDecoder(resp.Body).Decode(&settleResponse); err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("failed to decode settle response: %w", err)
+		return nil, fmt.Errorf("failed to decode settle response: %w", err)
 	}
 
-	return settleResponse, nil
+	return &settleResponse, nil
 }

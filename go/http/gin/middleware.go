@@ -91,7 +91,7 @@ type MiddlewareConfig struct {
 	ErrorHandler func(*gin.Context, error)
 
 	// Custom settlement handler
-	SettlementHandler func(*gin.Context, x402.SettleResponse)
+	SettlementHandler func(*gin.Context, *x402.SettleResponse)
 
 	// Context timeout for payment operations
 	Timeout time.Duration
@@ -145,7 +145,7 @@ func WithErrorHandler(handler func(*gin.Context, error)) MiddlewareOption {
 }
 
 // WithSettlementHandler sets a custom settlement handler
-func WithSettlementHandler(handler func(*gin.Context, x402.SettleResponse)) MiddlewareOption {
+func WithSettlementHandler(handler func(*gin.Context, *x402.SettleResponse)) MiddlewareOption {
 	return func(c *MiddlewareConfig) {
 		c.SettlementHandler = handler
 	}

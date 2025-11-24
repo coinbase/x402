@@ -64,90 +64,68 @@ func (f *SchemeNetworkFacilitator) Scheme() string {
 }
 
 // Verify verifies a V2 payment payload against requirements (typed)
-func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (x402.VerifyResponse, error) {
+func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*x402.VerifyResponse, error) {
+	network := x402.Network(requirements.Network)
+
 	// Extract payload fields
 	signature, ok := payload.Payload["signature"].(string)
 	if !ok {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "missing_signature",
-		}, nil
+		return nil, x402.NewVerifyError("missing_signature", "", network, nil)
 	}
 
 	name, ok := payload.Payload["name"].(string)
 	if !ok {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "missing_name",
-		}, nil
+		return nil, x402.NewVerifyError("missing_name", "", network, nil)
 	}
 
 	validUntilStr, ok := payload.Payload["validUntil"].(string)
 	if !ok {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "missing_validUntil",
-		}, nil
+		return nil, x402.NewVerifyError("missing_validUntil", "", network, nil)
 	}
 
 	// Check signature
 	expectedSig := fmt.Sprintf("~%s", name)
 	if signature != expectedSig {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_signature",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_signature", signature, network, nil)
 	}
 
 	// Check expiration
 	validUntil, err := strconv.ParseInt(validUntilStr, 10, 64)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_validUntil",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_validUntil", signature, network, err)
 	}
 
 	if validUntil < time.Now().Unix() {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "expired_signature",
-		}, nil
+		return nil, x402.NewVerifyError("expired_signature", signature, network, nil)
 	}
 
-	return x402.VerifyResponse{
-		IsValid:       true,
-		InvalidReason: "",
-		Payer:         signature,
+	return &x402.VerifyResponse{
+		IsValid: true,
+		Payer:   signature,
 	}, nil
 }
 
 // Settle settles a V2 payment (typed)
-func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (x402.SettleResponse, error) {
+func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*x402.SettleResponse, error) {
+	network := x402.Network(requirements.Network)
+
 	// First verify the payment
 	verifyResponse, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: err.Error(),
-		}, nil
-	}
-
-	if !verifyResponse.IsValid {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: verifyResponse.InvalidReason,
-			Payer:       verifyResponse.Payer,
-		}, nil
+		// Convert VerifyError to SettleError
+		if ve, ok := err.(*x402.VerifyError); ok {
+			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
+		}
+		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
 	}
 
 	// Extract name for transaction message
 	name, _ := payload.Payload["name"].(string)
 
-	return x402.SettleResponse{
+	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: fmt.Sprintf("%s transferred %s %s to %s", name, requirements.Amount, requirements.Asset, requirements.PayTo),
-		Network:     x402.Network(requirements.Network),
+		Network:     network,
 		Payer:       verifyResponse.Payer,
 	}, nil
 }
@@ -253,13 +231,13 @@ func NewFacilitatorClient(facilitator *x402.X402Facilitator) *FacilitatorClient 
 }
 
 // Verify verifies a payment payload against requirements
-func (c *FacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (c *FacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	// Pass bytes directly to facilitator (it will unmarshal internally)
 	return c.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
 
 // Settle settles a payment based on the payload and requirements
-func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	// Pass bytes directly to facilitator (it will unmarshal internally)
 	return c.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }

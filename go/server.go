@@ -289,16 +289,16 @@ func (s *x402ResourceServer) FindMatchingRequirements(available []types.PaymentR
 }
 
 // VerifyPayment verifies a V2 payment
-func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 	// Marshal to bytes early for hooks (escape hatch for extensions)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return VerifyResponse{IsValid: false}, err
+		return nil, NewVerifyError("failed_to_marshal_payload", "", Network(requirements.Network), err)
 	}
 	
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
-		return VerifyResponse{IsValid: false}, err
+		return nil, NewVerifyError("failed_to_marshal_requirements", "", Network(requirements.Network), err)
 	}
 
 	// Execute beforeVerify hooks
@@ -313,10 +313,10 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	for _, hook := range s.beforeVerifyHooks {
 		result, err := hook(hookCtx)
 		if err != nil {
-			return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+			return nil, err
 		}
 		if result != nil && result.Abort {
-			return VerifyResponse{IsValid: false, InvalidReason: result.Reason}, nil
+			return nil, NewVerifyError(result.Reason, "", Network(requirements.Network), nil)
 		}
 	}
 
@@ -328,7 +328,7 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	s.mu.RUnlock()
 
 	if facilitator == nil {
-		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewVerifyError("no_facilitator", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	// Use already marshaled bytes for network call
@@ -356,16 +356,16 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 }
 
 // SettlePayment settles a V2 payment
-func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
 	// Marshal to bytes early for hooks (escape hatch for extensions)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return SettleResponse{Success: false}, err
+		return nil, NewSettleError("failed_to_marshal_payload", "", Network(requirements.Network), "", err)
 	}
 	
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
-		return SettleResponse{Success: false}, err
+		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(requirements.Network), "", err)
 	}
 
 	// Execute beforeSettle hooks
@@ -380,10 +380,10 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	for _, hook := range s.beforeSettleHooks {
 		result, err := hook(hookCtx)
 		if err != nil {
-			return SettleResponse{Success: false, ErrorReason: err.Error()}, err
+			return nil, err
 		}
 		if result != nil && result.Abort {
-			return SettleResponse{Success: false, ErrorReason: result.Reason}, fmt.Errorf("%s", result.Reason)
+			return nil, NewSettleError(result.Reason, "", Network(requirements.Network), "", nil)
 		}
 	}
 
@@ -395,7 +395,7 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	s.mu.RUnlock()
 
 	if facilitator == nil {
-		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewSettleError("no_facilitator", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	// Use already marshaled bytes for network call
@@ -443,10 +443,10 @@ func (s *x402ResourceServer) ProcessPaymentRequest(
 	ctx context.Context,
 	config ResourceConfig,
 	payload *types.PaymentPayload,
-) (*types.PaymentRequirements, VerifyResponse, error) {
+) (*types.PaymentRequirements, *VerifyResponse, error) {
 	// This is a stub - needs full implementation
 	// For now, return error
-	return nil, VerifyResponse{IsValid: false}, fmt.Errorf("not implemented")
+	return nil, nil, fmt.Errorf("not implemented")
 }
 
 // BuildPaymentRequirementsFromConfig builds payment requirements from config

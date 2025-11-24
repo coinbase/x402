@@ -339,14 +339,10 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Verify payment (type-safe)
-	verifyResult, err := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
-	if err != nil || !verifyResult.IsValid {
-		errorMsg := "Payment verification failed"
-		if err != nil {
-			errorMsg = err.Error()
-		} else if verifyResult.InvalidReason != "" {
-			errorMsg = verifyResult.InvalidReason
-		}
+	_, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
+	if verifyErr != nil {
+		err = verifyErr
+		errorMsg := err.Error()
 
 		paymentRequired := s.CreatePaymentRequiredResponse(
 			requirements,
@@ -508,9 +504,9 @@ func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.Payment
 }
 
 // createSettlementHeaders creates settlement response headers
-func (s *x402HTTPResourceServer) createSettlementHeaders(response x402.SettleResponse) map[string]string {
+func (s *x402HTTPResourceServer) createSettlementHeaders(response *x402.SettleResponse) map[string]string {
 	return map[string]string{
-		"PAYMENT-RESPONSE": encodePaymentResponseHeader(response),
+		"PAYMENT-RESPONSE": encodePaymentResponseHeader(*response),
 	}
 }
 

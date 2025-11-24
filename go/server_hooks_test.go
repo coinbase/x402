@@ -10,23 +10,23 @@ import (
 
 // Mock facilitator client for testing
 type mockFacilitatorClient struct {
-	verify func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error)
-	settle func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error)
+	verify func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error)
+	settle func(ctx context.Context, payload []byte, reqs []byte) (*SettleResponse, error)
 	kinds  []SupportedKind // Configurable supported kinds
 }
 
-func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
 	if m.verify != nil {
 		return m.verify(ctx, payloadBytes, requirementsBytes)
 	}
-	return VerifyResponse{IsValid: true, Payer: "0xmock"}, nil // Default to success
+	return &VerifyResponse{IsValid: true, Payer: "0xmock"}, nil // Default to success
 }
 
-func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
 	if m.settle != nil {
 		return m.settle(ctx, payloadBytes, requirementsBytes)
 	}
-	return SettleResponse{Success: true, Transaction: "0xmock"}, nil // Default to success
+	return &SettleResponse{Success: true, Transaction: "0xmock", Network: "eip155:1", Payer: "0xmock"}, nil // Default to success
 }
 
 func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (SupportedResponse, error) {
@@ -63,16 +63,21 @@ func TestBeforeVerifyHook_Abort(t *testing.T) {
 		requirements,
 	)
 
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+	if err == nil {
+		t.Error("Expected error when hook aborts")
 	}
 
-	if result.IsValid {
-		t.Error("Expected verification to be aborted (IsValid=false)")
+	if result != nil {
+		t.Error("Expected nil result when hook aborts")
 	}
 
-	if result.InvalidReason != "Security check failed" {
-		t.Errorf("Expected InvalidReason='Security check failed', got '%s'", result.InvalidReason)
+	// Check that it's a VerifyError with the correct reason
+	if ve, ok := err.(*VerifyError); ok {
+		if ve.Reason != "Security check failed" {
+			t.Errorf("Expected reason='Security check failed', got '%s'", ve.Reason)
+		}
+	} else {
+		t.Errorf("Expected *VerifyError, got %T", err)
 	}
 }
 
@@ -106,7 +111,7 @@ func TestBeforeVerifyHook_Continue(t *testing.T) {
 
 // Test AfterVerify hook
 func TestAfterVerifyHook(t *testing.T) {
-	var capturedResult VerifyResponse
+	var capturedResult *VerifyResponse
 
 	server := Newx402ResourceServer()
 
@@ -118,8 +123,8 @@ func TestAfterVerifyHook(t *testing.T) {
 
 	// Mock facilitator that returns success
 	mockFacilitator := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: true}, nil
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error) {
+			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
 
@@ -160,7 +165,7 @@ func TestOnVerifyFailureHook_Recover(t *testing.T) {
 	server.OnVerifyFailure(func(ctx VerifyFailureContext) (*VerifyFailureHookResult, error) {
 		return &VerifyFailureHookResult{
 			Recovered: true,
-			Result: VerifyResponse{
+			Result: &VerifyResponse{
 				IsValid: true,
 				// Hook recovered the payment
 			},
@@ -169,8 +174,8 @@ func TestOnVerifyFailureHook_Recover(t *testing.T) {
 
 	// Mock facilitator that returns error
 	mockFacilitator := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: false}, errors.New("facilitator error")
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error) {
+			return nil, errors.New("facilitator error")
 		},
 	}
 
@@ -212,8 +217,8 @@ func TestOnVerifyFailureHook_NoRecover(t *testing.T) {
 
 	// Mock facilitator that returns error
 	mockFacilitator := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: false}, errors.New("facilitator error")
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error) {
+			return nil, errors.New("facilitator error")
 		},
 	}
 
@@ -266,12 +271,17 @@ func TestBeforeSettleHook_Abort(t *testing.T) {
 		t.Error("Expected error when settlement is aborted")
 	}
 
-	if result.Success {
-		t.Error("Expected settlement to be aborted (Success=false)")
+	if result != nil {
+		t.Error("Expected nil result when settlement is aborted")
 	}
 
-	if result.ErrorReason != "Insufficient funds" {
-		t.Errorf("Expected specific error reason, got '%s'", result.ErrorReason)
+	// Check that it's a SettleError with the correct reason
+	if se, ok := err.(*SettleError); ok {
+		if se.Reason != "Insufficient funds" {
+			t.Errorf("Expected reason='Insufficient funds', got '%s'", se.Reason)
+		}
+	} else {
+		t.Errorf("Expected *SettleError, got %T", err)
 	}
 }
 
@@ -289,10 +299,12 @@ func TestAfterSettleHook(t *testing.T) {
 
 	// Mock facilitator that returns successful settlement
 	mockFacilitator := &mockFacilitatorClient{
-		settle: func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error) {
-			return SettleResponse{
+		settle: func(ctx context.Context, payload []byte, reqs []byte) (*SettleResponse, error) {
+			return &SettleResponse{
 				Success:     true,
 				Transaction: "0xabc123",
+				Network:     "eip155:8453",
+				Payer:       "0xpayer",
 			}, nil
 		},
 	}
@@ -333,17 +345,19 @@ func TestOnSettleFailureHook_Recover(t *testing.T) {
 	server.OnSettleFailure(func(ctx SettleFailureContext) (*SettleFailureHookResult, error) {
 		return &SettleFailureHookResult{
 			Recovered: true,
-			Result: SettleResponse{
+			Result: &SettleResponse{
 				Success:     true,
 				Transaction: "0xrecovered",
+				Network:     "eip155:8453",
+				Payer:       "0xpayer",
 			},
 		}, nil
 	})
 
 	// Mock facilitator that returns error
 	mockFacilitator := &mockFacilitatorClient{
-		settle: func(ctx context.Context, payload []byte, reqs []byte) (SettleResponse, error) {
-			return SettleResponse{Success: false}, errors.New("settlement failed")
+		settle: func(ctx context.Context, payload []byte, reqs []byte) (*SettleResponse, error) {
+			return nil, errors.New("settlement failed")
 		},
 	}
 
@@ -403,8 +417,8 @@ func TestMultipleHooks_ExecutionOrder(t *testing.T) {
 
 	// Mock facilitator
 	mockFacilitator := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payload []byte, reqs []byte) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: true}, nil
+		verify: func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error) {
+			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
 

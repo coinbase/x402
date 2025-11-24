@@ -22,7 +22,7 @@ type VerifyContext struct {
 // VerifyResultContext contains verify operation result and context
 type VerifyResultContext struct {
 	VerifyContext
-	Result VerifyResponse
+	Result *VerifyResponse
 }
 
 // VerifyFailureContext contains verify operation failure and context
@@ -45,7 +45,7 @@ type SettleContext struct {
 // SettleResultContext contains settle operation result and context
 type SettleResultContext struct {
 	SettleContext
-	Result SettleResponse
+	Result *SettleResponse
 }
 
 // SettleFailureContext contains settle operation failure and context
@@ -69,13 +69,13 @@ type BeforeHookResult struct {
 // If Recovered is true, the hook has recovered from the failure with the given result
 type VerifyFailureHookResult struct {
 	Recovered bool
-	Result    VerifyResponse
+	Result    *VerifyResponse
 }
 
 // SettleFailureHookResult represents the result of a settle failure hook
 type SettleFailureHookResult struct {
 	Recovered bool
-	Result    SettleResponse
+	Result    *SettleResponse
 }
 
 // ============================================================================

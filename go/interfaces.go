@@ -34,8 +34,8 @@ type SchemeNetworkClientV1 interface {
 // SchemeNetworkFacilitatorV1 is implemented by facilitator-side V1 payment mechanisms
 type SchemeNetworkFacilitatorV1 interface {
 	Scheme() string
-	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (VerifyResponse, error)
-	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (SettleResponse, error)
+	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error)
 }
 
 // Note: No SchemeNetworkServerV1 - new SDK servers are V2 only
@@ -65,8 +65,8 @@ type SchemeNetworkServer interface {
 // SchemeNetworkFacilitator is implemented by facilitator-side payment mechanisms (V2)
 type SchemeNetworkFacilitator interface {
 	Scheme() string
-	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error)
-	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error)
+	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)
 }
 
 // ============================================================================
@@ -77,10 +77,10 @@ type SchemeNetworkFacilitator interface {
 // Uses bytes at network boundary - SDK internal routing unmarshals and routes to typed mechanisms
 type FacilitatorClient interface {
 	// Verify a payment (detects version from bytes, routes internally)
-	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
+	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error)
 
 	// Settle a payment (detects version from bytes, routes internally)
-	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
+	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error)
 
 	// GetSupported returns supported payment kinds (new format - includes both V1/V2)
 	GetSupported(ctx context.Context) (SupportedResponse, error)
@@ -90,10 +90,10 @@ type FacilitatorClient interface {
 // Same signatures but GetSupported returns old format
 type LegacyFacilitatorClient interface {
 	// Verify a V1 payment only
-	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error)
+	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error)
 
 	// Settle a V1 payment only
-	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error)
+	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error)
 
 	// GetSupported returns V1 supported format (no extensions)
 	GetSupported(ctx context.Context) (SupportedResponseV1, error)

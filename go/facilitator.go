@@ -145,11 +145,11 @@ func (f *x402Facilitator) OnSettleFailure(hook FacilitatorOnSettleFailureHook) *
 // ============================================================================
 
 // Verify verifies a payment (detects version from bytes, routes to typed mechanism)
-func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
+func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
 	// Detect version
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return VerifyResponse{IsValid: false, InvalidReason: "invalid version"}, err
+		return nil, NewVerifyError("invalid_version", "", "", err)
 	}
 
 	// Unmarshal to typed structs for hooks
@@ -161,11 +161,11 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 	case 1:
 		payload, err := types.ToPaymentPayloadV1(payloadBytes)
 		if err != nil {
-			return VerifyResponse{IsValid: false, InvalidReason: "invalid V1 payload"}, nil
+			return nil, NewVerifyError("invalid_v1_payload", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
 		if err != nil {
-			return VerifyResponse{IsValid: false, InvalidReason: "invalid V1 requirements"}, nil
+			return nil, NewVerifyError("invalid_v1_requirements", "", "", err)
 		}
 		
 		hookPayload = *payload
@@ -182,10 +182,10 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeVerifyHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
-				return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+				return nil, err
 			}
 			if result != nil && result.Abort {
-				return VerifyResponse{IsValid: false, InvalidReason: result.Reason}, nil
+				return nil, NewVerifyError(result.Reason, "", "", nil)
 			}
 		}
 
@@ -201,7 +201,7 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 					return result.Result, nil
 				}
 			}
-			return verifyResult, verifyErr
+			return nil, verifyErr
 		}
 
 		// Execute afterVerify hooks
@@ -215,11 +215,11 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 	case 2:
 		payload, err := types.ToPaymentPayload(payloadBytes)
 		if err != nil {
-			return VerifyResponse{IsValid: false, InvalidReason: "invalid V2 payload"}, nil
+			return nil, NewVerifyError("invalid_v2_payload", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirements(requirementsBytes)
 		if err != nil {
-			return VerifyResponse{IsValid: false, InvalidReason: "invalid V2 requirements"}, nil
+			return nil, NewVerifyError("invalid_v2_requirements", "", "", err)
 		}
 		
 		hookPayload = *payload
@@ -236,10 +236,10 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeVerifyHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
-				return VerifyResponse{IsValid: false, InvalidReason: err.Error()}, err
+				return nil, err
 			}
 			if result != nil && result.Abort {
-				return VerifyResponse{IsValid: false, InvalidReason: result.Reason}, nil
+				return nil, NewVerifyError(result.Reason, "", "", nil)
 			}
 		}
 
@@ -255,7 +255,7 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 					return result.Result, nil
 				}
 			}
-			return verifyResult, verifyErr
+			return nil, verifyErr
 		}
 
 		// Execute afterVerify hooks
@@ -267,16 +267,16 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 		return verifyResult, nil
 
 	default:
-		return VerifyResponse{IsValid: false, InvalidReason: fmt.Sprintf("unsupported version: %d", version)}, nil
+		return nil, NewVerifyError(fmt.Sprintf("unsupported_version_%d", version), "", "", nil)
 	}
 }
 
 // Settle settles a payment (detects version from bytes, routes to typed mechanism)
-func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
+func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
 	// Detect version
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
-		return SettleResponse{Success: false, ErrorReason: "invalid version"}, err
+		return nil, NewSettleError("invalid_version", "", "", "", err)
 	}
 
 	// Unmarshal to typed structs for hooks
@@ -288,11 +288,11 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 	case 1:
 		payload, err := types.ToPaymentPayloadV1(payloadBytes)
 		if err != nil {
-			return SettleResponse{Success: false, ErrorReason: "invalid V1 payload"}, nil
+			return nil, NewSettleError("invalid_v1_payload", "", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
 		if err != nil {
-			return SettleResponse{Success: false, ErrorReason: "invalid V1 requirements"}, nil
+			return nil, NewSettleError("invalid_v1_requirements", "", "", "", err)
 		}
 		
 		hookPayload = *payload
@@ -309,10 +309,10 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeSettleHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
-				return SettleResponse{Success: false, ErrorReason: err.Error()}, err
+				return nil, err
 			}
 			if result != nil && result.Abort {
-				return SettleResponse{Success: false, ErrorReason: result.Reason}, fmt.Errorf("%s", result.Reason)
+				return nil, NewSettleError(result.Reason, "", "", "", nil)
 			}
 		}
 
@@ -328,7 +328,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 					return result.Result, nil
 				}
 			}
-			return settleResult, settleErr
+			return nil, settleErr
 		}
 
 		// Execute afterSettle hooks
@@ -342,11 +342,11 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 	case 2:
 		payload, err := types.ToPaymentPayload(payloadBytes)
 		if err != nil {
-			return SettleResponse{Success: false, ErrorReason: "invalid V2 payload"}, nil
+			return nil, NewSettleError("invalid_v2_payload", "", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirements(requirementsBytes)
 		if err != nil {
-			return SettleResponse{Success: false, ErrorReason: "invalid V2 requirements"}, nil
+			return nil, NewSettleError("invalid_v2_requirements", "", "", "", err)
 		}
 		
 		hookPayload = *payload
@@ -363,10 +363,10 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeSettleHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
-				return SettleResponse{Success: false, ErrorReason: err.Error()}, err
+				return nil, err
 			}
 			if result != nil && result.Abort {
-				return SettleResponse{Success: false, ErrorReason: result.Reason}, fmt.Errorf("%s", result.Reason)
+				return nil, NewSettleError(result.Reason, "", "", "", nil)
 			}
 		}
 
@@ -382,7 +382,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 					return result.Result, nil
 				}
 			}
-			return settleResult, settleErr
+			return nil, settleErr
 		}
 
 		// Execute afterSettle hooks
@@ -394,7 +394,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		return settleResult, nil
 
 	default:
-		return SettleResponse{Success: false, ErrorReason: fmt.Sprintf("unsupported version: %d", version)}, nil
+		return nil, NewSettleError(fmt.Sprintf("unsupported_version_%d", version), "", "", "", nil)
 	}
 }
 
@@ -403,7 +403,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 // ============================================================================
 
 // verifyV1 verifies a V1 payment (internal, typed)
-func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (VerifyResponse, error) {
+func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -413,19 +413,19 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 	// Use helper for wildcard matching
 	schemes := findSchemesByNetwork(f.schemesV1, network)
 	if schemes == nil {
-		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for network %s", network)
+		return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for network %s", network))
 	}
 
 	facilitator := schemes[scheme]
 	if facilitator == nil {
-		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewVerifyError("no_facilitator_for_scheme", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	return facilitator.Verify(ctx, payload, requirements)
 }
 
 // verifyV2 verifies a V2 payment (internal, typed)
-func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -435,19 +435,19 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 	// Use helper for wildcard matching
 	schemes := findSchemesByNetwork(f.schemes, network)
 	if schemes == nil {
-		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for network %s", network)
+		return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for network %s", network))
 	}
 
 	facilitator := schemes[scheme]
 	if facilitator == nil {
-		return VerifyResponse{IsValid: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewVerifyError("no_facilitator_for_scheme", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	return facilitator.Verify(ctx, payload, requirements)
 }
 
 // settleV1 settles a V1 payment (internal, typed)
-func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (SettleResponse, error) {
+func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -457,19 +457,19 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 	// Use helper for wildcard matching
 	schemes := findSchemesByNetwork(f.schemesV1, network)
 	if schemes == nil {
-		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for network %s", network)
+		return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for network %s", network))
 	}
 
 	facilitator := schemes[scheme]
 	if facilitator == nil {
-		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewSettleError("no_facilitator_for_scheme", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	return facilitator.Settle(ctx, payload, requirements)
 }
 
 // settleV2 settles a V2 payment (internal, typed)
-func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -479,12 +479,12 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 	// Use helper for wildcard matching
 	schemes := findSchemesByNetwork(f.schemes, network)
 	if schemes == nil {
-		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for network %s", network)
+		return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for network %s", network))
 	}
 
 	facilitator := schemes[scheme]
 	if facilitator == nil {
-		return SettleResponse{Success: false}, fmt.Errorf("no facilitator for %s on %s", scheme, network)
+		return nil, NewSettleError("no_facilitator_for_scheme", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
 	}
 
 	return facilitator.Settle(ctx, payload, requirements)

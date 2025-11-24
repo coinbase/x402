@@ -187,7 +187,7 @@ func (l *localSvmFacilitatorClient) Verify(
 	ctx context.Context,
 	payloadBytes []byte,
 	requirementsBytes []byte,
-) (x402.VerifyResponse, error) {
+) (*x402.VerifyResponse, error) {
 	// Pass bytes directly to facilitator (it handles unmarshaling internally)
 	return l.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
@@ -196,7 +196,7 @@ func (l *localSvmFacilitatorClient) Settle(
 	ctx context.Context,
 	payloadBytes []byte,
 	requirementsBytes []byte,
-) (x402.SettleResponse, error) {
+) (*x402.SettleResponse, error) {
 	// Pass bytes directly to facilitator (it handles unmarshaling internally)
 	return l.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }

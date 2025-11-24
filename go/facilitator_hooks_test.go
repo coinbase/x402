@@ -36,16 +36,21 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 		requirementsBytes,
 	)
 
-	if err != nil {
-		t.Errorf("Expected no error, got %v", err)
+	if err == nil {
+		t.Error("Expected error from aborted verification")
 	}
 
-	if result.IsValid {
-		t.Error("Expected verification to be aborted (IsValid=false)")
+	if result != nil {
+		t.Error("Expected nil result when verification is aborted")
 	}
 
-	if result.InvalidReason != "Facilitator security check failed" {
-		t.Errorf("Expected specific InvalidReason, got '%s'", result.InvalidReason)
+	// Check error is VerifyError with correct reason
+	if ve, ok := err.(*VerifyError); ok {
+		if ve.Reason != "Facilitator security check failed" {
+			t.Errorf("Expected specific reason, got '%s'", ve.Reason)
+		}
+	} else {
+		t.Errorf("Expected *VerifyError, got %T", err)
 	}
 }
 
@@ -58,8 +63,8 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: true, Payer: "0xTestPayer"}, nil
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*VerifyResponse, error) {
+			return &VerifyResponse{IsValid: true, Payer: "0xTestPayer"}, nil
 		},
 	}
 	facilitator.Register("eip155:8453", mockScheme)
@@ -104,8 +109,8 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: false}, errors.New("verification failed")
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*VerifyResponse, error) {
+			return nil, NewVerifyError("verification_failed", "", Network(reqs.Network), errors.New("verification failed"))
 		},
 	}
 	facilitator.Register("eip155:8453", mockScheme)
@@ -114,7 +119,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 	facilitator.OnVerifyFailure(func(ctx FacilitatorVerifyFailureContext) (*FacilitatorVerifyFailureHookResult, error) {
 		return &FacilitatorVerifyFailureHookResult{
 			Recovered: true,
-			Result: VerifyResponse{
+			Result: &VerifyResponse{
 				IsValid: true,
 				Payer:   "0xRecovered",
 			},
@@ -176,8 +181,8 @@ func TestFacilitatorBeforeSettleHook_Abort(t *testing.T) {
 		t.Error("Expected error when settlement is aborted")
 	}
 
-	if result.Success {
-		t.Error("Expected settlement to be aborted (Success=false)")
+	if result != nil {
+		t.Error("Expected nil result when settlement is aborted")
 	}
 }
 
@@ -190,8 +195,8 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error) {
-			return SettleResponse{Success: true, Transaction: "0xFacilitatorTx"}, nil
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*SettleResponse, error) {
+			return &SettleResponse{Success: true, Transaction: "0xFacilitatorTx", Network: Network(reqs.Network), Payer: "0xPayer"}, nil
 		},
 	}
 	facilitator.Register("eip155:8453", mockScheme)
@@ -236,8 +241,8 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	// Register mock scheme facilitator that fails
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error) {
-			return SettleResponse{Success: false}, errors.New("settlement failed")
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*SettleResponse, error) {
+			return nil, NewSettleError("settlement_failed", "", Network(reqs.Network), "", errors.New("settlement failed"))
 		},
 	}
 	facilitator.Register("eip155:8453", mockScheme)
@@ -246,9 +251,11 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 	facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error) {
 		return &FacilitatorSettleFailureHookResult{
 			Recovered: true,
-			Result: SettleResponse{
+			Result: &SettleResponse{
 				Success:     true,
 				Transaction: "0xFacilitatorRecovered",
+				Network:     Network(ctx.Requirements.GetNetwork()),
+				Payer:       "0xRecoveredPayer",
 			},
 		}, nil
 	})
@@ -288,8 +295,8 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 	// Register mock scheme facilitator
 	mockScheme := &mockSchemeFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error) {
-			return VerifyResponse{IsValid: true}, nil
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*VerifyResponse, error) {
+			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
 	facilitator.Register("eip155:8453", mockScheme)
@@ -345,24 +352,24 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 // Mock scheme facilitator for testing
 type mockSchemeFacilitator struct {
 	scheme     string
-	verifyFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (VerifyResponse, error)
-	settleFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (SettleResponse, error)
+	verifyFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*VerifyResponse, error)
+	settleFunc func(ctx context.Context, payload types.PaymentPayload, reqs types.PaymentRequirements) (*SettleResponse, error)
 }
 
 func (m *mockSchemeFacilitator) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 	if m.verifyFunc != nil {
 		return m.verifyFunc(ctx, payload, requirements)
 	}
-	return VerifyResponse{IsValid: false}, errors.New("not implemented")
+	return nil, errors.New("not implemented")
 }
 
-func (m *mockSchemeFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+func (m *mockSchemeFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
 	if m.settleFunc != nil {
 		return m.settleFunc(ctx, payload, requirements)
 	}
-	return SettleResponse{Success: false}, errors.New("not implemented")
+	return nil, errors.New("not implemented")
 }

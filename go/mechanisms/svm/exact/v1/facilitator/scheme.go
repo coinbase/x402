@@ -39,15 +39,13 @@ func (f *ExactSvmSchemeV1) Verify(
 	ctx context.Context,
 	payload types.PaymentPayloadV1,
 	requirements types.PaymentRequirementsV1,
-) (x402.VerifyResponse, error) {
+) (*x402.VerifyResponse, error) {
+	network := x402.Network(requirements.Network)
+
 	// Step 1: Validate Payment Requirements
 	// V1: Check scheme from top level (not in Accepted)
 	if payload.Scheme != svm.SchemeExact || requirements.Scheme != svm.SchemeExact {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "unsupported_scheme",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("unsupported_scheme", "", network, nil)
 	}
 
 	// Parse extra field for feePayer
@@ -57,100 +55,60 @@ func (f *ExactSvmSchemeV1) Verify(
 	}
 
 	if reqExtraMap == nil || reqExtraMap["feePayer"] == nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_exact_solana_payload_missing_fee_payer",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", "", network, nil)
 	}
 
 	// Parse payload
 	svmPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_exact_solana_payload_transaction",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction", "", network, err)
 	}
 
 	// Step 2: Parse and Validate Transaction Structure
 	tx, err := svm.DecodeTransaction(svmPayload.Transaction)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_exact_solana_payload_transaction",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction", "", network, err)
 	}
 
 	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
 	if len(tx.Message.Instructions) != 3 {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_exact_solana_payload_transaction_instructions_length",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction_instructions_length", "", network, nil)
 	}
 
 	// Step 3: Verify Compute Budget Instructions
 	if err := f.verifyComputeLimitInstruction(tx, tx.Message.Instructions[0]); err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: err.Error(),
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError(err.Error(), "", network, err)
 	}
 
 	if err := f.verifyComputePriceInstruction(tx, tx.Message.Instructions[1]); err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: err.Error(),
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError(err.Error(), "", network, err)
 	}
 
 	// Extract payer from transaction
 	payer, err := svm.GetTokenPayerFromTransaction(tx)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid_exact_solana_payload_no_transfer_instruction",
-			Payer:         "",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_no_transfer_instruction", payer, network, err)
 	}
 
 	// V1: Use payload.Network for validation (top level, not in Accepted)
 	if payload.Network != requirements.Network {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "network_mismatch",
-			Payer:         payer,
-		}, nil
+		return nil, x402.NewVerifyError("network_mismatch", payer, network, nil)
 	}
 
 	// Step 4: Verify Transfer Instruction
 	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], requirements); err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: err.Error(),
-			Payer:         payer,
-		}, nil
+		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
 	}
 
 	// Step 5: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 	if err := f.signer.SignTransaction(tx, string(requirements.Network)); err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "transaction_simulation_failed",
-			Payer:         payer,
-		}, nil
+		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
 	}
 
 	rpcClient, err := f.signer.GetRPC(string(requirements.Network))
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to get RPC client: %w", err)
+		return nil, x402.NewVerifyError("failed_to_get_rpc_client", payer, network, err)
 	}
 
 	// Simulate transaction
@@ -162,17 +120,12 @@ func (f *ExactSvmSchemeV1) Verify(
 
 	simResult, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, &opts)
 	if err != nil || (simResult != nil && simResult.Value != nil && simResult.Value.Err != nil) {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "transaction_simulation_failed",
-			Payer:         payer,
-		}, nil
+		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
 	}
 
-	return x402.VerifyResponse{
-		IsValid:       true,
-		InvalidReason: "",
-		Payer:         payer,
+	return &x402.VerifyResponse{
+		IsValid: true,
+		Payer:   payer,
 	}, nil
 }
 
@@ -181,85 +134,51 @@ func (f *ExactSvmSchemeV1) Settle(
 	ctx context.Context,
 	payload types.PaymentPayloadV1,
 	requirements types.PaymentRequirementsV1,
-) (x402.SettleResponse, error) {
+) (*x402.SettleResponse, error) {
+	network := x402.Network(payload.Network)
+
 	// First verify the payment
 	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
-		return x402.SettleResponse{}, err
-	}
-
-	if !verifyResp.IsValid {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: verifyResp.InvalidReason,
-			Transaction: "",
-			Network:     "",
-			Payer:       verifyResp.Payer,
-		}, nil
+		// Convert VerifyError to SettleError
+		if ve, ok := err.(*x402.VerifyError); ok {
+			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
+		}
+		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
 	}
 
 	// Parse payload
 	svmPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_exact_solana_payload_transaction",
-			Transaction: "",
-			Network:     x402.Network(payload.Network),
-			Payer:       verifyResp.Payer,
-		}, nil
+		return nil, x402.NewSettleError("invalid_exact_solana_payload_transaction", verifyResp.Payer, network, "", err)
 	}
 
 	// Decode transaction
 	tx, err := svm.DecodeTransaction(svmPayload.Transaction)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid_exact_solana_payload_transaction",
-			Transaction: "",
-			Network:     x402.Network(payload.Network),
-			Payer:       verifyResp.Payer,
-		}, nil
+		return nil, x402.NewSettleError("invalid_exact_solana_payload_transaction", verifyResp.Payer, network, "", err)
 	}
 
 	// Sign with facilitator's key
 	if err := f.signer.SignTransaction(tx, string(requirements.Network)); err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "transaction_failed",
-			Transaction: "",
-			Network:     x402.Network(payload.Network),
-			Payer:       verifyResp.Payer,
-		}, nil
+		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
 	// Send transaction
 	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "transaction_failed",
-			Transaction: "",
-			Network:     x402.Network(payload.Network),
-			Payer:       verifyResp.Payer,
-		}, nil
+		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
 	// Wait for confirmation
 	if err := f.confirmTransactionWithRetry(ctx, signature, string(requirements.Network)); err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "transaction_confirmation_failed",
-			Transaction: signature.String(),
-			Network:     x402.Network(payload.Network),
-			Payer:       verifyResp.Payer,
-		}, nil
+		return nil, x402.NewSettleError("transaction_confirmation_failed", verifyResp.Payer, network, signature.String(), err)
 	}
 
-	return x402.SettleResponse{
+	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: signature.String(),
-		Network:     x402.Network(payload.Network),
+		Network:     network,
 		Payer:       verifyResp.Payer,
 	}, nil
 }

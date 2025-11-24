@@ -74,6 +74,7 @@ type (
 )
 
 // VerifyResponse contains the verification result
+// If verification fails, an error (typically *VerifyError) is returned and this will be nil
 type VerifyResponse struct {
 	IsValid       bool   `json:"isValid"`
 	InvalidReason string `json:"invalidReason,omitempty"`
@@ -81,6 +82,7 @@ type VerifyResponse struct {
 }
 
 // SettleResponse contains the settlement result
+// If settlement fails, an error (typically *SettleError) is returned and this will be nil
 type SettleResponse struct {
 	Success     bool    `json:"success"`
 	ErrorReason string  `json:"errorReason,omitempty"`

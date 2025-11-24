@@ -50,12 +50,12 @@ type mockServerFacilitatorClient struct {
 	kinds []SupportedKind
 }
 
-func (m *mockServerFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
-	return VerifyResponse{IsValid: true}, nil
+func (m *mockServerFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
+	return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 }
 
-func (m *mockServerFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
-	return SettleResponse{Success: true}, nil
+func (m *mockServerFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
+	return &SettleResponse{Success: true, Transaction: "0xtx", Network: "eip155:1", Payer: "0xpayer"}, nil
 }
 
 func (m *mockServerFacilitatorClient) GetSupported(ctx context.Context) (SupportedResponse, error) {
@@ -332,8 +332,8 @@ func TestServerVerifyPayment(t *testing.T) {
 		kinds: []SupportedKind{
 			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
-		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (VerifyResponse, error) {
-			return VerifyResponse{
+		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
+			return &VerifyResponse{
 				IsValid: true,
 				Payer:   "0xverifiedpayer",
 			}, nil
@@ -377,11 +377,12 @@ func TestServerSettlePayment(t *testing.T) {
 		kinds: []SupportedKind{
 			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
-		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (SettleResponse, error) {
-			return SettleResponse{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
+			return &SettleResponse{
 				Success:     true,
 				Transaction: "0xsettledtx",
 				Payer:       "0xpayer",
+				Network:     "eip155:1",
 			}, nil
 		},
 	}

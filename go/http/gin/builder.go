@@ -40,7 +40,7 @@ type Config struct {
 	ErrorHandler func(*gin.Context, error)
 
 	// SettlementHandler called after successful settlement (optional)
-	SettlementHandler func(*gin.Context, x402.SettleResponse)
+	SettlementHandler func(*gin.Context, *x402.SettleResponse)
 }
 
 // SchemeConfig configures a payment scheme for a network.

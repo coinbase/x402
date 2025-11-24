@@ -150,7 +150,7 @@ func main() {
 				"error": err.Error(),
 			})
 		},
-		SettlementHandler: func(c *ginfw.Context, settleResp x402.SettleResponse) {
+		SettlementHandler: func(c *ginfw.Context, settleResp *x402.SettleResponse) {
 			// Log successful settlement
 			fmt.Printf("✅ [E2E SERVER SUCCESS] Payment settled\n")
 			fmt.Printf("   Path: %s\n", c.Request.URL.Path)

@@ -22,7 +22,7 @@ type FacilitatorVerifyContext struct {
 // FacilitatorVerifyResultContext contains facilitator verify operation result and context
 type FacilitatorVerifyResultContext struct {
 	FacilitatorVerifyContext
-	Result VerifyResponse
+	Result *VerifyResponse
 }
 
 // FacilitatorVerifyFailureContext contains facilitator verify operation failure and context
@@ -45,7 +45,7 @@ type FacilitatorSettleContext struct {
 // FacilitatorSettleResultContext contains facilitator settle operation result and context
 type FacilitatorSettleResultContext struct {
 	FacilitatorSettleContext
-	Result SettleResponse
+	Result *SettleResponse
 }
 
 // FacilitatorSettleFailureContext contains facilitator settle operation failure and context
@@ -69,13 +69,13 @@ type FacilitatorBeforeHookResult struct {
 // If Recovered is true, the hook has recovered from the failure with the given result
 type FacilitatorVerifyFailureHookResult struct {
 	Recovered bool
-	Result    VerifyResponse
+	Result    *VerifyResponse
 }
 
 // FacilitatorSettleFailureHookResult represents the result of a facilitator settle failure hook
 type FacilitatorSettleFailureHookResult struct {
 	Recovered bool
-	Result    SettleResponse
+	Result    *SettleResponse
 }
 
 // ============================================================================

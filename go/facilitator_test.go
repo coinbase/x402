@@ -18,15 +18,15 @@ func (m *mockSchemeNetworkFacilitatorV1) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (VerifyResponse, error) {
-	return VerifyResponse{
+func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error) {
+	return &VerifyResponse{
 		IsValid: true,
 		Payer:   "0xmockpayer",
 	}, nil
 }
 
-func (m *mockSchemeNetworkFacilitatorV1) Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (SettleResponse, error) {
-	return SettleResponse{
+func (m *mockSchemeNetworkFacilitatorV1) Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error) {
+	return &SettleResponse{
 		Success:     true,
 		Transaction: "0xmocktx",
 		Payer:       "0xmockpayer",
@@ -37,29 +37,29 @@ func (m *mockSchemeNetworkFacilitatorV1) Settle(ctx context.Context, payload typ
 // Mock V2 facilitator for testing (default, no suffix)
 type mockSchemeNetworkFacilitator struct {
 	scheme     string
-	verifyFunc func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error)
-	settleFunc func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error)
+	verifyFunc func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
+	settleFunc func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)
 }
 
 func (m *mockSchemeNetworkFacilitator) Scheme() string {
 	return m.scheme
 }
 
-func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 	if m.verifyFunc != nil {
 		return m.verifyFunc(ctx, payload, requirements)
 	}
-	return VerifyResponse{
+	return &VerifyResponse{
 		IsValid: true,
 		Payer:   "0xmockpayer",
 	}, nil
 }
 
-func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+func (m *mockSchemeNetworkFacilitator) Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
 	if m.settleFunc != nil {
 		return m.settleFunc(ctx, payload, requirements)
 	}
-	return SettleResponse{
+	return &SettleResponse{
 		Success:     true,
 		Transaction: "0xmocktx",
 		Payer:       "0xmockpayer",
@@ -177,6 +177,9 @@ func TestFacilitatorVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !response.IsValid {
 		t.Fatal("Expected valid verification")
 	}
@@ -248,12 +251,12 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 			// Validate that payload.Accepted.Scheme matches requirements.Scheme
 			if payload.Accepted.Scheme != requirements.Scheme {
-				return VerifyResponse{IsValid: false, InvalidReason: "scheme_mismatch"}, nil
+				return nil, NewVerifyError("scheme_mismatch", "", Network(requirements.Network), nil)
 			}
-			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
 	facilitator.Register("eip155:1", mockFacilitator)
@@ -306,12 +309,12 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 			// Validate that payload.Accepted.Network matches requirements.Network
 			if payload.Accepted.Network != requirements.Network {
-				return VerifyResponse{IsValid: false, InvalidReason: "network_mismatch"}, nil
+				return nil, NewVerifyError("network_mismatch", "", Network(requirements.Network), nil)
 			}
-			return VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
+			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
 	facilitator.Register("eip155:1", mockFacilitator)
@@ -364,8 +367,8 @@ func TestFacilitatorSettle(t *testing.T) {
 
 	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		settleFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
-			return SettleResponse{
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
+			return &SettleResponse{
 				Success:     true,
 				Transaction: "0xsettledtx",
 				Payer:       "0xpayer",
@@ -416,17 +419,14 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 	var mockFacilitator *mockSchemeNetworkFacilitator
 	mockFacilitator = &mockSchemeNetworkFacilitator{
 		scheme: "exact",
-		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 			verifyCallCount++
-			return VerifyResponse{
-				IsValid:       false,
-				InvalidReason: "invalid signature",
-			}, nil
+			return nil, NewVerifyError("invalid_signature", "", Network(requirements.Network), nil)
 		},
-		settleFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (SettleResponse, error) {
+		settleFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
 			// Default settle calls verify first (like real mechanisms)
 			// Return failure since verify returns invalid
-			return SettleResponse{Success: false, ErrorReason: "invalid signature"}, nil
+			return nil, NewSettleError("invalid_signature", "", Network(requirements.Network), "", nil)
 		},
 	}
 

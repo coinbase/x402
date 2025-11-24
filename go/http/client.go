@@ -89,7 +89,7 @@ func (c *x402HTTPClient) GetPaymentRequiredResponse(headers map[string]string, b
 }
 
 // GetPaymentSettleResponse extracts settlement response from HTTP headers
-func (c *x402HTTPClient) GetPaymentSettleResponse(headers map[string]string) (x402.SettleResponse, error) {
+func (c *x402HTTPClient) GetPaymentSettleResponse(headers map[string]string) (*x402.SettleResponse, error) {
 	// Normalize headers to uppercase
 	normalizedHeaders := make(map[string]string)
 	for k, v := range headers {
@@ -106,7 +106,7 @@ func (c *x402HTTPClient) GetPaymentSettleResponse(headers map[string]string) (x4
 		return decodePaymentResponseHeader(header)
 	}
 
-	return x402.SettleResponse{}, fmt.Errorf("payment response header not found")
+	return nil, fmt.Errorf("payment response header not found")
 }
 
 // ============================================================================
@@ -434,16 +434,16 @@ func encodePaymentResponseHeader(response x402.SettleResponse) string {
 }
 
 // decodePaymentResponseHeader decodes a base64 payment response header
-func decodePaymentResponseHeader(header string) (x402.SettleResponse, error) {
+func decodePaymentResponseHeader(header string) (*x402.SettleResponse, error) {
 	data, err := base64.StdEncoding.DecodeString(header)
 	if err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("invalid base64 encoding: %w", err)
+		return nil, fmt.Errorf("invalid base64 encoding: %w", err)
 	}
 
 	var response x402.SettleResponse
 	if err := json.Unmarshal(data, &response); err != nil {
-		return x402.SettleResponse{}, fmt.Errorf("invalid settle response JSON: %w", err)
+		return nil, fmt.Errorf("invalid settle response JSON: %w", err)
 	}
 
-	return response, nil
+	return &response, nil
 }

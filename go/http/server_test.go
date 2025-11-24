@@ -261,8 +261,8 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		scheme: "exact",
 	}
 	mockClient := &mockFacilitatorClient{
-		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
-			return x402.VerifyResponse{
+		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
+			return &x402.VerifyResponse{
 				IsValid: true,
 				Payer:   "0xpayer",
 			}, nil
@@ -350,11 +350,12 @@ func TestProcessSettlement(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
-			return x402.SettleResponse{
+		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
+			return &x402.SettleResponse{
 				Success:     true,
 				Transaction: "0xtx",
 				Payer:       "0xpayer",
+				Network:     "eip155:8453",
 			}, nil
 		},
 	}
@@ -554,23 +555,23 @@ func (m *mockSchemeServer) EnhancePaymentRequirements(ctx context.Context, base 
 
 // Mock facilitator client
 type mockFacilitatorClient struct {
-	verify    func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error)
-	settle    func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error)
+	verify    func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error)
+	settle    func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error)
 	supported func(ctx context.Context) (x402.SupportedResponse, error)
 }
 
-func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	if m.verify != nil {
 		return m.verify(ctx, payloadBytes, requirementsBytes)
 	}
-	return x402.VerifyResponse{IsValid: true}, nil
+	return &x402.VerifyResponse{IsValid: true, Payer: "0xmock"}, nil
 }
 
-func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	if m.settle != nil {
 		return m.settle(ctx, payloadBytes, requirementsBytes)
 	}
-	return x402.SettleResponse{Success: true}, nil
+	return &x402.SettleResponse{Success: true, Transaction: "0xmock", Network: "eip155:1", Payer: "0xmock"}, nil
 }
 
 func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {

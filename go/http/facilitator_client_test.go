@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -49,24 +50,24 @@ type multiFacilitatorClient struct {
 	clients []x402.FacilitatorClient
 }
 
-func (m *multiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (m *multiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	for _, client := range m.clients {
 		result, err := client.Verify(ctx, payloadBytes, requirementsBytes)
-		if err == nil && result.IsValid {
+		if err == nil {
 			return result, nil
 		}
 	}
-	return x402.VerifyResponse{IsValid: false}, nil
+	return nil, fmt.Errorf("all facilitators failed verification")
 }
 
-func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	for _, client := range m.clients {
 		result, err := client.Settle(ctx, payloadBytes, requirementsBytes)
-		if err == nil && result.Success {
+		if err == nil {
 			return result, nil
 		}
 	}
-	return x402.SettleResponse{Success: false}, nil
+	return nil, fmt.Errorf("all facilitators failed settlement")
 }
 
 func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
@@ -182,6 +183,9 @@ func TestHTTPFacilitatorClientVerify(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !response.IsValid {
 		t.Error("Expected valid response")
 	}
@@ -239,6 +243,9 @@ func TestHTTPFacilitatorClientSettle(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
 	if !response.Success {
 		t.Error("Expected successful settlement")
 	}
@@ -313,9 +320,9 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 
 		// Return minimal response
 		if r.URL.Path == "/verify" {
-			json.NewEncoder(w).Encode(x402.VerifyResponse{IsValid: true})
+			json.NewEncoder(w).Encode(x402.VerifyResponse{IsValid: true, Payer: "0xpayer"})
 		} else if r.URL.Path == "/settle" {
-			json.NewEncoder(w).Encode(x402.SettleResponse{Success: true})
+			json.NewEncoder(w).Encode(x402.SettleResponse{Success: true, Transaction: "0xtx", Payer: "0xpayer", Network: "eip155:1"})
 		} else if r.URL.Path == "/supported" {
 			json.NewEncoder(w).Encode(x402.SupportedResponse{})
 		}
@@ -469,13 +476,13 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	// Create mock facilitator clients
 	client1 := &mockMultiFacilitatorClient{
 		id: "client1",
-		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 			var p x402.PaymentPayload
 			json.Unmarshal(payloadBytes, &p)
 			if p.Accepted.Scheme == "exact" {
-				return x402.VerifyResponse{IsValid: true, Payer: "client1"}, nil
+				return &x402.VerifyResponse{IsValid: true, Payer: "client1"}, nil
 			}
-			return x402.VerifyResponse{}, &x402.PaymentError{Message: "unsupported"}
+			return nil, &x402.PaymentError{Message: "unsupported"}
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
@@ -489,13 +496,13 @@ func TestMultiFacilitatorClient(t *testing.T) {
 
 	client2 := &mockMultiFacilitatorClient{
 		id: "client2",
-		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+		verifyFunc: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 			var p x402.PaymentPayload
 			json.Unmarshal(payloadBytes, &p)
 			if p.Accepted.Scheme == "transfer" {
-				return x402.VerifyResponse{IsValid: true, Payer: "client2"}, nil
+				return &x402.VerifyResponse{IsValid: true, Payer: "client2"}, nil
 			}
-			return x402.VerifyResponse{}, &x402.PaymentError{Message: "unsupported"}
+			return nil, &x402.PaymentError{Message: "unsupported"}
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
@@ -579,23 +586,23 @@ func TestMultiFacilitatorClient(t *testing.T) {
 // Mock facilitator client for multi-client testing
 type mockMultiFacilitatorClient struct {
 	id            string
-	verifyFunc    func(context.Context, []byte, []byte) (x402.VerifyResponse, error)
-	settleFunc    func(context.Context, []byte, []byte) (x402.SettleResponse, error)
+	verifyFunc    func(context.Context, []byte, []byte) (*x402.VerifyResponse, error)
+	settleFunc    func(context.Context, []byte, []byte) (*x402.SettleResponse, error)
 	supportedFunc func(context.Context) (x402.SupportedResponse, error)
 }
 
-func (m *mockMultiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.VerifyResponse, error) {
+func (m *mockMultiFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	if m.verifyFunc != nil {
 		return m.verifyFunc(ctx, payloadBytes, requirementsBytes)
 	}
-	return x402.VerifyResponse{}, nil
+	return nil, fmt.Errorf("no verify function")
 }
 
-func (m *mockMultiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (x402.SettleResponse, error) {
+func (m *mockMultiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	if m.settleFunc != nil {
 		return m.settleFunc(ctx, payloadBytes, requirementsBytes)
 	}
-	return x402.SettleResponse{}, nil
+	return nil, fmt.Errorf("no settle function")
 }
 
 func (m *mockMultiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {

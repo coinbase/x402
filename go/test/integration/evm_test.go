@@ -201,7 +201,7 @@ func (l *localEvmFacilitatorClient) Verify(
 	ctx context.Context,
 	payloadBytes []byte,
 	requirementsBytes []byte,
-) (x402.VerifyResponse, error) {
+) (*x402.VerifyResponse, error) {
 	// Pass bytes directly to facilitator (it handles unmarshaling internally)
 	return l.facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 }
@@ -210,7 +210,7 @@ func (l *localEvmFacilitatorClient) Settle(
 	ctx context.Context,
 	payloadBytes []byte,
 	requirementsBytes []byte,
-) (x402.SettleResponse, error) {
+) (*x402.SettleResponse, error) {
 	// Pass bytes directly to facilitator (it handles unmarshaling internally)
 	return l.facilitator.Settle(ctx, payloadBytes, requirementsBytes)
 }
@@ -525,8 +525,8 @@ func TestEVMIntegrationV1(t *testing.T) {
 			t.Fatalf("Failed to verify payment: %v", err)
 		}
 
-		if !verifyResponse.IsValid {
-			t.Fatalf("Payment verification failed: %s", verifyResponse.InvalidReason)
+		if verifyResponse == nil {
+			t.Fatal("Expected verify response")
 		}
 
 		if !strings.EqualFold(verifyResponse.Payer, clientSigner.Address()) {

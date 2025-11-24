@@ -33,109 +33,80 @@ func (f *ExactEvmScheme) Verify(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
-) (x402.VerifyResponse, error) {
+) (*x402.VerifyResponse, error) {
+	network := x402.Network(requirements.Network)
 
 	// Validate scheme (v2 has scheme in Accepted field)
 	if payload.Accepted.Scheme != evm.SchemeExact {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid scheme",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_scheme", "", network, nil)
 	}
 
 	// Validate network (v2 has network in Accepted field)
 	if payload.Accepted.Network != requirements.Network {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "network mismatch",
-		}, nil
+		return nil, x402.NewVerifyError("network_mismatch", "", network, nil)
 	}
 
 	// Parse EVM payload
 	evmPayload, err := evm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid payload: %v", err),
-		}, nil
+		return nil, x402.NewVerifyError("invalid_payload", "", network, err)
 	}
 
 	// Validate signature exists
 	if evmPayload.Signature == "" {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "missing signature",
-		}, nil
+		return nil, x402.NewVerifyError("missing_signature", "", network, nil)
 	}
 
 	// Get network configuration
 	networkStr := string(requirements.Network)
 	config, err := evm.GetNetworkConfig(networkStr)
 	if err != nil {
-		return x402.VerifyResponse{}, err
+		return nil, x402.NewVerifyError("failed_to_get_network_config", "", network, err)
 	}
 
 	// Get asset info
 	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
-		return x402.VerifyResponse{}, err
+		return nil, x402.NewVerifyError("failed_to_get_asset_info", "", network, err)
 	}
 
 	// Validate authorization matches requirements
 	if !strings.EqualFold(evmPayload.Authorization.To, requirements.PayTo) {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "recipient mismatch",
-		}, nil
+		return nil, x402.NewVerifyError("recipient_mismatch", "", network, nil)
 	}
 
 	// Parse and validate amount
 	authValue, ok := new(big.Int).SetString(evmPayload.Authorization.Value, 10)
 	if !ok {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid authorization value",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_authorization_value", "", network, nil)
 	}
 
 	// Requirements.Amount is already in the smallest unit
 	requiredValue, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: fmt.Sprintf("invalid required amount: %s", requirements.Amount),
-		}, nil
+		return nil, x402.NewVerifyError("invalid_required_amount", "", network, fmt.Errorf("invalid amount: %s", requirements.Amount))
 	}
 
 	if authValue.Cmp(requiredValue) < 0 {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "insufficient amount",
-		}, nil
+		return nil, x402.NewVerifyError("insufficient_amount", evmPayload.Authorization.From, network, nil)
 	}
 
 	// Check if nonce has been used
 	nonceUsed, err := f.checkNonceUsed(ctx, evmPayload.Authorization.From, evmPayload.Authorization.Nonce, assetInfo.Address)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to check nonce: %w", err)
+		return nil, x402.NewVerifyError("failed_to_check_nonce", evmPayload.Authorization.From, network, err)
 	}
 	if nonceUsed {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "nonce already used",
-		}, nil
+		return nil, x402.NewVerifyError("nonce_already_used", evmPayload.Authorization.From, network, nil)
 	}
 
 	// Check balance
 	balance, err := f.signer.GetBalance(evmPayload.Authorization.From, assetInfo.Address)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to get balance: %w", err)
+		return nil, x402.NewVerifyError("failed_to_get_balance", evmPayload.Authorization.From, network, err)
 	}
 	if balance.Cmp(authValue) < 0 {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "insufficient balance",
-		}, nil
+		return nil, x402.NewVerifyError("insufficient_balance", evmPayload.Authorization.From, network, nil)
 	}
 
 	// Extract token info from requirements
@@ -153,10 +124,7 @@ func (f *ExactEvmScheme) Verify(
 	// Verify signature
 	signatureBytes, err := evm.HexToBytes(evmPayload.Signature)
 	if err != nil {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid signature format",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_signature_format", evmPayload.Authorization.From, network, err)
 	}
 
 	valid, err := f.verifySignature(
@@ -169,17 +137,14 @@ func (f *ExactEvmScheme) Verify(
 		tokenVersion,
 	)
 	if err != nil {
-		return x402.VerifyResponse{}, fmt.Errorf("failed to verify signature: %w", err)
+		return nil, x402.NewVerifyError("failed_to_verify_signature", evmPayload.Authorization.From, network, err)
 	}
 
 	if !valid {
-		return x402.VerifyResponse{
-			IsValid:       false,
-			InvalidReason: "invalid signature",
-		}, nil
+		return nil, x402.NewVerifyError("invalid_signature", evmPayload.Authorization.From, network, nil)
 	}
 
-	return x402.VerifyResponse{
+	return &x402.VerifyResponse{
 		IsValid: true,
 		Payer:   evmPayload.Authorization.From,
 	}, nil
@@ -190,50 +155,40 @@ func (f *ExactEvmScheme) Settle(
 	ctx context.Context,
 	payload types.PaymentPayload,
 	requirements types.PaymentRequirements,
-) (x402.SettleResponse, error) {
+) (*x402.SettleResponse, error) {
+	network := x402.Network(payload.Accepted.Network)
+
 	// First verify the payment
 	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
-		return x402.SettleResponse{}, err
-	}
-	if !verifyResp.IsValid {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: verifyResp.InvalidReason,
-			Network:     x402.Network(payload.Accepted.Network),
-		}, nil
+		// Convert VerifyError to SettleError
+		if ve, ok := err.(*x402.VerifyError); ok {
+			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
+		}
+		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
 	}
 
 	// Parse EVM payload
 	evmPayload, err := evm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: fmt.Sprintf("invalid payload: %v", err),
-		}, nil
+		return nil, x402.NewSettleError("invalid_payload", verifyResp.Payer, network, "", err)
 	}
 
 	// Get asset info
 	networkStr := string(requirements.Network)
 	assetInfo, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 	if err != nil {
-		return x402.SettleResponse{}, err
+		return nil, x402.NewSettleError("failed_to_get_asset_info", verifyResp.Payer, network, "", err)
 	}
 
 	// Parse signature components (v, r, s)
 	signatureBytes, err := evm.HexToBytes(evmPayload.Signature)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid signature format",
-		}, nil
+		return nil, x402.NewSettleError("invalid_signature_format", verifyResp.Payer, network, "", err)
 	}
 
 	if len(signatureBytes) != 65 {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "invalid signature length",
-		}, nil
+		return nil, x402.NewSettleError("invalid_signature_length", verifyResp.Payer, network, "", nil)
 	}
 
 	r := signatureBytes[0:32]
@@ -262,34 +217,24 @@ func (f *ExactEvmScheme) Settle(
 		[32]byte(s),
 	)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: fmt.Sprintf("failed to execute transfer: %v", err),
-		}, nil
+		return nil, x402.NewSettleError("failed_to_execute_transfer", verifyResp.Payer, network, "", err)
 	}
 
 	// Wait for transaction confirmation
 	receipt, err := f.signer.WaitForTransactionReceipt(txHash)
 	if err != nil {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: fmt.Sprintf("failed to get receipt: %v", err),
-		}, nil
+		return nil, x402.NewSettleError("failed_to_get_receipt", verifyResp.Payer, network, txHash, err)
 	}
 
 	if receipt.Status != evm.TxStatusSuccess {
-		return x402.SettleResponse{
-			Success:     false,
-			ErrorReason: "transaction failed",
-			Transaction: txHash,
-		}, nil
+		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, txHash, nil)
 	}
 
-	return x402.SettleResponse{
+	return &x402.SettleResponse{
 		Success:     true,
 		Transaction: txHash,
-		Network:     x402.Network(payload.Accepted.Network),
-		Payer:       evmPayload.Authorization.From,
+		Network:     network,
+		Payer:       verifyResp.Payer,
 	}, nil
 }
 
