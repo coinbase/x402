@@ -184,25 +184,57 @@ export function paymentMiddleware(
  *
  * @example
  * ```typescript
+ * // Simple configuration - Protected route with $0.01 USDC on base-sepolia
  * import { NextRequest, NextResponse } from "next/server";
- * import { withX402, Address, Network, Resource } from "x402-next";
+ * import { withX402 } from "x402-next";
  *
  * const handler = async (request: NextRequest) => {
- *   return NextResponse.json({
- *     report: { weather: "sunny", temperature: 70 }
- *   });
+ *   return NextResponse.json({ message: "Success" });
  * };
  *
  * export const GET = withX402(
  *   handler,
- *   process.env.RESOURCE_WALLET_ADDRESS as Address,
+ *   '0x123...', // payTo address
  *   {
- *     price: "$0.01",
- *     network: process.env.NETWORK as Network,
- *     config: { description: "Access to weather API" }
+ *     price: '$0.01', // USDC amount in dollars
+ *     network: 'base-sepolia'
  *   },
- *   { url: process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource },
- *   { appName: "My App", appLogo: "/logo.png" }
+ *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
+ * );
+ *
+ * // Advanced configuration - Custom payment settings & facilitator
+ * export const POST = withX402(
+ *   handler,
+ *   '0x123...', // payTo: The address to receive payments
+ *   {
+ *     price: {
+ *       amount: '100000',
+ *       asset: {
+ *         address: '0xabc',
+ *         decimals: 18,
+ *         eip712: {
+ *           name: 'WETH',
+ *           version: '1'
+ *         }
+ *       }
+ *     },
+ *     network: 'base',
+ *     config: {
+ *       description: 'Access to premium content'
+ *     }
+ *   },
+ *   {
+ *     url: 'https://facilitator.example.com',
+ *     createAuthHeaders: async () => ({
+ *       verify: { "Authorization": "Bearer token" },
+ *       settle: { "Authorization": "Bearer token" }
+ *     })
+ *   },
+ *   {
+ *     cdpClientKey: 'your-cdp-client-key',
+ *     appLogo: '/images/logo.svg',
+ *     appName: 'My App',
+ *   }
  * );
  * ```
  */
