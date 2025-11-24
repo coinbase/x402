@@ -283,14 +283,28 @@ export function paymentMiddleware(
       );
     }
 
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
+    try {
+      const verification = await verify(decodedPayment, selectedPaymentRequirements);
 
-    if (!verification.isValid) {
+      if (!verification.isValid) {
+        return c.json(
+          {
+            error: errorMessages?.verificationFailed || verification.invalidReason,
+            accepts: paymentRequirements,
+            payer: verification.payer,
+            x402Version,
+          },
+          402,
+        );
+      }
+    } catch (error) {
+      console.error("Payment verification failed:", error);
       return c.json(
         {
-          error: errorMessages?.verificationFailed || verification.invalidReason,
+          error:
+            errorMessages?.verificationFailed ||
+            (error instanceof Error ? error.message : "Payment verification failed"),
           accepts: paymentRequirements,
-          payer: verification.payer,
           x402Version,
         },
         402,
