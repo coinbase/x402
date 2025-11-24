@@ -415,7 +415,72 @@ describe("withX402()", () => {
     const json = await response.json();
     expect(json).toEqual({
       x402Version: 1,
-      error: expect.any(Object),
+      error: "Settlement failed",
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          outputSchema,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
+  it("should handle unsuccessful settlement (success = false)", async () => {
+    const wrappedHandler = withX402(
+      mockHandler,
+      payTo,
+      {
+        price: 1.0,
+        network: "base-sepolia",
+        config: middlewareConfig,
+      },
+      facilitatorConfig,
+    );
+
+    const validPayment = "valid-payment-header";
+    const request = {
+      ...mockRequest,
+      headers: new Headers({
+        "X-PAYMENT": validPayment,
+      }),
+    } as NextRequest;
+
+    const decodedPayment = {
+      scheme: "exact",
+      network: "base-sepolia",
+      x402Version: 1,
+    };
+    mockDecodePayment.mockReturnValue(decodedPayment);
+
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: false,
+      errorReason: "invalid_transaction_state",
+      transaction: "0x123",
+      network: "base-sepolia",
+      payer: "0x123",
+    });
+
+    const response = await wrappedHandler(request);
+
+    expect(mockHandler).toHaveBeenCalledWith(request);
+    expect(response.status).toBe(402);
+    const json = await response.json();
+    expect(json).toEqual({
+      x402Version: 1,
+      error: "invalid_transaction_state",
       accepts: [
         {
           scheme: "exact",
