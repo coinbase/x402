@@ -17,6 +17,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const (
+	DefaultPort = "4021"
+)
+
 /**
  * Custom Middleware Example - Direct x402 Integration
  *
@@ -267,14 +271,7 @@ func logSettlementDetails(headers map[string]string) {
 
 func main() {
 	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
-	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "4021"
-	}
+	godotenv.Load()
 
 	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if evmPayeeAddress == "" {
@@ -397,25 +394,10 @@ func main() {
 	// Start Server
 	// ========================================================================
 
-	fmt.Printf(`
-╔════════════════════════════════════════════════════════╗
-║        Custom x402 Middleware Example                  ║
-╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:%-24s ║
-║  Network:    %-41s ║
-║  Payee:      %-41s ║
-║                                                        ║
-║  This example shows how to implement x402 integration  ║
-║  directly without using pre-built middleware.          ║
-║                                                        ║
-║  Endpoints:                                            ║
-║  • GET  /weather              (requires payment)      ║
-║  • GET  /health               (public)                ║
-║  • GET  /debug/requirements   (public)                ║
-╚════════════════════════════════════════════════════════╝
-`, port, evmNetwork, evmPayeeAddress)
+	fmt.Printf("🚀 Server: %s on %s\n", evmPayeeAddress, evmNetwork)
+	fmt.Printf("   Listening on http://localhost:%s\n\n", DefaultPort)
 
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}

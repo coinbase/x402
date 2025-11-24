@@ -15,6 +15,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const DefaultPort = "4021"
+
 /**
  * Dynamic PayTo Example
  *
@@ -25,15 +27,7 @@ import (
  */
 
 func main() {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
-	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "4021"
-	}
+	godotenv.Load()
 
 	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if evmPayeeAddress == "" {
@@ -97,7 +91,7 @@ func main() {
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
 			Scheme:      "exact",
-			PayTo:       dynamicPayTo, // Use function instead of static address
+			PayTo:       x402http.DynamicPayToFunc(dynamicPayTo),
 			Price:       "$0.001",
 			Network:     evmNetwork,
 			Description: "Weather data",
@@ -124,14 +118,10 @@ func main() {
 		})
 	})
 
-	r.GET("/health", func(c *ginfw.Context) {
-		c.JSON(http.StatusOK, ginfw.H{"status": "ok"})
-	})
-
-	fmt.Printf("🚀 Dynamic PayTo example running on http://localhost:%s\n", port)
+	fmt.Printf("🚀 Dynamic PayTo example running on http://localhost:%s\n", DefaultPort)
 	fmt.Printf("   Payments are routed based on request context\n")
 
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}

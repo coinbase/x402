@@ -50,14 +50,11 @@ func main() {
 	}
 
 	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
-	// SVM key is optional - only needed for some patterns
 
-	baseURL := os.Getenv("SERVER_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:4021"
+	url := os.Getenv("SERVER_URL")
+	if url == "" {
+		url = "http://localhost:4021/weather"
 	}
-
-	url := baseURL + "/weather"
 
 	// Create client based on pattern
 	var client *x402.X402Client

@@ -123,7 +123,7 @@ func (t *ValidationTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	return resp, err
 }
 
-func runRequestMiddlewareExample(ctx context.Context, evmPrivateKey, baseURL string) error {
+func runRequestMiddlewareExample(ctx context.Context, evmPrivateKey, url string) error {
 	fmt.Println("🔧 Creating client with custom request middleware...\n")
 
 	// Create signer
@@ -173,7 +173,6 @@ func runRequestMiddlewareExample(ctx context.Context, evmPrivateKey, baseURL str
 	customClient := x402http.WrapHTTPClientWithPayment(baseClient, httpClient)
 
 	// Make request
-	url := baseURL + "/weather"
 	fmt.Printf("🌐 Making request with middleware stack to: %s\n\n", url)
 
 	fmt.Println("📚 Middleware Stack (execution order):")

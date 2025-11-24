@@ -28,14 +28,8 @@ go mod download
 Create a `.env` file in this directory with the following variables:
 
 ```bash
-# Your Ethereum address to receive payments
 EVM_PAYEE_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-
-# Facilitator URL for payment verification
 FACILITATOR_URL=https://facilitator.x402.org
-
-# Optional: Server port (defaults to 4021)
-PORT=4021
 ```
 
 ## Running the Server
@@ -44,23 +38,7 @@ PORT=4021
 go run main.go
 ```
 
-The server will start on `http://localhost:4021` (or your configured PORT).
-
 ## Testing the Endpoints
-
-### Health Check (No Payment Required)
-
-```bash
-curl http://localhost:4021/health
-```
-
-Response:
-```json
-{
-  "status": "ok",
-  "version": "2.0.0"
-}
-```
 
 ### Weather Endpoint (Payment Required)
 

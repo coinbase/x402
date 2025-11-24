@@ -14,24 +14,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
-/**
- * Simple Gin Server with x402 Payment Middleware
- *
- * This example demonstrates how to integrate x402 payment middleware
- * with a Gin application to protect API endpoints with micropayments.
- */
+const (
+	DefaultPort = "4021"
+)
 
 func main() {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
-	}
-
-	// Get configuration from environment
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "4021"
-	}
+	godotenv.Load()
 
 	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if evmPayeeAddress == "" {
@@ -133,23 +121,10 @@ func main() {
 		})
 	})
 
-	// Print startup information
-	fmt.Printf(`
-╔════════════════════════════════════════════════════════╗
-║        x402 Gin Server Example                         ║
-╠════════════════════════════════════════════════════════╣
-║  Server:     http://localhost:%-24s ║
-║  Network:    %-41s ║
-║  Payee:      %-41s ║
-║                                                        ║
-║  Endpoints:                                            ║
-║  • GET  /weather    (requires $0.001 USDC payment)    ║
-║  • GET  /health     (no payment required)             ║
-╚════════════════════════════════════════════════════════╝
-`, port, evmNetwork, evmPayeeAddress)
+	fmt.Printf("🚀 Server: %s on %s\n", evmPayeeAddress, evmNetwork)
+	fmt.Printf("   Listening on http://localhost:%s\n\n", DefaultPort)
 
-	// Start server
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}

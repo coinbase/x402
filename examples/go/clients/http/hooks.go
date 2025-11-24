@@ -33,13 +33,13 @@ func createHooksClient(evmPrivateKey string) (*x402.X402Client, error) {
 
 	// OnBeforePaymentCreation: Called before payment is created
 	// Use this for logging, validation, or aborting payment creation
-	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationResult, error) {
+	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
 		fmt.Printf("🔍 [BeforePaymentCreation] Creating payment for:\n")
-		fmt.Printf("   Network: %s\n", ctx.Requirements.Network)
-		fmt.Printf("   Scheme: %s\n", ctx.Requirements.Scheme)
+		fmt.Printf("   Network: %s\n", ctx.SelectedRequirements.GetNetwork())
+		fmt.Printf("   Scheme: %s\n", ctx.SelectedRequirements.GetScheme())
 
 		// You can abort payment creation by returning:
-		// return &x402.BeforePaymentCreationResult{
+		// return &x402.BeforePaymentCreationHookResult{
 		//     Abort: true,
 		//     Reason: "Payment not allowed for this resource",
 		// }, nil
@@ -49,9 +49,9 @@ func createHooksClient(evmPrivateKey string) (*x402.X402Client, error) {
 
 	// OnAfterPaymentCreation: Called after payment is successfully created
 	// Use this for logging, metrics, or other side effects
-	client.OnAfterPaymentCreation(func(ctx x402.PaymentCreationResultContext) error {
+	client.OnAfterPaymentCreation(func(ctx x402.PaymentCreatedContext) error {
 		fmt.Printf("✅ [AfterPaymentCreation] Payment created successfully\n")
-		fmt.Printf("   Payload size: %d bytes\n", len(ctx.PayloadBytes))
+		fmt.Printf("   Version: %d\n", ctx.Version)
 
 		// Perform side effects like logging to database, sending metrics, etc.
 		// Errors here are logged but don't fail the payment
@@ -61,7 +61,7 @@ func createHooksClient(evmPrivateKey string) (*x402.X402Client, error) {
 
 	// OnPaymentCreationFailure: Called when payment creation fails
 	// Use this for error recovery or alternative payment methods
-	client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x402.PaymentCreationFailureResult, error) {
+	client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x402.PaymentCreationFailureHookResult, error) {
 		fmt.Printf("❌ [OnPaymentCreationFailure] Payment creation failed: %v\n", ctx.Error)
 
 		// You could attempt to recover by providing an alternative payload:

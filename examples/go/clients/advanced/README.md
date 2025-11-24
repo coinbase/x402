@@ -7,7 +7,6 @@ This directory contains advanced, production-ready patterns for x402 Go clients.
 Advanced patterns for production environments:
 - **Custom HTTP Transports**: Retry logic, circuit breakers, timeouts
 - **Error Recovery**: Sophisticated error handling and recovery strategies
-- **Concurrent Requests**: Safe parallel execution of paid requests
 - **Multi-Network Priority**: Network-specific configuration with fallbacks
 - **Request Middleware**: Custom interceptors for logging, headers, validation
 
@@ -53,27 +52,7 @@ go run . error-recovery
 - Require detailed error diagnostics
 - Building fault-tolerant systems
 
-### 3. Concurrent Requests (`concurrent-requests`)
-
-**Production Pattern**: Make multiple paid requests in parallel safely
-
-```bash
-go run . concurrent-requests
-```
-
-**Demonstrates:**
-- Safe concurrent payment creation
-- Goroutine synchronization
-- Result aggregation
-- Performance metrics collection
-
-**Use When:**
-- Need to fetch data from multiple paid endpoints
-- Building high-throughput applications
-- Want to minimize total latency
-- Processing batch requests
-
-### 4. Multi-Network Priority (`multi-network-priority`)
+### 3. Multi-Network Priority (`multi-network-priority`)
 
 **Production Pattern**: Configure network-specific signers with priority fallback
 
@@ -93,7 +72,7 @@ go run . multi-network-priority
 - Want mainnet/testnet separation
 - Building multi-chain applications
 
-### 5. Request Middleware (`request-middleware`)
+### 4. Request Middleware (`request-middleware`)
 
 **Production Pattern**: Add custom processing layers to HTTP requests
 
@@ -146,7 +125,6 @@ SERVER_URL=http://localhost:4021
 # Run specific advanced example
 go run . custom-transport
 go run . error-recovery
-go run . concurrent-requests
 go run . multi-network-priority
 go run . request-middleware
 ```
@@ -278,22 +256,11 @@ Implement smart error categorization:
 
 ## Performance Optimization
 
-### Concurrent Request Benefits
-
-| Requests | Serial Time | Concurrent Time | Speedup |
-|----------|-------------|-----------------|---------|
-| 5 | 5.0s | 1.2s | 4.2x |
-| 10 | 10.0s | 2.1s | 4.8x |
-| 20 | 20.0s | 3.8s | 5.3x |
-
-*Actual speedup depends on server response time and network conditions*
-
 ### Memory Management
 
 - Use connection pooling to reduce allocation overhead
-- Limit concurrent goroutines to prevent resource exhaustion
 - Close response bodies promptly to free connections
-- Use buffered channels for result collection
+- Reuse HTTP clients across requests
 
 ## Testing Against Local Server
 
@@ -306,7 +273,7 @@ go run main.go
 2. Run advanced examples:
 ```bash
 cd ../../clients/advanced
-go run . concurrent-requests
+go run . custom-transport
 ```
 
 ## Comparison: Basic vs Advanced

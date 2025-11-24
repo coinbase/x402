@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	x402 "github.com/coinbase/x402/go"
 	"github.com/joho/godotenv"
 )
 
@@ -19,14 +18,12 @@ import (
  *
  * - custom-transport: Custom HTTP transport with retry logic and circuit breaker
  * - error-recovery: Advanced error handling and automatic recovery strategies
- * - concurrent-requests: Making multiple paid requests concurrently
  * - multi-network-priority: Network selection with priority and fallback
  * - request-middleware: Custom request/response interceptors
  *
  * Usage:
  *   go run . custom-transport
  *   go run . error-recovery
- *   go run . concurrent-requests
  *   go run . multi-network-priority
  *   go run . request-middleware
  */
@@ -51,9 +48,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	baseURL := os.Getenv("SERVER_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:4021"
+	url := os.Getenv("SERVER_URL")
+	if url == "" {
+		url = "http://localhost:4021/weather"
 	}
 
 	// Run the selected example
@@ -61,38 +58,32 @@ func main() {
 
 	switch pattern {
 	case "custom-transport":
-		if err := runCustomTransportExample(ctx, evmPrivateKey, baseURL); err != nil {
+		if err := runCustomTransportExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "error-recovery":
-		if err := runErrorRecoveryExample(ctx, evmPrivateKey, baseURL); err != nil {
-			fmt.Printf("❌ Error: %v\n", err)
-			os.Exit(1)
-		}
-
-	case "concurrent-requests":
-		if err := runConcurrentRequestsExample(ctx, evmPrivateKey, baseURL); err != nil {
+		if err := runErrorRecoveryExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "multi-network-priority":
-		if err := runMultiNetworkPriorityExample(ctx, evmPrivateKey, baseURL); err != nil {
+		if err := runMultiNetworkPriorityExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "request-middleware":
-		if err := runRequestMiddlewareExample(ctx, evmPrivateKey, baseURL); err != nil {
+		if err := runRequestMiddlewareExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
-		fmt.Println("Available patterns: custom-transport, error-recovery, concurrent-requests, multi-network-priority, request-middleware")
+		fmt.Println("Available patterns: custom-transport, error-recovery, multi-network-priority, request-middleware")
 		os.Exit(1)
 	}
 }

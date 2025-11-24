@@ -59,6 +59,7 @@ go run dynamic-price.go
 ### 5. Lifecycle Hooks (`hooks.go`)
 
 **What it demonstrates:**
+- Extracting structured error information from `*VerifyError` and `*SettleError`
 - Registering hooks for payment verification and settlement lifecycle
 - Running custom logic before/after verification and settlement
 - Implementing error recovery and custom validation
@@ -95,28 +96,18 @@ Create a `.env` file with:
 ```bash
 EVM_PAYEE_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 FACILITATOR_URL=https://facilitator.x402.org
-PORT=4021
 ```
 
 ## Running the Examples
 
-Each example is a standalone Go file that can be run independently:
+**Each example is standalone and must be run individually (not with `go run .`):**
 
 ```bash
-# Run the bazaar discovery example
-go run bazaar.go
-
-# Run the dynamic pay-to example
-go run dynamic-pay-to.go
-
-# Run the custom money definition example
-go run custom-money-definition.go
-
-# Run the dynamic price example
-go run dynamic-price.go
-
-# Run the lifecycle hooks example
 go run hooks.go
+go run bazaar.go
+go run dynamic-price.go
+go run dynamic-pay-to.go
+go run custom-money-definition.go
 ```
 
 ## Understanding the Patterns

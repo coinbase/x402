@@ -110,7 +110,6 @@ Create a `.env` file:
 ```bash
 EVM_PAYEE_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 FACILITATOR_URL=https://facilitator.x402.org
-PORT=4021
 ```
 
 ## Running the Example
@@ -119,15 +118,7 @@ PORT=4021
 go run main.go
 ```
 
-The server will start on `http://localhost:4021`.
-
 ## Testing the Endpoints
-
-### Health Check (Public)
-
-```bash
-curl http://localhost:4021/health
-```
 
 ### Debug Requirements (Public)
 

@@ -15,10 +15,17 @@ Facilitators allow clients to create payments without needing to interact with t
 ## What This Example Shows
 
 - **Basic Facilitator Setup**: Creating and configuring a facilitator
-- **Payment Verification**: Verifying client payment signatures
-- **On-chain Settlement**: Submitting transactions to the blockchain
+- **Payment Verification**: Verifying client payment signatures with idiomatic error handling
+- **On-chain Settlement**: Submitting transactions to the blockchain (EVM + SVM)
+- **Facilitator Signer Implementation**: See `signer.go` for EVM and SVM signer examples
 - **Lifecycle Hooks**: Logging verification and settlement operations
-- **HTTP Endpoints**: Exposing /verify and /settle APIs
+- **HTTP Endpoints**: Exposing /verify, /settle, and /supported APIs
+
+## Files in This Example
+
+- **`main.go`** - Main facilitator server with hooks and endpoints
+- **`signer.go`** - Facilitator signer implementations for EVM and SVM
+- **`README.md`** - This file
 
 ## Architecture
 
@@ -41,19 +48,15 @@ Client → Resource Server → Facilitator → Blockchain
    │           │    ← Success   ←    ← Confirmed
 ```
 
-## Important Note
+## Signer Implementation
 
-**This example demonstrates the facilitator API structure and hooks** but does not include the full facilitator signer implementation. Facilitator signers require RPC integration and blockchain interaction (300+ lines of code).
+The `signer.go` file contains reference implementations for EVM and SVM facilitator signers that handle:
+- EIP-712 signature verification
+- Transaction submission and confirmation
+- Balance checking
+- RPC client management
 
-For a complete, working facilitator implementation, see:
-- **E2E Facilitator**: `e2e/facilitators/go/main.go` (full implementation)
-- **Facilitator Signer Helpers** (coming soon): Will simplify this to a few lines
-
-This example is designed to show:
-- ✅ How to structure a facilitator service
-- ✅ How to use facilitator hooks for logging
-- ✅ The facilitator API and endpoints
-- ⚠️ Not a runnable facilitator (needs signer implementation)
+For production deployments with additional features (Bazaar discovery, multiple networks), see `e2e/facilitators/go/main.go`.
 
 ## Prerequisites
 
@@ -74,47 +77,51 @@ go mod download
 Create a `.env` file:
 
 ```bash
-# Required: Facilitator private key (needs ETH for gas)
 EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-# Optional: RPC endpoint (defaults to Base Sepolia)
-RPC_URL=https://sepolia.base.org
-
-# Optional: Server port (defaults to 4022)
-PORT=4022
+SVM_PRIVATE_KEY=your_base58_private_key_here
 ```
 
 **⚠️ Security Note:** The facilitator private key needs ETH for gas fees to submit transactions. Use a dedicated testnet account with limited funds.
 
-## Running This Example
+## Running
 
 ```bash
 go run .
 ```
 
-This will display the facilitator structure and exit with instructions to run the full E2E facilitator.
+## Error Handling
 
-**To run a complete, working facilitator:**
+The facilitator SDK uses **idiomatic Go error handling** with custom error types:
 
-```bash
-cd ../../../e2e/facilitators/go
-go run .
+**Success Pattern:**
+```go
+result, err := facilitator.Verify(ctx, payload, requirements)
+if err != nil {
+    return err  // Any failure (business logic or system)
+}
+// result.IsValid is guaranteed to be true
 ```
 
-## API Endpoints
-
-### GET /health
-
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "ok",
-  "version": "2.0.0",
-  "network": "eip155:84532"
+**Structured Error Information:**
+```go
+result, err := facilitator.Verify(ctx, payload, requirements)
+if err != nil {
+    // Extract structured error details if needed
+    if ve, ok := err.(*x402.VerifyError); ok {
+        log.Printf("Verification failed: reason=%s, payer=%s, network=%s",
+                   ve.Reason, ve.Payer, ve.Network)
+    }
+    return err
 }
 ```
+
+**Error Types:**
+- `*VerifyError` - Verification failures with `Reason`, `Payer`, `Network`, `Err`
+- `*SettleError` - Settlement failures with `Reason`, `Payer`, `Network`, `Transaction`, `Err`
+
+This replaces the old pattern of checking both `err != nil` and `response.IsValid == false`.
+
+## API Endpoints
 
 ### GET /supported
 
@@ -231,13 +238,7 @@ facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*SettleFa
 go run .
 ```
 
-### 2. Test Health Endpoint
-
-```bash
-curl http://localhost:4022/health
-```
-
-### 3. Test with Client and Server
+w### 2. Test with Client and Server
 
 Start a resource server (in another terminal):
 
@@ -355,18 +356,6 @@ For production use, consider:
 - **Monitoring**: Add comprehensive logging and alerting
 - **High Availability**: Run multiple instances with load balancing
 
-## Implementing a Full Facilitator
-
-To build a complete facilitator, you need to implement a facilitator signer that:
-
-1. **Verifies Signatures**: Check EIP-712 signatures from clients
-2. **Interacts with Blockchain**: Read state and submit transactions
-3. **Manages Gas**: Handle gas estimation and nonce management
-4. **Confirms Transactions**: Wait for on-chain confirmation
-
-See `e2e/facilitators/go/main.go` for the reference implementation (~1100 lines).
-
-**Coming Soon:** Facilitator signer helpers that will reduce this to ~10 lines!
 
 ## Next Steps
 

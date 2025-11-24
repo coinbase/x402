@@ -14,6 +14,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const DefaultPort = "4021"
+
 /**
  * Lifecycle Hooks Example
  *
@@ -23,15 +25,7 @@ import (
  */
 
 func main() {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
-	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "4021"
-	}
+	godotenv.Load()
 
 	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if evmPayeeAddress == "" {
@@ -53,99 +47,7 @@ func main() {
 		URL: facilitatorURL,
 	})
 
-	/**
-	 * Create Resource Server with Lifecycle Hooks
-	 *
-	 * Hooks allow you to run custom code at different stages:
-	 * - BeforeVerify: Run before payment verification (can abort)
-	 * - AfterVerify: Run after successful verification (for side effects)
-	 * - OnVerifyFailure: Run when verification fails (can recover)
-	 * - BeforeSettle: Run before payment settlement (can abort)
-	 * - AfterSettle: Run after successful settlement (for side effects)
-	 * - OnSettleFailure: Run when settlement fails (can recover)
-	 */
-	resourceServer := x402.Newx402ResourceServer(
-		x402.WithFacilitatorClient(facilitatorClient),
-		x402.WithSchemeServer(evmNetwork, evm.NewExactEvmScheme()),
-	)
-
-	// BeforeVerify: Called before payment verification starts
-	resourceServer.OnBeforeVerify(func(ctx x402.VerifyContext) (*x402.BeforeHookResult, error) {
-		fmt.Printf("🔍 [BeforeVerify] Verifying payment on %s\n", ctx.Requirements.Network)
-		
-		// You could abort verification here if needed:
-		// return &x402.BeforeHookResult{
-		//     Abort: true,
-		//     Reason: "Custom validation failed",
-		// }, nil
-		
-		return nil, nil // Continue with verification
-	})
-
-	// AfterVerify: Called after successful payment verification
-	resourceServer.OnAfterVerify(func(ctx x402.VerifyResultContext) error {
-		fmt.Printf("✅ [AfterVerify] Payment verified successfully\n")
-		
-		// Perform side effects like logging to database, metrics, etc.
-		// Note: Errors here are logged but don't fail the request
-		
-		return nil
-	})
-
-	// OnVerifyFailure: Called when payment verification fails
-	resourceServer.OnVerifyFailure(func(ctx x402.VerifyFailureContext) (*x402.VerifyFailureHookResult, error) {
-		fmt.Printf("❌ [OnVerifyFailure] Verification failed: %v\n", ctx.Error)
-		
-		// You could attempt to recover from the failure:
-		// return &x402.VerifyFailureHookResult{
-		//     Recovered: true,
-		//     Result: x402.VerifyResponse{
-		//         IsValid: true,
-		//         InvalidReason: "Recovered by custom logic",
-		//     },
-		// }, nil
-		
-		return nil, nil // Don't recover, let it fail
-	})
-
-	// BeforeSettle: Called before payment settlement starts
-	resourceServer.OnBeforeSettle(func(ctx x402.SettleContext) (*x402.BeforeHookResult, error) {
-		fmt.Printf("💰 [BeforeSettle] Settling payment on %s\n", ctx.Requirements.Network)
-		
-		// You could abort settlement here if needed:
-		// return &x402.BeforeHookResult{
-		//     Abort: true,
-		//     Reason: "Settlement conditions not met",
-		// }, nil
-		
-		return nil, nil // Continue with settlement
-	})
-
-	// AfterSettle: Called after successful payment settlement
-	resourceServer.OnAfterSettle(func(ctx x402.SettleResultContext) error {
-		fmt.Printf("🎉 [AfterSettle] Payment settled! Transaction: %s\n", ctx.Result.Transaction)
-		
-		// Perform side effects like updating database, sending notifications, etc.
-		
-		return nil
-	})
-
-	// OnSettleFailure: Called when payment settlement fails
-	resourceServer.OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
-		fmt.Printf("❌ [OnSettleFailure] Settlement failed: %v\n", ctx.Error)
-		
-		// You could attempt to recover from the failure:
-		// return &x402.SettleFailureHookResult{
-		//     Recovered: true,
-		//     Result: x402.SettleResponse{
-		//         Transaction: "0x123...",
-		//         Network: string(ctx.Requirements.Network),
-		//         Payer: "recovered-payer",
-		//     },
-		// }, nil
-		
-		return nil, nil // Don't recover, let it fail
-	})
+	evmScheme := evm.NewExactEvmScheme()
 
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
@@ -159,10 +61,13 @@ func main() {
 	}
 
 	r.Use(ginmw.X402Payment(ginmw.Config{
-		Routes:         routes,
-		ResourceServer: resourceServer, // Use custom resource server with hooks
-		Initialize:     true,
-		Timeout:        30 * time.Second,
+		Routes:      routes,
+		Facilitator: facilitatorClient,
+		Schemes: []ginmw.SchemeConfig{
+			{Network: evmNetwork, Server: evmScheme},
+		},
+		Initialize: true,
+		Timeout:    30 * time.Second,
 	}))
 
 	r.GET("/weather", func(c *ginfw.Context) {
@@ -174,14 +79,10 @@ func main() {
 		})
 	})
 
-	r.GET("/health", func(c *ginfw.Context) {
-		c.JSON(http.StatusOK, ginfw.H{"status": "ok"})
-	})
-
-	fmt.Printf("🚀 Lifecycle Hooks example running on http://localhost:%s\n", port)
+	fmt.Printf("🚀 Lifecycle Hooks example running on http://localhost:%s\n", DefaultPort)
 	fmt.Printf("   Watch the console for hook execution logs\n")
 
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}

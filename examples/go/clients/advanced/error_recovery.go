@@ -27,7 +27,7 @@ type ErrorRecoveryClient struct {
 	attemptCount    int
 }
 
-func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, baseURL string) error {
+func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, url string) error {
 	fmt.Println("🛡️  Creating client with advanced error recovery...\n")
 
 	// Create signer
@@ -45,9 +45,9 @@ func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, baseURL string)
 	successfulRecoveries := 0
 
 	// OnBeforePaymentCreation: Pre-flight validation
-	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationResult, error) {
+	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
 		fmt.Printf("🔍 [Pre-flight] Validating payment requirements...\n")
-		fmt.Printf("   Network: %s, Scheme: %s\n", ctx.Requirements.Network, ctx.Requirements.Scheme)
+		fmt.Printf("   Network: %s, Scheme: %s\n", ctx.SelectedRequirements.GetNetwork(), ctx.SelectedRequirements.GetScheme())
 
 		// Could implement custom validation logic here
 		// For example, check if user has sufficient balance before creating payment
@@ -56,12 +56,12 @@ func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, baseURL string)
 	})
 
 	// OnPaymentCreationFailure: Advanced error recovery
-	client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x402.PaymentCreationFailureResult, error) {
+	client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x402.PaymentCreationFailureHookResult, error) {
 		recoveryAttempts++
 		fmt.Printf("❌ [Error Recovery] Payment creation failed (attempt %d)\n", recoveryAttempts)
 		fmt.Printf("   Error: %v\n", ctx.Error)
-		fmt.Printf("   Network: %s\n", ctx.Requirements.Network)
-		fmt.Printf("   Scheme: %s\n", ctx.Requirements.Scheme)
+		fmt.Printf("   Network: %s\n", ctx.SelectedRequirements.GetNetwork())
+		fmt.Printf("   Scheme: %s\n", ctx.SelectedRequirements.GetScheme())
 
 		// Classify error type
 		errorType := classifyError(ctx.Error)
@@ -90,7 +90,7 @@ func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, baseURL string)
 	})
 
 	// OnAfterPaymentCreation: Success logging
-	client.OnAfterPaymentCreation(func(ctx x402.PaymentCreationResultContext) error {
+	client.OnAfterPaymentCreation(func(ctx x402.PaymentCreatedContext) error {
 		fmt.Printf("✅ [Success] Payment created\n")
 		if recoveryAttempts > 0 {
 			fmt.Printf("   Recovered after %d attempts\n", recoveryAttempts)
@@ -103,7 +103,6 @@ func runErrorRecoveryExample(ctx context.Context, evmPrivateKey, baseURL string)
 	wrappedClient := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
 
 	// Make request
-	url := baseURL + "/weather"
 	fmt.Printf("\n🌐 Making request to: %s\n\n", url)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)

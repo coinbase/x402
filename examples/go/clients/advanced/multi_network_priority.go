@@ -22,7 +22,7 @@ import (
  * - Demonstrating registration precedence
  */
 
-func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, baseURL string) error {
+func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, url string) error {
 	fmt.Println("🌐 Configuring multi-network client with priority...\n")
 
 	// Create primary signer (for most networks)
@@ -61,13 +61,13 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, baseURL 
 	client.Register("eip155:*", evm.NewExactEvmScheme(primarySigner))
 
 	// Add logging to show which network is being used
-	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationResult, error) {
-		fmt.Printf("💰 Creating payment for network: %s\n", ctx.Requirements.Network)
-		fmt.Printf("   Scheme: %s\n", ctx.Requirements.Scheme)
+	client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
+		fmt.Printf("💰 Creating payment for network: %s\n", ctx.SelectedRequirements.GetNetwork())
+		fmt.Printf("   Scheme: %s\n", ctx.SelectedRequirements.GetScheme())
 		
 		// Show which signer would be used based on network
 		var signerType string
-		switch ctx.Requirements.Network {
+		switch ctx.SelectedRequirements.GetNetwork() {
 		case "eip155:1":
 			signerType = "Mainnet-specific signer"
 		case "eip155:8453":
@@ -87,7 +87,6 @@ func runMultiNetworkPriorityExample(ctx context.Context, evmPrivateKey, baseURL 
 	wrappedClient := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
 
 	// Make request
-	url := baseURL + "/weather"
 	fmt.Printf("🌐 Making request to: %s\n", url)
 	fmt.Println("   (Server will determine which network to use)\n")
 

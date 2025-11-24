@@ -1,0 +1,603 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"crypto/ecdsa"
+	"encoding/hex"
+	"fmt"
+	"math/big"
+	"strings"
+	"time"
+
+	evmmech "github.com/coinbase/x402/go/mechanisms/evm"
+	svmmech "github.com/coinbase/x402/go/mechanisms/svm"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
+	solana "github.com/gagliardetto/solana-go"
+	"github.com/gagliardetto/solana-go/rpc"
+)
+
+const (
+	DefaultEvmRPC = "https://sepolia.base.org"
+	DefaultSvmRPC = "https://api.devnet.solana.com"
+)
+
+// ============================================================================
+// EVM Facilitator Signer
+// ============================================================================
+
+// facilitatorEvmSigner implements the FacilitatorEvmSigner interface
+type facilitatorEvmSigner struct {
+	privateKey *ecdsa.PrivateKey
+	address    common.Address
+	client     *ethclient.Client
+	chainID    *big.Int
+}
+
+// newFacilitatorEvmSigner creates a new EVM facilitator signer
+//
+// Args:
+//
+//	privateKeyHex: Private key in hex format (with or without 0x prefix)
+//	rpcURL: RPC endpoint URL
+//
+// Returns:
+//
+//	*facilitatorEvmSigner or error
+func newFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*facilitatorEvmSigner, error) {
+	// Remove 0x prefix if present
+	privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
+
+	privateKey, err := crypto.HexToECDSA(privateKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	address := crypto.PubkeyToAddress(privateKey.PublicKey)
+
+	// Connect to blockchain
+	client, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to RPC: %w", err)
+	}
+
+	// Get chain ID
+	ctx := context.Background()
+	chainID, err := client.ChainID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+	}
+
+	return &facilitatorEvmSigner{
+		privateKey: privateKey,
+		address:    address,
+		client:     client,
+		chainID:    chainID,
+	}, nil
+}
+
+func (s *facilitatorEvmSigner) GetAddress() string {
+	return s.address.Hex()
+}
+
+func (s *facilitatorEvmSigner) GetChainID() (*big.Int, error) {
+	return s.chainID, nil
+}
+
+func (s *facilitatorEvmSigner) VerifyTypedData(
+	address string,
+	domain evmmech.TypedDataDomain,
+	types map[string][]evmmech.TypedDataField,
+	primaryType string,
+	message map[string]interface{},
+	signature []byte,
+) (bool, error) {
+	// Convert to apitypes for EIP-712 verification
+	chainId := getBigIntFromInterface(domain.ChainID)
+	typedData := apitypes.TypedData{
+		Types:       make(apitypes.Types),
+		PrimaryType: primaryType,
+		Domain: apitypes.TypedDataDomain{
+			Name:              getStringFromInterface(domain.Name),
+			Version:           getStringFromInterface(domain.Version),
+			ChainId:           (*math.HexOrDecimal256)(chainId),
+			VerifyingContract: getStringFromInterface(domain.VerifyingContract),
+		},
+		Message: message,
+	}
+
+	// Convert types
+	for typeName, fields := range types {
+		typedFields := make([]apitypes.Type, len(fields))
+		for i, field := range fields {
+			typedFields[i] = apitypes.Type{
+				Name: field.Name,
+				Type: field.Type,
+			}
+		}
+		typedData.Types[typeName] = typedFields
+	}
+
+	// Add EIP712Domain if not present
+	if _, exists := typedData.Types["EIP712Domain"]; !exists {
+		typedData.Types["EIP712Domain"] = []apitypes.Type{
+			{Name: "name", Type: "string"},
+			{Name: "version", Type: "string"},
+			{Name: "chainId", Type: "uint256"},
+			{Name: "verifyingContract", Type: "address"},
+		}
+	}
+
+	// Hash the data
+	dataHash, err := typedData.HashStruct(typedData.PrimaryType, typedData.Message)
+	if err != nil {
+		return false, fmt.Errorf("failed to hash struct: %w", err)
+	}
+
+	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
+	if err != nil {
+		return false, fmt.Errorf("failed to hash domain: %w", err)
+	}
+
+	rawData := []byte{0x19, 0x01}
+	rawData = append(rawData, domainSeparator...)
+	rawData = append(rawData, dataHash...)
+	digest := crypto.Keccak256(rawData)
+
+	// Recover the address from signature
+	if len(signature) != 65 {
+		return false, fmt.Errorf("invalid signature length: %d", len(signature))
+	}
+
+	// Adjust v value
+	v := signature[64]
+	if v >= 27 {
+		v -= 27
+	}
+
+	sigCopy := make([]byte, 65)
+	copy(sigCopy, signature)
+	sigCopy[64] = v
+
+	pubKey, err := crypto.SigToPub(digest, sigCopy)
+	if err != nil {
+		return false, fmt.Errorf("failed to recover public key: %w", err)
+	}
+
+	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
+	expectedAddr := common.HexToAddress(address)
+
+	return bytes.Equal(recoveredAddr.Bytes(), expectedAddr.Bytes()), nil
+}
+
+func (s *facilitatorEvmSigner) ReadContract(
+	contractAddress string,
+	abiJSON []byte,
+	method string,
+	args ...interface{},
+) (interface{}, error) {
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Process arguments for special cases
+	processedArgs := make([]interface{}, len(args))
+	copy(processedArgs, args)
+
+	switch method {
+	case "authorizationState":
+		// authorizationState(address authorizer, bytes32 nonce) returns (bool)
+		if len(processedArgs) > 0 {
+			if addrStr, ok := processedArgs[0].(string); ok {
+				processedArgs[0] = common.HexToAddress(addrStr)
+			}
+		}
+		if len(processedArgs) > 1 {
+			if _, ok := processedArgs[1].([32]byte); !ok {
+				if nonceStr, ok := processedArgs[1].(string); ok {
+					nonceStr = strings.TrimPrefix(nonceStr, "0x")
+					nonceBytes, err := hex.DecodeString(nonceStr)
+					if err != nil {
+						return nil, fmt.Errorf("failed to decode nonce hex: %w", err)
+					}
+					if len(nonceBytes) != 32 {
+						return nil, fmt.Errorf("nonce must be 32 bytes, got %d", len(nonceBytes))
+					}
+					var nonce32 [32]byte
+					copy(nonce32[:], nonceBytes)
+					processedArgs[1] = nonce32
+				}
+			}
+		}
+	case "balanceOf", "allowance":
+		for i, arg := range processedArgs {
+			if addrStr, ok := arg.(string); ok {
+				processedArgs[i] = common.HexToAddress(addrStr)
+			}
+		}
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(method, processedArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Make the call
+	ctx := context.Background()
+	to := common.HexToAddress(contractAddress)
+
+	msg := ethereum.CallMsg{
+		To:   &to,
+		Data: data,
+	}
+
+	result, err := s.client.CallContract(ctx, msg, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call contract: %w", err)
+	}
+
+	// Handle empty result
+	if len(result) == 0 {
+		if method == "authorizationState" {
+			return false, nil
+		}
+		if method == "balanceOf" || method == "allowance" {
+			return big.NewInt(0), nil
+		}
+		return nil, fmt.Errorf("empty result from contract call")
+	}
+
+	// Unpack the result
+	methodObj, exists := contractABI.Methods[method]
+	if !exists {
+		return nil, fmt.Errorf("method %s not found in ABI", method)
+	}
+
+	output, err := methodObj.Outputs.Unpack(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack result: %w", err)
+	}
+
+	if len(output) > 0 {
+		return output[0], nil
+	}
+
+	return nil, nil
+}
+
+func (s *facilitatorEvmSigner) WriteContract(
+	contractAddress string,
+	abiJSON []byte,
+	method string,
+	args ...interface{},
+) (string, error) {
+	// Parse ABI
+	contractABI, err := abi.JSON(strings.NewReader(string(abiJSON)))
+	if err != nil {
+		return "", fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	// Process arguments
+	processedArgs := make([]interface{}, len(args))
+	copy(processedArgs, args)
+
+	if method == "transferWithAuthorization" {
+		// Convert string addresses to common.Address
+		if len(processedArgs) > 0 {
+			if addrStr, ok := processedArgs[0].(string); ok {
+				processedArgs[0] = common.HexToAddress(addrStr)
+			}
+		}
+		if len(processedArgs) > 1 {
+			if addrStr, ok := processedArgs[1].(string); ok {
+				processedArgs[1] = common.HexToAddress(addrStr)
+			}
+		}
+
+		// Ensure nonce is [32]byte (position 5)
+		if len(processedArgs) > 5 {
+			if _, ok := processedArgs[5].([32]byte); !ok {
+				if nonceStr, ok := processedArgs[5].(string); ok {
+					nonceStr = strings.TrimPrefix(nonceStr, "0x")
+					nonceBytes, err := hex.DecodeString(nonceStr)
+					if err != nil {
+						return "", fmt.Errorf("failed to decode nonce hex: %w", err)
+					}
+					if len(nonceBytes) != 32 {
+						return "", fmt.Errorf("nonce must be 32 bytes, got %d", len(nonceBytes))
+					}
+					var nonce32 [32]byte
+					copy(nonce32[:], nonceBytes)
+					processedArgs[5] = nonce32
+				}
+			}
+		}
+	}
+
+	// Pack the method call
+	data, err := contractABI.Pack(method, processedArgs...)
+	if err != nil {
+		return "", fmt.Errorf("failed to pack method call: %w", err)
+	}
+
+	// Get nonce
+	ctx := context.Background()
+	nonce, err := s.client.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction
+	to := common.HexToAddress(contractAddress)
+	tx := types.NewTransaction(
+		nonce,
+		to,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.client.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
+}
+
+func (s *facilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmech.TransactionReceipt, error) {
+	ctx := context.Background()
+	hash := common.HexToHash(txHash)
+
+	// Poll for receipt
+	for i := 0; i < 30; i++ { // 30 seconds timeout
+		receipt, err := s.client.TransactionReceipt(ctx, hash)
+		if err == nil && receipt != nil {
+			return &evmmech.TransactionReceipt{
+				Status:      uint64(receipt.Status),
+				BlockNumber: receipt.BlockNumber.Uint64(),
+				TxHash:      receipt.TxHash.Hex(),
+			}, nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil, fmt.Errorf("transaction receipt not found after 30 seconds")
+}
+
+func (s *facilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
+	if tokenAddress == "" || tokenAddress == "0x0000000000000000000000000000000000000000" {
+		// Native balance
+		ctx := context.Background()
+		balance, err := s.client.BalanceAt(ctx, common.HexToAddress(address), nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get balance: %w", err)
+		}
+		return balance, nil
+	}
+
+	// ERC20 balance
+	const erc20ABI = `[{"constant":true,"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
+
+	result, err := s.ReadContract(tokenAddress, []byte(erc20ABI), "balanceOf", address)
+	if err != nil {
+		return nil, err
+	}
+
+	if balance, ok := result.(*big.Int); ok {
+		return balance, nil
+	}
+
+	return nil, fmt.Errorf("unexpected balance type: %T", result)
+}
+
+// ============================================================================
+// SVM (Solana) Facilitator Signer
+// ============================================================================
+
+// facilitatorSvmSigner implements the FacilitatorSvmSigner interface
+type facilitatorSvmSigner struct {
+	privateKey solana.PrivateKey
+	rpcClients map[string]*rpc.Client
+	rpcURL     string
+}
+
+// newFacilitatorSvmSigner creates a new SVM facilitator signer
+//
+// Args:
+//
+//	privateKeyBase58: Private key in base58 format
+//	rpcURL: RPC endpoint URL (empty string uses network default)
+//
+// Returns:
+//
+//	*facilitatorSvmSigner or error
+func newFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*facilitatorSvmSigner, error) {
+	privateKey, err := solana.PrivateKeyFromBase58(privateKeyBase58)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Solana private key: %w", err)
+	}
+
+	return &facilitatorSvmSigner{
+		privateKey: privateKey,
+		rpcClients: make(map[string]*rpc.Client),
+		rpcURL:     rpcURL,
+	}, nil
+}
+
+func (s *facilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
+	if client, ok := s.rpcClients[network]; ok {
+		return client, nil
+	}
+
+	rpcURL := s.rpcURL
+	if rpcURL == "" {
+		config, err := svmmech.GetNetworkConfig(network)
+		if err != nil {
+			return nil, err
+		}
+		rpcURL = config.RPCURL
+	}
+
+	client := rpc.New(rpcURL)
+	s.rpcClients[network] = client
+	return client, nil
+}
+
+func (s *facilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
+	messageBytes, err := tx.Message.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	signature, err := s.privateKey.Sign(messageBytes)
+	if err != nil {
+		return fmt.Errorf("failed to sign: %w", err)
+	}
+
+	accountIndex, err := tx.GetAccountIndex(s.privateKey.PublicKey())
+	if err != nil {
+		return fmt.Errorf("failed to get account index: %w", err)
+	}
+
+	if len(tx.Signatures) <= int(accountIndex) {
+		newSignatures := make([]solana.Signature, accountIndex+1)
+		copy(newSignatures, tx.Signatures)
+		tx.Signatures = newSignatures
+	}
+
+	tx.Signatures[accountIndex] = signature
+	return nil
+}
+
+func (s *facilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
+	rpcClient, err := s.GetRPC(network)
+	if err != nil {
+		return solana.Signature{}, err
+	}
+
+	sig, err := rpcClient.SendTransactionWithOpts(ctx, tx, rpc.TransactionOpts{
+		SkipPreflight:       true,
+		PreflightCommitment: svmmech.DefaultCommitment,
+	})
+	if err != nil {
+		return solana.Signature{}, fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return sig, nil
+}
+
+func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
+	rpcClient, err := s.GetRPC(network)
+	if err != nil {
+		return err
+	}
+
+	for attempt := 0; attempt < svmmech.MaxConfirmAttempts; attempt++ {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		// Try getSignatureStatuses first (faster)
+		statuses, err := rpcClient.GetSignatureStatuses(ctx, true, signature)
+		if err == nil && statuses != nil && statuses.Value != nil && len(statuses.Value) > 0 {
+			status := statuses.Value[0]
+			if status != nil {
+				if status.Err != nil {
+					return fmt.Errorf("transaction failed on-chain")
+				}
+				if status.ConfirmationStatus == rpc.ConfirmationStatusConfirmed ||
+					status.ConfirmationStatus == rpc.ConfirmationStatusFinalized {
+					return nil
+				}
+			}
+		}
+
+		// Fallback to getTransaction
+		if err != nil {
+			txResult, txErr := rpcClient.GetTransaction(ctx, signature, &rpc.GetTransactionOpts{
+				Encoding:   solana.EncodingBase58,
+				Commitment: svmmech.DefaultCommitment,
+			})
+
+			if txErr == nil && txResult != nil && txResult.Meta != nil {
+				if txResult.Meta.Err != nil {
+					return fmt.Errorf("transaction failed on-chain")
+				}
+				return nil
+			}
+		}
+
+		// Wait before retrying
+		time.Sleep(svmmech.ConfirmRetryDelay)
+	}
+
+	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
+}
+
+func (s *facilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
+	return s.privateKey.PublicKey()
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+func getStringFromInterface(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	switch val := v.(type) {
+	case string:
+		return val
+	case *string:
+		if val != nil {
+			return *val
+		}
+	}
+	return ""
+}
+
+func getBigIntFromInterface(v interface{}) *big.Int {
+	if v == nil {
+		return big.NewInt(0)
+	}
+	switch val := v.(type) {
+	case *big.Int:
+		return val
+	case int64:
+		return big.NewInt(val)
+	case string:
+		n, _ := new(big.Int).SetString(val, 10)
+		return n
+	}
+	return big.NewInt(0)
+}
+

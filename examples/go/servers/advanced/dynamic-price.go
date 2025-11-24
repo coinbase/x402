@@ -15,6 +15,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const DefaultPort = "4021"
+
 /**
  * Dynamic Price Example
  *
@@ -24,15 +26,7 @@ import (
  */
 
 func main() {
-	// Load .env file if it exists
-	if err := godotenv.Load(); err != nil {
-		fmt.Println("No .env file found, using environment variables")
-	}
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "4021"
-	}
+	godotenv.Load()
 
 	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
 	if evmPayeeAddress == "" {
@@ -89,7 +83,7 @@ func main() {
 		"GET /weather": {
 			Scheme:      "exact",
 			PayTo:       evmPayeeAddress,
-			Price:       dynamicPrice, // Use function instead of static price
+			Price:       x402http.DynamicPriceFunc(dynamicPrice),
 			Network:     evmNetwork,
 			Description: "Weather data",
 			MimeType:    "application/json",
@@ -134,15 +128,11 @@ func main() {
 		c.JSON(http.StatusOK, response)
 	})
 
-	r.GET("/health", func(c *ginfw.Context) {
-		c.JSON(http.StatusOK, ginfw.H{"status": "ok"})
-	})
-
-	fmt.Printf("🚀 Dynamic Price example running on http://localhost:%s\n", port)
+	fmt.Printf("🚀 Dynamic Price example running on http://localhost:%s\n", DefaultPort)
 	fmt.Printf("   Prices vary based on request context\n")
 	fmt.Printf("   Try: ?tier=standard (cheaper) or ?tier=premium (more expensive)\n")
 
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)
 		os.Exit(1)
 	}

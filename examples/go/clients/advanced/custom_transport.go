@@ -79,7 +79,7 @@ func (t *TimingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, err
 }
 
-func runCustomTransportExample(ctx context.Context, evmPrivateKey, baseURL string) error {
+func runCustomTransportExample(ctx context.Context, evmPrivateKey, url string) error {
 	fmt.Println("📦 Creating client with custom transport...\n")
 
 	// Create signer
@@ -122,7 +122,6 @@ func runCustomTransportExample(ctx context.Context, evmPrivateKey, baseURL strin
 	}, httpClient)
 
 	// Make request
-	url := baseURL + "/weather"
 	fmt.Printf("🌐 Making request to: %s\n", url)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)

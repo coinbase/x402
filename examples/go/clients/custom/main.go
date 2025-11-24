@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -54,12 +53,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	serverURL := os.Getenv("SERVER_URL")
-	if serverURL == "" {
-		serverURL = "http://localhost:4021"
+	url := os.Getenv("SERVER_URL")
+	if url == "" {
+		url = "http://localhost:4021/weather"
 	}
-
-	url := serverURL + "/weather"
 
 	// Create context
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -196,10 +193,12 @@ func makeRequestWithPayment(ctx context.Context, x402Client *x402.X402Client, ur
 	} else {
 		// V1 payment creation
 		requirementsV1 := types.PaymentRequirementsV1{
-			Scheme:  paymentRequirements.Scheme,
-			Network: paymentRequirements.Network,
-			Address: paymentRequirements.PayTo,
-			Amount:  paymentRequirements.Amount,
+			Scheme:            paymentRequirements.Scheme,
+			Network:           paymentRequirements.Network,
+			PayTo:             paymentRequirements.PayTo,
+			MaxAmountRequired: paymentRequirements.Amount,
+			Asset:             paymentRequirements.Asset,
+			MaxTimeoutSeconds: paymentRequirements.MaxTimeoutSeconds,
 		}
 		payload, err := x402Client.CreatePaymentPayloadV1(ctx, requirementsV1)
 		if err != nil {
@@ -354,10 +353,12 @@ func extractV1Requirements(body []byte) (types.PaymentRequirements, error) {
 
 	// Convert V1 requirements to common format
 	return types.PaymentRequirements{
-		Scheme:  selected.Scheme,
-		Network: selected.Network,
-		PayTo:   selected.Address,
-		Amount:  selected.Amount,
+		Scheme:            selected.Scheme,
+		Network:           selected.Network,
+		PayTo:             selected.PayTo,
+		Amount:            selected.MaxAmountRequired,
+		Asset:             selected.Asset,
+		MaxTimeoutSeconds: selected.MaxTimeoutSeconds,
 	}, nil
 }
 
