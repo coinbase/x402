@@ -91,14 +91,10 @@ func DecodePaymentPayloadFromBase64(encoded string) (*PaymentPayload, error) {
 }
 
 // SetUSDCInfo sets the USDC token information in the Extra field of PaymentRequirements
-func (p *PaymentRequirements) SetUSDCInfo(isTestnet bool) error {
+func (p *PaymentRequirements) SetUSDCInfo(tokenName string) error {
 	usdcInfo := map[string]any{
-		"name":    "USDC",
+		"name":    tokenName,
 		"version": "2",
-	}
-
-	if !isTestnet {
-		usdcInfo["name"] = "USD Coin"
 	}
 
 	jsonBytes, err := json.Marshal(usdcInfo)
