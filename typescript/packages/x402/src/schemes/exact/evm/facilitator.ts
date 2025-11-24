@@ -66,23 +66,6 @@ export async function verify<
 
   const exactEvmPayload = payload.payload as ExactEvmPayload;
 
-  const payerAddress = exactEvmPayload.authorization.from as Address;
-  const signature = exactEvmPayload.signature;
-
-  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
-  const isSmartWallet = signatureLength > 130;
-
-  if (isSmartWallet) {
-    const bytecode = await client.getCode({ address: payerAddress });
-    if (!bytecode || bytecode === "0x") {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-        payer: payerAddress,
-      };
-    }
-  }
-
   // Verify payload version
   if (payload.scheme !== SCHEME || paymentRequirements.scheme !== SCHEME) {
     return {
@@ -227,9 +210,30 @@ export async function settle<transport extends Transport, chain extends Chain>(
     };
   }
 
+  // Check if smart wallet is deployed before attempting settlement
+  // EIP-3009's transferWithAuthorization requires on-chain signature validation via EIP-1271,
+  // which fails for undeployed contracts. Facilitators that want to support undeployed
+  // smart wallets should implement sponsored deployment logic here before this check.
+  const signature = payload.signature;
+  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  const isSmartWallet = signatureLength > 130;
+
+  if (isSmartWallet) {
+    const bytecode = await wallet.getCode({ address: payload.authorization.from as Address });
+    if (!bytecode || bytecode === "0x") {
+      return {
+        success: false,
+        network: paymentPayload.network,
+        transaction: "",
+        errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: payload.authorization.from,
+      };
+    }
+  }
+
   // Returns the original signature (no-op) if the signature is not a 6492 signature
-  const { signature } = parseErc6492Signature(payload.signature as Hex);
-  const parsedSig = parseSignature(signature);
+  const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
+  const parsedSig = parseSignature(unwrappedSignature);
 
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,

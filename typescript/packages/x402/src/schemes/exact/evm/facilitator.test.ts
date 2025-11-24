@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Address } from "viem";
+import { Address, Chain, Transport } from "viem";
 import { PaymentPayload, PaymentRequirements, ExactEvmPayload } from "../../../types/verify";
-import { verify } from "./facilitator";
+import { verify, settle } from "./facilitator";
+import type { SignerWallet } from "../../../types/shared/evm";
 
 vi.mock("../../../shared", () => ({
   getNetworkId: vi.fn().mockReturnValue(84532),
@@ -13,6 +14,20 @@ vi.mock("../../../shared/evm", async importOriginal => {
     ...actual,
     getVersion: vi.fn().mockResolvedValue("2"),
     getERC20Balance: vi.fn().mockResolvedValue(BigInt("2000000")),
+  };
+});
+
+vi.mock("viem", async importOriginal => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    parseErc6492Signature: vi.fn((sig: string) => ({ signature: sig })),
+    parseSignature: vi.fn(() => ({
+      r: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+      s: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+      v: 27,
+      yParity: 0,
+    })),
   };
 });
 
@@ -40,7 +55,12 @@ describe("facilitator - smart wallet deployment check", () => {
       from = "0xabcdef1234567890123456789012345678901234" as Address,
     } = options;
 
-    const signature = "0x" + "a".repeat(signatureLength);
+    // Create a valid signature format: 65 bytes for standard EOA (r=32, s=32, v=1)
+    // For longer signatures (smart wallets), just pad with zeros
+    const baseSignature =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b";
+    const signature =
+      signatureLength > 130 ? baseSignature + "0".repeat(signatureLength - 130) : baseSignature;
 
     return {
       x402Version: 1,
@@ -68,72 +88,102 @@ describe("facilitator - smart wallet deployment check", () => {
     } as unknown as ReturnType<typeof import("../../../types/shared/evm").createConnectedClient>;
   };
 
+  const createMockWallet = (bytecode: string | undefined) => {
+    return {
+      getCode: vi.fn().mockResolvedValue(bytecode),
+      verifyTypedData: vi.fn().mockResolvedValue(true),
+      writeContract: vi.fn().mockResolvedValue("0xtxhash"),
+      waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
+      chain: { id: 84532 },
+      account: { address: "0x1234567890123456789012345678901234567890" as Address },
+    } as unknown as SignerWallet<Chain, Transport>;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("smart wallet detection (signature length > 130)", () => {
-    it("should reject undeployed smart wallet when bytecode is 0x", async () => {
+  describe("verify - accepts EIP-6492 signatures from undeployed wallets", () => {
+    it("should accept undeployed smart wallet signatures (EIP-6492)", async () => {
       const client = createMockClient("0x");
       const payload = createMockPayload({ signatureLength: 200 });
 
       const result = await verify(client, payload, mockPaymentRequirements);
 
-      expect(result).toEqual({
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-        payer: (payload.payload as ExactEvmPayload).authorization.from,
-      });
+      expect(result.isValid).toBe(true);
+      expect(result.invalidReason).toBeUndefined();
     });
 
-    it("should reject undeployed smart wallet when bytecode is undefined", async () => {
-      const client = createMockClient(undefined);
+    it("should NOT check bytecode during verification", async () => {
+      const client = createMockClient("0x");
       const payload = createMockPayload({ signatureLength: 200 });
-
-      const result = await verify(client, payload, mockPaymentRequirements);
-
-      expect(result).toEqual({
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
-        payer: (payload.payload as ExactEvmPayload).authorization.from,
-      });
-    });
-
-    it("should allow payment from EOA with standard signature length", async () => {
-      const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 130 });
-
-      const result = await verify(client, payload, mockPaymentRequirements);
-
-      expect(result.invalidReason).not.toBe("invalid_exact_evm_payload_undeployed_smart_wallet");
-    });
-
-    it("should allow payment from deployed smart wallet", async () => {
-      const client = createMockClient("0x608060405234801561001057600080fd5b50");
-      const payload = createMockPayload({ signatureLength: 256 });
-
-      const result = await verify(client, payload, mockPaymentRequirements);
-
-      expect(result.invalidReason).not.toBe("invalid_exact_evm_payload_undeployed_smart_wallet");
-    });
-
-    it("should NOT check bytecode for EOA signatures", async () => {
-      const client = createMockClient("0x");
-      const payload = createMockPayload({ signatureLength: 130 });
 
       await verify(client, payload, mockPaymentRequirements);
 
       expect(client.getCode).not.toHaveBeenCalled();
     });
+  });
 
-    it("should check bytecode for smart wallet signatures", async () => {
+  describe("settle - smart wallet deployment check", () => {
+    it("should reject undeployed smart wallet during settlement when bytecode is 0x", async () => {
+      const wallet = createMockWallet("0x");
+      const payload = createMockPayload({ signatureLength: 200 });
+
+      const result = await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(result).toEqual({
+        success: false,
+        network: "base-sepolia",
+        transaction: "",
+        errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: (payload.payload as ExactEvmPayload).authorization.from,
+      });
+      expect(wallet.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("should reject undeployed smart wallet during settlement when bytecode is undefined", async () => {
+      const wallet = createMockWallet(undefined);
+      const payload = createMockPayload({ signatureLength: 200 });
+
+      const result = await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(result).toEqual({
+        success: false,
+        network: "base-sepolia",
+        transaction: "",
+        errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: (payload.payload as ExactEvmPayload).authorization.from,
+      });
+      expect(wallet.writeContract).not.toHaveBeenCalled();
+    });
+
+    it("should allow settlement from deployed smart wallet", async () => {
+      const wallet = createMockWallet("0x608060405234801561001057600080fd5b50");
+      const payload = createMockPayload({ signatureLength: 256 });
+
+      const result = await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(result.success).toBe(true);
+      expect(wallet.writeContract).toHaveBeenCalled();
+    });
+
+    it("should NOT check bytecode for EOA signatures during settlement", async () => {
+      const wallet = createMockWallet("0x");
+      const payload = createMockPayload({ signatureLength: 130 });
+
+      await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(wallet.writeContract).toHaveBeenCalled();
+    });
+
+    it("should check bytecode for smart wallet signatures during settlement", async () => {
       const payerAddress = "0x9999999999999999999999999999999999999999" as Address;
-      const client = createMockClient("0x");
+      const wallet = createMockWallet("0x608060405234801561001057600080fd5b50");
       const payload = createMockPayload({ signatureLength: 200, from: payerAddress });
 
-      await verify(client, payload, mockPaymentRequirements);
+      await settle(wallet, payload, mockPaymentRequirements);
 
-      expect(client.getCode).toHaveBeenCalledWith({ address: payerAddress });
+      expect(wallet.getCode).toHaveBeenCalledWith({ address: payerAddress });
     });
   });
 });
