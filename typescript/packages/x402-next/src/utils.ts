@@ -21,6 +21,9 @@ import {
   Network,
   Price,
   PaymentMiddlewareConfig,
+  SupportedPaymentKindsResponse,
+  VerifyResponse,
+  SettleResponse,
 } from "x402/types";
 import { safeBase64Encode } from "x402/shared";
 
@@ -43,9 +46,7 @@ export async function buildPaymentRequirements(
   config: PaymentMiddlewareConfig,
   resourceUrl: Resource,
   method: string,
-  supported: () => Promise<{
-    kinds: Array<{ network: string; scheme: string; extra?: { feePayer?: string } }>;
-  }>,
+  supported: () => Promise<SupportedPaymentKindsResponse>,
 ): Promise<PaymentRequirements[]> {
   const { description, mimeType, maxTimeoutSeconds, inputSchema, outputSchema, discoverable } =
     config;
@@ -216,10 +217,7 @@ export async function verifyPayment(
   paymentHeader: string,
   paymentRequirements: PaymentRequirements[],
   x402Version: number,
-  verify: (
-    payment: PaymentPayload,
-    requirements: PaymentRequirements,
-  ) => Promise<{ isValid: boolean; invalidReason?: string; payer?: string }>,
+  verify: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<VerifyResponse>,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
 ): Promise<
   | { decodedPayment: PaymentPayload; selectedRequirements: PaymentRequirements }
@@ -320,10 +318,7 @@ export async function settlePayment(
   response: NextResponse,
   decodedPayment: PaymentPayload,
   selectedPaymentRequirements: PaymentRequirements,
-  settle: (
-    payment: PaymentPayload,
-    requirements: PaymentRequirements,
-  ) => Promise<{ success: boolean; transaction?: string; network?: string; payer?: string }>,
+  settle: (payment: PaymentPayload, requirements: PaymentRequirements) => Promise<SettleResponse>,
   x402Version: number,
   errorMessages?: PaymentMiddlewareConfig["errorMessages"],
   paymentRequirements?: PaymentRequirements[],
@@ -343,13 +338,17 @@ export async function settlePayment(
           }),
         ),
       );
+      return response;
+    } else {
+      throw new Error(settlement.errorReason);
     }
-    return response;
   } catch (error) {
     return new NextResponse(
       JSON.stringify({
         x402Version,
-        error: errorMessages?.settlementFailed || error,
+        error:
+          errorMessages?.settlementFailed ||
+          (error instanceof Error ? error.message : "Failed to settle payment"),
         accepts: paymentRequirements,
       }),
       { status: 402, headers: { "Content-Type": "application/json" } },
