@@ -172,6 +172,38 @@ export async function verify<
       payer: exactEvmPayload.authorization.from,
     };
   }
+
+  // Check if smart wallet is deployed
+  // Smart wallet signatures are detected by length > 130 (65 bytes = 130 hex chars for EOA)
+  const signature = exactEvmPayload.signature;
+  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  const isSmartWallet = signatureLength > 130;
+
+  if (isSmartWallet) {
+    const payerAddress = exactEvmPayload.authorization.from as Address;
+    const bytecode = await client.getCode({ address: payerAddress });
+
+    if (!bytecode || bytecode === "0x") {
+      // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
+      // EIP-6492 signatures contain factory address and calldata needed for deployment.
+      // Non-EIP-6492 undeployed wallets cannot succeed (no way to deploy them).
+      const erc6492Data = parseErc6492Signature(exactEvmPayload.signature as Hex);
+      const hasDeploymentInfo = erc6492Data.address && erc6492Data.data;
+
+      if (!hasDeploymentInfo) {
+        // Non-EIP-6492 undeployed smart wallet - will always fail at settlement
+        // since EIP-3009 requires on-chain EIP-1271 validation
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+          payer: payerAddress,
+        };
+      }
+      // EIP-6492 signature with deployment info - allow through
+      // Facilitators with sponsored deployment support can handle this in settle()
+    }
+  }
+
   return {
     isValid: true,
     invalidReason: undefined,
@@ -210,9 +242,38 @@ export async function settle<transport extends Transport, chain extends Chain>(
     };
   }
 
+  // Check if smart wallet is deployed before attempting settlement
+  // EIP-3009's transferWithAuthorization requires on-chain signature validation via EIP-1271,
+  // which fails for undeployed contracts.
+  //
+  // Note: If we reach this point with an undeployed wallet, it must be an EIP-6492 signature
+  // (non-EIP-6492 undeployed wallets are rejected earlier in verify()).
+  //
+  // Facilitators that want to support undeployed EIP-6492 smart wallets should:
+  // 1. Parse the EIP-6492 signature to extract factory address and calldata
+  // 2. Deploy the wallet by calling the factory
+  // 3. Verify deployment succeeded
+  // 4. Then proceed with the transfer below
+  const signature = payload.signature;
+  const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+  const isSmartWallet = signatureLength > 130;
+
+  if (isSmartWallet) {
+    const bytecode = await wallet.getCode({ address: payload.authorization.from as Address });
+    if (!bytecode || bytecode === "0x") {
+      return {
+        success: false,
+        network: paymentPayload.network,
+        transaction: "",
+        errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+        payer: payload.authorization.from,
+      };
+    }
+  }
+
   // Returns the original signature (no-op) if the signature is not a 6492 signature
-  const { signature } = parseErc6492Signature(payload.signature as Hex);
-  const parsedSig = parseSignature(signature);
+  const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
+  const parsedSig = parseSignature(unwrappedSignature);
 
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,
