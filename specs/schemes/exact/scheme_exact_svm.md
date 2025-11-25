@@ -92,10 +92,9 @@ A facilitator verifying an `exact`-scheme SVM payment MUST enforce all of the fo
 
 1. Instruction layout
 
-- The decompiled transaction MUST contain either 3 or 4 instructions in this exact order:
+- The decompiled transaction MUST contain 3 instructions in this exact order:
   1. Compute Budget: Set Compute Unit Limit
   2. Compute Budget: Set Compute Unit Price
-  3. Optional: Associated Token Account Create (when the destination ATA does not yet exist)
   4. SPL Token or Token-2022 TransferChecked
 
 2. Fee payer (facilitator) safety
