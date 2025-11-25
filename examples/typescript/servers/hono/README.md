@@ -1,6 +1,6 @@
-# x402-express Example Server
+# x402-hono Example Server
 
-This is an example Express.js server that demonstrates how to use the `x402-express` middleware to implement paywall functionality in your API endpoints.
+This is an example Hono server that demonstrates how to use the `x402-hono` middleware to implement paywall functionality in your API endpoints.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ cp .env-local .env
 cd ../../
 pnpm install
 pnpm build
-cd servers/express
+cd servers/hono
 ```
 
 3. Run the server
@@ -60,6 +60,17 @@ These clients will demonstrate how to:
 ## Example Endpoint
 
 The server includes a single example endpoint at `/weather` that requires a payment of $0.001 to access. The endpoint returns a simple weather report.
+
+## Advanced Examples
+
+For advanced patterns including:
+- Dynamic pricing
+- Dynamic payment routing (marketplace-style)
+- Payment lifecycle hooks
+- Custom token support
+- Bazaar discovery extension
+
+See the [advanced server examples](../advanced/).
 
 ## Response Format
 

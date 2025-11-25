@@ -2,7 +2,6 @@ import { config } from "dotenv";
 import { wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
 import { createBuilderPatternClient } from "./builder-pattern";
 import { createMechanismHelperClient } from "./mechanism-helper-registration";
-import { createHooksClient } from "./hooks";
 
 config();
 
@@ -21,16 +20,14 @@ const url = `${baseURL}${endpointPath}`;
  *
  * - builder-pattern: Basic builder pattern with registerScheme
  * - mechanism-helper-registration: Using helper functions for registration
- * - hooks: Demonstrating payment lifecycle hooks
  *
  * To run this example, you need to set the following environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
- * - SVM_PRIVATE_KEY: The private key of the SVM signer (not needed for hooks example)
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
  *
  * Usage:
  *   npm start builder-pattern
  *   npm start mechanism-helper-registration
- *   npm start hooks
  */
 async function main(): Promise<void> {
   const pattern = process.argv[2] || "builder-pattern";
@@ -45,12 +42,9 @@ async function main(): Promise<void> {
     case "mechanism-helper-registration":
       client = await createMechanismHelperClient(evmPrivateKey, svmPrivateKey);
       break;
-    case "hooks":
-      client = await createHooksClient(evmPrivateKey);
-      break;
     default:
       console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: builder-pattern, mechanism-helper-registration, hooks");
+      console.error("Available patterns: builder-pattern, mechanism-helper-registration");
       process.exit(1);
   }
 

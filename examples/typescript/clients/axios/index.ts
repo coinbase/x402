@@ -2,7 +2,6 @@ import { config } from "dotenv";
 import { wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
 import { createBuilderPatternClient } from "./builder-pattern";
 import { createMechanismHelperClient } from "./mechanism-helper-registration";
-import { createHooksClient } from "./hooks";
 import axios from "axios";
 
 config();
@@ -14,24 +13,22 @@ const endpointPath = "/weather";
 const url = `${baseURL}${endpointPath}`;
 
 /**
- * Main example runner for @x402/fetch package demonstrations.
+ * Main example runner for @x402/axios package demonstrations.
  *
- * This example shows how to use the @x402/fetch package to make a request
+ * This example shows how to use the @x402/axios package to make a request
  * to a resource server that requires a payment. Different client creation
  * patterns can be selected via CLI argument:
  *
  * - builder-pattern: Basic builder pattern with registerScheme
  * - mechanism-helper-registration: Using helper functions for registration
- * - hooks: Demonstrating payment lifecycle hooks
  *
  * To run this example, you need to set the following environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
- * - SVM_PRIVATE_KEY: The private key of the SVM signer (not needed for hooks example)
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
  *
  * Usage:
  *   npm start builder-pattern
  *   npm start mechanism-helper-registration
- *   npm start hooks
  */
 async function main(): Promise<void> {
   const pattern = process.argv[2] || "builder-pattern";
@@ -46,12 +43,9 @@ async function main(): Promise<void> {
     case "mechanism-helper-registration":
       client = await createMechanismHelperClient(evmPrivateKey, svmPrivateKey);
       break;
-    case "hooks":
-      client = await createHooksClient(evmPrivateKey);
-      break;
     default:
       console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: builder-pattern, mechanism-helper-registration, hooks");
+      console.error("Available patterns: builder-pattern, mechanism-helper-registration");
       process.exit(1);
   }
 

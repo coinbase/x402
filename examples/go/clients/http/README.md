@@ -57,11 +57,11 @@ go mod download
 Create a `.env` file in this directory:
 
 ```bash
-# Required: Your Ethereum private key
-EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# Your Ethereum private key
+EVM_PRIVATE_KEY=<your-private-key-here>
 
-# Optional: Your Solana private key (needed for full multi-chain examples)
-SVM_PRIVATE_KEY=5J7W...
+# Your Solana private key (needed for full multi-chain examples)
+SVM_PRIVATE_KEY=<your-private-key-here>
 
 # Optional: Server URL (defaults to http://localhost:4021)
 SERVER_URL=http://localhost:4021

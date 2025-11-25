@@ -77,8 +77,8 @@ go mod download
 Create a `.env` file:
 
 ```bash
-EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-SVM_PRIVATE_KEY=your_base58_private_key_here
+EVM_PRIVATE_KEY=<your-private-key-here>
+SVM_PRIVATE_KEY=<your-private-key-here>
 ```
 
 **⚠️ Security Note:** The facilitator private key needs ETH for gas fees to submit transactions. Use a dedicated testnet account with limited funds.

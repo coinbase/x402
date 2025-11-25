@@ -33,26 +33,21 @@ pnpm start
 # Or run a specific example:
 pnpm start builder-pattern
 pnpm start mechanism-helper-registration
-pnpm start hooks
 
 # Or use the convenience scripts:
 pnpm dev                                # builder-pattern
-pnpm dev:hooks                          # hooks
 pnpm dev:mechanism-helper-registration  # mechanism-helper-registration
 ```
 
 ## Available Examples
 
-This package contains multiple examples demonstrating different ways to configure the x402 client:
+This package contains two examples demonstrating different ways to configure the x402 client:
 
 ### 1. Builder Pattern (`builder-pattern`)
 Demonstrates the basic way to configure the client by chaining `registerScheme` calls to map scheme patterns to mechanism clients.
 
 ### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
 Shows how to use convenience helper functions provided by `@x402/evm` and `@x402/svm` packages to register all supported networks with recommended defaults.
-
-### 3. Hooks (`hooks`)
-Demonstrates how to hook into the payment creation lifecycle to add custom logic at different stages (before, after, or on failure).
 
 ## How It Works
 
@@ -93,4 +88,5 @@ console.log(body);
 See the individual example files for more detailed demonstrations:
 - `builder-pattern.ts` - Basic builder pattern
 - `mechanism-helper-registration.ts` - Using helper functions
-- `hooks.ts` - Payment lifecycle hooks
+
+For advanced examples including hooks, custom transports, and more, see `../advanced/`.

@@ -1,9 +1,15 @@
 {
-  "name": "@x402/express-server-example",
+  "name": "@x402/advanced-server-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx index.ts",
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts bazaar",
+    "dev:bazaar": "tsx index.ts bazaar",
+    "dev:custom-money-definition": "tsx index.ts custom-money-definition",
+    "dev:dynamic-pay-to": "tsx index.ts dynamic-pay-to",
+    "dev:dynamic-price": "tsx index.ts dynamic-price",
+    "dev:hooks": "tsx index.ts hooks",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
@@ -33,3 +39,4 @@
     "typescript": "^5.3.0"
   }
 }
+

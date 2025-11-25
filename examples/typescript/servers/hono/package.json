@@ -4,11 +4,6 @@
   "type": "module",
   "scripts": {
     "dev": "tsx index.ts",
-    "dev:bazaar": "tsx bazaar.ts",
-    "dev:custom-money-definition": "tsx custom-money-definition.ts",
-    "dev:dynamic-pay-to": "tsx dynamic-pay-to.ts",
-    "dev:dynamic-price": "tsx dynamic-price.ts",
-    "dev:hooks": "tsx hooks.ts",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
