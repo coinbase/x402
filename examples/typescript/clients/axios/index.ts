@@ -36,8 +36,11 @@ async function main(): Promise<void> {
   const response = await api.get(endpointPath);
   console.log(response.data);
 
-  const paymentResponse = decodeXPaymentResponse(response.headers["x-payment-response"]);
-  console.log(paymentResponse);
+  const paymentResponseHeader = response.headers["x-payment-response"];
+  if (paymentResponseHeader) {
+    const paymentResponse = decodeXPaymentResponse(paymentResponseHeader);
+    console.log(paymentResponse);
+  }
 }
 
 main();
