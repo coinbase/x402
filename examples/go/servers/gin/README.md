@@ -13,7 +13,7 @@ This example demonstrates how to integrate x402 payment middleware with a [Gin](
 
 - Go 1.21 or higher
 - An Ethereum address to receive payments (testnet recommended for development)
-- Access to an x402 facilitator (e.g., `https://facilitator.x402.org`)
+- Access to an x402 facilitator (e.g., `https://x402.org/facilitator`)
 
 ## Setup
 
@@ -29,7 +29,7 @@ Create a `.env` file in this directory with the following variables:
 
 ```bash
 EVM_PAYEE_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-FACILITATOR_URL=https://facilitator.x402.org
+FACILITATOR_URL=https://x402.org/facilitator
 ```
 
 ## Running the Server

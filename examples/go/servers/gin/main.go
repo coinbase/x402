@@ -31,7 +31,7 @@ func main() {
 	facilitatorURL := os.Getenv("FACILITATOR_URL")
 	if facilitatorURL == "" {
 		fmt.Println("❌ FACILITATOR_URL environment variable is required")
-		fmt.Println("   Example: https://facilitator.x402.org")
+		fmt.Println("   Example: https://x402.org/facilitator")
 		os.Exit(1)
 	}
 
