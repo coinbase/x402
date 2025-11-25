@@ -34,7 +34,7 @@ pnpm dev
 The app includes protected routes that require payment to access:
 
 ### Protected Page Route
-The `/protected` route requires a payment of $0.01 to access. The route is protected using the x402-next middleware:
+The `/protected` route requires a payment of $0.01 to access. The page route is protected using the x402-next middleware:
 
 ```typescript
 // middleware.ts
@@ -63,7 +63,35 @@ export const middleware = paymentMiddleware(
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/protected/:path*"],
+  runtime: "nodejs",
 };
+```
+
+### Protected API Route
+The `/api/weather` API route requires a payment of $0.01 to access. The API route is protected using the x402-next route wrapper. This is the recommened approach to protect API routes as it guarantees payment settlement only AFTER successful API responses (status < 400). API routes can also be protected by the x402-next middleware, however this will charge clients for failed API responses.
+
+```typescript
+// app/api/weather/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402, Network, Resource } from "x402-next";
+
+const handler = async (_: NextRequest) => {
+  return NextResponse.json({
+    report: { weather: "sunny", temperature: 70 }
+  });
+};
+
+export const GET = withX402(
+  handler,
+  payTo,
+  {
+    price: "$0.01",
+    network,
+    config: { description: "Access to weather API" }
+  },
+  { url: facilitatorUrl },
+  { appName: "Next x402 Demo", appLogo: "/x402-icon-blue.png" }
+);
 ```
 
 ## Response Format
@@ -123,5 +151,6 @@ export const middleware = paymentMiddleware(
 
 export const config = {
   matcher: ["/protected/:path*", "/api/premium/:path*"],
+  runtime: "nodejs",
 };
 ```
