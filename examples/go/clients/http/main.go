@@ -20,13 +20,11 @@ import (
  * patterns can be selected via CLI argument:
  *
  * - builder-pattern: Basic builder pattern with Register()
- * - hooks: Demonstrating payment lifecycle hooks
- * - helper-registration: Using network wildcards for registration
+ * - mechanism-helper-registration: Using mechanism helpers for clean registration
  *
  * Usage:
  *   go run . builder-pattern
- *   go run . hooks
- *   go run . helper-registration
+ *   go run . mechanism-helper-registration
  */
 
 func main() {
@@ -63,13 +61,11 @@ func main() {
 	switch pattern {
 	case "builder-pattern":
 		client, err = createBuilderPatternClient(evmPrivateKey, svmPrivateKey)
-	case "hooks":
-		client, err = createHooksClient(evmPrivateKey)
-	case "helper-registration":
-		client, err = createHelperRegistrationClient(evmPrivateKey, svmPrivateKey)
+	case "mechanism-helper-registration":
+		client, err = createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey)
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
-		fmt.Println("Available patterns: builder-pattern, hooks, helper-registration")
+		fmt.Println("Available patterns: builder-pattern, mechanism-helper-registration")
 		os.Exit(1)
 	}
 

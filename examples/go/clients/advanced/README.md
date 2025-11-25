@@ -8,7 +8,7 @@ Advanced patterns for production environments:
 - **Custom HTTP Transports**: Retry logic, circuit breakers, timeouts
 - **Error Recovery**: Sophisticated error handling and recovery strategies
 - **Multi-Network Priority**: Network-specific configuration with fallbacks
-- **Request Middleware**: Custom interceptors for logging, headers, validation
+- **Payment Lifecycle Hooks**: Custom logic at different payment stages
 
 ## Examples
 
@@ -72,25 +72,25 @@ go run . multi-network-priority
 - Want mainnet/testnet separation
 - Building multi-chain applications
 
-### 4. Request Middleware (`request-middleware`)
+### 4. Payment Lifecycle Hooks (`hooks`)
 
-**Production Pattern**: Add custom processing layers to HTTP requests
+**Production Pattern**: Register hooks for payment creation lifecycle events
 
 ```bash
-go run . request-middleware
+go run . hooks
 ```
 
 **Demonstrates:**
-- Request/response logging
-- Custom header injection
-- Response validation
-- Middleware stacking patterns
+- OnBeforePaymentCreation: Custom validation before payment
+- OnAfterPaymentCreation: Logging and metrics after payment
+- OnPaymentCreationFailure: Error recovery strategies
+- Payment event lifecycle management
 
 **Use When:**
-- Need request/response logging
-- Want to add authentication headers
-- Require response validation
-- Building observable systems
+- Need to log payment events for debugging/monitoring
+- Want custom validation before allowing payments
+- Require error recovery from payment failures
+- Building observable payment systems
 
 ## Prerequisites
 
@@ -126,7 +126,7 @@ SERVER_URL=http://localhost:4021
 go run . custom-transport
 go run . error-recovery
 go run . multi-network-priority
-go run . request-middleware
+go run . hooks
 ```
 
 ## Architecture Patterns
@@ -284,7 +284,7 @@ go run . custom-transport
 | Error Recovery | Basic | ✅ Intelligent classification |
 | Concurrency | Manual | ✅ Safe patterns provided |
 | Network Priority | Simple | ✅ Fine-grained control |
-| Middleware | None | ✅ Composable layers |
+| Payment Hooks | None | ✅ Lifecycle event handling |
 | Observability | Minimal | ✅ Comprehensive logging |
 | Production Ready | Basic | ✅ Battle-tested patterns |
 

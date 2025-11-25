@@ -9,16 +9,16 @@ import (
 )
 
 /**
- * Helper Registration Client
+ * Mechanism Helper Registration Client
  *
- * This demonstrates a convenient pattern using wildcard network registration
- * and the fluent API for clean, readable client configuration.
+ * This demonstrates a convenient pattern using mechanism helpers with wildcard
+ * network registration for clean, readable client configuration.
  *
  * This approach is simpler than the builder pattern when you want to register
  * all networks of a particular type with the same signer.
  */
 
-func createHelperRegistrationClient(evmPrivateKey, svmPrivateKey string) (*x402.X402Client, error) {
+func createMechanismHelperRegistrationClient(evmPrivateKey, svmPrivateKey string) (*x402.X402Client, error) {
 	// Create signers from private keys
 	evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(evmPrivateKey)
 	if err != nil {

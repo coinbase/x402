@@ -19,13 +19,13 @@ import (
  * - custom-transport: Custom HTTP transport with retry logic and circuit breaker
  * - error-recovery: Advanced error handling and automatic recovery strategies
  * - multi-network-priority: Network selection with priority and fallback
- * - request-middleware: Custom request/response interceptors
+ * - hooks: Payment lifecycle hooks for custom logic at different stages
  *
  * Usage:
  *   go run . custom-transport
  *   go run . error-recovery
  *   go run . multi-network-priority
- *   go run . request-middleware
+ *   go run . hooks
  */
 
 func main() {
@@ -75,15 +75,15 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "request-middleware":
-		if err := runRequestMiddlewareExample(ctx, evmPrivateKey, url); err != nil {
+	case "hooks":
+		if err := runHooksExample(ctx, evmPrivateKey, url); err != nil {
 			fmt.Printf("❌ Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	default:
 		fmt.Printf("❌ Unknown pattern: %s\n", pattern)
-		fmt.Println("Available patterns: custom-transport, error-recovery, multi-network-priority, request-middleware")
+		fmt.Println("Available patterns: custom-transport, error-recovery, multi-network-priority, hooks")
 		os.Exit(1)
 	}
 }

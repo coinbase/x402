@@ -12,7 +12,7 @@ This example demonstrates how to use the x402 Go HTTP client to make requests to
 
 ## Available Examples
 
-This package contains multiple examples demonstrating different configuration patterns:
+This package contains two examples demonstrating different configuration patterns:
 
 ### 1. Builder Pattern (`builder-pattern`)
 
@@ -26,24 +26,11 @@ client := x402.Newx402Client().
     Register("solana:*", svm.NewExactSvmScheme(svmSigner))
 ```
 
-### 2. Hooks (`hooks`)
+### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
 
-Demonstrates how to register hooks for payment creation lifecycle events to add custom logic at different stages.
+Shows a convenient pattern using mechanism helpers with wildcard network registration for clean, simple client configuration.
 
-**Use when:** You need to log, validate, or add custom behavior during payment creation.
-
-```go
-client.OnBeforePaymentCreation(func(ctx PaymentCreationContext) (*BeforePaymentCreationResult, error) {
-    // Custom logic before payment
-    return nil, nil
-})
-```
-
-### 3. Helper Registration (`helper-registration`)
-
-Shows a convenient pattern using wildcard network registration for clean, simple client configuration.
-
-**Use when:** You want to register all networks of a type with the same signer.
+**Use when:** You want to register all networks of a type with the same signer using a clean, readable approach.
 
 ```go
 client := x402.Newx402Client().
@@ -90,8 +77,7 @@ go run .
 
 # Or run a specific example:
 go run . builder-pattern
-go run . hooks
-go run . helper-registration
+go run . mechanism-helper-registration
 ```
 
 ## Example Output
@@ -224,8 +210,7 @@ solana-keygen new
 | Pattern | Lines of Code | Flexibility | Best For |
 |---------|---------------|-------------|----------|
 | Builder Pattern | ~10 lines | High | Complex multi-network setups |
-| Hooks | ~20 lines | Medium | Custom logging/validation |
-| Helper Registration | ~5 lines | Low | Simple, clean setup |
+| Mechanism Helper Registration | ~5 lines | Low | Simple, clean setup |
 
 ## Testing Against Local Server
 
