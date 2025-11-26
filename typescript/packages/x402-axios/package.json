@@ -1,5 +1,5 @@
 {
-  "name": "x402-axios",
+  "name": "xpay-axios",
   "version": "0.7.2",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

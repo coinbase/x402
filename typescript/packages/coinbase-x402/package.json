@@ -1,5 +1,5 @@
 {
-  "name": "@coinbase/x402",
+  "name": "@coinbase/xpay",
   "version": "0.7.3",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
