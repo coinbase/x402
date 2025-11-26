@@ -241,7 +241,7 @@ export function paymentMiddleware(
 export function withX402<T = unknown>(
   handler: (request: NextRequest) => Promise<NextResponse<T>>,
   payTo: Address | SolanaAddress,
-  routeConfig: RouteConfig,
+  routeConfig: RouteConfig | ((req: NextRequest) => Promise<RouteConfig>),
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
 ): (request: NextRequest) => Promise<NextResponse<T | unknown>> {
@@ -251,7 +251,11 @@ export function withX402<T = unknown>(
   return async function wrappedHandler(request: NextRequest) {
     const method = request.method.toUpperCase();
     const pathname = request.nextUrl.pathname;
-    const { price, network, config = {} } = routeConfig;
+
+    const resolvedConfig =
+      typeof routeConfig === "function" ? await routeConfig(request) : routeConfig;
+
+    const { price, network, config = {} } = resolvedConfig;
     const { customPaywallHtml, resource, errorMessages } = config;
 
     const resourceUrl =
