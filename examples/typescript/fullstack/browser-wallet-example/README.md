@@ -41,7 +41,7 @@ pnpm install:all
 
 ### 2. Configure the Server
 
-Create `server/.env`:
+Create `.env`:
 ```env
 FACILITATOR_URL=https://x402.org/facilitator
 NETWORK=base-sepolia
