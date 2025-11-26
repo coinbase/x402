@@ -126,13 +126,16 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 	mockClient := &mockFacilitatorClient{
 		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: []x402.SupportedKind{
-					{
-						X402Version: 2,
-						Scheme:      "exact",
-						Network:     "eip155:1",
+				Kinds: map[string][]x402.SupportedKind{
+					"2": {
+						{
+							Scheme:  "exact",
+							Network: "eip155:1",
+						},
 					},
 				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
 			}, nil
 		},
 	}
@@ -269,9 +272,13 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		},
 		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: []x402.SupportedKind{
-					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				Kinds: map[string][]x402.SupportedKind{
+					"2": {
+						{Scheme: "exact", Network: "eip155:1"},
+					},
 				},
+				Extensions: []string{},
+				Signers:    make(map[string][]string),
 			}, nil
 		},
 	}
@@ -579,9 +586,13 @@ func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 		return m.supported(ctx)
 	}
 	return x402.SupportedResponse{
-		Kinds: []x402.SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+		Kinds: map[string][]x402.SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:1"},
+			},
 		},
+		Extensions: []string{},
+		Signers:    make(map[string][]string),
 	}, nil
 }
 

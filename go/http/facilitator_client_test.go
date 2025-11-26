@@ -71,15 +71,29 @@ func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte
 }
 
 func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	var allKinds []x402.SupportedKind
+	kindsByVersion := make(map[string][]x402.SupportedKind)
 	extensionMap := make(map[string]bool)
+	signersByFamily := make(map[string]map[string]bool)
 
 	for _, client := range m.clients {
 		supported, err := client.GetSupported(ctx)
 		if err == nil {
-			allKinds = append(allKinds, supported.Kinds...)
+			// Merge kinds by version
+			for version, kinds := range supported.Kinds {
+				kindsByVersion[version] = append(kindsByVersion[version], kinds...)
+			}
+			// Merge extensions
 			for _, ext := range supported.Extensions {
 				extensionMap[ext] = true
+			}
+			// Merge signers by family
+			for family, signers := range supported.Signers {
+				if signersByFamily[family] == nil {
+					signersByFamily[family] = make(map[string]bool)
+				}
+				for _, signer := range signers {
+					signersByFamily[family][signer] = true
+				}
 			}
 		}
 	}
@@ -89,9 +103,17 @@ func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.Support
 		extensions = append(extensions, ext)
 	}
 
+	signers := make(map[string][]string)
+	for family, signerSet := range signersByFamily {
+		for signer := range signerSet {
+			signers[family] = append(signers[family], signer)
+		}
+	}
+
 	return x402.SupportedResponse{
-		Kinds:      allKinds,
+		Kinds:      kindsByVersion,
 		Extensions: extensions,
+		Signers:    signers,
 	}, nil
 }
 
@@ -268,19 +290,20 @@ func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 
 		// Return supported response
 		response := x402.SupportedResponse{
-			Kinds: []x402.SupportedKind{
-				{
-					X402Version: 2,
-					Scheme:      "exact",
-					Network:     "eip155:1",
-				},
-				{
-					X402Version: 2,
-					Scheme:      "exact",
-					Network:     "eip155:8453",
+			Kinds: map[string][]x402.SupportedKind{
+				"2": {
+					{
+						Scheme:  "exact",
+						Network: "eip155:1",
+					},
+					{
+						Scheme:  "exact",
+						Network: "eip155:8453",
+					},
 				},
 			},
 			Extensions: []string{"bazaar"},
+			Signers:    make(map[string][]string),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -297,8 +320,13 @@ func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if len(response.Kinds) != 2 {
-		t.Errorf("Expected 2 kinds, got %d", len(response.Kinds))
+	// Count total kinds across all versions
+	totalKinds := 0
+	for _, kinds := range response.Kinds {
+		totalKinds += len(kinds)
+	}
+	if totalKinds != 2 {
+		t.Errorf("Expected 2 kinds, got %d", totalKinds)
 	}
 	if len(response.Extensions) != 1 {
 		t.Errorf("Expected 1 extension, got %d", len(response.Extensions))
@@ -486,10 +514,13 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: []x402.SupportedKind{
-					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+				Kinds: map[string][]x402.SupportedKind{
+					"2": {
+						{Scheme: "exact", Network: "eip155:1"},
+					},
 				},
 				Extensions: []string{"ext1"},
+				Signers:    make(map[string][]string),
 			}, nil
 		},
 	}
@@ -506,10 +537,13 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: []x402.SupportedKind{
-					{X402Version: 2, Scheme: "transfer", Network: "eip155:8453"},
+				Kinds: map[string][]x402.SupportedKind{
+					"2": {
+						{Scheme: "transfer", Network: "eip155:8453"},
+					},
 				},
 				Extensions: []string{"ext2"},
+				Signers:    make(map[string][]string),
 			}, nil
 		},
 	}
@@ -575,8 +609,13 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if len(supported.Kinds) != 2 {
-		t.Errorf("Expected 2 kinds, got %d", len(supported.Kinds))
+	// Count total kinds across all versions
+	totalKinds := 0
+	for _, kinds := range supported.Kinds {
+		totalKinds += len(kinds)
+	}
+	if totalKinds != 2 {
+		t.Errorf("Expected 2 kinds, got %d", totalKinds)
 	}
 	if len(supported.Extensions) != 2 {
 		t.Errorf("Expected 2 extensions, got %d", len(supported.Extensions))

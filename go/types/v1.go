@@ -96,6 +96,11 @@ func ToPaymentRequiredV1(data []byte) (*PaymentRequiredV1, error) {
 	return &required, nil
 }
 
+// SupportedResponseV1 is the old supported response format (V1 only, no extensions)
+type SupportedResponseV1 struct {
+	Kinds []SupportedKindV1 `json:"kinds"`
+}
+
 // ToSupportedKindV1 unmarshals bytes to v1 supported kind
 func ToSupportedKindV1(data []byte) (*SupportedKindV1, error) {
 	var kind SupportedKindV1

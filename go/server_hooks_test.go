@@ -12,7 +12,7 @@ import (
 type mockFacilitatorClient struct {
 	verify func(ctx context.Context, payload []byte, reqs []byte) (*VerifyResponse, error)
 	settle func(ctx context.Context, payload []byte, reqs []byte) (*SettleResponse, error)
-	kinds  []SupportedKind // Configurable supported kinds
+	kinds  map[string][]SupportedKind // Configurable supported kinds (V2 format)
 }
 
 func (m *mockFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
@@ -31,13 +31,21 @@ func (m *mockFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte,
 
 func (m *mockFacilitatorClient) GetSupported(ctx context.Context) (SupportedResponse, error) {
 	if m.kinds != nil {
-		return SupportedResponse{Kinds: m.kinds}, nil
+		return SupportedResponse{
+			Kinds:      m.kinds,
+			Extensions: []string{},
+			Signers:    make(map[string][]string),
+		}, nil
 	}
 	// Default kinds for backward compatibility with server_hooks tests
 	return SupportedResponse{
-		Kinds: []SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
+		Kinds: map[string][]SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:8453"},
+			},
 		},
+		Extensions: []string{},
+		Signers:    make(map[string][]string),
 	}, nil
 }
 

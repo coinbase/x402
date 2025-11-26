@@ -37,6 +37,9 @@ type ClientEvmSigner interface {
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations
 type FacilitatorEvmSigner interface {
+	// Address returns the facilitator's wallet address
+	Address() string
+
 	// ReadContract reads data from a smart contract
 	ReadContract(address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 

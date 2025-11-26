@@ -18,8 +18,16 @@ func (m *mockSchemeNetworkFacilitatorV1) Scheme() string {
 	return m.scheme
 }
 
+func (m *mockSchemeNetworkFacilitatorV1) CaipFamily() string {
+	return "test:*"
+}
+
 func (m *mockSchemeNetworkFacilitatorV1) GetExtra(_ Network) map[string]interface{} {
 	return nil
+}
+
+func (m *mockSchemeNetworkFacilitatorV1) GetSigners() []string {
+	return []string{}
 }
 
 func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error) {
@@ -49,8 +57,16 @@ func (m *mockSchemeNetworkFacilitator) Scheme() string {
 	return m.scheme
 }
 
+func (m *mockSchemeNetworkFacilitator) CaipFamily() string {
+	return "test:*"
+}
+
 func (m *mockSchemeNetworkFacilitator) GetExtra(_ Network) map[string]interface{} {
 	return nil
+}
+
+func (m *mockSchemeNetworkFacilitator) GetSigners() []string {
+	return []string{}
 }
 
 func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
@@ -98,35 +114,35 @@ func TestFacilitatorRegister(t *testing.T) {
 
 	// Verify using GetSupported with concrete network
 	supported := facilitator.GetSupported([]Network{"eip155:1"})
-	if len(supported.Kinds) != 1 {
-		t.Fatalf("Expected 1 kind, got %d", len(supported.Kinds))
+	v2Kinds, hasV2 := supported.Kinds["2"]
+	if !hasV2 {
+		t.Fatal("Expected V2 kinds to be present")
 	}
-	if supported.Kinds[0].X402Version != 2 {
-		t.Fatal("Expected V2 kind")
+	if len(v2Kinds) != 1 {
+		t.Fatalf("Expected 1 V2 kind, got %d", len(v2Kinds))
 	}
-	if supported.Kinds[0].Scheme != "exact" {
+	if v2Kinds[0].Scheme != "exact" {
 		t.Fatal("Expected exact scheme")
 	}
 
 	// Test V1 registration
 	facilitator.RegisterV1("eip155:1", mockFacilitatorV1)
 	supported = facilitator.GetSupported([]Network{"eip155:1"})
+	v1Kinds, hasV1 := supported.Kinds["1"]
+	if !hasV1 {
+		t.Fatal("Expected V1 kinds to be present")
+	}
+	if len(v1Kinds) != 1 {
+		t.Fatalf("Expected 1 V1 kind, got %d", len(v1Kinds))
+	}
+
+	// Verify both V1 and V2 kinds are present
 	if len(supported.Kinds) != 2 {
-		t.Fatalf("Expected 2 kinds, got %d", len(supported.Kinds))
+		t.Fatalf("Expected 2 version groups, got %d", len(supported.Kinds))
 	}
-	// Should have both V1 and V2
-	hasV1 := false
-	hasV2 := false
-	for _, kind := range supported.Kinds {
-		if kind.X402Version == 1 {
-			hasV1 = true
-		}
-		if kind.X402Version == 2 {
-			hasV2 = true
-		}
-	}
-	if !hasV1 || !hasV2 {
-		t.Fatal("Expected both V1 and V2 kinds")
+	v2KindsCheck, hasV2Check := supported.Kinds["2"]
+	if !hasV2Check || len(v2KindsCheck) == 0 {
+		t.Fatal("Expected V2 kinds to still be present")
 	}
 }
 
@@ -488,9 +504,15 @@ func TestFacilitatorGetSupported(t *testing.T) {
 
 	supported := facilitator.GetSupported([]Network{"eip155:1", "eip155:8453"})
 
-	if len(supported.Kinds) != 3 {
-		t.Fatalf("Expected 3 supported kinds, got %d", len(supported.Kinds))
+	// Count total kinds across all versions
+	totalKinds := 0
+	for _, kinds := range supported.Kinds {
+		totalKinds += len(kinds)
 	}
+	if totalKinds != 3 {
+		t.Fatalf("Expected 3 supported kinds total, got %d", totalKinds)
+	}
+
 	if len(supported.Extensions) != 1 {
 		t.Fatalf("Expected 1 extension, got %d", len(supported.Extensions))
 	}
@@ -498,20 +520,27 @@ func TestFacilitatorGetSupported(t *testing.T) {
 		t.Fatal("Expected 'bazaar' extension")
 	}
 
-	// Verify each kind
+	// Verify each kind (now grouped by version)
 	foundV2Exact := false
 	foundV2Transfer := false
 	foundV1Exact := false
 
-	for _, kind := range supported.Kinds {
-		if kind.X402Version == 2 && kind.Scheme == "exact" && kind.Network == "eip155:1" {
-			foundV2Exact = true
+	if v2Kinds, ok := supported.Kinds["2"]; ok {
+		for _, kind := range v2Kinds {
+			if kind.Scheme == "exact" && kind.Network == "eip155:1" {
+				foundV2Exact = true
+			}
+			if kind.Scheme == "transfer" && kind.Network == "eip155:8453" {
+				foundV2Transfer = true
+			}
 		}
-		if kind.X402Version == 2 && kind.Scheme == "transfer" && kind.Network == "eip155:8453" {
-			foundV2Transfer = true
-		}
-		if kind.X402Version == 1 && kind.Scheme == "exact" && kind.Network == "eip155:1" {
-			foundV1Exact = true
+	}
+
+	if v1Kinds, ok := supported.Kinds["1"]; ok {
+		for _, kind := range v1Kinds {
+			if kind.Scheme == "exact" && kind.Network == "eip155:1" {
+				foundV1Exact = true
+			}
 		}
 	}
 

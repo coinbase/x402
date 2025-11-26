@@ -73,6 +73,11 @@ type (
 	SupportedResponse   = types.SupportedResponse
 )
 
+// Re-export V1 types for legacy facilitator support
+type (
+	SupportedResponseV1 = types.SupportedResponseV1
+)
+
 // VerifyResponse contains the verification result
 // If verification fails, an error (typically *VerifyError) is returned and this will be nil
 type VerifyResponse struct {

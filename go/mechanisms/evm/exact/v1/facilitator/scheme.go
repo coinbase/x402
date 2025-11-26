@@ -30,10 +30,21 @@ func (f *ExactEvmSchemeV1) Scheme() string {
 	return evm.SchemeExact
 }
 
+// CaipFamily returns the CAIP family pattern this facilitator supports
+func (f *ExactEvmSchemeV1) CaipFamily() string {
+	return "eip155:*"
+}
+
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 // For EVM, no extra data is needed.
 func (f *ExactEvmSchemeV1) GetExtra(_ x402.Network) map[string]interface{} {
 	return nil
+}
+
+// GetSigners returns signer addresses used by this facilitator.
+// Returns the facilitator's wallet address that signs/settles transactions.
+func (f *ExactEvmSchemeV1) GetSigners() []string {
+	return []string{f.signer.Address()}
 }
 
 // Verify verifies a V1 payment payload against requirements

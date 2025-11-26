@@ -47,7 +47,7 @@ func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context
 
 // mockServerFacilitatorClient extends mockFacilitatorClient for server tests
 type mockServerFacilitatorClient struct {
-	kinds []SupportedKind
+	kinds map[string][]SupportedKind
 }
 
 func (m *mockServerFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
@@ -59,7 +59,11 @@ func (m *mockServerFacilitatorClient) Settle(ctx context.Context, payloadBytes [
 }
 
 func (m *mockServerFacilitatorClient) GetSupported(ctx context.Context) (SupportedResponse, error) {
-	return SupportedResponse{Kinds: m.kinds}, nil
+	return SupportedResponse{
+		Kinds:      m.kinds,
+		Extensions: []string{},
+		Signers:    make(map[string][]string),
+	}, nil
 }
 
 func TestNewx402ResourceServer(t *testing.T) {
@@ -80,8 +84,10 @@ func TestNewx402ResourceServer(t *testing.T) {
 
 func TestServerWithOptions(t *testing.T) {
 	mockClient := &mockFacilitatorClient{
-		kinds: []SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:1"},
+			},
 		},
 	}
 	mockServer := &mockSchemeNetworkServer{scheme: "exact"}
@@ -108,16 +114,16 @@ func TestServerWithOptions(t *testing.T) {
 func TestServerInitialize(t *testing.T) {
 	ctx := context.Background()
 	mockClient := &mockServerFacilitatorClient{
-		kinds: []SupportedKind{
-			{
-				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1",
-			},
-			{
-				X402Version: 2,
-				Scheme:      "transfer",
-				Network:     "eip155:8453",
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
+				{
+					Scheme:  "transfer",
+					Network: "eip155:8453",
+				},
 			},
 		},
 	}
@@ -133,8 +139,13 @@ func TestServerInitialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get supported: %v", err)
 	}
-	if len(supported.Kinds) != 2 {
-		t.Fatalf("Expected 2 kinds, got %d", len(supported.Kinds))
+	// Count total kinds across all versions
+	totalKinds := 0
+	for _, kinds := range supported.Kinds {
+		totalKinds += len(kinds)
+	}
+	if totalKinds != 2 {
+		t.Fatalf("Expected 2 kinds, got %d", totalKinds)
 	}
 }
 
@@ -143,27 +154,28 @@ func TestServerInitializeWithMultipleFacilitators(t *testing.T) {
 
 	// First facilitator supports exact on mainnet
 	mockClient1 := &mockServerFacilitatorClient{
-		kinds: []SupportedKind{
-			{
-				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1",
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{
+					Scheme:  "exact",
+					Network: "eip155:1",
+				},
 			},
 		},
 	}
 
 	// Second facilitator supports exact on mainnet and Base
 	mockClient2 := &mockServerFacilitatorClient{
-		kinds: []SupportedKind{
-			{
-				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:1", // Same as first
-			},
-			{
-				X402Version: 2,
-				Scheme:      "exact",
-				Network:     "eip155:8453", // New network
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{
+					Scheme:  "exact",
+					Network: "eip155:1", // Same as first
+				},
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453", // New network
+				},
 			},
 		},
 	}
@@ -227,9 +239,8 @@ func TestServerBuildPaymentRequirements(t *testing.T) {
 
 	// BuildPaymentRequirements now requires supportedKind
 	supportedKind := types.SupportedKind{
-		X402Version: 2,
-		Scheme:      "exact",
-		Network:     "eip155:1",
+		Scheme:  "exact",
+		Network: "eip155:1",
 	}
 
 	requirements, err := server.BuildPaymentRequirements(ctx, config, supportedKind, []string{})
@@ -266,9 +277,8 @@ func TestServerBuildPaymentRequirementsNoScheme(t *testing.T) {
 	}
 
 	supportedKind := types.SupportedKind{
-		X402Version: 2,
-		Scheme:      "unregistered",
-		Network:     "eip155:1",
+		Scheme:  "unregistered",
+		Network: "eip155:1",
 	}
 
 	_, err := server.BuildPaymentRequirements(ctx, config, supportedKind, []string{})
@@ -329,8 +339,10 @@ func TestServerVerifyPayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		kinds: []SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:1"},
+			},
 		},
 		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
 			return &VerifyResponse{
@@ -374,8 +386,10 @@ func TestServerSettlePayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		kinds: []SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+		kinds: map[string][]SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:1"},
+			},
 		},
 		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
 			return &SettleResponse{
@@ -557,9 +571,13 @@ func TestSupportedCache(t *testing.T) {
 	}
 
 	response := SupportedResponse{
-		Kinds: []SupportedKind{
-			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
+		Kinds: map[string][]SupportedKind{
+			"2": {
+				{Scheme: "exact", Network: "eip155:1"},
+			},
 		},
+		Extensions: []string{},
+		Signers:    make(map[string][]string),
 	}
 
 	// Set and verify

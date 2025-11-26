@@ -34,6 +34,11 @@ func (f *ExactSvmSchemeV1) Scheme() string {
 	return svm.SchemeExact
 }
 
+// CaipFamily returns the CAIP family pattern this facilitator supports
+func (f *ExactSvmSchemeV1) CaipFamily() string {
+	return "solana:*"
+}
+
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 // For SVM, this includes the fee payer address.
 func (f *ExactSvmSchemeV1) GetExtra(network x402.Network) map[string]interface{} {
@@ -41,6 +46,15 @@ func (f *ExactSvmSchemeV1) GetExtra(network x402.Network) map[string]interface{}
 	return map[string]interface{}{
 		"feePayer": feePayerAddress.String(),
 	}
+}
+
+// GetSigners returns signer addresses used by this facilitator.
+// For SVM, returns the fee payer address for the given network.
+func (f *ExactSvmSchemeV1) GetSigners() []string {
+	// Return fee payer address for devnet (default)
+	// Note: In practice, this should return all addresses used across all networks
+	feePayerAddress := f.signer.GetAddress("solana-devnet")
+	return []string{feePayerAddress.String()}
 }
 
 // Verify verifies a V1 payment payload against requirements

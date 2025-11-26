@@ -473,8 +473,9 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 	return facilitator.Settle(ctx, payload, requirements)
 }
 
-// GetSupported returns supported payment kinds for the specified concrete networks
+// GetSupported returns supported payment kinds for the specified concrete networks in V2 format
 // It expands wildcard registrations (e.g., "eip155:*") into concrete networks
+// Groups kinds by version and collects signer information by CAIP family
 //
 // Args:
 //
@@ -482,12 +483,13 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 //
 // Returns:
 //
-//	SupportedResponse with kinds matching the provided networks
+//	SupportedResponse with kinds grouped by version, extensions, and signers
 func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	var kinds []SupportedKind
+	kindsByVersion := make(map[string][]SupportedKind)
+	signersByFamily := make(map[string]map[string]bool) // family → set of signers
 
 	// For each concrete network, find matching registered patterns
 	for _, concreteNetwork := range networks {
@@ -496,14 +498,22 @@ func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
 				for scheme, facilitator := range schemeMap {
 					kind := SupportedKind{
-						X402Version: 1,
-						Scheme:      scheme,
-						Network:     string(concreteNetwork),
+						Scheme:  scheme,
+						Network: string(concreteNetwork),
 					}
 					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
 						kind.Extra = extra
 					}
-					kinds = append(kinds, kind)
+					kindsByVersion["1"] = append(kindsByVersion["1"], kind)
+
+					// Collect signers by CAIP family
+					family := facilitator.CaipFamily()
+					if signersByFamily[family] == nil {
+						signersByFamily[family] = make(map[string]bool)
+					}
+					for _, signer := range facilitator.GetSigners() {
+						signersByFamily[family][signer] = true
+					}
 				}
 			}
 		}
@@ -513,22 +523,41 @@ func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
 				for scheme, facilitator := range schemeMap {
 					kind := SupportedKind{
-						X402Version: 2,
-						Scheme:      scheme,
-						Network:     string(concreteNetwork),
+						Scheme:  scheme,
+						Network: string(concreteNetwork),
 					}
 					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
 						kind.Extra = extra
 					}
-					kinds = append(kinds, kind)
+					kindsByVersion["2"] = append(kindsByVersion["2"], kind)
+
+					// Collect signers by CAIP family
+					family := facilitator.CaipFamily()
+					if signersByFamily[family] == nil {
+						signersByFamily[family] = make(map[string]bool)
+					}
+					for _, signer := range facilitator.GetSigners() {
+						signersByFamily[family][signer] = true
+					}
 				}
 			}
 		}
 	}
 
+	// Convert signer sets to arrays
+	signers := make(map[string][]string)
+	for family, signerSet := range signersByFamily {
+		signerList := make([]string, 0, len(signerSet))
+		for signer := range signerSet {
+			signerList = append(signerList, signer)
+		}
+		signers[family] = signerList
+	}
+
 	return SupportedResponse{
-		Kinds:      kinds,
+		Kinds:      kindsByVersion,
 		Extensions: f.extensions,
+		Signers:    signers,
 	}
 }
 

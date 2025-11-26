@@ -74,6 +74,10 @@ func newRealFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*realFaci
 	}, nil
 }
 
+func (s *realFacilitatorEvmSigner) Address() string {
+	return s.address.Hex()
+}
+
 func (s *realFacilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
 	// For integration tests, we'll just return a large balance
 	// In production, this would query the actual token contract

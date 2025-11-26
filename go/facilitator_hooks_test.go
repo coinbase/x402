@@ -360,8 +360,16 @@ func (m *mockSchemeFacilitator) Scheme() string {
 	return m.scheme
 }
 
+func (m *mockSchemeFacilitator) CaipFamily() string {
+	return "test:*"
+}
+
 func (m *mockSchemeFacilitator) GetExtra(_ Network) map[string]interface{} {
 	return nil
+}
+
+func (m *mockSchemeFacilitator) GetSigners() []string {
+	return []string{}
 }
 
 func (m *mockSchemeFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {

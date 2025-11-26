@@ -34,8 +34,14 @@ type SchemeNetworkClientV1 interface {
 // SchemeNetworkFacilitatorV1 is implemented by facilitator-side V1 payment mechanisms
 type SchemeNetworkFacilitatorV1 interface {
 	Scheme() string
-	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error)
-	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error)
+
+	// CaipFamily returns the CAIP family pattern this facilitator supports.
+	// Used to group signers by blockchain family in the supported response.
+	//
+	// Examples:
+	//   - EVM facilitators return "eip155:*"
+	//   - SVM facilitators return "solana:*"
+	CaipFamily() string
 
 	// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 	// This method is called when building the facilitator's supported response.
@@ -49,6 +55,21 @@ type SchemeNetworkFacilitatorV1 interface {
 	// Returns:
 	//   Extra data map or nil if no extra data is needed
 	GetExtra(network Network) map[string]interface{}
+
+	// GetSigners returns signer addresses used by this facilitator.
+	// These are included in the supported response to help clients understand
+	// which addresses might sign/pay for transactions.
+	//
+	// Examples:
+	//   - EVM: Returns facilitator wallet address
+	//   - SVM: Returns fee payer address
+	//
+	// Returns:
+	//   Array of signer addresses
+	GetSigners() []string
+
+	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error)
 }
 
 // Note: No SchemeNetworkServerV1 - new SDK servers are V2 only
@@ -78,8 +99,14 @@ type SchemeNetworkServer interface {
 // SchemeNetworkFacilitator is implemented by facilitator-side payment mechanisms (V2)
 type SchemeNetworkFacilitator interface {
 	Scheme() string
-	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
-	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)
+
+	// CaipFamily returns the CAIP family pattern this facilitator supports.
+	// Used to group signers by blockchain family in the supported response.
+	//
+	// Examples:
+	//   - EVM facilitators return "eip155:*"
+	//   - SVM facilitators return "solana:*"
+	CaipFamily() string
 
 	// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 	// This method is called when building the facilitator's supported response.
@@ -93,14 +120,31 @@ type SchemeNetworkFacilitator interface {
 	// Returns:
 	//   Extra data map or nil if no extra data is needed
 	GetExtra(network Network) map[string]interface{}
+
+	// GetSigners returns signer addresses used by this facilitator.
+	// These are included in the supported response to help clients understand
+	// which addresses might sign/pay for transactions.
+	//
+	// Examples:
+	//   - EVM: Returns facilitator wallet address
+	//   - SVM: Returns fee payer address
+	//
+	// Returns:
+	//   Array of signer addresses
+	GetSigners() []string
+
+	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
+	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)
 }
 
 // ============================================================================
 // FacilitatorClient Interfaces (Network Boundary - uses bytes)
 // ============================================================================
 
-// FacilitatorClient interface for new facilitators that support both V1 and V2
-// Uses bytes at network boundary - SDK internal routing unmarshals and routes to typed mechanisms
+// FacilitatorClient interface for facilitators that support V1 and/or V2.
+// Uses bytes at network boundary - SDK internal routing unmarshals and routes to typed mechanisms.
+// Both modern facilitators (supporting V1+V2) and legacy facilitators (V1 only) implement this interface.
+// Legacy facilitators use LegacyHTTPFacilitatorClient adapter to convert V1 responses to V2 format.
 type FacilitatorClient interface {
 	// Verify a payment (detects version from bytes, routes internally)
 	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error)
@@ -108,24 +152,6 @@ type FacilitatorClient interface {
 	// Settle a payment (detects version from bytes, routes internally)
 	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error)
 
-	// GetSupported returns supported payment kinds (new format - includes both V1/V2)
+	// GetSupported returns supported payment kinds in V2 format (grouped by version, with extensions and signers)
 	GetSupported(ctx context.Context) (SupportedResponse, error)
-}
-
-// LegacyFacilitatorClient interface for old facilitators (V1 only)
-// Same signatures but GetSupported returns old format
-type LegacyFacilitatorClient interface {
-	// Verify a V1 payment only
-	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error)
-
-	// Settle a V1 payment only
-	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error)
-
-	// GetSupported returns V1 supported format (no extensions)
-	GetSupported(ctx context.Context) (SupportedResponseV1, error)
-}
-
-// SupportedResponseV1 is the old supported response format (V1 only, no extensions)
-type SupportedResponseV1 struct {
-	Kinds []types.SupportedKindV1 `json:"kinds"`
 }

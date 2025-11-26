@@ -63,10 +63,20 @@ func (f *SchemeNetworkFacilitator) Scheme() string {
 	return "cash"
 }
 
+// CaipFamily returns the CAIP family pattern
+func (f *SchemeNetworkFacilitator) CaipFamily() string {
+	return "x402:*"
+}
+
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 // For the mock cash scheme, return nil.
 func (f *SchemeNetworkFacilitator) GetExtra(_ x402.Network) map[string]interface{} {
 	return nil
+}
+
+// GetSigners returns signer addresses
+func (f *SchemeNetworkFacilitator) GetSigners() []string {
+	return []string{}
 }
 
 // Verify verifies a V2 payment payload against requirements (typed)
@@ -251,15 +261,17 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, req
 // GetSupported gets supported payment kinds and extensions
 func (c *FacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
 	return x402.SupportedResponse{
-		Kinds: []x402.SupportedKind{
-			{
-				X402Version: 2,
-				Scheme:      "cash",
-				Network:     "x402:cash",
-				Extra:       nil,
+		Kinds: map[string][]x402.SupportedKind{
+			"2": {
+				{
+					Scheme:  "cash",
+					Network: "x402:cash",
+					Extra:   nil,
+				},
 			},
 		},
 		Extensions: []string{},
+		Signers:    make(map[string][]string),
 	}, nil
 }
 

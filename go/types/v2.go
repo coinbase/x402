@@ -57,17 +57,19 @@ type ResourceInfo struct {
 }
 
 // SupportedKind represents a V2 supported payment configuration
+// Note: X402Version is no longer in the kind itself - it's the map key in SupportedResponse
 type SupportedKind struct {
-	X402Version int                    `json:"x402Version"`
-	Scheme      string                 `json:"scheme"`
-	Network     string                 `json:"network"`
-	Extra       map[string]interface{} `json:"extra,omitempty"`
+	Scheme  string                 `json:"scheme"`
+	Network string                 `json:"network"`
+	Extra   map[string]interface{} `json:"extra,omitempty"`
 }
 
-// SupportedResponse describes what payment kinds a facilitator supports
+// SupportedResponse describes what payment kinds a facilitator supports (V2 format)
+// Kinds are grouped by x402 version, and signer information is provided by CAIP family
 type SupportedResponse struct {
-	Kinds      []SupportedKind `json:"kinds"`
-	Extensions []string        `json:"extensions"`
+	Kinds      map[string][]SupportedKind `json:"kinds"`      // Version string → Array of kinds
+	Extensions []string                   `json:"extensions"` // Protocol extensions supported
+	Signers    map[string][]string        `json:"signers"`    // CAIP family → Signer addresses
 }
 
 // Unmarshal helpers
