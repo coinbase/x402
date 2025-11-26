@@ -7,7 +7,7 @@ app.use(
   // How much you want to charge, and where you want the funds to land
   paymentMiddleware("0xYourAddress", { "/your-endpoint": "$0.01" })
 );
-// That's it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
+// That's it! See examples/typescript/servers/express/index.ts for a complete example. Instruction below for running on base-sepolia.
 ```
 
 ## Philosophy
