@@ -81,6 +81,8 @@ export function buildVerifyResponse(overrides?: Partial<VerifyResponse>): Verify
 export function buildSettleResponse(overrides?: Partial<SettleResponse>): SettleResponse {
   return {
     success: true,
+    transaction: "0xTestTransaction",
+    network: "test:network" as Network,
     ...overrides,
   };
 }

@@ -27,6 +27,27 @@ export interface SchemeNetworkClient {
 export interface SchemeNetworkFacilitator {
   readonly scheme: string;
 
+  /**
+   * Get mechanism-specific extra data needed for the supported kinds endpoint.
+   * This method is called when building the facilitator's supported response.
+   *
+   * @param network - The network identifier for context
+   * @returns Extra data object or undefined if no extra data is needed
+   *
+   * @example
+   * // EVM schemes return undefined (no extra data needed)
+   * getExtra(network: Network): undefined {
+   *   return undefined;
+   * }
+   *
+   * @example
+   * // SVM schemes return feePayer address
+   * getExtra(network: Network): Record<string, unknown> | undefined {
+   *   return { feePayer: this.signer.getAddress() };
+   * }
+   */
+  getExtra(network: Network): Record<string, unknown> | undefined;
+
   verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse>;
   settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
 }

@@ -17,6 +17,7 @@ export interface ExactEvmSchemeV1Config {
   /**
    * If enabled, the facilitator will deploy ERC-4337 smart wallets
    * via EIP-6492 when encountering undeployed contract signatures.
+   *
    * @default false
    */
   deployERC4337WithEIP6492?: boolean;
@@ -42,6 +43,17 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     this.config = {
       deployERC4337WithEIP6492: config?.deployERC4337WithEIP6492 ?? false,
     };
+  }
+
+  /**
+   * Get mechanism-specific extra data for the supported kinds endpoint.
+   * For EVM, no extra data is needed.
+   *
+   * @param _ - The network identifier (unused for EVM)
+   * @returns undefined (EVM has no extra data)
+   */
+  getExtra(_: string): Record<string, unknown> | undefined {
+    return undefined;
   }
 
   /**
@@ -265,7 +277,10 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
           );
         } catch (deployError) {
           // Log but don't fail - the wallet might already be deployed
-          console.warn("Smart wallet deployment transaction reverted (may already exist):", deployError);
+          console.warn(
+            "Smart wallet deployment transaction reverted (may already exist):",
+            deployError,
+          );
         }
       }
 

@@ -23,6 +23,10 @@ class MockSchemeFacilitator implements SchemeNetworkFacilitator {
     ) => Promise<SettleResponse>,
   ) { }
 
+  getExtra(_: string): Record<string, unknown> | undefined {
+    return undefined;
+  }
+
   async verify(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
@@ -46,8 +50,6 @@ class MockSchemeFacilitator implements SchemeNetworkFacilitator {
 
 const buildPaymentPayload = (): PaymentPayload => ({
   x402Version: 2,
-  scheme: "exact",
-  network: "eip155:8453",
   payload: {},
   accepted: {
     scheme: "exact",
@@ -56,6 +58,12 @@ const buildPaymentPayload = (): PaymentPayload => ({
     amount: "1000000",
     payTo: "0xRecipient",
     maxTimeoutSeconds: 300,
+    extra: {},
+  },
+  resource: {
+    url: "https://example.com/resource",
+    description: "Test resource",
+    mimeType: "application/json",
   },
 });
 
@@ -66,6 +74,7 @@ const buildPaymentRequirements = (): PaymentRequirements => ({
   amount: "1000000",
   payTo: "0xRecipient",
   maxTimeoutSeconds: 300,
+  extra: {},
 });
 
 describe("x402Facilitator - Lifecycle Hooks", () => {

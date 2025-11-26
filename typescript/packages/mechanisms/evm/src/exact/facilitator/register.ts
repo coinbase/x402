@@ -19,11 +19,6 @@ export interface EvmFacilitatorConfig {
    * If not provided, registers wildcard support (eip155:*)
    */
   networks?: Network[];
-
-  /**
-   * Optional extra data to include in /supported response
-   */
-  extras?: Record<string, unknown> | (() => Record<string, unknown>);
 }
 
 /**
@@ -45,8 +40,7 @@ export interface EvmFacilitatorConfig {
  *
  * const facilitator = new x402Facilitator();
  * registerExactEvmScheme(facilitator, {
- *   signer: combinedClient,
- *   extras: { gasToken: "ETH" }
+ *   signer: combinedClient
  * });
  * ```
  */
@@ -58,20 +52,16 @@ export function registerExactEvmScheme(
   if (config.networks && config.networks.length > 0) {
     // Register specific networks
     config.networks.forEach(network => {
-      facilitator.register(network, new ExactEvmScheme(config.signer), config.extras);
+      facilitator.register(network, new ExactEvmScheme(config.signer));
     });
   } else {
     // Register wildcard for all EVM chains
-    facilitator.register("eip155:*", new ExactEvmScheme(config.signer), config.extras);
+    facilitator.register("eip155:*", new ExactEvmScheme(config.signer));
   }
 
   // Register all V1 networks
   NETWORKS.forEach(network => {
-    facilitator.registerV1(
-      network as Network,
-      new ExactEvmSchemeV1(config.signer),
-      config.extras,
-    );
+    facilitator.registerV1(network as Network, new ExactEvmSchemeV1(config.signer));
   });
 
   return facilitator;

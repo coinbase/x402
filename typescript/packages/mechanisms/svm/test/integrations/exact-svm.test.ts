@@ -146,10 +146,7 @@ describe("SVM Integration Tests", () => {
       const svmClient = new ExactSvmClient(clientSigner, {
         rpcUrl: "https://api.devnet.solana.com",
       });
-      client = new x402Client().register(
-        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-        svmClient,
-      );
+      client = new x402Client().register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmClient);
 
       const facilitatorBytes = base58.decode(FACILITATOR_PRIVATE_KEY);
       const facilitatorKeypair = await createKeyPairSignerFromBytes(facilitatorBytes);
@@ -258,10 +255,7 @@ describe("SVM Integration Tests", () => {
 
       // Create resource server and register schemes (composition pattern)
       const ResourceServer = new x402ResourceServer(facilitatorClient);
-      ResourceServer.register(
-        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-        new ExactSvmServer(),
-      );
+      ResourceServer.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmServer());
       await ResourceServer.initialize(); // Initialize to fetch supported kinds
 
       httpServer = new x402HTTPResourceServer(ResourceServer, routes);
@@ -332,20 +326,19 @@ describe("SVM Integration Tests", () => {
 
   describe("Price Parsing Integration", () => {
     let server: x402ResourceServer;
-    let svmServer: ExactSvmScheme;
+    let svmServer: ExactSvmServer;
 
     beforeEach(async () => {
       const facilitatorBytes = base58.decode(FACILITATOR_PRIVATE_KEY);
       const facilitatorSigner = await createKeyPairSignerFromBytes(facilitatorBytes);
 
-      const facilitatorEvmSigner = toFacilitatorSvmSigner({
-        signer: facilitatorSigner,
-        rpcUrl: "https://api.devnet.solana.com",
+      const facilitatorSvmSigner = toFacilitatorSvmSigner(facilitatorSigner, {
+        defaultRpcUrl: "https://api.devnet.solana.com",
       });
 
       const facilitator = new x402Facilitator().register(
         "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-        new ExactSvmFacilitator(facilitatorEvmSigner),
+        new ExactSvmFacilitator(facilitatorSvmSigner),
       );
 
       const facilitatorClient = new SvmFacilitatorClient(facilitator);

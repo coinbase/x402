@@ -387,7 +387,7 @@ describe("EVM Integration Tests", () => {
 
   describe("Price Parsing Integration", () => {
     let server: x402ResourceServer;
-    let evmServer: ExactEvmScheme;
+    let evmServer: ExactEvmServer;
 
     beforeEach(async () => {
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
@@ -401,7 +401,20 @@ describe("EVM Integration Tests", () => {
         transport: http(),
       });
 
-      const facilitatorSigner = toFacilitatorEvmSigner({ publicClient, walletClient });
+      const facilitatorSigner = toFacilitatorEvmSigner({
+        readContract: args =>
+          publicClient.readContract({
+            ...args,
+            args: args.args || [],
+          } as never),
+        verifyTypedData: args => publicClient.verifyTypedData(args as never),
+        writeContract: args =>
+          walletClient.writeContract({
+            ...args,
+            args: args.args || [],
+          } as never),
+        waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
+      });
       const facilitator = new x402Facilitator().register(
         "eip155:84532",
         new ExactEvmFacilitator(facilitatorSigner),

@@ -68,10 +68,6 @@ export class x402Facilitator {
     number,
     Map<string, Map<string, SchemeNetworkFacilitator>>
   > = new Map();
-  private readonly schemeExtras: Map<
-    number,
-    Map<string, Map<string, Record<string, unknown> | (() => Record<string, unknown>)>>
-  > = new Map();
   private readonly extensions: string[] = [];
 
   private beforeVerifyHooks: FacilitatorBeforeVerifyHook[] = [];
@@ -86,15 +82,10 @@ export class x402Facilitator {
    *
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
-   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  register(
-    network: Network,
-    facilitator: SchemeNetworkFacilitator,
-    extra?: Record<string, unknown> | (() => Record<string, unknown>),
-  ): x402Facilitator {
-    return this._registerScheme(x402Version, network, facilitator, extra);
+  register(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
+    return this._registerScheme(x402Version, network, facilitator);
   }
 
   /**
@@ -102,15 +93,10 @@ export class x402Facilitator {
    *
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
-   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
-  registerV1(
-    network: Network,
-    facilitator: SchemeNetworkFacilitator,
-    extra?: Record<string, unknown> | (() => Record<string, unknown>),
-  ): x402Facilitator {
-    return this._registerScheme(1, network, facilitator, extra);
+  registerV1(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
+    return this._registerScheme(1, network, facilitator);
   }
 
   /**
@@ -237,9 +223,8 @@ export class x402Facilitator {
             continue;
           }
 
-          for (const [scheme] of schemeMap) {
-            const extraMap = this.schemeExtras.get(version)?.get(registeredPattern)?.get(scheme);
-            const extra = typeof extraMap === "function" ? extraMap() : extraMap;
+          for (const [scheme, facilitator] of schemeMap) {
+            const extra = facilitator.getExtra(concreteNetwork);
 
             kinds.push({
               x402Version: version,
@@ -425,14 +410,12 @@ export class x402Facilitator {
    * @param x402Version - The x402 protocol version
    * @param network - The network to register the facilitator for
    * @param facilitator - The scheme network facilitator to register
-   * @param extra - Optional extra data (object or function) to include in /supported response
    * @returns The x402Facilitator instance for chaining
    */
   private _registerScheme(
     x402Version: number,
     network: Network,
     facilitator: SchemeNetworkFacilitator,
-    extra?: Record<string, unknown> | (() => Record<string, unknown>),
   ): x402Facilitator {
     if (!this.registeredFacilitatorSchemes.has(x402Version)) {
       this.registeredFacilitatorSchemes.set(x402Version, new Map());
@@ -444,18 +427,6 @@ export class x402Facilitator {
     const facilitatorByScheme = networkFacilitatorSchemes.get(network)!;
     if (!facilitatorByScheme.has(facilitator.scheme)) {
       facilitatorByScheme.set(facilitator.scheme, facilitator);
-    }
-
-    if (extra) {
-      if (!this.schemeExtras.has(x402Version)) {
-        this.schemeExtras.set(x402Version, new Map());
-      }
-      const networkExtras = this.schemeExtras.get(x402Version)!;
-      if (!networkExtras.has(network)) {
-        networkExtras.set(network, new Map());
-      }
-      const schemeExtras = networkExtras.get(network)!;
-      schemeExtras.set(facilitator.scheme, extra);
     }
 
     return this;

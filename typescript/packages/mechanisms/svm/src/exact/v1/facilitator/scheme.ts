@@ -45,7 +45,20 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
    * @param signer - The SVM RPC client for facilitator operations
    * @returns ExactSvmFacilitatorV1 instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) {}
+  constructor(private readonly signer: FacilitatorSvmSigner) { }
+
+  /**
+   * Get mechanism-specific extra data for the supported kinds endpoint.
+   * For SVM, this includes the fee payer address.
+   *
+   * @param _ - The network identifier (unused for SVM)
+   * @returns Extra data with feePayer address
+   */
+  getExtra(_: string): Record<string, unknown> | undefined {
+    return {
+      feePayer: this.signer.address,
+    };
+  }
 
   /**
    * Verifies a payment payload (V1).

@@ -58,6 +58,17 @@ export class CashSchemeNetworkFacilitator implements SchemeNetworkFacilitator {
   readonly scheme = "cash";
 
   /**
+   * Get mechanism-specific extra data for the supported kinds endpoint.
+   * For the mock cash scheme, return empty object.
+   *
+   * @param _ - The network identifier
+   * @returns Empty extra data object
+   */
+  getExtra(_: string): Record<string, unknown> | undefined {
+    return {};
+  }
+
+  /**
    * Verifies a payment payload against requirements.
    *
    * @param payload - The payment payload to verify

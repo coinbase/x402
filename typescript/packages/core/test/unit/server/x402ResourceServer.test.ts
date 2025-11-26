@@ -551,7 +551,7 @@ describe("x402ResourceServer", () => {
           // Recover with successful result
           return {
             recovered: true,
-            result: { isValid: true, extra: "recovered" },
+            result: { isValid: true, payer: "0xRecovered" },
           };
         });
 
@@ -561,7 +561,7 @@ describe("x402ResourceServer", () => {
         );
 
         expect(result.isValid).toBe(true);
-        expect(result.extra).toBe("recovered");
+        expect(result.payer).toBe("0xRecovered");
       });
 
       it("should try all hooks until one recovers", async () => {
@@ -688,7 +688,11 @@ describe("x402ResourceServer", () => {
         server.onSettleFailure(async () => {
           return {
             recovered: true,
-            result: { success: true, extra: "recovered" },
+            result: {
+              success: true,
+              transaction: "0xRecoveredTx",
+              network: "eip155:8453",
+            },
           };
         });
 
@@ -698,7 +702,7 @@ describe("x402ResourceServer", () => {
         );
 
         expect(result.success).toBe(true);
-        expect(result.extra).toBe("recovered");
+        expect(result.transaction).toBe("0xRecoveredTx");
       });
     });
   });

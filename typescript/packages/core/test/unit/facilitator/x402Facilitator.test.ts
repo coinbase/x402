@@ -24,9 +24,17 @@ class TestFacilitator implements SchemeNetworkFacilitator {
   constructor(
     scheme: string,
     private verifyResponse: VerifyResponse | Error = { isValid: true },
-    private settleResponse: SettleResponse | Error = { success: true },
+    private settleResponse: SettleResponse | Error = {
+      success: true,
+      transaction: "0xTestTx",
+      network: "test:network",
+    },
   ) {
     this.scheme = scheme;
+  }
+
+  getExtra(_: string): Record<string, unknown> | undefined {
+    return undefined;
   }
 
   /**
@@ -310,7 +318,11 @@ describe("x402Facilitator", () => {
   describe("settle", () => {
     it("should delegate to registered scheme facilitator", async () => {
       const facilitator = new x402Facilitator();
-      const testFacilitator = new TestFacilitator("exact", undefined, { success: true });
+      const testFacilitator = new TestFacilitator("exact", undefined, {
+        success: true,
+        transaction: "0xTestTx",
+        network: "eip155:8453",
+      });
 
       facilitator.register("eip155:8453" as Network, testFacilitator);
 
@@ -402,8 +414,8 @@ describe("x402Facilitator", () => {
   describe("Version support", () => {
     it("should handle v1 and v2 separately", async () => {
       const facilitator = new x402Facilitator();
-      const v1Facilitator = new TestFacilitator("exact", { isValid: true, extra: "v1" });
-      const v2Facilitator = new TestFacilitator("exact", { isValid: true, extra: "v2" });
+      const v1Facilitator = new TestFacilitator("exact", { isValid: true });
+      const v2Facilitator = new TestFacilitator("exact", { isValid: true });
 
       facilitator.registerV1("eip155:8453" as Network, v1Facilitator);
       facilitator.register("eip155:8453" as Network, v2Facilitator);
@@ -418,16 +430,16 @@ describe("x402Facilitator", () => {
       const v1Result = await facilitator.verify(v1Payload, requirements);
       const v2Result = await facilitator.verify(v2Payload, requirements);
 
-      expect(v1Result.extra).toBe("v1");
-      expect(v2Result.extra).toBe("v2");
+      expect(v1Result.isValid).toBe(true);
+      expect(v2Result.isValid).toBe(true);
     });
   });
 
   describe("Network pattern matching", () => {
     it("should prefer exact match over pattern", async () => {
       const facilitator = new x402Facilitator();
-      const exactFacilitator = new TestFacilitator("exact", { isValid: true, extra: "exact" });
-      const patternFacilitator = new TestFacilitator("exact", { isValid: true, extra: "pattern" });
+      const exactFacilitator = new TestFacilitator("exact", { isValid: true });
+      const patternFacilitator = new TestFacilitator("exact", { isValid: true });
 
       facilitator.register("eip155:8453" as Network, exactFacilitator);
       facilitator.register("eip155:*" as Network, patternFacilitator);
@@ -440,7 +452,7 @@ describe("x402Facilitator", () => {
 
       const result = await facilitator.verify(payload, requirements);
 
-      expect(result.extra).toBe("exact");
+      expect(result.isValid).toBe(true);
       expect(exactFacilitator.verifyCalls.length).toBe(1);
       expect(patternFacilitator.verifyCalls.length).toBe(0);
     });

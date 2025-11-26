@@ -47,6 +47,20 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
   constructor(private readonly signer: FacilitatorSvmSigner) {}
 
   /**
+   * Get mechanism-specific extra data for the supported kinds endpoint.
+   * For SVM, this includes the fee payer address.
+   *
+   * @param _ - The network identifier (unused for SVM)
+   * @returns Extra data with feePayer address
+   */
+  getExtra(_: string): Record<string, unknown> | undefined {
+    // Return feePayer synchronously - the address is already available
+    return {
+      feePayer: this.signer.address,
+    };
+  }
+
+  /**
    * Verifies a payment payload.
    *
    * @param payload - The payment payload to verify

@@ -74,9 +74,9 @@ class MockHTTPAdapter implements HTTPAdapter {
     const queryString =
       Object.keys(this._queryParams).length > 0
         ? "?" +
-        Object.entries(this._queryParams)
-          .map(([k, v]) => `${k}=${v}`)
-          .join("&")
+          Object.entries(this._queryParams)
+            .map(([k, v]) => `${k}=${v}`)
+            .join("&")
         : "";
     return `https://example.com${this._path}${queryString}`;
   }

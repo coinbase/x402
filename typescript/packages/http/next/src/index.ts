@@ -21,7 +21,7 @@ export class NextAdapter implements HTTPAdapter {
    *
    * @param req - The Next.js request object
    */
-  constructor(private req: NextRequest) { }
+  constructor(private req: NextRequest) {}
 
   /**
    * Gets a header value from the request.
