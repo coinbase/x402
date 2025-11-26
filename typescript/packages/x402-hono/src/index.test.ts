@@ -878,7 +878,7 @@ describe("paymentMiddleware()", () => {
     expect(mockContext.json).toHaveBeenCalledWith(
       {
         x402Version: 1,
-        error: new Error("Invalid payment"),
+        error: "Invalid payment",
         accepts: [
           {
             scheme: "exact",
@@ -1065,7 +1065,7 @@ describe("paymentMiddleware()", () => {
     expect(mockContext.json).toHaveBeenCalledWith(
       {
         x402Version: 1,
-        error: new Error("Settlement failed"),
+        error: "Settlement failed",
         accepts: [
           {
             scheme: "exact",
