@@ -311,6 +311,10 @@ export function paymentMiddleware(
       );
     }
 
+    if (verification.payer) {
+      c.set("x402.payer", verification.payer);
+    }
+
     // Proceed with request
     await next();
 
