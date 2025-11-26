@@ -21,7 +21,7 @@ class MockSchemeFacilitator implements SchemeNetworkFacilitator {
       payload: PaymentPayload,
       requirements: PaymentRequirements,
     ) => Promise<SettleResponse>,
-  ) { }
+  ) {}
 
   getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
@@ -321,12 +321,12 @@ describe("x402Facilitator - Lifecycle Hooks", () => {
       const facilitator = new x402Facilitator();
 
       const result = facilitator
-        .onBeforeVerify(async () => { })
-        .onAfterVerify(async () => { })
-        .onVerifyFailure(async () => { })
-        .onBeforeSettle(async () => { })
-        .onAfterSettle(async () => { })
-        .onSettleFailure(async () => { });
+        .onBeforeVerify(async () => {})
+        .onAfterVerify(async () => {})
+        .onVerifyFailure(async () => {})
+        .onBeforeSettle(async () => {})
+        .onAfterSettle(async () => {})
+        .onSettleFailure(async () => {});
 
       expect(result).toBe(facilitator);
     });

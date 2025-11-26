@@ -35,12 +35,12 @@ type PaymentRequirementsV1 struct {
 }
 
 // PaymentRequirementsView interface implementation for V1
-func (r PaymentRequirementsV1) GetScheme() string                  { return r.Scheme }
-func (r PaymentRequirementsV1) GetNetwork() string                 { return r.Network }
-func (r PaymentRequirementsV1) GetAsset() string                   { return r.Asset }
-func (r PaymentRequirementsV1) GetAmount() string                  { return r.MaxAmountRequired }
-func (r PaymentRequirementsV1) GetPayTo() string                   { return r.PayTo }
-func (r PaymentRequirementsV1) GetMaxTimeoutSeconds() int          { return r.MaxTimeoutSeconds }
+func (r PaymentRequirementsV1) GetScheme() string         { return r.Scheme }
+func (r PaymentRequirementsV1) GetNetwork() string        { return r.Network }
+func (r PaymentRequirementsV1) GetAsset() string          { return r.Asset }
+func (r PaymentRequirementsV1) GetAmount() string         { return r.MaxAmountRequired }
+func (r PaymentRequirementsV1) GetPayTo() string          { return r.PayTo }
+func (r PaymentRequirementsV1) GetMaxTimeoutSeconds() int { return r.MaxTimeoutSeconds }
 func (r PaymentRequirementsV1) GetExtra() map[string]interface{} {
 	if r.Extra == nil {
 		return nil

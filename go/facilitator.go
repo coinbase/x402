@@ -150,7 +150,7 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 		if err != nil {
 			return nil, NewVerifyError("invalid_v1_requirements", "", "", err)
 		}
-		
+
 		hookPayload = *payload
 		hookRequirements = *requirements
 
@@ -204,7 +204,7 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 		if err != nil {
 			return nil, NewVerifyError("invalid_v2_requirements", "", "", err)
 		}
-		
+
 		hookPayload = *payload
 		hookRequirements = *requirements
 
@@ -277,7 +277,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		if err != nil {
 			return nil, NewSettleError("invalid_v1_requirements", "", "", "", err)
 		}
-		
+
 		hookPayload = *payload
 		hookRequirements = *requirements
 
@@ -331,7 +331,7 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		if err != nil {
 			return nil, NewSettleError("invalid_v2_requirements", "", "", "", err)
 		}
-		
+
 		hookPayload = *payload
 		hookRequirements = *requirements
 
@@ -477,10 +477,12 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 // It expands wildcard registrations (e.g., "eip155:*") into concrete networks
 //
 // Args:
-//   networks: List of concrete network identifiers to include in the response
+//
+//	networks: List of concrete network identifiers to include in the response
 //
 // Returns:
-//   SupportedResponse with kinds matching the provided networks
+//
+//	SupportedResponse with kinds matching the provided networks
 func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

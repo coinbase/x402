@@ -56,7 +56,7 @@ func TestBeforeVerifyHook_Abort(t *testing.T) {
 	// Try to verify (should be aborted by hook)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -97,7 +97,7 @@ func TestBeforeVerifyHook_Continue(t *testing.T) {
 	// Try to verify (will fail due to no facilitators, but hook should be called)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	_, _ = server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -136,7 +136,7 @@ func TestAfterVerifyHook(t *testing.T) {
 	// Verify payment (typed)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -186,7 +186,7 @@ func TestOnVerifyFailureHook_Recover(t *testing.T) {
 	// Verify payment (should be recovered by hook)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -229,7 +229,7 @@ func TestOnVerifyFailureHook_NoRecover(t *testing.T) {
 	// Verify payment (should fail)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	_, err := server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -260,7 +260,7 @@ func TestBeforeSettleHook_Abort(t *testing.T) {
 	// Try to settle (should be aborted by hook)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.SettlePayment(
 		context.Background(),
 		payload,
@@ -316,7 +316,7 @@ func TestAfterSettleHook(t *testing.T) {
 	// Settle payment
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.SettlePayment(
 		context.Background(),
 		payload,
@@ -368,7 +368,7 @@ func TestOnSettleFailureHook_Recover(t *testing.T) {
 	// Settle payment (should be recovered by hook)
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	result, err := server.SettlePayment(
 		context.Background(),
 		payload,
@@ -429,7 +429,7 @@ func TestMultipleHooks_ExecutionOrder(t *testing.T) {
 	// Verify payment
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	_, _ = server.VerifyPayment(
 		context.Background(),
 		payload,
@@ -465,7 +465,7 @@ func TestHooks_FunctionalOptions(t *testing.T) {
 	// Verify
 	payload := types.PaymentPayload{X402Version: 2, Payload: map[string]interface{}{}}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:8453"}
-	
+
 	_, _ = server.VerifyPayment(
 		context.Background(),
 		payload,

@@ -32,20 +32,20 @@ type PaymentRequirements struct {
 }
 
 // PaymentRequirementsView interface implementation for V2
-func (r PaymentRequirements) GetScheme() string                  { return r.Scheme }
-func (r PaymentRequirements) GetNetwork() string                 { return r.Network }
-func (r PaymentRequirements) GetAsset() string                   { return r.Asset }
-func (r PaymentRequirements) GetAmount() string                  { return r.Amount }
-func (r PaymentRequirements) GetPayTo() string                   { return r.PayTo }
-func (r PaymentRequirements) GetMaxTimeoutSeconds() int          { return r.MaxTimeoutSeconds }
+func (r PaymentRequirements) GetScheme() string                { return r.Scheme }
+func (r PaymentRequirements) GetNetwork() string               { return r.Network }
+func (r PaymentRequirements) GetAsset() string                 { return r.Asset }
+func (r PaymentRequirements) GetAmount() string                { return r.Amount }
+func (r PaymentRequirements) GetPayTo() string                 { return r.PayTo }
+func (r PaymentRequirements) GetMaxTimeoutSeconds() int        { return r.MaxTimeoutSeconds }
 func (r PaymentRequirements) GetExtra() map[string]interface{} { return r.Extra }
 
 // PaymentRequired represents a v2 402 response structure
 type PaymentRequired struct {
-	X402Version int                   `json:"x402Version"`
-	Error       string                `json:"error,omitempty"`
-	Resource    *ResourceInfo         `json:"resource,omitempty"`
-	Accepts     []PaymentRequirements `json:"accepts"`
+	X402Version int                    `json:"x402Version"`
+	Error       string                 `json:"error,omitempty"`
+	Resource    *ResourceInfo          `json:"resource,omitempty"`
+	Accepts     []PaymentRequirements  `json:"accepts"`
 	Extensions  map[string]interface{} `json:"extensions,omitempty"`
 }
 

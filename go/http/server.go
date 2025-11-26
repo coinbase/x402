@@ -520,7 +520,7 @@ func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.Pay
 	genericRequired := x402.PaymentRequired{
 		X402Version: paymentRequired.X402Version,
 		Error:       paymentRequired.Error,
-		Resource:    nil, // Will convert
+		Resource:    nil,                          // Will convert
 		Accepts:     []x402.PaymentRequirements{}, // Will convert
 		Extensions:  paymentRequired.Extensions,
 	}

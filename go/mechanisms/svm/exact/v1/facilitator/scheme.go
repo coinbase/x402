@@ -292,7 +292,7 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	// SECURITY: Verify that the fee payer is not transferring their own funds
 	// Prevent facilitator from signing away their own tokens
 	authorityAddr := accounts[3].PublicKey.String() // TransferChecked: [source, mint, destination, authority, ...]
-	
+
 	// Parse Extra to get feePayer
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {

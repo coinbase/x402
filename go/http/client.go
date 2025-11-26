@@ -229,7 +229,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	// Retry with payment
 	newResp, err := t.Transport.RoundTrip(paymentReq)
 	t.retryCount.Delete(requestID)
-	
+
 	return newResp, err
 }
 
@@ -240,19 +240,19 @@ func (t *PaymentRoundTripper) handleV1Payment(ctx context.Context, body []byte) 
 	if err := json.Unmarshal(body, &paymentRequiredV1); err != nil {
 		return nil, fmt.Errorf("failed to parse V1 payment required: %w", err)
 	}
-	
+
 	// Select V1 requirements
 	selectedV1, err := t.x402Client.client.SelectPaymentRequirementsV1(paymentRequiredV1.Accepts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fulfill V1 payment requirements: %w", err)
 	}
-	
+
 	// Create V1 payment payload
 	payloadV1, err := t.x402Client.client.CreatePaymentPayloadV1(ctx, selectedV1)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create V1 payment: %w", err)
 	}
-	
+
 	// Marshal to bytes
 	return json.Marshal(payloadV1)
 }
@@ -261,13 +261,13 @@ func (t *PaymentRoundTripper) handleV1Payment(ctx context.Context, body []byte) 
 func (t *PaymentRoundTripper) handleV2Payment(ctx context.Context, headers map[string]string, body []byte) ([]byte, error) {
 	// Parse V2 PaymentRequired (from header or body)
 	var paymentRequiredV2 types.PaymentRequired
-	
+
 	// Normalize headers to uppercase
 	normalizedHeaders := make(map[string]string)
 	for k, v := range headers {
 		normalizedHeaders[strings.ToUpper(k)] = v
 	}
-	
+
 	// Try header first (V2 standard)
 	if header, exists := normalizedHeaders["PAYMENT-REQUIRED"]; exists {
 		decoded, err := decodePaymentRequiredHeader(header)
@@ -283,13 +283,13 @@ func (t *PaymentRoundTripper) handleV2Payment(ctx context.Context, headers map[s
 	} else {
 		return nil, fmt.Errorf("no V2 payment required information found")
 	}
-	
+
 	// Select V2 requirements
 	selectedV2, err := t.x402Client.client.SelectPaymentRequirements(paymentRequiredV2.Accepts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fulfill V2 payment requirements: %w", err)
 	}
-	
+
 	// Create V2 payment payload
 	payloadV2, err := t.x402Client.client.CreatePaymentPayload(
 		ctx,
@@ -300,7 +300,7 @@ func (t *PaymentRoundTripper) handleV2Payment(ctx context.Context, headers map[s
 	if err != nil {
 		return nil, fmt.Errorf("failed to create V2 payment: %w", err)
 	}
-	
+
 	// Marshal to bytes
 	return json.Marshal(payloadV2)
 }
@@ -312,12 +312,12 @@ func detectPaymentRequiredVersion(headers map[string]string, body []byte) (int, 
 	for k, v := range headers {
 		normalizedHeaders[strings.ToUpper(k)] = v
 	}
-	
+
 	// V2 uses PAYMENT-REQUIRED header
 	if _, exists := normalizedHeaders["PAYMENT-REQUIRED"]; exists {
 		return 2, nil
 	}
-	
+
 	// V1 uses body with x402Version field
 	if len(body) > 0 {
 		var versionCheck struct {
@@ -332,7 +332,7 @@ func detectPaymentRequiredVersion(headers map[string]string, body []byte) (int, 
 			}
 		}
 	}
-	
+
 	return 0, fmt.Errorf("could not detect x402 version from response")
 }
 

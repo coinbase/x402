@@ -206,7 +206,7 @@ func (l *localSvmFacilitatorClient) GetSupported(ctx context.Context) (x402.Supp
 	// GetExtra() on the SVM facilitator will automatically add feePayer
 	return l.facilitator.GetSupported([]x402.Network{
 		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
-		"solana-devnet",                             // V1 format
+		"solana-devnet", // V1 format
 	}), nil
 }
 

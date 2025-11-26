@@ -66,7 +66,21 @@ func main() {
 
 	// Supported endpoint - returns supported networks and schemes
 	r.GET("/supported", func(c *gin.Context) {
-		supported := facilitator.GetSupported()
+		// Pass concrete networks to expand wildcard registrations
+		networks := []x402.Network{
+			"eip155:84532",                              // Base Sepolia V2
+			"base-sepolia",                              // Base Sepolia V1
+		}
+		
+		// Add SVM networks if SVM is configured
+		if svmSigner != nil {
+			networks = append(networks,
+				"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet V2
+				"solana-devnet",                             // Solana Devnet V1
+			)
+		}
+		
+		supported := facilitator.GetSupported(networks)
 		c.JSON(http.StatusOK, supported)
 	})
 

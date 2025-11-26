@@ -118,10 +118,7 @@ const facilitator = new x402Facilitator();
 
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, { signer: evmSigner });
-registerExactSvmScheme(facilitator, {
-  signer: svmSigner,
-  extras: { feePayer: svmAccount.address },
-});
+registerExactSvmScheme(facilitator, { signer: svmSigner });
 
 facilitator.registerExtension(BAZAAR)
   // Lifecycle hooks for payment tracking and discovery

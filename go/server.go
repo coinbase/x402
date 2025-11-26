@@ -135,7 +135,7 @@ func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 			if s.facilitatorClients[network] == nil {
 				s.facilitatorClients[network] = make(map[string]FacilitatorClient)
 			}
-			
+
 			// Only set if not already present (precedence to earlier clients)
 			if s.facilitatorClients[network][scheme] == nil {
 				s.facilitatorClients[network][scheme] = client
@@ -295,7 +295,7 @@ func (s *x402ResourceServer) VerifyPayment(ctx context.Context, payload types.Pa
 	if err != nil {
 		return nil, NewVerifyError("failed_to_marshal_payload", "", Network(requirements.Network), err)
 	}
-	
+
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
 		return nil, NewVerifyError("failed_to_marshal_requirements", "", Network(requirements.Network), err)
@@ -362,7 +362,7 @@ func (s *x402ResourceServer) SettlePayment(ctx context.Context, payload types.Pa
 	if err != nil {
 		return nil, NewSettleError("failed_to_marshal_payload", "", Network(requirements.Network), "", err)
 	}
-	
+
 	requirementsBytes, err := json.Marshal(requirements)
 	if err != nil {
 		return nil, NewSettleError("failed_to_marshal_requirements", "", Network(requirements.Network), "", err)

@@ -152,7 +152,7 @@ func TestServerInitializeWithMultipleFacilitators(t *testing.T) {
 		},
 	}
 
-	// Second facilitator supports exact on mainnet and Base  
+	// Second facilitator supports exact on mainnet and Base
 	mockClient2 := &mockServerFacilitatorClient{
 		kinds: []SupportedKind{
 			{
@@ -182,11 +182,11 @@ func TestServerInitializeWithMultipleFacilitators(t *testing.T) {
 	// (facilitatorClientsMap is now private, test behavior instead of structure)
 	payload := types.PaymentPayload{
 		X402Version: 2,
-		Accepted: types.PaymentRequirements{Scheme: "exact", Network: "eip155:1"},
-		Payload: map[string]interface{}{},
+		Accepted:    types.PaymentRequirements{Scheme: "exact", Network: "eip155:1"},
+		Payload:     map[string]interface{}{},
 	}
 	requirements := types.PaymentRequirements{Scheme: "exact", Network: "eip155:1"}
-	
+
 	result, _ := server.VerifyPayment(ctx, payload, requirements)
 	if !result.IsValid {
 		t.Fatal("Expected verify to work after initialization")
@@ -231,7 +231,7 @@ func TestServerBuildPaymentRequirements(t *testing.T) {
 		Scheme:      "exact",
 		Network:     "eip155:1",
 	}
-	
+
 	requirements, err := server.BuildPaymentRequirements(ctx, config, supportedKind, []string{})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

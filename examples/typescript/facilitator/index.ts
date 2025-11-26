@@ -102,10 +102,7 @@ const facilitator = new x402Facilitator();
 
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, { signer: evmSigner });
-registerExactSvmScheme(facilitator, {
-  signer: svmSigner,
-  extras: { feePayer: svmAccount.address },
-});
+registerExactSvmScheme(facilitator, { signer: svmSigner });
 
 // Initialize Express app
 const app = express();

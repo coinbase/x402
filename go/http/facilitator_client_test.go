@@ -73,7 +73,7 @@ func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte
 func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
 	var allKinds []x402.SupportedKind
 	extensionMap := make(map[string]bool)
-	
+
 	for _, client := range m.clients {
 		supported, err := client.GetSupported(ctx)
 		if err == nil {
@@ -83,12 +83,12 @@ func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.Support
 			}
 		}
 	}
-	
+
 	var extensions []string
 	for ext := range extensionMap {
 		extensions = append(extensions, ext)
 	}
-	
+
 	return x402.SupportedResponse{
 		Kinds:      allKinds,
 		Extensions: extensions,
