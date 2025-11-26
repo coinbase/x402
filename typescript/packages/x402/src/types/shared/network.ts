@@ -18,6 +18,8 @@ export const NetworkSchema = z.enum([
   "story",
   "educhain",
   "skale-base-sepolia",
+  "near-mainnet",
+  "near-testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
