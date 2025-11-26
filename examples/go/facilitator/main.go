@@ -150,7 +150,7 @@ func main() {
 		c.JSON(http.StatusOK, result)
 	})
 
-	fmt.Printf("🚀 Facilitator: %s on %s\n", evmSigner.GetAddress(), network)
+	fmt.Printf("🚀 Facilitator: %s on %s\n", evmSigner.Address(), network)
 	fmt.Printf("   Listening on http://localhost:%s\n\n", DefaultPort)
 
 	if err := r.Run(":" + DefaultPort); err != nil {

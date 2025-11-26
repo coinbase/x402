@@ -83,7 +83,7 @@ func newFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*facilitatorE
 	}, nil
 }
 
-func (s *facilitatorEvmSigner) GetAddress() string {
+func (s *facilitatorEvmSigner) Address() string {
 	return s.address.Hex()
 }
 

@@ -101,7 +101,7 @@ func newRealFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*realFaci
 	}, nil
 }
 
-func (s *realFacilitatorEvmSigner) GetAddress() string {
+func (s *realFacilitatorEvmSigner) Address() string {
 	return s.address.Hex()
 }
 
@@ -663,7 +663,7 @@ func main() {
 	}
 
 	chainID, _ := evmSigner.GetChainID()
-	log.Printf("EVM Facilitator account: %s", evmSigner.GetAddress())
+	log.Printf("EVM Facilitator account: %s", evmSigner.Address())
 	log.Printf("Connected to chain ID: %s (expected: 84532 for Base Sepolia)", chainID.String())
 
 	// Initialize the real SVM blockchain signer (uses default Solana Devnet RPC)
@@ -1061,7 +1061,7 @@ func main() {
 ║  • GET  /health              (health check)           ║
 ║  • POST /close               (shutdown server)        ║
 ╚════════════════════════════════════════════════════════╝
-`, port, Network, evmSigner.GetAddress())
+`, port, Network, evmSigner.Address())
 
 	// Log that facilitator is ready (needed for e2e test discovery)
 	log.Println("Facilitator listening")

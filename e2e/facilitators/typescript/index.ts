@@ -69,6 +69,7 @@ const viemClient = createWalletClient({
 // Initialize the x402 Facilitator with EVM and SVM support
 
 const evmSigner = toFacilitatorEvmSigner({
+  address: evmAccount.address,
   readContract: (args: {
     address: `0x${string}`;
     abi: readonly unknown[];
