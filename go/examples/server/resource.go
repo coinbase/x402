@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"math/big"
+	"os"
+
+	"github.com/gin-gonic/gin"
 
 	x402gin "github.com/coinbase/x402/go/pkg/gin"
 	"github.com/coinbase/x402/go/pkg/types"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -30,5 +33,9 @@ func main() {
 		},
 	)
 
-	r.Run(":4021") // Start the server on 0.0.0.0:4021 (for windows "localhost:4021")
+	// Start the server on 0.0.0.0:4021 (for windows "localhost:4021")
+	if err := r.Run(":4021"); err != nil {
+		fmt.Println("failed to start server:", err)
+		os.Exit(1)
+	}
 }
