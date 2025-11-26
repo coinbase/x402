@@ -1,6 +1,6 @@
 # x402 payments protocol
 
-> "1 line of code to accept digital dollars. No fee, 2 second settlement, $0.001 minimum payment."
+> "1 line of code to accept digital dollars. No fees, 2-second settlement, $0.001 minimum payment."
 
 ```typescript
 app.use(
