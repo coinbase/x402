@@ -245,7 +245,7 @@ export function paymentMiddleware(
       console.error(error);
       res.status(402).json({
         x402Version,
-        error: error || "Invalid or malformed payment header",
+        error: error instanceof Error ? error.message : "Invalid or malformed payment header",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
@@ -279,25 +279,56 @@ export function paymentMiddleware(
       console.error(error);
       res.status(402).json({
         x402Version,
-        error,
+        error: error instanceof Error ? error.message : "Payment verification failed",
         accepts: toJsonSafe(paymentRequirements),
       });
       return;
     }
 
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    type EndArgs =
-      | [cb?: () => void]
-      | [chunk: any, cb?: () => void]
-      | [chunk: any, encoding: BufferEncoding, cb?: () => void];
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-
+    // Intercept and buffer all core methods that can commit response to client
+    const originalWriteHead = res.writeHead.bind(res);
+    const originalWrite = res.write.bind(res);
     const originalEnd = res.end.bind(res);
-    let endArgs: EndArgs | null = null;
+    const originalFlushHeaders = res.flushHeaders.bind(res);
 
-    res.end = function (...args: EndArgs) {
-      endArgs = args;
-      return res; // maintain correct return type
+    type BufferedCall =
+      | ["writeHead", Parameters<typeof originalWriteHead>]
+      | ["write", Parameters<typeof originalWrite>]
+      | ["end", Parameters<typeof originalEnd>]
+      | ["flushHeaders", []];
+    let bufferedCalls: BufferedCall[] = [];
+    let settled = false;
+
+    res.writeHead = function (...args: Parameters<typeof originalWriteHead>) {
+      if (!settled) {
+        bufferedCalls.push(["writeHead", args]);
+        return res;
+      }
+      return originalWriteHead(...args);
+    } as typeof originalWriteHead;
+
+    res.write = function (...args: Parameters<typeof originalWrite>) {
+      if (!settled) {
+        bufferedCalls.push(["write", args]);
+        return true;
+      }
+      return originalWrite(...args);
+    } as typeof originalWrite;
+
+    res.end = function (...args: Parameters<typeof originalEnd>) {
+      if (!settled) {
+        bufferedCalls.push(["end", args]);
+        return res;
+      }
+      return originalEnd(...args);
+    } as typeof originalEnd;
+
+    res.flushHeaders = function () {
+      if (!settled) {
+        bufferedCalls.push(["flushHeaders", []]);
+        return;
+      }
+      return originalFlushHeaders();
     };
 
     // Proceed to the next middleware or route handler
@@ -305,10 +336,20 @@ export function paymentMiddleware(
 
     // If the response from the protected route is >= 400, do not settle payment
     if (res.statusCode >= 400) {
+      settled = true; // stop intercepting calls
+      res.writeHead = originalWriteHead;
+      res.write = originalWrite;
       res.end = originalEnd;
-      if (endArgs) {
-        originalEnd(...(endArgs as Parameters<typeof res.end>));
+      res.flushHeaders = originalFlushHeaders;
+      // Replay all buffered calls in order
+      for (const [method, args] of bufferedCalls) {
+        if (method === "writeHead")
+          originalWriteHead(...(args as Parameters<typeof originalWriteHead>));
+        else if (method === "write") originalWrite(...(args as Parameters<typeof originalWrite>));
+        else if (method === "end") originalEnd(...(args as Parameters<typeof originalEnd>));
+        else if (method === "flushHeaders") originalFlushHeaders();
       }
+      bufferedCalls = [];
       return;
     }
 
@@ -319,6 +360,7 @@ export function paymentMiddleware(
 
       // if the settle fails, return an error
       if (!settleResponse.success) {
+        bufferedCalls = [];
         res.status(402).json({
           x402Version,
           error: settleResponse.errorReason,
@@ -330,18 +372,30 @@ export function paymentMiddleware(
       console.error(error);
       // If settlement fails and the response hasn't been sent yet, return an error
       if (!res.headersSent) {
+        bufferedCalls = [];
         res.status(402).json({
           x402Version,
-          error,
+          error: error instanceof Error ? error.message : "Payment settlement failed",
           accepts: toJsonSafe(paymentRequirements),
         });
         return;
       }
     } finally {
+      settled = true;
+      res.writeHead = originalWriteHead;
+      res.write = originalWrite;
       res.end = originalEnd;
-      if (endArgs) {
-        originalEnd(...(endArgs as Parameters<typeof res.end>));
+      res.flushHeaders = originalFlushHeaders;
+
+      // Replay all buffered calls in order
+      for (const [method, args] of bufferedCalls) {
+        if (method === "writeHead")
+          originalWriteHead(...(args as Parameters<typeof originalWriteHead>));
+        else if (method === "write") originalWrite(...(args as Parameters<typeof originalWrite>));
+        else if (method === "end") originalEnd(...(args as Parameters<typeof originalEnd>));
+        else if (method === "flushHeaders") originalFlushHeaders();
       }
+      bufferedCalls = [];
     }
   };
 }

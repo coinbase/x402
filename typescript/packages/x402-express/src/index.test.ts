@@ -170,6 +170,9 @@ describe("paymentMiddleware()", () => {
       send: vi.fn().mockReturnThis(),
       setHeader: vi.fn().mockReturnThis(),
       end: vi.fn().mockReturnThis(),
+      write: vi.fn().mockReturnValue(true),
+      writeHead: vi.fn().mockReturnThis(),
+      flushHeaders: vi.fn(),
       headersSent: false,
     } as unknown as Response;
     mockNext = vi.fn();
@@ -267,7 +270,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Invalid payment"),
+      error: "Invalid payment",
       accepts: [
         {
           scheme: "exact",
@@ -300,7 +303,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Unexpected error"),
+      error: "Unexpected error",
       accepts: [
         {
           scheme: "exact",
@@ -360,7 +363,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Settlement failed"),
+      error: "Settlement failed",
       accepts: [
         {
           scheme: "exact",
