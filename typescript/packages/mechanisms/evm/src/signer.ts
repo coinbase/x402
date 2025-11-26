@@ -19,6 +19,7 @@ export type ClientEvmSigner = {
  * read contract state, verify signatures, write transactions, and wait for receipts
  */
 export type FacilitatorEvmSigner = {
+  readonly address: `0x${string}`;
   readContract(args: {
     address: `0x${string}`;
     abi: readonly unknown[];

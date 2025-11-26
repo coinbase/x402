@@ -54,5 +54,5 @@ export type SupportedResponseV1 = {
     network: Network;
     extra?: Record<string, unknown>;
   }[];
-  extensions: string[];
+  // NO extensions field - V1 doesn't support extensions
 };

@@ -37,6 +37,7 @@ import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../.
  */
 export class ExactSvmScheme implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
+  readonly caipFamily = "solana:*";
 
   /**
    * Creates a new ExactSvmFacilitator instance.
@@ -58,6 +59,16 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     return {
       feePayer: this.signer.address,
     };
+  }
+
+  /**
+   * Get signer addresses used by this facilitator.
+   * For SVM, returns the fee payer address.
+   *
+   * @returns Array containing the fee payer address
+   */
+  getSigners(): string[] {
+    return [this.signer.address];
   }
 
   /**

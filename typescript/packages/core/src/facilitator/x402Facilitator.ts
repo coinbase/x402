@@ -193,27 +193,34 @@ export class x402Facilitator {
   }
 
   /**
-   * Builds /supported response with concrete networks.
+   * Builds /supported response with concrete networks in V2 format.
    * Expands registered patterns (e.g., "eip155:*") into specific networks (e.g., "eip155:84532").
+   * Groups kinds by version and collects signer information by CAIP family.
    *
    * @param networks - Array of concrete network identifiers to include in response
-   * @returns Supported response with kinds and extensions
+   * @returns Supported response with kinds grouped by version, extensions, and signers
    */
   buildSupported(networks: Network[]): {
-    kinds: Array<{
-      x402Version: number;
-      scheme: string;
-      network: string;
-      extra?: Record<string, unknown>;
-    }>;
-    extensions?: string[];
+    kinds: Record<
+      string,
+      Array<{
+        scheme: string;
+        network: string;
+        extra?: Record<string, unknown>;
+      }>
+    >;
+    extensions: string[];
+    signers: Record<string, string[]>;
   } {
-    const kinds: Array<{
-      x402Version: number;
-      scheme: string;
-      network: string;
-      extra?: Record<string, unknown>;
-    }> = [];
+    const kindsByVersion: Record<
+      string,
+      Array<{
+        scheme: string;
+        network: string;
+        extra?: Record<string, unknown>;
+      }>
+    > = {};
+    const signersByFamily: Record<string, Set<string>> = {};
 
     for (const concreteNetwork of networks) {
       for (const [version, networkMap] of this.registeredFacilitatorSchemes) {
@@ -224,22 +231,40 @@ export class x402Facilitator {
           }
 
           for (const [scheme, facilitator] of schemeMap) {
-            const extra = facilitator.getExtra(concreteNetwork);
+            // Add to kinds grouped by version
+            const versionKey = version.toString();
+            if (!kindsByVersion[versionKey]) {
+              kindsByVersion[versionKey] = [];
+            }
 
-            kinds.push({
-              x402Version: version,
+            const extra = facilitator.getExtra(concreteNetwork);
+            kindsByVersion[versionKey].push({
               scheme,
               network: concreteNetwork,
               ...(extra && { extra }),
             });
+
+            // Collect signers by CAIP family
+            const family = facilitator.caipFamily;
+            if (!signersByFamily[family]) {
+              signersByFamily[family] = new Set();
+            }
+            facilitator.getSigners().forEach(signer => signersByFamily[family].add(signer));
           }
         }
       }
     }
 
+    // Convert signer sets to arrays
+    const signers: Record<string, string[]> = {};
+    for (const [family, signerSet] of Object.entries(signersByFamily)) {
+      signers[family] = Array.from(signerSet);
+    }
+
     return {
-      kinds,
-      extensions: this.extensions.length > 0 ? this.extensions : undefined,
+      kinds: kindsByVersion,
+      extensions: this.extensions,
+      signers,
     };
   }
 

@@ -28,6 +28,20 @@ export interface SchemeNetworkFacilitator {
   readonly scheme: string;
 
   /**
+   * CAIP family pattern that this facilitator supports.
+   * Used to group signers by blockchain family in the supported response.
+   *
+   * @example
+   * // EVM facilitators
+   * readonly caipFamily = "eip155:*";
+   *
+   * @example
+   * // SVM facilitators
+   * readonly caipFamily = "solana:*";
+   */
+  readonly caipFamily: string;
+
+  /**
    * Get mechanism-specific extra data needed for the supported kinds endpoint.
    * This method is called when building the facilitator's supported response.
    *
@@ -43,10 +57,31 @@ export interface SchemeNetworkFacilitator {
    * @example
    * // SVM schemes return feePayer address
    * getExtra(network: Network): Record<string, unknown> | undefined {
-   *   return { feePayer: this.signer.getAddress() };
+   *   return { feePayer: this.signer.address };
    * }
    */
   getExtra(network: Network): Record<string, unknown> | undefined;
+
+  /**
+   * Get signer addresses used by this facilitator.
+   * These are included in the supported response to help clients understand
+   * which addresses might sign/pay for transactions.
+   *
+   * @returns Array of signer addresses (wallet addresses, fee payer addresses, etc.)
+   *
+   * @example
+   * // EVM facilitator
+   * getSigners(): string[] {
+   *   return [this.walletAddress];
+   * }
+   *
+   * @example
+   * // SVM facilitator
+   * getSigners(): string[] {
+   *   return [this.signer.address];
+   * }
+   */
+  getSigners(): string[];
 
   verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse>;
   settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;

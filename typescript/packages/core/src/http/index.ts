@@ -93,5 +93,10 @@ export {
   DynamicPayTo,
   DynamicPrice,
 } from "./x402HTTPResourceServer";
-export { HTTPFacilitatorClient } from "./httpFacilitatorClient";
+export {
+  HTTPFacilitatorClient,
+  FacilitatorClient,
+  FacilitatorConfig,
+} from "./httpFacilitatorClient";
+export { LegacyHTTPFacilitatorClient } from "./legacyHttpFacilitatorClient";
 export { x402HTTPClient } from "./x402HTTPClient";

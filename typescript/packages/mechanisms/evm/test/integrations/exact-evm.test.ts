@@ -84,19 +84,22 @@ class EvmFacilitatorClient implements FacilitatorClient {
    * @returns Promise resolving to supported response
    */
   getSupported(): Promise<SupportedResponse> {
+    const versionKey = this.x402Version.toString();
     return Promise.resolve({
-      kinds: [
-        {
-          x402Version: this.x402Version,
-          scheme: this.scheme,
-          network: this.network,
-          extra: {
-            name: "USDC",
-            version: "2",
+      kinds: {
+        [versionKey]: [
+          {
+            scheme: this.scheme,
+            network: this.network,
+            extra: {
+              name: "USDC",
+              version: "2",
+            },
           },
-        },
-      ],
+        ],
+      },
       extensions: [],
+      signers: {},
     });
   }
 }

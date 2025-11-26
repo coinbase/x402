@@ -90,18 +90,21 @@ class SvmFacilitatorClient implements FacilitatorClient {
    * @returns Promise resolving to supported response
    */
   getSupported(): Promise<SupportedResponse> {
+    const versionKey = this.x402Version.toString();
     return Promise.resolve({
-      kinds: [
-        {
-          x402Version: this.x402Version,
-          scheme: this.scheme,
-          network: this.network,
-          extra: {
-            feePayer: FACILITATOR_ADDRESS,
+      kinds: {
+        [versionKey]: [
+          {
+            scheme: this.scheme,
+            network: this.network,
+            extra: {
+              feePayer: FACILITATOR_ADDRESS,
+            },
           },
-        },
-      ],
+        ],
+      },
       extensions: [],
+      signers: {},
     });
   }
 }

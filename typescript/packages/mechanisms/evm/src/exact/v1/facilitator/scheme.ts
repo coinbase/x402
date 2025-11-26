@@ -28,6 +28,7 @@ export interface ExactEvmSchemeV1Config {
  */
 export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
   readonly scheme = "exact";
+  readonly caipFamily = "eip155:*";
   private readonly config: Required<ExactEvmSchemeV1Config>;
 
   /**
@@ -54,6 +55,16 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
    */
   getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
+  }
+
+  /**
+   * Get signer addresses used by this facilitator.
+   * Returns the facilitator's wallet address that signs/settles transactions.
+   *
+   * @returns Array containing the facilitator wallet address
+   */
+  getSigners(): string[] {
+    return [this.signer.address];
   }
 
   /**
