@@ -36,12 +36,12 @@ Learn more at [x402.org](https://x402.org) or check out the [GitHub repository](
 ### 1. Install Dependencies
 
 ```bash
-npm run install:all
+pnpm install:all
 ```
 
 ### 2. Configure the Server
 
-Create `server/.env`:
+Create `.env`:
 ```env
 FACILITATOR_URL=https://x402.org/facilitator
 NETWORK=base-sepolia
@@ -52,7 +52,7 @@ PORT=3001
 ### 3. Run Both Server and Client
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 This starts:
