@@ -10,5 +10,4 @@ export const hyperliquidEvmTestnet = {
     },
   },
   testnet: true,
-
 } satisfies Chain;

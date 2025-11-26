@@ -234,7 +234,7 @@ export function getChainFromNetwork(network: string | undefined): Chain {
     case "iotex-testnet":
       return iotexTestnet;
     case "skale-base-sepolia":
-      return skaleBaseSepolia; 
+      return skaleBaseSepolia;
     case "hyperevm":
       return hyperEvm;
     case "hyperliquidEvmTestnet":
