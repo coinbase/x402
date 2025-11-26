@@ -202,20 +202,12 @@ func (l *localSvmFacilitatorClient) Settle(
 }
 
 func (l *localSvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	supported := l.facilitator.GetSupported()
-
-	// Add feePayer to each SVM kind's extra field
-	for i := range supported.Kinds {
-		network := string(supported.Kinds[i].Network)
-		if svm.IsValidNetwork(network) {
-			if supported.Kinds[i].Extra == nil {
-				supported.Kinds[i].Extra = make(map[string]interface{})
-			}
-			supported.Kinds[i].Extra["feePayer"] = l.signer.GetAddress(network).String()
-		}
-	}
-
-	return supported, nil
+	// Pass concrete networks to expand wildcard registrations
+	// GetExtra() on the SVM facilitator will automatically add feePayer
+	return l.facilitator.GetSupported([]x402.Network{
+		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
+		"solana-devnet",                             // V1 format
+	}), nil
 }
 
 // TestSVMIntegrationV2 tests the full V2 SVM payment flow with real on-chain transactions

@@ -30,6 +30,12 @@ func (f *ExactEvmSchemeV1) Scheme() string {
 	return evm.SchemeExact
 }
 
+// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
+// For EVM, no extra data is needed.
+func (f *ExactEvmSchemeV1) GetExtra(_ x402.Network) map[string]interface{} {
+	return nil
+}
+
 // Verify verifies a V1 payment payload against requirements
 func (f *ExactEvmSchemeV1) Verify(
 	ctx context.Context,

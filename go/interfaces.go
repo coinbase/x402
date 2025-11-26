@@ -36,6 +36,19 @@ type SchemeNetworkFacilitatorV1 interface {
 	Scheme() string
 	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error)
 	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error)
+
+	// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
+	// This method is called when building the facilitator's supported response.
+	//
+	// For EVM schemes, return nil (no extra data needed).
+	// For SVM schemes, return map with feePayer address.
+	//
+	// Args:
+	//   network: Network identifier for context
+	//
+	// Returns:
+	//   Extra data map or nil if no extra data is needed
+	GetExtra(network Network) map[string]interface{}
 }
 
 // Note: No SchemeNetworkServerV1 - new SDK servers are V2 only
@@ -67,6 +80,19 @@ type SchemeNetworkFacilitator interface {
 	Scheme() string
 	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
 	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)
+
+	// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
+	// This method is called when building the facilitator's supported response.
+	//
+	// For EVM schemes, return nil (no extra data needed).
+	// For SVM schemes, return map with feePayer address.
+	//
+	// Args:
+	//   network: Network identifier for context
+	//
+	// Returns:
+	//   Extra data map or nil if no extra data is needed
+	GetExtra(network Network) map[string]interface{}
 }
 
 // ============================================================================

@@ -33,6 +33,15 @@ func (f *ExactSvmScheme) Scheme() string {
 	return svm.SchemeExact
 }
 
+// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
+// For SVM, this includes the fee payer address.
+func (f *ExactSvmScheme) GetExtra(network x402.Network) map[string]interface{} {
+	feePayerAddress := f.signer.GetAddress(string(network))
+	return map[string]interface{}{
+		"feePayer": feePayerAddress.String(),
+	}
+}
+
 // Verify verifies a V2 payment payload against requirements
 func (f *ExactSvmScheme) Verify(
 	ctx context.Context,

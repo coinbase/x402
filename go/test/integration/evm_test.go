@@ -216,7 +216,11 @@ func (l *localEvmFacilitatorClient) Settle(
 }
 
 func (l *localEvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	return l.facilitator.GetSupported(), nil
+	// Pass concrete networks to expand wildcard registrations
+	return l.facilitator.GetSupported([]x402.Network{
+		"eip155:84532", // Base Sepolia
+		"base-sepolia", // V1 format
+	}), nil
 }
 
 // TestEVMIntegrationV2 tests the full V2 EVM payment flow with real on-chain transactions

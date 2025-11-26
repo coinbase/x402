@@ -63,6 +63,12 @@ func (f *SchemeNetworkFacilitator) Scheme() string {
 	return "cash"
 }
 
+// GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
+// For the mock cash scheme, return nil.
+func (f *SchemeNetworkFacilitator) GetExtra(_ x402.Network) map[string]interface{} {
+	return nil
+}
+
 // Verify verifies a V2 payment payload against requirements (typed)
 func (f *SchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*x402.VerifyResponse, error) {
 	network := x402.Network(requirements.Network)

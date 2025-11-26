@@ -14,11 +14,8 @@ type x402Facilitator struct {
 	mu sync.RWMutex
 
 	// Separate maps for V1 and V2 (V2 uses default name, no suffix)
-	schemesV1    map[Network]map[string]SchemeNetworkFacilitatorV1
-	schemes      map[Network]map[string]SchemeNetworkFacilitator // V2 (default)
-	extrasV1     map[Network]map[string]interface{}
-	extras       map[Network]map[string]interface{} // V2 (default)
-
+	schemesV1  map[Network]map[string]SchemeNetworkFacilitatorV1
+	schemes    map[Network]map[string]SchemeNetworkFacilitator // V2 (default)
 	extensions []string
 
 	// Lifecycle hooks
@@ -34,14 +31,12 @@ func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
 		schemesV1:  make(map[Network]map[string]SchemeNetworkFacilitatorV1),
 		schemes:    make(map[Network]map[string]SchemeNetworkFacilitator),
-		extrasV1:   make(map[Network]map[string]interface{}),
-		extras:     make(map[Network]map[string]interface{}),
 		extensions: []string{},
 	}
 }
 
 // RegisterV1 registers a V1 facilitator mechanism (legacy)
-func (f *x402Facilitator) RegisterV1(network Network, facilitator SchemeNetworkFacilitatorV1, extra ...interface{}) *x402Facilitator {
+func (f *x402Facilitator) RegisterV1(network Network, facilitator SchemeNetworkFacilitatorV1) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -50,17 +45,11 @@ func (f *x402Facilitator) RegisterV1(network Network, facilitator SchemeNetworkF
 	}
 	f.schemesV1[network][facilitator.Scheme()] = facilitator
 
-	if len(extra) > 0 {
-		if f.extrasV1[network] == nil {
-			f.extrasV1[network] = make(map[string]interface{})
-		}
-		f.extrasV1[network][facilitator.Scheme()] = extra[0]
-	}
 	return f
 }
 
 // Register registers a facilitator mechanism (V2, default)
-func (f *x402Facilitator) Register(network Network, facilitator SchemeNetworkFacilitator, extra ...interface{}) *x402Facilitator {
+func (f *x402Facilitator) Register(network Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -69,12 +58,6 @@ func (f *x402Facilitator) Register(network Network, facilitator SchemeNetworkFac
 	}
 	f.schemes[network][facilitator.Scheme()] = facilitator
 
-	if len(extra) > 0 {
-		if f.extras[network] == nil {
-			f.extras[network] = make(map[string]interface{})
-		}
-		f.extras[network][facilitator.Scheme()] = extra[0]
-	}
 	return f
 }
 
@@ -490,44 +473,54 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 	return facilitator.Settle(ctx, payload, requirements)
 }
 
-// GetSupported returns supported payment kinds
-func (f *x402Facilitator) GetSupported() SupportedResponse {
+// GetSupported returns supported payment kinds for the specified concrete networks
+// It expands wildcard registrations (e.g., "eip155:*") into concrete networks
+//
+// Args:
+//   networks: List of concrete network identifiers to include in the response
+//
+// Returns:
+//   SupportedResponse with kinds matching the provided networks
+func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	var kinds []SupportedKind
 
-	// V1 schemes
-	for network, schemeMap := range f.schemesV1 {
-		for scheme := range schemeMap {
-			kind := SupportedKind{
-				X402Version: 1,
-				Scheme:      scheme,
-				Network:     string(network),
-			}
-			if extra := f.extrasV1[network][scheme]; extra != nil {
-				if extraMap, ok := extra.(map[string]interface{}); ok {
-					kind.Extra = extraMap
+	// For each concrete network, find matching registered patterns
+	for _, concreteNetwork := range networks {
+		// Check V1 schemes
+		for registeredPattern, schemeMap := range f.schemesV1 {
+			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
+				for scheme, facilitator := range schemeMap {
+					kind := SupportedKind{
+						X402Version: 1,
+						Scheme:      scheme,
+						Network:     string(concreteNetwork),
+					}
+					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
+						kind.Extra = extra
+					}
+					kinds = append(kinds, kind)
 				}
 			}
-			kinds = append(kinds, kind)
 		}
-	}
 
-	// V2 schemes (default)
-	for network, schemeMap := range f.schemes {
-		for scheme := range schemeMap {
-			kind := SupportedKind{
-				X402Version: 2,
-				Scheme:      scheme,
-				Network:     string(network),
-			}
-			if extra := f.extras[network][scheme]; extra != nil {
-				if extraMap, ok := extra.(map[string]interface{}); ok {
-					kind.Extra = extraMap
+		// Check V2 schemes
+		for registeredPattern, schemeMap := range f.schemes {
+			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
+				for scheme, facilitator := range schemeMap {
+					kind := SupportedKind{
+						X402Version: 2,
+						Scheme:      scheme,
+						Network:     string(concreteNetwork),
+					}
+					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
+						kind.Extra = extra
+					}
+					kinds = append(kinds, kind)
 				}
 			}
-			kinds = append(kinds, kind)
 		}
 	}
 
@@ -535,4 +528,20 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 		Kinds:      kinds,
 		Extensions: f.extensions,
 	}
+}
+
+// matchesNetworkPattern checks if a concrete network matches a registered pattern
+// Supports wildcards like "eip155:*" or exact matches
+func matchesNetworkPattern(concreteNetwork, pattern string) bool {
+	if pattern == concreteNetwork {
+		return true // Exact match
+	}
+
+	// Handle wildcard patterns (e.g., "eip155:*", "solana:*")
+	if len(pattern) > 0 && pattern[len(pattern)-1] == '*' {
+		prefix := pattern[:len(pattern)-1]
+		return len(concreteNetwork) >= len(prefix) && concreteNetwork[:len(prefix)] == prefix
+	}
+
+	return false
 }

@@ -18,6 +18,10 @@ func (m *mockSchemeNetworkFacilitatorV1) Scheme() string {
 	return m.scheme
 }
 
+func (m *mockSchemeNetworkFacilitatorV1) GetExtra(_ Network) map[string]interface{} {
+	return nil
+}
+
 func (m *mockSchemeNetworkFacilitatorV1) Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error) {
 	return &VerifyResponse{
 		IsValid: true,
@@ -43,6 +47,10 @@ type mockSchemeNetworkFacilitator struct {
 
 func (m *mockSchemeNetworkFacilitator) Scheme() string {
 	return m.scheme
+}
+
+func (m *mockSchemeNetworkFacilitator) GetExtra(_ Network) map[string]interface{} {
+	return nil
 }
 
 func (m *mockSchemeNetworkFacilitator) Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
@@ -88,8 +96,8 @@ func TestFacilitatorRegister(t *testing.T) {
 	// Test V2 registration (default)
 	facilitator.Register("eip155:1", mockFacilitatorV2)
 
-	// Verify using GetSupported
-	supported := facilitator.GetSupported()
+	// Verify using GetSupported with concrete network
+	supported := facilitator.GetSupported([]Network{"eip155:1"})
 	if len(supported.Kinds) != 1 {
 		t.Fatalf("Expected 1 kind, got %d", len(supported.Kinds))
 	}
@@ -102,7 +110,7 @@ func TestFacilitatorRegister(t *testing.T) {
 
 	// Test V1 registration
 	facilitator.RegisterV1("eip155:1", mockFacilitatorV1)
-	supported = facilitator.GetSupported()
+	supported = facilitator.GetSupported([]Network{"eip155:1"})
 	if len(supported.Kinds) != 2 {
 		t.Fatalf("Expected 2 kinds, got %d", len(supported.Kinds))
 	}
@@ -478,7 +486,7 @@ func TestFacilitatorGetSupported(t *testing.T) {
 	facilitator.RegisterV1("eip155:1", mockFacilitatorV1_1)
 	facilitator.RegisterExtension("bazaar")
 
-	supported := facilitator.GetSupported()
+	supported := facilitator.GetSupported([]Network{"eip155:1", "eip155:8453"})
 
 	if len(supported.Kinds) != 3 {
 		t.Fatalf("Expected 3 supported kinds, got %d", len(supported.Kinds))
