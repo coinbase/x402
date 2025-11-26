@@ -1,18 +1,18 @@
-# x402-express
+# @hyperpay/x402-express
 
 Express middleware integration for the x402 Payment Protocol. This package allows you to easily add paywall functionality to your Express.js applications using the x402 protocol.
 
 ## Installation
 
 ```bash
-npm install x402-express
+npm install @hyperpay/x402-express
 ```
 
 ## Quick Start
 
 ```typescript
 import express from "express";
-import { paymentMiddleware, Network } from "x402-express";
+import { paymentMiddleware, Network } from "@hyperpay/x402-express";
 
 const app = express();
 

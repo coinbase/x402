@@ -1,11 +1,11 @@
-# x402-fetch
+# @hyperpay/x402-fetch
 
 A utility package that extends the native `fetch` API to automatically handle 402 Payment Required responses using the x402 payment protocol. This package enables seamless integration of payment functionality into your applications when making HTTP requests.
 
 ## Installation
 
 ```bash
-npm install x402-fetch
+npm install @hyperpay/x402-fetch
 ```
 
 ## Quick Start
@@ -13,7 +13,7 @@ npm install x402-fetch
 ```typescript
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment } from "x402-fetch";
+import { wrapFetchWithPayment } from "@hyperpay/x402-fetch";
 import { baseSepolia } from "viem/chains";
 
 // Create a wallet client

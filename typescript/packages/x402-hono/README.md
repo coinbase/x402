@@ -1,18 +1,18 @@
-# x402-hono
+# @hyperpay/x402-hono
 
 Hono middleware integration for the x402 Payment Protocol. This package allows you to easily add paywall functionality to your Hono applications using the x402 protocol.
 
 ## Installation
 
 ```bash
-npm install x402-hono
+npm install @hyperpay/x402-hono
 ```
 
 ## Quick Start
 
 ```typescript
 import { Hono } from "hono";
-import { paymentMiddleware, Network } from "x402-hono";
+import { paymentMiddleware, Network } from "@hyperpay/x402-hono";
 
 const app = new Hono();
 
