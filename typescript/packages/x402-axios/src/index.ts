@@ -10,12 +10,12 @@ import {
   Network,
   evm,
   X402Config,
-} from "x402/types";
+} from "@hyperpay/x402"
 import {
   createPaymentHeader,
   PaymentRequirementsSelector,
   selectPaymentRequirements,
-} from "x402/client";
+} from "@hyperpay/x402";
 
 /**
  * Enables the payment of APIs using the x402 payment protocol.

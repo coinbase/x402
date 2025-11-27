@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { exact } from "x402/schemes";
-import { findMatchingPaymentRequirements } from "x402/shared";
-import { getPaywallHtml } from "x402/paywall";
+import { exact } from "@hyperpay/x402/schemes";
+import { findMatchingPaymentRequirements } from "@hyperpay/x402/shared";
+import { getPaywallHtml } from "@hyperpay/x402/paywall";
 import {
   FacilitatorConfig,
   Network,
   PaymentMiddlewareConfig,
   PaymentPayload,
   PaymentRequirements,
-} from "x402/types";
+} from "@hyperpay/x402/types";
 import type { Address as SolanaAddress } from "@solana/kit";
-import { useFacilitator } from "x402/verify";
+import { useFacilitator } from "@hyperpay/x402/verify";
 import { withX402 } from "./index";
 
 // Mock dependencies

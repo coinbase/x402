@@ -1,15 +1,15 @@
 import { NextFunction, Request, Response } from "express";
 import { Address, getAddress } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
-import { exact } from "x402/schemes";
+import { exact } from "@hyperpay/x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
   processPriceToAtomicAmount,
   toJsonSafe,
-} from "x402/shared";
-import { getPaywallHtml } from "x402/paywall";
+} from "@hyperpay/x402/shared";
+import { getPaywallHtml } from "@hyperpay/x402/paywall";
 import {
   FacilitatorConfig,
   ERC20TokenAmount,
@@ -22,8 +22,8 @@ import {
   settleResponseHeader,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
-} from "x402/types";
-import { useFacilitator } from "x402/verify";
+} from "@hyperpay/x402/types";
+import { useFacilitator } from "@hyperpay/x402/verify";
 
 /**
  * Creates a payment middleware factory for Express
@@ -407,5 +407,5 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "x402/types";
+} from "@hyperpay/x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";

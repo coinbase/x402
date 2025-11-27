@@ -40,7 +40,7 @@
   "dependencies": {
     "axios": "^1.7.9",
     "viem": "^2.21.26",
-    "x402": "workspace:^",
+    "@hyperpay/x402": "workspace:^",
     "zod": "^3.24.2"
   },
   "exports": {

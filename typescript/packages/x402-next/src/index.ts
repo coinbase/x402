@@ -2,9 +2,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
-import { computeRoutePatterns, findMatchingRoute } from "x402/shared";
-import { FacilitatorConfig, Resource, RoutesConfig, RouteConfig, PaywallConfig } from "x402/types";
-import { useFacilitator } from "x402/verify";
+import { computeRoutePatterns, findMatchingRoute } from "@hyperpay/x402/shared";
+import { FacilitatorConfig, Resource, RoutesConfig, RouteConfig, PaywallConfig } from "@hyperpay/x402/types";
+import { useFacilitator } from "@hyperpay/x402/verify";
 
 import { POST } from "./api/session-token";
 import {
@@ -330,7 +330,7 @@ export type {
   Resource,
   RouteConfig,
   RoutesConfig,
-} from "x402/types";
+} from "@hyperpay/x402/types";
 export type { Address as SolanaAddress } from "@solana/kit";
 
 // Export session token API handlers for Onramp

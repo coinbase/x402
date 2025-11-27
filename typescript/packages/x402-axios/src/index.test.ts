@@ -6,7 +6,7 @@ import {
   InternalAxiosRequestConfig,
 } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { evm, PaymentRequirements, ChainIdToNetwork, Signer, MultiNetworkSigner } from "x402/types";
+import { evm, PaymentRequirements, ChainIdToNetwork, Signer, MultiNetworkSigner } from "@hyperpay/x402/types";
 import { withPaymentInterceptor } from "./index";
 
 // Mock the createPaymentHeader function
