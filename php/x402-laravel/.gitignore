@@ -1,0 +1,39 @@
+# Dependencies
+vendor/
+/vendor/
+composer.lock
+
+# IDE
+.idea/
+.idea/*
+.idea/codeStyleSettings.xml
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.phpunit.result.cache
+.phpunit.cache/
+.phpunit.cache
+coverage/
+coverage.xml
+.temp/
+.temp/*
+.temp/coverage.php
+
+# Build artifacts
+*.phar
+
+# PHP CS Fixer
+/.php-cs-fixer.php
+.php-cs-fixer.cache
+
+# PHPStan
+.phpstan-cache/
+
+# Misc
+.STREAM.md

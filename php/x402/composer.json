@@ -1,0 +1,54 @@
+{
+    "name": "coinbase/x402",
+    "description": "x402: Internet-native payments protocol for PHP",
+    "type": "library",
+    "license": "Apache-2.0",
+    "keywords": ["x402", "payments", "crypto", "web3", "micropayments", "http-402"],
+    "authors": [
+        {
+            "name": "Lucas Coutinho"
+        },
+        {
+            "name": "Coinbase Developer Platform"
+        }
+    ],
+    "require": {
+        "php": "^8.5",
+        "guzzlehttp/guzzle": "^7.0",
+        "guzzlehttp/psr7": "^2.0",
+        "brick/math": "^0.12",
+        "psr/http-server-middleware": "^1.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^4.0",
+        "phpstan/phpstan": "^2.0",
+        "rector/rector": "^2.0",
+        "squizlabs/php_codesniffer": "^3.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "X402\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "X402\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "test:coverage": "pest --coverage",
+        "phpstan": "phpstan analyse",
+        "phpcs": "phpcs",
+        "phpcs:fix": "phpcbf",
+        "rector": "rector process",
+        "rector:dry": "rector process --dry-run"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable"
+}
