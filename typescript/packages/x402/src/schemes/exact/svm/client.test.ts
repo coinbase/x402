@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeAll, describe, expect, it, vi, beforeEach } from "vitest";
-import { type Address, type KeyPairSigner, generateKeyPairSigner, lamports } from "@solana/kit";
+import { type Address, type TransactionSigner, generateKeyPairSigner, lamports } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as token2022 from "@solana-program/token-2022";
 import * as token from "@solana-program/token";
@@ -19,9 +19,6 @@ vi.mock("@solana-program/token-2022", async importOriginal => {
     ...actual,
     findAssociatedTokenPda: vi.fn(),
     getTransferCheckedInstruction: vi.fn().mockReturnValue({ instruction: "mock_transfer" }),
-    getCreateAssociatedTokenInstruction: vi
-      .fn()
-      .mockReturnValue({ instruction: "mock_create_ata" }),
     fetchMint: vi.fn(),
   };
 });
@@ -54,7 +51,7 @@ vi.mock("@solana-program/compute-budget", async importOriginal => {
 });
 
 describe("SVM Client", () => {
-  let clientSigner: KeyPairSigner;
+  let clientSigner: TransactionSigner;
   let paymentRequirements: PaymentRequirements;
   const mockRpcClient = {
     getLatestBlockhash: vi.fn().mockReturnValue({
@@ -139,13 +136,12 @@ describe("SVM Client", () => {
       );
       const findAtaSpy = vi.spyOn(token2022, "findAssociatedTokenPda");
       const transferIxSpy = vi.spyOn(token2022, "getTransferCheckedInstruction");
-      const createAtaIxSpy = vi.spyOn(token2022, "getCreateAssociatedTokenInstruction");
 
       // Act
       await createAndSignPayment(clientSigner, 1, paymentRequirements);
 
       // Assert
-      expect(findAtaSpy).toHaveBeenCalledTimes(3); // once for sender, once for receiver, once for create ix
+      expect(findAtaSpy).toHaveBeenCalledTimes(2); // once for sender, once for receiver
       expect(findAtaSpy).toHaveBeenCalledWith({
         mint: paymentRequirements.asset,
         owner: clientSigner.address,
@@ -161,7 +157,6 @@ describe("SVM Client", () => {
         expect.any(Object),
         expect.objectContaining({ programAddress: token.TOKEN_PROGRAM_ADDRESS }),
       );
-      expect(createAtaIxSpy).not.toHaveBeenCalled(); // ATA already exists
     });
 
     it("should create and sign a payment for a token-2022 token", async () => {
@@ -176,13 +171,12 @@ describe("SVM Client", () => {
       } as any);
       const findAtaSpy = vi.spyOn(token2022, "findAssociatedTokenPda");
       const transferIxSpy = vi.spyOn(token2022, "getTransferCheckedInstruction");
-      const createAtaIxSpy = vi.spyOn(token2022, "getCreateAssociatedTokenInstruction");
 
       // Act
       await createAndSignPayment(clientSigner, 1, paymentRequirements);
 
       // Assert
-      expect(findAtaSpy).toHaveBeenCalledTimes(3);
+      expect(findAtaSpy).toHaveBeenCalledTimes(2);
       expect(findAtaSpy).toHaveBeenCalledWith({
         mint: paymentRequirements.asset,
         owner: clientSigner.address,
@@ -197,48 +191,6 @@ describe("SVM Client", () => {
       expect(transferIxSpy).toHaveBeenCalledWith(
         expect.any(Object),
         expect.objectContaining({ programAddress: token2022.TOKEN_2022_PROGRAM_ADDRESS }),
-      );
-      expect(createAtaIxSpy).not.toHaveBeenCalled();
-    });
-
-    it("should create ATA if it does not exist", async () => {
-      // Arrange
-      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: false } as any);
-      const createAtaSpy = vi.spyOn(token2022, "getCreateAssociatedTokenInstruction");
-      const findAtaSpy = vi.spyOn(token2022, "findAssociatedTokenPda");
-      const appendIxSpy = vi.spyOn(solanaKit, "appendTransactionMessageInstructions");
-
-      // Act
-      await createAndSignPayment(clientSigner, 1, paymentRequirements);
-      // Assert
-      expect(findAtaSpy).toHaveBeenCalledTimes(3); // once for dest, once for src, once for create ix
-      expect(findAtaSpy).toHaveBeenCalledWith({
-        mint: paymentRequirements.asset,
-        owner: paymentRequirements.payTo,
-        tokenProgram: token.TOKEN_PROGRAM_ADDRESS,
-      });
-      expect(createAtaSpy).toHaveBeenCalledOnce();
-      expect(createAtaSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          tokenProgram: token.TOKEN_PROGRAM_ADDRESS,
-        }),
-      );
-      expect(appendIxSpy).toHaveBeenCalledWith(
-        expect.arrayContaining([expect.objectContaining({ instruction: "mock_create_ata" })]),
-        expect.any(Object),
-      );
-    });
-
-    it("should throw an error if feePayer is not provided when creating ATA", async () => {
-      // Arrange
-      vi.spyOn(solanaKit, "fetchEncodedAccount").mockResolvedValue({ exists: false } as any);
-      const paymentReqsWithoutFeePayer = { ...paymentRequirements, extra: {} };
-
-      // Act & Assert
-      await expect(
-        createAndSignPayment(clientSigner, 1, paymentReqsWithoutFeePayer),
-      ).rejects.toThrow(
-        "feePayer is required in paymentRequirements.extra in order to set the facilitator as the fee payer for the create associated token account instruction",
       );
     });
 
