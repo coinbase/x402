@@ -1,0 +1,7 @@
+{
+  "name": "链道学堂",
+  "description": "链道学堂是一个专注于区块链应用教育的网站。通过清晰易懂的教程，帮助用户掌握区块链实用技能，包括钱包使用方法、去中心化应用（DApp）操作演示、区块链安全与防骗技巧、以及智能合约基础知识等。链道学堂推出了 x402 协议相关中文课程系列，帮助开发者系统学习该协议的原理、支付流程以及在 Web3 应用中的集成方式。通过这些课程，学习者可以了解如何利用 x402 构建去中心化的内容付费系统和自动化支付逻辑，从而拓展区块链在实际场景中的应用。",
+  "logoUrl": "/logos/blockdaolearn.png",
+  "websiteUrl": "https://your-project.com",
+  "category": "Learning & Community Resources"
+}
