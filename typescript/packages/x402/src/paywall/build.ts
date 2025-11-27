@@ -15,6 +15,10 @@ const OUTPUT_TS = path.join("src/paywall/gen", "template.ts");
 const PYTHON_DIR = path.join("..", "..", "..", "python", "x402", "src", "x402");
 const OUTPUT_PY = path.join(PYTHON_DIR, "template.py");
 
+// Path to PHP package static directory (relative to this TypeScript package)
+const PHP_DIR = path.join("..", "..", "..", "php", "x402", "src", "Paywall");
+const OUTPUT_PHP = path.join(PHP_DIR, "template.php");
+
 const options: esbuild.BuildOptions = {
   entryPoints: ["src/paywall/index.tsx", "src/paywall/styles.css"],
   bundle: true,
@@ -93,11 +97,31 @@ export const PAYWALL_TEMPLATE = ${JSON.stringify(html)};
 
       const pyContent = `PAYWALL_TEMPLATE = ${JSON.stringify(html)}`;
 
+      // PHP template with proper escaping (single quotes, escape backslashes and single quotes)
+      const phpEscaped = html.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const phpContent = `<?php
+
+declare(strict_types=1);
+
+namespace X402\\Paywall;
+
+// THIS FILE IS AUTO-GENERATED - DO NOT EDIT
+
+const PAYWALL_TEMPLATE = '${phpEscaped}';
+`;
+
       // Write the template.ts file
       fs.writeFileSync(OUTPUT_TS, tsContent);
       console.log(`Generated template.ts with bundled HTML (${html.length} bytes)`);
       fs.writeFileSync(OUTPUT_PY, pyContent);
       console.log(`Generated template.py with bundled HTML (${html.length} bytes)`);
+
+      // Make sure PHP directory exists
+      if (!fs.existsSync(PHP_DIR)) {
+        fs.mkdirSync(PHP_DIR, { recursive: true });
+      }
+      fs.writeFileSync(OUTPUT_PHP, phpContent);
+      console.log(`Generated template.php with bundled HTML (${html.length} bytes)`);
     } else {
       throw new Error(`Bundled HTML file not found at ${OUTPUT_HTML}`);
     }
