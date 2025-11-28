@@ -18,7 +18,9 @@ export const middleware = paymentMiddleware(
 
 ## Features
 
-**Wallet Connection & Payment Processing:** Supports Coinbase Smart Wallet, Coinbase EOA, MetaMask, Phantom, Rabby, Trust Wallet, and Frame. Includes x402 payment processing by default.
+**Wallet Connection & Payment Processing:** Supports Coinbase Smart Wallet, Coinbase EOA, MetaMask, Rabby, Trust Wallet, Frame, and wallet-standard compatible Solana wallets such as Phantom and Backpack. Includes x402 payment processing by default.
+
+**Multi-chain Aware:** Automatically chooses the best available payment requirement (Base, Base Sepolia, Solana, Solana Devnet) and renders the appropriate wallet flow without additional configuration.
 
 **Enhanced RPC** (optional): Add `cdpClientKey` to use Coinbase's hosted RPC infrastructure for improved performance.
 
@@ -36,3 +38,9 @@ export const middleware = paymentMiddleware(
 The paywall automatically loads when a browser attempts to access a protected route configured in your middleware.
 
 ![](../../../../../static/paywall.jpg)
+
+### Solana Support
+
+- Solana flows use the [Wallet Standard](https://solana.com/developers/wallets/wallet-standard) to discover installed wallets at runtime.
+- The paywall requests `solana:signTransaction` permissions only when a Solana payment requirement is selected.
+- Balances are fetched directly from the relevant USDC mint (Token or Token-2022) via `@solana/kit`.

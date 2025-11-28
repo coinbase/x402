@@ -11,7 +11,8 @@ import {
   Network as X402Network,
   Resource as X402Resource,
   PaymentPayload,
-  settleResponseHeader
+  settleResponseHeader,
+  ERC20TokenAmount
 } from 'x402/types';
 import { useFacilitator } from 'x402/verify';
 import { exact } from 'x402/schemes';
@@ -70,6 +71,7 @@ function createExactPaymentRequirements(
     throw new Error(`Failed to process price: ${atomicAmountForAsset.error}`);
   }
   const { maxAmountRequired, asset } = atomicAmountForAsset;
+  const erc20Asset = asset as ERC20TokenAmount["asset"];
   return {
     scheme: "exact",
     network,
@@ -79,9 +81,9 @@ function createExactPaymentRequirements(
     mimeType: "application/json", // Content type of the protected resource
     payTo: BUSINESS_WALLET_ADDRESS,
     maxTimeoutSeconds: 60, // Client has 60s to complete payment after challenge
-    asset: asset.address, // e.g., USDC contract address on the specified network
+    asset: erc20Asset.address, // e.g., USDC contract address on the specified network
     outputSchema: undefined, // Optional: JSON schema for the expected response after payment
-    extra: { name: asset.eip712.name, version: asset.eip712.version }, // EIP-712 domain info for the payment asset
+    extra: { name: erc20Asset.eip712.name, version: erc20Asset.eip712.version }, // EIP-712 domain info for the payment asset
   };
 }
 
