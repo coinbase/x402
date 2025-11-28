@@ -2,7 +2,11 @@ import os
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from x402.fastapi.middleware import require_payment
 from x402.types import EIP712Domain, TokenAmount, TokenAsset
 
@@ -15,7 +19,15 @@ ADDRESS = os.getenv("ADDRESS")
 if not ADDRESS:
     raise ValueError("Missing required environment variables")
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI()
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(status_code=429, content={"error": "Rate limit exceeded"})
 
 # Apply payment middleware to specific routes
 app.middleware("http")(
@@ -46,7 +58,8 @@ app.middleware("http")(
 
 
 @app.get("/weather")
-async def get_weather() -> Dict[str, Any]:
+@limiter.limit("10/minute")
+async def get_weather(request) -> Dict[str, Any]:
     return {
         "report": {
             "weather": "sunny",
@@ -56,7 +69,8 @@ async def get_weather() -> Dict[str, Any]:
 
 
 @app.get("/premium/content")
-async def get_premium_content() -> Dict[str, Any]:
+@limiter.limit("5/minute")
+async def get_premium_content(request) -> Dict[str, Any]:
     return {
         "content": "This is premium content",
     }
