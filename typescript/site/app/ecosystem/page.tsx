@@ -11,22 +11,32 @@ async function getPartners(): Promise<Partner[]> {
   let partnerFolders: string[] = [];
 
   try {
-    partnerFolders = fs.readdirSync(partnersDirectory).filter(file =>
-      fs.statSync(path.join(partnersDirectory, file)).isDirectory()
-    );
+    partnerFolders = fs.readdirSync(partnersDirectory).filter(file => {
+      // Validate filename to prevent path traversal
+      if (!/^[a-zA-Z0-9_-]+$/.test(file)) {
+        return false;
+      }
+      return fs.statSync(`${partnersDirectory}/${file}`).isDirectory();
+    });
   } catch (error) {
     console.error("Error reading partners directory:", error);
     return []; // Return empty if directory doesn't exist or other error
   }
 
   const allPartnersData = partnerFolders.map((folder) => {
-    const metadataFilePath = path.join(partnersDirectory, folder, 'metadata.json');
+    // Sanitize folder name to prevent path traversal attacks - only allow alphanumeric, dash, underscore
+    if (!/^[a-zA-Z0-9_-]+$/.test(folder)) {
+      console.error("Invalid folder name detected:", folder);
+      return null;
+    }
+    
+    const metadataFilePath = `${partnersDirectory}/${folder}/metadata.json`;
     try {
       const fileContents = fs.readFileSync(metadataFilePath, 'utf8');
       const metadata = JSON.parse(fileContents) as Omit<Partner, 'slug'>;
       return { ...metadata, slug: folder, logoUrl: metadata.logoUrl || `/images/ecosystem/logos/${folder}.png` }; // Add slug and a default logo path convention
     } catch (error) {
-      console.error(`Error reading or parsing metadata.json for ${folder}:`, error);
+      console.error("Error reading or parsing metadata.json for folder:", folder, error);
       return null;
     }
   });
