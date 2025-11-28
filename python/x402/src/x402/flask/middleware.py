@@ -136,11 +136,24 @@ class PaymentMiddleware:
 
         # Process price configuration (same as FastAPI)
         try:
-            max_amount_required, asset_address, eip712_domain = (
+            max_amount_required, asset_address, extra_data = (
                 process_price_to_atomic_amount(config["price"], config["network"])
             )
         except Exception as e:
             raise ValueError(f"Invalid price: {config['price']}. Error: {e}")
+
+        # For SVM networks, extra_data should contain fee payer info
+        from x402.networks import SUPPORTED_SVM_NETWORKS
+
+        if config["network"] in SUPPORTED_SVM_NETWORKS:
+            # For SVM, we need a fee payer address from environment or config
+            import os
+
+            fee_payer = os.environ.get("SVM_FEE_PAYER_ADDRESS")
+            if not fee_payer:
+                # Use pay_to_address as fallback (server pays fees)
+                fee_payer = config["pay_to_address"]
+            extra_data = {"feePayer": fee_payer}
 
         facilitator = FacilitatorClient(config["facilitator_config"])
 
@@ -186,7 +199,7 @@ class PaymentMiddleware:
                             },
                             "output": config["output_schema"],
                         },
-                        extra=eip712_domain,
+                        extra=extra_data,
                     )
                 ]
 

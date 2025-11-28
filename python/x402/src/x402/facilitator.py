@@ -50,18 +50,21 @@ class FacilitatorClient:
             headers.update(custom_headers.get("verify", {}))
 
         async with httpx.AsyncClient() as client:
+            request_data = {
+                "x402Version": payment.x402_version,
+                "paymentPayload": payment.model_dump(by_alias=True),
+                "paymentRequirements": payment_requirements.model_dump(
+                    by_alias=True, exclude_none=True
+                ),
+            }
+
             response = await client.post(
                 f"{self.config['url']}/verify",
-                json={
-                    "x402Version": payment.x402_version,
-                    "paymentPayload": payment.model_dump(by_alias=True),
-                    "paymentRequirements": payment_requirements.model_dump(
-                        by_alias=True, exclude_none=True
-                    ),
-                },
+                json=request_data,
                 headers=headers,
                 follow_redirects=True,
             )
+
 
             data = response.json()
             return VerifyResponse(**data)
