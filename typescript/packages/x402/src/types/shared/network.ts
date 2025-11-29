@@ -18,6 +18,8 @@ export const NetworkSchema = z.enum([
   "story",
   "educhain",
   "skale-base-sepolia",
+  "btc-lightning-signet",
+  "btc-lightning-mainnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
