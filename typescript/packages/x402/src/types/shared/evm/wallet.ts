@@ -26,6 +26,8 @@ import {
   abstractTestnet,
   story,
   eduChain,
+  monad,
+  monadTestnet,
 } from "viem/chains";
 import { skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -235,6 +237,10 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotexTestnet;
     case "skale-base-sepolia":
       return skaleBaseSepolia;
+    case "monad":
+      return monad;
+    case "monad-testnet":
+      return monadTestnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
