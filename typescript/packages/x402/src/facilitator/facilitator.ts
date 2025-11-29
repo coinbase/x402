@@ -1,5 +1,13 @@
+import { Chain, Transport, Account } from "viem";
+import { TransactionSigner } from "@solana/kit";
+
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
+import {
+  verify as verifyExactBtcLightning,
+  settle as settleExactBtcLightning,
+} from "../schemes/exact/btc_lightning";
+
 import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
 import { X402Config } from "../types/config";
 import {
@@ -14,18 +22,31 @@ import {
   VerifyResponse,
   ExactEvmPayload,
 } from "../types/verify";
-import { Chain, Transport, Account } from "viem";
-import { TransactionSigner } from "@solana/kit";
 
 /**
- * Verifies a payment payload against the required payment details regardless of the scheme
- * this function wraps all verify functions for each specific scheme
+ * Verifies a payment payload against the required payment details, regardless of the
+ * underlying network family (EVM, SVM, or BTC Lightning) for the `exact` scheme.
  *
- * @param client - The public client used for blockchain interactions
- * @param payload - The signed payment payload containing transfer parameters and signature
+ * This function dispatches to the appropriate scheme implementation based on
+ * `paymentRequirements.network`:
+ *
+ * - EVM networks → `schemes/exact/evm.verify`
+ * - SVM (Solana) networks → `schemes/exact/svm.verify`
+ * - BTC Lightning networks → `schemes/exact/btc_lightning.verify`
+ *
+ * @typeParam transport - The viem transport type used by the EVM client
+ * @typeParam chain - The viem chain type used by the EVM client
+ * @typeParam account - The account type used by the EVM client
+ *
+ * @param client - The blockchain client or signer used for verification.
+ *   - For EVM networks: an `EvmConnectedClient`
+ *   - For SVM networks: a `TransactionSigner`
+ *   - For BTC Lightning networks: currently unused, but accepted for API symmetry
+ * @param payload - The signed payment payload containing transfer parameters and scheme-specific data
  * @param paymentRequirements - The payment requirements that the payload must satisfy
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
- * @returns A ValidPaymentRequest indicating if the payment is valid and any invalidation reason
+ * @param config - Optional configuration for x402 operations (e.g. custom RPC URLs for SVM)
+ *
+ * @returns A `VerifyResponse` indicating whether the payment is valid and, if not, why
  */
 export async function verify<
   transport extends Transport,
@@ -37,9 +58,9 @@ export async function verify<
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<VerifyResponse> {
-  // exact scheme
+  // Only the `exact` scheme is currently routed here
   if (paymentRequirements.scheme === "exact") {
-    // evm
+    // === EVM networks ===
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
       return verifyExactEvm(
         client as EvmConnectedClient<transport, chain, account>,
@@ -48,18 +69,23 @@ export async function verify<
       );
     }
 
-    // svm
+    // === SVM (Solana) networks ===
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await verifyExactSvm(
-        client as TransactionSigner,
-        payload,
-        paymentRequirements,
-        config,
-      );
+      return verifyExactSvm(client as TransactionSigner, payload, paymentRequirements, config);
+    }
+
+    // === BTC Lightning networks ===
+    if (
+      paymentRequirements.network === "btc-lightning-signet" ||
+      paymentRequirements.network === "btc-lightning-mainnet"
+    ) {
+      // Current Lightning verify() does not depend on a chain client and
+      // validates purely at the x402 / invoice level.
+      return verifyExactBtcLightning(client, payload, paymentRequirements);
     }
   }
 
-  // unsupported scheme
+  // Unsupported scheme or network
   return {
     isValid: false,
     invalidReason: "invalid_scheme",
@@ -70,14 +96,28 @@ export async function verify<
 }
 
 /**
- * Settles a payment payload against the required payment details regardless of the scheme
- * this function wraps all settle functions for each specific scheme
+ * Settles a payment payload against the required payment details, regardless of the
+ * underlying network family (EVM, SVM, or BTC Lightning) for the `exact` scheme.
  *
- * @param client - The signer wallet used for blockchain interactions
- * @param payload - The signed payment payload containing transfer parameters and signature
+ * This function dispatches to the appropriate scheme implementation based on
+ * `paymentRequirements.network`:
+ *
+ * - EVM networks → `schemes/exact/evm.settle`
+ * - SVM (Solana) networks → `schemes/exact/svm.settle`
+ * - BTC Lightning networks → `schemes/exact/btc_lightning.settle`
+ *
+ * @typeParam transport - The viem transport type used by the EVM signer
+ * @typeParam chain - The viem chain type used by the EVM signer
+ *
+ * @param client - The signer used to settle the payment.
+ *   - For EVM networks: an `EvmSignerWallet`
+ *   - For SVM networks: a `TransactionSigner`
+ *   - For BTC Lightning networks: currently unused, but accepted for API symmetry
+ * @param payload - The signed payment payload containing transfer parameters and scheme-specific data
  * @param paymentRequirements - The payment requirements that the payload must satisfy
- * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
- * @returns A SettleResponse indicating if the payment is settled and any settlement reason
+ * @param config - Optional configuration for x402 operations (e.g. custom RPC URLs for SVM)
+ *
+ * @returns A `SettleResponse` indicating whether the payment was settled and the resulting transaction / receipt info
  */
 export async function settle<transport extends Transport, chain extends Chain>(
   client: Signer,
@@ -85,25 +125,29 @@ export async function settle<transport extends Transport, chain extends Chain>(
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
 ): Promise<SettleResponse> {
-  // exact scheme
   if (paymentRequirements.scheme === "exact") {
-    // evm
+    // === EVM networks ===
     if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactEvm(
+      return settleExactEvm(
         client as EvmSignerWallet<chain, transport>,
         payload,
         paymentRequirements,
       );
     }
 
-    // svm
+    // === SVM (Solana) networks ===
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      return await settleExactSvm(
-        client as TransactionSigner,
-        payload,
-        paymentRequirements,
-        config,
-      );
+      return settleExactSvm(client as TransactionSigner, payload, paymentRequirements, config);
+    }
+
+    // === BTC Lightning networks ===
+    if (
+      paymentRequirements.network === "btc-lightning-signet" ||
+      paymentRequirements.network === "btc-lightning-mainnet"
+    ) {
+      // For Lightning, settlement is currently modeled as a state transition
+      // (invoice paid) rather than an on-chain transaction broadcast by this facilitator.
+      return settleExactBtcLightning(client, payload, paymentRequirements);
     }
   }
 
@@ -118,6 +162,12 @@ export async function settle<transport extends Transport, chain extends Chain>(
   };
 }
 
+/**
+ * Describes the schemes and networks supported by this facilitator.
+ *
+ * This is typically used by a `/supported` endpoint to let clients discover
+ * valid `(scheme, network)` pairs in the current deployment.
+ */
 export type Supported = {
   x402Version: number;
   kind: {
