@@ -1,0 +1,19 @@
+{
+  "name": "x402-sovereign",
+  "description": "A self-hosted x402 facilitator for businesses and agents to verify and settle payments directly on their own infrastructure.",
+  "logoUrl": "/logos/x402-sovereign.png",
+  "websiteUrl": "https://github.com/Dhaiwat10/x402-sovereign",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://github.com/Dhaiwat10/x402-sovereign",
+    "networks": ["base", "base-sepolia"],
+    "schemes": ["exact"],
+    "assets": ["ERC20"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
