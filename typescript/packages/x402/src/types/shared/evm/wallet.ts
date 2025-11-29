@@ -24,6 +24,7 @@ import {
   iotex,
   abstract,
   abstractTestnet,
+  zircuit,
   story,
   eduChain,
 } from "viem/chains";
@@ -233,6 +234,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
+    case "48900":
+      return zircuit;
     case "skale-base-sepolia":
       return skaleBaseSepolia;
     default:
