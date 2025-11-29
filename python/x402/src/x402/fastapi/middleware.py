@@ -4,7 +4,7 @@ import logging
 from typing import Any, Callable, Optional, get_args, cast
 
 from fastapi import Request
-from fastapi.responses import JSONResponse, HTMLResponse, Response
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import validate_call
 
 from x402.common import (
@@ -197,10 +197,6 @@ def require_payment(
         if response.status_code < 200 or response.status_code >= 300:
             return response
 
-        response_body = b""
-        async for chunk in response.body_iterator:
-            response_body += chunk
-
         # Settle the payment
         try:
             settle_response = await facilitator.settle(
@@ -218,11 +214,6 @@ def require_payment(
         except Exception:
             return x402_response("Settle failed")
 
-        return Response(
-            content=response_body,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-            media_type=response.media_type,
-        )
+        return response
 
     return middleware
