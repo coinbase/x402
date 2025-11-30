@@ -1,5 +1,3 @@
-// typescript/packages/x402/src/schemes/exact/btc_lightning/client.ts
-
 import { PaymentPayload, PaymentRequirements } from "../../../types/verify";
 
 /**
@@ -7,9 +5,23 @@ import { PaymentPayload, PaymentRequirements } from "../../../types/verify";
  *
  * These correspond to the x402 Network identifiers defined in `shared/network.ts`.
  */
-const LIGHTNING_NETWORKS = ["btc-lightning-signet", "btc-lightning-mainnet"] as const;
+export const LIGHTNING_NETWORKS = ["btc-lightning-signet", "btc-lightning-mainnet"] as const;
 
 export type LightningNetwork = (typeof LIGHTNING_NETWORKS)[number];
+
+/**
+ * Type guard to check whether a given network string is one of the supported
+ * BTC Lightning networks for the `exact` scheme.
+ *
+ * This narrows the type of `network` to {@link LightningNetwork} when it
+ * returns `true`, which is useful when routing on `(scheme, network)` pairs.
+ *
+ * @param network - The network identifier to check (e.g. `"btc-lightning-signet"`).
+ * @returns `true` if the network is a supported Lightning network, otherwise `false`.
+ */
+export function isLightningNetwork(network: string): network is LightningNetwork {
+  return (LIGHTNING_NETWORKS as readonly string[]).includes(network);
+}
 
 /**
  * Payload shape for the `exact` BTC Lightning scheme.

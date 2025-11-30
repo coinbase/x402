@@ -1,5 +1,3 @@
-// typescript/packages/x402/src/schemes/exact/btc_lightning/facilitator.ts
-
 import {
   PaymentPayload,
   PaymentRequirements,
@@ -7,14 +5,7 @@ import {
   VerifyResponse,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
-import { ExactBtcLightningPayload, LightningNetwork } from "./client";
-
-/**
- * Networks supported by the `exact` BTC Lightning scheme.
- *
- * These must match the values defined in `types/network.ts`.
- */
-const LIGHTNING_NETWORKS: LightningNetwork[] = ["btc-lightning-signet", "btc-lightning-mainnet"];
+import { ExactBtcLightningPayload, LightningNetwork, LIGHTNING_NETWORKS } from "./client";
 
 /**
  * Very lightweight structural check that a given string
@@ -183,22 +174,6 @@ export async function settle(
       payer: verification.payer,
     };
   }
-
-  // TODO: REAL LIGHTNING INTEGRATION
-  //
-  // Here is where a production facilitator would:
-  //  - Query the Lightning backend (e.g. LNbits / LND / CLN) for this invoice:
-  //      * Using lnPayload.invoiceId if present, or
-  //      * Using lnPayload.bolt11 as a lookup key
-  //  - Check:
-  //      * invoice.state == "SETTLED"
-  //      * amount_received >= paymentRequirements.maxAmountRequired (sats)
-  //      * invoice not expired / not cancelled
-  //  - Map the Lightning payment hash or preimage to `transaction`
-  //
-  // For this PoC, we assume that if we’ve reached this point,
-  // the invoice will either be settled out-of-band or the integrator
-  // will extend this function to do the real check.
 
   const syntheticTxId = lnPayload.invoiceId ?? lnPayload.bolt11;
 
