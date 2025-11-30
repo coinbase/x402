@@ -10,11 +10,13 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 - Real-time payment verification
 - Payment settlement
 - Integration with EVM-compatible blockchains
+- Integration with BTC Lightning via an LND-backed demo facilitator
 
 ## Features
 
 - **Payment Middleware**: Protect routes with a simple middleware configuration
 - **Facilitator Backend**: Handle payment verification and settlement
+- **Lightning Demo Facilitator (LND)**: Verify and settle BOLT11 invoices on supported BTC Lightning networks
 - **Live Demo**: Try out the payment flow with a protected route
 
 ## Getting Started
@@ -23,23 +25,40 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 
 - Node.js 20+
 - A wallet with testnet USDC (for testing)
+- (Optional) Access to an LND node (regtest, signet, or mainnet) if you want to run the Lightning demo
 
 ### Installation
 
 1. Install dependencies:
 
-  ```bash
-  pnpm install
-  ```
+```bash
+pnpm install
+```
 
 2. Configure your environment variables in `.env`:
 
-  ```bash
-  NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
-  RESOURCE_WALLET_ADDRESS=your_wallet_address
-  NETWORK=sepolia
-  PRIVATE_KEY=your_private_key
-  ```
+```bash
+NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
+RESOURCE_WALLET_ADDRESS=your_wallet_address
+NETWORK=sepolia
+PRIVATE_KEY=your_private_key
+```
+
+For the optional BTC Lightning (LND) demo facilitator, also set:
+
+```bash
+# LND REST endpoint (not exposed publicly)
+LND_REST_URL=https://127.0.0.1:8080
+
+# Hex-encoded macaroon with at least invoice read permissions
+LND_MACAROON_HEX=your_hex_encoded_invoice_or_admin_macaroon
+
+# Lightning network identifier matching your PaymentRequirements
+# e.g. btc-lightning-signet or btc-lightning-mainnet
+LIGHTNING_NETWORK=btc-lightning-signet
+```
+
+> ⚠️ **Security note:** For real deployments, keep your LND REST endpoint and macaroons private and use the least-privileged macaroon possible (e.g. invoice-only). These values should never be exposed to the browser.
 
 ### Running the Development Server
 
@@ -55,7 +74,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
   - `/facilitator` - Payment facilitator API routes
   - `/protected` - Example protected route
 - `/middleware.ts` - x402 payment middleware configuration
-- `/ecosystem` - Directory of ecosystem builders 
+- `/ecosystem` - Directory of ecosystem builders
 
 ## How It Works
 
@@ -63,6 +82,28 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 2. If no payment is found, the server responds with HTTP 402
 3. The client can then make a payment and retry the request
 4. The facilitator backend verifies the payment and allows access
+
+For EVM-based payments, the facilitator talks to the configured on-chain backend (e.g. via CDP) to verify and settle transactions. For BTC Lightning payments, the demo facilitator uses an LND REST backend to:
+
+- Decode BOLT11 invoices and validate the amount during `/verify`
+- Check invoice settlement status and amount paid during `/settle`
+
+### Lightning / LND Demo Facilitator
+
+The demo site includes experimental support for the `exact` scheme on BTC Lightning networks using an LND backend.
+
+When the facilitator receives an `X-PAYMENT` header with:
+
+- `scheme: "exact"`
+- `network: "btc-lightning-signet"` (or another supported Lightning network)
+
+it will:
+
+1. Decode the BOLT11 invoice using LND (`/v1/payreq`)
+2. On `/verify`, check that the invoice amount matches `maxAmountRequired`
+3. On `/settle`, query the invoice status (`/v1/invoice/{payment_hash}`) and return success only when the invoice is fully settled and the amount paid is sufficient
+
+This Lightning integration is intended as a demo and reference implementation. Production deployments should further harden configuration, logging, and error handling to match their security and reliability requirements.
 
 ## Adding Your Project to the Ecosystem
 
@@ -107,32 +148,36 @@ We welcome projects that are building with x402! To add your project to our ecos
 }
 ```
 
-
 5. Submit a pull request
 
 ### Requirements by Category
 
 #### Client-Side Integrations
+
 - Must demonstrate a working integration with x402
 - Should include a link to documentation, quickstart, or code examples
 - Must be actively maintained
 
 #### Services/Endpoints
+
 - Must have a working mainnet integration
 - Should include API documentation
 - Should maintain 99% uptime
 
 #### Infrastructure & Tooling
+
 - Should include comprehensive documentation
 - Should demonstrate clear value to the x402 ecosystem
 
 #### Learning & Community Resources
+
 - Must include a GitHub template or starter kit
 - Should be shared on social media (Twitter/X, Discord, etc.)
 - Must include clear setup instructions
 - Should demonstrate a practical use case
 
 #### Facilitators
+
 - Must implement the x402 facilitator API specification
 - Should support at least one payment scheme (e.g., "exact")
 - Must provide working verify and/or settle endpoints
@@ -143,7 +188,7 @@ We welcome projects that are building with x402! To add your project to our ecos
 
 1. Our team will review your submission within 5 business days
 2. We may request additional information or changes
-3. Once approved, your project will be added to the ecosystem page, and we'd love to do some co-marketing around your use case! 
+3. Once approved, your project will be added to the ecosystem page, and we'd love to do some co-marketing around your use case!
 
 ## Learn More
 
