@@ -34,10 +34,6 @@ import {
  * - SVM (Solana) networks → `schemes/exact/svm.verify`
  * - BTC Lightning networks → `schemes/exact/btc_lightning.verify`
  *
- * @typeParam transport - The viem transport type used by the EVM client
- * @typeParam chain - The viem chain type used by the EVM client
- * @typeParam account - The account type used by the EVM client
- *
  * @param client - The blockchain client or signer used for verification.
  *   - For EVM networks: an `EvmConnectedClient`
  *   - For SVM networks: a `TransactionSigner`
@@ -105,9 +101,6 @@ export async function verify<
  * - EVM networks → `schemes/exact/evm.settle`
  * - SVM (Solana) networks → `schemes/exact/svm.settle`
  * - BTC Lightning networks → `schemes/exact/btc_lightning.settle`
- *
- * @typeParam transport - The viem transport type used by the EVM signer
- * @typeParam chain - The viem chain type used by the EVM signer
  *
  * @param client - The signer used to settle the payment.
  *   - For EVM networks: an `EvmSignerWallet`

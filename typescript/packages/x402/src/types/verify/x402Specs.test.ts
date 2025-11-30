@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { PaymentPayloadSchema, PaymentRequirementsSchema } from "./x402Specs";
 
 describe("x402Specs Regex Patterns", () => {
   // Import the regex patterns from the source file
@@ -173,5 +174,63 @@ describe("x402Specs Regex Patterns", () => {
         expect(Evm6492SignatureRegex.test(signature)).toBe(true);
       });
     });
+  });
+});
+
+//
+// NEW: Lightning-aware schema tests
+//
+describe("x402Specs Lightning schemas", () => {
+  it("accepts a valid exact BTC Lightning PaymentPayload", () => {
+    const payload = {
+      x402Version: 1,
+      scheme: "exact" as const,
+      network: "btc-lightning-signet" as const,
+      payload: {
+        bolt11: "lnbcrt123examplebolt11invoice",
+        invoiceId: "inv_123456",
+      },
+    };
+
+    const parsed = PaymentPayloadSchema.parse(payload);
+    expect(parsed.payload).toEqual(payload.payload);
+  });
+
+  it("rejects Lightning PaymentPayload without bolt11", () => {
+    const payloadMissingBolt11 = {
+      x402Version: 1,
+      scheme: "exact" as const,
+      network: "btc-lightning-signet" as const,
+      payload: {
+        // bolt11 is intentionally omitted
+        invoiceId: "inv_123456",
+      },
+    };
+
+    expect(() => PaymentPayloadSchema.parse(payloadMissingBolt11)).toThrow();
+  });
+
+  it("accepts PaymentRequirements for Lightning networks with mixed-address payTo and asset", () => {
+    const req = {
+      scheme: "exact" as const,
+      network: "btc-lightning-mainnet" as const,
+      maxAmountRequired: "2100",
+      resource: "https://api.example.com/premium-data",
+      description: "Lightning pay-per-use",
+      mimeType: "application/json",
+      // Should match MixedAddressRegex (short, alphanumeric + dash)
+      payTo: "lnbits-wallet-1",
+      maxTimeoutSeconds: 600,
+      asset: "BTC", // Also matches MixedAddressRegex
+      extra: {
+        name: "BTC",
+        network: "lightning",
+      },
+    };
+
+    const parsed = PaymentRequirementsSchema.parse(req);
+    expect(parsed.network).toBe("btc-lightning-mainnet");
+    expect(parsed.payTo).toBe("lnbits-wallet-1");
+    expect(parsed.asset).toBe("BTC");
   });
 });

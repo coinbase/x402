@@ -1,11 +1,11 @@
 // typescript/packages/x402/src/schemes/exact/btc_lightning/client.ts
 
-import { PaymentPayload, PaymentRequirements, UnsignedPaymentPayload } from "../../../types/verify";
+import { PaymentPayload, PaymentRequirements } from "../../../types/verify";
 
 /**
  * Networks supported by the `exact` BTC Lightning scheme.
  *
- * These correspond to the x402 Network identifiers defined in `types/network.ts`.
+ * These correspond to the x402 Network identifiers defined in `shared/network.ts`.
  */
 const LIGHTNING_NETWORKS = ["btc-lightning-signet", "btc-lightning-mainnet"] as const;
 
@@ -36,20 +36,16 @@ export interface ExactBtcLightningPayload {
 }
 
 /**
- * Prepare an unsigned Lightning payment header from a BOLT11 invoice.
+ * Prepares a Lightning `PaymentPayload` from a BOLT11 invoice.
  *
- * ⚠ Type note:
- * `UnsignedPaymentPayload` is currently EVM-oriented (it expects an
- * `{ authorization, signature }` payload). For the Lightning scheme we
- * instead use `{ bolt11, invoiceId? }`. To avoid rewriting the core
- * type system in this PoC, we construct a Lightning-shaped object and
- * cast it to `UnsignedPaymentPayload`.
+ * Unlike the EVM flow, there is no extra “unsigned” form here; the
+ * Lightning payload is already complete once we have a valid invoice.
  *
  * @param bolt11 - The BOLT11 Lightning invoice string representing the payment request.
  * @param x402Version - The x402 protocol version to use (e.g. 1).
  * @param paymentRequirements - The server-provided payment requirements for this resource.
  * @param invoiceId - Optional internal invoice identifier for the facilitator backend.
- * @returns An unsigned payment payload ready to be passed through x402.
+ * @returns A fully-formed `PaymentPayload` suitable for encoding into an X-PAYMENT header.
  * @throws If the invoice string is invalid, the scheme is not `"exact"`,
  *         or the network is not one of the supported Lightning networks.
  */
@@ -58,7 +54,7 @@ export function preparePaymentHeader(
   x402Version: number,
   paymentRequirements: PaymentRequirements,
   invoiceId?: string,
-): UnsignedPaymentPayload {
+): PaymentPayload {
   if (!bolt11 || typeof bolt11 !== "string") {
     throw new Error("bolt11 invoice string is required");
   }
@@ -82,18 +78,14 @@ export function preparePaymentHeader(
     ...(invoiceId ? { invoiceId } : {}),
   };
 
-  // IMPORTANT:
-  // We cast here because UnsignedPaymentPayload is currently typed for EVM.
-  // The outer shape (x402Version/scheme/network/payload) still matches the
-  // core x402 spec; only the inner payload type differs by scheme/network.
-  const unsigned = {
+  const paymentPayload: PaymentPayload = {
     x402Version,
     scheme: paymentRequirements.scheme,
     network: paymentRequirements.network,
     payload: lightningPayload,
-  } as unknown as UnsignedPaymentPayload;
+  };
 
-  return unsigned;
+  return paymentPayload;
 }
 
 /**
@@ -107,21 +99,21 @@ export function preparePaymentHeader(
  *  - The facilitator verifies invoice status with the LN backend.
  *
  * This function exists primarily to mirror the EVM flow shape; it simply
- * returns the unsigned payload as the final `PaymentPayload`.
+ * returns the prepared payload unchanged.
  *
  * @param _client - Placeholder for compatibility with the EVM API; not used.
  * @param _paymentRequirements - Payment requirements; currently unused here but
  *                               kept for future flexibility.
- * @param unsignedPaymentHeader - The unsigned Lightning payment payload created by {@link preparePaymentHeader}.
- * @returns The same payload, cast to `PaymentPayload`.
+ * @param paymentPayload - The Lightning payment payload created by {@link preparePaymentHeader}.
+ * @returns The same payload, as a `PaymentPayload`.
  */
 export async function signPaymentHeader(
   // kept for symmetry with EVM; currently unused
   _client: unknown,
   _paymentRequirements: PaymentRequirements,
-  unsignedPaymentHeader: UnsignedPaymentPayload,
+  paymentPayload: PaymentPayload,
 ): Promise<PaymentPayload> {
-  return unsignedPaymentHeader as unknown as PaymentPayload;
+  return paymentPayload;
 }
 
 /**
@@ -146,9 +138,8 @@ export async function createPayment(
   bolt11: string,
   invoiceId?: string,
 ): Promise<PaymentPayload> {
-  const unsigned = preparePaymentHeader(bolt11, x402Version, paymentRequirements, invoiceId);
-
-  return signPaymentHeader(_client, paymentRequirements, unsigned);
+  const prepared = preparePaymentHeader(bolt11, x402Version, paymentRequirements, invoiceId);
+  return signPaymentHeader(_client, paymentRequirements, prepared);
 }
 
 /**
@@ -186,5 +177,7 @@ export async function createPaymentHeader(
 ): Promise<string> {
   const payment = await createPayment(_client, x402Version, paymentRequirements, bolt11, invoiceId);
 
+  // TODO (future): consider switching to shared base64 helpers for
+  // browser/edge compatibility instead of relying on Node's Buffer.
   return Buffer.from(JSON.stringify(payment), "utf8").toString("base64");
 }
