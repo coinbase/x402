@@ -17,7 +17,7 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 - **Payment Middleware**: Protect routes with a simple middleware configuration
 - **Facilitator Backend**: Handle payment verification and settlement
 - **Lightning Demo Facilitator (LND)**: Verify and settle BOLT11 invoices on supported BTC Lightning networks
-- **Live Demo**: Try out the payment flow with a protected route
+- **Live Demo**: Try out the payment flow with a protected route and a Lightning example UI at `/examples/lightning-demo`
 
 ## Getting Started
 
@@ -68,11 +68,21 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+To try the Lightning demo:
+
+- Visit `/examples/lightning-demo` for the UI that accepts a BOLT11 invoice.
+- The underlying paywalled API endpoint lives at `/examples/lightning` and responds with HTTP 402 + x402 payment requirements when accessed without an `X-PAYMENT` header.
+
 ## Project Structure
 
 - `/app` - Next.js application code
+
   - `/facilitator` - Payment facilitator API routes
   - `/protected` - Example protected route
+  - `/examples/price` - Simple price example API
+  - `/examples/lightning` - Lightning demo API (x402 + Lightning payment requirements)
+  - `/examples/lightning-demo` - UI page for pasting BOLT11 invoices
+
 - `/middleware.ts` - x402 payment middleware configuration
 - `/ecosystem` - Directory of ecosystem builders
 
