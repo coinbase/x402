@@ -6,7 +6,7 @@ import { useAccount, useSwitchChain, useWalletClient, useConnect, useDisconnect 
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { x402Client } from "@x402/core/client";
 import type { PaymentRequired } from "@x402/core/types";
-import { getUSDCBalance } from "x402/shared/evm";
+import { getUSDCBalance } from "./utils";
 
 import { Spinner } from "./Spinner";
 import { useOnrampSessionToken } from "./useOnrampSessionToken";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PaymentRequirements } from "x402/types";
+import type { PaymentRequirements } from "@x402/core/types";
 import {
   choosePaymentRequirement,
   getNetworkDisplayName,
