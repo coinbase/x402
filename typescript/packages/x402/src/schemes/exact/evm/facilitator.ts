@@ -49,52 +49,6 @@ function isScrollMainnet(network: Network): boolean {
 }
 
 /**
- * Checks if an address is a Smart Contract Wallet by checking if it has contract code
- *
- * @param client - The client to use for blockchain interactions
- * @param address - The address to check
- * @returns True if the address has contract code (is a SCW), false otherwise
- */
-async function isSmartContractWallet<
-  transport extends Transport,
-  chain extends Chain,
-  account extends Account | undefined,
->(client: ConnectedClient<transport, chain, account>, address: Address): Promise<boolean> {
-  try {
-    const code = await client.getCode({ address });
-    // Handle undefined case - if getCode returns undefined, treat as EOA
-    if (code === undefined || code === null) {
-      return false;
-    }
-    // Check if code exists and is not empty (EOAs have "0x" as their code)
-    return code !== "0x" && code.length > 2;
-  } catch {
-    // If there's any error (network issues, invalid address, etc.), treat as EOA
-    return false;
-  }
-}
-
-/**
- * Converts a bytes signature to v, r, s components for Scroll mainnet
- *
- * @param signature - The bytes signature to convert
- * @returns Object containing v, r, s components
- */
-function convertSignatureToVrs(signature: Hex): { v: number; r: Hex; s: Hex } {
-  // Remove the 0x prefix and ensure we have 65 bytes (130 hex characters)
-  const sig = signature.slice(2);
-  if (sig.length !== 130) {
-    throw new Error("Invalid signature length");
-  }
-
-  const r = `0x${sig.slice(0, 64)}` as Hex;
-  const s = `0x${sig.slice(64, 128)}` as Hex;
-  const v = parseInt(sig.slice(128, 130), 16);
-
-  return { v, r, s };
-}
-
-/**
  * Verifies a payment payload against the required payment details
  *
  * This function performs several verification steps:
