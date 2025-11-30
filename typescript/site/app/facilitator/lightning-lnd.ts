@@ -296,7 +296,7 @@ export async function settleLightningWithLnd(
         network: paymentPayload.network,
         transaction: "",
         errorReason: "invalid_payload",
-        payer: "",
+        payer: verification.payer,
       };
     }
 
@@ -312,9 +312,9 @@ export async function settleLightningWithLnd(
       return {
         success: false,
         network: paymentPayload.network,
-        transaction: "",
+        transaction: invoice.payment_hash,
         errorReason: "invalid_transaction_state",
-        payer: "",
+        payer: verification.payer,
       };
     }
 
@@ -322,9 +322,9 @@ export async function settleLightningWithLnd(
       return {
         success: false,
         network: paymentPayload.network,
-        transaction: "",
+        transaction: invoice.payment_hash,
         errorReason: "insufficient_funds",
-        payer: "",
+        payer: verification.payer,
       };
     }
 
@@ -333,7 +333,7 @@ export async function settleLightningWithLnd(
       network: paymentPayload.network,
       transaction: invoice.payment_hash,
       errorReason: undefined,
-      payer: "",
+      payer: verification.payer,
     };
   } catch {
     return {
