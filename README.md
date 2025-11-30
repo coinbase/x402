@@ -1,13 +1,13 @@
 # x402 payments protocol
 
-> "1 line of code to accept digital dollars. No fees, 2-second settlement, $0.001 minimum payment."
+> "1 line of code to accept digital dollars and sats over Lightning. No fee, 2 second settlement, $0.001 minimum payment."
 
 ```typescript
 app.use(
   // How much you want to charge, and where you want the funds to land
   paymentMiddleware("0xYourAddress", { "/your-endpoint": "$0.01" })
 );
-// That's it! See examples/typescript/servers/express/index.ts for a complete example. Instruction below for running on base-sepolia.
+// That's it! See examples/typescript/servers/express.ts for a complete example. Instruction below for running on base-sepolia.
 ```
 
 ## Philosophy
@@ -62,7 +62,7 @@ It specifies:
 3. A standard schema and encoding method for data in the `X-PAYMENT` header
 4. A recommended flow for how payments should be verified and settled by a resource server
 5. A REST specification for how a resource server can perform verification and settlement against a remote 3rd party server (`facilitator`)
-6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate blockchain transactions details to the client in their HTTP response
+6. A specification for a `X-PAYMENT-RESPONSE` header that can be used by resource servers to communicate payment settlement details (e.g., blockchain transaction or Lightning payment) to the client in their HTTP response
 
 ### V1 Protocol Sequencing
 
@@ -84,11 +84,11 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 7. If the `Verification Response` is valid, the resource server performs the work to fulfill the request. If the `Verification Response` is invalid, the resource server returns a `402 Payment Required` status and a `Payment Required Response` JSON object in the response body.
 
-8. `Resource server` either settles the payment by interacting with a blockchain directly, or by POSTing the `Payment Payload` and `Payment PaymentRequirements` to the `/settle` endpoint of a `facilitator server`.
+8. `Resource server` either settles the payment by interacting with a settlement network (e.g., blockchain or Lightning backend) directly, or by POSTing the `Payment Payload` and `Payment PaymentRequirements` to the `/settle` endpoint of a `facilitator server`.
 
-9. `Facilitator server` submits the payment to the blockchain based on the `scheme` and `network` of the `Payment Payload`.
+9. `Facilitator server` submits the payment to the underlying settlement network (e.g., blockchain or Lightning backend) based on the `scheme` and `network` of the `Payment Payload`.
 
-10. `Facilitator server` waits for the payment to be confirmed on the blockchain.
+10. `Facilitator server` waits for the payment to be confirmed on the settlement network.
 
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
@@ -120,11 +120,12 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
   // Scheme of the payment protocol to use
   scheme: string;
 
-  // Network of the blockchain to send payment on
+  // Network to send payment on (blockchain or Lightning)
   network: string;
 
-  // Maximum amount required to pay for the resource in atomic units of the asset
-  maxAmountRequired: uint256 as string;
+  // Maximum amount required to pay for the resource in the smallest unit of the asset
+  // (e.g., wei, lamports, sats), represented as a base-10 string
+  maxAmountRequired: string;
 
   // URL of resource to pay for
   resource: string;
@@ -138,13 +139,13 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
   // Output schema of the resource response
   outputSchema?: object | null;
 
-  // Address to pay value to
+  // Recipient identifier to pay value to (e.g., blockchain address, Solana account, Lightning payee)
   payTo: string;
 
   // Maximum time in seconds for the resource server to respond
   maxTimeoutSeconds: number;
 
-  // Address of the EIP-3009 compliant ERC20 contract
+  // Asset identifier (e.g., ERC-20 contract address, SPL mint, or "BTC" for Lightning)
   asset: string;
 
   // Extra information about the payment details specific to the scheme
@@ -246,7 +247,7 @@ Blockchains allow for a large number of flexible ways to move money. To help fac
 Each payment scheme may have different operational functionality depending on what actions are necessary to fulfill the payment.
 For example `exact`, the first scheme shipping as part of the protocol, would have different behavior than `upto`. `exact` transfers a specific amount (ex: pay $1 to read an article), while a theoretical `upto` would transfer up to an amount, based on the resources consumed during a request (ex: generating tokens from an LLM).
 
-See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains.
+See `specs/schemes` for more details on schemes, and see `specs/schemes/exact/scheme_exact_evm.md` to see the first proposed scheme for exact payment on EVM chains, `specs/schemes/exact/scheme_exact_svm.md` for Solana/SVM, and `specs/schemes/exact/scheme_exact_btc_lightning.md` for BTC Lightning networks.
 
 ### Schemes vs Networks
 
