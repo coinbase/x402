@@ -13,7 +13,6 @@ from x402.types import x402PaymentRequiredResponse
 class HttpxHooks:
     def __init__(self, client: x402Client):
         self.client = client
-        self._is_retry = False
 
     async def on_request(self, request: Request):
         """Handle request before it is sent."""
@@ -26,13 +25,13 @@ class HttpxHooks:
         if response.status_code != 402:
             return response
 
-        # If this is a retry response, just return it
-        if self._is_retry:
-            return response
-
         try:
             if not response.request:
                 raise MissingRequestConfigError("Missing request configuration")
+
+            # Per-request retry check using request extensions
+            if response.request.extensions.get("x402_is_retry"):
+                return response
 
             # Read the response content before parsing
             await response.aread()
@@ -51,10 +50,9 @@ class HttpxHooks:
                 selected_requirements, payment_response.x402_version
             )
 
-            # Mark as retry and add payment header
-            self._is_retry = True
+            # Mark this request as retried
             request = response.request
-
+            request.extensions["x402_is_retry"] = True
             request.headers["X-Payment"] = payment_header
             request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
@@ -69,10 +67,8 @@ class HttpxHooks:
                 return response
 
         except PaymentError as e:
-            self._is_retry = False
             raise e
         except Exception as e:
-            self._is_retry = False
             raise PaymentError(f"Failed to handle payment: {str(e)}") from e
 
 
