@@ -153,29 +153,26 @@ export default function LightningDemoPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-6 px-4 py-8">
-      <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-6 px-4 py-8">
-        <h1 className="text-2xl font-bold">x402 Lightning Demo</h1>
+      <h1 className="text-2xl font-bold">x402 Lightning Demo</h1>
 
-        <ol className="list-decimal space-y-2 pl-5 text-sm">
-          <li>
-            We call a protected endpoint at <code>/examples/lightning</code>.
-          </li>
-          <li>
-            It replies with HTTP <code>402</code> and a JSON x402 error body describing a Lightning
-            payment requirement.
-          </li>
-          <li>
-            You create a BOLT11 invoice in your own Lightning wallet for{" "}
-            <strong>{amountSats} sats</strong> on{" "}
-            <code>{requirements?.network ?? "your Lightning network"}</code>.
-          </li>
-          <li>
-            Paste that invoice here, we send it in the <code>X-PAYMENT</code> header, and if it is
-            paid, the API unlocks the data.
-          </li>
-        </ol>
-        {/* ...rest stays exactly as you have it ... */}
-      </main>
+      <ol className="list-decimal space-y-2 pl-5 text-sm">
+        <li>
+          We call a protected endpoint at <code>/examples/lightning</code>.
+        </li>
+        <li>
+          It replies with HTTP <code>402</code> and a JSON x402 error body describing a Lightning
+          payment requirement.
+        </li>
+        <li>
+          You create a BOLT11 invoice in your own Lightning wallet for{" "}
+          <strong>{amountSats} sats</strong> on{" "}
+          <code>{requirements?.network ?? "your Lightning network"}</code>.
+        </li>
+        <li>
+          Paste that invoice here, we send it in the <code>X-PAYMENT</code> header, and if it is
+          paid, the API unlocks the data.
+        </li>
+      </ol>
 
       {requirements && (
         <section className="rounded-md border border-gray-700 p-4 text-sm">
