@@ -1,4 +1,4 @@
-import { paymentMiddleware } from "@x402/next";
+import { paymentProxy } from "@x402/next";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
@@ -45,16 +45,10 @@ const paywall = createPaywall()
   .build();
 
 // Export middleware with v2 API
-export const middleware = paymentMiddleware(
+export const proxy = paymentProxy(
   {
     "/protected": {
       accepts: [
-        {
-          scheme: "exact",
-          price: "$0.001",
-          network: "eip155:84532", // base-sepolia
-          payTo: evmAddress,
-        },
         {
           scheme: "exact",
           price: "$0.001",
@@ -69,8 +63,7 @@ export const middleware = paymentMiddleware(
   paywall, // custom paywall provider
 );
 
-// Configure which paths the middleware should run on
+// Configure which paths the proxy should run on
 export const config = {
   matcher: ["/protected/:path*"],
-  runtime: "nodejs",
 };
