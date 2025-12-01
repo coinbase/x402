@@ -194,7 +194,7 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 	}
 
 	// Partially sign with client's key
-	if err := c.signer.SignTransaction(tx); err != nil {
+	if err := c.signer.SignTransaction(ctx, tx); err != nil {
 		return types.PaymentPayload{}, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 

@@ -78,17 +78,18 @@ func (s *realFacilitatorEvmSigner) Address() string {
 	return s.address.Hex()
 }
 
-func (s *realFacilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
+func (s *realFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	// For integration tests, we'll just return a large balance
 	// In production, this would query the actual token contract
 	return big.NewInt(1000000000000), nil
 }
 
-func (s *realFacilitatorEvmSigner) GetChainID() (*big.Int, error) {
+func (s *realFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
 func (s *realFacilitatorEvmSigner) ReadContract(
+	ctx context.Context,
 	contractAddress string,
 	abi []byte,
 	functionName string,
@@ -102,6 +103,7 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 }
 
 func (s *realFacilitatorEvmSigner) WriteContract(
+	ctx context.Context,
 	contractAddress string,
 	abiBytes []byte,
 	functionName string,
@@ -113,7 +115,7 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
 }
 
-func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evm.TransactionReceipt, error) {
+func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
 	// For integration tests, assume success
 	return &evm.TransactionReceipt{
 		Status:      evm.TxStatusSuccess,
@@ -123,6 +125,7 @@ func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*ev
 }
 
 func (s *realFacilitatorEvmSigner) VerifyTypedData(
+	ctx context.Context,
 	address string,
 	domain evm.TypedDataDomain,
 	types map[string][]evm.TypedDataField,

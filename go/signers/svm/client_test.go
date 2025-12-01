@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"context"
 	"testing"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -105,7 +106,7 @@ func TestClientSigner_SignTransaction(t *testing.T) {
 	}
 
 	// Sign the transaction
-	err = signer.SignTransaction(tx)
+	err = signer.SignTransaction(context.Background(), tx)
 	if err != nil {
 		t.Fatalf("SignTransaction() failed: %v", err)
 	}
@@ -155,7 +156,7 @@ func TestClientSigner_SignTransaction_SignatureArray(t *testing.T) {
 	}
 
 	// Sign the transaction (should handle expanding signatures array)
-	err = signer.SignTransaction(tx)
+	err = signer.SignTransaction(context.Background(), tx)
 	if err != nil {
 		t.Fatalf("SignTransaction() failed: %v", err)
 	}

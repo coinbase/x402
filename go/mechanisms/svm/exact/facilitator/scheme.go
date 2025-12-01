@@ -41,7 +41,7 @@ func (f *ExactSvmScheme) CaipFamily() string {
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
 // For SVM, this includes the fee payer address.
 func (f *ExactSvmScheme) GetExtra(network x402.Network) map[string]interface{} {
-	feePayerAddress := f.signer.GetAddress(string(network))
+	feePayerAddress := f.signer.GetAddress(context.Background(), string(network))
 	return map[string]interface{}{
 		"feePayer": feePayerAddress.String(),
 	}
@@ -52,7 +52,7 @@ func (f *ExactSvmScheme) GetExtra(network x402.Network) map[string]interface{} {
 func (f *ExactSvmScheme) GetSigners() []string {
 	// Return fee payer address for devnet (default)
 	// Note: In practice, this should return all addresses used across all networks
-	feePayerAddress := f.signer.GetAddress("solana-devnet")
+	feePayerAddress := f.signer.GetAddress(context.Background(), "solana-devnet")
 	return []string{feePayerAddress.String()}
 }
 
@@ -125,11 +125,11 @@ func (f *ExactSvmScheme) Verify(
 
 	// Step 5: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
-	if err := f.signer.SignTransaction(tx, string(requirements.Network)); err != nil {
+	if err := f.signer.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
 		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
 	}
 
-	rpcClient, err := f.signer.GetRPC(string(requirements.Network))
+	rpcClient, err := f.signer.GetRPC(ctx, string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewVerifyError("failed_to_get_rpc_client", payer, network, err)
 	}
@@ -183,7 +183,7 @@ func (f *ExactSvmScheme) Settle(
 	}
 
 	// Sign with facilitator's key
-	if err := f.signer.SignTransaction(tx, string(requirements.Network)); err != nil {
+	if err := f.signer.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
@@ -354,7 +354,7 @@ func (f *ExactSvmScheme) verifyTransferInstruction(
 // confirmTransactionWithRetry waits for transaction confirmation with retries
 // Uses getSignatureStatuses for faster confirmation detection (matches TypeScript implementation)
 func (f *ExactSvmScheme) confirmTransactionWithRetry(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := f.signer.GetRPC(network)
+	rpcClient, err := f.signer.GetRPC(ctx, network)
 	if err != nil {
 		return fmt.Errorf("failed to get RPC client: %w", err)
 	}

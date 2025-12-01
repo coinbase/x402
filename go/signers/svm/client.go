@@ -1,6 +1,7 @@
 package svm
 
 import (
+	"context"
 	"fmt"
 
 	solana "github.com/gagliardetto/solana-go"
@@ -55,12 +56,13 @@ func (s *ClientSigner) Address() solana.PublicKey {
 //
 // Args:
 //
+//	ctx: Context for cancellation and timeout control
 //	tx: The transaction to sign
 //
 // Returns:
 //
 //	Error if signing fails
-func (s *ClientSigner) SignTransaction(tx *solana.Transaction) error {
+func (s *ClientSigner) SignTransaction(ctx context.Context, tx *solana.Transaction) error {
 	// Marshal transaction message to bytes
 	messageBytes, err := tx.Message.MarshalBinary()
 	if err != nil {

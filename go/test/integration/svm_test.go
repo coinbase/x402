@@ -47,7 +47,7 @@ func newRealFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*realF
 	}, nil
 }
 
-func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
+func (s *realFacilitatorSvmSigner) GetRPC(ctx context.Context, network string) (*rpc.Client, error) {
 	// Return cached RPC client if exists
 	if client, ok := s.rpcClients[network]; ok {
 		return client, nil
@@ -69,7 +69,7 @@ func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 	return client, nil
 }
 
-func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
+func (s *realFacilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
 	// Partially sign - only sign for facilitator key, client has already signed
 
 	// Get the message bytes to sign
@@ -104,7 +104,7 @@ func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, netwo
 }
 
 func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return solana.Signature{}, err
 	}
@@ -122,7 +122,7 @@ func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *sola
 }
 
 func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
 }
 
-func (s *realFacilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
+func (s *realFacilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
 	return s.privateKey.PublicKey()
 }
 

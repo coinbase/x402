@@ -105,11 +105,12 @@ func (s *realFacilitatorEvmSigner) Address() string {
 	return s.address.Hex()
 }
 
-func (s *realFacilitatorEvmSigner) GetChainID() (*big.Int, error) {
+func (s *realFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
 func (s *realFacilitatorEvmSigner) VerifyTypedData(
+	ctx context.Context,
 	address string,
 	domain evmmech.TypedDataDomain,
 	types map[string][]evmmech.TypedDataField,
@@ -196,6 +197,7 @@ func (s *realFacilitatorEvmSigner) VerifyTypedData(
 }
 
 func (s *realFacilitatorEvmSigner) ReadContract(
+	ctx context.Context,
 	contractAddress string,
 	abiJSON []byte,
 	method string,
@@ -257,7 +259,6 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 	}
 
 	// Make the call
-	ctx := context.Background()
 	to := common.HexToAddress(contractAddress)
 
 	// Check if contract exists at this address
@@ -314,6 +315,7 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 }
 
 func (s *realFacilitatorEvmSigner) WriteContract(
+	ctx context.Context,
 	contractAddress string,
 	abiJSON []byte,
 	method string,
@@ -372,7 +374,6 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	}
 
 	// Get nonce
-	ctx := context.Background()
 	nonce, err := s.client.PendingNonceAt(ctx, s.address)
 	if err != nil {
 		return "", fmt.Errorf("failed to get nonce: %w", err)
@@ -410,8 +411,7 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
-func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmech.TransactionReceipt, error) {
-	ctx := context.Background()
+func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evmmech.TransactionReceipt, error) {
 	hash := common.HexToHash(txHash)
 
 	// Poll for receipt
@@ -430,10 +430,9 @@ func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*ev
 	return nil, fmt.Errorf("transaction receipt not found after 30 seconds")
 }
 
-func (s *realFacilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
+func (s *realFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	if tokenAddress == "" || tokenAddress == "0x0000000000000000000000000000000000000000" {
 		// Native balance
-		ctx := context.Background()
 		balance, err := s.client.BalanceAt(ctx, common.HexToAddress(address), nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get balance: %w", err)
@@ -446,7 +445,7 @@ func (s *realFacilitatorEvmSigner) GetBalance(address string, tokenAddress strin
 	const erc20ABI = `[{"constant":true,"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
 
 	// Pass address as string, let ReadContract handle the conversion
-	result, err := s.ReadContract(tokenAddress, []byte(erc20ABI), "balanceOf", address)
+	result, err := s.ReadContract(ctx, tokenAddress, []byte(erc20ABI), "balanceOf", address)
 	if err != nil {
 		return nil, err
 	}
@@ -522,7 +521,7 @@ func newRealFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*realF
 	}, nil
 }
 
-func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
+func (s *realFacilitatorSvmSigner) GetRPC(ctx context.Context, network string) (*rpc.Client, error) {
 	if client, ok := s.rpcClients[network]; ok {
 		return client, nil
 	}
@@ -541,7 +540,7 @@ func (s *realFacilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 	return client, nil
 }
 
-func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
+func (s *realFacilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
 	messageBytes, err := tx.Message.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -568,7 +567,7 @@ func (s *realFacilitatorSvmSigner) SignTransaction(tx *solana.Transaction, netwo
 }
 
 func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return solana.Signature{}, err
 	}
@@ -585,7 +584,7 @@ func (s *realFacilitatorSvmSigner) SendTransaction(ctx context.Context, tx *sola
 }
 
 func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return err
 	}
@@ -635,7 +634,7 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
-func (s *realFacilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
+func (s *realFacilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
 	return s.privateKey.PublicKey()
 }
 
@@ -662,7 +661,7 @@ func main() {
 		log.Fatalf("Failed to create EVM signer: %v", err)
 	}
 
-	chainID, _ := evmSigner.GetChainID()
+	chainID, _ := evmSigner.GetChainID(context.Background())
 	log.Printf("EVM Facilitator account: %s", evmSigner.Address())
 	log.Printf("Connected to chain ID: %s (expected: 84532 for Base Sepolia)", chainID.String())
 
@@ -672,7 +671,7 @@ func main() {
 		log.Fatalf("Failed to create SVM signer: %v", err)
 	}
 
-	log.Printf("SVM Facilitator account: %s", svmSigner.GetAddress("solana-devnet").String())
+	log.Printf("SVM Facilitator account: %s", svmSigner.GetAddress(context.Background(), "solana-devnet").String())
 
 	// Initialize the x402 Facilitator with EVM and SVM support
 	facilitator := x402.Newx402Facilitator()

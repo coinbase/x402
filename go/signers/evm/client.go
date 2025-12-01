@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"strings"
@@ -67,6 +68,7 @@ func (s *ClientSigner) Address() string {
 //
 // Args:
 //
+//	ctx: Context for cancellation and timeout control
 //	domain: EIP-712 domain separator
 //	types: Type definitions for the structured data
 //	primaryType: The primary type being signed
@@ -77,6 +79,7 @@ func (s *ClientSigner) Address() string {
 //	65-byte signature (r, s, v)
 //	Error if signing fails
 func (s *ClientSigner) SignTypedData(
+	ctx context.Context,
 	domain x402evm.TypedDataDomain,
 	types map[string][]x402evm.TypedDataField,
 	primaryType string,

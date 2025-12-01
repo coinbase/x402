@@ -172,5 +172,5 @@ func (c *ExactEvmSchemeV1) signAuthorization(
 	}
 
 	// Sign the typed data
-	return c.signer.SignTypedData(domain, types, "TransferWithAuthorization", message)
+	return c.signer.SignTypedData(ctx, domain, types, "TransferWithAuthorization", message)
 }

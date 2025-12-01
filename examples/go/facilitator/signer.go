@@ -87,11 +87,12 @@ func (s *facilitatorEvmSigner) Address() string {
 	return s.address.Hex()
 }
 
-func (s *facilitatorEvmSigner) GetChainID() (*big.Int, error) {
+func (s *facilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
 func (s *facilitatorEvmSigner) VerifyTypedData(
+	ctx context.Context,
 	address string,
 	domain evmmech.TypedDataDomain,
 	types map[string][]evmmech.TypedDataField,
@@ -178,6 +179,7 @@ func (s *facilitatorEvmSigner) VerifyTypedData(
 }
 
 func (s *facilitatorEvmSigner) ReadContract(
+	ctx context.Context,
 	contractAddress string,
 	abiJSON []byte,
 	method string,
@@ -233,7 +235,6 @@ func (s *facilitatorEvmSigner) ReadContract(
 	}
 
 	// Make the call
-	ctx := context.Background()
 	to := common.HexToAddress(contractAddress)
 
 	msg := ethereum.CallMsg{
@@ -276,6 +277,7 @@ func (s *facilitatorEvmSigner) ReadContract(
 }
 
 func (s *facilitatorEvmSigner) WriteContract(
+	ctx context.Context,
 	contractAddress string,
 	abiJSON []byte,
 	method string,
@@ -331,7 +333,6 @@ func (s *facilitatorEvmSigner) WriteContract(
 	}
 
 	// Get nonce
-	ctx := context.Background()
 	nonce, err := s.client.PendingNonceAt(ctx, s.address)
 	if err != nil {
 		return "", fmt.Errorf("failed to get nonce: %w", err)
@@ -369,8 +370,7 @@ func (s *facilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
-func (s *facilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmech.TransactionReceipt, error) {
-	ctx := context.Background()
+func (s *facilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evmmech.TransactionReceipt, error) {
 	hash := common.HexToHash(txHash)
 
 	// Poll for receipt
@@ -389,10 +389,9 @@ func (s *facilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evmmec
 	return nil, fmt.Errorf("transaction receipt not found after 30 seconds")
 }
 
-func (s *facilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
+func (s *facilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	if tokenAddress == "" || tokenAddress == "0x0000000000000000000000000000000000000000" {
 		// Native balance
-		ctx := context.Background()
 		balance, err := s.client.BalanceAt(ctx, common.HexToAddress(address), nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get balance: %w", err)
@@ -449,7 +448,7 @@ func newFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*facilitat
 	}, nil
 }
 
-func (s *facilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
+func (s *facilitatorSvmSigner) GetRPC(ctx context.Context, network string) (*rpc.Client, error) {
 	if client, ok := s.rpcClients[network]; ok {
 		return client, nil
 	}
@@ -468,7 +467,7 @@ func (s *facilitatorSvmSigner) GetRPC(network string) (*rpc.Client, error) {
 	return client, nil
 }
 
-func (s *facilitatorSvmSigner) SignTransaction(tx *solana.Transaction, network string) error {
+func (s *facilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
 	messageBytes, err := tx.Message.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -562,7 +561,7 @@ func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
-func (s *facilitatorSvmSigner) GetAddress(network string) solana.PublicKey {
+func (s *facilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
 	return s.privateKey.PublicKey()
 }
 

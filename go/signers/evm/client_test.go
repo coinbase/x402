@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"context"
 	"math/big"
 	"strings"
 	"testing"
@@ -135,7 +136,7 @@ func TestClientSigner_SignTypedData(t *testing.T) {
 	}
 
 	// Sign the typed data
-	signature, err := signer.SignTypedData(domain, types, "TransferWithAuthorization", message)
+	signature, err := signer.SignTypedData(context.Background(), domain, types, "TransferWithAuthorization", message)
 	if err != nil {
 		t.Fatalf("SignTypedData() failed: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestClientSigner_SignTypedData_WithEIP712DomainInTypes(t *testing.T) {
 	}
 
 	// Should handle existing EIP712Domain gracefully
-	signature, err := signer.SignTypedData(domain, types, "TestMessage", message)
+	signature, err := signer.SignTypedData(context.Background(), domain, types, "TestMessage", message)
 	if err != nil {
 		t.Fatalf("SignTypedData() failed: %v", err)
 	}

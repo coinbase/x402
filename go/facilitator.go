@@ -526,7 +526,7 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 	for _, data := range f.schemesV1 {
 		facilitator := data.facilitator.(SchemeNetworkFacilitatorV1)
 		scheme := facilitator.Scheme()
-		
+
 		for network := range data.networks {
 			kind := SupportedKind{
 				Scheme:  scheme,
@@ -552,7 +552,7 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 	for _, data := range f.schemes {
 		facilitator := data.facilitator.(SchemeNetworkFacilitator)
 		scheme := facilitator.Scheme()
-		
+
 		for network := range data.networks {
 			kind := SupportedKind{
 				Scheme:  scheme,

@@ -138,7 +138,7 @@ func (f *ExactEvmSchemeV1) Verify(
 	}
 
 	// Check balance
-	balance, err := f.signer.GetBalance(evmPayload.Authorization.From, assetInfo.Address)
+	balance, err := f.signer.GetBalance(ctx, evmPayload.Authorization.From, assetInfo.Address)
 	if err == nil && balance.Cmp(requiredValue) < 0 {
 		return nil, x402.NewVerifyError("insufficient_funds", evmPayload.Authorization.From, network, nil)
 	}
@@ -229,6 +229,7 @@ func (f *ExactEvmSchemeV1) Settle(
 
 	// Execute transferWithAuthorization
 	txHash, err := f.signer.WriteContract(
+		ctx,
 		assetInfo.Address,
 		evm.TransferWithAuthorizationABI,
 		evm.FunctionTransferWithAuthorization,
@@ -247,7 +248,7 @@ func (f *ExactEvmSchemeV1) Settle(
 	}
 
 	// Wait for transaction confirmation
-	receipt, err := f.signer.WaitForTransactionReceipt(txHash)
+	receipt, err := f.signer.WaitForTransactionReceipt(ctx, txHash)
 	if err != nil {
 		return nil, x402.NewSettleError("failed_to_get_receipt", verifyResp.Payer, network, txHash, err)
 	}
@@ -318,6 +319,7 @@ func (f *ExactEvmSchemeV1) verifySignature(
 
 	// Verify the signature
 	return f.signer.VerifyTypedData(
+		ctx,
 		authorization.From,
 		domain,
 		types,

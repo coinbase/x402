@@ -26,16 +26,16 @@ type ClientSvmSigner interface {
 	Address() solana.PublicKey
 
 	// SignTransaction signs a Solana transaction
-	SignTransaction(tx *solana.Transaction) error
+	SignTransaction(ctx context.Context, tx *solana.Transaction) error
 }
 
 // FacilitatorSvmSigner defines facilitator operations
 type FacilitatorSvmSigner interface {
 	// GetRPC returns an RPC client for the given network
-	GetRPC(network string) (*rpc.Client, error)
+	GetRPC(ctx context.Context, network string) (*rpc.Client, error)
 
 	// SignTransaction signs a transaction with facilitator's key
-	SignTransaction(tx *solana.Transaction, network string) error
+	SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error
 
 	// SendTransaction sends a signed transaction
 	SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error)
@@ -44,7 +44,7 @@ type FacilitatorSvmSigner interface {
 	ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error
 
 	// GetAddress returns the facilitator's address for a network
-	GetAddress(network string) solana.PublicKey
+	GetAddress(ctx context.Context, network string) solana.PublicKey
 }
 
 // AssetInfo contains information about a SPL token

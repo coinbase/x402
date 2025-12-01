@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"context"
 	"math/big"
 )
 
@@ -32,7 +33,7 @@ type ClientEvmSigner interface {
 	Address() string
 
 	// SignTypedData signs EIP-712 typed data
-	SignTypedData(domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error)
+	SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}) ([]byte, error)
 }
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations
@@ -41,22 +42,22 @@ type FacilitatorEvmSigner interface {
 	Address() string
 
 	// ReadContract reads data from a smart contract
-	ReadContract(address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
+	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
 
 	// VerifyTypedData verifies an EIP-712 signature
-	VerifyTypedData(address string, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}, signature []byte) (bool, error)
+	VerifyTypedData(ctx context.Context, address string, domain TypedDataDomain, types map[string][]TypedDataField, primaryType string, message map[string]interface{}, signature []byte) (bool, error)
 
 	// WriteContract executes a smart contract transaction
-	WriteContract(address string, abi []byte, functionName string, args ...interface{}) (string, error)
+	WriteContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (string, error)
 
 	// WaitForTransactionReceipt waits for a transaction to be mined
-	WaitForTransactionReceipt(txHash string) (*TransactionReceipt, error)
+	WaitForTransactionReceipt(ctx context.Context, txHash string) (*TransactionReceipt, error)
 
 	// GetBalance gets the balance of an address for a specific token
-	GetBalance(address string, tokenAddress string) (*big.Int, error)
+	GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error)
 
 	// GetChainID returns the chain ID of the connected network
-	GetChainID() (*big.Int, error)
+	GetChainID(ctx context.Context) (*big.Int, error)
 }
 
 // TypedDataDomain represents the EIP-712 domain separator

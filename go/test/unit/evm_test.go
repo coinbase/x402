@@ -25,6 +25,7 @@ func (m *mockClientEvmSigner) Address() string {
 }
 
 func (m *mockClientEvmSigner) SignTypedData(
+	ctx context.Context,
 	domain evm.TypedDataDomain,
 	types map[string][]evm.TypedDataField,
 	primaryType string,
@@ -50,7 +51,7 @@ func newMockFacilitatorEvmSigner() *mockFacilitatorEvmSigner {
 	}
 }
 
-func (m *mockFacilitatorEvmSigner) GetBalance(address string, tokenAddress string) (*big.Int, error) {
+func (m *mockFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	key := address + ":" + tokenAddress
 	if balance, ok := m.balances[key]; ok {
 		return balance, nil
@@ -59,11 +60,12 @@ func (m *mockFacilitatorEvmSigner) GetBalance(address string, tokenAddress strin
 	return big.NewInt(10000000000), nil // 10,000 USDC
 }
 
-func (m *mockFacilitatorEvmSigner) GetChainID() (*big.Int, error) {
+func (m *mockFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
 	return big.NewInt(8453), nil // Base mainnet
 }
 
 func (m *mockFacilitatorEvmSigner) ReadContract(
+	ctx context.Context,
 	contractAddress string,
 	abi []byte,
 	functionName string,
@@ -78,6 +80,7 @@ func (m *mockFacilitatorEvmSigner) ReadContract(
 }
 
 func (m *mockFacilitatorEvmSigner) WriteContract(
+	ctx context.Context,
 	contractAddress string,
 	abi []byte,
 	functionName string,
@@ -87,13 +90,14 @@ func (m *mockFacilitatorEvmSigner) WriteContract(
 	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
 }
 
-func (m *mockFacilitatorEvmSigner) WaitForTransactionReceipt(txHash string) (*evm.TransactionReceipt, error) {
+func (m *mockFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
 	return &evm.TransactionReceipt{
 		Status: evm.TxStatusSuccess,
 	}, nil
 }
 
 func (m *mockFacilitatorEvmSigner) VerifyTypedData(
+	ctx context.Context,
 	address string,
 	domain evm.TypedDataDomain,
 	types map[string][]evm.TypedDataField,
