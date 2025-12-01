@@ -3,7 +3,7 @@ import { SettleResponse, VerifyResponse } from "../types/facilitator";
 import { SchemeNetworkFacilitator } from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
 import { Network } from "../types";
-import { findByNetworkAndScheme } from "../utils";
+import { type SchemeData } from "../utils";
 
 /**
  * Facilitator Hook Context Interfaces
@@ -66,7 +66,7 @@ export type FacilitatorOnSettleFailureHook = (
 export class x402Facilitator {
   private readonly registeredFacilitatorSchemes: Map<
     number,
-    Map<string, Map<string, SchemeNetworkFacilitator>>
+    SchemeData<SchemeNetworkFacilitator>[] // Array to support multiple facilitators per version
   > = new Map();
   private readonly extensions: string[] = [];
 
@@ -79,24 +79,31 @@ export class x402Facilitator {
 
   /**
    * Registers a scheme facilitator for the current x402 version.
+   * Networks are stored and used for getSupported() - no need to specify them later.
    *
-   * @param network - The network to register the facilitator for
+   * @param networks - Single network or array of networks this facilitator supports
    * @param facilitator - The scheme network facilitator to register
    * @returns The x402Facilitator instance for chaining
    */
-  register(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
-    return this._registerScheme(x402Version, network, facilitator);
+  register(networks: Network | Network[], facilitator: SchemeNetworkFacilitator): x402Facilitator {
+    const networksArray = Array.isArray(networks) ? networks : [networks];
+    return this._registerScheme(x402Version, networksArray, facilitator);
   }
 
   /**
    * Registers a scheme facilitator for x402 version 1.
+   * Networks are stored and used for getSupported() - no need to specify them later.
    *
-   * @param network - The network to register the facilitator for
+   * @param networks - Single network or array of networks this facilitator supports
    * @param facilitator - The scheme network facilitator to register
    * @returns The x402Facilitator instance for chaining
    */
-  registerV1(network: Network, facilitator: SchemeNetworkFacilitator): x402Facilitator {
-    return this._registerScheme(1, network, facilitator);
+  registerV1(
+    networks: Network | Network[],
+    facilitator: SchemeNetworkFacilitator,
+  ): x402Facilitator {
+    const networksArray = Array.isArray(networks) ? networks : [networks];
+    return this._registerScheme(1, networksArray, facilitator);
   }
 
   /**
@@ -193,14 +200,13 @@ export class x402Facilitator {
   }
 
   /**
-   * Builds /supported response with concrete networks in V2 format.
-   * Expands registered patterns (e.g., "eip155:*") into specific networks (e.g., "eip155:84532").
+   * Gets supported payment kinds, extensions, and signers in V2 format.
+   * Uses networks registered during register() calls - no parameters needed.
    * Groups kinds by version and collects signer information by CAIP family.
    *
-   * @param networks - Array of concrete network identifiers to include in response
    * @returns Supported response with kinds grouped by version, extensions, and signers
    */
-  buildSupported(networks: Network[]): {
+  getSupported(): {
     kinds: Record<
       string,
       Array<{
@@ -222,35 +228,32 @@ export class x402Facilitator {
     > = {};
     const signersByFamily: Record<string, Set<string>> = {};
 
-    for (const concreteNetwork of networks) {
-      for (const [version, networkMap] of this.registeredFacilitatorSchemes) {
-        for (const [registeredPattern, schemeMap] of networkMap) {
-          const patternRegex = new RegExp("^" + registeredPattern.replace("*", ".*") + "$");
-          if (!patternRegex.test(concreteNetwork)) {
-            continue;
+    // Iterate over registered scheme data (array supports multiple facilitators per version)
+    for (const [version, schemeDataArray] of this.registeredFacilitatorSchemes) {
+      for (const schemeData of schemeDataArray) {
+        const { facilitator, networks } = schemeData;
+        const scheme = facilitator.scheme;
+
+        // Iterate over stored concrete networks
+        for (const network of networks) {
+          const versionKey = version.toString();
+          if (!kindsByVersion[versionKey]) {
+            kindsByVersion[versionKey] = [];
           }
 
-          for (const [scheme, facilitator] of schemeMap) {
-            // Add to kinds grouped by version
-            const versionKey = version.toString();
-            if (!kindsByVersion[versionKey]) {
-              kindsByVersion[versionKey] = [];
-            }
+          const extra = facilitator.getExtra(network);
+          kindsByVersion[versionKey].push({
+            scheme,
+            network,
+            ...(extra && { extra }),
+          });
 
-            const extra = facilitator.getExtra(concreteNetwork);
-            kindsByVersion[versionKey].push({
-              scheme,
-              network: concreteNetwork,
-              ...(extra && { extra }),
-            });
-
-            // Collect signers by CAIP family
-            const family = facilitator.caipFamily;
-            if (!signersByFamily[family]) {
-              signersByFamily[family] = new Set();
-            }
-            facilitator.getSigners().forEach(signer => signersByFamily[family].add(signer));
+          // Collect signers by CAIP family (deduplicated across all networks)
+          const family = facilitator.caipFamily;
+          if (!signersByFamily[family]) {
+            signersByFamily[family] = new Set();
           }
+          facilitator.getSigners().forEach(signer => signersByFamily[family].add(signer));
         }
       }
     }
@@ -296,20 +299,31 @@ export class x402Facilitator {
     }
 
     try {
-      const facilitatorSchemesByNetwork = this.registeredFacilitatorSchemes.get(
-        paymentPayload.x402Version,
-      );
-      if (!facilitatorSchemesByNetwork) {
+      const schemeDataArray = this.registeredFacilitatorSchemes.get(paymentPayload.x402Version);
+      if (!schemeDataArray) {
         throw new Error(
           `No facilitator registered for x402 version: ${paymentPayload.x402Version}`,
         );
       }
 
-      const schemeNetworkFacilitator = findByNetworkAndScheme(
-        facilitatorSchemesByNetwork,
-        paymentRequirements.scheme,
-        paymentRequirements.network,
-      );
+      // Find matching facilitator from array
+      let schemeNetworkFacilitator: SchemeNetworkFacilitator | undefined;
+      for (const schemeData of schemeDataArray) {
+        if (schemeData.facilitator.scheme === paymentRequirements.scheme) {
+          // Check if network matches
+          if (schemeData.networks.has(paymentRequirements.network)) {
+            schemeNetworkFacilitator = schemeData.facilitator;
+            break;
+          }
+          // Try pattern matching
+          const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+          if (patternRegex.test(paymentRequirements.network)) {
+            schemeNetworkFacilitator = schemeData.facilitator;
+            break;
+          }
+        }
+      }
+
       if (!schemeNetworkFacilitator) {
         throw new Error(
           `No facilitator registered for scheme: ${paymentRequirements.scheme} and network: ${paymentRequirements.network}`,
@@ -375,20 +389,31 @@ export class x402Facilitator {
     }
 
     try {
-      const facilitatorSchemesByNetwork = this.registeredFacilitatorSchemes.get(
-        paymentPayload.x402Version,
-      );
-      if (!facilitatorSchemesByNetwork) {
+      const schemeDataArray = this.registeredFacilitatorSchemes.get(paymentPayload.x402Version);
+      if (!schemeDataArray) {
         throw new Error(
           `No facilitator registered for x402 version: ${paymentPayload.x402Version}`,
         );
       }
 
-      const schemeNetworkFacilitator = findByNetworkAndScheme(
-        facilitatorSchemesByNetwork,
-        paymentRequirements.scheme,
-        paymentRequirements.network,
-      );
+      // Find matching facilitator from array
+      let schemeNetworkFacilitator: SchemeNetworkFacilitator | undefined;
+      for (const schemeData of schemeDataArray) {
+        if (schemeData.facilitator.scheme === paymentRequirements.scheme) {
+          // Check if network matches
+          if (schemeData.networks.has(paymentRequirements.network)) {
+            schemeNetworkFacilitator = schemeData.facilitator;
+            break;
+          }
+          // Try pattern matching
+          const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+          if (patternRegex.test(paymentRequirements.network)) {
+            schemeNetworkFacilitator = schemeData.facilitator;
+            break;
+          }
+        }
+      }
+
       if (!schemeNetworkFacilitator) {
         throw new Error(
           `No facilitator registered for scheme: ${paymentRequirements.scheme} and network: ${paymentRequirements.network}`,
@@ -433,27 +458,52 @@ export class x402Facilitator {
    * Internal method to register a scheme facilitator.
    *
    * @param x402Version - The x402 protocol version
-   * @param network - The network to register the facilitator for
+   * @param networks - Array of concrete networks this facilitator supports
    * @param facilitator - The scheme network facilitator to register
    * @returns The x402Facilitator instance for chaining
    */
   private _registerScheme(
     x402Version: number,
-    network: Network,
+    networks: Network[],
     facilitator: SchemeNetworkFacilitator,
   ): x402Facilitator {
     if (!this.registeredFacilitatorSchemes.has(x402Version)) {
-      this.registeredFacilitatorSchemes.set(x402Version, new Map());
+      this.registeredFacilitatorSchemes.set(x402Version, []);
     }
-    const networkFacilitatorSchemes = this.registeredFacilitatorSchemes.get(x402Version)!;
-    if (!networkFacilitatorSchemes.has(network)) {
-      networkFacilitatorSchemes.set(network, new Map());
-    }
-    const facilitatorByScheme = networkFacilitatorSchemes.get(network)!;
-    if (!facilitatorByScheme.has(facilitator.scheme)) {
-      facilitatorByScheme.set(facilitator.scheme, facilitator);
-    }
+    const schemeDataArray = this.registeredFacilitatorSchemes.get(x402Version)!;
+
+    // Add new scheme data (supports multiple facilitators with same scheme name)
+    schemeDataArray.push({
+      facilitator,
+      networks: new Set(networks),
+      pattern: this.derivePattern(networks),
+    });
 
     return this;
+  }
+
+  /**
+   * Derives a wildcard pattern from an array of networks.
+   * If all networks share the same namespace, returns wildcard pattern.
+   * Otherwise returns the first network for exact matching.
+   *
+   * @param networks - Array of networks
+   * @returns Derived pattern for matching
+   */
+  private derivePattern(networks: Network[]): Network {
+    if (networks.length === 0) return "" as Network;
+    if (networks.length === 1) return networks[0];
+
+    // Extract namespaces (e.g., "eip155" from "eip155:84532")
+    const namespaces = networks.map(n => n.split(":")[0]);
+    const uniqueNamespaces = new Set(namespaces);
+
+    // If all same namespace, use wildcard
+    if (uniqueNamespaces.size === 1) {
+      return `${namespaces[0]}:*` as Network;
+    }
+
+    // Mixed namespaces - use first network for exact matching
+    return networks[0];
   }
 }

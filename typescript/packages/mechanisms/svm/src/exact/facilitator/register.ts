@@ -15,9 +15,10 @@ export interface SvmFacilitatorConfig {
   signer: FacilitatorSvmSigner;
 
   /**
-   * Optional specific networks to register
+   * Networks to register (single network or array of networks)
+   * Examples: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
    */
-  networks?: Network[];
+  networks: Network | Network[];
 }
 
 /**
@@ -26,23 +27,31 @@ export interface SvmFacilitatorConfig {
  * @param facilitator - The x402Facilitator instance to register schemes to
  * @param config - Configuration for SVM facilitator registration
  * @returns The facilitator instance for chaining
+ *
+ * @example
+ * ```typescript
+ * // Single network
+ * registerExactSvmScheme(facilitator, {
+ *   signer: svmSigner,
+ *   networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  // Devnet
+ * });
+ *
+ * // Multiple networks (will auto-derive solana:* pattern)
+ * registerExactSvmScheme(facilitator, {
+ *   signer: svmSigner,
+ *   networks: ["solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"]
+ * });
+ * ```
  */
 export function registerExactSvmScheme(
   facilitator: x402Facilitator,
   config: SvmFacilitatorConfig,
 ): x402Facilitator {
-  if (config.networks && config.networks.length > 0) {
-    config.networks.forEach(network => {
-      facilitator.register(network, new ExactSvmScheme(config.signer));
-    });
-  } else {
-    facilitator.register("solana:*", new ExactSvmScheme(config.signer));
-  }
+  // Register V2 scheme with specified networks
+  facilitator.register(config.networks, new ExactSvmScheme(config.signer));
 
   // Register all V1 networks
-  NETWORKS.forEach(network => {
-    facilitator.registerV1(network as Network, new ExactSvmSchemeV1(config.signer));
-  });
+  facilitator.registerV1(NETWORKS as Network[], new ExactSvmSchemeV1(config.signer));
 
   return facilitator;
 }

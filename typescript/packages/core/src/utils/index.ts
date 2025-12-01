@@ -1,5 +1,14 @@
 import { Network } from "../types";
 
+/**
+ * Scheme data structure for facilitator storage
+ */
+export interface SchemeData<T> {
+  facilitator: T;
+  networks: Set<Network>;
+  pattern: Network;
+}
+
 export const findSchemesByNetwork = <T>(
   map: Map<string, Map<string, T>>,
   network: Network,
@@ -34,6 +43,37 @@ export const findByNetworkAndScheme = <T>(
   network: Network,
 ): T | undefined => {
   return findSchemesByNetwork(map, network)?.get(scheme);
+};
+
+/**
+ * Finds a facilitator by scheme and network using pattern matching.
+ * Works with new SchemeData storage structure.
+ *
+ * @param schemeMap - Map of scheme names to SchemeData
+ * @param scheme - The scheme to find
+ * @param network - The network to match against
+ * @returns The facilitator if found, undefined otherwise
+ */
+export const findFacilitatorBySchemeAndNetwork = <T>(
+  schemeMap: Map<string, SchemeData<T>>,
+  scheme: string,
+  network: Network,
+): T | undefined => {
+  const schemeData = schemeMap.get(scheme);
+  if (!schemeData) return undefined;
+
+  // Check if network is in the stored networks set
+  if (schemeData.networks.has(network)) {
+    return schemeData.facilitator;
+  }
+
+  // Try pattern matching
+  const patternRegex = new RegExp("^" + schemeData.pattern.replace("*", ".*") + "$");
+  if (patternRegex.test(network)) {
+    return schemeData.facilitator;
+  }
+
+  return undefined;
 };
 
 export const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;

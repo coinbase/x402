@@ -72,9 +72,9 @@ export async function verify<
   let version: string;
   try {
     chainId = getNetworkId(payload.network);
-    name = paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName;
+    name = (paymentRequirements.extra?.name ?? config[chainId.toString()].usdcName) as string;
     erc20Address = paymentRequirements.asset as Address;
-    version = paymentRequirements.extra?.version ?? (await getVersion(client));
+    version = (paymentRequirements.extra?.version ?? (await getVersion(client))) as string;
   } catch {
     return {
       isValid: false,

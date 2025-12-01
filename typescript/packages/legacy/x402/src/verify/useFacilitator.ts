@@ -105,6 +105,7 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
 
   /**
    * Gets the supported payment kinds from the facilitator server.
+   * Auto-detects V2 format and converts to V1 format for backward compatibility.
    *
    * @returns A promise that resolves to the supported payment kinds
    */
@@ -127,6 +128,33 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     }
 
     const data = await res.json();
+
+    // Detect V2 format (map-based kinds) and convert to V1 format (array-based)
+    if (data.kinds && typeof data.kinds === "object" && !Array.isArray(data.kinds)) {
+      // V2 format detected - convert to V1
+      const kindsArray = [];
+
+      for (const [versionStr, versionKinds] of Object.entries(data.kinds)) {
+        const version = parseInt(versionStr, 10);
+
+        for (const kind of versionKinds as Array<{
+          scheme: string;
+          network: string;
+          extra?: Record<string, unknown>;
+        }>) {
+          kindsArray.push({
+            x402Version: version,
+            scheme: kind.scheme,
+            network: kind.network,
+            ...(kind.extra && { extra: kind.extra }),
+          });
+        }
+      }
+
+      return { kinds: kindsArray as any };
+    }
+
+    // V1 format - return as is
     return data as SupportedPaymentKindsResponse;
   }
 

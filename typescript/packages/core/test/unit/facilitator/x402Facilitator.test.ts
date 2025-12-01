@@ -228,7 +228,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact", { isValid: true });
 
-      facilitator.register("eip155:8453" as Network, testFacilitator);
+      facilitator.register(["eip155:8453" as Network], testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -248,8 +248,8 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      // Register with wildcard pattern
-      facilitator.register("eip155:*" as Network, testFacilitator);
+      // Register with multiple EVM networks (will auto-derive eip155:* pattern)
+      facilitator.register(["eip155:8453" as Network, "eip155:1" as Network], testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -281,7 +281,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.register("eip155:8453" as Network, testFacilitator);
+      facilitator.register(["eip155:8453" as Network], testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -324,7 +324,7 @@ describe("x402Facilitator", () => {
         network: "eip155:8453",
       });
 
-      facilitator.register("eip155:8453" as Network, testFacilitator);
+      facilitator.register(["eip155:8453" as Network], testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({
@@ -376,7 +376,7 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.register("eip155:8453" as Network, testFacilitator);
+      facilitator.register(["eip155:8453" as Network], testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 2 });
       const requirements = buildPaymentRequirements({

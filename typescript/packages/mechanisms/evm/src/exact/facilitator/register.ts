@@ -15,17 +15,17 @@ export interface EvmFacilitatorConfig {
   signer: FacilitatorEvmSigner;
 
   /**
-   * Optional specific networks to register
-   * If not provided, registers wildcard support (eip155:*)
+   * Networks to register (single network or array of networks)
+   * Examples: "eip155:84532", ["eip155:84532", "eip155:1"]
    */
-  networks?: Network[];
+  networks: Network | Network[];
 }
 
 /**
  * Registers EVM exact payment schemes to an x402Facilitator instance.
  *
  * This function registers:
- * - V2: eip155:* wildcard scheme with ExactEvmScheme (or specific networks if provided)
+ * - V2: Specified networks with ExactEvmScheme
  * - V1: All supported EVM networks with ExactEvmSchemeV1
  *
  * @param facilitator - The x402Facilitator instance to register schemes to
@@ -39,8 +39,17 @@ export interface EvmFacilitatorConfig {
  * import { createPublicClient, createWalletClient } from "viem";
  *
  * const facilitator = new x402Facilitator();
+ *
+ * // Single network
  * registerExactEvmScheme(facilitator, {
- *   signer: combinedClient
+ *   signer: combinedClient,
+ *   networks: "eip155:84532"  // Base Sepolia
+ * });
+ *
+ * // Multiple networks (will auto-derive eip155:* pattern)
+ * registerExactEvmScheme(facilitator, {
+ *   signer: combinedClient,
+ *   networks: ["eip155:84532", "eip155:1"]  // Base Sepolia and Mainnet
  * });
  * ```
  */
@@ -48,21 +57,11 @@ export function registerExactEvmScheme(
   facilitator: x402Facilitator,
   config: EvmFacilitatorConfig,
 ): x402Facilitator {
-  // Register V2 scheme
-  if (config.networks && config.networks.length > 0) {
-    // Register specific networks
-    config.networks.forEach(network => {
-      facilitator.register(network, new ExactEvmScheme(config.signer));
-    });
-  } else {
-    // Register wildcard for all EVM chains
-    facilitator.register("eip155:*", new ExactEvmScheme(config.signer));
-  }
+  // Register V2 scheme with specified networks
+  facilitator.register(config.networks, new ExactEvmScheme(config.signer));
 
   // Register all V1 networks
-  NETWORKS.forEach(network => {
-    facilitator.registerV1(network as Network, new ExactEvmSchemeV1(config.signer));
-  });
+  facilitator.registerV1(NETWORKS as Network[], new ExactEvmSchemeV1(config.signer));
 
   return facilitator;
 }
