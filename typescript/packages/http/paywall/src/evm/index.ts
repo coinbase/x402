@@ -51,6 +51,3 @@ export const evmPaywall: PaywallNetworkHandler = {
     });
   },
 };
-
-// Also export components for custom UI builders
-// export { EvmPaywall } from "./EvmPaywall";
