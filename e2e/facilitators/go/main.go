@@ -677,19 +677,19 @@ func main() {
 	// Initialize the x402 Facilitator with EVM and SVM support
 	facilitator := x402.Newx402Facilitator()
 
-	// Register EVM schemes
+	// Register EVM schemes with network arrays
 	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner)
-	facilitator.Register("eip155:84532", evmFacilitatorScheme)
+	facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitatorScheme)
 
 	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner)
-	facilitator.RegisterV1("base-sepolia", evmFacilitatorV1Scheme)
+	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmFacilitatorV1Scheme)
 
-	// Register SVM schemes
+	// Register SVM schemes with network arrays
 	svmFacilitatorScheme := svm.NewExactSvmScheme(svmSigner)
-	facilitator.Register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmFacilitatorScheme) // Devnet
+	facilitator.Register([]x402.Network{"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"}, svmFacilitatorScheme) // Devnet
 
 	svmFacilitatorV1Scheme := svmv1.NewExactSvmSchemeV1(svmSigner)
-	facilitator.RegisterV1("solana-devnet", svmFacilitatorV1Scheme)
+	facilitator.RegisterV1([]x402.Network{"solana-devnet"}, svmFacilitatorV1Scheme)
 
 	// Register the Bazaar discovery extension
 	facilitator.RegisterExtension(exttypes.BAZAAR)
@@ -981,15 +981,8 @@ func main() {
 
 	// GET /supported - Get supported payment kinds and extensions
 	router.GET("/supported", func(c *gin.Context) {
-		// Use the facilitator's GetSupported method which calls GetExtra() on each scheme
-		// Pass concrete networks to expand wildcard registrations
-		response := facilitator.GetSupported([]x402.Network{
-			"eip155:84532",                              // EVM V2 (Base Sepolia)
-			"base-sepolia",                              // EVM V1
-			"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // SVM V2 (Devnet)
-			"solana-devnet",                             // SVM V1
-		})
-
+		// Get supported kinds - networks already registered
+		response := facilitator.GetSupported()
 		c.JSON(http.StatusOK, response)
 	})
 

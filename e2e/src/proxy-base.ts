@@ -80,11 +80,13 @@ export abstract class BaseProxy {
 
       let output = '';
       let stderr = '';
+      let resolved = false;
 
       this.process.stdout?.on('data', (data) => {
         output += data.toString();
         verboseLog(`[${this.directory}] stdout: ${data.toString()}`);
-        if (output.includes(this.readyLog)) {
+        if (output.includes(this.readyLog) && !resolved) {
+          resolved = true;
           resolve();
         }
       });
@@ -96,19 +98,29 @@ export abstract class BaseProxy {
 
       this.process.on('error', (error) => {
         errorLog(`[${this.directory}] Error: ${error}`);
-        reject(error);
+        if (!resolved) {
+          resolved = true;
+          reject(error);
+        }
       });
 
       this.process.on('exit', (code) => {
-        // Only log non-zero exit codes for debugging
-        if (code !== 0) {
+        // If process exits during startup with non-zero code, reject
+        if (code !== 0 && !resolved) {
+          resolved = true;
+          const errorMsg = `Process exited with code ${code} during startup`;
+          errorLog(`[${this.directory}] ${errorMsg}`);
+          reject(new Error(errorMsg));
+        } else if (code !== 0) {
+          // Already resolved, just log for debugging
           errorLog(`[${this.directory}] Process exited with code ${code}`);
         }
       });
 
       // Timeout after 30 seconds
       setTimeout(() => {
-        if (this.process && !this.process.killed) {
+        if (this.process && !this.process.killed && !resolved) {
+          resolved = true;
           resolve();
         }
       }, 30000);

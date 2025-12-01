@@ -105,6 +105,11 @@ async function startServer(
   const maxAttempts = 10;
 
   while (attempts < maxAttempts) {
+    // Give server time to actually bind to port before first check
+    if (attempts === 0) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+
     const healthResult = await server.health();
     verboseLog(`  🔍 Server health check ${attempts + 1}/${maxAttempts}: ${healthResult.success ? '✅' : '❌'}`);
 
@@ -247,7 +252,7 @@ async function runTest() {
 
   // Discover all servers, clients, and facilitators (always include legacy)
   const discovery = new TestDiscovery('.', true); // Always discover legacy
-  
+
   const allClients = discovery.discoverClients();
   const allServers = discovery.discoverServers();
   const allFacilitators = discovery.discoverFacilitators();
@@ -285,10 +290,10 @@ async function runTest() {
   } else {
     log('\n🤖 Programmatic Mode');
     log('===================\n');
-    
+
     filters = parsedArgs.filters;
     selectedExtensions = parsedArgs.filters.extensions;
-    
+
     // Print active filters
     const filterEntries = Object.entries(filters).filter(([_, v]) => v && (Array.isArray(v) ? v.length > 0 : true));
     if (filterEntries.length > 0) {
@@ -314,7 +319,7 @@ async function runTest() {
   // Apply coverage-based minimization if --min flag is set
   if (parsedArgs.minimize) {
     filteredScenarios = minimizeScenarios(filteredScenarios);
-    
+
     if (filteredScenarios.length === 0) {
       log('❌ All scenarios are already covered');
       log('💡 This should not happen - coverage tracking may have an issue\n');
@@ -437,7 +442,7 @@ async function runTest() {
 
   // Track running servers to stop/restart them as needed
   const runningServers = new Map<string, any>(); // serverName -> server proxy
-  
+
   // Track which facilitators processed which servers (for discovery validation)
   const facilitatorServerMap = new Map<string, Set<string>>(); // facilitatorName -> Set<serverName>
 
@@ -446,7 +451,7 @@ async function runTest() {
     const { serverName, facilitatorName, scenarios } = combo;
     const server = uniqueServers.get(serverName)!;
     const port = serverPorts.get(serverName)!;
-    
+
     // Track that this facilitator is processing this server
     if (facilitatorName) {
       if (!facilitatorServerMap.has(facilitatorName)) {

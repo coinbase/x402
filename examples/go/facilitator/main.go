@@ -43,11 +43,11 @@ func main() {
 	}
 
 	facilitator := x402.Newx402Facilitator()
-	facilitator.Register(network, evm.NewExactEvmScheme(evmSigner))
+	facilitator.Register([]x402.Network{network}, evm.NewExactEvmScheme(evmSigner))
 
 	if svmSigner != nil {
 		svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
-		facilitator.Register(svmNetwork, svm.NewExactSvmScheme(svmSigner))
+		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))
 	}
 
 	facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
@@ -66,21 +66,8 @@ func main() {
 
 	// Supported endpoint - returns supported networks and schemes
 	r.GET("/supported", func(c *gin.Context) {
-		// Pass concrete networks to expand wildcard registrations
-		networks := []x402.Network{
-			"eip155:84532",                              // Base Sepolia V2
-			"base-sepolia",                              // Base Sepolia V1
-		}
-		
-		// Add SVM networks if SVM is configured
-		if svmSigner != nil {
-			networks = append(networks,
-				"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana Devnet V2
-				"solana-devnet",                             // Solana Devnet V1
-			)
-		}
-		
-		supported := facilitator.GetSupported(networks)
+		// Get supported kinds - networks already registered
+		supported := facilitator.GetSupported()
 		c.JSON(http.StatusOK, supported)
 	})
 

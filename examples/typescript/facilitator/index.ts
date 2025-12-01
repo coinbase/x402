@@ -102,8 +102,14 @@ function createPaymentHash(paymentPayload: PaymentPayload): string {
 const facilitator = new x402Facilitator();
 
 // Register EVM and SVM schemes using the new register helpers
-registerExactEvmScheme(facilitator, { signer: evmSigner });
-registerExactSvmScheme(facilitator, { signer: svmSigner });
+registerExactEvmScheme(facilitator, {
+  signer: evmSigner,
+  networks: "eip155:84532"  // Base Sepolia
+});
+registerExactSvmScheme(facilitator, {
+  signer: svmSigner,
+  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  // Devnet
+});
 
 // Initialize Express app
 const app = express();
@@ -193,12 +199,7 @@ app.post("/settle", async (req, res) => {
  */
 app.get("/supported", async (req, res) => {
   try {
-    const response = facilitator.buildSupported([
-      "eip155:84532",
-      "base-sepolia" as Network,
-      "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-      "solana-devnet" as Network,
-    ]);
+    const response = facilitator.getSupported();
     res.json(response);
   } catch (error) {
     console.error("Supported error:", error);

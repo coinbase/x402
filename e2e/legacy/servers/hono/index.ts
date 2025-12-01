@@ -69,9 +69,9 @@ app.post("/close", c => {
   });
 });
 
-console.log("Server listening on port", port);
-
 serve({
   fetch: app.fetch,
   port,
 });
+
+console.log("Server listening on port", port);
