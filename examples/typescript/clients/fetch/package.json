@@ -1,18 +1,25 @@
 {
-  "name": "fetch-client-example",
+  "name": "@x402/axios-client-example",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx index.ts",
-    "dev:multi-network-signer": "tsx multi-network-signer.ts",
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts builder-pattern",
+    "dev:hooks": "tsx index.ts hooks",
+    "dev:mechanism-helper-registration": "tsx index.ts mechanism-helper-registration",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",
     "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
+    "@scure/base": "^1.2.6",
+    "@solana/kit": "^2.1.1",
+    "@x402/evm": "workspace:*",
+    "@x402/fetch": "workspace:*",
+    "@x402/svm": "workspace:*",
     "dotenv": "^16.4.7",
-    "x402-fetch": "workspace:*"
+    "viem": "^2.39.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
