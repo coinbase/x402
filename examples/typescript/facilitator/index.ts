@@ -2,17 +2,15 @@ import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Facilitator } from "@x402/core/facilitator";
 import {
-  Network,
   PaymentPayload,
   PaymentRequirements,
   SettleResponse,
-  VerifyResponse
+  VerifyResponse,
 } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
-import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
@@ -36,12 +34,15 @@ if (!process.env.SVM_PRIVATE_KEY) {
 }
 
 // Initialize the EVM account from private key
-const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const evmAccount = privateKeyToAccount(
+  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-
 // Initialize the EVM account from private key
-const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+const svmAccount = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+);
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
@@ -72,6 +73,7 @@ const evmSigner = toFacilitatorEvmSigner({
     primaryType: string;
     message: Record<string, unknown>;
     signature: `0x${string}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) => viemClient.verifyTypedData(args as any),
   writeContract: (args: {
     address: `0x${string}`;
@@ -90,25 +92,16 @@ const evmSigner = toFacilitatorEvmSigner({
 // Facilitator can now handle all Solana networks with automatic RPC creation
 const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
-const verifiedPayments = new Map<string, number>();
-
-function createPaymentHash(paymentPayload: PaymentPayload): string {
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(paymentPayload))
-    .digest("hex");
-}
-
 const facilitator = new x402Facilitator();
 
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
-  networks: "eip155:84532"  // Base Sepolia
+  networks: "eip155:84532", // Base Sepolia
 });
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
-  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  // Devnet
+  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
 });
 
 // Initialize Express app
@@ -118,12 +111,15 @@ app.use(express.json());
 /**
  * POST /verify
  * Verify a payment against requirements
- * 
+ *
  * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
  */
 app.post("/verify", async (req, res) => {
   try {
-    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
+    const { paymentPayload, paymentRequirements } = req.body as {
+      paymentPayload: PaymentPayload;
+      paymentRequirements: PaymentRequirements;
+    };
 
     if (!paymentPayload || !paymentRequirements) {
       return res.status(400).json({
@@ -151,7 +147,7 @@ app.post("/verify", async (req, res) => {
 /**
  * POST /settle
  * Settle a payment on-chain
- * 
+ *
  * Note: Verification validation and cleanup are handled by lifecycle hooks
  */
 app.post("/settle", async (req, res) => {
@@ -178,7 +174,10 @@ app.post("/settle", async (req, res) => {
     console.error("Settle error:", error);
 
     // Check if this was an abort from hook
-    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Settlement aborted:")
+    ) {
       // Return a proper SettleResponse instead of 500 error
       return res.json({
         success: false,

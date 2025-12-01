@@ -126,9 +126,9 @@ const paymentHeader = req.headers["x-payment"] as string | undefined;
 
 if (!paymentHeader) {
   // Return 402 with requirements
-  const requirementsHeader = Buffer.from(
-    JSON.stringify({ accepts: requirements }),
-  ).toString("base64");
+  const requirementsHeader = Buffer.from(JSON.stringify({ accepts: requirements })).toString(
+    "base64",
+  );
 
   res.status(402).set("X-PAYMENT", requirementsHeader).json({
     error: "Payment Required",
@@ -140,14 +140,9 @@ if (!paymentHeader) {
 ### 3. Verifying Payment
 
 ```typescript
-const paymentPayload = JSON.parse(
-  Buffer.from(paymentHeader, "base64").toString("utf-8"),
-);
+const paymentPayload = JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8"));
 
-const verifyResult = await resourceServer.verifyPayment(
-  paymentPayload,
-  requirements,
-);
+const verifyResult = await resourceServer.verifyPayment(paymentPayload, requirements);
 
 if (!verifyResult.isValid) {
   res.status(402).json({
@@ -163,14 +158,9 @@ if (!verifyResult.isValid) {
 ```typescript
 // After successful response
 if (res.statusCode >= 200 && res.statusCode < 300) {
-  const settleResult = await resourceServer.settlePayment(
-    paymentPayload,
-    requirements,
-  );
+  const settleResult = await resourceServer.settlePayment(paymentPayload, requirements);
 
-  const settlementHeader = Buffer.from(JSON.stringify(settleResult)).toString(
-    "base64",
-  );
+  const settlementHeader = Buffer.from(JSON.stringify(settleResult)).toString("base64");
 
   res.set("X-PAYMENT-RESPONSE", settlementHeader);
 }

@@ -39,7 +39,8 @@ switch (example) {
     break;
   default:
     console.error(`❌ Unknown example: ${example}`);
-    console.error("Available examples: bazaar, hooks, dynamic-price, dynamic-pay-to, custom-money-definition");
+    console.error(
+      "Available examples: bazaar, hooks, dynamic-price, dynamic-pay-to, custom-money-definition",
+    );
     process.exit(1);
 }
-

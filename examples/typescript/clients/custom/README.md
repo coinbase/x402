@@ -44,6 +44,7 @@ See `index.ts` for complete implementation of all steps.
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -52,6 +53,7 @@ cd clients/custom
 ```
 
 2. Copy `.env-example` to `.env` and add your Ethereum private key:
+
 ```bash
 cp .env-example .env
 ```
@@ -116,12 +118,10 @@ if (response.status === 402) {
 ### 2. Creating Payment Payload
 
 ```typescript
-const client = new x402Client()
-  .register("eip155:*", new ExactEvmScheme(signer));
+const client = new x402Client().register("eip155:*", new ExactEvmScheme(signer));
 
 const paymentPayload = await client.createPayment(requirements);
-const paymentHeader = Buffer.from(JSON.stringify(paymentPayload))
-  .toString("base64");
+const paymentHeader = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
 ```
 
 ### 3. Retrying with Payment
@@ -138,31 +138,31 @@ const response = await fetch(url, {
 
 ```typescript
 const settlementHeader = response.headers.get("X-PAYMENT-RESPONSE");
-const settlement = JSON.parse(
-  Buffer.from(settlementHeader, "base64").toString("utf-8")
-);
+const settlement = JSON.parse(Buffer.from(settlementHeader, "base64").toString("utf-8"));
 ```
 
 ## Comparison: Wrapper vs Custom
 
-| Aspect | With Wrapper (@x402/fetch) | Custom Implementation |
-|--------|---------------------------|----------------------|
-| Code Complexity | ~10 lines | ~100 lines |
-| Automatic Retry | ✅ Yes | ❌ Manual |
-| Error Handling | ✅ Built-in | ❌ You implement |
-| Header Management | ✅ Automatic | ❌ Manual |
-| Flexibility | Limited | ✅ Complete control |
-| Maintenance | x402 team | You maintain |
+| Aspect            | With Wrapper (@x402/fetch) | Custom Implementation |
+| ----------------- | -------------------------- | --------------------- |
+| Code Complexity   | ~10 lines                  | ~100 lines            |
+| Automatic Retry   | ✅ Yes                     | ❌ Manual             |
+| Error Handling    | ✅ Built-in                | ❌ You implement      |
+| Header Management | ✅ Automatic               | ❌ Manual             |
+| Flexibility       | Limited                    | ✅ Complete control   |
+| Maintenance       | x402 team                  | You maintain          |
 
 ## When to Use Each Approach
 
 **Use Wrappers (@x402/fetch, @x402/axios) when:**
+
 - Building standard applications
 - Want quick integration
 - Prefer automatic payment handling
 - Don't need custom flow control
 
 **Use Custom Implementation when:**
+
 - Need complete control over flow
 - Integrating with custom HTTP clients
 - Implementing custom retry/error logic
@@ -190,4 +190,3 @@ The pattern in `index.ts` can be adapted to any HTTP client library.
 
 - [x402 Core Package Documentation](../../../../typescript/packages/core/)
 - [Payment Protocol Specification](../../../../specs/x402-specification.md)
-
