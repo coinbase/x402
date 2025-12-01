@@ -101,13 +101,6 @@ export function paymentMiddleware(
       discoverable,
     } = config;
 
-<<<<<<< HEAD
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      throw new Error(atomicAmountForAsset.error);
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
     let resourceUrl = resource;
     if (!resourceUrl) {
       const forwardedProto = c.req.header("X-Forwarded-Proto");
@@ -124,83 +117,6 @@ export function paymentMiddleware(
       }
     }
 
-    let paymentRequirements: PaymentRequirements[] = [];
-
-    // TODO: create a shared middleware function to build payment requirements
-    // evm networks
-    if (SupportedEVMNetworks.includes(network)) {
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
-      });
-    }
-    // svm networks
-    else if (SupportedSVMNetworks.includes(network)) {
-      // network call to get the supported payments from the facilitator
-      const paymentKinds = await supported();
-
-      // find the payment kind that matches the network and scheme
-      let feePayer: string | undefined;
-      for (const kind of paymentKinds.kinds) {
-        if (kind.network === network && kind.scheme === "exact") {
-          feePayer = kind?.extra?.feePayer;
-          break;
-        }
-      }
-
-      // svm networks require a fee payer
-      if (!feePayer) {
-        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
-      }
-
-      // build the payment requirements for svm
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: {
-          feePayer,
-        },
-      });
-    } else {
-      throw new Error(`Unsupported network: ${network}`);
-    }
-=======
-    const resourceUrl: Resource = resource || (c.req.url as Resource);
     const paymentRequirements: PaymentRequirements[] = await buildPaymentRequirements({
       price,
       network,
@@ -211,6 +127,7 @@ export function paymentMiddleware(
       mimeType,
       maxTimeoutSeconds,
       inputSchema,
+      // TODO: Rename outputSchema to requestStructure
       outputSchema,
       discoverable,
       getSupportedKinds: supported,
@@ -218,7 +135,6 @@ export function paymentMiddleware(
       defaultSvmTimeoutSeconds: 60,
       defaultMimeType: "application/json",
     });
->>>>>>> 2875a3f (feat: shared middleware function to build payment requirements)
 
     const payment = c.req.header("X-PAYMENT");
     const userAgent = c.req.header("User-Agent") || "";

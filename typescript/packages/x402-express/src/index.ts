@@ -116,6 +116,7 @@ export function paymentMiddleware(
       mimeType,
       maxTimeoutSeconds,
       inputSchema,
+      // TODO: Rename outputSchema to requestStructure
       outputSchema,
       discoverable,
       getSupportedKinds: supported,

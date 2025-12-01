@@ -265,9 +265,6 @@ export async function buildPaymentRequirements(params: {
     outputSchema,
     discoverable,
     getSupportedKinds,
-    defaultEvmTimeoutSeconds = 60,
-    defaultSvmTimeoutSeconds = 60,
-    defaultMimeType = "",
   } = params;
 
   const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
@@ -276,6 +273,13 @@ export async function buildPaymentRequirements(params: {
   }
 
   const { maxAmountRequired, asset } = atomicAmountForAsset;
+
+  const isEvmNetwork = SupportedEVMNetworks.includes(network);
+  const networkDefaultTimeout = isEvmNetwork ? 300 : 60;
+  const finalTimeout =
+    typeof maxTimeoutSeconds === "number" ? maxTimeoutSeconds : networkDefaultTimeout;
+  const finalMimeType =
+    typeof mimeType === "string" ? mimeType : isEvmNetwork ? "application/json" : "";
 
   // EVM networks
   if (SupportedEVMNetworks.includes(network)) {
@@ -286,9 +290,9 @@ export async function buildPaymentRequirements(params: {
         maxAmountRequired,
         resource: resourceUrl,
         description: description ?? "",
-        mimeType: mimeType ?? defaultMimeType,
+        mimeType: finalMimeType,
         payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? defaultEvmTimeoutSeconds,
+        maxTimeoutSeconds: finalTimeout,
         asset: getAddress((asset as ERC20TokenAmount["asset"]).address),
         outputSchema: {
           input: {
@@ -333,9 +337,9 @@ export async function buildPaymentRequirements(params: {
         maxAmountRequired,
         resource: resourceUrl,
         description: description ?? "",
-        mimeType: mimeType ?? defaultMimeType,
+        mimeType: finalMimeType,
         payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? defaultSvmTimeoutSeconds,
+        maxTimeoutSeconds: finalTimeout,
         asset: (asset as { address: string }).address,
         outputSchema: {
           input: {

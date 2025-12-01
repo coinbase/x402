@@ -1,12 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { Address, getAddress } from "viem";
+import { Address } from "viem";
 import type { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
   findMatchingPaymentRequirements,
-  processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaymentRequirements as buildPaymentRequirementsShared,
 } from "x402/shared";
 import { getPaywallHtml } from "x402/paywall";
 import {
@@ -15,9 +15,6 @@ import {
   PaymentRequirements,
   Resource,
   PaywallConfig,
-  ERC20TokenAmount,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
   Network,
   Price,
   PaymentMiddlewareConfig,
@@ -51,86 +48,20 @@ export async function buildPaymentRequirements(
   const { description, mimeType, maxTimeoutSeconds, inputSchema, outputSchema, discoverable } =
     config;
 
-  const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-  if ("error" in atomicAmountForAsset) {
-    throw new Error(atomicAmountForAsset.error);
-  }
-  const { maxAmountRequired, asset } = atomicAmountForAsset;
-
-  const paymentRequirements: PaymentRequirements[] = [];
-
-  // evm networks
-  if (SupportedEVMNetworks.includes(network)) {
-    paymentRequirements.push({
-      scheme: "exact",
-      network,
-      maxAmountRequired,
-      resource: resourceUrl,
-      description: description ?? "",
-      mimeType: mimeType ?? "application/json",
-      payTo: getAddress(payTo),
-      maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-      asset: getAddress(asset.address),
-      outputSchema: {
-        input: {
-          type: "http",
-          method,
-          discoverable: discoverable ?? true,
-          ...inputSchema,
-        },
-        output: outputSchema,
-      },
-      extra: (asset as ERC20TokenAmount["asset"]).eip712,
-    });
-  }
-  // svm networks
-  else if (SupportedSVMNetworks.includes(network)) {
-    // network call to get the supported payments from the facilitator
-    const paymentKinds = await supported();
-
-    // find the payment kind that matches the network and scheme
-    let feePayer: string | undefined;
-    for (const kind of paymentKinds.kinds) {
-      if (kind.network === network && kind.scheme === "exact") {
-        feePayer = kind?.extra?.feePayer;
-        break;
-      }
-    }
-
-    // svm networks require a fee payer
-    if (!feePayer) {
-      throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
-    }
-
-    // build the payment requirements for svm
-    paymentRequirements.push({
-      scheme: "exact",
-      network,
-      maxAmountRequired,
-      resource: resourceUrl,
-      description: description ?? "",
-      mimeType: mimeType ?? "",
-      payTo: payTo,
-      maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-      asset: asset.address,
-      outputSchema: {
-        input: {
-          type: "http",
-          method,
-          discoverable: discoverable ?? true,
-          ...inputSchema,
-        },
-        output: outputSchema,
-      },
-      extra: {
-        feePayer,
-      },
-    });
-  } else {
-    throw new Error(`Unsupported network: ${network}`);
-  }
-
-  return paymentRequirements;
+  return await buildPaymentRequirementsShared({
+    price,
+    network,
+    method,
+    resourceUrl,
+    payTo: payTo as unknown as string,
+    description,
+    mimeType,
+    maxTimeoutSeconds,
+    inputSchema,
+    outputSchema,
+    discoverable,
+    getSupportedKinds: supported,
+  });
 }
 
 /**
