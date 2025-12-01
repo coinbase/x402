@@ -1,40 +1,64 @@
 import { config } from "dotenv";
-import { decodeXPaymentResponse, wrapFetchWithPayment, createSigner, type Hex } from "x402-fetch";
+import { wrapFetchWithPayment, x402HTTPClient } from "@x402/fetch";
+import { createBuilderPatternClient } from "./builder-pattern";
+import { createMechanismHelperClient } from "./mechanism-helper-registration";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex | string;
-const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
-const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
-const url = `${baseURL}${endpointPath}`; // e.g. https://example.com/weather
-
-if (!baseURL || !privateKey || !endpointPath) {
-  console.error("Missing required environment variables");
-  process.exit(1);
-}
+const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
+const svmPrivateKey = process.env.SVM_PRIVATE_KEY as `0x${string}`;
+const baseURL = "http://localhost:4021";
+const endpointPath = "/weather";
+const url = `${baseURL}${endpointPath}`;
 
 /**
- * This example shows how to use the x402-fetch package to make a request to a resource server that requires a payment.
+ * Main example runner for @x402/fetch package demonstrations.
+ *
+ * This example shows how to use the @x402/fetch package to make a request
+ * to a resource server that requires a payment. Different client creation
+ * patterns can be selected via CLI argument:
+ *
+ * - builder-pattern: Basic builder pattern with registerScheme
+ * - mechanism-helper-registration: Using helper functions for registration
  *
  * To run this example, you need to set the following environment variables:
- * - PRIVATE_KEY: The private key of the signer
- * - RESOURCE_SERVER_URL: The URL of the resource server
- * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
+ * - EVM_PRIVATE_KEY: The private key of the EVM signer
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
+ *
+ * Usage:
+ *   npm start builder-pattern
+ *   npm start mechanism-helper-registration
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
-  const fetchWithPayment = wrapFetchWithPayment(fetch, signer);
+  const pattern = process.argv[2] || "builder-pattern";
 
+  console.log(`\nRunning example: ${pattern}\n`);
+
+  let client;
+  switch (pattern) {
+    case "builder-pattern":
+      client = await createBuilderPatternClient(evmPrivateKey, svmPrivateKey);
+      break;
+    case "mechanism-helper-registration":
+      client = await createMechanismHelperClient(evmPrivateKey, svmPrivateKey);
+      break;
+    default:
+      console.error(`Unknown pattern: ${pattern}`);
+      console.error("Available patterns: builder-pattern, mechanism-helper-registration");
+      process.exit(1);
+  }
+
+  const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+  console.log(`Making request to: ${url}\n`);
   const response = await fetchWithPayment(url, { method: "GET" });
   const body = await response.json();
-  console.log(body);
+  console.log("Response body:", body);
 
-  const paymentResponseHeader = response.headers.get("x-payment-response");
-  if (paymentResponseHeader) {
-    const paymentResponse = decodeXPaymentResponse(paymentResponseHeader);
-    console.log(paymentResponse);
-  }
+  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(name =>
+    response.headers.get(name),
+  );
+  console.log("\nPayment response:", paymentResponse);
 }
 
 main().catch(error => {
