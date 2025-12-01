@@ -51,6 +51,3 @@ export const svmPaywall: PaywallNetworkHandler = {
     });
   },
 };
-
-// Also export components for custom UI builders
-export { SolanaPaywall } from "./SolanaPaywall";
