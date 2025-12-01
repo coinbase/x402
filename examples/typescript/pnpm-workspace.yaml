@@ -1,6 +1,7 @@
 packages:
   - "clients/*"
   - "servers/*"
+  - "fullstack/*"
   - "facilitator"
   - "legacy/facilitator"
   - "legacy/servers/*"

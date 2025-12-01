@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
-    "@svgr/webpack": "^8.1.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -36,7 +35,7 @@
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
     "eslint": "^9.24.0",
-    "eslint-config-next": "15.1.7",
+    "eslint-config-next": "16.0.6",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsdoc": "^50.6.9",
     "eslint-plugin-prettier": "^5.2.6",
