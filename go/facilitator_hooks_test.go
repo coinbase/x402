@@ -67,7 +67,7 @@ func TestFacilitatorAfterVerifyHook(t *testing.T) {
 			return &VerifyResponse{IsValid: true, Payer: "0xTestPayer"}, nil
 		},
 	}
-	facilitator.Register("eip155:8453", mockScheme)
+	facilitator.Register([]Network{"eip155:8453"}, mockScheme)
 
 	// Register hook to capture result
 	facilitator.OnAfterVerify(func(ctx FacilitatorVerifyResultContext) error {
@@ -113,7 +113,7 @@ func TestFacilitatorOnVerifyFailureHook_Recover(t *testing.T) {
 			return nil, NewVerifyError("verification_failed", "", Network(reqs.Network), errors.New("verification failed"))
 		},
 	}
-	facilitator.Register("eip155:8453", mockScheme)
+	facilitator.Register([]Network{"eip155:8453"}, mockScheme)
 
 	// Register hook that recovers from failure
 	facilitator.OnVerifyFailure(func(ctx FacilitatorVerifyFailureContext) (*FacilitatorVerifyFailureHookResult, error) {
@@ -199,7 +199,7 @@ func TestFacilitatorAfterSettleHook(t *testing.T) {
 			return &SettleResponse{Success: true, Transaction: "0xFacilitatorTx", Network: Network(reqs.Network), Payer: "0xPayer"}, nil
 		},
 	}
-	facilitator.Register("eip155:8453", mockScheme)
+	facilitator.Register([]Network{"eip155:8453"}, mockScheme)
 
 	// Register hook to capture settlement result
 	facilitator.OnAfterSettle(func(ctx FacilitatorSettleResultContext) error {
@@ -245,7 +245,7 @@ func TestFacilitatorOnSettleFailureHook_Recover(t *testing.T) {
 			return nil, NewSettleError("settlement_failed", "", Network(reqs.Network), "", errors.New("settlement failed"))
 		},
 	}
-	facilitator.Register("eip155:8453", mockScheme)
+	facilitator.Register([]Network{"eip155:8453"}, mockScheme)
 
 	// Register hook that recovers from failure
 	facilitator.OnSettleFailure(func(ctx FacilitatorSettleFailureContext) (*FacilitatorSettleFailureHookResult, error) {
@@ -299,7 +299,7 @@ func TestFacilitatorMultipleHooks_ExecutionOrder(t *testing.T) {
 			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.Register("eip155:8453", mockScheme)
+	facilitator.Register([]Network{"eip155:8453"}, mockScheme)
 
 	// Register multiple hooks in order
 	facilitator.OnBeforeVerify(func(ctx FacilitatorVerifyContext) (*FacilitatorBeforeHookResult, error) {

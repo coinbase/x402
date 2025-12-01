@@ -3,19 +3,28 @@ package x402
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/coinbase/x402/go/types"
 )
+
+// schemeData stores facilitator and its registered networks
+type schemeData struct {
+	facilitator interface{} // Either SchemeNetworkFacilitator or SchemeNetworkFacilitatorV1
+	networks    map[Network]bool
+	pattern     Network
+}
 
 // x402Facilitator manages payment verification and settlement
 // Supports both V1 and V2 for legacy interoperability
 type x402Facilitator struct {
 	mu sync.RWMutex
 
-	// Separate maps for V1 and V2 (V2 uses default name, no suffix)
-	schemesV1  map[Network]map[string]SchemeNetworkFacilitatorV1
-	schemes    map[Network]map[string]SchemeNetworkFacilitator // V2 (default)
+	// Separate arrays for V1 and V2 (V2 uses default name, no suffix)
+	// Arrays support multiple facilitators with same scheme name
+	schemesV1  []*schemeData
+	schemes    []*schemeData // V2 (default)
 	extensions []string
 
 	// Lifecycle hooks
@@ -29,34 +38,52 @@ type x402Facilitator struct {
 
 func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
-		schemesV1:  make(map[Network]map[string]SchemeNetworkFacilitatorV1),
-		schemes:    make(map[Network]map[string]SchemeNetworkFacilitator),
+		schemesV1:  []*schemeData{},
+		schemes:    []*schemeData{},
 		extensions: []string{},
 	}
 }
 
-// RegisterV1 registers a V1 facilitator mechanism (legacy)
-func (f *x402Facilitator) RegisterV1(network Network, facilitator SchemeNetworkFacilitatorV1) *x402Facilitator {
+// RegisterV1 registers a V1 facilitator mechanism for multiple networks (legacy)
+// Networks are stored and used for GetSupported() - no need to specify them later.
+func (f *x402Facilitator) RegisterV1(networks []Network, facilitator SchemeNetworkFacilitatorV1) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.schemesV1[network] == nil {
-		f.schemesV1[network] = make(map[string]SchemeNetworkFacilitatorV1)
+	// Create network set
+	networkSet := make(map[Network]bool)
+	for _, network := range networks {
+		networkSet[network] = true
 	}
-	f.schemesV1[network][facilitator.Scheme()] = facilitator
+
+	// Append to array (supports multiple facilitators with same scheme name)
+	f.schemesV1 = append(f.schemesV1, &schemeData{
+		facilitator: facilitator,
+		networks:    networkSet,
+		pattern:     derivePattern(networks),
+	})
 
 	return f
 }
 
-// Register registers a facilitator mechanism (V2, default)
-func (f *x402Facilitator) Register(network Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
+// Register registers a facilitator mechanism for multiple networks (V2, default)
+// Networks are stored and used for GetSupported() - no need to specify them later.
+func (f *x402Facilitator) Register(networks []Network, facilitator SchemeNetworkFacilitator) *x402Facilitator {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.schemes[network] == nil {
-		f.schemes[network] = make(map[string]SchemeNetworkFacilitator)
+	// Create network set
+	networkSet := make(map[Network]bool)
+	for _, network := range networks {
+		networkSet[network] = true
 	}
-	f.schemes[network][facilitator.Scheme()] = facilitator
+
+	// Append to array (supports multiple facilitators with same scheme name)
+	f.schemes = append(f.schemes, &schemeData{
+		facilitator: facilitator,
+		networks:    networkSet,
+		pattern:     derivePattern(networks),
+	})
 
 	return f
 }
@@ -393,18 +420,20 @@ func (f *x402Facilitator) verifyV1(ctx context.Context, payload types.PaymentPay
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
 
-	// Use helper for wildcard matching
-	schemes := findSchemesByNetwork(f.schemesV1, network)
-	if schemes == nil {
-		return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for network %s", network))
+	// Find matching facilitator from array
+	for _, data := range f.schemesV1 {
+		facilitator := data.facilitator.(SchemeNetworkFacilitatorV1)
+		if facilitator.Scheme() != scheme {
+			continue
+		}
+
+		// Check if network matches (exact or pattern)
+		if matchesSchemeData(data, network) {
+			return facilitator.Verify(ctx, payload, requirements)
+		}
 	}
 
-	facilitator := schemes[scheme]
-	if facilitator == nil {
-		return nil, NewVerifyError("no_facilitator_for_scheme", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
-	}
-
-	return facilitator.Verify(ctx, payload, requirements)
+	return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // verifyV2 verifies a V2 payment (internal, typed)
@@ -415,18 +444,20 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
 
-	// Use helper for wildcard matching
-	schemes := findSchemesByNetwork(f.schemes, network)
-	if schemes == nil {
-		return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for network %s", network))
+	// Find matching facilitator from array
+	for _, data := range f.schemes {
+		facilitator := data.facilitator.(SchemeNetworkFacilitator)
+		if facilitator.Scheme() != scheme {
+			continue
+		}
+
+		// Check if network matches (exact or pattern)
+		if matchesSchemeData(data, network) {
+			return facilitator.Verify(ctx, payload, requirements)
+		}
 	}
 
-	facilitator := schemes[scheme]
-	if facilitator == nil {
-		return nil, NewVerifyError("no_facilitator_for_scheme", "", network, fmt.Errorf("no facilitator for %s on %s", scheme, network))
-	}
-
-	return facilitator.Verify(ctx, payload, requirements)
+	return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // settleV1 settles a V1 payment (internal, typed)
@@ -437,18 +468,20 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
 
-	// Use helper for wildcard matching
-	schemes := findSchemesByNetwork(f.schemesV1, network)
-	if schemes == nil {
-		return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for network %s", network))
+	// Find matching facilitator from array
+	for _, data := range f.schemesV1 {
+		facilitator := data.facilitator.(SchemeNetworkFacilitatorV1)
+		if facilitator.Scheme() != scheme {
+			continue
+		}
+
+		// Check if network matches (exact or pattern)
+		if matchesSchemeData(data, network) {
+			return facilitator.Settle(ctx, payload, requirements)
+		}
 	}
 
-	facilitator := schemes[scheme]
-	if facilitator == nil {
-		return nil, NewSettleError("no_facilitator_for_scheme", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
-	}
-
-	return facilitator.Settle(ctx, payload, requirements)
+	return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // settleV2 settles a V2 payment (internal, typed)
@@ -459,87 +492,84 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 	scheme := requirements.Scheme
 	network := Network(requirements.Network)
 
-	// Use helper for wildcard matching
-	schemes := findSchemesByNetwork(f.schemes, network)
-	if schemes == nil {
-		return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for network %s", network))
+	// Find matching facilitator from array
+	for _, data := range f.schemes {
+		facilitator := data.facilitator.(SchemeNetworkFacilitator)
+		if facilitator.Scheme() != scheme {
+			continue
+		}
+
+		// Check if network matches (exact or pattern)
+		if matchesSchemeData(data, network) {
+			return facilitator.Settle(ctx, payload, requirements)
+		}
 	}
 
-	facilitator := schemes[scheme]
-	if facilitator == nil {
-		return nil, NewSettleError("no_facilitator_for_scheme", "", network, "", fmt.Errorf("no facilitator for %s on %s", scheme, network))
-	}
-
-	return facilitator.Settle(ctx, payload, requirements)
+	return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
-// GetSupported returns supported payment kinds for the specified concrete networks in V2 format
-// It expands wildcard registrations (e.g., "eip155:*") into concrete networks
+// GetSupported returns supported payment kinds in V2 format
+// Uses networks registered during Register() calls - no parameters needed.
 // Groups kinds by version and collects signer information by CAIP family
-//
-// Args:
-//
-//	networks: List of concrete network identifiers to include in the response
 //
 // Returns:
 //
 //	SupportedResponse with kinds grouped by version, extensions, and signers
-func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
+func (f *x402Facilitator) GetSupported() SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	kindsByVersion := make(map[string][]SupportedKind)
 	signersByFamily := make(map[string]map[string]bool) // family → set of signers
 
-	// For each concrete network, find matching registered patterns
-	for _, concreteNetwork := range networks {
-		// Check V1 schemes
-		for registeredPattern, schemeMap := range f.schemesV1 {
-			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
-				for scheme, facilitator := range schemeMap {
-					kind := SupportedKind{
-						Scheme:  scheme,
-						Network: string(concreteNetwork),
-					}
-					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
-						kind.Extra = extra
-					}
-					kindsByVersion["1"] = append(kindsByVersion["1"], kind)
+	// V1 schemes
+	for _, data := range f.schemesV1 {
+		facilitator := data.facilitator.(SchemeNetworkFacilitatorV1)
+		scheme := facilitator.Scheme()
+		
+		for network := range data.networks {
+			kind := SupportedKind{
+				Scheme:  scheme,
+				Network: string(network),
+			}
+			if extra := facilitator.GetExtra(network); extra != nil {
+				kind.Extra = extra
+			}
+			kindsByVersion["1"] = append(kindsByVersion["1"], kind)
 
-					// Collect signers by CAIP family
-					family := facilitator.CaipFamily()
-					if signersByFamily[family] == nil {
-						signersByFamily[family] = make(map[string]bool)
-					}
-					for _, signer := range facilitator.GetSigners() {
-						signersByFamily[family][signer] = true
-					}
-				}
+			// Collect signers by CAIP family
+			family := facilitator.CaipFamily()
+			if signersByFamily[family] == nil {
+				signersByFamily[family] = make(map[string]bool)
+			}
+			for _, signer := range facilitator.GetSigners() {
+				signersByFamily[family][signer] = true
 			}
 		}
+	}
 
-		// Check V2 schemes
-		for registeredPattern, schemeMap := range f.schemes {
-			if matchesNetworkPattern(string(concreteNetwork), string(registeredPattern)) {
-				for scheme, facilitator := range schemeMap {
-					kind := SupportedKind{
-						Scheme:  scheme,
-						Network: string(concreteNetwork),
-					}
-					if extra := facilitator.GetExtra(concreteNetwork); extra != nil {
-						kind.Extra = extra
-					}
-					kindsByVersion["2"] = append(kindsByVersion["2"], kind)
+	// V2 schemes
+	for _, data := range f.schemes {
+		facilitator := data.facilitator.(SchemeNetworkFacilitator)
+		scheme := facilitator.Scheme()
+		
+		for network := range data.networks {
+			kind := SupportedKind{
+				Scheme:  scheme,
+				Network: string(network),
+			}
+			if extra := facilitator.GetExtra(network); extra != nil {
+				kind.Extra = extra
+			}
+			kindsByVersion["2"] = append(kindsByVersion["2"], kind)
 
-					// Collect signers by CAIP family
-					family := facilitator.CaipFamily()
-					if signersByFamily[family] == nil {
-						signersByFamily[family] = make(map[string]bool)
-					}
-					for _, signer := range facilitator.GetSigners() {
-						signersByFamily[family][signer] = true
-					}
-				}
+			// Collect signers by CAIP family
+			family := facilitator.CaipFamily()
+			if signersByFamily[family] == nil {
+				signersByFamily[family] = make(map[string]bool)
+			}
+			for _, signer := range facilitator.GetSigners() {
+				signersByFamily[family][signer] = true
 			}
 		}
 	}
@@ -559,6 +589,49 @@ func (f *x402Facilitator) GetSupported(networks []Network) SupportedResponse {
 		Extensions: f.extensions,
 		Signers:    signers,
 	}
+}
+
+// derivePattern creates a wildcard pattern from an array of networks
+// If all networks share the same namespace, returns wildcard pattern
+// Otherwise returns the first network for exact matching
+func derivePattern(networks []Network) Network {
+	if len(networks) == 0 {
+		return ""
+	}
+	if len(networks) == 1 {
+		return networks[0]
+	}
+
+	// Extract namespaces (e.g., "eip155" from "eip155:84532")
+	namespaces := make(map[string]bool)
+	for _, network := range networks {
+		parts := strings.Split(string(network), ":")
+		if len(parts) == 2 {
+			namespaces[parts[0]] = true
+		}
+	}
+
+	// If all same namespace, use wildcard
+	if len(namespaces) == 1 {
+		for namespace := range namespaces {
+			return Network(namespace + ":*")
+		}
+	}
+
+	// Mixed namespaces - use first network for exact matching
+	return networks[0]
+}
+
+// matchesSchemeData checks if a network matches the scheme data
+// Returns true if network is in registered networks or matches the pattern
+func matchesSchemeData(data *schemeData, network Network) bool {
+	// Check exact match first
+	if data.networks[network] {
+		return true
+	}
+
+	// Try pattern matching
+	return matchesNetworkPattern(string(network), string(data.pattern))
 }
 
 // matchesNetworkPattern checks if a concrete network matches a registered pattern

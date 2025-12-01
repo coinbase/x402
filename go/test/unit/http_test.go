@@ -76,7 +76,7 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 
 		// Setup facilitator with cash scheme
 		facilitator := x402.Newx402Facilitator()
-		facilitator.Register("x402:cash", cash.NewSchemeNetworkFacilitator())
+		facilitator.Register([]x402.Network{"x402:cash"}, cash.NewSchemeNetworkFacilitator())
 
 		// Create facilitator client wrapper
 		facilitatorClient := cash.NewFacilitatorClient(facilitator)

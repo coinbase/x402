@@ -110,10 +110,10 @@ func TestFacilitatorRegister(t *testing.T) {
 	mockFacilitatorV1 := &mockSchemeNetworkFacilitatorV1{scheme: "exact"}
 
 	// Test V2 registration (default)
-	facilitator.Register("eip155:1", mockFacilitatorV2)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitatorV2)
 
-	// Verify using GetSupported with concrete network
-	supported := facilitator.GetSupported([]Network{"eip155:1"})
+	// Verify using GetSupported (no params needed - uses registered networks)
+	supported := facilitator.GetSupported()
 	v2Kinds, hasV2 := supported.Kinds["2"]
 	if !hasV2 {
 		t.Fatal("Expected V2 kinds to be present")
@@ -126,8 +126,8 @@ func TestFacilitatorRegister(t *testing.T) {
 	}
 
 	// Test V1 registration
-	facilitator.RegisterV1("eip155:1", mockFacilitatorV1)
-	supported = facilitator.GetSupported([]Network{"eip155:1"})
+	facilitator.RegisterV1([]Network{"eip155:1"}, mockFacilitatorV1)
+	supported = facilitator.GetSupported()
 	v1Kinds, hasV1 := supported.Kinds["1"]
 	if !hasV1 {
 		t.Fatal("Expected V1 kinds to be present")
@@ -175,7 +175,7 @@ func TestFacilitatorVerify(t *testing.T) {
 
 	// Simple mock that always succeeds
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -216,7 +216,7 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 	ctx := context.Background()
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -283,7 +283,7 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -341,7 +341,7 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 			return &VerifyResponse{IsValid: true, Payer: "0xpayer"}, nil
 		},
 	}
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -401,7 +401,7 @@ func TestFacilitatorSettle(t *testing.T) {
 		},
 	}
 
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -454,7 +454,7 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 		},
 	}
 
-	facilitator.Register("eip155:1", mockFacilitator)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -497,12 +497,12 @@ func TestFacilitatorGetSupported(t *testing.T) {
 	mockFacilitatorV2_2 := &mockSchemeNetworkFacilitator{scheme: "transfer"}
 	mockFacilitatorV1_1 := &mockSchemeNetworkFacilitatorV1{scheme: "exact"}
 
-	facilitator.Register("eip155:1", mockFacilitatorV2_1)
-	facilitator.Register("eip155:8453", mockFacilitatorV2_2)
-	facilitator.RegisterV1("eip155:1", mockFacilitatorV1_1)
+	facilitator.Register([]Network{"eip155:1"}, mockFacilitatorV2_1)
+	facilitator.Register([]Network{"eip155:8453"}, mockFacilitatorV2_2)
+	facilitator.RegisterV1([]Network{"eip155:1"}, mockFacilitatorV1_1)
 	facilitator.RegisterExtension("bazaar")
 
-	supported := facilitator.GetSupported([]Network{"eip155:1", "eip155:8453"})
+	supported := facilitator.GetSupported()
 
 	// Count total kinds across all versions
 	totalKinds := 0
@@ -560,8 +560,8 @@ func TestFacilitatorNetworkPatternMatching(t *testing.T) {
 	facilitator := Newx402Facilitator()
 	mockFacilitator := &mockSchemeNetworkFacilitator{scheme: "exact"}
 
-	// Register with wildcard
-	facilitator.Register("eip155:*", mockFacilitator)
+	// Register with multiple networks (will auto-derive eip155:* pattern)
+	facilitator.Register([]Network{"eip155:1", "eip155:8453"}, mockFacilitator)
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",

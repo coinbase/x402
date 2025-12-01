@@ -220,11 +220,8 @@ func (l *localEvmFacilitatorClient) Settle(
 }
 
 func (l *localEvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	// Pass concrete networks to expand wildcard registrations
-	return l.facilitator.GetSupported([]x402.Network{
-		"eip155:84532", // Base Sepolia
-		"base-sepolia", // V1 format
-	}), nil
+	// Networks already registered - no parameters needed
+	return l.facilitator.GetSupported(), nil
 }
 
 // TestEVMIntegrationV2 tests the full V2 EVM payment flow with real on-chain transactions
@@ -263,7 +260,7 @@ func TestEVMIntegrationV2(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner)
 		// Register for Base Sepolia
-		facilitator.Register("eip155:84532", evmFacilitator)
+		facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitator)
 
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}
@@ -427,7 +424,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		evmFacilitatorV1 := evmv1facilitator.NewExactEvmSchemeV1(facilitatorSigner)
 		// Register for Base Sepolia using V1 registration
-		facilitator.RegisterV1("eip155:84532", evmFacilitatorV1)
+		facilitator.RegisterV1([]x402.Network{"eip155:84532"}, evmFacilitatorV1)
 
 		// Create facilitator client wrapper
 		facilitatorClient := &localEvmFacilitatorClient{facilitator: facilitator}

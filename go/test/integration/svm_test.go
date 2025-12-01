@@ -202,12 +202,9 @@ func (l *localSvmFacilitatorClient) Settle(
 }
 
 func (l *localSvmFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	// Pass concrete networks to expand wildcard registrations
+	// Networks already registered - no parameters needed
 	// GetExtra() on the SVM facilitator will automatically add feePayer
-	return l.facilitator.GetSupported([]x402.Network{
-		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
-		"solana-devnet", // V1 format
-	}), nil
+	return l.facilitator.GetSupported(), nil
 }
 
 // TestSVMIntegrationV2 tests the full V2 SVM payment flow with real on-chain transactions
@@ -249,7 +246,7 @@ func TestSVMIntegrationV2(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		svmFacilitator := svmfacilitator.NewExactSvmScheme(facilitatorSigner)
 		// Register for Solana Devnet
-		facilitator.Register(svm.SolanaDevnetCAIP2, svmFacilitator)
+		facilitator.Register([]x402.Network{svm.SolanaDevnetCAIP2}, svmFacilitator)
 
 		// Create facilitator client wrapper (adds feePayer via GetSupported override)
 		facilitatorClient := &localSvmFacilitatorClient{
@@ -424,7 +421,7 @@ func TestSVMIntegrationV1(t *testing.T) {
 		facilitator := x402.Newx402Facilitator()
 		svmFacilitator := svmv1facilitator.NewExactSvmSchemeV1(facilitatorSigner)
 		// Register for Solana Devnet
-		facilitator.RegisterV1(svm.SolanaDevnetV1, svmFacilitator)
+		facilitator.RegisterV1([]x402.Network{svm.SolanaDevnetV1}, svmFacilitator)
 
 		// Create facilitator client wrapper (adds feePayer via GetSupported override)
 		facilitatorClient := &localSvmFacilitatorClient{
