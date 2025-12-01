@@ -1,37 +1,94 @@
-import { Address } from "viem";
-import { paymentMiddleware, Network, Resource } from "x402-next";
-import { facilitator } from "@coinbase/x402";
+import { paymentMiddleware } from "@x402/next";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
-const useCdpFacilitator = process.env.USE_CDP_FACILITATOR === 'true';
-const payTo = process.env.EVM_ADDRESS as Address;
-const network = process.env.EVM_NETWORK as Network;
+const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
+const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+const EVM_NETWORK = "eip155:84532" as const;
+const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`;
+const facilitatorUrl = process.env.FACILITATOR_URL;
 
-// Configure facilitator
-const facilitatorConfig = useCdpFacilitator
-  ? facilitator
-  : undefined;
+if (!facilitatorUrl) {
+  console.error("❌ FACILITATOR_URL environment variable is required");
+  process.exit(1);
+}
+
+// Create HTTP facilitator client
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+
+// Create x402 resource server with builder pattern (cleaner!)
+const server = new x402ResourceServer(facilitatorClient);
+
+// Register server schemes
+registerExactEvmScheme(server);
+registerExactSvmScheme(server);
+
+// Register Bazaar discovery extension
+server.registerExtension(bazaarResourceServerExtension);
+
+console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 export const middleware = paymentMiddleware(
-  payTo,
   {
     "/api/protected": {
-      price: "$0.001",
-      network,
-      config: {
-        description: "Protected API endpoint",
+      accepts: {
+        payTo: EVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        price: "$0.001",
+        network: EVM_NETWORK,
+      },
+      extensions: {
+        ...declareDiscoveryExtension({
+          output: {
+            example: {
+              message: "Protected endpoint accessed successfully",
+              timestamp: "2024-01-01T00:00:00Z",
+            },
+            schema: {
+              properties: {
+                message: { type: "string" },
+                timestamp: { type: "string" },
+              },
+              required: ["message", "timestamp"],
+            },
+          },
+        }),
+      },
+    },
+    "/api/protected-svm": {
+      accepts: {
+        payTo: SVM_PAYEE_ADDRESS,
+        scheme: "exact",
+        price: "$0.001",
+        network: SVM_NETWORK,
+      },
+      extensions: {
+        ...declareDiscoveryExtension({
+          output: {
+            example: {
+              message: "Protected endpoint accessed successfully",
+              timestamp: "2024-01-01T00:00:00Z",
+            },
+            schema: {
+              properties: {
+                message: { type: "string" },
+                timestamp: { type: "string" },
+              },
+              required: ["message", "timestamp"],
+            },
+          },
+        }),
       },
     },
   },
-  facilitatorConfig,
-  {
-    appName: "Next x402 E2E Test",
-    appLogo: "/x402-icon-blue.png",
-  },
+  server, // Pass pre-configured server instance
 );
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: ["/api/protected"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
+  matcher: ["/api/protected", "/api/protected-svm"],
+  runtime: "nodejs", // TEMPORARY: Only needed until Edge runtime support is added
 };
 
