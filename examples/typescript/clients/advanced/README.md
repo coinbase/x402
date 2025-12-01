@@ -5,6 +5,7 @@ This directory contains advanced, production-ready patterns for x402 TypeScript 
 ## What This Shows
 
 Advanced patterns for production environments:
+
 - **Payment Lifecycle Hooks**: Custom logic at different payment stages
 
 ## Examples
@@ -18,12 +19,14 @@ npm start hooks
 ```
 
 **Demonstrates:**
+
 - onBeforePaymentCreation: Custom validation before payment
 - onAfterPaymentCreation: Logging and metrics after payment
 - onPaymentCreationFailure: Error recovery strategies
 - Payment event lifecycle management
 
 **Use When:**
+
 - Need to log payment events for debugging/monitoring
 - Want custom validation before allowing payments
 - Require error recovery from payment failures
@@ -40,6 +43,7 @@ npm start hooks
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -48,6 +52,7 @@ cd clients/advanced
 ```
 
 2. Copy `.env-example` to `.env` and add your Ethereum private key:
+
 ```bash
 cp .env-example .env
 ```
@@ -76,17 +81,17 @@ const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
 
 const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(signer))
-  .onBeforePaymentCreation(async (context) => {
+  .onBeforePaymentCreation(async context => {
     // Custom validation logic
     console.log("Creating payment for:", context.selectedRequirements);
     // Optionally abort: return { abort: true, reason: "Not allowed" };
   })
-  .onAfterPaymentCreation(async (context) => {
+  .onAfterPaymentCreation(async context => {
     // Log successful payment creation
     console.log("Payment created:", context.version);
     // Send to analytics, database, etc.
   })
-  .onPaymentCreationFailure(async (context) => {
+  .onPaymentCreationFailure(async context => {
     // Handle failures
     console.error("Payment failed:", context.error);
     // Optionally recover with alternative method
@@ -107,9 +112,9 @@ const client = new x402Client()
 Implement intelligent error handling in failure hooks:
 
 ```typescript
-client.onPaymentCreationFailure(async (context) => {
+client.onPaymentCreationFailure(async context => {
   const errorType = classifyError(context.error);
-  
+
   switch (errorType) {
     case "network":
       // Retry logic handled by client
@@ -131,12 +136,14 @@ client.onPaymentCreationFailure(async (context) => {
 ## Testing Against Local Server
 
 1. Start server:
+
 ```bash
 cd ../../servers/express
 pnpm dev
 ```
 
 2. Run advanced examples:
+
 ```bash
 cd ../../clients/advanced
 pnpm dev:hooks
@@ -144,12 +151,12 @@ pnpm dev:hooks
 
 ## Comparison: Basic vs Advanced
 
-| Feature | Basic Client | Advanced Client |
-|---------|-------------|-----------------|
-| Payment Hooks | None | ✅ Lifecycle event handling |
-| Observability | Minimal | ✅ Comprehensive logging |
-| Error Recovery | Basic | ✅ Intelligent strategies |
-| Production Ready | Basic | ✅ Battle-tested patterns |
+| Feature          | Basic Client | Advanced Client             |
+| ---------------- | ------------ | --------------------------- |
+| Payment Hooks    | None         | ✅ Lifecycle event handling |
+| Observability    | Minimal      | ✅ Comprehensive logging    |
+| Error Recovery   | Basic        | ✅ Intelligent strategies   |
+| Production Ready | Basic        | ✅ Battle-tested patterns   |
 
 ## Next Steps
 
@@ -163,4 +170,3 @@ pnpm dev:hooks
 - [x402 Core Package Documentation](../../../../typescript/packages/core/)
 - [x402 Fetch Package Documentation](../../../../typescript/packages/x402-fetch/)
 - [Production Deployment Guide](../../../../docs/production.md)
-

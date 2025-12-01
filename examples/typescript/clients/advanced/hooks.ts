@@ -16,11 +16,11 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
  * - Custom validation before allowing payments
  * - Error recovery strategies
  * - Metrics and analytics collection
+ *
+ * @param evmPrivateKey - The EVM private key for signing
+ * @param url - The URL to make the request to
  */
-export async function runHooksExample(
-  evmPrivateKey: `0x${string}`,
-  url: string,
-): Promise<void> {
+export async function runHooksExample(evmPrivateKey: `0x${string}`, url: string): Promise<void> {
   console.log("🔧 Creating client with payment lifecycle hooks...\n");
 
   const evmSigner = privateKeyToAccount(evmPrivateKey);
@@ -71,4 +71,3 @@ export async function runHooksExample(
     console.log("\n💰 Payment Details:", paymentResponse);
   }
 }
-
