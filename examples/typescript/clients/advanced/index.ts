@@ -47,4 +47,3 @@ main().catch(error => {
   console.error(error?.response?.data?.error ?? error);
   process.exit(1);
 });
-

@@ -31,6 +31,12 @@ const baseURL = process.env.SERVER_URL || "http://localhost:4021";
 const endpointPath = "/weather";
 const url = `${baseURL}${endpointPath}`;
 
+/**
+ * Makes a request with manual payment handling
+ *
+ * @param client - The x402 client instance
+ * @param url - The URL to make the request to
+ */
 async function makeRequestWithPayment(client: x402Client, url: string): Promise<void> {
   console.log(`\n🌐 Making initial request to: ${url}\n`);
 
@@ -61,7 +67,9 @@ async function makeRequestWithPayment(client: x402Client, url: string): Promise<
 
     console.log("📋 Payment requirements:");
     requirements.forEach((req, i) => {
-      console.log(`   ${i + 1}. Network: ${req.network}, Scheme: ${req.scheme}, Price: ${req.price}`);
+      console.log(
+        `   ${i + 1}. Network: ${req.network}, Scheme: ${req.scheme}, Price: ${req.price}`,
+      );
     });
     console.log();
 
@@ -96,9 +104,7 @@ async function makeRequestWithPayment(client: x402Client, url: string): Promise<
     // Extract settlement information from response headers
     const settlementHeader = response.headers.get("X-PAYMENT-RESPONSE");
     if (settlementHeader) {
-      const settlement = JSON.parse(
-        Buffer.from(settlementHeader, "base64").toString("utf-8"),
-      );
+      const settlement = JSON.parse(Buffer.from(settlementHeader, "base64").toString("utf-8"));
       console.log("\n💰 Payment Settlement Details:");
       console.log(`   Transaction: ${settlement.transaction}`);
       console.log(`   Network: ${settlement.network}`);
@@ -109,6 +115,9 @@ async function makeRequestWithPayment(client: x402Client, url: string): Promise<
   }
 }
 
+/**
+ * Main entry point
+ */
 async function main(): Promise<void> {
   console.log("\n🔧 Custom x402 Client Implementation Example\n");
   console.log("This example demonstrates manual payment handling without wrappers.\n");
@@ -142,4 +151,3 @@ main().catch(error => {
   console.error("\n❌ Error:", error.message);
   process.exit(1);
 });
-

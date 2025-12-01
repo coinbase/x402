@@ -13,18 +13,15 @@ if (!payTo || payTo === "0x0000000000000000000000000000000000000000") {
   );
 }
 
-export const middleware = paymentMiddleware(
-  payTo,
-  {
-    "/api/protected": {
-      price: "$0.01",
-      network,
-      config: {
-        description: "Protected route",
-      },
+export const middleware = paymentMiddleware(payTo, {
+  "/api/protected": {
+    price: "$0.01",
+    network,
+    config: {
+      description: "Protected route",
     },
   },
-);
+});
 
 // Configure which paths the middleware should run on
 export const config = {

@@ -40,9 +40,7 @@ if (!facilitatorUrl) {
 }
 
 console.log("\n🔧 Custom x402 Server Implementation");
-console.log(
-  "This example demonstrates manual payment handling without middleware.\n",
-);
+console.log("This example demonstrates manual payment handling without middleware.\n");
 console.log(`✅ Payment address: ${evmAddress}`);
 console.log(`✅ Facilitator: ${facilitatorUrl}\n`);
 
@@ -67,12 +65,17 @@ const routeRequirements: Record<string, PaymentRequirements> = {
 
 /**
  * Custom payment middleware implementation
+ *
+ * @param req - Express request object
+ * @param res - Express response object
+ * @param next - Express next function
+ * @returns Promise that resolves when middleware completes
  */
 async function customPaymentMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
-) {
+): Promise<void> {
   const routeKey = `${req.method} ${req.path}`;
   const requirements = routeRequirements[routeKey];
 
@@ -111,18 +114,11 @@ async function customPaymentMiddleware(
     // Step 3: Verify payment
     console.log("🔐 Payment provided, verifying with facilitator...");
 
-    const paymentPayload = JSON.parse(
-      Buffer.from(paymentHeader, "base64").toString("utf-8"),
-    );
-    const verifyResult = await resourceServer.verifyPayment(
-      paymentPayload,
-      requirements,
-    );
+    const paymentPayload = JSON.parse(Buffer.from(paymentHeader, "base64").toString("utf-8"));
+    const verifyResult = await resourceServer.verifyPayment(paymentPayload, requirements);
 
     if (!verifyResult.isValid) {
-      console.log(
-        `❌ Payment verification failed: ${verifyResult.invalidReason}`,
-      );
+      console.log(`❌ Payment verification failed: ${verifyResult.invalidReason}`);
       res.status(402).json({
         error: "Invalid Payment",
         reason: verifyResult.invalidReason,
@@ -137,41 +133,33 @@ async function customPaymentMiddleware(
     const originalSend = res.send.bind(res);
 
     // Step 4: Intercept response to add settlement
-    const settleAndRespond = async (data: any) => {
-      // Only settle on successful responses (2xx)
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        console.log("💰 Settling payment on-chain...");
+    const settleAndRespond = async (): Promise<void> => {
+      console.log("💰 Settling payment on-chain...");
 
-        try {
-          const settleResult = await resourceServer.settlePayment(
-            paymentPayload,
-            requirements,
-          );
+      try {
+        const settleResult = await resourceServer.settlePayment(paymentPayload, requirements);
 
-          console.log(`✅ Payment settled: ${settleResult.transaction}`);
+        console.log(`✅ Payment settled: ${settleResult.transaction}`);
 
-          // Step 5: Add settlement headers
-          const settlementHeader = Buffer.from(
-            JSON.stringify(settleResult),
-          ).toString("base64");
-          res.set("X-PAYMENT-RESPONSE", settlementHeader);
-        } catch (error) {
-          console.error(`❌ Settlement failed: ${error}`);
-          // Continue with response even if settlement fails
-        }
+        // Step 5: Add settlement headers
+        const settlementHeader = Buffer.from(JSON.stringify(settleResult)).toString("base64");
+        res.set("X-PAYMENT-RESPONSE", settlementHeader);
+      } catch (error) {
+        console.error(`❌ Settlement failed: ${error}`);
+        // Continue with response even if settlement fails
       }
-
-      return data;
     };
 
     // Override response methods to add settlement
-    res.json = function (data: any) {
-      return settleAndRespond(data).then(() => originalJson(data));
-    } as any;
+    res.json = function (this: Response, body: unknown): Response {
+      void settleAndRespond().then(() => originalJson(body));
+      return this;
+    };
 
-    res.send = function (data: any) {
-      return settleAndRespond(data).then(() => originalSend(data));
-    } as any;
+    res.send = function (this: Response, body?: unknown): Response {
+      void settleAndRespond().then(() => originalSend(body));
+      return this;
+    };
 
     // Continue to handler
     next();
@@ -196,13 +184,12 @@ app.get("/weather", (req, res) => {
 
   const city = (req.query.city as string) || "San Francisco";
 
-  const weatherData: Record<string, { weather: string; temperature: number }> =
-    {
-      "San Francisco": { weather: "foggy", temperature: 60 },
-      "New York": { weather: "cloudy", temperature: 55 },
-      London: { weather: "rainy", temperature: 50 },
-      Tokyo: { weather: "clear", temperature: 65 },
-    };
+  const weatherData: Record<string, { weather: string; temperature: number }> = {
+    "San Francisco": { weather: "foggy", temperature: 60 },
+    "New York": { weather: "cloudy", temperature: 55 },
+    London: { weather: "rainy", temperature: 50 },
+    Tokyo: { weather: "clear", temperature: 65 },
+  };
 
   const data = weatherData[city] || { weather: "sunny", temperature: 70 };
 
