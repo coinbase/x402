@@ -7,6 +7,7 @@ This directory contains advanced examples demonstrating various x402 features an
 ### 1. Bazaar Discovery Extension (`bazaar`)
 
 **What it demonstrates:**
+
 - Adding the Bazaar discovery extension to make your API discoverable
 - Providing input/output schemas for machine-readable API documentation
 - Enabling clients and facilitators to discover your API capabilities
@@ -20,6 +21,7 @@ npm start bazaar
 ### 2. Dynamic PayTo (`dynamic-pay-to`)
 
 **What it demonstrates:**
+
 - Using a function to dynamically resolve the payment recipient address
 - Routing payments based on request context
 - Implementing marketplace-style payment routing
@@ -33,6 +35,7 @@ npm start dynamic-pay-to
 ### 3. Custom Money Definition (`custom-money-definition`)
 
 **What it demonstrates:**
+
 - Registering custom money parsers for alternative tokens
 - Using different tokens based on network or amount
 - Chain of responsibility pattern for price parsing
@@ -46,6 +49,7 @@ npm start custom-money-definition
 ### 4. Dynamic Price (`dynamic-price`)
 
 **What it demonstrates:**
+
 - Using a function to dynamically calculate prices
 - Implementing tiered pricing (premium vs. standard)
 - Context-based pricing decisions
@@ -59,12 +63,14 @@ npm start dynamic-price
 ### 5. Lifecycle Hooks (`hooks`)
 
 **What it demonstrates:**
+
 - Registering hooks for payment verification and settlement lifecycle
 - Running custom logic before/after verification and settlement
 - Implementing error recovery and custom validation
 - Logging and side effects
 
 **Use case:** When you need to:
+
 - Log payment events to a database or monitoring system
 - Perform custom validation before processing payments
 - Implement retry or recovery logic for failed payments
@@ -84,6 +90,7 @@ npm start hooks
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -98,6 +105,7 @@ cp .env-local .env
 ```
 
 Edit `.env`:
+
 ```bash
 EVM_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
 SVM_ADDRESS=YourSolanaAddress
@@ -140,11 +148,12 @@ The `custom-money-definition` example shows how to register custom token parsers
 ### Lifecycle Hooks
 
 The `hooks` example demonstrates all six lifecycle hooks:
+
 - `onBeforeVerify`: Run before verification (can abort)
 - `onAfterVerify`: Run after successful verification
 - `onVerifyFailure`: Run when verification fails (can recover)
 - `onBeforeSettle`: Run before settlement (can abort)
-- `onAfterSettle`: Run after successful settlement  
+- `onAfterSettle`: Run after successful settlement
 - `onSettleFailure`: Run when settlement fails (can recover)
 
 See `hooks.ts` for complete hook implementations.
@@ -174,4 +183,3 @@ pnpm dev
 - [x402 Express Package Documentation](../../../../typescript/packages/x402-express/)
 - [x402 Core Package Documentation](../../../../typescript/packages/core/)
 - [Go Server Examples](../../../go/servers/) - Similar patterns in Go
-
