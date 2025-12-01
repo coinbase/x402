@@ -9,10 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@coinbase/onchainkit": "latest",
+    "@coinbase/onchainkit": "^0.38.14",
     "next": "^15.3.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
     "@tanstack/react-query": "^5",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
