@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/types"
@@ -233,8 +235,8 @@ func (f *ExactEvmSchemeV1) Settle(
 		assetInfo.Address,
 		evm.TransferWithAuthorizationABI,
 		evm.FunctionTransferWithAuthorization,
-		evmPayload.Authorization.From,
-		evmPayload.Authorization.To,
+		common.HexToAddress(evmPayload.Authorization.From),
+		common.HexToAddress(evmPayload.Authorization.To),
 		value,
 		validAfter,
 		validBefore,

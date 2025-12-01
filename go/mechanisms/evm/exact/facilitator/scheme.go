@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/evm"
 	"github.com/coinbase/x402/go/types"
@@ -224,8 +226,8 @@ func (f *ExactEvmScheme) Settle(
 		assetInfo.Address,
 		evm.TransferWithAuthorizationABI,
 		evm.FunctionTransferWithAuthorization,
-		evmPayload.Authorization.From,
-		evmPayload.Authorization.To,
+		common.HexToAddress(evmPayload.Authorization.From),
+		common.HexToAddress(evmPayload.Authorization.To),
 		value,
 		validAfter,
 		validBefore,
@@ -268,7 +270,7 @@ func (f *ExactEvmScheme) checkNonceUsed(ctx context.Context, from string, nonce 
 		tokenAddress,
 		evm.TransferWithAuthorizationABI,
 		evm.FunctionAuthorizationState,
-		from,
+		common.HexToAddress(from),
 		[32]byte(nonceBytes),
 	)
 	if err != nil {

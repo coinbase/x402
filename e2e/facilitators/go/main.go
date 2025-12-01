@@ -209,51 +209,8 @@ func (s *realFacilitatorEvmSigner) ReadContract(
 		return nil, fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
-	// Special handling for methods that expect specific types
-	processedArgs := make([]interface{}, len(args))
-	copy(processedArgs, args)
-
-	switch method {
-	case "authorizationState":
-		// authorizationState(address authorizer, bytes32 nonce) returns (bool)
-		// First argument is the address
-		if len(processedArgs) > 0 {
-			if addrStr, ok := processedArgs[0].(string); ok {
-				processedArgs[0] = common.HexToAddress(addrStr)
-			}
-		}
-		// Second argument is the nonce which needs to be bytes32
-		if len(processedArgs) > 1 {
-			// Check if it's already a [32]byte
-			if _, ok := processedArgs[1].([32]byte); !ok {
-				if nonceStr, ok := processedArgs[1].(string); ok {
-					nonceStr = strings.TrimPrefix(nonceStr, "0x")
-					nonceBytes, err := hex.DecodeString(nonceStr)
-					if err != nil {
-						return nil, fmt.Errorf("failed to decode nonce hex: %w", err)
-					}
-					if len(nonceBytes) != 32 {
-						return nil, fmt.Errorf("nonce must be 32 bytes, got %d", len(nonceBytes))
-					}
-					var nonce32 [32]byte
-					copy(nonce32[:], nonceBytes)
-					processedArgs[1] = nonce32
-				}
-			}
-		}
-	case "balanceOf", "allowance":
-		// These methods expect addresses, ensure they're in the right format
-		for i, arg := range processedArgs {
-			// Only convert if it's a string (not already a common.Address)
-			if addrStr, ok := arg.(string); ok {
-				processedArgs[i] = common.HexToAddress(addrStr)
-			}
-			// If it's already a common.Address, leave it as is
-		}
-	}
-
 	// Pack the method call
-	data, err := contractABI.Pack(method, processedArgs...)
+	data, err := contractABI.Pack(method, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack method call: %w", err)
 	}
@@ -327,48 +284,8 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 		return "", fmt.Errorf("failed to parse ABI: %w", err)
 	}
 
-	// Process arguments for special cases
-	processedArgs := make([]interface{}, len(args))
-	copy(processedArgs, args)
-
-	if method == "transferWithAuthorization" {
-		// transferWithAuthorization expects:
-		// v1: (address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)
-		// Convert string addresses to common.Address
-		if len(processedArgs) > 0 {
-			if addrStr, ok := processedArgs[0].(string); ok {
-				processedArgs[0] = common.HexToAddress(addrStr)
-			}
-		}
-		if len(processedArgs) > 1 {
-			if addrStr, ok := processedArgs[1].(string); ok {
-				processedArgs[1] = common.HexToAddress(addrStr)
-			}
-		}
-
-		// Ensure nonce is [32]byte (position 5)
-		if len(processedArgs) > 5 {
-			if _, ok := processedArgs[5].([32]byte); !ok {
-				if nonceStr, ok := processedArgs[5].(string); ok {
-					nonceStr = strings.TrimPrefix(nonceStr, "0x")
-					nonceBytes, err := hex.DecodeString(nonceStr)
-					if err != nil {
-						return "", fmt.Errorf("failed to decode nonce hex: %w", err)
-					}
-					if len(nonceBytes) != 32 {
-						return "", fmt.Errorf("nonce must be 32 bytes, got %d", len(nonceBytes))
-					}
-					var nonce32 [32]byte
-					copy(nonce32[:], nonceBytes)
-					processedArgs[5] = nonce32
-				}
-			}
-		}
-		// Keep v, r, s as separate arguments (positions 6, 7, 8) for v1 ABI
-	}
-
 	// Pack the method call
-	data, err := contractABI.Pack(method, processedArgs...)
+	data, err := contractABI.Pack(method, args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to pack method call: %w", err)
 	}
@@ -444,8 +361,8 @@ func (s *realFacilitatorEvmSigner) GetBalance(ctx context.Context, address strin
 	// Minimal ERC20 ABI for balanceOf
 	const erc20ABI = `[{"constant":true,"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"type":"function"}]`
 
-	// Pass address as string, let ReadContract handle the conversion
-	result, err := s.ReadContract(ctx, tokenAddress, []byte(erc20ABI), "balanceOf", address)
+	// Convert address to common.Address for ABI packing
+	result, err := s.ReadContract(ctx, tokenAddress, []byte(erc20ABI), "balanceOf", common.HexToAddress(address))
 	if err != nil {
 		return nil, err
 	}
