@@ -1,29 +1,89 @@
-# x402 Advanced Resource Server Example
+# Advanced Express Server Examples
 
-This is an advanced example of an Express.js server that demonstrates how to implement paywall functionality without using middleware. This approach is useful for more complex scenarios, such as:
+This directory contains advanced examples demonstrating various x402 features and patterns for TypeScript servers using the Express framework.
 
-- Asynchronous payment settlement
-- Custom payment validation logic
-- Complex routing requirements
-- Integration with existing authentication systems
+## Examples
+
+### 1. Bazaar Discovery Extension (`bazaar`)
+
+**What it demonstrates:**
+- Adding the Bazaar discovery extension to make your API discoverable
+- Providing input/output schemas for machine-readable API documentation
+- Enabling clients and facilitators to discover your API capabilities
+
+**Use case:** When you want your x402-protected API to be discoverable by clients, AI agents, or through facilitator discovery mechanisms.
+
+```bash
+npm start bazaar
+```
+
+### 2. Dynamic PayTo (`dynamic-pay-to`)
+
+**What it demonstrates:**
+- Using a function to dynamically resolve the payment recipient address
+- Routing payments based on request context
+- Implementing marketplace-style payment routing
+
+**Use case:** Marketplace applications where payments should go to different sellers, content creators, or service providers based on the resource being accessed.
+
+```bash
+npm start dynamic-pay-to
+```
+
+### 3. Custom Money Definition (`custom-money-definition`)
+
+**What it demonstrates:**
+- Registering custom money parsers for alternative tokens
+- Using different tokens based on network or amount
+- Chain of responsibility pattern for price parsing
+
+**Use case:** When you want to accept payments in tokens other than USDC, or use different tokens based on conditions (e.g., DAI for large amounts, custom tokens for specific networks).
+
+```bash
+npm start custom-money-definition
+```
+
+### 4. Dynamic Price (`dynamic-price`)
+
+**What it demonstrates:**
+- Using a function to dynamically calculate prices
+- Implementing tiered pricing (premium vs. standard)
+- Context-based pricing decisions
+
+**Use case:** Implementing tiered pricing, user-based pricing, content-based pricing, or any scenario where the price varies based on the request.
+
+```bash
+npm start dynamic-price
+```
+
+### 5. Lifecycle Hooks (`hooks`)
+
+**What it demonstrates:**
+- Registering hooks for payment verification and settlement lifecycle
+- Running custom logic before/after verification and settlement
+- Implementing error recovery and custom validation
+- Logging and side effects
+
+**Use case:** When you need to:
+- Log payment events to a database or monitoring system
+- Perform custom validation before processing payments
+- Implement retry or recovery logic for failed payments
+- Trigger side effects (notifications, database updates) after successful payments
+
+```bash
+npm start hooks
+```
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+- An Ethereum address to receive payments (testnet recommended)
+- Access to an x402 facilitator (e.g., `https://x402.org/facilitator`)
 
 ## Setup
 
-1. Copy `.env-local` to `.env` and add your Ethereum address:
-
-```bash
-cp .env-local .env
-```
-
-2. Install and build all packages from the typescript examples root:
+1. Install and build all packages from the typescript examples root:
 ```bash
 cd ../../
 pnpm install
@@ -31,146 +91,87 @@ pnpm build
 cd servers/advanced
 ```
 
-3. Run the server
+2. Copy `.env-local` to `.env` and configure:
+
 ```bash
-pnpm install
-pnpm dev
+cp .env-local .env
 ```
 
-## Implementation Overview
-
-This advanced implementation provides a structured approach to handling payments with:
-
-1. Helper functions for creating payment requirements and verifying payments
-2. Support for delayed payment settlement
-3. Dynamic pricing capabilities
-4. Multiple payment requirement options
-5. Proper error handling and response formatting
-6. Integration with the x402 facilitator service
-
-## Testing the Server
-
-You can test the server using one of the example clients:
-
-### Using the Fetch Client
+Edit `.env`:
 ```bash
+EVM_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
+SVM_ADDRESS=YourSolanaAddress
+FACILITATOR_URL=https://x402.org/facilitator
+```
+
+## Running the Examples
+
+**Each example can be run individually:**
+
+```bash
+npm start bazaar
+npm start hooks
+npm start dynamic-price
+npm start dynamic-pay-to
+npm start custom-money-definition
+```
+
+Or use the convenience scripts:
+
+```bash
+pnpm dev                         # bazaar (default)
+pnpm dev:bazaar                  # bazaar
+pnpm dev:hooks                   # hooks
+pnpm dev:dynamic-price           # dynamic-price
+pnpm dev:dynamic-pay-to          # dynamic-pay-to
+pnpm dev:custom-money-definition # custom-money-definition
+```
+
+## Understanding the Patterns
+
+### Dynamic Configuration
+
+Both `dynamic-pay-to` and `dynamic-price` demonstrate using functions for runtime resolution. Instead of static values, you can provide functions that calculate the recipient address or price based on the request context.
+
+### Custom Money Parsers
+
+The `custom-money-definition` example shows how to register custom token parsers. Parsers are tried in order until one returns a result, allowing you to support multiple tokens.
+
+### Lifecycle Hooks
+
+The `hooks` example demonstrates all six lifecycle hooks:
+- `onBeforeVerify`: Run before verification (can abort)
+- `onAfterVerify`: Run after successful verification
+- `onVerifyFailure`: Run when verification fails (can recover)
+- `onBeforeSettle`: Run before settlement (can abort)
+- `onAfterSettle`: Run after successful settlement  
+- `onSettleFailure`: Run when settlement fails (can recover)
+
+See `hooks.ts` for complete hook implementations.
+
+## Testing the Servers
+
+Use one of the example clients to test these servers:
+
+```bash
+# Start the server in one terminal
+cd servers/advanced
+pnpm dev:hooks
+
+# In another terminal, run a client
 cd ../../clients/fetch
-# Ensure .env is setup
-pnpm install
 pnpm dev
 ```
 
-### Using the Axios Client
-```bash
-cd ../../clients/axios
-# Ensure .env is setup
-pnpm install
-pnpm dev
-```
+## Next Steps
 
-## Example Endpoints
+- **[Basic Express Example](../express/)**: Start with the basics if you haven't already
+- **[Custom Server Example](../custom/)**: Learn how to implement x402 without middleware
+- **[Client Examples](../../clients/)**: Build clients that can interact with these servers
 
-The server includes example endpoints that demonstrate different payment scenarios:
+## Related Resources
 
-### Delayed Settlement
-- `/delayed-settlement` - Demonstrates asynchronous payment processing
-- Returns the weather data immediately without waiting for payment settlement
-- Processes payment asynchronously in the background
-- Useful for scenarios where immediate response is critical and payment settlement can be handled later
+- [x402 Express Package Documentation](../../../../typescript/packages/x402-express/)
+- [x402 Core Package Documentation](../../../../typescript/packages/core/)
+- [Go Server Examples](../../../go/servers/) - Similar patterns in Go
 
-### Dynamic Pricing
-- `/dynamic-price` - Shows how to implement variable pricing based on request parameters
-- Accepts a `multiplier` query parameter to adjust the base price
-- Demonstrates how to calculate and validate payments with dynamic amounts
-- Useful for implementing tiered pricing or demand-based pricing models
-
-### Multiple Payment Requirements
-- `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
-- Allows clients to pay using different assets (e.g., USDC or USDT)
-- Supports multiple networks (e.g., Base and Base Sepolia)
-- Useful for providing flexibility in payment methods and networks
-
-## Response Format
-
-### Payment Required (402)
-```json
-{
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
-  "accepts": [
-    {
-      "scheme": "exact",
-      "network": "base-sepolia",
-      "maxAmountRequired": "1000",
-      "resource": "http://localhost:3001/weather",
-      "description": "Access to weather data",
-      "mimeType": "",
-      "payTo": "0xYourAddress",
-      "maxTimeoutSeconds": 60,
-      "asset": "0x...",
-      "outputSchema": null,
-      "extra": {
-        "name": "USD Coin",
-        "version": "1"
-      }
-    }
-  ]
-}
-```
-
-### Successful Response
-```json
-// Body
-{
-  "report": {
-    "weather": "sunny",
-    "temperature": 70
-  }
-}
-// Headers
-{
-  "X-PAYMENT-RESPONSE": "..." // Encoded response object
-}
-```
-
-## Extending the Example
-
-To add more paid endpoints with delayed payment settlement, you can follow this pattern:
-
-```typescript
-app.get("/your-endpoint", async (req, res) => {
-  const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
-  const paymentRequirements = [createExactPaymentRequirements(
-    "$0.001", // Your price
-    "base-sepolia", // Your network
-    resource,
-    "Description of your resource"
-  )];
-
-  const isValid = await verifyPayment(req, res, paymentRequirements);
-  if (!isValid) return;
-
-  // Return your protected resource immediately
-  res.json({
-    // Your response data
-  });
-
-  // Process payment asynchronously
-  try {
-    const settleResponse = await settle(
-      exact.evm.decodePayment(req.header("X-PAYMENT")!),
-      paymentRequirements[0]
-    );
-    const responseHeader = settleResponseHeader(settleResponse);
-    // In a real application, you would store this response header
-    // and associate it with the payment for later verification
-    console.log("Payment settled:", responseHeader);
-  } catch (error) {
-    console.error("Payment settlement failed:", error);
-    // In a real application, you would handle the failed payment
-    // by marking it for retry or notifying the user
-  }
-});
-```
-
-For dynamic pricing or multiple payment requirements, refer to the `/dynamic-price` and `/multiple-payment-requirements` endpoints in the example code for implementation details.
