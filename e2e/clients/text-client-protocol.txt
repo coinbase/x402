@@ -11,6 +11,10 @@ Clients must declare which protocol families they support in their test.config.j
 - **EVM**: Ethereum Virtual Machine compatible networks (Base, Ethereum, etc.)
 - **SVM**: Solana Virtual Machine compatible networks (Solana, etc.)
 
+## X402 Version Support
+Clients must declare which x402 protocol versions they support using the `x402Versions` field:
+- **x402Versions**: Array of supported x402 protocol versions (e.g., [1, 2])
+
 Example configuration:
 ```json
 {
@@ -18,6 +22,7 @@ Example configuration:
   "type": "client",
   "language": "typescript",
   "protocolFamilies": ["evm"],
+  "x402Versions": [1, 2],
   "environment": {
     "required": ["EVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
@@ -32,6 +37,7 @@ Multi-protocol client example:
   "type": "client", 
   "language": "typescript",
   "protocolFamilies": ["evm", "svm"],
+  "x402Versions": [1, 2],
   "environment": {
     "required": ["EVM_PRIVATE_KEY", "SVM_PRIVATE_KEY", "RESOURCE_SERVER_URL", "ENDPOINT_PATH"],
     "optional": []
