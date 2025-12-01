@@ -1,158 +1,215 @@
-/* eslint-env node */
-import { config } from "dotenv";
-import express, { Request, Response } from "express";
-import { verify, settle } from "x402/facilitator";
+import { base58 } from "@scure/base";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { x402Facilitator } from "@x402/core/facilitator";
 import {
-  PaymentRequirementsSchema,
-  type PaymentRequirements,
-  type PaymentPayload,
-  PaymentPayloadSchema,
-  createConnectedClient,
-  createSigner,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
-  Signer,
-  ConnectedClient,
-  SupportedPaymentKind,
-  isSvmSignerWallet,
-  type X402Config,
-} from "x402/types";
+  Network,
+  PaymentPayload,
+  PaymentRequirements,
+  SettleResponse,
+  VerifyResponse
+} from "@x402/core/types";
+import { toFacilitatorEvmSigner } from "@x402/evm";
+import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { toFacilitatorSvmSigner } from "@x402/svm";
+import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import crypto from "crypto";
+import dotenv from "dotenv";
+import express from "express";
+import { createWalletClient, http, publicActions } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { baseSepolia } from "viem/chains";
 
-config();
+dotenv.config();
 
-const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
-const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
-const SVM_RPC_URL = process.env.SVM_RPC_URL || "";
+// Configuration
+const PORT = process.env.PORT || "4022";
 
-if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
-  console.error("Missing required environment variables");
+// Validate required environment variables
+if (!process.env.EVM_PRIVATE_KEY) {
+  console.error("❌ EVM_PRIVATE_KEY environment variable is required");
   process.exit(1);
 }
 
-// Create X402 config with custom RPC URL if provided
-const x402Config: X402Config | undefined = SVM_RPC_URL
-  ? { svmConfig: { rpcUrl: SVM_RPC_URL } }
-  : undefined;
+if (!process.env.SVM_PRIVATE_KEY) {
+  console.error("❌ SVM_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
 
+// Initialize the EVM account from private key
+const evmAccount = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+console.info(`EVM Facilitator account: ${evmAccount.address}`);
+
+
+// Initialize the EVM account from private key
+const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY as string));
+console.info(`EVM Facilitator account: ${evmAccount.address}`);
+
+// Create a Viem client with both wallet and public capabilities
+const viemClient = createWalletClient({
+  account: evmAccount,
+  chain: baseSepolia,
+  transport: http(),
+}).extend(publicActions);
+
+// Initialize the x402 Facilitator with EVM and SVM support
+
+const evmSigner = toFacilitatorEvmSigner({
+  address: evmAccount.address,
+  readContract: (args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args?: readonly unknown[];
+  }) =>
+    viemClient.readContract({
+      ...args,
+      args: args.args || [],
+    }),
+  verifyTypedData: (args: {
+    address: `0x${string}`;
+    domain: Record<string, unknown>;
+    types: Record<string, unknown>;
+    primaryType: string;
+    message: Record<string, unknown>;
+    signature: `0x${string}`;
+  }) => viemClient.verifyTypedData(args as any),
+  writeContract: (args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    functionName: string;
+    args: readonly unknown[];
+  }) =>
+    viemClient.writeContract({
+      ...args,
+      args: args.args || [],
+    }),
+  waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
+    viemClient.waitForTransactionReceipt(args),
+});
+
+// Facilitator can now handle all Solana networks with automatic RPC creation
+const svmSigner = toFacilitatorSvmSigner(svmAccount);
+
+const verifiedPayments = new Map<string, number>();
+
+function createPaymentHash(paymentPayload: PaymentPayload): string {
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(paymentPayload))
+    .digest("hex");
+}
+
+const facilitator = new x402Facilitator();
+
+// Register EVM and SVM schemes using the new register helpers
+registerExactEvmScheme(facilitator, {
+  signer: evmSigner,
+  networks: "eip155:84532"  // Base Sepolia
+});
+registerExactSvmScheme(facilitator, {
+  signer: svmSigner,
+  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  // Devnet
+});
+
+// Initialize Express app
 const app = express();
-
-// Configure express to parse JSON bodies
 app.use(express.json());
 
-type VerifyRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
-
-type SettleRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
-
-app.get("/verify", (req: Request, res: Response) => {
-  res.json({
-    endpoint: "/verify",
-    description: "POST to verify x402 payments",
-    body: {
-      paymentPayload: "PaymentPayload",
-      paymentRequirements: "PaymentRequirements",
-    },
-  });
-});
-
-app.post("/verify", async (req: Request, res: Response) => {
+/**
+ * POST /verify
+ * Verify a payment against requirements
+ * 
+ * Note: Payment tracking and bazaar discovery are handled by lifecycle hooks
+ */
+app.post("/verify", async (req, res) => {
   try {
-    const body: VerifyRequest = req.body;
-    const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-    const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+    const { paymentPayload, paymentRequirements } = req.body as { paymentPayload: PaymentPayload; paymentRequirements: PaymentRequirements };
 
-    // use the correct client/signer based on the requested network
-    // svm verify requires a Signer because it signs & simulates the txn
-    let client: Signer | ConnectedClient;
-    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      client = createConnectedClient(paymentRequirements.network);
-    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
-    } else {
-      throw new Error("Invalid network");
+    if (!paymentPayload || !paymentRequirements) {
+      return res.status(400).json({
+        error: "Missing paymentPayload or paymentRequirements",
+      });
     }
 
-    // verify
-    const valid = await verify(client, paymentPayload, paymentRequirements, x402Config);
-    res.json(valid);
-  } catch (error) {
-    console.error("error", error);
-    res.status(400).json({ error: "Invalid request" });
-  }
-});
+    // Hooks will automatically:
+    // - Track verified payment (onAfterVerify)
+    // - Extract and catalog discovery info (onAfterVerify)
+    const response: VerifyResponse = await facilitator.verify(
+      paymentPayload,
+      paymentRequirements,
+    );
 
-app.get("/settle", (req: Request, res: Response) => {
-  res.json({
-    endpoint: "/settle",
-    description: "POST to settle x402 payments",
-    body: {
-      paymentPayload: "PaymentPayload",
-      paymentRequirements: "PaymentRequirements",
-    },
-  });
-});
-
-app.get("/supported", async (req: Request, res: Response) => {
-  let kinds: SupportedPaymentKind[] = [];
-
-  // evm
-  if (EVM_PRIVATE_KEY) {
-    kinds.push({
-      x402Version: 1,
-      scheme: "exact",
-      network: "base-sepolia",
-    });
-  }
-
-  // svm
-  if (SVM_PRIVATE_KEY) {
-    const signer = await createSigner("solana-devnet", SVM_PRIVATE_KEY);
-    const feePayer = isSvmSignerWallet(signer) ? signer.address : undefined;
-
-    kinds.push({
-      x402Version: 1,
-      scheme: "exact",
-      network: "solana-devnet",
-      extra: {
-        feePayer,
-      },
-    });
-  }
-  res.json({
-    kinds,
-  });
-});
-
-app.post("/settle", async (req: Request, res: Response) => {
-  try {
-    const body: SettleRequest = req.body;
-    const paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-    const paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-
-    // use the correct private key based on the requested network
-    let signer: Signer;
-    if (SupportedEVMNetworks.includes(paymentRequirements.network)) {
-      signer = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
-    } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
-      signer = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
-    } else {
-      throw new Error("Invalid network");
-    }
-
-    // settle
-    const response = await settle(signer, paymentPayload, paymentRequirements, x402Config);
     res.json(response);
   } catch (error) {
-    console.error("error", error);
-    res.status(400).json({ error: `Invalid request: ${error}` });
+    console.error("Verify error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log(`Server listening at http://localhost:${process.env.PORT || 3000}`);
+/**
+ * POST /settle
+ * Settle a payment on-chain
+ * 
+ * Note: Verification validation and cleanup are handled by lifecycle hooks
+ */
+app.post("/settle", async (req, res) => {
+  try {
+    const { paymentPayload, paymentRequirements } = req.body;
+
+    if (!paymentPayload || !paymentRequirements) {
+      return res.status(400).json({
+        error: "Missing paymentPayload or paymentRequirements",
+      });
+    }
+
+    // Hooks will automatically:
+    // - Validate payment was verified (onBeforeSettle - will abort if not)
+    // - Check verification timeout (onBeforeSettle)
+    // - Clean up tracking (onAfterSettle / onSettleFailure)
+    const response: SettleResponse = await facilitator.settle(
+      paymentPayload as PaymentPayload,
+      paymentRequirements as PaymentRequirements,
+    );
+
+    res.json(response);
+  } catch (error) {
+    console.error("Settle error:", error);
+
+    // Check if this was an abort from hook
+    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+      // Return a proper SettleResponse instead of 500 error
+      return res.json({
+        success: false,
+        errorReason: error.message.replace("Settlement aborted: ", ""),
+        network: req.body?.paymentPayload?.network || "unknown",
+      } as SettleResponse);
+    }
+
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+/**
+ * GET /supported
+ * Get supported payment kinds and extensions
+ */
+app.get("/supported", async (req, res) => {
+  try {
+    const response = facilitator.getSupported();
+    res.json(response);
+  } catch (error) {
+    console.error("Supported error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+// Start the server
+app.listen(parseInt(PORT), () => {
+  console.log("Facilitator listening");
 });
