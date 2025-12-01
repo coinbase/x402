@@ -39,6 +39,7 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const [isPaying, setIsPaying] = useState(false);
   const [formattedUsdcBalance, setFormattedUsdcBalance] = useState<string>("");
   const [hideBalance, setHideBalance] = useState(true);
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string>("");
 
   const x402 = window.x402;
   const amount = x402.amount;
@@ -117,6 +118,13 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       setStatus("");
     }
   }, [chainId, connectedChainId, isConnected, chainName]);
+
+  // Auto-select if only one connector is available
+  useEffect(() => {
+    if (!selectedConnectorId && connectors.length === 1) {
+      setSelectedConnectorId(connectors[0].id);
+    }
+  }, [connectors, selectedConnectorId]);
 
   const handleBuyUSDC = useCallback(() => {
     if (!sessionToken) return;
@@ -219,15 +227,32 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       <div className="content w-full">
         {!isConnected ? (
           <div className="cta-container">
-            {connectors.map(connector => (
-              <button
-                key={connector.id}
-                className="button button-primary w-full"
-                onClick={() => connect({ connector })}
-              >
-                Connect {connector.name}
-              </button>
-            ))}
+            <select
+              className="input"
+              value={selectedConnectorId}
+              onChange={event => setSelectedConnectorId((event.target as HTMLSelectElement).value)}
+            >
+              <option value="" disabled>
+                Select a wallet
+              </option>
+              {connectors.map(connector => (
+                <option value={connector.id} key={connector.id}>
+                  {connector.name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="button button-primary"
+              onClick={() => {
+                const connector = connectors.find(c => c.id === selectedConnectorId);
+                if (connector) {
+                  connect({ connector });
+                }
+              }}
+              disabled={!selectedConnectorId}
+            >
+              Connect wallet
+            </button>
           </div>
         ) : (
           <div className="cta-container">

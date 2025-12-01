@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { EvmPaywall } from "./EvmPaywall";
+import { Providers } from "../Providers";
 import type {} from "../window";
 
 // EVM-specific paywall entry point
@@ -21,18 +22,20 @@ window.addEventListener("load", () => {
 
   const root = createRoot(rootElement);
   root.render(
-    <EvmPaywall
-      paymentRequired={paymentRequired}
-      onSuccessfulResponse={async (response: Response) => {
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("text/html")) {
-          document.documentElement.innerHTML = await response.text();
-        } else {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          window.location.href = url;
-        }
-      }}
-    />,
+    <Providers>
+      <EvmPaywall
+        paymentRequired={paymentRequired}
+        onSuccessfulResponse={async (response: Response) => {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("text/html")) {
+            document.documentElement.innerHTML = await response.text();
+          } else {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.location.href = url;
+          }
+        }}
+      />
+    </Providers>,
   );
 });
