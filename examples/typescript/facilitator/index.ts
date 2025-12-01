@@ -39,11 +39,11 @@ const evmAccount = privateKeyToAccount(
 );
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
-// Initialize the EVM account from private key
+// Initialize the SVM account from private key
 const svmAccount = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SVM_PRIVATE_KEY as string),
 );
-console.info(`EVM Facilitator account: ${evmAccount.address}`);
+console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
