@@ -1,4 +1,4 @@
-import { paymentMiddleware } from "@x402/next";
+import { paymentProxy } from "@x402/next";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
@@ -30,7 +30,7 @@ server.registerExtension(bazaarResourceServerExtension);
 
 console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
-export const middleware = paymentMiddleware(
+export const proxy = paymentProxy(
   {
     "/api/protected": {
       accepts: {
@@ -89,6 +89,5 @@ export const middleware = paymentMiddleware(
 // Configure which paths the middleware should run on
 export const config = {
   matcher: ["/api/protected", "/api/protected-svm"],
-  runtime: "nodejs", // TEMPORARY: Only needed until Edge runtime support is added
 };
 
