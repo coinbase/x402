@@ -12,11 +12,11 @@
     "lint:check": "eslint . --ext .ts"
   },
   "dependencies": {
-    "@coinbase/onchainkit": "latest",
+    "@coinbase/onchainkit": "^0.38.14",
     "@farcaster/frame-sdk": "^0.0.60",
     "@tanstack/react-query": "^5",
     "@upstash/redis": "^1.34.4",
-    "@wagmi/core": "^2.17.1",
+    "@wagmi/core": "^2.22.1",
     "next": "^15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

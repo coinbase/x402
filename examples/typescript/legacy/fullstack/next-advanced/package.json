@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@coinbase/onchainkit": "latest",
+    "@coinbase/onchainkit": "^0.38.14",
     "next": "^15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
