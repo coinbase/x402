@@ -106,28 +106,19 @@ To add more paid endpoints, follow this pattern:
 // First, configure the payment middleware with your routes
 app.use(
   paymentMiddleware(
-    payTo,
     {
-      // Define your routes and their payment requirements
       "GET /your-endpoint": {
-        price: "$0.10",
-        network: "base-sepolia",
-      },
-      "/premium/*": {
-        price: {
-          amount: "100000",
-          asset: {
-            address: "0xabc",
-            decimals: 18,
-            eip712: {
-              name: "WETH",
-              version: "1",
-            },
-          },
+        accepts: {
+          scheme: "exact",
+          price: "$0.10",
+          network: "eip155:84532",
+          payTo: evmAddress,
         },
-        network: "base-sepolia",
+        description: "Your endpoint description",
+        mimeType: "application/json",
       },
     },
+    resourceServer,
   ),
 );
 
@@ -137,10 +128,6 @@ app.get("/your-endpoint", (req, res) => {
     // Your response data
   });
 });
-
-app.get("/premium/content", (req, res) => {
-  res.json({
-    content: "This is premium content",
-  });
-});
 ```
+
+For advanced patterns like dynamic pricing, hooks, custom tokens, and more, see the [advanced examples](../advanced/).
