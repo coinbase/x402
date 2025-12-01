@@ -1,80 +1,118 @@
-# x402-axios Example Client
+# E2E Test Client: TypeScript Fetch
 
-This is an example client that demonstrates how to use the `x402-axios` package to make HTTP requests to endpoints protected by the x402 payment protocol.
+This client demonstrates and tests the `@x402/fetch` package with both EVM and SVM payment support.
 
-## Prerequisites
+## What It Tests
 
-- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A running x402 server (you can use the example express server at `examples/typescript/servers/express`)
-- A valid Ethereum private key for making payments
+### Core Functionality
+- ✅ **V2 Protocol** - Modern x402 protocol with CAIP-2 networks
+- ✅ **V1 Protocol** - Legacy x402 protocol with simple network names
+- ✅ **Multi-chain Support** - Both EVM and SVM in a single client
+- ✅ **Automatic Payment Handling** - Transparent 402 response handling
+- ✅ **Payment Response Decoding** - Extracts settlement information from headers
 
-## Setup
+### Payment Mechanisms
+- ✅ **EVM V2** - `eip155:*` wildcard scheme
+- ✅ **EVM V1** - `base-sepolia` and `base` networks
+- ✅ **SVM V2** - `solana:*` wildcard scheme
+- ✅ **SVM V1** - `solana-devnet` and `solana` networks
 
-1. Install and build all packages from the typescript examples root:
-```bash
-cd ../../
-pnpm install
-pnpm build
-cd clients/axios
-```
+## What It Demonstrates
 
-2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
-```bash
-cp .env-local .env
-```
-
-3. Start the example client (remember you need to be running a server locally or point at an endpoint):
-```bash
-pnpm dev
-```
-
-## How It Works
-
-The example demonstrates how to:
-1. Create a wallet client using viem
-2. Create an Axios instance with x402 payment handling
-3. Make a request to a paid endpoint
-4. Handle the response or any errors
-
-## Example Code
+### Usage Pattern
 
 ```typescript
-import { config } from "dotenv";
-import { createWalletClient, http, publicActions } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor } from "x402-axios";
-import axios from "axios";
-import { baseSepolia } from "viem/chains";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core/client";
+import { ExactEvmClient } from "@x402/evm";
+import { ExactEvmClientV1 } from "@x402/evm/v1";
+import { ExactSvmClient } from "@x402/svm";
+import { ExactSvmClientV1 } from "@x402/svm/v1";
 
-config();
+// Build x402 client with direct registration
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmClient(evmAccount))
+  .register("solana:*", new ExactSvmClient(svmSigner))
+  .registerV1("base-sepolia", new ExactEvmClientV1(evmAccount))
+  .registerV1("base", new ExactEvmClientV1(evmAccount))
+  .registerV1("solana-devnet", new ExactSvmClientV1(svmSigner))
+  .registerV1("solana", new ExactSvmClientV1(svmSigner));
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
+// Wrap fetch with payment handling
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
-// Create wallet client
-const account = privateKeyToAccount(PRIVATE_KEY as "0x${string}");
-const client = createWalletClient({
-  account,
-  transport: http(),
-  chain: baseSepolia,
-}).extend(publicActions);
-
-// Create Axios instance with payment handling
-const api = withPaymentInterceptor(
-  axios.create({
-    baseURL: RESOURCE_SERVER_URL,
-  }),
-  client
-);
-
-// Make request to paid endpoint
-api
-  .get(ENDPOINT_PATH)
-  .then(response => {
-    console.log(response.headers);
-    console.log(response.data);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+// Make request - 402 responses handled automatically
+const response = await fetchWithPayment(url, { method: "GET" });
 ```
+
+### Key Concepts Shown
+
+1. **Builder Pattern** - Fluent API for registering multiple schemes
+2. **Multi-Version Support** - V1 and V2 protocols side-by-side
+3. **Multi-Chain Support** - EVM and SVM in one client
+4. **Network Flexibility** - Wildcards for V2, specific networks for V1
+5. **Transparent Payment** - No manual 402 handling needed
+
+## Test Scenarios
+
+This client is tested against:
+- **Servers:** Express (TypeScript), Gin (Go)
+- **Facilitators:** TypeScript, Go
+- **Endpoints:** `/protected` (EVM), `/protected-svm` (SVM)
+- **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
+
+### Success Criteria
+- ✅ Request succeeds with 200 status
+- ✅ Payment response header present
+- ✅ Transaction hash returned
+- ✅ Payment marked as successful
+
+## Running
+
+```bash
+# Via e2e test suite
+cd e2e
+pnpm test --client=fetch
+
+# Direct execution (requires environment variables)
+cd e2e/clients/fetch
+export RESOURCE_SERVER_URL="http://localhost:4022"
+export ENDPOINT_PATH="/protected"
+export EVM_PRIVATE_KEY="0x..."
+export SVM_PRIVATE_KEY="..."
+pnpm start
+```
+
+## Environment Variables
+
+- `RESOURCE_SERVER_URL` - Server base URL
+- `ENDPOINT_PATH` - Path to protected endpoint
+- `EVM_PRIVATE_KEY` - Ethereum private key (hex with 0x prefix)
+- `SVM_PRIVATE_KEY` - Solana private key (base58 encoded)
+
+## Output Format
+
+```json
+{
+  "success": true,
+  "data": { "message": "Protected endpoint accessed" },
+  "status_code": 200,
+  "payment_response": {
+    "success": true,
+    "transaction": "0x...",
+    "network": "eip155:84532",
+    "payer": "0x..."
+  }
+}
+```
+
+## Package Dependencies
+
+- `@x402/fetch` - HTTP wrapper with payment handling
+- `@x402/core` - Core x402 client and types
+- `@x402/evm` - EVM payment mechanisms (V2)
+- `@x402/evm/v1` - EVM payment mechanisms (V1)
+- `@x402/svm` - SVM payment mechanisms (V2)
+- `@x402/svm/v1` - SVM payment mechanisms (V1)
+- `viem` - Ethereum library for account creation
+- `@solana/kit` - Solana keypair utilities
