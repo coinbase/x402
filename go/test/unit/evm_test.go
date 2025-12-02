@@ -51,6 +51,16 @@ func newMockFacilitatorEvmSigner() *mockFacilitatorEvmSigner {
 	}
 }
 
+func (m *mockFacilitatorEvmSigner) Address() string {
+	return "0xfacilitator1234567890123456789012345678"
+}
+
+func (m *mockFacilitatorEvmSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
+	// Mock: return empty for EOA, non-empty for contracts
+	// For testing, assume all addresses are EOAs (deployed wallets)
+	return []byte{0x60, 0x60}, nil // Mock bytecode
+}
+
 func (m *mockFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
 	key := address + ":" + tokenAddress
 	if balance, ok := m.balances[key]; ok {
@@ -85,6 +95,15 @@ func (m *mockFacilitatorEvmSigner) WriteContract(
 	abi []byte,
 	functionName string,
 	args ...interface{},
+) (string, error) {
+	// Return mock transaction hash
+	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+}
+
+func (m *mockFacilitatorEvmSigner) SendTransaction(
+	ctx context.Context,
+	to string,
+	data []byte,
 ) (string, error) {
 	// Return mock transaction hash
 	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil

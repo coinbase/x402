@@ -22,6 +22,18 @@ const (
 
 	// Default validity period (1 hour)
 	DefaultValidityPeriod = 3600 // seconds
+
+	// ERC-6492 magic value (last 32 bytes of wrapped signature)
+	// This is bytes32(uint256(keccak256("erc6492.invalid.signature")) - 1)
+	ERC6492MagicValue = "0x6492649264926492649264926492649264926492649264926492649264926492"
+
+	// EIP-1271 magic value (returned by isValidSignature on success)
+	EIP1271MagicValue = "0x1626ba7e"
+
+	// Error codes matching TypeScript implementation
+	ErrInvalidSignature            = "invalid_exact_evm_payload_signature"
+	ErrUndeployedSmartWallet       = "invalid_exact_evm_payload_undeployed_smart_wallet"
+	ErrSmartWalletDeploymentFailed = "smart_wallet_deployment_failed"
 )
 
 var (
@@ -136,8 +148,8 @@ var (
 		},
 	}
 
-	// EIP-3009 ABI for transferWithAuthorization
-	TransferWithAuthorizationABI = []byte(`[
+	// EIP-3009 ABI for transferWithAuthorization with v,r,s (EOA signatures)
+	TransferWithAuthorizationVRSABI = []byte(`[
 		{
 			"inputs": [
 				{"name": "from", "type": "address"},
@@ -154,7 +166,33 @@ var (
 			"outputs": [],
 			"stateMutability": "nonpayable",
 			"type": "function"
-		},
+		}
+	]`)
+
+	// EIP-3009 ABI for transferWithAuthorization with bytes signature (smart wallets)
+	TransferWithAuthorizationBytesABI = []byte(`[
+		{
+			"inputs": [
+				{"name": "from", "type": "address"},
+				{"name": "to", "type": "address"},
+				{"name": "value", "type": "uint256"},
+				{"name": "validAfter", "type": "uint256"},
+				{"name": "validBefore", "type": "uint256"},
+				{"name": "nonce", "type": "bytes32"},
+				{"name": "signature", "type": "bytes"}
+			],
+			"name": "transferWithAuthorization",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		}
+	]`)
+
+	// Legacy: Combined ABI (deprecated, use specific ABIs above)
+	TransferWithAuthorizationABI = TransferWithAuthorizationVRSABI
+
+	// ABI for authorizationState check
+	AuthorizationStateABI = []byte(`[
 		{
 			"inputs": [
 				{"name": "authorizer", "type": "address"},
