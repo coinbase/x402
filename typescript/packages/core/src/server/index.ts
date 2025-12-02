@@ -15,4 +15,7 @@ export type {
   CompiledRoute,
   HTTPAdapter,
   RoutesConfig,
+  ProcessSettleResult,
+  ProcessSettleSuccess,
+  ProcessSettleFailure,
 } from "../http/x402HTTPResourceServer";

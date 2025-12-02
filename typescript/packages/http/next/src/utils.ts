@@ -117,19 +117,27 @@ export async function handleSettlement(
   }
 
   try {
-    const settlementHeaders = await httpServer.processSettlement(
-      paymentPayload,
-      paymentRequirements,
-      response.status,
-    );
+    const result = await httpServer.processSettlement(paymentPayload, paymentRequirements);
 
-    if (settlementHeaders) {
-      Object.entries(settlementHeaders).forEach(([key, value]) => {
-        response.headers.set(key, value);
-      });
+    if (!result.success) {
+      // Settlement failed - do not return the protected resource
+      return new NextResponse(
+        JSON.stringify({
+          error: "Settlement failed",
+          details: result.errorReason,
+        }),
+        {
+          status: 402,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
-    // If settlement returns null or succeeds, continue with original response
+    // Settlement succeeded - add headers and return original response
+    Object.entries(result.headers).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
     return response;
   } catch (error) {
     console.error("Settlement failed:", error);

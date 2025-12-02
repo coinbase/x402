@@ -158,6 +158,21 @@ export type HTTPProcessResult =
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
 /**
+ * Result of processSettlement
+ */
+export type ProcessSettleSuccess = {
+  success: true;
+  headers: Record<string, string>;
+};
+
+export type ProcessSettleFailure = {
+  success: false;
+  errorReason: string;
+};
+
+export type ProcessSettleResult = ProcessSettleSuccess | ProcessSettleFailure;
+
+/**
  * HTTP-enhanced x402 resource server
  * Provides framework-agnostic HTTP protocol handling
  */
@@ -338,25 +353,28 @@ export class x402HTTPResourceServer {
    *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
-   * @param responseStatus - Status code from protected resource
-   * @returns Settlement response headers or null
+   * @returns ProcessSettleResult - success with headers or failure with errorReason
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-    responseStatus: number,
-  ): Promise<Record<string, string> | null> {
-    // Don't settle if response failed
-    if (responseStatus >= 400) {
-      return null;
-    }
-
+  ): Promise<ProcessSettleResult> {
     try {
       const settleResult = await this.ResourceServer.settlePayment(paymentPayload, requirements);
-      return this.createSettlementHeaders(settleResult);
+
+      if (!settleResult.success) {
+        return { success: false, errorReason: settleResult.errorReason || "Settlement failed" };
+      }
+
+      return {
+        success: true,
+        headers: this.createSettlementHeaders(settleResult),
+      };
     } catch (error) {
-      console.error("Settlement failed:", error);
-      throw error;
+      return {
+        success: false,
+        errorReason: error instanceof Error ? error.message : "Settlement failed",
+      };
     }
   }
 

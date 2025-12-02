@@ -66,16 +66,18 @@ const mockPaymentRequirements = {
  * Creates a mock HTTP server for testing.
  *
  * @param processResult - The result to return from processHTTPRequest.
- * @param settlementHeaders - Headers to return from processSettlement.
+ * @param settlementResult - Result to return from processSettlement (success with headers or failure).
  * @returns A mock x402HTTPResourceServer.
  */
 function createMockHttpServer(
   processResult: HTTPProcessResult,
-  settlementHeaders: Record<string, string> | null = null,
+  settlementResult:
+    | { success: true; headers: Record<string, string> }
+    | { success: false; errorReason: string } = { success: true, headers: {} },
 ): x402HTTPResourceServer {
   return {
     processHTTPRequest: vi.fn().mockResolvedValue(processResult),
-    processSettlement: vi.fn().mockResolvedValue(settlementHeaders),
+    processSettlement: vi.fn().mockResolvedValue(settlementResult),
     registerPaywallProvider: vi.fn(),
   } as unknown as x402HTTPResourceServer;
 }
@@ -164,7 +166,7 @@ describe("paymentProxy", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { "X-Payment-Response": "settled" },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
     );
     setupMockCreateHttpServer(mockServer);
 
@@ -172,11 +174,10 @@ describe("paymentProxy", () => {
     const response = await proxy(createMockRequest());
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("X-Payment-Response")).toBe("settled");
+    expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settled");
     expect(mockServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockPaymentRequirements,
-      200,
     );
   });
 
@@ -202,14 +203,11 @@ describe("paymentProxy", () => {
   });
 
   it("returns 402 when settlement throws error", async () => {
-    const mockServer = createMockHttpServer(
-      {
-        type: "payment-verified",
-        paymentPayload: mockPaymentPayload,
-        paymentRequirements: mockPaymentRequirements,
-      },
-      null,
-    );
+    const mockServer = createMockHttpServer({
+      type: "payment-verified",
+      paymentPayload: mockPaymentPayload,
+      paymentRequirements: mockPaymentRequirements,
+    });
     vi.mocked(mockServer.processSettlement).mockRejectedValue(new Error("Settlement rejected"));
     setupMockCreateHttpServer(mockServer);
 
@@ -222,32 +220,26 @@ describe("paymentProxy", () => {
     expect(body.details).toBe("Settlement rejected");
   });
 
-  // it("returns 402 when settlement returns success: false, not the resource", async () => {
-  //   const mockServer = createMockHttpServer(
-  //     {
-  //       type: "payment-verified",
-  //       paymentPayload: mockPaymentPayload,
-  //       paymentRequirements: mockPaymentRequirements,
-  //     },
-  //     {
-  //       "PAYMENT-RESPONSE": Buffer.from(
-  //         JSON.stringify({
-  //           success: false,
-  //           errorReason: "Insufficient funds",
-  //           transaction: "",
-  //           network: "eip155:84532",
-  //         }),
-  //       ).toString("base64"),
-  //     },
-  //   );
-  //   setupMockCreateHttpServer(mockServer);
+  it("returns 402 when settlement returns success: false, not the resource", async () => {
+    const mockServer = createMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: false, errorReason: "Insufficient funds" },
+    );
+    setupMockCreateHttpServer(mockServer);
 
-  //   const proxy = paymentProxy(mockRoutes, {} as unknown as x402ResourceServer);
-  //   const response = await proxy(createMockRequest());
+    const proxy = paymentProxy(mockRoutes, {} as unknown as x402ResourceServer);
+    const response = await proxy(createMockRequest());
 
-  //   // When settlement returns success: false, should return 402, not the resource
-  //   expect(response.status).toBe(402);
-  // });
+    // When settlement returns success: false, should return 402, not the resource
+    expect(response.status).toBe(402);
+    const body = (await response.json()) as { error: string; details: string };
+    expect(body.error).toBe("Settlement failed");
+    expect(body.details).toBe("Insufficient funds");
+  });
 });
 
 describe("withX402", () => {
@@ -294,7 +286,7 @@ describe("withX402", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { "X-Payment-Response": "settled" },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
     );
     setupMockCreateHttpServer(mockServer);
     const handler = vi.fn().mockResolvedValue(NextResponse.json({ data: "test" }));
@@ -304,7 +296,7 @@ describe("withX402", () => {
 
     expect(handler).toHaveBeenCalled();
     expect(response.status).toBe(200);
-    expect(response.headers.get("X-Payment-Response")).toBe("settled");
+    expect(response.headers.get("PAYMENT-RESPONSE")).toBe("settled");
   });
 
   it("skips settlement when handler returns >= 400", async () => {
@@ -314,7 +306,7 @@ describe("withX402", () => {
         paymentPayload: mockPaymentPayload,
         paymentRequirements: mockPaymentRequirements,
       },
-      { "X-Payment-Response": "settled" },
+      { success: true, headers: { "PAYMENT-RESPONSE": "settled" } },
     );
     setupMockCreateHttpServer(mockServer);
     const handler = vi.fn().mockResolvedValue(new NextResponse("Internal Error", { status: 500 }));
@@ -328,14 +320,11 @@ describe("withX402", () => {
   });
 
   it("returns 402 when settlement throws error, not the handler response", async () => {
-    const mockServer = createMockHttpServer(
-      {
-        type: "payment-verified",
-        paymentPayload: mockPaymentPayload,
-        paymentRequirements: mockPaymentRequirements,
-      },
-      null,
-    );
+    const mockServer = createMockHttpServer({
+      type: "payment-verified",
+      paymentPayload: mockPaymentPayload,
+      paymentRequirements: mockPaymentRequirements,
+    });
     vi.mocked(mockServer.processSettlement).mockRejectedValue(new Error("Settlement rejected"));
     setupMockCreateHttpServer(mockServer);
     const handler = vi.fn().mockResolvedValue(NextResponse.json({ secret: "protected-data" }));
@@ -350,38 +339,29 @@ describe("withX402", () => {
     expect(body).not.toHaveProperty("secret");
   });
 
-  // it("returns 402 when settlement returns success: false, not the handler response", async () => {
-  //   const mockServer = createMockHttpServer(
-  //     {
-  //       type: "payment-verified",
-  //       paymentPayload: mockPaymentPayload,
-  //       paymentRequirements: mockPaymentRequirements,
-  //     },
-  //     {
-  //       "PAYMENT-RESPONSE": Buffer.from(
-  //         JSON.stringify({
-  //           success: false,
-  //           errorReason: "Insufficient funds",
-  //           transaction: "",
-  //           network: "eip155:84532",
-  //         }),
-  //       ).toString("base64"),
-  //     },
-  //   );
-  //   setupMockCreateHttpServer(mockServer);
-  //   const handler = vi
-  //     .fn()
-  //     .mockResolvedValue(NextResponse.json({ secret: "protected-data" }));
+  it("returns 402 when settlement returns success: false, not the handler response", async () => {
+    const mockServer = createMockHttpServer(
+      {
+        type: "payment-verified",
+        paymentPayload: mockPaymentPayload,
+        paymentRequirements: mockPaymentRequirements,
+      },
+      { success: false, errorReason: "Insufficient funds" },
+    );
+    setupMockCreateHttpServer(mockServer);
+    const handler = vi.fn().mockResolvedValue(NextResponse.json({ secret: "protected-data" }));
 
-  //   const wrappedHandler = withX402(handler, mockRouteConfig, {} as unknown as x402ResourceServer);
-  //   const response = await wrappedHandler(createMockRequest());
+    const wrappedHandler = withX402(handler, mockRouteConfig, {} as unknown as x402ResourceServer);
+    const response = await wrappedHandler(createMockRequest());
 
-  //   expect(handler).toHaveBeenCalled();
-  //   // When settlement returns success: false, should return 402, not the handler response
-  //   expect(response.status).toBe(402);
-  //   const body = await response.json();
-  //   expect(body).not.toHaveProperty("secret");
-  // });
+    expect(handler).toHaveBeenCalled();
+    // When settlement returns success: false, should return 402, not the handler response
+    expect(response.status).toBe(402);
+    const body = (await response.json()) as { error: string; details: string };
+    expect(body.error).toBe("Settlement failed");
+    expect(body.details).toBe("Insufficient funds");
+    expect(body).not.toHaveProperty("secret");
+  });
 });
 
 describe("paymentProxyFromConfig", () => {

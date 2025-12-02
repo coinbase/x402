@@ -201,7 +201,9 @@ describe("handleSettlement", () => {
 
   beforeEach(() => {
     mockHttpServer = {
-      processSettlement: vi.fn().mockResolvedValue({ "X-Payment-Response": "settled" }),
+      processSettlement: vi
+        .fn()
+        .mockResolvedValue({ success: true, headers: { "PAYMENT-RESPONSE": "settled" } }),
     } as unknown as x402HTTPResourceServer;
   });
 
@@ -244,16 +246,18 @@ describe("handleSettlement", () => {
     );
 
     expect(result.status).toBe(200);
-    expect(result.headers.get("X-Payment-Response")).toBe("settled");
+    expect(result.headers.get("PAYMENT-RESPONSE")).toBe("settled");
     expect(mockHttpServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockRequirements,
-      200,
     );
   });
 
-  it("returns original response when settlement returns null", async () => {
-    vi.mocked(mockHttpServer.processSettlement).mockResolvedValue(null);
+  it("returns 402 error response when settlement returns failure", async () => {
+    vi.mocked(mockHttpServer.processSettlement).mockResolvedValue({
+      success: false,
+      errorReason: "Insufficient funds",
+    });
     const response = new NextResponse("OK", { status: 200 });
 
     const result = await handleSettlement(
@@ -263,10 +267,13 @@ describe("handleSettlement", () => {
       mockRequirements,
     );
 
-    expect(result.status).toBe(200);
+    expect(result.status).toBe(402);
+    const body = (await result.json()) as { error: string; details: string };
+    expect(body.error).toBe("Settlement failed");
+    expect(body.details).toBe("Insufficient funds");
   });
 
-  it("returns 402 error response when settlement fails", async () => {
+  it("returns 402 error response when settlement throws", async () => {
     vi.mocked(mockHttpServer.processSettlement).mockRejectedValue(new Error("Settlement rejected"));
     const response = new NextResponse("OK", { status: 200 });
 

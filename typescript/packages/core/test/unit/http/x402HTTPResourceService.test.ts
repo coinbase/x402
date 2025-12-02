@@ -518,7 +518,7 @@ describe("x402HTTPResourceServer", () => {
   });
 
   describe("Settlement processing", () => {
-    it("should not settle if response status >= 400", async () => {
+    it("should return success with headers on successful settlement", async () => {
       const routes = {
         "/api/test": {
           accepts: {
@@ -538,13 +538,24 @@ describe("x402HTTPResourceServer", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await httpServer.processSettlement(payload, requirements, 404);
+      const result = await httpServer.processSettlement(payload, requirements);
 
-      expect(result).toBeNull();
-      expect(mockFacilitator.settleCalls.length).toBe(0);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.headers["PAYMENT-RESPONSE"]).toBeDefined();
+      }
+      expect(mockFacilitator.settleCalls.length).toBe(1);
     });
 
-    it("should settle if response status < 400", async () => {
+    it("should return failure when settlement fails", async () => {
+      // Override mock to simulate failure
+      mockFacilitator.settle = async () => ({
+        success: false,
+        errorReason: "Insufficient funds",
+        transaction: "",
+        network: "eip155:8453" as Network,
+      });
+
       const routes = {
         "/api/test": {
           accepts: {
@@ -564,11 +575,12 @@ describe("x402HTTPResourceServer", () => {
         network: "eip155:8453" as Network,
       });
 
-      const result = await httpServer.processSettlement(payload, requirements, 200);
+      const result = await httpServer.processSettlement(payload, requirements);
 
-      expect(result).toBeDefined();
-      expect(result?.["PAYMENT-RESPONSE"]).toBeDefined();
-      expect(mockFacilitator.settleCalls.length).toBe(1);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorReason).toBe("Insufficient funds");
+      }
     });
   });
 

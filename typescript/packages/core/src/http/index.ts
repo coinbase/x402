@@ -92,6 +92,9 @@ export {
   CompiledRoute,
   DynamicPayTo,
   DynamicPrice,
+  ProcessSettleResult,
+  ProcessSettleSuccess,
+  ProcessSettleFailure,
 } from "./x402HTTPResourceServer";
 export {
   HTTPFacilitatorClient,
