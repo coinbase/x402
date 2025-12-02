@@ -1,11 +1,16 @@
-import { Address } from "viem";
-import { paymentMiddleware, Resource, Network } from "x402-next";
+import { paymentProxyFromConfig } from "@x402/next";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { NextRequest, NextResponse } from "next/server";
 
-const address = process.env.RESOURCE_WALLET_ADDRESS as Address;
-const network = process.env.NETWORK as Network;
-const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as Resource;
+const evmPayeeAddress = process.env.RESOURCE_WALLET_ADDRESS as `0x${string}`;
+const svmPayeeAddress = process.env.SOLANA_WALLET_ADDRESS as string;
+const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as string;
 const cdpClientKey = process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY;
+
+const EVM_NETWORK = "eip155:84532" as const; // Base Sepolia
+const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as const; // Solana Devnet
 
 // List of blocked countries and regions
 const BLOCKED_COUNTRIES = [
@@ -20,20 +25,39 @@ const BLOCKED_REGIONS = {
   UA: ["43", "14", "09"],
 };
 
-const x402PaymentMiddleware = paymentMiddleware(
-  address,
+// Validate required environment variables
+if (!facilitatorUrl) {
+  console.error("❌ NEXT_PUBLIC_FACILITATOR_URL environment variable is required");
+}
+
+// Create HTTP facilitator client
+const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
+
+const x402PaymentMiddleware = paymentProxyFromConfig(
   {
     "/protected": {
-      price: "$0.01",
-      config: {
-        description: "Access to protected content",
-      },
-      network,
+      accepts: [
+        {
+          payTo: evmPayeeAddress,
+          scheme: "exact",
+          price: "$0.01",
+          network: EVM_NETWORK,
+        },
+        {
+          payTo: svmPayeeAddress,
+          scheme: "exact",
+          price: "$0.01",
+          network: SVM_NETWORK,
+        },
+      ],
+      description: "Access to protected content",
     },
   },
-  {
-    url: facilitatorUrl,
-  },
+  facilitatorClient,
+  [
+    { network: EVM_NETWORK, server: new ExactEvmScheme() },
+    { network: SVM_NETWORK, server: new ExactSvmScheme() },
+  ],
   {
     cdpClientKey,
     appLogo: "/logos/x402-examples.png",
