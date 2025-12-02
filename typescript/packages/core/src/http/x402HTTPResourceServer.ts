@@ -163,6 +163,7 @@ export type HTTPProcessResult =
 export type ProcessSettleSuccessResponse = SettleResponse & {
   success: true;
   headers: Record<string, string>;
+  requirements: PaymentRequirements;
 };
 
 export type ProcessSettleFailureResponse = SettleResponse & {
@@ -375,7 +376,8 @@ export class x402HTTPResourceServer {
       return {
         ...settleResponse,
         success: true,
-        headers: this.createSettlementHeaders(settleResponse),
+        headers: this.createSettlementHeaders(settleResponse, requirements),
+        requirements,
       };
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : "Settlement failed");
@@ -500,10 +502,17 @@ export class x402HTTPResourceServer {
    * Create settlement response headers
    *
    * @param settleResponse - Settlement response
+   * @param requirements - Payment requirements that were settled
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
-    const encoded = encodePaymentResponseHeader(settleResponse);
+  private createSettlementHeaders(
+    settleResponse: SettleResponse,
+    requirements: PaymentRequirements,
+  ): Record<string, string> {
+    const encoded = encodePaymentResponseHeader({
+      ...settleResponse,
+      requirements,
+    });
     return { "PAYMENT-RESPONSE": encoded };
   }
 
