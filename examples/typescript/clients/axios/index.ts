@@ -8,8 +8,8 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as `0x${string}`;
-const baseURL = "http://localhost:4021";
-const endpointPath = "/weather";
+const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
+const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
 
 /**
@@ -56,10 +56,14 @@ async function main(): Promise<void> {
   const body = response.data;
   console.log("Response body:", body);
 
-  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
-    name => response.headers[name.toLowerCase()],
-  );
-  console.log("\nPayment response:", paymentResponse);
+  if (response.status < 400) {
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
+      name => response.headers[name.toLowerCase()],
+    );
+    console.log("\nPayment response:", paymentResponse);
+  } else {
+    console.log(`\nNo payment settled (response status: ${response.status})`);
+  }
 }
 
 main().catch(error => {

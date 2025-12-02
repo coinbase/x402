@@ -5,10 +5,11 @@ import { registerExactSvmScheme } from "@x402/svm/exact/server";
 import { createPaywall } from "@x402/paywall";
 import { evmPaywall } from "@x402/paywall/evm";
 import { svmPaywall } from "@x402/paywall/svm";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
 const facilitatorUrl = process.env.FACILITATOR_URL;
-const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-const svmAddress = process.env.SVM_ADDRESS;
+export const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
+export const svmAddress = process.env.SVM_ADDRESS;
 
 if (!facilitatorUrl) {
   console.error("❌ FACILITATOR_URL environment variable is required");
@@ -24,16 +25,14 @@ if (!evmAddress || !svmAddress) {
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 // Create x402 resource server
-const server = new x402ResourceServer(facilitatorClient);
+export const server = new x402ResourceServer(facilitatorClient);
 
-// Register EVM scheme
+// Register schemes
 registerExactEvmScheme(server);
-
-// Register SVM scheme
 registerExactSvmScheme(server);
 
-// Build paywall using v2 builder pattern
-const paywall = createPaywall()
+// Build paywall
+export const paywall = createPaywall()
   .withNetwork(evmPaywall)
   .withNetwork(svmPaywall)
   .withConfig({
@@ -44,7 +43,7 @@ const paywall = createPaywall()
   })
   .build();
 
-// Export middleware with v2 API
+// Build proxy
 export const proxy = paymentProxy(
   {
     "/protected": {
@@ -52,10 +51,21 @@ export const proxy = paymentProxy(
         {
           scheme: "exact",
           price: "$0.001",
+          network: "eip155:84532", // base-sepolia
+          payTo: evmAddress,
+        },
+        {
+          scheme: "exact",
+          price: "$0.001",
           network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // solana devnet
           payTo: svmAddress,
         },
       ],
+      description: "Premium music: x402 Remix",
+      mimeType: "text/html",
+      extensions: {
+        ...declareDiscoveryExtension({}),
+      },
     },
   },
   server,

@@ -11,6 +11,7 @@ export class CoverageTracker {
   private clientsCovered = new Set<string>();
   private serversCovered = new Set<string>();
   private facilitatorsCovered = new Set<string>();
+  private endpointsCovered = new Set<string>();
 
   /**
    * Generate a coverage key for a component
@@ -26,6 +27,16 @@ export class CoverageTracker {
    */
   private getCoverageKey(componentName: string, protocolFamily: string, version: number): string {
     return `${componentName}-${protocolFamily}-v${version}`;
+  }
+
+  /**
+   * Generate a coverage key for an endpoint
+   * Format: "server-name-endpoint-path-protocolFamily-vVersion"
+   * 
+   * This ensures each unique endpoint on a server is tested separately.
+   */
+  private getEndpointCoverageKey(serverName: string, endpointPath: string, protocolFamily: string, version: number): string {
+    return `${serverName}-${endpointPath}-${protocolFamily}-v${version}`;
   }
 
   /**
@@ -59,16 +70,23 @@ export class CoverageTracker {
       protocolFamily,
       version
     );
+    const endpointKey = this.getEndpointCoverageKey(
+      scenario.server.name,
+      scenario.endpoint.path,
+      protocolFamily,
+      version
+    );
 
     // Check if ANY component hasn't been covered yet
     const clientNew = !this.clientsCovered.has(clientKey);
     const serverNew = !this.serversCovered.has(serverKey);
     const facilitatorNew = !this.facilitatorsCovered.has(facilitatorKey);
+    const endpointNew = !this.endpointsCovered.has(endpointKey);
 
-    const isNew = clientNew || serverNew || facilitatorNew;
+    const isNew = clientNew || serverNew || facilitatorNew || endpointNew;
 
     if (isNew) {
-      verboseLog(`  📊 New coverage: ${clientNew ? `client(${clientKey})` : ''} ${serverNew ? `server(${serverKey})` : ''} ${facilitatorNew ? `facilitator(${facilitatorKey})` : ''}`);
+      verboseLog(`  📊 New coverage: ${clientNew ? `client(${clientKey})` : ''} ${serverNew ? `server(${serverKey})` : ''} ${facilitatorNew ? `facilitator(${facilitatorKey})` : ''} ${endpointNew ? `endpoint(${endpointKey})` : ''}`);
     }
 
     return isNew;
@@ -99,10 +117,17 @@ export class CoverageTracker {
       protocolFamily,
       version
     );
+    const endpointKey = this.getEndpointCoverageKey(
+      scenario.server.name,
+      scenario.endpoint.path,
+      protocolFamily,
+      version
+    );
 
     this.clientsCovered.add(clientKey);
     this.serversCovered.add(serverKey);
     this.facilitatorsCovered.add(facilitatorKey);
+    this.endpointsCovered.add(endpointKey);
   }
 
   /**
@@ -111,11 +136,12 @@ export class CoverageTracker {
    * Returns:
    *   Object containing coverage counts for each component type
    */
-  getStats(): { clients: number; servers: number; facilitators: number } {
+  getStats(): { clients: number; servers: number; facilitators: number; endpoints: number } {
     return {
       clients: this.clientsCovered.size,
       servers: this.serversCovered.size,
       facilitators: this.facilitatorsCovered.size,
+      endpoints: this.endpointsCovered.size,
     };
   }
 }
@@ -159,6 +185,7 @@ export function minimizeScenarios(scenarios: TestScenario[]): TestScenario[] {
   log(`  • Clients: ${stats.clients} unique combinations`);
   log(`  • Servers: ${stats.servers} unique combinations`);
   log(`  • Facilitators: ${stats.facilitators} unique combinations`);
+  log(`  • Endpoints: ${stats.endpoints} unique combinations`);
   log('');
 
   return minimized;

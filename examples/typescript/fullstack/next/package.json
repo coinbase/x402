@@ -16,9 +16,10 @@
     "@heroicons/react": "^2.2.0",
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
+    "@x402/svm": "workspace:*",
     "@x402/next": "workspace:*",
     "@x402/paywall": "workspace:*",
-    "@x402/svm": "workspace:*",
+    "@x402/extensions": "workspace:*",
     "next": "^16.0.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
