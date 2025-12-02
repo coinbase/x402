@@ -161,6 +161,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const facilitatorSigner = toFacilitatorEvmSigner({
+        address: facilitatorAccount.address,
         readContract: args =>
           publicClient.readContract({
             ...args,
@@ -172,7 +173,10 @@ describe("EVM Integration Tests", () => {
             ...args,
             args: args.args || [],
           } as never),
+        sendTransaction: args => walletClient.sendTransaction(args),
+        sendTransaction: args => walletClient.sendTransaction(args),
         waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
+        getCode: args => publicClient.getCode(args),
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
@@ -285,6 +289,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const facilitatorSigner = toFacilitatorEvmSigner({
+        address: facilitatorAccount.address,
         readContract: args =>
           publicClient.readContract({
             ...args,
@@ -296,7 +301,10 @@ describe("EVM Integration Tests", () => {
             ...args,
             args: args.args || [],
           }),
+        sendTransaction: args => walletClient.sendTransaction(args),
+        sendTransaction: args => walletClient.sendTransaction(args),
         waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
+        getCode: args => publicClient.getCode(args),
       });
 
       const evmFacilitator = new ExactEvmFacilitator(facilitatorSigner);
@@ -405,6 +413,7 @@ describe("EVM Integration Tests", () => {
       });
 
       const facilitatorSigner = toFacilitatorEvmSigner({
+        address: facilitatorAccount.address,
         readContract: args =>
           publicClient.readContract({
             ...args,
@@ -416,7 +425,10 @@ describe("EVM Integration Tests", () => {
             ...args,
             args: args.args || [],
           } as never),
+        sendTransaction: args => walletClient.sendTransaction(args),
+        sendTransaction: args => walletClient.sendTransaction(args),
         waitForTransactionReceipt: args => publicClient.waitForTransactionReceipt(args),
+        getCode: args => publicClient.getCode(args),
       });
       const facilitator = new x402Facilitator().register(
         "eip155:84532",
