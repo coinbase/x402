@@ -21,10 +21,8 @@ interface SvmPaywallOptions {
   paymentRequired: PaymentRequired;
   currentUrl: string;
   testnet: boolean;
-  cdpClientKey?: string;
   appName?: string;
   appLogo?: string;
-  sessionTokenEndpoint?: string;
 }
 
 /**
@@ -35,10 +33,8 @@ interface SvmPaywallOptions {
  * @param options.paymentRequired - The payment required response with accepts array
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
- * @param options.cdpClientKey - CDP client API key for OnchainKit
  * @param options.appName - The name of the application to display in the wallet connection modal
  * @param options.appLogo - The logo of the application to display in the wallet connection modal
- * @param options.sessionTokenEndpoint - The API endpoint for generating session tokens for Onramp authentication
  * @returns HTML string for the paywall page
  */
 export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
@@ -54,16 +50,7 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
     return `<!DOCTYPE html><html><body><h1>SVM Paywall (run pnpm build:paywall to generate full template)</h1></body></html>`;
   }
 
-  const {
-    amount,
-    testnet,
-    paymentRequired,
-    currentUrl,
-    cdpClientKey,
-    appName,
-    appLogo,
-    sessionTokenEndpoint,
-  } = options;
+  const { amount, testnet, paymentRequired, currentUrl, appName, appLogo } = options;
 
   const logOnTestnet = testnet
     ? "console.log('SVM Payment required initialized:', window.x402);"
@@ -79,10 +66,8 @@ export function getSvmPaywallHtml(options: SvmPaywallOptions): string {
       config: {
         chainConfig: {},
       },
-      cdpClientKey: "${escapeString(cdpClientKey || "")}",
       appName: "${escapeString(appName || "")}",
       appLogo: "${escapeString(appLogo || "")}",
-      sessionTokenEndpoint: "${escapeString(sessionTokenEndpoint || "")}",
     };
     ${logOnTestnet}
   </script>`;

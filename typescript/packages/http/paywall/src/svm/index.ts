@@ -44,10 +44,8 @@ export const svmPaywall: PaywallNetworkHandler = {
       paymentRequired,
       currentUrl: paymentRequired.resource?.url || config.currentUrl || "",
       testnet: config.testnet ?? true,
-      cdpClientKey: config.cdpClientKey,
       appName: config.appName,
       appLogo: config.appLogo,
-      sessionTokenEndpoint: config.sessionTokenEndpoint,
     });
   },
 };

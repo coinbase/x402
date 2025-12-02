@@ -7,10 +7,8 @@ interface PaywallOptions {
   paymentRequired: PaymentRequired;
   currentUrl: string;
   testnet: boolean;
-  cdpClientKey?: string;
   appName?: string;
   appLogo?: string;
-  sessionTokenEndpoint?: string;
 }
 
 /**
@@ -56,10 +54,8 @@ function getChainConfig() {
  * @param options.paymentRequired - The payment required response with accepts array
  * @param options.currentUrl - The URL of the content being accessed
  * @param options.testnet - Whether to use testnet or mainnet
- * @param options.cdpClientKey - CDP client API key for OnchainKit
  * @param options.appName - The name of the application to display in the wallet connection modal
  * @param options.appLogo - The logo of the application to display in the wallet connection modal
- * @param options.sessionTokenEndpoint - The API endpoint for generating session tokens for Onramp authentication
  * @returns An HTML string containing the paywall page
  */
 export function getPaywallHtml({
@@ -67,10 +63,8 @@ export function getPaywallHtml({
   testnet,
   paymentRequired,
   currentUrl,
-  cdpClientKey,
   appName,
   appLogo,
-  sessionTokenEndpoint,
 }: PaywallOptions): string {
   const logOnTestnet = testnet ? "console.log('Payment required initialized:', window.x402);" : "";
 
@@ -86,10 +80,8 @@ export function getPaywallHtml({
       config: {
         chainConfig: ${JSON.stringify(config)},
       },
-      cdpClientKey: "${escapeString(cdpClientKey || "")}",
       appName: "${escapeString(appName || "")}",
       appLogo: "${escapeString(appLogo || "")}",
-      sessionTokenEndpoint: "${escapeString(sessionTokenEndpoint || "")}",
     };
     ${logOnTestnet}
   </script>`;

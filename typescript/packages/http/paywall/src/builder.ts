@@ -68,10 +68,8 @@ export class PaywallBuilder {
           paymentRequired,
           currentUrl: paymentRequired.resource?.url || finalConfig.currentUrl || "",
           testnet: finalConfig.testnet ?? true,
-          cdpClientKey: finalConfig.cdpClientKey,
           appName: finalConfig.appName,
           appLogo: finalConfig.appLogo,
-          sessionTokenEndpoint: finalConfig.sessionTokenEndpoint,
         });
       },
     };
