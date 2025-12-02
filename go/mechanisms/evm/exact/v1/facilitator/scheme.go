@@ -15,15 +15,36 @@ import (
 	"github.com/coinbase/x402/go/types"
 )
 
+// ExactEvmSchemeV1Config holds configuration for the ExactEvmSchemeV1 facilitator
+type ExactEvmSchemeV1Config struct {
+	// DeployERC4337WithEIP6492 enables automatic deployment of ERC-4337 smart wallets
+	// via EIP-6492 when encountering undeployed contract signatures during settlement
+	DeployERC4337WithEIP6492 bool
+}
+
 // ExactEvmSchemeV1 implements the SchemeNetworkFacilitatorV1 interface for EVM exact payments (V1)
 type ExactEvmSchemeV1 struct {
 	signer evm.FacilitatorEvmSigner
+	config ExactEvmSchemeV1Config
 }
 
 // NewExactEvmSchemeV1 creates a new ExactEvmSchemeV1
-func NewExactEvmSchemeV1(signer evm.FacilitatorEvmSigner) *ExactEvmSchemeV1 {
+// Args:
+//
+//	signer: The EVM signer for facilitator operations
+//	config: Optional configuration (nil uses defaults)
+//
+// Returns:
+//
+//	Configured ExactEvmSchemeV1 instance
+func NewExactEvmSchemeV1(signer evm.FacilitatorEvmSigner, config *ExactEvmSchemeV1Config) *ExactEvmSchemeV1 {
+	cfg := ExactEvmSchemeV1Config{}
+	if config != nil {
+		cfg = *config
+	}
 	return &ExactEvmSchemeV1{
 		signer: signer,
+		config: cfg,
 	}
 }
 
@@ -209,19 +230,43 @@ func (f *ExactEvmSchemeV1) Settle(
 		return nil, x402.NewSettleError("failed_to_get_asset_info", verifyResp.Payer, network, "", err)
 	}
 
-	// Parse signature components (v, r, s)
+	// Parse signature
 	signatureBytes, err := evm.HexToBytes(evmPayload.Signature)
 	if err != nil {
 		return nil, x402.NewSettleError("invalid_signature_format", verifyResp.Payer, network, "", err)
 	}
 
-	if len(signatureBytes) != 65 {
-		return nil, x402.NewSettleError("invalid_signature_length", verifyResp.Payer, network, "", nil)
+	// Parse ERC-6492 signature to extract inner signature if needed
+	sigData, err := evm.ParseERC6492Signature(signatureBytes)
+	if err != nil {
+		return nil, x402.NewSettleError("failed_to_parse_signature", verifyResp.Payer, network, "", err)
 	}
 
-	r := signatureBytes[0:32]
-	s := signatureBytes[32:64]
-	v := signatureBytes[64]
+	// Check if wallet needs deployment (undeployed smart wallet with ERC-6492)
+	zeroFactory := [20]byte{}
+	if sigData.Factory != zeroFactory && len(sigData.FactoryCalldata) > 0 {
+		code, err := f.signer.GetCode(ctx, evmPayload.Authorization.From)
+		if err != nil {
+			return nil, x402.NewSettleError("failed_to_check_deployment", verifyResp.Payer, network, "", err)
+		}
+
+		if len(code) == 0 {
+			// Wallet not deployed
+			if f.config.DeployERC4337WithEIP6492 {
+				// Deploy wallet
+				err := f.deploySmartWallet(ctx, sigData, evmPayload.Authorization.From)
+				if err != nil {
+					return nil, x402.NewSettleError(evm.ErrSmartWalletDeploymentFailed, verifyResp.Payer, network, "", err)
+				}
+			} else {
+				// Deployment not enabled - fail settlement
+				return nil, x402.NewSettleError(evm.ErrUndeployedSmartWallet, verifyResp.Payer, network, "", nil)
+			}
+		}
+	}
+
+	// Use inner signature for settlement
+	signatureBytes = sigData.InnerSignature
 
 	// Parse values
 	value, _ := new(big.Int).SetString(evmPayload.Authorization.Value, 10)
@@ -229,22 +274,48 @@ func (f *ExactEvmSchemeV1) Settle(
 	validBefore, _ := new(big.Int).SetString(evmPayload.Authorization.ValidBefore, 10)
 	nonceBytes, _ := evm.HexToBytes(evmPayload.Authorization.Nonce)
 
-	// Execute transferWithAuthorization
-	txHash, err := f.signer.WriteContract(
-		ctx,
-		assetInfo.Address,
-		evm.TransferWithAuthorizationABI,
-		evm.FunctionTransferWithAuthorization,
-		common.HexToAddress(evmPayload.Authorization.From),
-		common.HexToAddress(evmPayload.Authorization.To),
-		value,
-		validAfter,
-		validBefore,
-		[32]byte(nonceBytes),
-		v,
-		[32]byte(r),
-		[32]byte(s),
-	)
+	// Determine signature type: ECDSA (65 bytes) or smart wallet (longer)
+	isECDSA := len(signatureBytes) == 65
+
+	var txHash string
+	if isECDSA {
+		// For EOA wallets, use v,r,s overload
+		r := signatureBytes[0:32]
+		s := signatureBytes[32:64]
+		v := signatureBytes[64]
+
+		txHash, err = f.signer.WriteContract(
+			ctx,
+			assetInfo.Address,
+			evm.TransferWithAuthorizationVRSABI,
+			evm.FunctionTransferWithAuthorization,
+			common.HexToAddress(evmPayload.Authorization.From),
+			common.HexToAddress(evmPayload.Authorization.To),
+			value,
+			validAfter,
+			validBefore,
+			[32]byte(nonceBytes),
+			v,
+			[32]byte(r),
+			[32]byte(s),
+		)
+	} else {
+		// For smart wallets, use bytes signature overload
+		txHash, err = f.signer.WriteContract(
+			ctx,
+			assetInfo.Address,
+			evm.TransferWithAuthorizationBytesABI,
+			evm.FunctionTransferWithAuthorization,
+			common.HexToAddress(evmPayload.Authorization.From),
+			common.HexToAddress(evmPayload.Authorization.To),
+			value,
+			validAfter,
+			validBefore,
+			[32]byte(nonceBytes),
+			signatureBytes,
+		)
+	}
+
 	if err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
@@ -277,56 +348,95 @@ func (f *ExactEvmSchemeV1) verifySignature(
 	tokenName string,
 	tokenVersion string,
 ) (bool, error) {
-	// Create EIP-712 domain
-	domain := evm.TypedDataDomain{
-		Name:              tokenName,
-		Version:           tokenVersion,
-		ChainID:           chainID,
-		VerifyingContract: verifyingContract,
-	}
-
-	// Define EIP-712 types
-	types := map[string][]evm.TypedDataField{
-		"EIP712Domain": {
-			{Name: "name", Type: "string"},
-			{Name: "version", Type: "string"},
-			{Name: "chainId", Type: "uint256"},
-			{Name: "verifyingContract", Type: "address"},
-		},
-		"TransferWithAuthorization": {
-			{Name: "from", Type: "address"},
-			{Name: "to", Type: "address"},
-			{Name: "value", Type: "uint256"},
-			{Name: "validAfter", Type: "uint256"},
-			{Name: "validBefore", Type: "uint256"},
-			{Name: "nonce", Type: "bytes32"},
-		},
-	}
-
-	// Parse values for message
-	value, _ := new(big.Int).SetString(authorization.Value, 10)
-	validAfter, _ := new(big.Int).SetString(authorization.ValidAfter, 10)
-	validBefore, _ := new(big.Int).SetString(authorization.ValidBefore, 10)
-	nonceBytes, _ := evm.HexToBytes(authorization.Nonce)
-
-	// Create message
-	message := map[string]interface{}{
-		"from":        authorization.From,
-		"to":          authorization.To,
-		"value":       value,
-		"validAfter":  validAfter,
-		"validBefore": validBefore,
-		"nonce":       nonceBytes,
-	}
-
-	// Verify the signature
-	return f.signer.VerifyTypedData(
-		ctx,
-		authorization.From,
-		domain,
-		types,
-		"TransferWithAuthorization",
-		message,
-		signature,
+	// Hash the EIP-712 typed data
+	hash, err := evm.HashEIP3009Authorization(
+		authorization,
+		chainID,
+		verifyingContract,
+		tokenName,
+		tokenVersion,
 	)
+	if err != nil {
+		return false, err
+	}
+
+	// Convert hash to [32]byte
+	var hash32 [32]byte
+	copy(hash32[:], hash)
+
+	// Use universal verification (supports EOA, EIP-1271, and ERC-6492)
+	valid, sigData, err := evm.VerifyUniversalSignature(
+		ctx,
+		f.signer,
+		authorization.From,
+		hash32,
+		signature,
+		true, // allowUndeployed in verify()
+	)
+
+	if err != nil {
+		return false, err
+	}
+
+	// If undeployed wallet with deployment info, it will be deployed in settle()
+	if sigData != nil {
+		zeroFactory := [20]byte{}
+		if sigData.Factory != zeroFactory {
+			code, err := f.signer.GetCode(ctx, authorization.From)
+			if err != nil {
+				return false, err
+			}
+
+			if len(code) == 0 {
+				// Wallet not deployed - this is OK in verify() if has deployment info
+				// Actual deployment happens in settle() if configured
+			}
+		}
+	}
+
+	return valid, nil
+}
+
+// deploySmartWallet deploys an ERC-4337 smart wallet using the ERC-6492 factory
+//
+// This function sends the pre-encoded factory calldata directly as a transaction.
+// The factoryCalldata already contains the complete encoded function call with selector.
+//
+// Args:
+//
+//	ctx: Context for cancellation
+//	sigData: Parsed ERC-6492 signature containing factory address and calldata
+//	expectedAddress: The expected address of the wallet being deployed
+//
+// Returns:
+//
+//	error if deployment fails
+func (f *ExactEvmSchemeV1) deploySmartWallet(
+	ctx context.Context,
+	sigData *evm.ERC6492SignatureData,
+	expectedAddress string,
+) error {
+	factoryAddr := common.BytesToAddress(sigData.Factory[:])
+
+	// Send the factory calldata directly - it already contains the encoded function call
+	txHash, err := f.signer.SendTransaction(
+		ctx,
+		factoryAddr.Hex(),
+		sigData.FactoryCalldata,
+	)
+	if err != nil {
+		return fmt.Errorf("factory deployment transaction failed: %w", err)
+	}
+
+	// Wait for deployment transaction
+	receipt, err := f.signer.WaitForTransactionReceipt(ctx, txHash)
+	if err != nil {
+		return fmt.Errorf("failed to wait for deployment: %w", err)
+	}
+
+	if receipt.Status != evm.TxStatusSuccess {
+		return fmt.Errorf("deployment transaction reverted")
+	}
+
+	return nil
 }
