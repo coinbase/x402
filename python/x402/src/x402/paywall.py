@@ -3,8 +3,8 @@ from typing import Dict, Any, List, Optional
 
 from x402.types import PaymentRequirements, PaywallConfig
 from x402.common import x402_VERSION
-from x402.evm_template import EVM_PAYWALL_TEMPLATE
-from x402.svm_template import SVM_PAYWALL_TEMPLATE
+from x402.evm_paywall_template import EVM_PAYWALL_TEMPLATE
+from x402.svm_paywall_template import SVM_PAYWALL_TEMPLATE
 
 
 def get_paywall_template(network: str) -> str:
