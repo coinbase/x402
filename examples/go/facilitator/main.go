@@ -10,7 +10,9 @@ import (
 
 	x402 "github.com/coinbase/x402/go"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+	evmv1 "github.com/coinbase/x402/go/mechanisms/evm/exact/v1/facilitator"
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+	svmv1 "github.com/coinbase/x402/go/mechanisms/svm/exact/v1/facilitator"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -43,11 +45,23 @@ func main() {
 	}
 
 	facilitator := x402.Newx402Facilitator()
-	facilitator.Register([]x402.Network{network}, evm.NewExactEvmScheme(evmSigner))
+	
+	// Register V2 EVM scheme with smart wallet deployment enabled
+	evmConfig := &evm.ExactEvmSchemeConfig{
+		DeployERC4337WithEIP6492: true,
+	}
+	facilitator.Register([]x402.Network{network}, evm.NewExactEvmScheme(evmSigner, evmConfig))
+
+	// Register V1 EVM scheme with smart wallet deployment enabled
+	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
+		DeployERC4337WithEIP6492: true,
+	}
+	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config))
 
 	if svmSigner != nil {
 		svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
 		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))
+		facilitator.RegisterV1([]x402.Network{"solana-devnet"}, svmv1.NewExactSvmSchemeV1(svmSigner))
 	}
 
 	facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
