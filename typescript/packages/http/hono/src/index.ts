@@ -233,19 +233,26 @@ export function paymentMiddleware(
         c.res = undefined;
 
         try {
-          const settlementHeaders = await httpServer.processSettlement(
+          const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
-            res.status,
           );
 
-          if (settlementHeaders) {
-            Object.entries(settlementHeaders).forEach(([key, value]) => {
+          if (!settleResult.success) {
+            // Settlement failed - do not return the protected resource
+            res = c.json(
+              {
+                error: "Settlement failed",
+                details: settleResult.errorReason,
+              },
+              402,
+            );
+          } else {
+            // Settlement succeeded - add headers to response
+            Object.entries(settleResult.headers).forEach(([key, value]) => {
               res.headers.set(key, value);
             });
           }
-
-          // If settlement returns null or succeeds, continue with original response
         } catch (error) {
           console.error(error);
           // If settlement fails, return an error response

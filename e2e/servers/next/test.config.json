@@ -8,16 +8,30 @@
   ],
   "endpoints": [
     {
-      "path": "/api/protected",
+      "path": "/api/protected-proxy",
       "method": "GET",
-      "description": "Protected API endpoint requiring payment",
+      "description": "Protected endpoint using proxy middleware",
       "requiresPayment": true,
       "protocolFamily": "evm"
     },
     {
-      "path": "/api/protected-svm",
+      "path": "/api/protected-svm-proxy",
       "method": "GET",
-      "description": "Protected endpoint requiring payment on SVM network",
+      "description": "Protected endpoint using proxy middleware on SVM",
+      "requiresPayment": true,
+      "protocolFamily": "svm"
+    },
+    {
+      "path": "/api/protected-withx402",
+      "method": "GET",
+      "description": "Protected endpoint using withX402 wrapper",
+      "requiresPayment": true,
+      "protocolFamily": "evm"
+    },
+    {
+      "path": "/api/protected-svm-withx402",
+      "method": "GET",
+      "description": "Protected endpoint using withX402 wrapper on SVM",
       "requiresPayment": true,
       "protocolFamily": "svm"
     },
