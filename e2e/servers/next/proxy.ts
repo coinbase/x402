@@ -4,10 +4,10 @@ import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
 import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
-const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
-const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
-const EVM_NETWORK = "eip155:84532" as const;
-const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`;
+export const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
+export const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
+export const EVM_NETWORK = "eip155:84532" as const;
+export const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!facilitatorUrl) {
@@ -19,7 +19,7 @@ if (!facilitatorUrl) {
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
 // Create x402 resource server with builder pattern (cleaner!)
-const server = new x402ResourceServer(facilitatorClient);
+export const server = new x402ResourceServer(facilitatorClient);
 
 // Register server schemes
 registerExactEvmScheme(server);
@@ -32,7 +32,7 @@ console.log(`Using remote facilitator at: ${facilitatorUrl}`);
 
 export const proxy = paymentProxy(
   {
-    "/api/protected": {
+    "/api/protected-proxy": {
       accepts: {
         payTo: EVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -57,7 +57,7 @@ export const proxy = paymentProxy(
         }),
       },
     },
-    "/api/protected-svm": {
+    "/api/protected-svm-proxy": {
       accepts: {
         payTo: SVM_PAYEE_ADDRESS,
         scheme: "exact",
@@ -88,6 +88,6 @@ export const proxy = paymentProxy(
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: ["/api/protected", "/api/protected-svm"],
+  matcher: ["/api/protected-proxy", "/api/protected-svm-proxy"],
 };
 

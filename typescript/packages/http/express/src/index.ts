@@ -240,19 +240,26 @@ export function paymentMiddleware(
         }
 
         try {
-          const settlementHeaders = await httpServer.processSettlement(
+          const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
-            res.statusCode,
           );
 
-          if (settlementHeaders) {
-            Object.entries(settlementHeaders).forEach(([key, value]) => {
-              res.setHeader(key, value);
-            });
+          if (!settleResult.success) {
+            // Settlement failed - do not return the protected resource
+            if (!res.headersSent) {
+              res.status(402).json({
+                error: "Settlement failed",
+                details: settleResult.errorReason,
+              });
+            }
+            return;
           }
 
-          // If settlement returns null or succeeds, continue with original response
+          // Settlement succeeded - add headers to response
+          Object.entries(settleResult.headers).forEach(([key, value]) => {
+            res.setHeader(key, value);
+          });
         } catch (error) {
           console.error(error);
           // If settlement fails and the response hasn't been sent yet, return an error
@@ -261,8 +268,8 @@ export function paymentMiddleware(
               error: "Settlement failed",
               details: error instanceof Error ? error.message : "Unknown error",
             });
-            return;
           }
+          return;
         } finally {
           res.end = originalEnd;
           if (endArgs) {

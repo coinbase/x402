@@ -158,6 +158,24 @@ export type HTTPProcessResult =
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
 /**
+ * Result of processSettlement
+ */
+export type ProcessSettleSuccessResponse = SettleResponse & {
+  success: true;
+  headers: Record<string, string>;
+  requirements: PaymentRequirements;
+};
+
+export type ProcessSettleFailureResponse = SettleResponse & {
+  success: false;
+  errorReason: string;
+};
+
+export type ProcessSettleResultResponse =
+  | ProcessSettleSuccessResponse
+  | ProcessSettleFailureResponse;
+
+/**
  * HTTP-enhanced x402 resource server
  * Provides framework-agnostic HTTP protocol handling
  */
@@ -338,25 +356,31 @@ export class x402HTTPResourceServer {
    *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
-   * @param responseStatus - Status code from protected resource
-   * @returns Settlement response headers or null
+   * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-    responseStatus: number,
-  ): Promise<Record<string, string> | null> {
-    // Don't settle if response failed
-    if (responseStatus >= 400) {
-      return null;
-    }
-
+  ): Promise<ProcessSettleResultResponse> {
     try {
-      const settleResult = await this.ResourceServer.settlePayment(paymentPayload, requirements);
-      return this.createSettlementHeaders(settleResult);
+      const settleResponse = await this.ResourceServer.settlePayment(paymentPayload, requirements);
+
+      if (!settleResponse.success) {
+        return {
+          ...settleResponse,
+          success: false,
+          errorReason: settleResponse.errorReason || "Settlement failed",
+        };
+      }
+
+      return {
+        ...settleResponse,
+        success: true,
+        headers: this.createSettlementHeaders(settleResponse, requirements),
+        requirements,
+      };
     } catch (error) {
-      console.error("Settlement failed:", error);
-      throw error;
+      throw new Error(error instanceof Error ? error.message : "Settlement failed");
     }
   }
 
@@ -478,10 +502,17 @@ export class x402HTTPResourceServer {
    * Create settlement response headers
    *
    * @param settleResponse - Settlement response
+   * @param requirements - Payment requirements that were settled
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
-    const encoded = encodePaymentResponseHeader(settleResponse);
+  private createSettlementHeaders(
+    settleResponse: SettleResponse,
+    requirements: PaymentRequirements,
+  ): Record<string, string> {
+    const encoded = encodePaymentResponseHeader({
+      ...settleResponse,
+      requirements,
+    });
     return { "PAYMENT-RESPONSE": encoded };
   }
 
