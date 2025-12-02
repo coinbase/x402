@@ -457,7 +457,7 @@ func (f *x402Facilitator) verifyV2(ctx context.Context, payload types.PaymentPay
 		}
 	}
 
-	return nil, NewVerifyError("no_facilitator_for_network2", "", network, fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
+	return nil, NewVerifyError("no_facilitator_for_network", "", network, fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // settleV1 settles a V1 payment (internal, typed)
@@ -481,7 +481,7 @@ func (f *x402Facilitator) settleV1(ctx context.Context, payload types.PaymentPay
 		}
 	}
 
-	return nil, NewSettleError("no_facilitator_for_network3", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
+	return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // settleV2 settles a V2 payment (internal, typed)
@@ -505,7 +505,7 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 		}
 	}
 
-	return nil, NewSettleError("no_facilitator_for_network4", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
+	return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
 // GetSupported returns supported payment kinds in V2 format
