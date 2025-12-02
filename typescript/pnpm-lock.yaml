@@ -1152,12 +1152,33 @@ importers:
 
   site:
     dependencies:
+      '@coinbase/cdp-sdk':
+        specifier: ^1.22.0
+        version: 1.36.1(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
       '@heroicons/react':
         specifier: ^2.2.0
-        version: 2.2.0(react@19.2.1)
+        version: 2.2.0(react@19.1.1)
+      '@scure/base':
+        specifier: ^1.2.6
+        version: 1.2.6
+      '@solana/kit':
+        specifier: ^2.1.1
+        version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@vercel/functions':
         specifier: ^2.2.8
         version: 2.2.13
+      '@x402/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@x402/evm':
+        specifier: workspace:*
+        version: link:../packages/mechanisms/evm
+      '@x402/next':
+        specifier: workspace:*
+        version: link:../packages/http/next
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../packages/mechanisms/svm
       next:
         specifier: 15.5.7
         version: 15.5.7(@babel/core@7.28.3)(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -1172,16 +1193,10 @@ importers:
         version: 2.37.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13)
       wagmi:
         specifier: ^2.15.6
-        version: 2.16.9(@tanstack/query-core@5.90.11)(@tanstack/react-query@5.90.11(react@19.2.1))(@types/react@19.1.12)(@vercel/functions@2.2.13)(bufferutil@4.0.9)(react@19.2.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.37.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13))(zod@4.1.13)
-      x402:
-        specifier: workspace:*
-        version: link:../packages/legacy/x402
+        version: 2.16.9(@tanstack/query-core@5.90.11)(@tanstack/react-query@5.90.11(react@19.1.1))(@types/react@19.1.12)(@vercel/functions@2.2.13)(bufferutil@4.0.9)(react@19.1.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.37.3(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.13))(zod@4.1.13)
       x402-legacy:
         specifier: npm:x402@0.1.2
         version: x402@0.1.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      x402-next:
-        specifier: workspace:*
-        version: link:../packages/legacy/x402-next
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3

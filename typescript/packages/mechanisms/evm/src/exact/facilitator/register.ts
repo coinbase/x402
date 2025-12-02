@@ -19,6 +19,14 @@ export interface EvmFacilitatorConfig {
    * Examples: "eip155:84532", ["eip155:84532", "eip155:1"]
    */
   networks: Network | Network[];
+
+  /**
+   * If enabled, the facilitator will deploy ERC-4337 smart wallets
+   * via EIP-6492 when encountering undeployed contract signatures.
+   *
+   * @default false
+   */
+  deployERC4337WithEIP6492?: boolean;
 }
 
 /**
@@ -58,10 +66,20 @@ export function registerExactEvmScheme(
   config: EvmFacilitatorConfig,
 ): x402Facilitator {
   // Register V2 scheme with specified networks
-  facilitator.register(config.networks, new ExactEvmScheme(config.signer));
+  facilitator.register(
+    config.networks,
+    new ExactEvmScheme(config.signer, {
+      deployERC4337WithEIP6492: config.deployERC4337WithEIP6492,
+    }),
+  );
 
   // Register all V1 networks
-  facilitator.registerV1(NETWORKS as Network[], new ExactEvmSchemeV1(config.signer));
+  facilitator.registerV1(
+    NETWORKS as Network[],
+    new ExactEvmSchemeV1(config.signer, {
+      deployERC4337WithEIP6492: config.deployERC4337WithEIP6492,
+    }),
+  );
 
   return facilitator;
 }
