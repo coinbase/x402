@@ -25,7 +25,13 @@ export default function Home() {
                 href="/protected"
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors text-white"
               >
-                Live demo
+                Protected page
+              </Link>
+              <Link
+                href="/api/weather"
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors text-white"
+              >
+                Protected API
               </Link>
             </div>
           </div>

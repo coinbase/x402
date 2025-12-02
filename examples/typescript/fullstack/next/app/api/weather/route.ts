@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@x402/next";
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { server, paywall, evmAddress, svmAddress } from "../../../proxy";
 
 /**
@@ -7,13 +8,16 @@ import { server, paywall, evmAddress, svmAddress } from "../../../proxy";
  *
  * This handler returns weather data after payment verification.
  * Payment is only settled after a successful response (status < 400).
+ *
+ * @param _ - Incoming Next.js request
+ * @returns JSON response with weather data
  */
-const handler = async (_request: NextRequest) => {
+const handler = async (_: NextRequest) => {
   return NextResponse.json(
     {
       report: {
         weather: "sunny",
-        temperature: 72
+        temperature: 72,
       },
     },
     { status: 200 },
@@ -46,9 +50,20 @@ export const GET = withX402(
     ],
     description: "Access to weather API",
     mimeType: "application/json",
+    extensions: {
+      ...declareDiscoveryExtension({
+        output: {
+          example: {
+            report: {
+              weather: "sunny",
+              temperature: 72,
+            },
+          },
+        },
+      }),
+    },
   },
   server,
   undefined, // paywallConfig (using custom paywall from proxy.ts)
   paywall,
 );
-

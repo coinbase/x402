@@ -27,13 +27,11 @@ const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 // Create x402 resource server
 export const server = new x402ResourceServer(facilitatorClient);
 
-// Register EVM scheme
+// Register schemes
 registerExactEvmScheme(server);
-
-// Register SVM scheme
 registerExactSvmScheme(server);
 
-// Build paywall using v2 builder pattern 
+// Build paywall
 export const paywall = createPaywall()
   .withNetwork(evmPaywall)
   .withNetwork(svmPaywall)
@@ -45,7 +43,7 @@ export const paywall = createPaywall()
   })
   .build();
 
-// Export middleware with v2 API
+// Build proxy
 export const proxy = paymentProxy(
   {
     "/protected": {
@@ -63,16 +61,10 @@ export const proxy = paymentProxy(
           payTo: svmAddress,
         },
       ],
-      description: "Premium music content - DJ Reppel Remix of x402",
+      description: "Premium music: x402 Remix",
       mimeType: "text/html",
       extensions: {
-        ...declareDiscoveryExtension({
-          output: {
-            example: {
-              content: "HTML page with embedded SoundCloud player",
-            },
-          },
-        }),
+        ...declareDiscoveryExtension({}),
       },
     },
   },
