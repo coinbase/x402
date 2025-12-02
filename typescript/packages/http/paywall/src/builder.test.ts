@@ -37,7 +37,7 @@ describe("PaywallBuilder", () => {
       const builder = createPaywall();
       const result = builder.withConfig({
         appName: "Test App",
-        cdpClientKey: "test-key",
+        appLogo: "/test-logo.png",
       });
       expect(result).toBe(builder); // Same instance (chainable)
     });
@@ -45,12 +45,12 @@ describe("PaywallBuilder", () => {
     it("merges multiple config calls", () => {
       const paywall = createPaywall()
         .withConfig({ appName: "App 1" })
-        .withConfig({ cdpClientKey: "key-1" })
+        .withConfig({ appLogo: "/logo-1.png" })
         .build();
 
       const html = paywall.generateHtml(mockPaymentRequired);
       expect(html).toContain("App 1");
-      expect(html).toContain("key-1");
+      expect(html).toContain("/logo-1.png");
     });
 
     it("later configs override earlier ones", () => {
@@ -109,12 +109,12 @@ describe("PaywallBuilder", () => {
         .build();
 
       const html = paywall.generateHtml(mockPaymentRequired, {
-        cdpClientKey: "runtime-key",
+        appLogo: "/runtime-logo.png",
       });
 
       // Both builder and runtime configs should be present
       expect(html).toContain("Test App"); // from builder
-      expect(html).toContain("runtime-key"); // from runtime
+      expect(html).toContain("/runtime-logo.png"); // from runtime
     });
   });
 
