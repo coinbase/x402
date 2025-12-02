@@ -8,7 +8,6 @@ import {
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextRequest, NextResponse } from "next/server";
-import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
 import {
   createHttpServer,
   createRequestContext,
@@ -131,7 +130,21 @@ export function paymentProxyFromConfig(
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
-  ResourceServer.registerExtension(bazaarResourceServerExtension);
+  // Check if any routes declare bazaar extensions
+  const needsBazaar = checkIfBazaarNeeded(routes);
+
+  // Lazy load bazaar extension only if needed
+  if (needsBazaar) {
+    // Dynamic import to avoid bundling bazaar in Edge Runtime when not needed
+    // webpackIgnore tells webpack not to bundle this module
+    import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
+      .then(({ bazaarResourceServerExtension }) => {
+        ResourceServer.registerExtension(bazaarResourceServerExtension);
+      })
+      .catch(err => {
+        console.error("Failed to load bazaar extension:", err);
+      });
+  }
 
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
@@ -232,6 +245,24 @@ export function withX402<T = unknown>(
       }
     }
   };
+}
+
+/**
+ * Check if any routes in the configuration declare bazaar extensions
+ *
+ * @param routes - Route configuration
+ * @returns True if any route has extensions.bazaar defined
+ */
+function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
+  // Handle single route config
+  if ("accepts" in routes) {
+    return !!(routes.extensions && "bazaar" in routes.extensions);
+  }
+
+  // Handle multiple routes
+  return Object.values(routes).some(routeConfig => {
+    return !!(routeConfig.extensions && "bazaar" in routeConfig.extensions);
+  });
 }
 
 export type {

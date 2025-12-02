@@ -380,13 +380,6 @@ describe("paymentProxyFromConfig", () => {
     expect(x402ResourceServer).toHaveBeenCalledWith(facilitator);
   });
 
-  it("registers bazaar extension", () => {
-    paymentProxyFromConfig(mockRoutes);
-
-    const serverInstance = vi.mocked(x402ResourceServer).mock.results[0].value;
-    expect(serverInstance.registerExtension).toHaveBeenCalledWith({ name: "bazaar" });
-  });
-
   it("registers scheme servers for each network", () => {
     const schemeServer = { verify: vi.fn(), settle: vi.fn() } as unknown as SchemeNetworkServer;
     const schemes: SchemeRegistration[] = [
