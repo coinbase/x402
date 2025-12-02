@@ -19,10 +19,12 @@ describe("EVM Signer Converters", () => {
   describe("toFacilitatorEvmSigner", () => {
     it("should return the same client (identity function)", () => {
       const mockClient: FacilitatorEvmSigner = {
+        address: "0x1234567890123456789012345678901234567890",
         readContract: async () => BigInt(0),
         verifyTypedData: async () => true,
         writeContract: async () => "0xtxhash" as `0x${string}`,
         waitForTransactionReceipt: async () => ({ status: "success" }),
+        getCode: async () => "0x" as `0x${string}`,
       };
 
       const result = toFacilitatorEvmSigner(mockClient);
