@@ -244,6 +244,16 @@ describe("paymentMiddleware()", () => {
       "x-payment": encodedValidPayment,
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
@@ -270,7 +280,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Invalid payment"),
+      error: "Invalid payment",
       accepts: [
         {
           scheme: "exact",
@@ -303,7 +313,7 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Unexpected error"),
+      error: "Unexpected error",
       accepts: [
         {
           scheme: "exact",
@@ -336,13 +346,11 @@ describe("paymentMiddleware()", () => {
       network: "base-sepolia",
     });
 
-    // Mock response.end to capture arguments
-    const endArgs: Parameters<Response["end"]>[] = [];
-    (mockRes.end as ReturnType<typeof vi.fn>).mockImplementation(
-      (...args: Parameters<Response["end"]>) => {
-        endArgs.push(args);
-      },
-    );
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      // Call the middleware's intercepted version of res.end
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
@@ -358,12 +366,17 @@ describe("paymentMiddleware()", () => {
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
 
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
+
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith({
       x402Version: 1,
-      error: new Error("Settlement failed"),
+      error: "Settlement failed",
       accepts: [
         {
           scheme: "exact",
@@ -396,6 +409,11 @@ describe("paymentMiddleware()", () => {
       transaction: "0x123",
       network: "base-sepolia",
       payer: "0x123",
+    });
+
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      (mockRes.end as ReturnType<typeof vi.fn>)();
     });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -431,22 +449,41 @@ describe("paymentMiddleware()", () => {
     };
     (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
     (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
-    mockRes.headersSent = true;
 
-    // Mock response.end to capture arguments
-    const endArgs: Parameters<Response["end"]>[] = [];
-    (mockRes.end as ReturnType<typeof vi.fn>).mockImplementation(
-      (...args: Parameters<Response["end"]>) => {
-        endArgs.push(args);
-      },
-    );
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      // Call the middleware's intercepted version of res.end
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
 
     expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
     expect(mockSettle).toHaveBeenCalledWith(validPayment, expect.any(Object));
-    // Should not try to send another response since headers are already sent
-    expect(mockRes.status).not.toHaveBeenCalledWith(402);
+    // When settlement fails, middleware returns 402 error (buffered response is discarded)
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: "Settlement failed",
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
   });
 
   it("should not settle payment if protected route returns status >= 400", async () => {
@@ -468,7 +505,12 @@ describe("paymentMiddleware()", () => {
       this.statusCode = code;
       return this;
     });
-    mockRes.statusCode = 500;
+
+    // Simulate route handler setting status to 500 and calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      mockRes.statusCode = 500;
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
 
     // call the middleware
     await middleware(mockReq as Request, mockRes as Response, mockNext);
