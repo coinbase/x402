@@ -10,7 +10,7 @@
     "schemes": ["exact", "@faremeter/x-solana-settlement"],
     "assets": ["EIP-3009", "SPL", "Token-2022"],
     "supports": {
-      "verify": false,
+      "verify": true,
       "settle": true,
       "supported": true,
       "list": false
