@@ -2,6 +2,7 @@ packages:
   - "facilitators/*"
   - "servers/*"
   - "clients/*"
+  - "clients/external/*"
   - "legacy/servers/*"
   - "legacy/clients/*"
   - "../typescript/packages/*"

@@ -98,8 +98,11 @@ const evmSigner = toFacilitatorEvmSigner({
       ...args,
       args: args.args || [],
     }),
+  sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
+    viemClient.sendTransaction(args),
   waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
     viemClient.waitForTransactionReceipt(args),
+  getCode: (args: { address: `0x${string}` }) => viemClient.getCode(args),
 });
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
