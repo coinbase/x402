@@ -93,6 +93,51 @@ export const config = {
 };
 ```
 
+### Weather API Route (using withX402)
+
+The `/api/weather` route demonstrates the `withX402` wrapper for individual API routes. Unlike middleware, `withX402` guarantees payment settlement only after the handler returns a successful response (status < 400):
+
+```typescript
+// app/api/weather/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "@x402/next";
+import { server, paywall, evmAddress, svmAddress } from "../../../proxy";
+
+const handler = async (_request: NextRequest) => {
+  return NextResponse.json({
+    report: {
+      weather: "sunny",
+      temperature: 72,
+    },
+  });
+};
+
+export const GET = withX402(
+  handler,
+  {
+    accepts: [
+      {
+        scheme: "exact",
+        price: "$0.001",
+        network: "eip155:84532",
+        payTo: evmAddress,
+      },
+      {
+        scheme: "exact",
+        price: "$0.001",
+        network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+        payTo: svmAddress,
+      },
+    ],
+    description: "Access to weather API",
+    mimeType: "application/json",
+  },
+  server,
+  undefined,
+  paywall,
+);
+```
+
 ## Response Format
 
 ### Payment Required (402)
@@ -115,7 +160,7 @@ export const config = {
 ```ts
 // Headers
 {
-  "X-PAYMENT-RESPONSE": "..." // Encoded response object
+  "PAYMENT-RESPONSE": "..." // Base64-encoded settlement response
 }
 ```
 
@@ -155,6 +200,17 @@ export const config = {
   runtime: "nodejs",
 };
 ```
+
+## Middleware vs withX402
+
+Choose the right approach for your use case:
+
+| Approach | Use Case |
+|----------|----------|
+| `paymentProxy` (middleware) | Protecting page routes or multiple routes with a single configuration |
+| `withX402` (route wrapper) | Protecting individual API routes where you need precise control over settlement timing |
+
+**Key difference:** `withX402` guarantees payment settlement only after your handler returns a successful response (status < 400). With middleware, this guarantee is harder to enforce since Next.js middleware cannot access the actual route response.
 
 ## Multiple Payment Options
 

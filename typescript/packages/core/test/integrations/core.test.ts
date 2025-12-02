@@ -168,13 +168,14 @@ describe("Core Integration Tests", () => {
         paymentRequirements: PaymentRequirements;
       };
 
-      const settlementHeaders = await httpServer.processSettlement(
+      const settlementResult = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
-        200,
       );
-      expect(settlementHeaders).toBeDefined();
-      expect(settlementHeaders?.["PAYMENT-RESPONSE"]).toBeDefined();
+      expect(settlementResult.success).toBe(true);
+      if (settlementResult.success) {
+        expect(settlementResult.headers["PAYMENT-RESPONSE"]).toBeDefined();
+      }
     });
   });
 });
