@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -296,6 +295,49 @@ func (s *facilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
+func (s *facilitatorEvmSigner) SendTransaction(
+	ctx context.Context,
+	to string,
+	data []byte,
+) (string, error) {
+	// Get nonce
+	nonce, err := s.client.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction with raw data
+	toAddr := common.HexToAddress(to)
+	tx := types.NewTransaction(
+		nonce,
+		toAddr,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.client.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
+}
+
 func (s *facilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evmmech.TransactionReceipt, error) {
 	hash := common.HexToHash(txHash)
 
@@ -338,6 +380,15 @@ func (s *facilitatorEvmSigner) GetBalance(ctx context.Context, address string, t
 	}
 
 	return nil, fmt.Errorf("unexpected balance type: %T", result)
+}
+
+func (s *facilitatorEvmSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
+	addr := common.HexToAddress(address)
+	code, err := s.client.CodeAt(ctx, addr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get code: %w", err)
+	}
+	return code, nil
 }
 
 // ============================================================================
@@ -420,7 +471,7 @@ func (s *facilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.T
 }
 
 func (s *facilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return solana.Signature{}, err
 	}
@@ -437,7 +488,7 @@ func (s *facilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.T
 }
 
 func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := s.GetRPC(network)
+	rpcClient, err := s.GetRPC(ctx, network)
 	if err != nil {
 		return err
 	}

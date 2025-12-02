@@ -55,6 +55,7 @@ const viemClient = createWalletClient({
 // Initialize the x402 Facilitator with EVM and SVM support
 
 const evmSigner = toFacilitatorEvmSigner({
+  getCode: (args: { address: `0x${string}` }) => viemClient.getCode(args),
   address: evmAccount.address,
   readContract: (args: {
     address: `0x${string}`;
@@ -85,6 +86,8 @@ const evmSigner = toFacilitatorEvmSigner({
       ...args,
       args: args.args || [],
     }),
+  sendTransaction: (args: { to: `0x${string}`; data: `0x${string}` }) =>
+    viemClient.sendTransaction(args),
   waitForTransactionReceipt: (args: { hash: `0x${string}` }) =>
     viemClient.waitForTransactionReceipt(args),
 });
@@ -92,12 +95,31 @@ const evmSigner = toFacilitatorEvmSigner({
 // Facilitator can now handle all Solana networks with automatic RPC creation
 const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
-const facilitator = new x402Facilitator();
+const facilitator = new x402Facilitator()
+  .onBeforeVerify(async (context) => {
+    console.log("Before verify", context);
+  })
+  .onAfterVerify(async (context) => {
+    console.log("After verify", context);
+  })
+  .onVerifyFailure(async (context) => {
+    console.log("Verify failure", context);
+  })
+  .onBeforeSettle(async (context) => {
+    console.log("Before settle", context);
+  })
+  .onAfterSettle(async (context) => {
+    console.log("After settle", context);
+  })
+  .onSettleFailure(async (context) => {
+    console.log("Settle failure", context);
+  });
 
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
   networks: "eip155:84532", // Base Sepolia
+  deployERC4337WithEIP6492: true,
 });
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
