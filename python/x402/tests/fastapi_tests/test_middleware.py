@@ -1,11 +1,18 @@
+from unittest.mock import AsyncMock, patch
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from x402.fastapi.middleware import require_payment
 from x402.types import PaywallConfig
+import base64
+import json
 
 
 async def test_endpoint():
     return {"message": "success"}
+
+
+async def secret_endpoint():
+    return {"secret": "paid_data"}
 
 
 def test_middleware_invalid_payment():
@@ -527,5 +534,140 @@ def test_payment_amount_conversion():
 
     response = client.get("/protected", headers=browser_headers)
     html_content = response.text
-    # $0.001 should be converted to 0.001 in the display
     assert '"amount": 0.001' in html_content
+
+
+def test_settlement_failure_blocks_content():
+    with patch("x402.fastapi.middleware.FacilitatorClient") as Mock:
+        mock = Mock.return_value
+        mock.verify = AsyncMock(return_value=AsyncMock(is_valid=True))
+        mock.settle = AsyncMock(
+            return_value=AsyncMock(success=False, error_reason="Failed")
+        )
+
+        app = FastAPI()
+        app.get("/secret")(secret_endpoint)
+        app.middleware("http")(
+            require_payment(
+                "$1",
+                "0x1111111111111111111111111111111111111111",
+                "/secret",
+                network="base-sepolia",
+            )
+        )
+
+        payment = base64.b64encode(
+            json.dumps(
+                {
+                    "x402Version": 1,
+                    "scheme": "exact",
+                    "network": "base-sepolia",
+                    "payload": {
+                        "signature": "0x" + "a" * 130,
+                        "authorization": {
+                            "from": "0x" + "1" * 40,
+                            "to": "0x" + "2" * 40,
+                            "value": "1000000",
+                            "validAfter": "0",
+                            "validBefore": "9999999999",
+                            "nonce": "0x1",
+                        },
+                    },
+                }
+            ).encode()
+        ).decode()
+
+        response = TestClient(app).get("/secret", headers={"X-PAYMENT": payment})
+        assert response.status_code == 402
+        assert "secret" not in response.json()
+
+
+def test_settlement_success_delivers_content():
+    with patch("x402.fastapi.middleware.FacilitatorClient") as Mock:
+        mock = Mock.return_value
+        mock.verify = AsyncMock(return_value=AsyncMock(is_valid=True))
+        settle_response = AsyncMock(success=True, transaction="0x" + "b" * 64)
+        settle_response.model_dump_json = lambda by_alias=True: json.dumps(
+            {"success": True}
+        )
+        mock.settle = AsyncMock(return_value=settle_response)
+
+        app = FastAPI()
+        app.get("/secret")(secret_endpoint)
+        app.middleware("http")(
+            require_payment(
+                "$1",
+                "0x1111111111111111111111111111111111111111",
+                "/secret",
+                network="base-sepolia",
+            )
+        )
+
+        payment = base64.b64encode(
+            json.dumps(
+                {
+                    "x402Version": 1,
+                    "scheme": "exact",
+                    "network": "base-sepolia",
+                    "payload": {
+                        "signature": "0x" + "a" * 130,
+                        "authorization": {
+                            "from": "0x" + "1" * 40,
+                            "to": "0x" + "2" * 40,
+                            "value": "1000000",
+                            "validAfter": "0",
+                            "validBefore": "9999999999",
+                            "nonce": "0x1",
+                        },
+                    },
+                }
+            ).encode()
+        ).decode()
+
+        response = TestClient(app).get("/secret", headers={"X-PAYMENT": payment})
+        assert response.status_code == 200
+        assert response.json()["secret"] == "paid_data"
+        assert "X-PAYMENT-RESPONSE" in response.headers
+
+
+def test_settlement_exception_blocks_content():
+    with patch("x402.fastapi.middleware.FacilitatorClient") as Mock:
+        mock = Mock.return_value
+        mock.verify = AsyncMock(return_value=AsyncMock(is_valid=True))
+        mock.settle = AsyncMock(side_effect=Exception("Network error"))
+
+        app = FastAPI()
+        app.get("/secret")(secret_endpoint)
+        app.middleware("http")(
+            require_payment(
+                "$1",
+                "0x1111111111111111111111111111111111111111",
+                "/secret",
+                network="base-sepolia",
+            )
+        )
+
+        payment = base64.b64encode(
+            json.dumps(
+                {
+                    "x402Version": 1,
+                    "scheme": "exact",
+                    "network": "base-sepolia",
+                    "payload": {
+                        "signature": "0x" + "a" * 130,
+                        "authorization": {
+                            "from": "0x" + "1" * 40,
+                            "to": "0x" + "2" * 40,
+                            "value": "1000000",
+                            "validAfter": "0",
+                            "validBefore": "9999999999",
+                            "nonce": "0x1",
+                        },
+                    },
+                }
+            ).encode()
+        ).decode()
+
+        response = TestClient(app).get("/secret", headers={"X-PAYMENT": payment})
+        assert response.status_code == 402
+        assert "secret" not in response.json()
