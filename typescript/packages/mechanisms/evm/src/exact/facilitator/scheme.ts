@@ -5,7 +5,7 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
-import { getAddress, Hex, isAddressEqual, parseErc6492Signature } from "viem";
+import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
 import { ExactEvmPayloadV2 } from "../../types";
@@ -143,11 +143,53 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         };
       }
     } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_exact_evm_payload_signature",
-        payer: exactEvmPayload.authorization.from,
-      };
+      // Signature verification failed - could be an undeployed smart wallet
+      // Check if smart wallet is deployed
+      const signature = exactEvmPayload.signature!;
+      const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+      const isSmartWallet = signatureLength > 130; // 65 bytes = 130 hex chars for EOA
+
+      if (isSmartWallet) {
+        const payerAddress = exactEvmPayload.authorization.from;
+        const bytecode = await this.signer.getCode({ address: payerAddress });
+
+        if (!bytecode || bytecode === "0x") {
+          // Wallet is not deployed. Check if it's EIP-6492 with deployment info.
+          // EIP-6492 signatures contain factory address and calldata needed for deployment.
+          // Non-EIP-6492 undeployed wallets cannot succeed (no way to deploy them).
+          const erc6492Data = parseErc6492Signature(signature);
+          const hasDeploymentInfo =
+            erc6492Data.address &&
+            erc6492Data.data &&
+            !isAddressEqual(erc6492Data.address, "0x0000000000000000000000000000000000000000");
+
+          if (!hasDeploymentInfo) {
+            // Non-EIP-6492 undeployed smart wallet - will always fail at settlement
+            // since EIP-3009 requires on-chain EIP-1271 validation
+            return {
+              isValid: false,
+              invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
+              payer: payerAddress,
+            };
+          }
+          // EIP-6492 signature with deployment info - allow through
+          // Facilitators with sponsored deployment support can handle this in settle()
+        } else {
+          // Wallet is deployed but signature still failed - invalid signature
+          return {
+            isValid: false,
+            invalidReason: "invalid_exact_evm_payload_signature",
+            payer: exactEvmPayload.authorization.from,
+          };
+        }
+      } else {
+        // EOA signature failed
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_evm_payload_signature",
+          payer: exactEvmPayload.authorization.from,
+        };
+      }
     }
 
     // Verify payment recipient matches
@@ -251,57 +293,79 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         factoryCalldata &&
         !isAddressEqual(factoryAddress, "0x0000000000000000000000000000000000000000")
       ) {
-        try {
-          console.log(
-            `Deploying ERC-4337 smart wallet for ${exactEvmPayload.authorization.from} via EIP-6492`,
-          );
+        // Check if smart wallet is already deployed
+        const payerAddress = exactEvmPayload.authorization.from;
+        const bytecode = await this.signer.getCode({ address: payerAddress });
 
-          // Call the factory to deploy the smart wallet
-          // Note: Most ERC-4337 factories are idempotent - they won't redeploy if already exists
-          const deployTx = await this.signer.writeContract({
-            address: factoryAddress as Hex,
-            abi: [
-              {
-                inputs: [{ type: "bytes" }],
-                name: "createAccount",
-                outputs: [{ type: "address" }],
-                stateMutability: "nonpayable",
-                type: "function",
-              },
-            ] as const,
-            functionName: "createAccount",
-            args: [factoryCalldata as Hex],
-          });
+        if (!bytecode || bytecode === "0x") {
+          // Wallet not deployed - attempt deployment
+          try {
+            console.log(`Deploying ERC-4337 smart wallet for ${payerAddress} via EIP-6492`);
 
-          // Wait for deployment transaction
-          await this.signer.waitForTransactionReceipt({ hash: deployTx });
-          console.log(
-            `Successfully processed smart wallet deployment for ${exactEvmPayload.authorization.from}`,
-          );
-        } catch (deployError) {
-          // Log but don't fail - the wallet might already be deployed
-          console.warn(
-            "Smart wallet deployment transaction reverted (may already exist):",
-            deployError,
-          );
+            // Send the factory calldata directly as a transaction
+            // The factoryCalldata already contains the complete encoded function call
+            const deployTx = await this.signer.sendTransaction({
+              to: factoryAddress as Hex,
+              data: factoryCalldata as Hex,
+            });
+
+            // Wait for deployment transaction
+            await this.signer.waitForTransactionReceipt({ hash: deployTx });
+            console.log(`Successfully deployed smart wallet for ${payerAddress}`);
+          } catch (deployError) {
+            console.error("Smart wallet deployment failed:", deployError);
+            // Deployment failed - cannot proceed
+            throw deployError;
+          }
+        } else {
+          console.log(`Smart wallet for ${payerAddress} already deployed, skipping deployment`);
         }
       }
 
-      // Execute transferWithAuthorization
-      const tx = await this.signer.writeContract({
-        address: getAddress(requirements.asset),
-        abi: eip3009ABI,
-        functionName: "transferWithAuthorization",
-        args: [
-          getAddress(exactEvmPayload.authorization.from),
-          getAddress(exactEvmPayload.authorization.to),
-          BigInt(exactEvmPayload.authorization.value),
-          BigInt(exactEvmPayload.authorization.validAfter),
-          BigInt(exactEvmPayload.authorization.validBefore),
-          exactEvmPayload.authorization.nonce,
-          signature,
-        ],
-      });
+      // Determine if this is an ECDSA signature (EOA) or smart wallet signature
+      // ECDSA signatures are exactly 65 bytes (130 hex chars without 0x)
+      const signatureLength = signature.startsWith("0x") ? signature.length - 2 : signature.length;
+      const isECDSA = signatureLength === 130;
+
+      let tx: Hex;
+      if (isECDSA) {
+        // For EOA wallets, parse signature into v, r, s and use that overload
+        const parsedSig = parseSignature(signature);
+
+        tx = await this.signer.writeContract({
+          address: getAddress(requirements.asset),
+          abi: eip3009ABI,
+          functionName: "transferWithAuthorization",
+          args: [
+            getAddress(exactEvmPayload.authorization.from),
+            getAddress(exactEvmPayload.authorization.to),
+            BigInt(exactEvmPayload.authorization.value),
+            BigInt(exactEvmPayload.authorization.validAfter),
+            BigInt(exactEvmPayload.authorization.validBefore),
+            exactEvmPayload.authorization.nonce,
+            (parsedSig.v as number | undefined) || parsedSig.yParity,
+            parsedSig.r,
+            parsedSig.s,
+          ],
+        });
+      } else {
+        // For smart wallets, use the bytes signature overload
+        // The signature contains WebAuthn/P256 or other ERC-1271 compatible signature data
+        tx = await this.signer.writeContract({
+          address: getAddress(requirements.asset),
+          abi: eip3009ABI,
+          functionName: "transferWithAuthorization",
+          args: [
+            getAddress(exactEvmPayload.authorization.from),
+            getAddress(exactEvmPayload.authorization.to),
+            BigInt(exactEvmPayload.authorization.value),
+            BigInt(exactEvmPayload.authorization.validAfter),
+            BigInt(exactEvmPayload.authorization.validBefore),
+            exactEvmPayload.authorization.nonce,
+            signature,
+          ],
+        });
+      }
 
       // Wait for transaction confirmation
       const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
