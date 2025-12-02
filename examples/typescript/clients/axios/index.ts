@@ -56,10 +56,14 @@ async function main(): Promise<void> {
   const body = response.data;
   console.log("Response body:", body);
 
-  const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
-    name => response.headers[name.toLowerCase()],
-  );
-  console.log("\nPayment response:", paymentResponse);
+  if (response.status < 400) {
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
+      name => response.headers[name.toLowerCase()],
+    );
+    console.log("\nPayment response:", paymentResponse);
+  } else {
+    console.log(`\nNo payment settled (response status: ${response.status})`);
+  }
 }
 
 main().catch(error => {
