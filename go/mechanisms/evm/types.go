@@ -50,6 +50,10 @@ type FacilitatorEvmSigner interface {
 	// WriteContract executes a smart contract transaction
 	WriteContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (string, error)
 
+	// SendTransaction sends a raw transaction with arbitrary calldata
+	// Used for smart wallet deployment where calldata is pre-encoded
+	SendTransaction(ctx context.Context, to string, data []byte) (string, error)
+
 	// WaitForTransactionReceipt waits for a transaction to be mined
 	WaitForTransactionReceipt(ctx context.Context, txHash string) (*TransactionReceipt, error)
 
@@ -58,6 +62,10 @@ type FacilitatorEvmSigner interface {
 
 	// GetChainID returns the chain ID of the connected network
 	GetChainID(ctx context.Context) (*big.Int, error)
+
+	// GetCode returns the bytecode at the given address
+	// Returns empty slice if address is an EOA or doesn't exist
+	GetCode(ctx context.Context, address string) ([]byte, error)
 }
 
 // TypedDataDomain represents the EIP-712 domain separator
@@ -154,4 +162,13 @@ func IsValidNetwork(network string) bool {
 	default:
 		return false
 	}
+}
+
+// ERC6492SignatureData represents the parsed components of an ERC-6492 signature
+// ERC-6492 allows signatures from undeployed smart contract accounts by wrapping
+// the signature with deployment information (factory address and calldata)
+type ERC6492SignatureData struct {
+	Factory         [20]byte // CREATE2 factory address (zero address if not ERC-6492)
+	FactoryCalldata []byte   // Calldata to deploy the wallet (empty if not ERC-6492)
+	InnerSignature  []byte   // The actual signature (EIP-1271 or EOA)
 }

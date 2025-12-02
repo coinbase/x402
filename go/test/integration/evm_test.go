@@ -88,6 +88,11 @@ func (s *realFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, er
 	return s.chainID, nil
 }
 
+func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
+	addr := common.HexToAddress(address)
+	return s.ethClient.CodeAt(ctx, addr, nil)
+}
+
 func (s *realFacilitatorEvmSigner) ReadContract(
 	ctx context.Context,
 	contractAddress string,
@@ -112,6 +117,15 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	// For integration tests, we'll return a mock transaction hash
 	// In production, this would actually call the contract
 	// The real verification happens in the VerifyTypedData call
+	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
+}
+
+func (s *realFacilitatorEvmSigner) SendTransaction(
+	ctx context.Context,
+	to string,
+	data []byte,
+) (string, error) {
+	// For integration tests, return a mock transaction hash
 	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
 }
 
@@ -261,7 +275,11 @@ func TestEVMIntegrationV2(t *testing.T) {
 
 		// Setup facilitator with EVM v2 scheme
 		facilitator := x402.Newx402Facilitator()
-		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner)
+		// Enable smart wallet deployment via EIP-6492
+		evmConfig := &evmfacilitator.ExactEvmSchemeConfig{
+			DeployERC4337WithEIP6492: true,
+		}
+		evmFacilitator := evmfacilitator.NewExactEvmScheme(facilitatorSigner, evmConfig)
 		// Register for Base Sepolia
 		facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitator)
 
@@ -425,7 +443,7 @@ func TestEVMIntegrationV1(t *testing.T) {
 
 		// Setup facilitator with EVM v1 scheme
 		facilitator := x402.Newx402Facilitator()
-		evmFacilitatorV1 := evmv1facilitator.NewExactEvmSchemeV1(facilitatorSigner)
+		evmFacilitatorV1 := evmv1facilitator.NewExactEvmSchemeV1(facilitatorSigner, nil)
 		// Register for Base Sepolia using V1 registration
 		facilitator.RegisterV1([]x402.Network{"eip155:84532"}, evmFacilitatorV1)
 
