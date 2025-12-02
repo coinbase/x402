@@ -257,6 +257,8 @@ describe("handleSettlement", () => {
     vi.mocked(mockHttpServer.processSettlement).mockResolvedValue({
       success: false,
       errorReason: "Insufficient funds",
+      transaction: "",
+      network: "eip155:84532",
     });
     const response = new NextResponse("OK", { status: 200 });
 

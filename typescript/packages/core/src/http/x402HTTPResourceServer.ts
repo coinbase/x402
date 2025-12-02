@@ -160,17 +160,19 @@ export type HTTPProcessResult =
 /**
  * Result of processSettlement
  */
-export type ProcessSettleSuccess = {
+export type ProcessSettleSuccessResponse = SettleResponse & {
   success: true;
   headers: Record<string, string>;
 };
 
-export type ProcessSettleFailure = {
+export type ProcessSettleFailureResponse = SettleResponse & {
   success: false;
   errorReason: string;
 };
 
-export type ProcessSettleResult = ProcessSettleSuccess | ProcessSettleFailure;
+export type ProcessSettleResultResponse =
+  | ProcessSettleSuccessResponse
+  | ProcessSettleFailureResponse;
 
 /**
  * HTTP-enhanced x402 resource server
@@ -353,28 +355,30 @@ export class x402HTTPResourceServer {
    *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
-   * @returns ProcessSettleResult - success with headers or failure with errorReason
+   * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-  ): Promise<ProcessSettleResult> {
+  ): Promise<ProcessSettleResultResponse> {
     try {
-      const settleResult = await this.ResourceServer.settlePayment(paymentPayload, requirements);
+      const settleResponse = await this.ResourceServer.settlePayment(paymentPayload, requirements);
 
-      if (!settleResult.success) {
-        return { success: false, errorReason: settleResult.errorReason || "Settlement failed" };
+      if (!settleResponse.success) {
+        return {
+          ...settleResponse,
+          success: false,
+          errorReason: settleResponse.errorReason || "Settlement failed",
+        };
       }
 
       return {
+        ...settleResponse,
         success: true,
-        headers: this.createSettlementHeaders(settleResult),
+        headers: this.createSettlementHeaders(settleResponse),
       };
     } catch (error) {
-      return {
-        success: false,
-        errorReason: error instanceof Error ? error.message : "Settlement failed",
-      };
+      throw new Error(error instanceof Error ? error.message : "Settlement failed");
     }
   }
 
