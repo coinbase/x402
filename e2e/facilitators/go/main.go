@@ -328,6 +328,49 @@ func (s *realFacilitatorEvmSigner) WriteContract(
 	return signedTx.Hash().Hex(), nil
 }
 
+func (s *realFacilitatorEvmSigner) SendTransaction(
+	ctx context.Context,
+	to string,
+	data []byte,
+) (string, error) {
+	// Get nonce
+	nonce, err := s.client.PendingNonceAt(ctx, s.address)
+	if err != nil {
+		return "", fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	// Get gas price
+	gasPrice, err := s.client.SuggestGasPrice(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get gas price: %w", err)
+	}
+
+	// Create transaction with raw data
+	toAddr := common.HexToAddress(to)
+	tx := types.NewTransaction(
+		nonce,
+		toAddr,
+		big.NewInt(0), // value
+		300000,        // gas limit
+		gasPrice,
+		data,
+	)
+
+	// Sign transaction
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(s.chainID), s.privateKey)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Send transaction
+	err = s.client.SendTransaction(ctx, signedTx)
+	if err != nil {
+		return "", fmt.Errorf("failed to send transaction: %w", err)
+	}
+
+	return signedTx.Hash().Hex(), nil
+}
+
 func (s *realFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evmmech.TransactionReceipt, error) {
 	hash := common.HexToHash(txHash)
 
@@ -372,6 +415,15 @@ func (s *realFacilitatorEvmSigner) GetBalance(ctx context.Context, address strin
 	}
 
 	return nil, fmt.Errorf("unexpected balance type: %T", result)
+}
+
+func (s *realFacilitatorEvmSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
+	addr := common.HexToAddress(address)
+	code, err := s.client.CodeAt(ctx, addr, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get code: %w", err)
+	}
+	return code, nil
 }
 
 // Helper functions for type conversion
@@ -594,10 +646,17 @@ func main() {
 	facilitator := x402.Newx402Facilitator()
 
 	// Register EVM schemes with network arrays
-	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner)
+	// Enable smart wallet deployment via EIP-6492
+	evmConfig := &evm.ExactEvmSchemeConfig{
+		DeployERC4337WithEIP6492: true,
+	}
+	evmFacilitatorScheme := evm.NewExactEvmScheme(evmSigner, evmConfig)
 	facilitator.Register([]x402.Network{"eip155:84532"}, evmFacilitatorScheme)
 
-	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner)
+	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
+		DeployERC4337WithEIP6492: true,
+	}
+	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config)
 	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmFacilitatorV1Scheme)
 
 	// Register SVM schemes with network arrays
