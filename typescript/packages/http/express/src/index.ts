@@ -1,5 +1,4 @@
 import {
-  HTTPAdapter,
   HTTPRequestContext,
   PaywallConfig,
   PaywallProvider,
@@ -11,104 +10,7 @@ import {
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
 import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
-
-/**
- * Express adapter implementation
- */
-export class ExpressAdapter implements HTTPAdapter {
-  /**
-   * Creates a new ExpressAdapter instance.
-   *
-   * @param req - The Express request object
-   */
-  constructor(private req: Request) {}
-
-  /**
-   * Gets a header value from the request.
-   *
-   * @param name - The header name
-   * @returns The header value or undefined
-   */
-  getHeader(name: string): string | undefined {
-    const value = this.req.header(name);
-    return Array.isArray(value) ? value[0] : value;
-  }
-
-  /**
-   * Gets the HTTP method of the request.
-   *
-   * @returns The HTTP method
-   */
-  getMethod(): string {
-    return this.req.method;
-  }
-
-  /**
-   * Gets the path of the request.
-   *
-   * @returns The request path
-   */
-  getPath(): string {
-    return this.req.path;
-  }
-
-  /**
-   * Gets the full URL of the request.
-   *
-   * @returns The full request URL
-   */
-  getUrl(): string {
-    return `${this.req.protocol}://${this.req.headers.host}${this.req.path}`;
-  }
-
-  /**
-   * Gets the Accept header from the request.
-   *
-   * @returns The Accept header value or empty string
-   */
-  getAcceptHeader(): string {
-    return this.req.header("Accept") || "";
-  }
-
-  /**
-   * Gets the User-Agent header from the request.
-   *
-   * @returns The User-Agent header value or empty string
-   */
-  getUserAgent(): string {
-    return this.req.header("User-Agent") || "";
-  }
-
-  /**
-   * Gets all query parameters from the request URL.
-   *
-   * @returns Record of query parameter key-value pairs
-   */
-  getQueryParams(): Record<string, string | string[]> {
-    return this.req.query as Record<string, string | string[]>;
-  }
-
-  /**
-   * Gets a specific query parameter by name.
-   *
-   * @param name - The query parameter name
-   * @returns The query parameter value(s) or undefined
-   */
-  getQueryParam(name: string): string | string[] | undefined {
-    const value = this.req.query[name];
-    return value as string | string[] | undefined;
-  }
-
-  /**
-   * Gets the parsed request body.
-   * Requires express.json() or express.urlencoded() middleware.
-   *
-   * @returns The parsed request body
-   */
-  getBody(): unknown {
-    return this.req.body;
-  }
-}
+import { ExpressAdapter } from "./adapter";
 
 /**
  * Configuration for registering a payment scheme with a specific network
@@ -212,30 +114,83 @@ export function paymentMiddleware(
         // Payment is valid, need to wrap response for settlement
         const { paymentPayload, paymentRequirements } = result;
 
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        type EndArgs =
-          | [cb?: () => void]
-          | [chunk: any, cb?: () => void]
-          | [chunk: any, encoding: BufferEncoding, cb?: () => void];
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-
+        // Intercept and buffer all core methods that can commit response to client
+        const originalWriteHead = res.writeHead.bind(res);
+        const originalWrite = res.write.bind(res);
         const originalEnd = res.end.bind(res);
-        let endArgs: EndArgs | null = null;
+        const originalFlushHeaders = res.flushHeaders.bind(res);
 
-        res.end = function (...args: EndArgs) {
-          endArgs = args;
-          return res; // maintain correct return type
+        type BufferedCall =
+          | ["writeHead", Parameters<typeof originalWriteHead>]
+          | ["write", Parameters<typeof originalWrite>]
+          | ["end", Parameters<typeof originalEnd>]
+          | ["flushHeaders", []];
+        let bufferedCalls: BufferedCall[] = [];
+        let settled = false;
+
+        // Create a promise that resolves when the handler finishes and calls res.end()
+        let endCalled: () => void;
+        const endPromise = new Promise<void>(resolve => {
+          endCalled = resolve;
+        });
+
+        res.writeHead = function (...args: Parameters<typeof originalWriteHead>) {
+          if (!settled) {
+            bufferedCalls.push(["writeHead", args]);
+            return res;
+          }
+          return originalWriteHead(...args);
+        } as typeof originalWriteHead;
+
+        res.write = function (...args: Parameters<typeof originalWrite>) {
+          if (!settled) {
+            bufferedCalls.push(["write", args]);
+            return true;
+          }
+          return originalWrite(...args);
+        } as typeof originalWrite;
+
+        res.end = function (...args: Parameters<typeof originalEnd>) {
+          if (!settled) {
+            bufferedCalls.push(["end", args]);
+            // Signal that the handler has finished
+            endCalled();
+            return res;
+          }
+          return originalEnd(...args);
+        } as typeof originalEnd;
+
+        res.flushHeaders = function () {
+          if (!settled) {
+            bufferedCalls.push(["flushHeaders", []]);
+            return;
+          }
+          return originalFlushHeaders();
         };
 
         // Proceed to the next middleware or route handler
-        await next();
+        next();
+
+        // Wait for the handler to actually call res.end() before checking status
+        await endPromise;
 
         // If the response from the protected route is >= 400, do not settle payment
         if (res.statusCode >= 400) {
+          settled = true;
+          res.writeHead = originalWriteHead;
+          res.write = originalWrite;
           res.end = originalEnd;
-          if (endArgs) {
-            originalEnd(...(endArgs as Parameters<typeof res.end>));
+          res.flushHeaders = originalFlushHeaders;
+          // Replay all buffered calls in order
+          for (const [method, args] of bufferedCalls) {
+            if (method === "writeHead")
+              originalWriteHead(...(args as Parameters<typeof originalWriteHead>));
+            else if (method === "write")
+              originalWrite(...(args as Parameters<typeof originalWrite>));
+            else if (method === "end") originalEnd(...(args as Parameters<typeof originalEnd>));
+            else if (method === "flushHeaders") originalFlushHeaders();
           }
+          bufferedCalls = [];
           return;
         }
 
@@ -245,14 +200,13 @@ export function paymentMiddleware(
             paymentRequirements,
           );
 
+          // If settlement fails, return an error and do not send the buffered response
           if (!settleResult.success) {
-            // Settlement failed - do not return the protected resource
-            if (!res.headersSent) {
-              res.status(402).json({
-                error: "Settlement failed",
-                details: settleResult.errorReason,
-              });
-            }
+            bufferedCalls = [];
+            res.status(402).json({
+              error: "Settlement failed",
+              details: settleResult.errorReason,
+            });
             return;
           }
 
@@ -262,19 +216,30 @@ export function paymentMiddleware(
           });
         } catch (error) {
           console.error(error);
-          // If settlement fails and the response hasn't been sent yet, return an error
-          if (!res.headersSent) {
-            res.status(402).json({
-              error: "Settlement failed",
-              details: error instanceof Error ? error.message : "Unknown error",
-            });
-          }
+          // If settlement fails, don't send the buffered response
+          bufferedCalls = [];
+          res.status(402).json({
+            error: "Settlement failed",
+            details: error instanceof Error ? error.message : "Unknown error",
+          });
           return;
         } finally {
+          settled = true;
+          res.writeHead = originalWriteHead;
+          res.write = originalWrite;
           res.end = originalEnd;
-          if (endArgs) {
-            originalEnd(...(endArgs as Parameters<typeof res.end>));
+          res.flushHeaders = originalFlushHeaders;
+
+          // Replay all buffered calls in order
+          for (const [method, args] of bufferedCalls) {
+            if (method === "writeHead")
+              originalWriteHead(...(args as Parameters<typeof originalWriteHead>));
+            else if (method === "write")
+              originalWrite(...(args as Parameters<typeof originalWrite>));
+            else if (method === "end") originalEnd(...(args as Parameters<typeof originalEnd>));
+            else if (method === "flushHeaders") originalFlushHeaders();
           }
+          bufferedCalls = [];
         }
         return;
     }
@@ -340,3 +305,5 @@ export type {
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig } from "@x402/core/server";
+
+export { ExpressAdapter } from "./adapter";
