@@ -31,11 +31,6 @@ vi.mock("@x402/core/server", () => ({
   x402HTTPResourceServer: vi.fn(),
 }));
 
-// Mock @x402/extensions/bazaar
-vi.mock("@x402/extensions/bazaar", () => ({
-  bazaarResourceServerExtension: { name: "bazaar" },
-}));
-
 // --- Test Fixtures ---
 const mockRoutes = {
   "/api/*": {
