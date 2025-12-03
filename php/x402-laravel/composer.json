@@ -1,0 +1,66 @@
+{
+    "name": "coinbase/x402-laravel",
+    "description": "x402 payment protocol middleware for Laravel",
+    "type": "library",
+    "license": "Apache-2.0",
+    "keywords": ["x402", "laravel", "payments", "crypto", "middleware"],
+    "authors": [
+        {
+            "name": "Lucas Coutinho"
+        },
+        {
+            "name": "Coinbase Developer Platform"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../x402"
+        }
+    ],
+    "require": {
+        "php": "^8.5",
+        "coinbase/x402": "@dev",
+        "illuminate/http": "^10.0 || ^11.0 || ^12.0",
+        "illuminate/support": "^10.0 || ^11.0 || ^12.0"
+    },
+    "require-dev": {
+        "pestphp/pest": "^4.0",
+        "orchestra/testbench": "^8.0 || ^9.0",
+        "mockery/mockery": "^1.6",
+        "phpstan/phpstan": "^2.0",
+        "rector/rector": "^2.0",
+        "squizlabs/php_codesniffer": "^3.11"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "X402\\Laravel\\Tests\\": "tests/"
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "X402\\Laravel\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "X402\\Laravel\\X402ServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "phpstan": "phpstan analyse",
+        "phpcs": "phpcs",
+        "phpcs:fix": "phpcbf",
+        "rector": "rector process",
+        "rector:dry": "rector process --dry-run"
+    }
+}

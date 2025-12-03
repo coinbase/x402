@@ -1,0 +1,13 @@
+services:
+  app:
+    image: php:8.5-cli
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/var/www/html
+      - ../../../../php/x402:/app/x402
+      - ../../../../php/x402-laravel:/app/x402-laravel
+    working_dir: /var/www/html
+    command: php artisan serve --host=0.0.0.0 --port=8080
+    environment:
+      - XDEBUG_MODE=off

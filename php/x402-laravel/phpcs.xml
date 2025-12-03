@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset name="X402-Laravel">
+    <description>Coding standard for X402 Laravel SDK</description>
+
+    <file>src</file>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="PSR12"/>
+</ruleset>
