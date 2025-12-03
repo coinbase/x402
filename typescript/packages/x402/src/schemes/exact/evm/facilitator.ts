@@ -9,6 +9,7 @@ import {
   Transport,
 } from "viem";
 import { getNetworkId } from "../../../shared";
+import { Network } from "../../../types/shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
   usdcABI as abi,
@@ -25,6 +26,27 @@ import {
   ExactEvmPayload,
 } from "../../../types/verify";
 import { SCHEME } from "../../exact";
+
+// TODO: This is a temporary implementation to handle Scroll mainnet limitations.
+// The logic should be removed once Scroll upgrades their USDC contract to support bytes signatures.
+
+// Scroll mainnet chain ID
+const SCROLL_MAINNET_CHAIN_ID = 534352;
+
+/**
+ * Checks if the given network is Scroll mainnet
+ *
+ * @param network - The network string to check
+ * @returns True if the network is Scroll mainnet, false otherwise
+ */
+function isScrollMainnet(network: Network): boolean {
+  try {
+    const chainId = getNetworkId(network);
+    return chainId === SCROLL_MAINNET_CHAIN_ID;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Verifies a payment payload against the required payment details
@@ -275,23 +297,55 @@ export async function settle<transport extends Transport, chain extends Chain>(
   const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
   const parsedSig = parseSignature(unwrappedSignature);
 
-  const tx = await wallet.writeContract({
-    address: paymentRequirements.asset as Address,
-    abi,
-    functionName: "transferWithAuthorization" as const,
-    args: [
-      payload.authorization.from as Address,
-      payload.authorization.to as Address,
-      BigInt(payload.authorization.value),
-      BigInt(payload.authorization.validAfter),
-      BigInt(payload.authorization.validBefore),
-      payload.authorization.nonce as Hex,
-      (parsedSig.v as number | undefined) || parsedSig.yParity,
-      parsedSig.r,
-      parsedSig.s,
-    ],
-    chain: wallet.chain as Chain,
-  });
+  // Extract v, r, s for Scroll mainnet
+  const v = (parsedSig.v as number | undefined) || parsedSig.yParity;
+  const r = parsedSig.r;
+  const s = parsedSig.s;
+
+  // Helper function for networks that use bytes signature format
+  const transferWithBytesSignature = async () => {
+    return await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        unwrappedSignature,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  };
+
+  // Helper function for Scroll mainnet that uses v, r, s signature format
+  const transferWithVrsSignature = async () => {
+    return await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        v,
+        r,
+        s,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  };
+
+  // Call the appropriate function based on network
+  const tx = isScrollMainnet(paymentPayload.network)
+    ? await transferWithVrsSignature()
+    : await transferWithBytesSignature();
 
   const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
 
