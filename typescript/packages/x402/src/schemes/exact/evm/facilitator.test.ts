@@ -33,12 +33,6 @@ vi.mock("viem", async importOriginal => {
       // Non-EIP-6492: just return signature
       return { signature: sig };
     }),
-    parseSignature: vi.fn(() => ({
-      r: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
-      s: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
-      v: 27,
-      yParity: 0,
-    })),
   };
 });
 
@@ -164,6 +158,15 @@ describe("facilitator - smart wallet deployment check", () => {
       await verify(client, payload, mockPaymentRequirements);
 
       expect(client.getCode).not.toHaveBeenCalled();
+    });
+
+    it("should accept deployed smart wallet during verify", async () => {
+      const client = createMockClient("0x608060405234801561001057600080fd5b50");
+      const payload = createMockPayload({ signatureLength: 200 });
+
+      const result = await verify(client, payload, mockPaymentRequirements);
+
+      expect(result.isValid).toBe(true);
     });
   });
 
