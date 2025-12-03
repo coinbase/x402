@@ -1176,6 +1176,9 @@ importers:
       '@x402/next':
         specifier: workspace:*
         version: link:../packages/http/next
+      '@x402/paywall':
+        specifier: workspace:*
+        version: link:../packages/http/paywall
       '@x402/svm':
         specifier: workspace:*
         version: link:../packages/mechanisms/svm
@@ -8922,7 +8925,7 @@ snapshots:
       '@ethereumjs/tx': 4.2.0
       '@types/debug': 4.1.12
       debug: 4.4.1
-      semver: 7.7.2
+      semver: 7.7.3
       superstruct: 1.0.4
     transitivePeerDependencies:
       - supports-color
@@ -14830,8 +14833,7 @@ snapshots:
 
   semver@7.7.2: {}
 
-  semver@7.7.3:
-    optional: true
+  semver@7.7.3: {}
 
   send@0.19.0:
     dependencies:
