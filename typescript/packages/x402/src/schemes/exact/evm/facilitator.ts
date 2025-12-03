@@ -1,4 +1,13 @@
-import { Account, Address, Chain, getAddress, Hex, parseErc6492Signature, Transport } from "viem";
+import {
+  Account,
+  Address,
+  Chain,
+  getAddress,
+  Hex,
+  parseErc6492Signature,
+  parseSignature,
+  Transport,
+} from "viem";
 import { getNetworkId } from "../../../shared";
 import { getVersion, getERC20Balance } from "../../../shared/evm";
 import {
@@ -262,21 +271,50 @@ export async function settle<transport extends Transport, chain extends Chain>(
     }
   }
 
-  const tx = await wallet.writeContract({
-    address: paymentRequirements.asset as Address,
-    abi,
-    functionName: "transferWithAuthorization" as const,
-    args: [
-      payload.authorization.from as Address,
-      payload.authorization.to as Address,
-      BigInt(payload.authorization.value),
-      BigInt(payload.authorization.validAfter),
-      BigInt(payload.authorization.validBefore),
-      payload.authorization.nonce as Hex,
-      payload.signature as Hex,
-    ],
-    chain: wallet.chain as Chain,
-  });
+  let tx: Hex;
+
+  if (isSmartWallet) {
+    // Smart wallets: Use bytes signature overload (requires FiatToken v2.0+)
+    // Unwrap EIP-6492 if present (no-op for regular signatures)
+    const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
+
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        unwrappedSignature,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  } else {
+    // EOA: Use (v, r, s) overload for maximum compatibility
+    const parsedSig = parseSignature(payload.signature as Hex);
+
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        (parsedSig.v as number | undefined) || parsedSig.yParity,
+        parsedSig.r,
+        parsedSig.s,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  }
 
   const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
 

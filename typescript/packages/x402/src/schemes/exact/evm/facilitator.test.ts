@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Address, Chain, Transport } from "viem";
+import { Address, Chain, parseSignature, Transport } from "viem";
 import { PaymentPayload, PaymentRequirements, ExactEvmPayload } from "../../../types/verify";
 import { verify, settle } from "./facilitator";
 import type { SignerWallet } from "../../../types/shared/evm";
@@ -33,6 +33,12 @@ vi.mock("viem", async importOriginal => {
       // Non-EIP-6492: just return signature
       return { signature: sig };
     }),
+    parseSignature: vi.fn(() => ({
+      r: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
+      s: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as `0x${string}`,
+      v: 27,
+      yParity: 0,
+    })),
   };
 });
 
@@ -230,6 +236,68 @@ describe("facilitator - smart wallet deployment check", () => {
       await settle(wallet, payload, mockPaymentRequirements);
 
       expect(wallet.getCode).toHaveBeenCalledWith({ address: payerAddress });
+    });
+  });
+
+  describe("settle - EOA signature format handling", () => {
+    const mockR =
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`;
+    const mockS =
+      "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" as `0x${string}`;
+
+    it("should use v directly when present in parsed signature", async () => {
+      vi.mocked(parseSignature).mockReturnValueOnce({
+        r: mockR,
+        s: mockS,
+        v: 28n,
+        yParity: 1,
+      });
+      const wallet = createMockWallet("0x");
+      const payload = createMockPayload({ signatureLength: 130 });
+
+      await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(wallet.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: expect.arrayContaining([28n, mockR, mockS]),
+        }),
+      );
+    });
+
+    it("should convert yParity 0 to v 27 when v is undefined", async () => {
+      vi.mocked(parseSignature).mockReturnValueOnce({
+        r: mockR,
+        s: mockS,
+        yParity: 0,
+      } as ReturnType<typeof parseSignature>);
+      const wallet = createMockWallet("0x");
+      const payload = createMockPayload({ signatureLength: 130 });
+
+      await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(wallet.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: expect.arrayContaining([27, mockR, mockS]),
+        }),
+      );
+    });
+
+    it("should convert yParity 1 to v 28 when v is undefined", async () => {
+      vi.mocked(parseSignature).mockReturnValueOnce({
+        r: mockR,
+        s: mockS,
+        yParity: 1,
+      } as ReturnType<typeof parseSignature>);
+      const wallet = createMockWallet("0x");
+      const payload = createMockPayload({ signatureLength: 130 });
+
+      await settle(wallet, payload, mockPaymentRequirements);
+
+      expect(wallet.writeContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: expect.arrayContaining([28, mockR, mockS]),
+        }),
+      );
     });
   });
 });
