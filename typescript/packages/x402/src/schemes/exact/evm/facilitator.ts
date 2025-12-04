@@ -296,6 +296,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
   } else {
     // EOA: Use (v, r, s) overload for maximum compatibility
     const parsedSig = parseSignature(payload.signature as Hex);
+    const v = parsedSig.v !== undefined ? Number(parsedSig.v) : 27 + parsedSig.yParity;
 
     tx = await wallet.writeContract({
       address: paymentRequirements.asset as Address,
@@ -308,7 +309,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
         BigInt(payload.authorization.validAfter),
         BigInt(payload.authorization.validBefore),
         payload.authorization.nonce as Hex,
-        parsedSig.v ?? (parsedSig.yParity === 0 ? 27 : 28),
+        v,
         parsedSig.r,
         parsedSig.s,
       ],

@@ -259,7 +259,7 @@ describe("facilitator - smart wallet deployment check", () => {
 
       expect(wallet.writeContract).toHaveBeenCalledWith(
         expect.objectContaining({
-          args: expect.arrayContaining([28n, mockR, mockS]),
+          args: expect.arrayContaining([28, mockR, mockS]),
         }),
       );
     });
