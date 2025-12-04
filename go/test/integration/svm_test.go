@@ -173,8 +173,15 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
 }
 
-func (s *realFacilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
-	return s.privateKey.PublicKey()
+func (s *realFacilitatorSvmSigner) GetAddresses(ctx context.Context, network string) []solana.PublicKey {
+	return []solana.PublicKey{s.privateKey.PublicKey()}
+}
+
+func (s *realFacilitatorSvmSigner) GetSigner(ctx context.Context, address solana.PublicKey, network string) (svm.FacilitatorSvmSigner, error) {
+	if address == s.privateKey.PublicKey() {
+		return s, nil
+	}
+	return nil, fmt.Errorf("no signer for address %s, available: %s", address.String(), s.privateKey.PublicKey().String())
 }
 
 // Local facilitator client for testing with extra fields support
