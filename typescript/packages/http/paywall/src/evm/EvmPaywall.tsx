@@ -9,7 +9,6 @@ import type { PaymentRequired } from "@x402/core/types";
 import { getUSDCBalance } from "./utils";
 
 import { Spinner } from "./Spinner";
-import { useOnrampSessionToken } from "./useOnrampSessionToken";
 import { getNetworkDisplayName, isTestnetNetwork } from "../paywallUtils";
 import { wagmiToClientSigner } from "./browserAdapter";
 
@@ -32,7 +31,6 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   const { data: wagmiWalletClient } = useWalletClient();
   const { connectors, connect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { sessionToken } = useOnrampSessionToken(address);
 
   const [status, setStatus] = useState<string>("");
   const [isCorrectChain, setIsCorrectChain] = useState<boolean | null>(null);
@@ -61,9 +59,6 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
   if (!paymentChain) {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
-
-  // Show onramp only for Base mainnet (8453) with session token endpoint configured
-  const showOnramp = chainId === 8453 && isConnected && x402.sessionTokenEndpoint && sessionToken;
 
   const publicClient = useMemo(
     () =>
@@ -125,17 +120,6 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
       setSelectedConnectorId(connectors[0].id);
     }
   }, [connectors, selectedConnectorId]);
-
-  const handleBuyUSDC = useCallback(() => {
-    if (!sessionToken) return;
-
-    // Build Coinbase Onramp URL
-    const onrampUrl = `https://pay.coinbase.com/buy/select-asset?appId=${encodeURIComponent(
-      x402.cdpClientKey || "",
-    )}&addresses={"${address}":["base"]}&assets=["USDC"]&presetFiatAmount=2&fiatCurrency=USD&sessionToken=${sessionToken}`;
-
-    window.open(onrampUrl, "_blank", "noopener,noreferrer");
-  }, [sessionToken, x402.cdpClientKey, address]);
 
   const handlePayment = useCallback(async () => {
     if (!address || !x402) {
@@ -292,20 +276,13 @@ export function EvmPaywall({ paymentRequired, onSuccessfulResponse }: EvmPaywall
 
             <div className="cta-container">
               {isCorrectChain ? (
-                <>
-                  {showOnramp && (
-                    <button className="button button-secondary" onClick={handleBuyUSDC}>
-                      Buy USDC
-                    </button>
-                  )}
-                  <button
-                    className="button button-primary"
-                    onClick={handlePayment}
-                    disabled={isPaying}
-                  >
-                    {isPaying ? <Spinner /> : "Pay now"}
-                  </button>
-                </>
+                <button
+                  className="button button-primary"
+                  onClick={handlePayment}
+                  disabled={isPaying}
+                >
+                  {isPaying ? <Spinner /> : "Pay now"}
+                </button>
               ) : (
                 <button className="button button-primary w-full" onClick={handleSwitchChain}>
                   Switch to {chainName}

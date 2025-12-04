@@ -9,6 +9,12 @@ const DIST_DIR = "src/evm/dist";
 const OUTPUT_HTML = path.join(DIST_DIR, "evm-paywall.html");
 const OUTPUT_TS = path.join("src/evm/gen", "template.ts");
 
+// Cross-language template output paths (relative to package root where build runs)
+const PYTHON_DIR = path.join("..", "..", "..", "..", "python", "x402", "src", "x402");
+const GO_DIR = path.join("..", "..", "..", "..", "go", "http");
+const OUTPUT_PY = path.join(PYTHON_DIR, "evm_paywall_template.py");
+const OUTPUT_GO = path.join(GO_DIR, "evm_paywall_template.go");
+
 const options: esbuild.BuildOptions = {
   entryPoints: ["src/evm/entry.tsx", "src/styles.css"],
   bundle: true,
@@ -51,6 +57,7 @@ const options: esbuild.BuildOptions = {
 
 /**
  * Builds the EVM paywall HTML template with bundled JS and CSS.
+ * Also generates Python and Go template files for cross-language support.
  */
 async function build() {
   try {
@@ -76,8 +83,41 @@ async function build() {
 export const EVM_PAYWALL_TEMPLATE = ${JSON.stringify(html)};
 `;
 
+      // Generate Python template file
+      const pyContent = `# THIS FILE IS AUTO-GENERATED - DO NOT EDIT
+EVM_PAYWALL_TEMPLATE = ${JSON.stringify(html)}
+`;
+
+      // Generate Go template file
+      const goContent = `// THIS FILE IS AUTO-GENERATED - DO NOT EDIT
+package http
+
+// EVMPaywallTemplate is the pre-built EVM paywall template with inlined CSS and JS
+const EVMPaywallTemplate = ${JSON.stringify(html)}
+`;
+
       fs.writeFileSync(OUTPUT_TS, tsContent);
       console.log(`[EVM] Generated template.ts (${(html.length / 1024 / 1024).toFixed(2)} MB)`);
+
+      // Write the Python template file
+      if (fs.existsSync(PYTHON_DIR)) {
+        fs.writeFileSync(OUTPUT_PY, pyContent);
+        console.log(
+          `[EVM] Generated Python evm_paywall_template.py (${(html.length / 1024 / 1024).toFixed(2)} MB)`,
+        );
+      } else {
+        console.warn(`[EVM] Python directory not found: ${PYTHON_DIR}`);
+      }
+
+      // Write the Go template file
+      if (fs.existsSync(GO_DIR)) {
+        fs.writeFileSync(OUTPUT_GO, goContent);
+        console.log(
+          `[EVM] Generated Go evm_paywall_template.go (${(html.length / 1024 / 1024).toFixed(2)} MB)`,
+        );
+      } else {
+        console.warn(`[EVM] Go directory not found: ${GO_DIR}`);
+      }
     } else {
       throw new Error(`EVM bundled HTML not found at ${OUTPUT_HTML}`);
     }
