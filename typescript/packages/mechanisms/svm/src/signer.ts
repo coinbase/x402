@@ -7,6 +7,7 @@ import type {
   SolanaRpcApiTestnet,
   RpcMainnet,
   SolanaRpcApiMainnet,
+  Address,
 } from "@solana/kit";
 import { createRpcClient } from "./utils";
 
@@ -109,8 +110,28 @@ export type FacilitatorRpcCapabilities = {
  * The facilitator needs to:
  * - Sign transactions as the fee payer
  * - Interact with the blockchain via RPC
+ *
+ * Supports multiple addresses for load balancing, key rotation, and high availability
  */
 export type FacilitatorSvmSigner = FacilitatorSigningCapabilities & {
+  /**
+   * Get all addresses this facilitator can use as fee payers
+   * Enables dynamic address selection for load balancing and key rotation
+   *
+   * @returns Array of addresses available for signing
+   */
+  getAddresses(): readonly Address[];
+
+  /**
+   * Get specific signer for a given address
+   * Used during settlement to sign with the correct key matching the feePayer
+   *
+   * @param address - The address to get signer for
+   * @returns Signer for the specified address
+   * @throws Error if no signer exists for the address
+   */
+  getSigner(address: Address): FacilitatorSigningCapabilities;
+
   /**
    * Get RPC client for a specific network
    * Returns custom RPC if configured, otherwise creates default RPC
@@ -119,6 +140,17 @@ export type FacilitatorSvmSigner = FacilitatorSigningCapabilities & {
    * @returns RPC client for the network
    */
   getRpcForNetwork(network: string): FacilitatorRpcClient;
+
+  /**
+   * Wait for transaction confirmation
+   * Allows signer to implement custom retry logic, timeouts, and confirmation strategies
+   *
+   * @param signature - Transaction signature to confirm
+   * @param network - CAIP-2 network identifier
+   * @returns Promise that resolves when transaction is confirmed
+   * @throws Error if confirmation fails or times out
+   */
+  confirmTransaction(signature: string, network: string): Promise<void>;
 };
 
 /**
@@ -271,6 +303,15 @@ export function toFacilitatorSvmSigner(
 
   return {
     ...signer,
+    getAddresses: () => {
+      return [signer.address];
+    },
+    getSigner: (address: Address) => {
+      if (address === signer.address) {
+        return signer;
+      }
+      throw new Error(`No signer for address ${address}. Available: ${signer.address}`);
+    },
     getRpcForNetwork: (network: string) => {
       // 1. Check for exact network match
       if (rpcMap[network]) {
@@ -284,6 +325,14 @@ export function toFacilitatorSvmSigner(
 
       // 3. Create default RPC for this network
       return createRpcClient(network as `${string}:${string}`, defaultRpcUrl);
+    },
+    confirmTransaction: async (signature: string, network: string) => {
+      const rpc =
+        rpcMap[network] ||
+        rpcMap["*"] ||
+        createRpcClient(network as `${string}:${string}`, defaultRpcUrl);
+      const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
+      await rpcCapabilities.confirmTransaction(signature);
     },
   } as FacilitatorSvmSigner;
 }
