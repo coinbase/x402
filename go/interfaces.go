@@ -56,17 +56,22 @@ type SchemeNetworkFacilitatorV1 interface {
 	//   Extra data map or nil if no extra data is needed
 	GetExtra(network Network) map[string]interface{}
 
-	// GetSigners returns signer addresses used by this facilitator.
+	// GetSigners returns signer addresses used by this facilitator for a given network.
 	// These are included in the supported response to help clients understand
 	// which addresses might sign/pay for transactions.
 	//
-	// Examples:
-	//   - EVM: Returns facilitator wallet address
-	//   - SVM: Returns fee payer address
+	// Supports multiple addresses for load balancing, key rotation, and high availability.
+	//
+	// Args:
+	//   network: Network identifier
 	//
 	// Returns:
 	//   Array of signer addresses
-	GetSigners() []string
+	//
+	// Examples:
+	//   - EVM: Returns facilitator wallet addresses
+	//   - SVM: Returns fee payer addresses
+	GetSigners(network Network) []string
 
 	Verify(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*VerifyResponse, error)
 	Settle(ctx context.Context, payload types.PaymentPayloadV1, requirements types.PaymentRequirementsV1) (*SettleResponse, error)
@@ -121,17 +126,22 @@ type SchemeNetworkFacilitator interface {
 	//   Extra data map or nil if no extra data is needed
 	GetExtra(network Network) map[string]interface{}
 
-	// GetSigners returns signer addresses used by this facilitator.
+	// GetSigners returns signer addresses used by this facilitator for a given network.
 	// These are included in the supported response to help clients understand
 	// which addresses might sign/pay for transactions.
 	//
-	// Examples:
-	//   - EVM: Returns facilitator wallet address
-	//   - SVM: Returns fee payer address
+	// Supports multiple addresses for load balancing, key rotation, and high availability.
+	//
+	// Args:
+	//   network: Network identifier
 	//
 	// Returns:
 	//   Array of signer addresses
-	GetSigners() []string
+	//
+	// Examples:
+	//   - EVM: Returns facilitator wallet addresses
+	//   - SVM: Returns fee payer addresses
+	GetSigners(network Network) []string
 
 	Verify(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error)
 	Settle(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error)

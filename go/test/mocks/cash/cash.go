@@ -75,7 +75,7 @@ func (f *SchemeNetworkFacilitator) GetExtra(_ x402.Network) map[string]interface
 }
 
 // GetSigners returns signer addresses
-func (f *SchemeNetworkFacilitator) GetSigners() []string {
+func (f *SchemeNetworkFacilitator) GetSigners(_ x402.Network) []string {
 	return []string{}
 }
 

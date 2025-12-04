@@ -15,8 +15,8 @@ type mockFacilitatorSigner struct {
 	getCodeError       error
 }
 
-func (m *mockFacilitatorSigner) Address() string {
-	return "0x0000000000000000000000000000000000000000"
+func (m *mockFacilitatorSigner) GetAddresses() []string {
+	return []string{"0x0000000000000000000000000000000000000000"}
 }
 
 func (m *mockFacilitatorSigner) ReadContract(

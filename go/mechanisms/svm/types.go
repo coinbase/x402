@@ -30,7 +30,17 @@ type ClientSvmSigner interface {
 }
 
 // FacilitatorSvmSigner defines facilitator operations
+// Supports multiple addresses for load balancing, key rotation, and high availability
 type FacilitatorSvmSigner interface {
+	// GetAddresses returns all addresses this facilitator can use as fee payers for a network
+	// Enables dynamic address selection for load balancing and key rotation
+	GetAddresses(ctx context.Context, network string) []solana.PublicKey
+
+	// GetSigner returns the specific signer instance for an address
+	// Used during settlement to sign with the correct key matching the feePayer
+	// Returns error if no signer exists for the address
+	GetSigner(ctx context.Context, address solana.PublicKey, network string) (FacilitatorSvmSigner, error)
+
 	// GetRPC returns an RPC client for the given network
 	GetRPC(ctx context.Context, network string) (*rpc.Client, error)
 
@@ -42,9 +52,6 @@ type FacilitatorSvmSigner interface {
 
 	// ConfirmTransaction waits for transaction confirmation
 	ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error
-
-	// GetAddress returns the facilitator's address for a network
-	GetAddress(ctx context.Context, network string) solana.PublicKey
 }
 
 // AssetInfo contains information about a SPL token

@@ -82,8 +82,8 @@ func newFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*facilitatorE
 	}, nil
 }
 
-func (s *facilitatorEvmSigner) Address() string {
-	return s.address.Hex()
+func (s *facilitatorEvmSigner) GetAddresses() []string {
+	return []string{s.address.Hex()}
 }
 
 func (s *facilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
@@ -538,8 +538,15 @@ func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
-func (s *facilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
-	return s.privateKey.PublicKey()
+func (s *facilitatorSvmSigner) GetAddresses(ctx context.Context, network string) []solana.PublicKey {
+	return []solana.PublicKey{s.privateKey.PublicKey()}
+}
+
+func (s *facilitatorSvmSigner) GetSigner(ctx context.Context, address solana.PublicKey, network string) (svmmech.FacilitatorSvmSigner, error) {
+	if address == s.privateKey.PublicKey() {
+		return s, nil
+	}
+	return nil, fmt.Errorf("no signer for address %s, available: %s", address.String(), s.privateKey.PublicKey().String())
 }
 
 // ============================================================================
