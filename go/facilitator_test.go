@@ -26,7 +26,7 @@ func (m *mockSchemeNetworkFacilitatorV1) GetExtra(_ Network) map[string]interfac
 	return nil
 }
 
-func (m *mockSchemeNetworkFacilitatorV1) GetSigners() []string {
+func (m *mockSchemeNetworkFacilitatorV1) GetSigners(_ Network) []string {
 	return []string{}
 }
 
@@ -65,7 +65,7 @@ func (m *mockSchemeNetworkFacilitator) GetExtra(_ Network) map[string]interface{
 	return nil
 }
 
-func (m *mockSchemeNetworkFacilitator) GetSigners() []string {
+func (m *mockSchemeNetworkFacilitator) GetSigners(_ Network) []string {
 	return []string{}
 }
 

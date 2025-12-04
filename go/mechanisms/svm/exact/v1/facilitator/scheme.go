@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strconv"
-	"time"
 
 	solana "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
@@ -40,21 +40,28 @@ func (f *ExactSvmSchemeV1) CaipFamily() string {
 }
 
 // GetExtra returns mechanism-specific extra data for the supported kinds endpoint.
-// For SVM, this includes the fee payer address.
+// For SVM, this includes a randomly selected fee payer address.
+// Random selection distributes load across multiple signers.
 func (f *ExactSvmSchemeV1) GetExtra(network x402.Network) map[string]interface{} {
-	feePayerAddress := f.signer.GetAddress(context.Background(), string(network))
+	addresses := f.signer.GetAddresses(context.Background(), string(network))
+
+	// Randomly select from available addresses to distribute load
+	randomIndex := rand.Intn(len(addresses))
+
 	return map[string]interface{}{
-		"feePayer": feePayerAddress.String(),
+		"feePayer": addresses[randomIndex].String(),
 	}
 }
 
 // GetSigners returns signer addresses used by this facilitator.
-// For SVM, returns the fee payer address for the given network.
-func (f *ExactSvmSchemeV1) GetSigners() []string {
-	// Return fee payer address for devnet (default)
-	// Note: In practice, this should return all addresses used across all networks
-	feePayerAddress := f.signer.GetAddress(context.Background(), "solana-devnet")
-	return []string{feePayerAddress.String()}
+// For SVM, returns all available fee payer addresses for the given network.
+func (f *ExactSvmSchemeV1) GetSigners(network x402.Network) []string {
+	addresses := f.signer.GetAddresses(context.Background(), string(network))
+	result := make([]string, len(addresses))
+	for i, addr := range addresses {
+		result[i] = addr.String()
+	}
+	return result
 }
 
 // Verify verifies a V1 payment payload against requirements
@@ -153,6 +160,7 @@ func (f *ExactSvmSchemeV1) Verify(
 }
 
 // Settle settles a payment by submitting the transaction (V1)
+// Ensures the correct signer is used based on the feePayer specified in requirements.
 func (f *ExactSvmSchemeV1) Settle(
 	ctx context.Context,
 	payload types.PaymentPayloadV1,
@@ -182,19 +190,49 @@ func (f *ExactSvmSchemeV1) Settle(
 		return nil, x402.NewSettleError("invalid_exact_solana_payload_transaction", verifyResp.Payer, network, "", err)
 	}
 
-	// Sign with facilitator's key
-	if err := f.signer.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
+	// Parse extra field for feePayer (V1 uses *json.RawMessage)
+	var reqExtraMap map[string]interface{}
+	if requirements.Extra != nil {
+		json.Unmarshal(*requirements.Extra, &reqExtraMap)
+	}
+
+	// Extract and validate feePayer from requirements matches transaction
+	feePayerStr, ok := reqExtraMap["feePayer"].(string)
+	if !ok {
+		return nil, x402.NewSettleError("missing_fee_payer", verifyResp.Payer, network, "", nil)
+	}
+
+	expectedFeePayer, err := solana.PublicKeyFromBase58(feePayerStr)
+	if err != nil {
+		return nil, x402.NewSettleError("invalid_fee_payer", verifyResp.Payer, network, "", err)
+	}
+
+	// Verify transaction feePayer matches requirements
+	actualFeePayer := tx.Message.AccountKeys[0] // First account is fee payer
+	if actualFeePayer != expectedFeePayer {
+		return nil, x402.NewSettleError("fee_payer_mismatch", verifyResp.Payer, network, "",
+			fmt.Errorf("expected %s, got %s", expectedFeePayer, actualFeePayer))
+	}
+
+	// Get specific signer for this feePayer
+	specificSigner, err := f.signer.GetSigner(ctx, expectedFeePayer, string(requirements.Network))
+	if err != nil {
+		return nil, x402.NewSettleError("no_signer_for_fee_payer", verifyResp.Payer, network, "", err)
+	}
+
+	// Sign with the correct signer
+	if err := specificSigner.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
 	// Send transaction
-	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
+	signature, err := specificSigner.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
-	// Wait for confirmation
-	if err := f.confirmTransactionWithRetry(ctx, signature, string(requirements.Network)); err != nil {
+	// Wait for confirmation (delegated to signer for custom retry logic)
+	if err := specificSigner.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
 		return nil, x402.NewSettleError("transaction_confirmation_failed", verifyResp.Payer, network, signature.String(), err)
 	}
 
@@ -357,60 +395,4 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	}
 
 	return nil
-}
-
-// confirmTransactionWithRetry waits for transaction confirmation with retries
-// Uses getSignatureStatuses for faster confirmation detection (matches TypeScript implementation)
-func (f *ExactSvmSchemeV1) confirmTransactionWithRetry(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := f.signer.GetRPC(ctx, network)
-	if err != nil {
-		return fmt.Errorf("failed to get RPC client: %w", err)
-	}
-
-	for attempt := 0; attempt < svm.MaxConfirmAttempts; attempt++ {
-		// Check for context cancellation
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		// Try getSignatureStatuses first (faster than getTransaction)
-		statuses, err := rpcClient.GetSignatureStatuses(ctx, true, signature)
-		if err == nil && statuses != nil && statuses.Value != nil && len(statuses.Value) > 0 {
-			status := statuses.Value[0]
-			if status != nil {
-				// Check if transaction failed
-				if status.Err != nil {
-					return fmt.Errorf("transaction failed on-chain")
-				}
-				// Check if confirmed or finalized
-				if status.ConfirmationStatus == rpc.ConfirmationStatusConfirmed ||
-					status.ConfirmationStatus == rpc.ConfirmationStatusFinalized {
-					return nil
-				}
-			}
-		}
-
-		// Fallback to getTransaction if signature status not available yet
-		if err != nil {
-			txResult, txErr := rpcClient.GetTransaction(ctx, signature, &rpc.GetTransactionOpts{
-				Encoding:   solana.EncodingBase58,
-				Commitment: svm.DefaultCommitment,
-			})
-
-			if txErr == nil && txResult != nil && txResult.Meta != nil {
-				if txResult.Meta.Err != nil {
-					return fmt.Errorf("transaction failed on-chain")
-				}
-				// Success!
-				return nil
-			}
-		}
-
-		// Wait before retrying (fixed delay, no jitter for predictability)
-		time.Sleep(svm.ConfirmRetryDelay)
-	}
-
-	return fmt.Errorf("transaction confirmation timed out after %d attempts", svm.MaxConfirmAttempts)
 }

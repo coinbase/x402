@@ -74,8 +74,8 @@ func newRealFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*realFaci
 	}, nil
 }
 
-func (s *realFacilitatorEvmSigner) Address() string {
-	return s.address.Hex()
+func (s *realFacilitatorEvmSigner) GetAddresses() []string {
+	return []string{s.address.Hex()}
 }
 
 func (s *realFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {

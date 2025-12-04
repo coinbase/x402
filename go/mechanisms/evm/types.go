@@ -37,9 +37,11 @@ type ClientEvmSigner interface {
 }
 
 // FacilitatorEvmSigner defines the interface for facilitator EVM operations
+// Supports multiple addresses for load balancing, key rotation, and high availability
 type FacilitatorEvmSigner interface {
-	// Address returns the facilitator's wallet address
-	Address() string
+	// GetAddresses returns all addresses this facilitator can use for signing
+	// Enables dynamic address selection for load balancing and key rotation
+	GetAddresses() []string
 
 	// ReadContract reads data from a smart contract
 	ReadContract(ctx context.Context, address string, abi []byte, functionName string, args ...interface{}) (interface{}, error)
