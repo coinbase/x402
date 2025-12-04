@@ -1155,12 +1155,18 @@ importers:
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
+      '@solana/kit':
+        specifier: ^2.1.1
+        version: 2.3.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
       '@x402/fetch':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/fetch
+      '@x402/svm':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/svm
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
