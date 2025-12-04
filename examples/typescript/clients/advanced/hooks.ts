@@ -38,7 +38,7 @@ export async function runHooksExample(evmPrivateKey: `0x${string}`, url: string)
     })
     .onAfterPaymentCreation(async context => {
       console.log("✅ [AfterPaymentCreation] Payment created successfully");
-      console.log(`   Version: ${context.version}`);
+      console.log(`   Version: ${context.paymentPayload.x402Version}`);
       console.log();
 
       // Perform side effects like logging to database, sending metrics, etc.
