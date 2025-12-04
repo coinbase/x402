@@ -1,6 +1,6 @@
 import { config } from "dotenv";
 import express, { Request, Response, NextFunction } from "express";
-import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { x402ResourceServer, HTTPFacilitatorClient, ResourceConfig } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import type { PaymentRequirements } from "@x402/core/types";
 
@@ -51,8 +51,13 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
   new ExactEvmScheme(),
 );
 
-// Define payment requirements for routes
-const routeRequirements: Record<string, PaymentRequirements> = {
+// Define route configurations (will be converted to PaymentRequirements at runtime)
+interface RoutePaymentConfig extends ResourceConfig {
+  description: string;
+  mimeType: string;
+}
+
+const routeConfigs: Record<string, RoutePaymentConfig> = {
   "GET /weather": {
     scheme: "exact",
     price: "$0.001",
@@ -62,6 +67,9 @@ const routeRequirements: Record<string, PaymentRequirements> = {
     mimeType: "application/json",
   },
 };
+
+// Cache for built payment requirements
+const routeRequirements: Record<string, PaymentRequirements> = {};
 
 /**
  * Custom payment middleware implementation
@@ -77,32 +85,46 @@ async function customPaymentMiddleware(
   next: NextFunction,
 ): Promise<void> {
   const routeKey = `${req.method} ${req.path}`;
-  const requirements = routeRequirements[routeKey];
+  const routeConfig = routeConfigs[routeKey];
 
   // If route doesn't require payment, continue
-  if (!requirements) {
+  if (!routeConfig) {
     return next();
   }
 
   console.log(`📥 Request received: ${routeKey}`);
 
-  // Step 1: Check for payment in headers
-  const paymentHeader = req.headers["x-payment"] as string | undefined;
+  // Build PaymentRequirements from config (cached for efficiency)
+  if (!routeRequirements[routeKey]) {
+    const builtRequirements = await resourceServer.buildPaymentRequirements(routeConfig);
+    if (builtRequirements.length === 0) {
+      console.error("❌ Failed to build payment requirements");
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
+    routeRequirements[routeKey] = builtRequirements[0];
+  }
+  const requirements = routeRequirements[routeKey];
+
+  // Step 1: Check for payment in headers (v2: PAYMENT-SIGNATURE, v1: X-PAYMENT)
+  const paymentHeader = (req.headers["payment-signature"] || req.headers["x-payment"]) as
+    | string
+    | undefined;
 
   if (!paymentHeader) {
     console.log("💳 No payment provided, returning 402 Payment Required");
 
     // Step 2: Return 402 with payment requirements
-    const requirementsHeader = Buffer.from(
-      JSON.stringify({
-        accepts: requirements,
-        description: requirements.description,
-        mimeType: requirements.mimeType,
-      }),
-    ).toString("base64");
+    const paymentRequired = resourceServer.createPaymentRequiredResponse([requirements], {
+      url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+      description: routeConfig.description,
+      mimeType: routeConfig.mimeType,
+    });
+    // Use base64 encoding for the PAYMENT-REQUIRED header (v2 protocol)
+    const requirementsHeader = Buffer.from(JSON.stringify(paymentRequired)).toString("base64");
 
     res.status(402);
-    res.set("X-PAYMENT", requirementsHeader);
+    res.set("PAYMENT-REQUIRED", requirementsHeader);
     res.json({
       error: "Payment Required",
       message: "This endpoint requires payment",
@@ -128,12 +150,15 @@ async function customPaymentMiddleware(
 
     console.log("✅ Payment verified successfully");
 
-    // Store original response methods
+    // Store original response method
     const originalJson = res.json.bind(res);
-    const originalSend = res.send.bind(res);
+    let settlementDone = false;
 
     // Step 4: Intercept response to add settlement
     const settleAndRespond = async (): Promise<void> => {
+      if (settlementDone) return;
+      settlementDone = true;
+
       console.log("💰 Settling payment on-chain...");
 
       try {
@@ -141,23 +166,18 @@ async function customPaymentMiddleware(
 
         console.log(`✅ Payment settled: ${settleResult.transaction}`);
 
-        // Step 5: Add settlement headers
+        // Step 5: Add settlement headers (v2 protocol uses PAYMENT-RESPONSE)
         const settlementHeader = Buffer.from(JSON.stringify(settleResult)).toString("base64");
-        res.set("X-PAYMENT-RESPONSE", settlementHeader);
+        res.set("PAYMENT-RESPONSE", settlementHeader);
       } catch (error) {
         console.error(`❌ Settlement failed: ${error}`);
         // Continue with response even if settlement fails
       }
     };
 
-    // Override response methods to add settlement
+    // Override json method to add settlement before responding
     res.json = function (this: Response, body: unknown): Response {
       void settleAndRespond().then(() => originalJson(body));
-      return this;
-    };
-
-    res.send = function (this: Response, body?: unknown): Response {
-      void settleAndRespond().then(() => originalSend(body));
       return this;
     };
 
@@ -208,14 +228,18 @@ app.get("/health", (req, res) => {
 
 // Start server
 const PORT = 4021;
-app.listen(PORT, () => {
-  console.log(`🚀 Custom server listening at http://localhost:${PORT}\n`);
-  console.log("Key implementation steps:");
-  console.log("  1. ✅ Check for payment headers in requests");
-  console.log("  2. ✅ Return 402 with requirements if no payment");
-  console.log("  3. ✅ Verify payments with facilitator");
-  console.log("  4. ✅ Execute handler on successful verification");
-  console.log("  5. ✅ Settle payment and add response headers\n");
-  console.log("Test with: curl http://localhost:4021/weather");
-  console.log("Or use a client from: ../../clients/\n");
+
+// Initialize the resource server (sync with facilitator) before starting
+resourceServer.initialize().then(() => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Custom server listening at http://localhost:${PORT}\n`);
+    console.log("Key implementation steps:");
+    console.log("  1. ✅ Check for payment headers in requests");
+    console.log("  2. ✅ Return 402 with requirements if no payment");
+    console.log("  3. ✅ Verify payments with facilitator");
+    console.log("  4. ✅ Execute handler on successful verification");
+    console.log("  5. ✅ Settle payment and add response headers\n");
+    console.log("Test with: curl http://localhost:4021/weather");
+    console.log("Or use a client from: ../../clients/\n");
+  });
 });
