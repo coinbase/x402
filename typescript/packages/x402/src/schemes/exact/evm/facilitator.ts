@@ -308,7 +308,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
         BigInt(payload.authorization.validAfter),
         BigInt(payload.authorization.validBefore),
         payload.authorization.nonce as Hex,
-        (parsedSig.v as number | undefined) || parsedSig.yParity,
+        parsedSig.v ?? (parsedSig.yParity === 0 ? 27 : 28),
         parsedSig.r,
         parsedSig.s,
       ],
