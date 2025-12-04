@@ -21,6 +21,16 @@ export async function GET() {
           feePayer: process.env.SOLANA_ADDRESS,
         },
       },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "btc-lightning-signet",
+      },
+      {
+        x402Version: 1,
+        scheme: "exact",
+        network: "btc-lightning-mainnet",
+      },
     ],
   };
 

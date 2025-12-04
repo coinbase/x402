@@ -5,4 +5,6 @@ export const ALLOWED_NETWORKS: Network[] | string[] = [
   "solana-devnet",
   "eip155:84532",
   "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  "btc-lightning-signet",
+  "btc-lightning-mainnet",
 ];

@@ -62,7 +62,6 @@ const isInteger: (value: string) => boolean = value =>
 const hasMaxLength = (maxLength: number) => (value: string) => value.length <= maxLength;
 
 // x402PaymentRequirements
-const EvmOrSvmAddress = z.string().regex(EvmAddressRegex).or(z.string().regex(SvmAddressRegex));
 const mixedAddressOrSvmAddress = z
   .string()
   .regex(MixedAddressRegex)
@@ -75,7 +74,7 @@ export const PaymentRequirementsSchema = z.object({
   description: z.string(),
   mimeType: z.string(),
   outputSchema: z.record(z.any()).optional(),
-  payTo: EvmOrSvmAddress,
+  payTo: mixedAddressOrSvmAddress,
   maxTimeoutSeconds: z.number().int(),
   asset: mixedAddressOrSvmAddress,
   extra: z.record(z.any()).optional(),
@@ -105,12 +104,19 @@ export const ExactSvmPayloadSchema = z.object({
 });
 export type ExactSvmPayload = z.infer<typeof ExactSvmPayloadSchema>;
 
+// x402ExactBtcLightningPayload
+export const ExactBtcLightningPayloadSchema = z.object({
+  bolt11: z.string(),
+  invoiceId: z.string().optional(),
+});
+export type ExactBtcLightningPayload = z.infer<typeof ExactBtcLightningPayloadSchema>;
+
 // x402PaymentPayload
 export const PaymentPayloadSchema = z.object({
   x402Version: z.number().refine(val => x402Versions.includes(val as 1)),
   scheme: z.enum(schemes),
   network: NetworkSchema,
-  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema]),
+  payload: z.union([ExactEvmPayloadSchema, ExactSvmPayloadSchema, ExactBtcLightningPayloadSchema]),
 });
 export type PaymentPayload = z.infer<typeof PaymentPayloadSchema>;
 export type UnsignedPaymentPayload = Omit<PaymentPayload, "payload"> & {
@@ -194,7 +200,7 @@ export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
 export const VerifyResponseSchema = z.object({
   isValid: z.boolean(),
   invalidReason: z.enum(ErrorReasons).optional(),
-  payer: EvmOrSvmAddress.optional(),
+  payer: mixedAddressOrSvmAddress.optional(),
 });
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
@@ -202,7 +208,7 @@ export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 export const SettleResponseSchema = z.object({
   success: z.boolean(),
   errorReason: z.enum(ErrorReasons).optional(),
-  payer: EvmOrSvmAddress.optional(),
+  payer: mixedAddressOrSvmAddress.optional(),
   transaction: z.string().regex(MixedAddressRegex),
   network: NetworkSchema,
 });

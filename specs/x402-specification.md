@@ -22,7 +22,7 @@ This specification defines the core x402 protocol for internet-native payments. 
 x402 is made up of three core components:
 
 1. **Types**: Core data structures (e.g., `PaymentRequirements`, `PaymentPayload`, `SettlementResponse`) that are independent of both transport mechanism and payment scheme
-2. **Logic**: Payment formation and verification logic that depends on the payment scheme (e.g., exact, deferred) and network (e.g., evm, solana, etc.)
+2. **Logic**: Payment formation and verification logic that depends on the payment scheme (e.g., exact, deferred) and network (e.g., evm, solana, lightning)
 3. **Representation**: How payment data is transmitted and signaled, which depends on the transport mechanism (e.g., HTTP, MCP, A2A)
 
 **1. Overview**
@@ -38,7 +38,7 @@ The x402 protocol follows a standard request-response cycle with payment integra
 1. **Client Request**: Client makes a request to a resource server
 2. **Payment Required Response**: If no valid payment is attached, the server responds with a payment required signal and payment requirements
 3. **Payment Authorization Request**: Client submits a signed payment authorization in the subsequent request
-4. **Settlement Response**: Server verifies the payment authorization and initiates blockchain settlement
+4. **Settlement Response**: Server verifies the payment authorization and initiates blockchain or Lightning settlement
 
 **3. Protocol Components**
 
@@ -46,7 +46,7 @@ The x402 protocol involves three primary components:
 
 - **Resource Server**: A service that requires payment for access to protected resources (APIs, content, data, etc.)
 - **Client**: Any application or agent that requests access to protected resources
-- **Facilitator**: A service that handles payment verification and blockchain settlement
+- **Facilitator**: A service that handles payment verification and blockchain or Lightning settlement
 
 **4. Response Types**
 
@@ -107,19 +107,19 @@ The `PaymentRequirementsResponse` schema contains the following fields:
 
 Each `PaymentRequirements` object in the `accepts` array contains:
 
-| Field Name          | Type     | Required | Description                                                              |
-| ------------------- | -------- | -------- | ------------------------------------------------------------------------ |
-| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                                |
-| `network`           | `string` | Required | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                            |
-| `asset`             | `string` | Required | Token contract address                                                   |
-| `payTo`             | `string` | Required | Recipient wallet address for the payment                                 |
-| `resource`          | `string` | Required | URL of the protected resource                                            |
-| `description`       | `string` | Required | Human-readable description of the resource                               |
-| `mimeType`          | `string` | Optional | MIME type of the expected response                                       |
-| `outputSchema`      | `object` | Optional | JSON schema describing the response format                               |
-| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                              |
-| `extra`             | `object` | Optional | Scheme-specific additional information                                   |
+| Field Name          | Type     | Required | Description                                                                                                                                                               |
+| ------------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                                                                                                                                 |
+| `network`           | `string` | Required | Payment network identifier (e.g., blockchain network "base-sepolia" or Lightning network "btc-lightning-mainnet")                                                         |
+| `maxAmountRequired` | `string` | Required | Required payment amount in the smallest unit of the asset (e.g., wei, lamports, sats), represented as a base-10 string                                                    |
+| `asset`             | `string` | Required | Asset identifier (e.g., ERC-20 contract address, SPL mint address, or an implementation-defined Lightning asset id such as "BTC" or "lnbits-test-asset")                  |
+| `payTo`             | `string` | Required | Recipient identifier for the payment (e.g., EVM address, Solana address, or implementation-defined Lightning destination such as node pubkey, LNURL, or LNbits wallet id) |
+| `resource`          | `string` | Required | URL of the protected resource                                                                                                                                             |
+| `description`       | `string` | Required | Human-readable description of the resource                                                                                                                                |
+| `mimeType`          | `string` | Optional | MIME type of the expected response                                                                                                                                        |
+| `outputSchema`      | `object` | Optional | JSON schema describing the response format                                                                                                                                |
+| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                                                                                                                               |
+| `extra`             | `object` | Optional | Scheme-specific additional information                                                                                                                                    |
 
 **5.2 PaymentPayload Schema**
 
@@ -152,14 +152,16 @@ The `PaymentPayload` schema contains the following fields:
 
 **All fields are required.**
 
-| Field Name    | Type     | Description                                                              |
-| ------------- | -------- | ------------------------------------------------------------------------ |
-| `x402Version` | `number` | Protocol version identifier (must be 1)                                  |
-| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                                |
-| `network`     | `string` | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `payload`     | `object` | Payment data object                                                      |
+| Field Name    | Type     | Description                                                                                                        |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `x402Version` | `number` | Protocol version identifier (must be 1)                                                                            |
+| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                                                                          |
+| `network`     | `string` | Blockchain or Lightning network identifier (e.g., "base-sepolia", "btc-lightning-signet", "btc-lightning-mainnet") |
+| `payload`     | `object` | Payment data object                                                                                                |
 
-The `payload` field contains a `SchemePayload` object with scheme-specific data:
+The `payload` field contains a `SchemePayload` object with scheme-specific data. Its structure depends on the scheme and network.
+
+For the `exact` scheme on **EVM networks**, the payload has the following structure:
 
 **All fields are required.**
 
@@ -181,6 +183,25 @@ The `Authorization` object contains the following fields:
 | `validBefore` | `string` | Unix timestamp when authorization expires       |
 | `nonce`       | `string` | 32-byte random nonce to prevent replay attacks  |
 
+For the `exact` scheme on **BTC Lightning networks**, the payload instead carries Lightning invoice data:
+
+```json
+{
+  "x402Version": 1,
+  "scheme": "exact",
+  "network": "btc-lightning-signet",
+  "payload": {
+    "bolt11": "lnbc1testinvoice...",
+    "invoiceId": "inv_123"
+  }
+}
+```
+
+Where:
+
+- `bolt11` (`string`, required): BOLT11 Lightning invoice string that the client has paid or will pay
+- `invoiceId` (`string`, optional): Implementation-specific invoice identifier for facilitator backends (e.g., LNbits payment id)
+
 **5.3 SettlementResponse Schema**
 
 **5.3.1 JSON Structure**
@@ -200,13 +221,13 @@ After payment settlement, the server includes transaction details in the payment
 
 The `SettlementResponse` schema contains the following fields:
 
-| Field Name    | Type      | Required | Description                                                     |
-| ------------- | --------- | -------- | --------------------------------------------------------------- |
-| `success`     | `boolean` | Required | Indicates whether the payment settlement was successful         |
-| `errorReason` | `string`  | Optional | Error reason if settlement failed (omitted if successful)       |
-| `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed) |
-| `network`     | `string`  | Required | Blockchain network identifier                                   |
-| `payer`       | `string`  | Required | Address of the payer's wallet                                   |
+| Field Name    | Type      | Required | Description                                                                                                                                               |
+| ------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `success`     | `boolean` | Required | Indicates whether the payment settlement was successful                                                                                                   |
+| `errorReason` | `string`  | Optional | Error reason if settlement failed (omitted if successful)                                                                                                 |
+| `transaction` | `string`  | Required | Settlement identifier (e.g., blockchain transaction hash, Lightning payment hash, invoice ID, or synthetic identifier); empty string if settlement failed |
+| `network`     | `string`  | Required | Blockchain or Lightning network identifier                                                                                                                |
+| `payer`       | `string`  | Required | Payer identifier (e.g., wallet address or Lightning node pubkey, depending on the scheme)                                                                 |
 
 **6. Payment Schemes (The Logic)**
 
@@ -266,13 +287,47 @@ For Solana (SVM), the `exact` scheme is implemented using `TransferChecked` for 
 
 Full SVM details are specified in `specs/schemes/exact/scheme_exact_svm.md`.
 
+**6.3 Exact Scheme (BTC Lightning overview)**
+
+For BTC Lightning networks, the `exact` scheme uses BOLT11 invoices instead of on-chain authorizations. The client pays, or commits to pay, a specific-amount Lightning invoice identified by its `bolt11` string, and the facilitator verifies payment status via a Lightning backend.
+
+Key properties:
+
+- Off-chain, invoice-based payments denominated in satoshis
+- Facilitator cannot move client funds; it can only inspect invoice state in a Lightning backend
+- Suitable for low-latency, low-fee micropayments and high-frequency calls
+- Supported networks include `btc-lightning-signet` (test/signet) and `btc-lightning-mainnet` (mainnet)
+
+Payload and requirements summary:
+
+- `PaymentRequirements` for Lightning:
+  - `scheme`: `"exact"`
+  - `network`: `"btc-lightning-signet"` or `"btc-lightning-mainnet"`
+  - `asset`: typically `"BTC"` or an implementation-defined Lightning asset identifier (e.g., `"lnbits-test-asset"`)
+  - `payTo`: Lightning recipient identifier (e.g., node pubkey, LNURL-pay, or another implementation-defined Lightning recipient identifier such as an LNbits wallet id)
+- `PaymentPayload.payload`:
+  - `bolt11`: BOLT11 Lightning invoice string (required)
+  - `invoiceId`: Optional implementation-specific invoice identifier
+
+Verification and settlement outline:
+
+- Basic x402 checks on `scheme`, `network`, and payload shape
+- Structural validation that `bolt11` looks like a Lightning invoice (e.g., prefix `ln`, base32-ish character set)
+- Lightning backend is responsible for authoritative checks:
+  - invoice is for the correct network and payee
+  - amount received ≥ `maxAmountRequired` (in sats)
+  - invoice not expired or cancelled
+- Settlement is modeled as "invoice is settled" rather than an on-chain transaction; the `transaction` field in `SettlementResponse` typically carries a payment hash, invoice ID, or synthetic identifier. In the PoC, `transaction` may simply be set to `invoiceId` if present, or the `bolt11` string as a fallback.
+
+Full Lightning details are specified in `specs/schemes/exact/scheme_exact_btc_lightning.md`.
+
 **7. Facilitator Interface**
 
-The facilitator provides HTTP REST APIs for payment verification and settlement. This allows resource servers to delegate blockchain operations to trusted third parties or host the endpoints themselves. Note that while the core x402 protocol is transport-agnostic, facilitator APIs are currently standardized as HTTP endpoints.
+The facilitator provides HTTP REST APIs for payment verification and settlement. This allows resource servers to delegate blockchain or Lightning operations to trusted third parties or host the endpoints themselves. Note that while the core x402 protocol is transport-agnostic, facilitator APIs are currently standardized as HTTP endpoints.
 
 **7.1 POST /verify**
 
-Verifies a payment authorization without executing the transaction on the blockchain.
+Verifies a payment authorization without executing the transaction on the blockchain or Lightning network.
 
 **Request (Exact Scheme):**
 
@@ -346,7 +401,7 @@ Example with actual data:
 
 **7.2 POST /settle**
 
-Executes a verified payment by broadcasting the transaction to the blockchain.
+Executes a verified payment by broadcasting the transaction to the blockchain or confirming settlement in a Lightning backend.
 
 **Request:** Same as `/verify` endpoint
 
@@ -511,13 +566,13 @@ The x402 protocol defines standard error codes that may be returned by facilitat
 - **`invalid_exact_evm_payload_authorization_value`**: Payment amount is insufficient for the required payment
 - **`invalid_exact_evm_payload_signature`**: Payment authorization signature is invalid or improperly signed
 - **`invalid_exact_evm_payload_recipient_mismatch`**: Recipient address does not match payment requirements
-- **`invalid_network`**: Specified blockchain network is not supported
+- **`invalid_network`**: Specified blockchain or Lightning network is not supported
 - **`invalid_payload`**: Payment payload is malformed or contains invalid data
 - **`invalid_payment_requirements`**: Payment requirements object is invalid or malformed
 - **`invalid_scheme`**: Specified payment scheme is not supported
 - **`unsupported_scheme`**: Payment scheme is not supported by the facilitator
 - **`invalid_x402_version`**: Protocol version is not supported
-- **`invalid_transaction_state`**: Blockchain transaction failed or was rejected
+- **`invalid_transaction_state`**: Transaction or settlement failed or was rejected
 - **`unexpected_verify_error`**: Unexpected error occurred during payment verification
 - **`unexpected_settle_error`**: Unexpected error occurred during payment settlement
 
@@ -531,6 +586,7 @@ The x402 protocol implements multiple layers of protection against replay attack
 - **Blockchain Protection**: EIP-3009 contracts inherently prevent nonce reuse at the smart contract level
 - **Time Constraints**: Authorizations have explicit valid time windows to limit their lifetime
 - **Signature Verification**: All authorizations are cryptographically signed by the payer
+- **Lightning Invoices**: For BTC Lightning, BOLT11 invoices are single-use by design; facilitators should rely on backend invoice state and identifiers to prevent reuse across requests
 
 **10.2 Authentication Integration**
 
@@ -540,25 +596,32 @@ The protocol supports integration with authentication systems (e.g., Sign-In wit
 
 **11.1 Supported Networks**
 
-The following blockchain networks are currently supported by the reference implementation:
+The following networks are currently supported by the reference implementation (non-exhaustive):
 
 - **`base-sepolia`**: Base Sepolia testnet (Chain ID: 84532)
 - **`base`**: Base mainnet (Chain ID: 8453)
 - **`avalanche-fuji`**: Avalanche Fuji testnet (Chain ID: 43113)
 - **`avalanche`**: Avalanche mainnet (Chain ID: 43114)
+- **`solana-devnet`**: Solana Devnet
+- **`solana`**: Solana mainnet-beta
+- **`btc-lightning-signet`**: Bitcoin Lightning Signet (test/signet) network
+- **`btc-lightning-mainnet`**: Bitcoin Lightning mainnet
 
 **11.2 Supported Assets**
 
-The protocol currently supports the following token types:
+The protocol currently supports the following token and asset types:
 
 - **`USDC`**: USD Coin (EIP-3009 compliant ERC-20 token)
 - **Additional ERC-20 tokens**: May be supported if they implement EIP-3009 (Transfer with Authorization)
+- **SPL tokens**: For Solana/SVM, tokens supported via `TransferChecked` according to the SVM `exact` scheme
+- **BTC on Lightning**: For Lightning networks, payments denominated in satoshis with `asset` typically set to `"BTC"` or another implementation-defined Lightning asset identifier
 
 Token support depends on:
 
-- EIP-3009 compliance for the "exact" scheme
+- EIP-3009 compliance for the "exact" scheme on EVM
+- SPL token support and program constraints for the SVM scheme
 - Facilitator service capabilities
-- Network-specific token availability
+- Network-specific token/asset availability
 
 **12. Use Cases and Applications**
 
@@ -627,7 +690,8 @@ _Note: Implementation details for specific patterns (such as budget management, 
 
 ## Version History
 
-| Version | Date      | Changes                     | Author                    |
-| ------- | --------- | --------------------------- | ------------------------- |
-| v0.2    | 2025-10-3 | Transport-agnostic redesign | Ethan Niser               |
-| v0.1    | 2025-8-29 | Initial draft               | [derived from repository] |
+| Version | Date       | Changes                     | Author                    |
+| ------- | ---------- | --------------------------- | ------------------------- |
+| v0.3    | 2025-11-30 | Adds btc-lightning support  | Jean-Louis Lauwers        |
+| v0.2    | 2025-10-3  | Transport-agnostic redesign | Ethan Niser               |
+| v0.1    | 2025-8-29  | Initial draft               | [derived from repository] |
