@@ -38,7 +38,6 @@ export const paywall = createPaywall()
   .withConfig({
     appName: process.env.APP_NAME || "Next x402 Demo",
     appLogo: process.env.APP_LOGO || "/x402-icon-blue.png",
-    cdpClientKey: process.env.CDP_CLIENT_KEY,
     testnet: true,
   })
   .build();

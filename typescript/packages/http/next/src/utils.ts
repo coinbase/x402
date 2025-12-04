@@ -24,14 +24,14 @@ export interface HttpServerInstance {
  * @param routes - The route configuration for the server
  * @param server - The x402 resource server instance
  * @param paywall - Optional paywall provider for custom payment UI
- * @param initializeOnStart - Whether to initialize the server on start (defaults to true)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on start (defaults to true)
  * @returns The HTTP server instance with initialization function
  */
 export function createHttpServer(
   routes: RoutesConfig,
   server: x402ResourceServer,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ): HttpServerInstance {
   // Create the x402 HTTP server instance with the resource server
   const httpServer = new x402HTTPResourceServer(server, routes);
@@ -42,7 +42,7 @@ export function createHttpServer(
   }
 
   // Store initialization promise (not the result)
-  let initPromise: Promise<void> | null = initializeOnStart ? server.initialize() : null;
+  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? server.initialize() : null;
 
   return {
     httpServer,
