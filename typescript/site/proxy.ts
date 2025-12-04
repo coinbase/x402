@@ -115,7 +115,7 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (metadata files)
      */
-    "/((?!_next/static|_next/image|favicon.ico|facilitator/supported).*)",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
     "/", // Include the root path explicitly
   ],
 };

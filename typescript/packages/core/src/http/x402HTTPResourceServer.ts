@@ -384,6 +384,17 @@ export class x402HTTPResourceServer {
   }
 
   /**
+   * Check if a request requires payment based on route configuration
+   *
+   * @param context - HTTP request context
+   * @returns True if the route requires payment, false otherwise
+   */
+  requiresPayment(context: HTTPRequestContext): boolean {
+    const routeConfig = this.getRouteConfig(context.path, context.method);
+    return routeConfig !== undefined;
+  }
+
+  /**
    * Normalizes a RouteConfig's accepts field into an array of PaymentOptions
    * Handles both single PaymentOption and array formats
    *

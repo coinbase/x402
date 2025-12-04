@@ -74,6 +74,7 @@ function createMockHttpServer(
     processHTTPRequest: vi.fn().mockResolvedValue(processResult),
     processSettlement: vi.fn().mockResolvedValue(settlementResult),
     registerPaywallProvider: vi.fn(),
+    requiresPayment: vi.fn().mockReturnValue(true),
   } as unknown as x402HTTPResourceServer;
 }
 

@@ -37,6 +37,7 @@ const mockPaymentRequirements = {
 let mockProcessHTTPRequest: ReturnType<typeof vi.fn>;
 let mockProcessSettlement: ReturnType<typeof vi.fn>;
 let mockRegisterPaywallProvider: ReturnType<typeof vi.fn>;
+let mockRequiresPayment: ReturnType<typeof vi.fn>;
 
 vi.mock("@x402/core/server", () => ({
   x402ResourceServer: vi.fn().mockImplementation(() => ({
@@ -48,6 +49,7 @@ vi.mock("@x402/core/server", () => ({
     processHTTPRequest: mockProcessHTTPRequest,
     processSettlement: mockProcessSettlement,
     registerPaywallProvider: mockRegisterPaywallProvider,
+    requiresPayment: mockRequiresPayment,
   })),
 }));
 
@@ -151,6 +153,7 @@ describe("paymentMiddleware", () => {
     mockProcessHTTPRequest = vi.fn();
     mockProcessSettlement = vi.fn();
     mockRegisterPaywallProvider = vi.fn();
+    mockRequiresPayment = vi.fn().mockReturnValue(true);
 
     // Reset the mock implementation
     vi.mocked(HTTPResourceServer).mockImplementation(
@@ -159,6 +162,7 @@ describe("paymentMiddleware", () => {
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
         }) as unknown as x402HTTPResourceServer,
     );
   });
@@ -431,6 +435,7 @@ describe("paymentMiddlewareFromConfig", () => {
     mockProcessHTTPRequest = vi.fn();
     mockProcessSettlement = vi.fn();
     mockRegisterPaywallProvider = vi.fn();
+    mockRequiresPayment = vi.fn().mockReturnValue(true);
 
     vi.mocked(HTTPResourceServer).mockImplementation(
       () =>
@@ -438,6 +443,7 @@ describe("paymentMiddlewareFromConfig", () => {
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
         }) as unknown as x402HTTPResourceServer,
     );
 
@@ -496,6 +502,7 @@ describe("ExpressAdapter", () => {
     mockProcessHTTPRequest = vi.fn();
     mockProcessSettlement = vi.fn();
     mockRegisterPaywallProvider = vi.fn();
+    mockRequiresPayment = vi.fn().mockReturnValue(true);
 
     vi.mocked(HTTPResourceServer).mockImplementation(
       () =>
@@ -503,6 +510,7 @@ describe("ExpressAdapter", () => {
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
+          requiresPayment: mockRequiresPayment,
         }) as unknown as x402HTTPResourceServer,
     );
   });

@@ -41,7 +41,7 @@ export interface SchemeRegistration {
  * @param server - Pre-configured x402ResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
  * @returns Next.js proxy handler
  *
  * @example
@@ -61,14 +61,20 @@ export function paymentProxy(
   server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ) {
-  const { httpServer, init } = createHttpServer(routes, server, paywall, initializeOnStart);
+  const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
 
   return async (req: NextRequest) => {
-    await init();
-
     const context = createRequestContext(req);
+
+    // Check if route requires payment before initializing facilitator
+    if (!httpServer.requiresPayment(context)) {
+      return NextResponse.next();
+    }
+
+    // Only initialize when processing a protected route
+    await init();
 
     // Process payment requirement check
     const result = await httpServer.processHTTPRequest(context, paywallConfig);
@@ -105,7 +111,7 @@ export function paymentProxy(
  * @param schemes - Optional array of scheme registrations for server-side payment processing
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
  * @returns Next.js proxy handler
  *
  * @example
@@ -126,7 +132,7 @@ export function paymentProxyFromConfig(
   schemes?: SchemeRegistration[],
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
@@ -153,7 +159,7 @@ export function paymentProxyFromConfig(
   }
 
   // Use the direct paymentProxy with the configured server
-  return paymentProxy(routes, ResourceServer, paywallConfig, paywall, initializeOnStart);
+  return paymentProxy(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
 }
 
 /**
@@ -168,7 +174,7 @@ export function paymentProxyFromConfig(
  * @param server - Pre-configured x402ResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
  * @returns A wrapped Next.js route handler
  *
  * @example
@@ -206,13 +212,13 @@ export function withX402<T = unknown>(
   server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ): (request: NextRequest) => Promise<NextResponse<T>> {
   const { httpServer, init } = createHttpServer(
     { "*": routeConfig },
     server,
     paywall,
-    initializeOnStart,
+    syncFacilitatorOnStart,
   );
 
   return async (request: NextRequest): Promise<NextResponse<T>> => {
