@@ -19,7 +19,7 @@ import { base58 } from "@scure/base";
  */
 export async function createMechanismHelperClient(
   evmPrivateKey: `0x${string}`,
-  svmPrivateKey: `0x${string}`,
+  svmPrivateKey: string,
 ): Promise<x402Client> {
   const evmSigner = privateKeyToAccount(evmPrivateKey);
   const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));

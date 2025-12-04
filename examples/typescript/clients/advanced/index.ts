@@ -1,11 +1,13 @@
 import { config } from "dotenv";
 import { runHooksExample } from "./hooks";
+import { runPreferredNetworkExample } from "./preferred-network";
 
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
-const baseURL = process.env.SERVER_URL || "http://localhost:4021";
-const endpointPath = "/weather";
+const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
+const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
 
 /**
@@ -14,12 +16,15 @@ const url = `${baseURL}${endpointPath}`;
  * This package demonstrates advanced patterns for production-ready x402 clients:
  *
  * - hooks: Payment lifecycle hooks for custom logic at different stages
+ * - preferred-network: Client-side payment network preferences
  *
  * To run this example, you need to set the following environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
  *
  * Usage:
  *   npm start hooks
+ *   npm start preferred-network
  */
 async function main(): Promise<void> {
   const pattern = process.argv[2] || "hooks";
@@ -36,9 +41,17 @@ async function main(): Promise<void> {
       await runHooksExample(evmPrivateKey, url);
       break;
 
+    case "preferred-network":
+      if (!svmPrivateKey) {
+        console.error("❌ SVM_PRIVATE_KEY environment variable is required for preferred-network");
+        process.exit(1);
+      }
+      await runPreferredNetworkExample(evmPrivateKey, svmPrivateKey, url);
+      break;
+
     default:
       console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: hooks");
+      console.error("Available patterns: hooks, preferred-network");
       process.exit(1);
   }
 }
