@@ -272,9 +272,6 @@ export async function settle<transport extends Transport, chain extends Chain>(
   }
 
   // Returns the original signature (no-op) if the signature is not a 6492 signature
-  const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
-  const parsedSig = parseSignature(unwrappedSignature);
-
   const tx = await wallet.writeContract({
     address: paymentRequirements.asset as Address,
     abi,
@@ -286,9 +283,7 @@ export async function settle<transport extends Transport, chain extends Chain>(
       BigInt(payload.authorization.validAfter),
       BigInt(payload.authorization.validBefore),
       payload.authorization.nonce as Hex,
-      (parsedSig.v as number | undefined) || parsedSig.yParity,
-      parsedSig.r,
-      parsedSig.s,
+      payload.signature as Hex,
     ],
     chain: wallet.chain as Chain,
   });
