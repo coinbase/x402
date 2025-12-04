@@ -17,16 +17,16 @@ import { baseSepolia } from "viem/chains";
  */
 async function createFacilitator(): Promise<x402Facilitator> {
   // Validate required environment variables
-  if (!process.env.PRIVATE_KEY) {
-    throw new Error("❌ PRIVATE_KEY environment variable is required");
+  if (!process.env.FACILITATOR_EVM_PRIVATE_KEY) {
+    throw new Error("❌ FACILITATOR_EVM_PRIVATE_KEY environment variable is required");
   }
 
-  if (!process.env.SOLANA_PRIVATE_KEY) {
-    throw new Error("❌ SOLANA_PRIVATE_KEY environment variable is required");
+  if (!process.env.FACILITATOR_SVM_PRIVATE_KEY) {
+    throw new Error("❌ FACILITATOR_SVM_PRIVATE_KEY environment variable is required");
   }
 
   // Initialize the EVM account from private key
-  const evmAccount = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+  const evmAccount = privateKeyToAccount(process.env.FACILITATOR_EVM_PRIVATE_KEY as `0x${string}`);
 
   // Create a Viem client with both wallet and public capabilities
   const viemClient = createWalletClient({
@@ -79,7 +79,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
 
   // Initialize the SVM account from private key
   const svmAccount = await createKeyPairSignerFromBytes(
-    base58.decode(process.env.SOLANA_PRIVATE_KEY as string),
+    base58.decode(process.env.FACILITATOR_SVM_PRIVATE_KEY as string),
   );
 
   // Initialize SVM signer - handles all Solana networks with automatic RPC creation

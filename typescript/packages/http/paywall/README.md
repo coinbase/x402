@@ -39,7 +39,6 @@ const paywall = createPaywall()
   .withNetwork(evmPaywall)
   .withConfig({
     appName: 'My App',
-    cdpClientKey: 'your-cdp-key',
     testnet: true
   })
   .build();
@@ -75,7 +74,6 @@ const paywall = createPaywall()
   .withNetwork(svmPaywall)   // Fallback option
   .withConfig({
     appName: 'Multi-chain App',
-    cdpClientKey: 'your-key',
     testnet: true
   })
   .build();
@@ -91,7 +89,6 @@ const html = getPaywallHtml({
   paymentRequirements: [...],
   currentUrl: "https://api.example.com/data",
   testnet: true,
-  cdpClientKey: "your-key",
   appName: "My App"
 });
 
@@ -104,7 +101,6 @@ res.status(402).send(html);
 
 ```typescript
 interface PaywallConfig {
-  cdpClientKey?: string;        // Coinbase Developer Platform API key
   appName?: string;              // App name shown in wallet connection
   appLogo?: string;              // App logo URL
   sessionTokenEndpoint?: string; // Endpoint for onramp session tokens
@@ -186,7 +182,6 @@ If you provide `paywallConfig` without a custom paywall, `@x402/core` automatica
 // Simple usage - auto-detects @x402/paywall
 app.use(paymentMiddleware(routes, facilitators, schemes, {
   appName: 'My App',
-  cdpClientKey: 'key',
   testnet: true
 }));
 ```

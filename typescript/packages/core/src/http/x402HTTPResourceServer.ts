@@ -53,7 +53,6 @@ export interface HTTPAdapter {
  * Paywall configuration for HTML responses
  */
 export interface PaywallConfig {
-  cdpClientKey?: string;
   appName?: string;
   appLogo?: string;
   sessionTokenEndpoint?: string;
@@ -385,6 +384,17 @@ export class x402HTTPResourceServer {
   }
 
   /**
+   * Check if a request requires payment based on route configuration
+   *
+   * @param context - HTTP request context
+   * @returns True if the route requires payment, false otherwise
+   */
+  requiresPayment(context: HTTPRequestContext): boolean {
+    const routeConfig = this.getRouteConfig(context.path, context.method);
+    return routeConfig !== undefined;
+  }
+
+  /**
    * Normalizes a RouteConfig's accepts field into an array of PaymentOptions
    * Handles both single PaymentOption and array formats
    *
@@ -592,7 +602,6 @@ export class x402HTTPResourceServer {
         paymentRequired,
         currentUrl: resource?.url || paywallConfig?.currentUrl || "",
         testnet: paywallConfig?.testnet ?? true,
-        cdpClientKey: paywallConfig?.cdpClientKey,
         appName: paywallConfig?.appName,
         appLogo: paywallConfig?.appLogo,
         sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
@@ -621,7 +630,6 @@ export class x402HTTPResourceServer {
             <p><strong>Amount:</strong> $${displayAmount.toFixed(2)} USDC</p>
             <div id="payment-widget" 
                  data-requirements='${JSON.stringify(paymentRequired)}'
-                 data-cdp-client-key="${paywallConfig?.cdpClientKey || ""}"
                  data-app-name="${paywallConfig?.appName || ""}"
                  data-testnet="${paywallConfig?.testnet || false}">
               <!-- Install @x402/paywall for full wallet integration -->

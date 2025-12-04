@@ -20,9 +20,9 @@
     "@x402/next": "workspace:*",
     "@x402/paywall": "workspace:*",
     "@x402/extensions": "workspace:*",
-    "next": "^16.0.6",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "next": "^16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.24.0",
