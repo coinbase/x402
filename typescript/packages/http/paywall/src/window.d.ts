@@ -7,10 +7,8 @@ declare global {
       testnet?: boolean;
       paymentRequired: PaymentRequired;
       currentUrl: string;
-      cdpClientKey?: string;
       appName?: string;
       appLogo?: string;
-      sessionTokenEndpoint?: string;
       config: {
         chainConfig: Record<
           string,
