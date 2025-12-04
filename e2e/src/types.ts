@@ -93,6 +93,7 @@ export interface DiscoveredFacilitator {
   directory: string;
   config: TestConfig;
   proxy: FacilitatorProxy;
+  isExternal?: boolean;
 }
 
 export interface TestScenario {
