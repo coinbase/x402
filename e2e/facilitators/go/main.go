@@ -101,8 +101,8 @@ func newRealFacilitatorEvmSigner(privateKeyHex string, rpcURL string) (*realFaci
 	}, nil
 }
 
-func (s *realFacilitatorEvmSigner) Address() string {
-	return s.address.Hex()
+func (s *realFacilitatorEvmSigner) GetAddresses() []string {
+	return []string{s.address.Hex()}
 }
 
 func (s *realFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
@@ -603,8 +603,15 @@ func (s *realFacilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signa
 	return fmt.Errorf("transaction confirmation timed out after %d attempts", svmmech.MaxConfirmAttempts)
 }
 
-func (s *realFacilitatorSvmSigner) GetAddress(ctx context.Context, network string) solana.PublicKey {
-	return s.privateKey.PublicKey()
+func (s *realFacilitatorSvmSigner) GetAddresses(ctx context.Context, network string) []solana.PublicKey {
+	return []solana.PublicKey{s.privateKey.PublicKey()}
+}
+
+func (s *realFacilitatorSvmSigner) GetSigner(ctx context.Context, address solana.PublicKey, network string) (svmmech.FacilitatorSvmSigner, error) {
+	if address == s.privateKey.PublicKey() {
+		return s, nil
+	}
+	return nil, fmt.Errorf("no signer for address %s, available: %s", address.String(), s.privateKey.PublicKey().String())
 }
 
 func main() {
@@ -631,7 +638,8 @@ func main() {
 	}
 
 	chainID, _ := evmSigner.GetChainID(context.Background())
-	log.Printf("EVM Facilitator account: %s", evmSigner.Address())
+	addresses := evmSigner.GetAddresses()
+	log.Printf("EVM Facilitator account: %s", addresses[0])
 	log.Printf("Connected to chain ID: %s (expected: 84532 for Base Sepolia)", chainID.String())
 
 	// Initialize the real SVM blockchain signer (uses default Solana Devnet RPC)
@@ -640,7 +648,8 @@ func main() {
 		log.Fatalf("Failed to create SVM signer: %v", err)
 	}
 
-	log.Printf("SVM Facilitator account: %s", svmSigner.GetAddress(context.Background(), "solana-devnet").String())
+	svmAddresses := svmSigner.GetAddresses(context.Background(), "solana-devnet")
+	log.Printf("SVM Facilitator account: %s", svmAddresses[0].String())
 
 	// Initialize the x402 Facilitator with EVM and SVM support
 	facilitator := x402.Newx402Facilitator()
@@ -1028,7 +1037,7 @@ func main() {
 ║  • GET  /health              (health check)           ║
 ║  • POST /close               (shutdown server)        ║
 ╚════════════════════════════════════════════════════════╝
-`, port, Network, evmSigner.Address())
+`, port, Network, evmSigner.GetAddresses()[0])
 
 	// Log that facilitator is ready (needed for e2e test discovery)
 	log.Println("Facilitator listening")

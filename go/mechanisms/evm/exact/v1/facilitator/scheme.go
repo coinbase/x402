@@ -65,9 +65,9 @@ func (f *ExactEvmSchemeV1) GetExtra(_ x402.Network) map[string]interface{} {
 }
 
 // GetSigners returns signer addresses used by this facilitator.
-// Returns the facilitator's wallet address that signs/settles transactions.
-func (f *ExactEvmSchemeV1) GetSigners() []string {
-	return []string{f.signer.Address()}
+// Returns all addresses this facilitator can use for signing/settling transactions.
+func (f *ExactEvmSchemeV1) GetSigners(_ x402.Network) []string {
+	return f.signer.GetAddresses()
 }
 
 // Verify verifies a V1 payment payload against requirements

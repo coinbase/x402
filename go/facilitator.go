@@ -537,12 +537,12 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 			}
 			kindsByVersion["1"] = append(kindsByVersion["1"], kind)
 
-			// Collect signers by CAIP family
+			// Collect signers by CAIP family for this network
 			family := facilitator.CaipFamily()
 			if signersByFamily[family] == nil {
 				signersByFamily[family] = make(map[string]bool)
 			}
-			for _, signer := range facilitator.GetSigners() {
+			for _, signer := range facilitator.GetSigners(network) {
 				signersByFamily[family][signer] = true
 			}
 		}
@@ -563,12 +563,12 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 			}
 			kindsByVersion["2"] = append(kindsByVersion["2"], kind)
 
-			// Collect signers by CAIP family
+			// Collect signers by CAIP family for this network
 			family := facilitator.CaipFamily()
 			if signersByFamily[family] == nil {
 				signersByFamily[family] = make(map[string]bool)
 			}
-			for _, signer := range facilitator.GetSigners() {
+			for _, signer := range facilitator.GetSigners(network) {
 				signersByFamily[family][signer] = true
 			}
 		}
