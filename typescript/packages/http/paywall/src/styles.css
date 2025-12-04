@@ -211,6 +211,7 @@ body {
   flex-basis: 50%;
   flex-direction: row;
   gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .balance-button {
@@ -224,3 +225,23 @@ body {
   align-items: center;
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner > div {
+  animation: spin 1s linear infinite;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  width: 1rem;
+  height: 1rem;
+}

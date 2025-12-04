@@ -7,14 +7,8 @@
  */
 export function Spinner({ className = "" }: { className?: string }) {
   return (
-    <div className={`inline-flex items-center justify-center ${className}`}>
-      <div
-        className="animate-spin border-2 border-gray-200 border-t-gray-400 rounded-full w-4 h-4"
-        style={{
-          animation: "spin 1s linear infinite",
-          borderTopWidth: "2px",
-        }}
-      />
+    <div className={`spinner ${className}`}>
+      <div />
     </div>
   );
 }

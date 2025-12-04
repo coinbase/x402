@@ -3,7 +3,15 @@ from typing import Dict, Any, List, Optional
 
 from x402.types import PaymentRequirements, PaywallConfig
 from x402.common import x402_VERSION
-from x402.template import PAYWALL_TEMPLATE
+from x402.evm_paywall_template import EVM_PAYWALL_TEMPLATE
+from x402.svm_paywall_template import SVM_PAYWALL_TEMPLATE
+
+
+def get_paywall_template(network: str) -> str:
+    """Get the appropriate paywall template for the given network."""
+    if network.startswith("solana:"):
+        return SVM_PAYWALL_TEMPLATE
+    return EVM_PAYWALL_TEMPLATE
 
 
 def is_browser_request(headers: Dict[str, Any]) -> bool:
@@ -63,10 +71,8 @@ def create_x402_config(
         "currentUrl": current_url,
         "error": error,
         "x402_version": x402_VERSION,
-        "cdpClientKey": config.get("cdp_client_key", ""),
         "appName": config.get("app_name", ""),
         "appLogo": config.get("app_logo", ""),
-        "sessionTokenEndpoint": config.get("session_token_endpoint", ""),
     }
 
 
@@ -114,6 +120,10 @@ def get_paywall_html(
     Returns:
         Complete HTML with injected payment data
     """
+    if not payment_requirements:
+        raise ValueError("payment_requirements cannot be empty")
+    network = payment_requirements[0].network
+    template = get_paywall_template(network)
     return inject_payment_data(
-        PAYWALL_TEMPLATE, error, payment_requirements, paywall_config
+        template, error, payment_requirements, paywall_config
     )

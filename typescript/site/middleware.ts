@@ -62,7 +62,6 @@ const x402PaymentMiddleware = paymentProxyFromConfig(
     cdpClientKey,
     appLogo: "/logos/x402-examples.png",
     appName: "x402 Demo",
-    sessionTokenEndpoint: "/api/x402/session-token",
   },
 );
 
