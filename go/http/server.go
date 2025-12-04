@@ -173,6 +173,16 @@ const (
 	ResultPaymentError      = "payment-error"
 )
 
+// ProcessSettleResult represents the result of settlement processing
+type ProcessSettleResult struct {
+	Success     bool
+	Headers     map[string]string
+	ErrorReason string
+	Transaction string
+	Network     x402.Network
+	Payer       string
+}
+
 // ============================================================================
 // x402HTTPResourceServer
 // ============================================================================
@@ -419,20 +429,37 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 }
 
-// ProcessSettlement handles settlement after successful response
-func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements, responseStatus int) (map[string]string, error) {
-	// Don't settle if response failed
-	if responseStatus >= 400 {
-		return nil, nil
-	}
+// RequiresPayment checks if a request requires payment based on route configuration
+func (s *x402HTTPResourceServer) RequiresPayment(reqCtx HTTPRequestContext) bool {
+	routeConfig := s.getRouteConfig(reqCtx.Path, reqCtx.Method)
+	return routeConfig != nil
+}
 
+// ProcessSettlement handles settlement after successful response
+func (s *x402HTTPResourceServer) ProcessSettlement(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) *ProcessSettleResult {
 	// Settle payment (type-safe, no marshal needed)
 	settleResult, err := s.SettlePayment(ctx, payload, requirements)
 	if err != nil {
-		return nil, err
+		return &ProcessSettleResult{
+			Success:     false,
+			ErrorReason: err.Error(),
+		}
 	}
 
-	return s.createSettlementHeaders(settleResult), nil
+	if !settleResult.Success {
+		return &ProcessSettleResult{
+			Success:     false,
+			ErrorReason: settleResult.ErrorReason,
+		}
+	}
+
+	return &ProcessSettleResult{
+		Success:     true,
+		Headers:     s.createSettlementHeaders(settleResult),
+		Transaction: settleResult.Transaction,
+		Network:     settleResult.Network,
+		Payer:       settleResult.Payer,
+	}
 }
 
 // ============================================================================

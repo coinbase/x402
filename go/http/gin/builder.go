@@ -100,7 +100,7 @@ func X402Payment(config Config) gin.HandlerFunc {
 
 	// Convert to middleware options
 	opts := []MiddlewareOption{
-		WithInitializeOnStart(initialize),
+		WithSyncFacilitatorOnStart(initialize),
 		WithTimeout(config.Timeout),
 	}
 
