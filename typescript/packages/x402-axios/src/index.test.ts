@@ -213,7 +213,7 @@ describe("withPaymentInterceptor()", () => {
   });
 });
 
-describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
+describe("withPaymentInterceptor() - SVM, Stellar, and MultiNetwork", () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -287,6 +287,74 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
     );
   });
 
+  it("passes [stellar, stellar-testnet] for Stellar-only signers", async () => {
+    vi.doMock("x402/types", async () => {
+      const actual = await vi.importActual("x402/types");
+      return {
+        ...actual,
+        isEvmSignerWallet: vi.fn().mockReturnValue(false),
+        isMultiNetworkSigner: vi.fn().mockReturnValue(false),
+        isSvmSignerWallet: vi.fn().mockReturnValue(false),
+        isStellarSignerWallet: vi.fn().mockReturnValue(true),
+      };
+    });
+
+    vi.doMock("x402/client", () => ({
+      createPaymentHeader: vi.fn().mockResolvedValue("payment-header-value"),
+      selectPaymentRequirements: vi.fn((reqs: PaymentRequirements[]) => reqs[0]),
+    }));
+
+    const { withPaymentInterceptor } = await import("./index");
+    const { selectPaymentRequirements } = await import("x402/client");
+
+    const mockAxiosClient: AxiosInstance = {
+      interceptors: { response: { use: vi.fn() } },
+      request: vi.fn().mockResolvedValue({ data: "success" } as AxiosResponse),
+    } as unknown as AxiosInstance;
+
+    const stellarWallet = {} as unknown as object;
+
+    withPaymentInterceptor(mockAxiosClient, stellarWallet as Signer);
+    const handler = (mockAxiosClient.interceptors.response.use as ReturnType<typeof vi.fn>).mock
+      .calls[0][1];
+
+    const localValidPaymentRequirements: PaymentRequirements[] = [
+      {
+        scheme: "exact",
+        network: "stellar",
+        maxAmountRequired: "1000000",
+        resource: "https://api.example.com/resource",
+        description: "Test payment",
+        mimeType: "application/json",
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        maxTimeoutSeconds: 300,
+        asset: "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+      },
+    ];
+
+    const error = new AxiosError(
+      "Error",
+      "ERROR",
+      { headers: new AxiosHeaders() } as InternalAxiosRequestConfig,
+      {},
+      {
+        status: 402,
+        statusText: "Payment Required",
+        data: { accepts: [{ ...localValidPaymentRequirements[0] }], x402Version: 1 },
+        headers: {},
+        config: { headers: new AxiosHeaders() } as InternalAxiosRequestConfig,
+      },
+    );
+
+    await handler(error);
+
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(
+      expect.any(Array),
+      ["stellar", "stellar-testnet"],
+      "exact",
+    );
+  });
+
   // TODO: this test should be updated once support is added for multi-network signers in selectPaymentRequirements
   it("passes undefined for MultiNetwork signers", async () => {
     vi.doMock("x402/types", async () => {
@@ -295,6 +363,7 @@ describe("withPaymentInterceptor() - SVM and MultiNetwork", () => {
         ...actual,
         isEvmSignerWallet: vi.fn().mockReturnValue(false),
         isSvmSignerWallet: vi.fn().mockReturnValue(false),
+        isStellarSignerWallet: vi.fn().mockReturnValue(false),
         isMultiNetworkSigner: vi.fn().mockReturnValue(true),
       };
     });

@@ -1,8 +1,9 @@
 import { config } from "dotenv";
 import express from "express";
-import { paymentMiddleware, Resource, type SolanaAddress } from "x402-express";
+import { Network, paymentMiddleware, Resource, type SolanaAddress } from "x402-express";
 config();
 
+const network = (process.env.NETWORK || "base-sepolia") as Network;
 const facilitatorUrl = process.env.FACILITATOR_URL as Resource;
 const payTo = process.env.ADDRESS as `0x${string}` | SolanaAddress;
 
@@ -20,9 +21,7 @@ app.use(
       "GET /weather": {
         // USDC amount in dollars
         price: "$0.001",
-        // network: "base" // uncomment for Base mainnet
-        // network: "solana" // uncomment for Solana mainnet
-        network: "base-sepolia",
+        network,
       },
       "/premium/*": {
         // Define atomic amounts in any EIP-3009 token
@@ -38,9 +37,7 @@ app.use(
             },
           },
         },
-        // network: "base" // uncomment for Base mainnet
-        // network: "solana" // uncomment for Solana mainnet
-        network: "base-sepolia",
+        network,
       },
     },
     {

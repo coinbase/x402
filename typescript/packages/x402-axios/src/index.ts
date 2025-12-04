@@ -10,6 +10,8 @@ import {
   Network,
   evm,
   X402Config,
+  SupportedStellarNetworks,
+  isStellarSignerWallet,
 } from "x402/types";
 import {
   createPaymentHeader,
@@ -86,7 +88,9 @@ export function withPaymentInterceptor(
             ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
             : isSvmSignerWallet(walletClient as Signer)
               ? (["solana", "solana-devnet"] as Network[])
-              : undefined;
+              : isStellarSignerWallet(walletClient as Signer)
+                ? SupportedStellarNetworks
+                : undefined;
 
         const selectedPaymentRequirements = paymentRequirementsSelector(parsed, network, "exact");
         const paymentHeader = await createPaymentHeader(

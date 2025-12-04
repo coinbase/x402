@@ -358,6 +358,92 @@ describe("paymentMiddleware()", () => {
     );
   });
 
+  it("should return 402 with maxLedger for stellar-testnet when no payment header is present", async () => {
+    const stellarPayTo = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
+    const maxLedger = "12345678";
+    mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar-testnet", extra: { maxLedger } }],
+    });
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: { price: "$0.001", network: "stellar-testnet", config: middlewareConfig },
+    });
+
+    const middlewareStellar = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/weather": { price: "$0.001", network: "stellar-testnet", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+    await middlewareStellar(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar-testnet",
+            payTo: stellarPayTo,
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
+  it("should return 402 with maxLedger for stellar mainnet when no payment header is present", async () => {
+    const stellarPayTo = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
+    const maxLedger = "87654321";
+    mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar", extra: { maxLedger } }],
+    });
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      verb: "GET",
+      pattern: /^\/weather$/,
+      config: { price: "$0.001", network: "stellar", config: middlewareConfig },
+    });
+
+    const middlewareStellar = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/weather": { price: "$0.001", network: "stellar", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
+
+    await middlewareStellar(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar",
+            payTo: stellarPayTo,
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+        x402Version: 1,
+      }),
+      402,
+    );
+  });
+
   it("should throw error for unsupported network", async () => {
     const unsupportedRoutesConfig: RoutesConfig = {
       "/weather": {

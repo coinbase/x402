@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import {
-  selectPaymentRequirements,
-} from "./selectPaymentRequirements";
+import { selectPaymentRequirements } from "./selectPaymentRequirements";
 import { PaymentRequirements, Network } from "../types";
 import { getUsdcChainConfigForChain } from "../shared/evm";
 import { getNetworkId } from "../shared/network";
+import { getUsdcConfigForNetwork } from "../shared/middleware";
+import { isStellarToken } from "../types/shared/stellar";
 
 /**
  * Test helper to create a payment requirement with the given network, asset, and overrides.
@@ -165,5 +165,88 @@ describe("selectPaymentRequirements", () => {
     const selected = selectPaymentRequirements(reqs);
     expect(selected.network).toBe("solana");
     expect(selected.asset).toBe(solanaUsdc);
+  });
+
+  it("prioritizes a Stellar USDC requirement over non-USDC, regardless of order", () => {
+    const stellarUsdc = getUsdcConfigForNetwork("stellar");
+    const stellarUsdcAddress = isStellarToken(stellarUsdc) ? stellarUsdc.address : "";
+    const reqs: PaymentRequirements[] = [
+      makeRequirement("stellar", stellarUsdcAddress, {
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      }),
+      makeRequirement("base", "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+    ];
+
+    const selected = selectPaymentRequirements(reqs);
+    expect(selected.network).toBe("stellar");
+    expect(selected.asset).toBe(stellarUsdcAddress);
+  });
+
+  it("filters by ['stellar', 'stellar-testnet'] and selects the USDC requirement among them", () => {
+    const stellarUsdc = getUsdcConfigForNetwork("stellar");
+    const stellarUsdcAddress = isStellarToken(stellarUsdc) ? stellarUsdc.address : "";
+    const reqs: PaymentRequirements[] = [
+      makeRequirement("base", "0x9999999999999999999999999999999999999999"),
+      makeRequirement("stellar", stellarUsdcAddress, {
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      }),
+      makeRequirement("stellar-testnet", "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", {
+        payTo: "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE",
+      }),
+    ];
+
+    const selected = selectPaymentRequirements(reqs, ["stellar", "stellar-testnet"]);
+    expect(selected.network).toBe("stellar");
+    expect(selected.asset).toBe(stellarUsdcAddress);
+  });
+
+  it("filters by ['stellar', 'stellar-testnet'] and when both are USDC, returns the first in input order", () => {
+    const stellarUsdc = getUsdcConfigForNetwork("stellar");
+    const stellarTestnetUsdc = getUsdcConfigForNetwork("stellar-testnet");
+    const stellarUsdcAddress = isStellarToken(stellarUsdc) ? stellarUsdc.address : "";
+    const stellarTestnetUsdcAddress = isStellarToken(stellarTestnetUsdc)
+      ? stellarTestnetUsdc.address
+      : "";
+    const reqs: PaymentRequirements[] = [
+      makeRequirement("stellar-testnet", stellarTestnetUsdcAddress, {
+        payTo: "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE",
+      }),
+      makeRequirement("stellar", stellarUsdcAddress, {
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      }),
+    ];
+
+    const selected = selectPaymentRequirements(reqs, ["stellar", "stellar-testnet"]);
+    expect(selected.network).toBe("stellar-testnet");
+    expect(selected.asset).toBe(stellarTestnetUsdcAddress);
+  });
+
+  it("filters by ['stellar', 'stellar-testnet'] and when neither is USDC, returns the first broadly accepted", () => {
+    const reqs: PaymentRequirements[] = [
+      makeRequirement("stellar-testnet", "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", {
+        payTo: "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE",
+      }),
+      makeRequirement("stellar", "CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", {
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      }),
+    ];
+
+    const selected = selectPaymentRequirements(reqs, ["stellar", "stellar-testnet"]);
+    expect(selected.network).toBe("stellar-testnet");
+  });
+
+  it("supports Stellar networks by matching their USDC asset", () => {
+    const stellarUsdc = getUsdcConfigForNetwork("stellar");
+    const stellarUsdcAddress = isStellarToken(stellarUsdc) ? stellarUsdc.address : "";
+    const reqs: PaymentRequirements[] = [
+      makeRequirement("stellar", stellarUsdcAddress, {
+        payTo: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+      }),
+      makeRequirement("base", "0x8888888888888888888888888888888888888888"),
+    ];
+
+    const selected = selectPaymentRequirements(reqs);
+    expect(selected.network).toBe("stellar");
+    expect(selected.asset).toBe(stellarUsdcAddress);
   });
 });

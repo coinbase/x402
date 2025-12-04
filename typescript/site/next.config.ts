@@ -7,11 +7,19 @@ const nextConfig: NextConfig = {
     PRIVATE_KEY: process.env.PRIVATE_KEY,
     NETWORK: process.env.NETWORK,
   },
-  webpack(config) {
+  webpack(config, { nextRuntime }) {
     config.module.rules.push({
       test: /\.svg$/,
       use: ["@svgr/webpack"],
     });
+
+    // Ignore Stellar SDK in Edge Runtime to avoid dynamic code evaluation errors
+    if (nextRuntime === "edge") {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@stellar/stellar-sdk": false,
+      };
+    }
 
     return config;
   },

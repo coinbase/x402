@@ -1,8 +1,20 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { createPaymentHeader as createPaymentHeaderExactStellar } from "../schemes/exact/stellar/client";
+import {
+  isEvmSignerWallet,
+  isMultiNetworkSigner,
+  isStellarSignerWallet,
+  isSvmSignerWallet,
+  MultiNetworkSigner,
+  Signer,
+  SupportedEVMNetworks,
+  SupportedStellarNetworks,
+  SupportedSVMNetworks,
+} from "../types/shared";
 import { PaymentRequirements } from "../types/verify";
 import { X402Config } from "../types/config";
+import { Ed25519Signer } from "../shared/stellar";
 
 /**
  * Creates a payment header based on the provided client and payment requirements.
@@ -29,12 +41,9 @@ export async function createPaymentHeader(
         throw new Error("Invalid evm wallet client provided");
       }
 
-      return await createPaymentHeaderExactEVM(
-        evmClient,
-        x402Version,
-        paymentRequirements,
-      );
+      return await createPaymentHeaderExactEVM(evmClient, x402Version, paymentRequirements);
     }
+
     // svm
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       const svmClient = isMultiNetworkSigner(client) ? client.svm : client;
@@ -42,14 +51,24 @@ export async function createPaymentHeader(
         throw new Error("Invalid svm wallet client provided");
       }
 
-      return await createPaymentHeaderExactSVM(
-        svmClient,
+      return await createPaymentHeaderExactSVM(svmClient, x402Version, paymentRequirements, config);
+    }
+
+    // stellar
+    if (SupportedStellarNetworks.includes(paymentRequirements.network)) {
+      if (!isStellarSignerWallet(client as Signer)) {
+        throw new Error("Invalid stellar wallet client provided");
+      }
+      return await createPaymentHeaderExactStellar(
+        client as Ed25519Signer,
         x402Version,
         paymentRequirements,
         config,
       );
     }
-    throw new Error("Unsupported network");
+
+    // unsupported network
+    throw new Error(`Unsupported network: ${paymentRequirements.network}`);
   }
   throw new Error("Unsupported scheme");
 }

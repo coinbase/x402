@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { wrapFetchWithPayment } from "./index";
-import { evm, PaymentRequirements } from "x402/types";
+import { evm, PaymentRequirements, Signer, SupportedStellarNetworks } from "x402/types";
 
 vi.mock("x402/client", () => ({
   createPaymentHeader: vi.fn(),
@@ -8,6 +8,14 @@ vi.mock("x402/client", () => ({
 }));
 
 type RequestInitWithRetry = RequestInit & { __is402Retry?: boolean };
+
+const createResponse = (status: number, data?: unknown): Response => {
+  return new Response(JSON.stringify(data), {
+    status,
+    statusText: status === 402 ? "Payment Required" : "Not Found",
+    headers: new Headers(),
+  });
+};
 
 describe("fetchWithPayment()", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
@@ -26,15 +34,6 @@ describe("fetchWithPayment()", () => {
       asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on base-sepolia
     },
   ];
-
-  const createResponse = (status: number, data?: unknown): Response => {
-    const response = new Response(JSON.stringify(data), {
-      status,
-      statusText: status === 402 ? "Payment Required" : "Not Found",
-      headers: new Headers(),
-    });
-    return response;
-  };
 
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -164,5 +163,59 @@ describe("fetchWithPayment()", () => {
         method: "GET",
       } as RequestInitWithRetry),
     ).rejects.toBe(paymentError);
+  });
+});
+
+describe("fetchWithPayment() - Stellar signer", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("passes SupportedStellarNetworks for Stellar signers", async () => {
+    vi.doMock("x402/types", async () => ({
+      ...(await vi.importActual("x402/types")),
+      isMultiNetworkSigner: vi.fn().mockReturnValue(false),
+      isSvmSignerWallet: vi.fn().mockReturnValue(false),
+      isStellarSignerWallet: vi.fn().mockReturnValue(true),
+    }));
+
+    vi.doMock("x402/client", () => ({
+      createPaymentHeader: vi.fn().mockResolvedValue("payment-header-value"),
+      selectPaymentRequirements: vi.fn((reqs: PaymentRequirements[]) => reqs[0]),
+    }));
+
+    const { wrapFetchWithPayment } = await import("./index");
+    const { selectPaymentRequirements } = await import("x402/client");
+
+    const mockFetch = vi.fn();
+    const stellarPaymentRequirements: PaymentRequirements[] = [
+      {
+        scheme: "exact",
+        network: "stellar-testnet",
+        maxAmountRequired: "50000",
+        resource: "https://api.example.com/resource",
+        description: "Test payment",
+        mimeType: "application/json",
+        payTo: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        maxTimeoutSeconds: 300,
+        asset: "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+      },
+    ];
+
+    mockFetch
+      .mockResolvedValueOnce(
+        createResponse(402, { accepts: stellarPaymentRequirements, x402Version: 1 }),
+      )
+      .mockResolvedValueOnce(createResponse(200, { data: "success" }));
+
+    await wrapFetchWithPayment(mockFetch, {} as unknown as Signer)("https://api.example.com", {
+      method: "GET",
+    });
+
+    expect(selectPaymentRequirements).toHaveBeenCalledWith(
+      expect.any(Array),
+      SupportedStellarNetworks,
+      "exact",
+    );
   });
 });

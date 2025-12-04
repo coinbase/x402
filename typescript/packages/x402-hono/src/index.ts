@@ -22,6 +22,7 @@ import {
   PaywallConfig,
   SupportedEVMNetworks,
   SupportedSVMNetworks,
+  SupportedStellarNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -198,6 +199,22 @@ export function paymentMiddleware(
           feePayer,
         },
       });
+    }
+
+    // stellar networks
+    else if (SupportedStellarNetworks.includes(network)) {
+      paymentRequirements.push(
+        await exact.stellar.buildExactStellarPaymentRequirements(
+          payTo,
+          maxAmountRequired,
+          asset,
+          network,
+          config,
+          resourceUrl,
+          method,
+          supported,
+        ),
+      );
     } else {
       throw new Error(`Unsupported network: ${network}`);
     }

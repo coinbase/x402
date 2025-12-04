@@ -640,6 +640,78 @@ describe("paymentMiddleware()", () => {
     expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
   });
 
+  it("should return 402 with maxLedger for stellar-testnet when no payment header is present", async () => {
+    const stellarPayTo = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
+    const maxLedger = "12345678";
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar-testnet", extra: { maxLedger } }],
+    });
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: { price: "$0.001", network: "stellar-testnet", config: middlewareConfig },
+    });
+
+    middleware = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/test": { price: "$0.001", network: "stellar-testnet", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar-testnet",
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("should return 402 with maxLedger for stellar mainnet when no payment header is present", async () => {
+    const stellarPayTo = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
+    const maxLedger = "87654321";
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar", extra: { maxLedger } }],
+    });
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: { price: "$0.001", network: "stellar", config: middlewareConfig },
+    });
+
+    middleware = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/test": { price: "$0.001", network: "stellar", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    mockReq.headers = {};
+    await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar",
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+      }),
+    );
+  });
+
   describe("session token integration", () => {
     it("should pass sessionTokenEndpoint to paywall HTML when configured", async () => {
       const paywallConfig = {

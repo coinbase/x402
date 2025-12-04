@@ -16,6 +16,8 @@ import {
   SupportedPaymentKind,
   isSvmSignerWallet,
   type X402Config,
+  SupportedStellarNetworks,
+  StellarConnectedClient,
 } from "x402/types";
 
 config();
@@ -23,16 +25,22 @@ config();
 const EVM_PRIVATE_KEY = process.env.EVM_PRIVATE_KEY || "";
 const SVM_PRIVATE_KEY = process.env.SVM_PRIVATE_KEY || "";
 const SVM_RPC_URL = process.env.SVM_RPC_URL || "";
+const STELLAR_PRIVATE_KEY = process.env.STELLAR_PRIVATE_KEY || "";
+const STELLAR_RPC_URL = process.env.STELLAR_RPC_URL || "";
 
-if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY) {
+if (!EVM_PRIVATE_KEY && !SVM_PRIVATE_KEY && !STELLAR_PRIVATE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
 
 // Create X402 config with custom RPC URL if provided
-const x402Config: X402Config | undefined = SVM_RPC_URL
-  ? { svmConfig: { rpcUrl: SVM_RPC_URL } }
-  : undefined;
+const x402Config: X402Config | undefined =
+  SVM_RPC_URL || STELLAR_RPC_URL
+    ? {
+        svmConfig: { rpcUrl: SVM_RPC_URL },
+        stellarConfig: { rpcUrl: STELLAR_RPC_URL },
+      }
+    : undefined;
 
 const app = express();
 
@@ -73,6 +81,8 @@ app.post("/verify", async (req: Request, res: Response) => {
       client = createConnectedClient(paymentRequirements.network);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       client = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else if (SupportedStellarNetworks.includes(paymentRequirements.network)) {
+      client = await createSigner(paymentRequirements.network, STELLAR_PRIVATE_KEY);
     } else {
       throw new Error("Invalid network");
     }
@@ -123,6 +133,22 @@ app.get("/supported", async (req: Request, res: Response) => {
       },
     });
   }
+
+  // stellar
+  if (STELLAR_PRIVATE_KEY) {
+    const client = createConnectedClient("stellar-testnet", x402Config) as StellarConnectedClient;
+    const latestLedgerNumber = (await client.getLatestLedger()).sequence;
+
+    kinds.push({
+      x402Version: 1,
+      scheme: "exact",
+      network: "stellar-testnet",
+      extra: {
+        maxLedger: latestLedgerNumber + 12,
+      },
+    });
+  }
+
   res.json({
     kinds,
   });
@@ -140,6 +166,8 @@ app.post("/settle", async (req: Request, res: Response) => {
       signer = await createSigner(paymentRequirements.network, EVM_PRIVATE_KEY);
     } else if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       signer = await createSigner(paymentRequirements.network, SVM_PRIVATE_KEY);
+    } else if (SupportedStellarNetworks.includes(paymentRequirements.network)) {
+      signer = await createSigner(paymentRequirements.network, STELLAR_PRIVATE_KEY);
     } else {
       throw new Error("Invalid network");
     }

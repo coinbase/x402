@@ -18,6 +18,8 @@ export const NetworkSchema = z.enum([
   "story",
   "educhain",
   "skale-base-sepolia",
+  "stellar",
+  "stellar-testnet",
 ]);
 export type Network = z.infer<typeof NetworkSchema>;
 
@@ -62,6 +64,13 @@ export const SupportedSVMNetworks: Network[] = ["solana-devnet", "solana"];
 export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana-devnet", 103],
   ["solana", 101],
+]);
+
+// stellar
+export const SupportedStellarNetworks: Network[] = ["stellar", "stellar-testnet"];
+export const StellarNetworkToPassphrase = new Map<Network, string>([
+  ["stellar", "Public Global Stellar Network ; September 2015"],
+  ["stellar-testnet", "Test SDF Network ; September 2015"],
 ]);
 
 export const ChainIdToNetwork = Object.fromEntries(

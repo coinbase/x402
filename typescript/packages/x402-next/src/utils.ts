@@ -24,6 +24,7 @@ import {
   SupportedPaymentKindsResponse,
   VerifyResponse,
   SettleResponse,
+  SupportedStellarNetworks,
 } from "x402/types";
 import { safeBase64Encode } from "x402/shared";
 
@@ -83,6 +84,7 @@ export async function buildPaymentRequirements(
       extra: (asset as ERC20TokenAmount["asset"]).eip712,
     });
   }
+
   // svm networks
   else if (SupportedSVMNetworks.includes(network)) {
     // network call to get the supported payments from the facilitator
@@ -126,6 +128,22 @@ export async function buildPaymentRequirements(
         feePayer,
       },
     });
+  }
+
+  // stellar networks
+  else if (SupportedStellarNetworks.includes(network)) {
+    paymentRequirements.push(
+      await exact.stellar.buildExactStellarPaymentRequirements(
+        payTo,
+        maxAmountRequired,
+        asset,
+        network,
+        config,
+        resourceUrl,
+        method,
+        supported,
+      ),
+    );
   } else {
     throw new Error(`Unsupported network: ${network}`);
   }

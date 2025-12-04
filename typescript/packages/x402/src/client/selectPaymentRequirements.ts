@@ -1,6 +1,6 @@
 import { Network, PaymentRequirements } from "../types";
-import { getUsdcChainConfigForChain } from "../shared/evm";
-import { getNetworkId } from "../shared/network";
+import { getUsdcConfigForNetwork } from "../shared/middleware";
+import { isStellarToken } from "../types/shared/stellar";
 
 /**
  * Default selector for payment requirements.
@@ -25,8 +25,10 @@ export function selectPaymentRequirements(paymentRequirements: PaymentRequiremen
 
   // Filter down to USDC requirements
   const usdcRequirements = broadlyAcceptedPaymentRequirements.filter(requirement => {
-    // If the address is a USDC address, we return it.
-    return requirement.asset === getUsdcChainConfigForChain(getNetworkId(requirement.network))?.usdcAddress;
+    const usdc = getUsdcConfigForNetwork(requirement.network);
+    return isStellarToken(usdc)
+      ? requirement.asset === usdc.address
+      : usdc && requirement.asset === usdc.usdcAddress;
   });
 
   // Prioritize USDC requirements if available

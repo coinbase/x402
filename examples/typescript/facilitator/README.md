@@ -44,6 +44,7 @@ cd facilitator
 ```env
 EVM_PRIVATE_KEY=0xYourPrivateKey
 SVM_PRIVATE_KEY=base58EncodedSolanaPrivateKey
+STELLAR_PRIVATE_KEY=base32EncodedStellarPrivateKey
 ```
 
 3. Start the server:

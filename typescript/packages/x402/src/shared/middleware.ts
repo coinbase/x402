@@ -9,11 +9,15 @@ import {
   PaymentRequirements,
   PaymentPayload,
   SPLTokenAmount,
+  SupportedStellarNetworks,
+  StellarSEP41TokenAmount,
 } from "../types";
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
 import { getUsdcChainConfigForChain } from "./evm";
 import { getNetworkId } from "./network";
+import { isStellarToken, StellarToken, StellarTokenCatalogPerChain } from "../types/shared/stellar";
+import { ChainConfig } from "../types/shared/evm";
 
 /**
  * Computes the route patterns for the given routes config
@@ -116,25 +120,54 @@ export function findMatchingRoute(
 }
 
 /**
+ * Gets the USDC configuration for the given network
+ *
+ * @param network - The network to get the USDC configuration for
+ * @returns The USDC configuration
+ */
+export function getUsdcConfigForNetwork(network: Network): ChainConfig | StellarToken | undefined {
+  // evm (and solana)
+  if (!SupportedStellarNetworks.includes(network)) {
+    return getUsdcChainConfigForChain(getNetworkId(network));
+  }
+
+  // stellar
+  return StellarTokenCatalogPerChain[network]?.USDC;
+}
+
+/**
  * Gets the default asset (USDC) for the given network
  *
  * @param network - The network to get the default asset for
  * @returns The default asset
  */
-export function getDefaultAsset(network: Network) {
-  const chainId = getNetworkId(network);
-  const usdc = getUsdcChainConfigForChain(chainId);
+export function getDefaultAsset(
+  network: Network,
+): ERC20TokenAmount["asset"] | StellarSEP41TokenAmount["asset"] {
+  const usdc = getUsdcConfigForNetwork(network);
   if (!usdc) {
     throw new Error(`Unable to get default asset on ${network}`);
   }
+
+  // evm (and solana)
+  if (!isStellarToken(usdc)) {
+    return {
+      address: usdc.usdcAddress,
+      decimals: 6,
+      eip712: {
+        name: usdc.usdcName,
+        version: "2",
+      },
+    } as ERC20TokenAmount["asset"];
+  }
+
+  // stellar
   return {
-    address: usdc.usdcAddress,
-    decimals: 6,
-    eip712: {
-      name: usdc.usdcName,
-      version: "2",
-    },
-  };
+    address: usdc.address,
+    decimals: usdc.decimals,
+    symbol: usdc.symbol,
+    name: usdc.name,
+  } as StellarSEP41TokenAmount["asset"];
 }
 
 /**
@@ -148,11 +181,14 @@ export function processPriceToAtomicAmount(
   price: Price,
   network: Network,
 ):
-  | { maxAmountRequired: string; asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] }
+  | {
+      maxAmountRequired: string;
+      asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | StellarSEP41TokenAmount["asset"];
+    }
   | { error: string } {
   // Handle USDC amount (string) or token amount (ERC20TokenAmount)
   let maxAmountRequired: string;
-  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"];
+  let asset: ERC20TokenAmount["asset"] | SPLTokenAmount["asset"] | StellarSEP41TokenAmount["asset"];
 
   if (typeof price === "string" || typeof price === "number") {
     // USDC amount in dollars

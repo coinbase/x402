@@ -8,6 +8,8 @@ import {
   isSvmSignerWallet,
   Network,
   X402Config,
+  SupportedStellarNetworks,
+  isStellarSignerWallet,
 } from "x402/types";
 import {
   createPaymentHeader,
@@ -78,7 +80,9 @@ export function wrapFetchWithPayment(
         ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
         : isSvmSignerWallet(walletClient)
           ? (["solana", "solana-devnet"] as Network[])
-          : undefined;
+          : isStellarSignerWallet(walletClient)
+            ? SupportedStellarNetworks
+            : undefined;
 
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,

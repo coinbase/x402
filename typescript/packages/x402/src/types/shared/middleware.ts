@@ -55,7 +55,17 @@ export interface SPLTokenAmount {
   };
 }
 
-export type Price = Money | ERC20TokenAmount | SPLTokenAmount;
+export interface StellarSEP41TokenAmount {
+  amount: string;
+  asset: {
+    address: `C${string}`;
+    decimals: number;
+    symbol: string;
+    name: string;
+  };
+}
+
+export type Price = Money | ERC20TokenAmount | SPLTokenAmount | StellarSEP41TokenAmount;
 
 export interface RouteConfig {
   price: Price;

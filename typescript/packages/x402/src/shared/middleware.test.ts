@@ -367,6 +367,26 @@ describe("getDefaultAsset", () => {
     });
   });
 
+  it("should return Stellar testnet USDC asset details", () => {
+    const result = getDefaultAsset("stellar-testnet");
+    expect(result).toEqual({
+      address: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      decimals: 7,
+      symbol: "USDC",
+      name: "USD Coin",
+    });
+  });
+
+  it("should return Stellar mainnet USDC asset details", () => {
+    const result = getDefaultAsset("stellar");
+    expect(result).toEqual({
+      address: "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+      decimals: 7,
+      symbol: "USDC",
+      name: "USD Coin",
+    });
+  });
+
   it("should handle unknown networks", () => {
     expect(() => getDefaultAsset("unknown" as Network)).toThrow("Unsupported network: unknown");
   });

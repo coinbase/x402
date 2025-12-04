@@ -953,6 +953,100 @@ describe("paymentMiddleware()", () => {
     );
   });
 
+  it("should return 402 with maxLedger for stellar-testnet when no payment header is present", async () => {
+    const stellarPayTo = "GBBO4ZDDZTSM2IUKQYBAST3CFHNPFXECGEFTGWTA2WELR2BIWDK57UVE";
+    const maxLedger = "12345678";
+    const mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar-testnet", extra: { maxLedger } }],
+    });
+
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: { price: "$0.001", network: "stellar-testnet", config: middlewareConfig },
+    });
+
+    const middlewareStellar = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/protected/*": { price: "$0.001", network: "stellar-testnet", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    const response = await middlewareStellar(request);
+
+    expect(response.status).toBe(402);
+    expect(mockSupported).toHaveBeenCalled();
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar-testnet",
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("should return 402 with maxLedger for stellar mainnet when no payment header is present", async () => {
+    const stellarPayTo = "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W";
+    const maxLedger = "87654321";
+    const mockSupported = vi.fn().mockResolvedValue({
+      kinds: [{ scheme: "exact", network: "stellar", extra: { maxLedger } }],
+    });
+
+    (useFacilitator as ReturnType<typeof vi.fn>).mockReturnValue({
+      verify: mockVerify,
+      settle: mockSettle,
+      supported: mockSupported,
+    });
+
+    (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+      pattern: /^\/protected\/test$/,
+      verb: "GET",
+      config: { price: "$0.001", network: "stellar", config: middlewareConfig },
+    });
+
+    const middlewareStellar = paymentMiddleware(
+      stellarPayTo as SolanaAddress,
+      { "/protected/*": { price: "$0.001", network: "stellar", config: middlewareConfig } },
+      facilitatorConfig,
+    );
+
+    const request = {
+      ...mockRequest,
+      headers: new Headers({ Accept: "application/json" }),
+    } as NextRequest;
+
+    const response = await middlewareStellar(request);
+
+    expect(response.status).toBe(402);
+    expect(mockSupported).toHaveBeenCalled();
+    const json = await response.json();
+    expect(json).toEqual(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "stellar",
+            extra: expect.objectContaining({ maxLedger }),
+          }),
+        ]),
+      }),
+    );
+  });
+
   it("should throw error for unsupported network", async () => {
     const unsupportedRoutesConfig = {
       "/protected/*": {

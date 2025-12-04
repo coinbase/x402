@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { encodePayment, decodePayment } from "./paymentUtils";
 import { PaymentPayload, ExactEvmPayload, ExactSvmPayload } from "../../../../types/verify";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../../../../types";
+import {
+  ExactStellarPayload,
+  SupportedEVMNetworks,
+  SupportedStellarNetworks,
+  SupportedSVMNetworks,
+} from "../../../../types";
 
 // valid exact EVM payload
 const validEvmPayload: ExactEvmPayload = {
@@ -19,6 +24,8 @@ const validEvmPayload: ExactEvmPayload = {
 // valid evm payment payload
 const defaultEvmNetwork = SupportedEVMNetworks[0] as (typeof SupportedEVMNetworks)[number];
 const defaultSvmNetwork = SupportedSVMNetworks[0] as (typeof SupportedSVMNetworks)[number];
+const defaultStellarNetwork =
+  SupportedStellarNetworks[0] as (typeof SupportedStellarNetworks)[number];
 
 const validEvmPayment: PaymentPayload = {
   x402Version: 1,
@@ -40,6 +47,20 @@ const validSvmPayment: PaymentPayload = {
   payload: validSvmPayload,
 };
 
+// valid exact Stellar payload
+const validStellarPayload: ExactStellarPayload = {
+  transaction:
+    "AAAAAgAAAABiBzqF3v5bA7kAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAEAAAAA", // Mock base64 XDR transaction
+};
+
+// valid Stellar payment payload
+const validStellarPayment: PaymentPayload = {
+  x402Version: 1,
+  scheme: "exact",
+  network: defaultStellarNetwork,
+  payload: validStellarPayload,
+};
+
 describe("paymentUtils", () => {
   it("encodes and decodes EVM payment payloads (roundtrip)", () => {
     const encoded = encodePayment(validEvmPayment);
@@ -51,6 +72,12 @@ describe("paymentUtils", () => {
     const encoded = encodePayment(validSvmPayment);
     const decoded = decodePayment(encoded);
     expect(decoded).toEqual(validSvmPayment);
+  });
+
+  it("encodes and decodes Stellar payment payloads (roundtrip)", () => {
+    const encoded = encodePayment(validStellarPayment);
+    const decoded = decodePayment(encoded);
+    expect(decoded).toEqual(validStellarPayment);
   });
 
   it("throws on invalid network in encodePayment", () => {
