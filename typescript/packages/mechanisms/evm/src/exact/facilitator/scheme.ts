@@ -56,12 +56,13 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get signer addresses used by this facilitator.
-   * Returns the facilitator's wallet address that signs/settles transactions.
+   * Returns all addresses this facilitator can use for signing/settling transactions.
    *
-   * @returns Array containing the facilitator wallet address
+   * @param _ - The network identifier (unused for EVM, addresses are network-agnostic)
+   * @returns Array of facilitator wallet addresses
    */
-  getSigners(): string[] {
-    return [this.signer.address];
+  getSigners(_: string): string[] {
+    return [...this.signer.getAddresses()];
   }
 
   /**

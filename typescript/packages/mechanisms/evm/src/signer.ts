@@ -17,9 +17,16 @@ export type ClientEvmSigner = {
  * FacilitatorEvmSigner - Used by x402 facilitators to verify and settle payments
  * This is typically a viem PublicClient + WalletClient combination that can
  * read contract state, verify signatures, write transactions, and wait for receipts
+ *
+ * Supports multiple addresses for load balancing, key rotation, and high availability
  */
 export type FacilitatorEvmSigner = {
-  readonly address: `0x${string}`;
+  /**
+   * Get all addresses this facilitator can use for signing
+   * Enables dynamic address selection for load balancing and key rotation
+   */
+  getAddresses(): readonly `0x${string}`[];
+
   readContract(args: {
     address: `0x${string}`;
     abi: readonly unknown[];
@@ -56,11 +63,17 @@ export function toClientEvmSigner(signer: ClientEvmSigner): ClientEvmSigner {
 }
 
 /**
- * Converts a client to a FacilitatorEvmSigner
+ * Converts a viem client with single address to a FacilitatorEvmSigner
+ * Wraps the single address in a getAddresses() function for compatibility
  *
- * @param client - The client to convert to a FacilitatorEvmSigner
- * @returns The converted client
+ * @param client - The client to convert (must have 'address' property)
+ * @returns FacilitatorEvmSigner with getAddresses() support
  */
-export function toFacilitatorEvmSigner(client: FacilitatorEvmSigner): FacilitatorEvmSigner {
-  return client;
+export function toFacilitatorEvmSigner(
+  client: Omit<FacilitatorEvmSigner, "getAddresses"> & { address: `0x${string}` },
+): FacilitatorEvmSigner {
+  return {
+    ...client,
+    getAddresses: () => [client.address],
+  };
 }

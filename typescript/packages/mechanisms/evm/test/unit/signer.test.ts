@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { toClientEvmSigner, toFacilitatorEvmSigner } from "../../src/signer";
-import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../src/signer";
+import type { ClientEvmSigner } from "../../src/signer";
 
 describe("EVM Signer Converters", () => {
   describe("toClientEvmSigner", () => {
@@ -17,9 +17,9 @@ describe("EVM Signer Converters", () => {
   });
 
   describe("toFacilitatorEvmSigner", () => {
-    it("should return the same client (identity function)", () => {
-      const mockClient: FacilitatorEvmSigner = {
-        address: "0x1234567890123456789012345678901234567890",
+    it("should wrap client with getAddresses() method", () => {
+      const mockClient = {
+        address: "0x1234567890123456789012345678901234567890" as `0x${string}`,
         readContract: async () => BigInt(0),
         verifyTypedData: async () => true,
         writeContract: async () => "0xtxhash" as `0x${string}`,
@@ -28,7 +28,17 @@ describe("EVM Signer Converters", () => {
       };
 
       const result = toFacilitatorEvmSigner(mockClient);
-      expect(result).toBe(mockClient);
+
+      // Should add getAddresses() method
+      expect(result.getAddresses).toBeDefined();
+      expect(result.getAddresses()).toEqual([mockClient.address]);
+
+      // Should preserve all other methods
+      expect(result.readContract).toBe(mockClient.readContract);
+      expect(result.verifyTypedData).toBe(mockClient.verifyTypedData);
+      expect(result.writeContract).toBe(mockClient.writeContract);
+      expect(result.waitForTransactionReceipt).toBe(mockClient.waitForTransactionReceipt);
+      expect(result.getCode).toBe(mockClient.getCode);
     });
   });
 });

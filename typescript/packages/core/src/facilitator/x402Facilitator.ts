@@ -250,12 +250,12 @@ export class x402Facilitator {
             ...(extra && { extra }),
           });
 
-          // Collect signers by CAIP family (deduplicated across all networks)
+          // Collect signers by CAIP family for this network
           const family = facilitator.caipFamily;
           if (!signersByFamily[family]) {
             signersByFamily[family] = new Set();
           }
-          facilitator.getSigners().forEach(signer => signersByFamily[family].add(signer));
+          facilitator.getSigners(network).forEach(signer => signersByFamily[family].add(signer));
         }
       }
     }
