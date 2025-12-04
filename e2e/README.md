@@ -2,6 +2,43 @@
 
 End-to-end test suite for validating client-server-facilitator communication across languages and frameworks.
 
+## Setup
+
+### First Time Setup
+
+Install all dependencies (TypeScript via pnpm, Go, Python):
+
+```bash
+pnpm install:all
+```
+
+This will:
+1. Install TypeScript dependencies via `pnpm install`
+2. Run `install.sh` and `build.sh` for all clients, servers, and facilitators
+3. Handle nested directories (like `external-proxies/` and `local/`)
+
+For legacy (v1) implementations as well:
+
+```bash
+pnpm install:all:legacy
+```
+
+### Individual Setup
+
+If you only want to set up v2 implementations:
+
+```bash
+pnpm setup
+```
+
+Or manually for a specific component:
+
+```bash
+cd facilitators/go
+bash install.sh
+bash build.sh
+```
+
 ## Usage
 
 ### Interactive Test Mode
