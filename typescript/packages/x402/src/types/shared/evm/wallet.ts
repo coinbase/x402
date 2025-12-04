@@ -26,6 +26,7 @@ import {
   abstractTestnet,
   story,
   eduChain,
+  flowMainnet,
 } from "viem/chains";
 import { skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
@@ -235,6 +236,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotexTestnet;
     case "skale-base-sepolia":
       return skaleBaseSepolia;
+    case "flow-evm":
+      return flowMainnet;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }
