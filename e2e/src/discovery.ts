@@ -160,13 +160,28 @@ export class TestDiscovery {
   /**
    * Helper method to discover facilitators in a specific directory
    */
-  private discoverFacilitatorsInDirectory(facilitatorsDir: string, facilitators: DiscoveredFacilitator[], namePrefix: string = ''): void {
+  private discoverFacilitatorsInDirectory(facilitatorsDir: string, facilitators: DiscoveredFacilitator[], namePrefix: string = '', isExternal: boolean = false): void {
     let facilitatorDirs = readdirSync(facilitatorsDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
       .map(dirent => dirent.name);
 
     for (const facilitatorName of facilitatorDirs) {
       const facilitatorDir = join(facilitatorsDir, facilitatorName);
+      
+      // Special case: external-proxies is a nested directory of more facilitators
+      if (facilitatorName === 'external-proxies') {
+        verboseLog(`  🔍 Found external-proxies directory, discovering nested facilitators...`);
+        this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', true);
+        continue;
+      }
+      
+      // Special case: local is a nested directory of more facilitators (inherits isExternal from parent)
+      if (facilitatorName === 'local') {
+        verboseLog(`  🔍 Found local directory, discovering nested facilitators...`);
+        this.discoverFacilitatorsInDirectory(facilitatorDir, facilitators, '', isExternal);
+        continue;
+      }
+      
       const configPath = join(facilitatorDir, 'test.config.json');
 
       if (existsSync(configPath)) {
@@ -179,7 +194,8 @@ export class TestDiscovery {
               name: namePrefix + facilitatorName,
               directory: facilitatorDir,
               config,
-              proxy: new GenericFacilitatorProxy(facilitatorDir)
+              proxy: new GenericFacilitatorProxy(facilitatorDir),
+              isExternal
             });
           }
         } catch (error) {
@@ -321,6 +337,12 @@ export class TestDiscovery {
             const combosForProtocol = this.getFacilitatorNetworkCombosForProtocol(endpointProtocolFamily);
 
             for (const combo of combosForProtocol) {
+              // Skip if facilitator doesn't support the server's x402 version
+              if (combo.x402Version !== serverVersion) {
+                verboseLog(`  ⚠️  Skipping facilitator ${combo.facilitatorName} for ${server.name}: Version mismatch (facilitator supports v${combo.x402Version}, server implements v${serverVersion})`);
+                continue;
+              }
+
               // Find matching facilitator if specified
               const matchingFacilitator = combo.facilitatorName
                 ? facilitators.find(f => f.name === combo.facilitatorName)
@@ -381,11 +403,24 @@ export class TestDiscovery {
     });
 
     log(`🏛️ Facilitators found: ${facilitators.length}`);
-    facilitators.forEach(facilitator => {
+    
+    const regularFacilitators = facilitators.filter(f => !f.isExternal);
+    const externalFacilitators = facilitators.filter(f => f.isExternal);
+    
+    regularFacilitators.forEach(facilitator => {
       const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
       const versions = facilitator.config.x402Versions || [2];
       log(`   - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
     });
+    
+    if (externalFacilitators.length > 0) {
+      log(`   External:`);
+      externalFacilitators.forEach(facilitator => {
+        const protocolFamilies = facilitator.config.protocolFamilies || ['evm'];
+        const versions = facilitator.config.x402Versions || [2];
+        log(`     - ${facilitator.name} (${facilitator.config.language}) v[${versions.join(', ')}] [${protocolFamilies.join(', ')}]`);
+      });
+    }
 
     log(`🔧 Facilitator/Network combos: ${this.getFacilitatorNetworkCombos().length}`);
 

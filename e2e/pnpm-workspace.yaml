@@ -1,5 +1,7 @@
 packages:
   - "facilitators/*"
+  - "facilitators/external-proxies/*"
+  - "facilitators/external-proxies/local/*"
   - "servers/*"
   - "clients/*"
   - "clients/external/*"

@@ -108,19 +108,55 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
   async start(config: FacilitatorConfig): Promise<void> {
     this.port = config.port;
 
+    const baseEnv: Record<string, string> = {
+      PORT: config.port.toString(),
+      EVM_PRIVATE_KEY: config.evmPrivateKey || '',
+      SVM_PRIVATE_KEY: config.svmPrivateKey || '',
+      EVM_NETWORK: config.evmNetwork || 'eip155:84532',
+      SVM_NETWORK: config.svmNetwork || 'solana:devnet',
+      EVM_RPC_URL: process.env.BASE_SEPOLIA_RPC_URL || process.env.EVM_RPC_URL || '',
+    };
+
+    // Pass through any additional environment variables required by the facilitator
+    // This supports external facilitators that may need custom env vars (e.g., CDP_API_KEY_ID)
+    const facilitatorConfig = this.loadConfig();
+    if (facilitatorConfig?.environment?.required) {
+      for (const envVar of facilitatorConfig.environment.required) {
+        if (process.env[envVar] && !baseEnv[envVar]) {
+          baseEnv[envVar] = process.env[envVar]!;
+        }
+      }
+    }
+    if (facilitatorConfig?.environment?.optional) {
+      for (const envVar of facilitatorConfig.environment.optional) {
+        if (process.env[envVar] && !baseEnv[envVar]) {
+          baseEnv[envVar] = process.env[envVar]!;
+        }
+      }
+    }
+
     const runConfig: RunConfig = {
       port: config.port,
-      env: {
-        PORT: config.port.toString(),
-        EVM_PRIVATE_KEY: config.evmPrivateKey || '',
-        SVM_PRIVATE_KEY: config.svmPrivateKey || '',
-        EVM_NETWORK: config.evmNetwork || 'eip155:84532',
-        SVM_NETWORK: config.svmNetwork || 'solana:devnet',
-        EVM_RPC_URL: process.env.BASE_SEPOLIA_RPC_URL || process.env.EVM_RPC_URL || '',
-      }
+      env: baseEnv
     };
 
     await this.startProcess(runConfig);
+  }
+
+  private loadConfig(): any {
+    try {
+      const { readFileSync, existsSync } = require('fs');
+      const { join } = require('path');
+      const configPath = join(this.directory, 'test.config.json');
+
+      if (existsSync(configPath)) {
+        const configContent = readFileSync(configPath, 'utf-8');
+        return JSON.parse(configContent);
+      }
+    } catch (error) {
+      errorLog(`Failed to load config from ${this.directory}: ${error}`);
+    }
+    return null;
   }
 
   async verify(request: VerifyRequest): Promise<FacilitatorResult<VerifyResponse>> {

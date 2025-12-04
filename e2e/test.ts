@@ -345,6 +345,45 @@ async function runTest() {
     uniqueServers.set(scenario.server.name, scenario.server);
   });
 
+  // Validate environment variables for all selected facilitators
+  log('\n🔍 Validating facilitator environment variables...\n');
+  const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
+  
+  // Environment variables managed by the test framework (don't require user to set)
+  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK']);
+  
+  for (const [facilitatorName, facilitator] of uniqueFacilitators) {
+    const requiredVars = facilitator.config.environment?.required || [];
+    const missing: string[] = [];
+    
+    for (const envVar of requiredVars) {
+      // Skip variables managed by the test framework
+      if (systemManagedVars.has(envVar)) {
+        continue;
+      }
+      
+      if (!process.env[envVar]) {
+        missing.push(envVar);
+      }
+    }
+    
+    if (missing.length > 0) {
+      missingEnvVars.push({ facilitatorName, missingVars: missing });
+    }
+  }
+  
+  if (missingEnvVars.length > 0) {
+    errorLog('❌ Missing required environment variables for selected facilitators:\n');
+    for (const { facilitatorName, missingVars } of missingEnvVars) {
+      errorLog(`   ${facilitatorName}:`);
+      missingVars.forEach(varName => errorLog(`      - ${varName}`));
+    }
+    errorLog('\n💡 Please set the required environment variables and try again.\n');
+    process.exit(1);
+  }
+  
+  log('  ✅ All required environment variables are present\n');
+
   interface DetailedTestResult {
     testNumber: number;
     client: string;
