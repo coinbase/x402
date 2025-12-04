@@ -397,7 +397,7 @@ describe("paymentMiddleware", () => {
 
   it("passes paywallConfig to processHTTPRequest", async () => {
     setupMockHttpServer({ type: "no-payment-required" });
-    const paywallConfig = { cdpClientKey: "test-key" };
+    const paywallConfig = { appName: "test-app" };
 
     const middleware = paymentMiddleware(
       mockRoutes,

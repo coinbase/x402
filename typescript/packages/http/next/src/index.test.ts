@@ -179,7 +179,7 @@ describe("paymentProxy", () => {
   it("passes paywallConfig to processHTTPRequest", async () => {
     const mockServer = createMockHttpServer({ type: "no-payment-required" });
     setupMockCreateHttpServer(mockServer);
-    const paywallConfig = { cdpClientKey: "test-key" };
+    const paywallConfig = { appName: "test-app" };
 
     const proxy = paymentProxy(mockRoutes, {} as unknown as x402ResourceServer, paywallConfig);
     await proxy(createMockRequest());
@@ -402,7 +402,7 @@ describe("paymentProxyFromConfig", () => {
 
   it("passes all config options through to paymentProxy", () => {
     const paywall: PaywallProvider = { generateHtml: vi.fn() };
-    const paywallConfig = { cdpClientKey: "key" };
+    const paywallConfig = { appName: "test-app" };
 
     paymentProxyFromConfig(mockRoutes, undefined, undefined, paywallConfig, paywall, false);
 

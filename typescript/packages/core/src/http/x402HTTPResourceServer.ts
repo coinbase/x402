@@ -53,7 +53,6 @@ export interface HTTPAdapter {
  * Paywall configuration for HTML responses
  */
 export interface PaywallConfig {
-  cdpClientKey?: string;
   appName?: string;
   appLogo?: string;
   sessionTokenEndpoint?: string;
@@ -592,7 +591,6 @@ export class x402HTTPResourceServer {
         paymentRequired,
         currentUrl: resource?.url || paywallConfig?.currentUrl || "",
         testnet: paywallConfig?.testnet ?? true,
-        cdpClientKey: paywallConfig?.cdpClientKey,
         appName: paywallConfig?.appName,
         appLogo: paywallConfig?.appLogo,
         sessionTokenEndpoint: paywallConfig?.sessionTokenEndpoint,
@@ -621,7 +619,6 @@ export class x402HTTPResourceServer {
             <p><strong>Amount:</strong> $${displayAmount.toFixed(2)} USDC</p>
             <div id="payment-widget" 
                  data-requirements='${JSON.stringify(paymentRequired)}'
-                 data-cdp-client-key="${paywallConfig?.cdpClientKey || ""}"
                  data-app-name="${paywallConfig?.appName || ""}"
                  data-testnet="${paywallConfig?.testnet || false}">
               <!-- Install @x402/paywall for full wallet integration -->

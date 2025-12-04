@@ -3,11 +3,13 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { ExactSvmScheme } from "@x402/svm/exact/server";
 import { NextRequest, NextResponse } from "next/server";
+import { createPaywall } from "@x402/paywall";
+import { evmPaywall } from "@x402/paywall/evm";
+import { svmPaywall } from "@x402/paywall/svm";
 
-const evmPayeeAddress = process.env.RESOURCE_WALLET_ADDRESS as `0x${string}`;
-const svmPayeeAddress = process.env.SOLANA_WALLET_ADDRESS as string;
-const facilitatorUrl = process.env.NEXT_PUBLIC_FACILITATOR_URL as string;
-const cdpClientKey = process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY;
+const evmPayeeAddress = process.env.RESOURCE_EVM_ADDRESS as `0x${string}`;
+const svmPayeeAddress = process.env.RESOURCE_SVM_ADDRESS as string;
+const facilitatorUrl = process.env.FACILITATOR_URL as string;
 
 const EVM_NETWORK = "eip155:84532" as const; // Base Sepolia
 const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as const; // Solana Devnet
@@ -27,13 +29,23 @@ const BLOCKED_REGIONS = {
 
 // Validate required environment variables
 if (!facilitatorUrl) {
-  console.error("❌ NEXT_PUBLIC_FACILITATOR_URL environment variable is required");
+  console.error("❌ FACILITATOR_URL environment variable is required");
 }
 
 // Create HTTP facilitator client
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 
-const x402PaymentMiddleware = paymentProxyFromConfig(
+// Build the paywall provider
+const paywall = createPaywall()
+  .withNetwork(evmPaywall)
+  .withNetwork(svmPaywall)
+  .withConfig({
+    appName: "x402 Demo",
+    appLogo: "/logos/x402-examples.png",
+  })
+  .build();
+
+const x402PaymentProxy = paymentProxyFromConfig(
   {
     "/protected": {
       accepts: [
@@ -58,14 +70,11 @@ const x402PaymentMiddleware = paymentProxyFromConfig(
     { network: EVM_NETWORK, server: new ExactEvmScheme() },
     { network: SVM_NETWORK, server: new ExactSvmScheme() },
   ],
-  {
-    cdpClientKey,
-    appLogo: "/logos/x402-examples.png",
-    appName: "x402 Demo",
-  },
+  undefined, // paywallConfig
+  paywall, // paywall provider
 );
 
-const geolocationMiddleware = async (req: NextRequest) => {
+const geolocationProxy = async (req: NextRequest) => {
   // Get the country and region from Vercel's headers
   const country = req.headers.get("x-vercel-ip-country") || "US";
   const region = req.headers.get("x-vercel-ip-country-region");
@@ -86,18 +95,18 @@ const geolocationMiddleware = async (req: NextRequest) => {
   return null;
 };
 
-export const middleware = async (req: NextRequest) => {
-  const geolocationResponse = await geolocationMiddleware(req);
+export const proxy = async (req: NextRequest) => {
+  const geolocationResponse = await geolocationProxy(req);
   if (geolocationResponse) {
     return geolocationResponse;
   }
-  const delegate = x402PaymentMiddleware as unknown as (
+  const delegate = x402PaymentProxy as unknown as (
     request: NextRequest,
-  ) => ReturnType<typeof x402PaymentMiddleware>;
+  ) => ReturnType<typeof x402PaymentProxy>;
   return delegate(req);
 };
 
-// Configure which paths the middleware should run on
+// Configure which paths the proxy should run on
 export const config = {
   matcher: [
     /*
@@ -106,7 +115,7 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (metadata files)
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|facilitator/supported).*)",
     "/", // Include the root path explicitly
   ],
 };
