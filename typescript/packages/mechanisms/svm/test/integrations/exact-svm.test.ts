@@ -90,22 +90,9 @@ class SvmFacilitatorClient implements FacilitatorClient {
    * @returns Promise resolving to supported response
    */
   getSupported(): Promise<SupportedResponse> {
-    const versionKey = this.x402Version.toString();
-    return Promise.resolve({
-      kinds: {
-        [versionKey]: [
-          {
-            scheme: this.scheme,
-            network: this.network,
-            extra: {
-              feePayer: FACILITATOR_ADDRESS,
-            },
-          },
-        ],
-      },
-      extensions: [],
-      signers: {},
-    });
+    // Delegate to actual facilitator to get real supported kinds
+    // This includes dynamically selected feePayer addresses
+    return Promise.resolve(this.facilitator.getSupported());
   }
 }
 
@@ -316,14 +303,19 @@ describe("SVM Integration Tests", () => {
       expect(verifiedPaymentPayload).toBeDefined();
       expect(verifiedPaymentRequirements).toBeDefined();
 
-      const settlementHeaders = await httpServer.processSettlement(
+      const settlementResult = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
         200,
       );
 
-      expect(settlementHeaders).toBeDefined();
-      expect(settlementHeaders?.["PAYMENT-RESPONSE"]).toBeDefined();
+      expect(settlementResult).toBeDefined();
+      expect(settlementResult.success).toBe(true);
+
+      if (settlementResult.success) {
+        expect(settlementResult.headers).toBeDefined();
+        expect(settlementResult.headers["PAYMENT-RESPONSE"]).toBeDefined();
+      }
     });
   });
 

@@ -49,26 +49,31 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For SVM, this includes the fee payer address.
+   * For SVM, this includes a randomly selected fee payer address.
+   * Random selection distributes load across multiple signers.
    *
    * @param _ - The network identifier (unused for SVM)
    * @returns Extra data with feePayer address
    */
   getExtra(_: string): Record<string, unknown> | undefined {
-    // Return feePayer synchronously - the address is already available
+    // Randomly select from available signers to distribute load
+    const addresses = this.signer.getAddresses();
+    const randomIndex = Math.floor(Math.random() * addresses.length);
+
     return {
-      feePayer: this.signer.address,
+      feePayer: addresses[randomIndex],
     };
   }
 
   /**
    * Get signer addresses used by this facilitator.
-   * For SVM, returns the fee payer address.
+   * For SVM, returns all available fee payer addresses.
    *
-   * @returns Array containing the fee payer address
+   * @param _ - The network identifier (unused for SVM)
+   * @returns Array of fee payer addresses
    */
-  getSigners(): string[] {
-    return [this.signer.address];
+  getSigners(_: string): string[] {
+    return [...this.signer.getAddresses()];
   }
 
   /**
@@ -297,6 +302,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
 
   /**
    * Settles a payment by submitting the transaction.
+   * Ensures the correct signer is used based on the feePayer specified in requirements.
    *
    * @param payload - The payment payload to settle
    * @param requirements - The payment requirements
@@ -322,12 +328,27 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     try {
       const partiallySignedTx = decodeTransactionFromPayload(exactSvmPayload);
 
+      // Extract feePayer from requirements to ensure we sign with the correct key
+      const feePayer = requirements.extra?.feePayer as Address;
+      if (!feePayer) {
+        return {
+          success: false,
+          errorReason: "missing_fee_payer",
+          transaction: "",
+          network: payload.accepted.network,
+          payer: valid.payer || "",
+        };
+      }
+
+      // Get the specific signer for this feePayer
+      const specificSigner = this.signer.getSigner(feePayer);
+
       const signableMessage = {
         content: partiallySignedTx.messageBytes,
         signatures: partiallySignedTx.signatures,
       };
 
-      const [facilitatorSignatureDictionary] = await this.signer.signMessages([
+      const [facilitatorSignatureDictionary] = await specificSigner.signMessages([
         signableMessage as never,
       ]);
 
@@ -345,7 +366,9 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
 
       const signature = await rpcCapabilities.sendTransaction(base64EncodedWireTransaction);
-      await rpcCapabilities.confirmTransaction(signature);
+
+      // Delegate confirmation to signer for custom retry logic
+      await this.signer.confirmTransaction(signature, requirements.network);
 
       return {
         success: true,

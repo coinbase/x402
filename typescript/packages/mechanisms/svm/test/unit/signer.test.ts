@@ -18,7 +18,7 @@ describe("SVM Signer Converters", () => {
   });
 
   describe("toFacilitatorSvmSigner", () => {
-    it("should create facilitator signer with getRpcForNetwork", () => {
+    it("should create facilitator signer with multi-address support", () => {
       const mockSigner = {
         address: "FacilitatorAddress1111111111111111111" as never,
         signTransactions: vi.fn() as never,
@@ -27,9 +27,37 @@ describe("SVM Signer Converters", () => {
 
       const result = toFacilitatorSvmSigner(mockSigner as never);
 
-      expect(result.address).toBe(mockSigner.address);
+      // Should have getAddresses() method
+      expect(result.getAddresses).toBeDefined();
+      expect(typeof result.getAddresses).toBe("function");
+      expect(result.getAddresses()).toEqual([mockSigner.address]);
+
+      // Should have getSigner() method
+      expect(result.getSigner).toBeDefined();
+      expect(typeof result.getSigner).toBe("function");
+
+      // getSigner should return the same signer for its address
+      const specificSigner = result.getSigner(mockSigner.address);
+      expect(specificSigner).toBe(mockSigner);
+
+      // Should have getRpcForNetwork() method
       expect(result.getRpcForNetwork).toBeDefined();
       expect(typeof result.getRpcForNetwork).toBe("function");
+
+      // Should preserve original address property for backward compat
+      expect(result.address).toBe(mockSigner.address);
+    });
+
+    it("should throw error when getSigner called with unknown address", () => {
+      const mockSigner = {
+        address: "FacilitatorAddress1111111111111111111" as never,
+        signTransactions: vi.fn() as never,
+        signMessages: vi.fn() as never,
+      };
+
+      const result = toFacilitatorSvmSigner(mockSigner as never);
+
+      expect(() => result.getSigner("UnknownAddress11111111111111111111" as never)).toThrow();
     });
 
     it("should create RPC client for devnet", () => {

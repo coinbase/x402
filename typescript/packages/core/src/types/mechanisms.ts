@@ -63,25 +63,28 @@ export interface SchemeNetworkFacilitator {
   getExtra(network: Network): Record<string, unknown> | undefined;
 
   /**
-   * Get signer addresses used by this facilitator.
+   * Get signer addresses used by this facilitator for a given network.
    * These are included in the supported response to help clients understand
    * which addresses might sign/pay for transactions.
    *
+   * Supports multiple addresses for load balancing, key rotation, and high availability.
+   *
+   * @param network - The network identifier
    * @returns Array of signer addresses (wallet addresses, fee payer addresses, etc.)
    *
    * @example
    * // EVM facilitator
-   * getSigners(): string[] {
-   *   return [this.walletAddress];
+   * getSigners(network: string): string[] {
+   *   return [...this.signer.getAddresses()];
    * }
    *
    * @example
    * // SVM facilitator
-   * getSigners(): string[] {
-   *   return [this.signer.address];
+   * getSigners(network: string): string[] {
+   *   return [...this.signer.getAddresses()];
    * }
    */
-  getSigners(): string[];
+  getSigners(network: string): string[];
 
   verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse>;
   settle(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse>;
