@@ -17,7 +17,7 @@ import { base58 } from "@scure/base";
  */
 export async function createBuilderPatternClient(
   evmPrivateKey: `0x${string}`,
-  svmPrivateKey: `0x${string}`,
+  svmPrivateKey: string,
 ): Promise<x402Client> {
   const evmSigner = privateKeyToAccount(evmPrivateKey);
   const ethereumSigner = evmSigner; // Say you wanted a different signer for Ethereum Mainnet
