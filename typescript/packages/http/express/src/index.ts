@@ -38,7 +38,7 @@ export interface SchemeRegistration {
  * @param server - Pre-configured x402ResourceServer instance
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup (defaults to true)
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
  * @returns Express middleware handler
  *
  * @example
@@ -58,7 +58,7 @@ export function paymentMiddleware(
   server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ) {
   // Create the x402 HTTP server instance with the resource server
   const httpServer = new x402HTTPResourceServer(server, routes);
@@ -69,15 +69,9 @@ export function paymentMiddleware(
   }
 
   // Store initialization promise (not the result)
-  let initPromise: Promise<void> | null = initializeOnStart ? server.initialize() : null;
+  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? server.initialize() : null;
 
   return async (req: Request, res: Response, next: NextFunction) => {
-    // Ensure initialization completes before processing
-    if (initPromise) {
-      await initPromise;
-      initPromise = null; // Clear after first await
-    }
-
     // Create adapter and context
     const adapter = new ExpressAdapter(req);
     const context: HTTPRequestContext = {
@@ -86,6 +80,17 @@ export function paymentMiddleware(
       method: req.method,
       paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
     };
+
+    // Check if route requires payment before initializing facilitator
+    if (!httpServer.requiresPayment(context)) {
+      return next();
+    }
+
+    // Only initialize when processing a protected route
+    if (initPromise) {
+      await initPromise;
+      initPromise = null; // Clear after first await
+    }
 
     // Process payment requirement check
     const result = await httpServer.processHTTPRequest(context, paywallConfig);
@@ -257,7 +262,7 @@ export function paymentMiddleware(
  * @param schemes - Optional array of scheme registrations for server-side payment processing
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
- * @param initializeOnStart - Whether to initialize the server on startup
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
  * @returns Express middleware handler
  *
  * @example
@@ -278,7 +283,7 @@ export function paymentMiddlewareFromConfig(
   schemes?: SchemeRegistration[],
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
-  initializeOnStart: boolean = true,
+  syncFacilitatorOnStart: boolean = true,
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
@@ -291,7 +296,7 @@ export function paymentMiddlewareFromConfig(
   }
 
   // Use the direct paymentMiddleware with the configured server
-  return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, initializeOnStart);
+  return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
 }
 
 export { x402ResourceServer, x402HTTPResourceServer } from "@x402/core/server";

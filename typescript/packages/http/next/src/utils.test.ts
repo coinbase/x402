@@ -18,6 +18,7 @@ vi.mock("@x402/core/server", () => {
   const MockHTTPResourceServer = vi.fn().mockImplementation(() => ({
     registerPaywallProvider: vi.fn(),
     processSettlement: vi.fn(),
+    requiresPayment: vi.fn().mockReturnValue(true),
   }));
   return {
     x402HTTPResourceServer: MockHTTPResourceServer,
@@ -75,7 +76,7 @@ describe("createHttpServer", () => {
     expect(server.initialize).toHaveBeenCalled();
   });
 
-  it("does not initialize when initializeOnStart is false", async () => {
+  it("does not initialize when syncFacilitatorOnStart is false", async () => {
     const routes = {
       "/api/*": {
         accepts: { scheme: "exact", payTo: "0x123", price: "$0.01", network: "eip155:84532" },

@@ -32,7 +32,6 @@ app.use(
     undefined,
     // Optional: paywall configuration
     {
-      cdpClientKey: "your-cdp-client-key",
       appName: "Your App",
       appLogo: "/logo.svg",
     },
@@ -138,7 +137,6 @@ Then configure it:
 
 ```typescript
 const paywallConfig: PaywallConfig = {
-  cdpClientKey: "your-cdp-client-key",
   appName: "Your App Name",
   appLogo: "/path/to/logo.svg",
   sessionTokenEndpoint: "/api/x402/session-token",
