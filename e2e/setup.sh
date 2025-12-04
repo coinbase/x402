@@ -110,10 +110,11 @@ setup_component() {
   fi
 }
 
-# Function to process directory
+# Function to process directory (with optional recursion for nested structures)
 process_directory() {
   local base_dir=$1
   local type=$2
+  local recurse_into=${3:-""}
   
   if [ ! -d "$base_dir" ]; then
     return
@@ -121,6 +122,15 @@ process_directory() {
   
   for dir in "$base_dir"/*; do
     if [ -d "$dir" ] && [ ! "$(basename "$dir")" = "node_modules" ]; then
+      local basename=$(basename "$dir")
+      
+      # Handle special nested directories (external-proxies, local)
+      if [ "$basename" = "$recurse_into" ] || [ "$basename" = "local" ]; then
+        # Recurse into nested directory
+        process_directory "$dir" "$type" ""
+        continue
+      fi
+      
       # Check if component has install.sh or build.sh
       if [ -f "$dir/install.sh" ] || [ -f "$dir/build.sh" ]; then
         setup_component "$dir" "$type"
@@ -139,8 +149,8 @@ process_directory "servers" "server"
 # Setup clients
 process_directory "clients" "client"
 
-# Setup facilitators
-process_directory "facilitators" "facilitator"
+# Setup facilitators (including external-proxies and local subdirectories)
+process_directory "facilitators" "facilitator" "external-proxies"
 
 # Setup legacy if requested
 if [ "$INCLUDE_LEGACY" = true ]; then

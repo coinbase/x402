@@ -8,6 +8,8 @@
     "test:watch": "tsc --watch",
     "setup": "./setup.sh",
     "setup:legacy": "./setup.sh --legacy",
+    "install:all": "pnpm install && ./setup.sh",
+    "install:all:legacy": "pnpm install && ./setup.sh --legacy",
     "clean": "rm -rf dist",
     "clean:ports": "lsof -ti:4022,4023,4024,4025,4026,4027,4028,4029,4030,4031,4032,4033 | xargs kill -9 2>/dev/null || echo 'Ports cleared'"
   },
