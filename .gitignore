@@ -7,3 +7,14 @@ proxy
 .env
 __pycache__/
 **/.DS_Store
+
+# pnpm
+.pnpm-store/
+.pnpm-debug.log
+
+# Python
+.venv/
+*.pyc
+.pytest_cache/
+uv.lock
+.env.local 
