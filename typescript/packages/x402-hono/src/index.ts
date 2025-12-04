@@ -1,17 +1,16 @@
 import type { Context } from "hono";
-import { Address, getAddress } from "viem";
+import { Address } from "viem";
 import { Address as SolanaAddress } from "@solana/kit";
 import { exact } from "x402/schemes";
 import {
   computeRoutePatterns,
   findMatchingPaymentRequirements,
   findMatchingRoute,
-  processPriceToAtomicAmount,
   toJsonSafe,
+  buildPaymentRequirements,
 } from "x402/shared";
 import { getPaywallHtml } from "x402/paywall";
 import {
-  ERC20TokenAmount,
   FacilitatorConfig,
   moneySchema,
   PaymentPayload,
@@ -20,8 +19,6 @@ import {
   RoutesConfig,
   settleResponseHeader,
   PaywallConfig,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
 } from "x402/types";
 import { useFacilitator } from "x402/verify";
 
@@ -104,12 +101,6 @@ export function paymentMiddleware(
       discoverable,
     } = config;
 
-    const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
-    if ("error" in atomicAmountForAsset) {
-      throw new Error(atomicAmountForAsset.error);
-    }
-    const { maxAmountRequired, asset } = atomicAmountForAsset;
-
     let resourceUrl = resource;
     if (!resourceUrl) {
       const forwardedProto = c.req.header("X-Forwarded-Proto");
@@ -126,81 +117,24 @@ export function paymentMiddleware(
       }
     }
 
-    let paymentRequirements: PaymentRequirements[] = [];
-
-    // TODO: create a shared middleware function to build payment requirements
-    // evm networks
-    if (SupportedEVMNetworks.includes(network)) {
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "application/json",
-        payTo: getAddress(payTo),
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 300,
-        asset: getAddress(asset.address),
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: (asset as ERC20TokenAmount["asset"]).eip712,
-      });
-    }
-    // svm networks
-    else if (SupportedSVMNetworks.includes(network)) {
-      // network call to get the supported payments from the facilitator
-      const paymentKinds = await supported();
-
-      // find the payment kind that matches the network and scheme
-      let feePayer: string | undefined;
-      for (const kind of paymentKinds.kinds) {
-        if (kind.network === network && kind.scheme === "exact") {
-          feePayer = kind?.extra?.feePayer;
-          break;
-        }
-      }
-
-      // svm networks require a fee payer
-      if (!feePayer) {
-        throw new Error(`The facilitator did not provide a fee payer for network: ${network}.`);
-      }
-
-      // build the payment requirements for svm
-      paymentRequirements.push({
-        scheme: "exact",
-        network,
-        maxAmountRequired,
-        resource: resourceUrl,
-        description: description ?? "",
-        mimeType: mimeType ?? "",
-        payTo: payTo,
-        maxTimeoutSeconds: maxTimeoutSeconds ?? 60,
-        asset: asset.address,
-        // TODO: Rename outputSchema to requestStructure
-        outputSchema: {
-          input: {
-            type: "http",
-            method,
-            discoverable: discoverable ?? true,
-            ...inputSchema,
-          },
-          output: outputSchema,
-        },
-        extra: {
-          feePayer,
-        },
-      });
-    } else {
-      throw new Error(`Unsupported network: ${network}`);
-    }
+    const paymentRequirements: PaymentRequirements[] = await buildPaymentRequirements({
+      price,
+      network,
+      method,
+      resourceUrl,
+      payTo,
+      description,
+      mimeType,
+      maxTimeoutSeconds,
+      inputSchema,
+      // TODO: Rename outputSchema to requestStructure
+      outputSchema,
+      discoverable,
+      getSupportedKinds: supported,
+      defaultEvmTimeoutSeconds: 300,
+      defaultSvmTimeoutSeconds: 60,
+      defaultMimeType: "application/json",
+    });
 
     const payment = c.req.header("X-PAYMENT");
     const userAgent = c.req.header("User-Agent") || "";
