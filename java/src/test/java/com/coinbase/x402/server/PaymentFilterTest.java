@@ -89,7 +89,10 @@ class PaymentFilterTest {
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
         // settlement succeeds
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
@@ -236,16 +239,19 @@ class PaymentFilterTest {
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
         // But settlement throws exception (should return 402)
         doThrow(new IOException("Network error")).when(fac).settle(any(), any());
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Request should be processed, but then settlement failure should return 402
         verify(chain).doFilter(req, resp);
         verify(resp).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
-        
+
         // Verify and settle were both called
         verify(fac).verify(eq(header), any());
         verify(fac).settle(eq(header), any());
@@ -269,19 +275,22 @@ class PaymentFilterTest {
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
         // Settlement fails (facilitator returns success=false)
         SettlementResponse sr = new SettlementResponse();
         sr.success = false;
         sr.error = "insufficient balance";
         when(fac.settle(eq(header), any())).thenReturn(sr);
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Request should be processed, but then settlement failure should return 402
         verify(chain).doFilter(req, resp);
         verify(resp).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
-        
+
         // Verify and settle were both called
         verify(fac).verify(eq(header), any());
         verify(fac).settle(eq(header), any());
@@ -326,25 +335,28 @@ class PaymentFilterTest {
         
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
-        
+
         // Verification succeeds
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
-        // Settlement succeeds  
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
+        // Settlement succeeds
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
         sr.networkId = "base-sepolia";
         when(fac.settle(eq(header), any())).thenReturn(sr);
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Verify request was processed successfully
         verify(chain).doFilter(req, resp);
         verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
-        
+
         // Verify X-PAYMENT-RESPONSE header was set
         verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), any());
         verify(resp).setHeader(eq("Access-Control-Expose-Headers"), eq("X-PAYMENT-RESPONSE"));
@@ -378,29 +390,32 @@ class PaymentFilterTest {
         
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
-        
+
         // Verification succeeds
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
-        // Settlement succeeds  
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
+        // Settlement succeeds
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
         sr.networkId = "base-sepolia";
         when(fac.settle(eq(header), any())).thenReturn(sr);
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Verify request was processed successfully
         verify(chain).doFilter(req, resp);
         verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
-        
+
         // Capture the settlement response header
         org.mockito.ArgumentCaptor<String> headerCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), headerCaptor.capture());
-        
+
         // Decode and verify the settlement response has null payer
         String base64Header = headerCaptor.getValue();
         String jsonString = new String(Base64.getDecoder().decode(base64Header));
@@ -427,25 +442,28 @@ class PaymentFilterTest {
         
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
-        
+
         // Verification succeeds
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
-        // Settlement succeeds  
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
+        // Settlement succeeds
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
         sr.networkId = "base-sepolia";
         when(fac.settle(eq(header), any())).thenReturn(sr);
-        
+
         filter.doFilter(req, resp, chain);
-        
+
         // Verify request was processed successfully (payer extraction failure should not break processing)
         verify(chain).doFilter(req, resp);
         verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
-        
+
         // Capture the settlement response header
         org.mockito.ArgumentCaptor<String> headerCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(resp).setHeader(eq("X-PAYMENT-RESPONSE"), headerCaptor.capture());
@@ -457,6 +475,68 @@ class PaymentFilterTest {
         // Verify the JSON contains null payer when authorization is malformed
         org.junit.jupiter.api.Assertions.assertTrue(jsonString.contains("\"payer\":null"),
             "Settlement response should contain null payer when authorization malformed: " + jsonString);
+    }
+
+    /* ------------ error response skips settlement ------------------------- */
+    @Test
+    void errorResponseSkipsSettlement() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        // Create a valid header
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Simulate handler returning 500 error
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+
+        filter.doFilter(req, resp, chain);
+
+        // Handler should be called
+        verify(chain).doFilter(req, resp);
+
+        // But settle should NOT be called for error responses
+        verify(fac, never()).settle(any(), any());
+    }
+
+    /* ------------ 4xx response skips settlement ---------------------------- */
+    @Test
+    void clientErrorResponseSkipsSettlement() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        // Create a valid header
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        // Verification succeeds
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // Simulate handler returning 404 error
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_NOT_FOUND);
+
+        filter.doFilter(req, resp, chain);
+
+        // Handler should be called
+        verify(chain).doFilter(req, resp);
+
+        // But settle should NOT be called for 4xx responses
+        verify(fac, never()).settle(any(), any());
     }
 
     /* ------------ facilitator IOException returns 500 --------------------- */
