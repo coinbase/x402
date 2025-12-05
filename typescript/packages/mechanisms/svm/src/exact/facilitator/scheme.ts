@@ -14,7 +14,6 @@ import {
 } from "@solana-program/token-2022";
 import {
   decompileTransactionMessage,
-  getBase64EncodedWireTransaction,
   getCompiledTransactionMessageDecoder,
   type Address,
   type CompiledTransactionMessage,
@@ -28,7 +27,6 @@ import type {
 } from "@x402/core/types";
 import { MAX_COMPUTE_UNIT_PRICE } from "../../constants";
 import type { FacilitatorSvmSigner } from "../../signer";
-import { createRpcCapabilitiesFromRpc } from "../../signer";
 import type { ExactSvmPayloadV2 } from "../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../utils";
 
@@ -45,7 +43,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
    * @param signer - The SVM RPC client for facilitator operations
    * @returns ExactSvmFacilitator instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) {}
+  constructor(private readonly signer: FacilitatorSvmSigner) { }
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
@@ -255,36 +253,24 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     // Step 5: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
-      const partiallySignedTx = decodeTransactionFromPayload(exactSvmPayload);
+      const feePayer = requirements.extra?.feePayer as Address;
+      if (!feePayer) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_exact_svm_payload_missing_fee_payer",
+          payer,
+        };
+      }
 
-      const signableMessage = {
-        content: partiallySignedTx.messageBytes,
-        signatures: partiallySignedTx.signatures,
-      };
+      // Sign transaction with the feePayer's signer
+      const fullySignedTransaction = await this.signer.signTransaction(
+        exactSvmPayload.transaction,
+        feePayer,
+        requirements.network,
+      );
 
-      const [facilitatorSignatureDictionary] = await this.signer.signMessages([
-        signableMessage as never,
-      ]);
-
-      const fullySignedTx = {
-        ...partiallySignedTx,
-        signatures: {
-          ...partiallySignedTx.signatures,
-          ...facilitatorSignatureDictionary,
-        },
-      };
-
-      const base64EncodedWireTransaction = getBase64EncodedWireTransaction(fullySignedTx);
-
-      const rpc = this.signer.getRpcForNetwork(requirements.network);
-      const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
-
-      await rpcCapabilities.simulateTransaction(base64EncodedWireTransaction, {
-        sigVerify: true,
-        replaceRecentBlockhash: false,
-        commitment: "confirmed",
-        encoding: "base64",
-      });
+      // Simulate to verify transaction would succeed
+      await this.signer.simulateTransaction(fullySignedTransaction, requirements.network);
     } catch {
       return {
         isValid: false,
@@ -326,8 +312,6 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
     }
 
     try {
-      const partiallySignedTx = decodeTransactionFromPayload(exactSvmPayload);
-
       // Extract feePayer from requirements to ensure we sign with the correct key
       const feePayer = requirements.extra?.feePayer as Address;
       if (!feePayer) {
@@ -340,34 +324,20 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
         };
       }
 
-      // Get the specific signer for this feePayer
-      const specificSigner = this.signer.getSigner(feePayer);
+      // Sign transaction with the feePayer's signer
+      const fullySignedTransaction = await this.signer.signTransaction(
+        exactSvmPayload.transaction,
+        feePayer,
+        requirements.network,
+      );
 
-      const signableMessage = {
-        content: partiallySignedTx.messageBytes,
-        signatures: partiallySignedTx.signatures,
-      };
+      // Send transaction to network
+      const signature = await this.signer.sendTransaction(
+        fullySignedTransaction,
+        requirements.network,
+      );
 
-      const [facilitatorSignatureDictionary] = await specificSigner.signMessages([
-        signableMessage as never,
-      ]);
-
-      const fullySignedTx = {
-        ...partiallySignedTx,
-        signatures: {
-          ...partiallySignedTx.signatures,
-          ...facilitatorSignatureDictionary,
-        },
-      };
-
-      const base64EncodedWireTransaction = getBase64EncodedWireTransaction(fullySignedTx);
-
-      const rpc = this.signer.getRpcForNetwork(requirements.network);
-      const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
-
-      const signature = await rpcCapabilities.sendTransaction(base64EncodedWireTransaction);
-
-      // Delegate confirmation to signer for custom retry logic
+      // Wait for confirmation
       await this.signer.confirmTransaction(signature, requirements.network);
 
       return {

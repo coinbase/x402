@@ -425,7 +425,8 @@ func newFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*facilitat
 	}, nil
 }
 
-func (s *facilitatorSvmSigner) GetRPC(ctx context.Context, network string) (*rpc.Client, error) {
+// getRPC is a private helper method to get RPC client for a network
+func (s *facilitatorSvmSigner) getRPC(ctx context.Context, network string) (*rpc.Client, error) {
 	if client, ok := s.rpcClients[network]; ok {
 		return client, nil
 	}
@@ -444,7 +445,12 @@ func (s *facilitatorSvmSigner) GetRPC(ctx context.Context, network string) (*rpc
 	return client, nil
 }
 
-func (s *facilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
+func (s *facilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.Transaction, feePayer solana.PublicKey, network string) error {
+	// Verify feePayer matches our key
+	if feePayer != s.privateKey.PublicKey() {
+		return fmt.Errorf("no signer for feePayer %s. Available: %s", feePayer, s.privateKey.PublicKey())
+	}
+
 	messageBytes, err := tx.Message.MarshalBinary()
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
@@ -470,8 +476,32 @@ func (s *facilitatorSvmSigner) SignTransaction(ctx context.Context, tx *solana.T
 	return nil
 }
 
+func (s *facilitatorSvmSigner) SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string) error {
+	rpcClient, err := s.getRPC(ctx, network)
+	if err != nil {
+		return err
+	}
+
+	opts := rpc.SimulateTransactionOpts{
+		SigVerify:              true,
+		ReplaceRecentBlockhash: false,
+		Commitment:             svmmech.DefaultCommitment,
+	}
+
+	simResult, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, &opts)
+	if err != nil {
+		return fmt.Errorf("simulation failed: %w", err)
+	}
+
+	if simResult != nil && simResult.Value != nil && simResult.Value.Err != nil {
+		return fmt.Errorf("simulation failed: transaction would fail on-chain")
+	}
+
+	return nil
+}
+
 func (s *facilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error) {
-	rpcClient, err := s.GetRPC(ctx, network)
+	rpcClient, err := s.getRPC(ctx, network)
 	if err != nil {
 		return solana.Signature{}, err
 	}
@@ -488,7 +518,7 @@ func (s *facilitatorSvmSigner) SendTransaction(ctx context.Context, tx *solana.T
 }
 
 func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error {
-	rpcClient, err := s.GetRPC(ctx, network)
+	rpcClient, err := s.getRPC(ctx, network)
 	if err != nil {
 		return err
 	}
@@ -540,13 +570,6 @@ func (s *facilitatorSvmSigner) ConfirmTransaction(ctx context.Context, signature
 
 func (s *facilitatorSvmSigner) GetAddresses(ctx context.Context, network string) []solana.PublicKey {
 	return []solana.PublicKey{s.privateKey.PublicKey()}
-}
-
-func (s *facilitatorSvmSigner) GetSigner(ctx context.Context, address solana.PublicKey, network string) (svmmech.FacilitatorSvmSigner, error) {
-	if address == s.privateKey.PublicKey() {
-		return s, nil
-	}
-	return nil, fmt.Errorf("no signer for address %s, available: %s", address.String(), s.privateKey.PublicKey().String())
 }
 
 // ============================================================================
