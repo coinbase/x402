@@ -65,7 +65,7 @@ def require_payment(
         network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
         paywall_config (Optional[PaywallConfig], optional): Configuration for paywall UI customization.
-            Includes options like cdp_client_key, app_name, app_logo, session_token_endpoint.
+            Includes options like app_name, app_logo.
         custom_paywall_html (Optional[str], optional): Custom HTML to display for paywall instead of default.
 
     Returns:

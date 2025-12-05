@@ -25,51 +25,68 @@ cp .env-local .env
 ```
 
 3. Start the example client:
+
 ```bash
-pnpm dev
+# Run the default example (builder-pattern)
+pnpm start
+
+# Or run a specific example:
+pnpm start builder-pattern
+pnpm start mechanism-helper-registration
+
+# Or use the convenience scripts:
+pnpm dev                                # builder-pattern
+pnpm dev:mechanism-helper-registration  # mechanism-helper-registration
 ```
+
+## Available Examples
+
+This package contains two examples demonstrating different ways to configure the x402 client:
+
+### 1. Builder Pattern (`builder-pattern`)
+Demonstrates the basic way to configure the client by chaining `registerScheme` calls to map scheme patterns to mechanism clients.
+
+### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
+Shows how to use convenience helper functions provided by `@x402/evm` and `@x402/svm` packages to register all supported networks with recommended defaults.
 
 ## How It Works
 
-The example demonstrates how to:
-1. Create a wallet client using viem
-2. Wrap the native fetch function with x402 payment handling
-3. Make a request to a paid endpoint
-4. Handle the response or any errors
+The examples demonstrate how to:
+1. Create and configure an x402Client with different patterns
+2. Register mechanism clients for different blockchain schemes (EVM, SVM)
+3. Wrap the native fetch function with x402 payment handling
+4. Make a request to a paid endpoint
+5. Handle the response and payment details
 
 ## Example Code
 
+Here's a simplified version of the builder pattern:
+
 ```typescript
-import { config } from "dotenv";
-import { createWalletClient, http } from "viem";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmClient } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
-import { wrapFetchWithPayment } from "x402-fetch";
-import { baseSepolia } from "viem/chains";
 
-config();
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
-
-// Create wallet client
-const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
-const client = createWalletClient({
-  account,
-  transport: http(),
-  chain: baseSepolia,
-});
+// Configure client with builder pattern
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmClient(signer));
 
 // Wrap fetch with payment handling
-const fetchWithPay = wrapFetchWithPayment(fetch, client);
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 // Make request to paid endpoint
-fetchWithPay(`${RESOURCE_SERVER_URL}${ENDPOINT_PATH}`, {
+const response = await fetchWithPayment("http://localhost:4021/weather", {
   method: "GET",
-})
-  .then(async response => {
-    const body = await response.json();
-    console.log(body);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+});
+const body = await response.json();
+console.log(body);
 ```
+
+See the individual example files for more detailed demonstrations:
+- `builder-pattern.ts` - Basic builder pattern
+- `mechanism-helper-registration.ts` - Using helper functions
+
+For advanced examples including hooks, custom transports, and more, see `../advanced/`.

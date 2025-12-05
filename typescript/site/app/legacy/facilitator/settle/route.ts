@@ -28,7 +28,7 @@ type SettleRequest = {
  */
 export async function POST(req: Request) {
   const body: SettleRequest = await req.json();
-  const wallet = evm.wallet.createSignerSepolia(process.env.PRIVATE_KEY as Hex);
+  const wallet = evm.wallet.createSignerSepolia(process.env.FACILITATOR_EVM_PRIVATE_KEY as Hex);
 
   const paymentDetails = paymentDetailsSchema.parse(body.details);
 

@@ -19,62 +19,71 @@ pnpm build
 cd clients/axios
 ```
 
-2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+2. Copy `.env-local` to `.env` and add your Ethereum private key:
 ```bash
 cp .env-local .env
 ```
 
-3. Start the example client (remember you need to be running a server locally or point at an endpoint):
+3. Start the example client:
+
 ```bash
-pnpm dev
+# Run the default example (builder-pattern)
+pnpm start
+
+# Or run a specific example:
+pnpm start builder-pattern
+pnpm start mechanism-helper-registration
+
+# Or use the convenience scripts:
+pnpm dev                                # builder-pattern
+pnpm dev:mechanism-helper-registration  # mechanism-helper-registration
 ```
+
+## Available Examples
+
+This package contains two examples demonstrating different ways to configure the x402 client:
+
+### 1. Builder Pattern (`builder-pattern`)
+Demonstrates the basic way to configure the client by chaining `registerScheme` calls to map scheme patterns to mechanism clients.
+
+### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
+Shows how to use convenience helper functions provided by `@x402/evm` and `@x402/svm` packages to register all supported networks with recommended defaults.
 
 ## How It Works
 
-The example demonstrates how to:
-1. Create a wallet client using viem
-2. Create an Axios instance with x402 payment handling
-3. Make a request to a paid endpoint
-4. Handle the response or any errors
+The examples demonstrate how to:
+1. Create and configure an x402Client with different patterns
+2. Register mechanism clients for different blockchain schemes (EVM, SVM)
+3. Wrap axios with x402 payment handling
+4. Make a request to a paid endpoint
+5. Handle the response and payment details
 
 ## Example Code
 
+Here's a simplified version of the builder pattern:
+
 ```typescript
-import { config } from "dotenv";
-import { createWalletClient, http, publicActions } from "viem";
+import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
-import { withPaymentInterceptor } from "x402-axios";
 import axios from "axios";
-import { baseSepolia } from "viem/chains";
 
-config();
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
 
-const { RESOURCE_SERVER_URL, PRIVATE_KEY, ENDPOINT_PATH } = process.env;
+// Configure client with builder pattern
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(signer));
 
-// Create wallet client
-const account = privateKeyToAccount(PRIVATE_KEY as "0x${string}");
-const client = createWalletClient({
-  account,
-  transport: http(),
-  chain: baseSepolia,
-}).extend(publicActions);
-
-// Create Axios instance with payment handling
-const api = withPaymentInterceptor(
-  axios.create({
-    baseURL: RESOURCE_SERVER_URL,
-  }),
-  client
-);
+// Wrap axios with payment handling
+const api = wrapAxiosWithPayment(axios.create(), client);
 
 // Make request to paid endpoint
-api
-  .get(ENDPOINT_PATH)
-  .then(response => {
-    console.log(response.headers);
-    console.log(response.data);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+const response = await api.get("http://localhost:4021/weather");
+const body = response.data;
+console.log(body);
 ```
+
+See the individual example files for more detailed demonstrations:
+- `builder-pattern.ts` - Basic builder pattern
+- `mechanism-helper-registration.ts` - Using helper functions

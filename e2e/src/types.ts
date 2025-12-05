@@ -8,20 +8,20 @@ export interface ClientResult {
   error?: string;
 }
 
-export interface ServerConfig {
-  port: number;
-  useCdpFacilitator: boolean;
-  evmPayTo: string;
-  svmPayTo: string;
-  evmNetwork: string;
-  svmNetwork: string;
-}
-
 export interface ClientConfig {
   evmPrivateKey: string;
   svmPrivateKey: string;
   serverUrl: string;
   endpointPath: string;
+}
+
+export interface ServerConfig {
+  port: number;
+  evmPayTo: string;
+  svmPayTo: string;
+  evmNetwork: string;
+  svmNetwork: string;
+  facilitatorUrl?: string;
 }
 
 export interface ServerProxy {
@@ -50,9 +50,12 @@ export interface TestEndpoint {
 
 export interface TestConfig {
   name: string;
-  type: 'server' | 'client';
+  type: 'server' | 'client' | 'facilitator';
   language: string;
   protocolFamilies?: ProtocolFamily[];
+  x402Version?: number; // For servers - single version they implement
+  x402Versions?: number[]; // For clients and facilitators - array of versions they support
+  extensions?: string[]; // Protocol extensions supported (e.g., ["bazaar"])
   endpoints?: TestEndpoint[];
   supportedMethods?: string[];
   capabilities?: {
@@ -79,14 +82,30 @@ export interface DiscoveredClient {
   proxy: ClientProxy;
 }
 
+export interface FacilitatorProxy {
+  start(config: any): Promise<void>;
+  stop(): Promise<void>;
+  getUrl(): string;
+}
+
+export interface DiscoveredFacilitator {
+  name: string;
+  directory: string;
+  config: TestConfig;
+  proxy: FacilitatorProxy;
+  isExternal?: boolean;
+}
+
 export interface TestScenario {
   client: DiscoveredClient;
   server: DiscoveredServer;
+  facilitator?: DiscoveredFacilitator;
   endpoint: TestEndpoint;
   protocolFamily: ProtocolFamily;
   facilitatorNetworkCombo: {
     useCdpFacilitator: boolean;
     network: string;
+    facilitatorUrl?: string;
   };
 }
 

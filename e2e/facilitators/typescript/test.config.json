@@ -1,0 +1,27 @@
+{
+  "name": "typescript",
+  "type": "facilitator",
+  "language": "typescript",
+  "protocolFamilies": [
+    "evm",
+    "svm"
+  ],
+  "x402Versions": [
+    1,
+    2
+  ],
+  "extensions": [
+    "bazaar"
+  ],
+  "environment": {
+    "required": [
+      "PORT",
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
+    ],
+    "optional": [
+      "EVM_NETWORK",
+      "SVM_NETWORK"
+    ]
+  }
+}

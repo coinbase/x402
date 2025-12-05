@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import WordmarkCondensed from './assets/x402_wordmark_light.svg';
+import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
   return (
@@ -8,8 +8,14 @@ export default function Home() {
         {/* Hero Section */}
         <section className="max-w-6xl mx-auto px-4 py-20 lg:py-28">
           <div className="text-center">
-            <div className="w-64 mb-6 mx-auto">
-              <WordmarkCondensed className="mx-auto" />
+            <div className="mb-6">
+              <Image
+                src="/x402-logo-dark.png"
+                alt="x402 logo"
+                width={320}
+                height={160}
+                className="mx-auto"
+              />
             </div>
             <p className="text-xl text-gray-600 mb-8 font-mono">
               Fullstack demo powered by Next.js
@@ -19,14 +25,20 @@ export default function Home() {
                 href="/protected"
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors text-white"
               >
-                Live demo
+                Protected page
+              </Link>
+              <Link
+                href="/api/weather"
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-mono transition-colors text-white"
+              >
+                Protected API
               </Link>
             </div>
           </div>
         </section>
       </div>
       <footer className="py-8 text-center text-sm text-gray-500">
-        By using this site, you agree to be bound by the{' '}
+        By using this site, you agree to be bound by the{" "}
         <a
           href="https://www.coinbase.com/legal/developer-platform/terms-of-service"
           target="_blank"
@@ -34,8 +46,8 @@ export default function Home() {
           className="text-blue-500"
         >
           CDP Terms of Service
-        </a>{' '}
-        and{' '}
+        </a>{" "}
+        and{" "}
         <a
           href="https://www.coinbase.com/legal/privacy"
           target="_blank"
@@ -49,3 +61,4 @@ export default function Home() {
     </div>
   );
 }
+

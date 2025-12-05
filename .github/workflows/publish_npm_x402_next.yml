@@ -26,7 +26,7 @@ jobs:
           pnpm -r --filter=x402 --filter=x402-next run build
           
       - name: Publish x402-next package
-        working-directory: ./typescript/packages/x402-next
+        working-directory: ./typescript/packages/legacy/x402-next
         run: |
           # Get package information directly
           PACKAGE_NAME=$(node -p "require('./package.json').name")
