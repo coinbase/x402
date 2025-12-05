@@ -286,17 +286,15 @@ export class CashFacilitatorClient implements FacilitatorClient {
    * @returns Promise resolving to the supported response
    */
   getSupported(): Promise<SupportedResponse> {
-    const versionKey = this.x402Version.toString();
     return Promise.resolve({
-      kinds: {
-        [versionKey]: [
-          {
-            scheme: this.scheme,
-            network: this.network,
-            extra: {},
-          },
-        ],
-      },
+      kinds: [
+        {
+          x402Version: this.x402Version,
+          scheme: this.scheme,
+          network: this.network,
+          extra: {},
+        },
+      ],
       extensions: [],
       signers: {},
     });

@@ -103,5 +103,4 @@ export {
   FacilitatorClient,
   FacilitatorConfig,
 } from "./httpFacilitatorClient";
-export { LegacyHTTPFacilitatorClient } from "./legacyHttpFacilitatorClient";
 export { x402HTTPClient } from "./x402HTTPClient";
