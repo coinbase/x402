@@ -1,147 +1,140 @@
 # Custom x402 Client Implementation
 
-This example demonstrates how to implement x402 payment handling **manually** using only the core packages, without the convenience wrappers like `@x402/fetch` or `@x402/axios`.
-
-## What This Example Shows
-
-- **Manual HTTP Handling**: Direct interaction with 402 Payment Required responses
-- **Core Package Usage**: Using `x402Client` from `@x402/core` directly
-- **Payment Flow**: The complete flow from request → 402 → payment → retry → success
-- **Header Management**: Manual encoding/decoding of payment headers
-- **Settlement Extraction**: Reading settlement details from response headers
-
-## Why Use Custom Implementation?
-
-You should implement custom payment handling when you need:
-
-1. **Complete Control**: Full control over every step of the payment flow
-2. **Custom HTTP Clients**: Integration with non-standard HTTP libraries
-3. **Fine-grained Logic**: Custom error handling, retry logic, or request modification
-4. **Learning**: Understanding how x402 works under the hood
-
-## Architecture
-
-The custom implementation demonstrates these key steps:
-
-### Payment Flow
-
-1. **Initial Request**: Make HTTP request to protected endpoint
-2. **402 Response**: Server responds with Payment Required and requirements in headers
-3. **Parse Requirements**: Extract and decode payment requirements from `X-PAYMENT` header
-4. **Create Payment**: Use `x402Client.createPayment()` to generate payment payload
-5. **Retry with Payment**: Make new request with payment in `X-PAYMENT` header
-6. **Success**: Receive 200 response with settlement details in `X-PAYMENT-RESPONSE` header
-
-See `index.ts` for complete implementation of all steps.
+Express.js client demonstrating how to implement x402 payment handling manually using only the core packages, without convenience wrappers like `@x402/fetch` or `@x402/axios`.
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- An Ethereum private key (testnet recommended)
+- Valid EVM and SVM private keys for making payments
 - A running x402 server (see [server examples](../../servers/))
 
 ## Setup
 
-1. Install and build all packages from the typescript examples root:
+1. Copy `.env-local` to `.env`:
+
+```bash
+cp .env-local .env
+```
+
+and fill required environment variables:
+
+- `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
+- `SVM_PRIVATE_KEY` - Solana private key for SVM payments
+
+2. Install and build all packages from the typescript examples root:
 
 ```bash
 cd ../../
-pnpm install
-pnpm build
+pnpm install && pnpm build
 cd clients/custom
 ```
 
-2. Copy `.env-example` to `.env` and add your Ethereum private key:
+3. Run the example
 
 ```bash
-cp .env-example .env
-```
-
-## Running the Example
-
-```bash
-pnpm start
-# or
 pnpm dev
 ```
 
-## Example Output
+## Testing the Example
 
+Start a server first:
+
+```bash
+cd ../../servers/express
+pnpm dev
 ```
-🔧 Custom x402 Client Implementation Example
 
-This example demonstrates manual payment handling without wrappers.
+Then run the custom client:
 
-✅ Client configured with EVM payment scheme
-
-🌐 Making initial request to: http://localhost:4021/weather
-
-📥 Initial response status: 402
-
-💳 Payment required! Processing payment requirements...
-
-📋 Payment requirements:
-   1. Network: eip155:84532, Scheme: exact, Price: $0.001
-
-🔐 Creating payment payload...
-
-✅ Payment created successfully
-
-🔄 Retrying request with payment...
-
-📥 Response with payment status: 200
-
-✅ Request successful!
-
-Response body: { city: 'San Francisco', weather: 'foggy', temperature: 60 }
-
-💰 Payment Settlement Details:
-   Transaction: 0x1234567890abcdef...
-   Network: eip155:84532
-   Payer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-
-🎉 Custom implementation completed successfully!
+```bash
+cd ../../clients/custom
+pnpm dev
 ```
+
+## HTTP Headers (v2 Protocol)
+
+| Header              | Direction       | Description                            |
+| ------------------- | --------------- | -------------------------------------- |
+| `PAYMENT-REQUIRED`  | Server → Client | 402 response with payment requirements |
+| `PAYMENT-SIGNATURE` | Client → Server | Retry request with payment payload     |
+| `PAYMENT-RESPONSE`  | Server → Client | 200 response with settlement details   |
+
+## Payment Flow
+
+1. **Initial Request** — Make HTTP request to protected endpoint
+2. **402 Response** — Server responds with requirements in `PAYMENT-REQUIRED` header
+3. **Parse Requirements** — Decode requirements using `decodePaymentRequiredHeader()`
+4. **Create Payment** — Use `x402Client.createPaymentPayload()` to generate payload
+5. **Encode Payment** — Use `encodePaymentSignatureHeader()` for the header value
+6. **Retry with Payment** — Make new request with `PAYMENT-SIGNATURE` header
+7. **Success** — Receive 200 with settlement in `PAYMENT-RESPONSE` header
 
 ## Key Implementation Details
 
-### 1. Detecting Payment Required
+### 1. Setting Up the Client
 
 ```typescript
+import { x402Client } from "@x402/core/client";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const evmSigner = privateKeyToAccount(evmPrivateKey);
+const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
+
+// Optional: custom selector to pick which payment option to use
+const selectPayment = (_version: number, requirements: PaymentRequirements[]) => {
+  return requirements[1]; // Select second option (e.g., Solana)
+};
+
+const client = new x402Client(selectPayment)
+  .register("eip155:*", new ExactEvmScheme(evmSigner))
+  .register("solana:*", new ExactSvmScheme(svmSigner));
+```
+
+### 2. Detecting Payment Required
+
+```typescript
+import { decodePaymentRequiredHeader } from "@x402/core/http";
+
 if (response.status === 402) {
-  const paymentHeader = response.headers.get("X-PAYMENT");
-  // Parse requirements...
+  const paymentRequiredHeader = response.headers.get("PAYMENT-REQUIRED");
+  const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
+  // paymentRequired.accepts contains the payment options
 }
 ```
 
-### 2. Creating Payment Payload
+### 3. Creating Payment Payload
 
 ```typescript
-const client = new x402Client().register("eip155:*", new ExactEvmScheme(signer));
+import { encodePaymentSignatureHeader } from "@x402/core/http";
 
-const paymentPayload = await client.createPayment(requirements);
-const paymentHeader = Buffer.from(JSON.stringify(paymentPayload)).toString("base64");
+const paymentPayload = await client.createPaymentPayload(paymentRequired);
+const paymentHeader = encodePaymentSignatureHeader(paymentPayload);
 ```
 
-### 3. Retrying with Payment
+### 4. Retrying with Payment
 
 ```typescript
 const response = await fetch(url, {
   headers: {
-    "X-PAYMENT": paymentHeader,
+    "PAYMENT-SIGNATURE": paymentHeader,
   },
 });
 ```
 
-### 4. Extracting Settlement
+### 5. Extracting Settlement
 
 ```typescript
-const settlementHeader = response.headers.get("X-PAYMENT-RESPONSE");
-const settlement = JSON.parse(Buffer.from(settlementHeader, "base64").toString("utf-8"));
+import { decodePaymentResponseHeader } from "@x402/core/http";
+
+const settlementHeader = response.headers.get("PAYMENT-RESPONSE");
+const settlement = decodePaymentResponseHeader(settlementHeader);
+// settlement.transaction, settlement.network, settlement.payer
 ```
 
-## Comparison: Wrapper vs Custom
+## Wrapper vs Custom Comparison
 
 | Aspect            | With Wrapper (@x402/fetch) | Custom Implementation |
 | ----------------- | -------------------------- | --------------------- |
@@ -150,43 +143,22 @@ const settlement = JSON.parse(Buffer.from(settlementHeader, "base64").toString("
 | Error Handling    | ✅ Built-in                | ❌ You implement      |
 | Header Management | ✅ Automatic               | ❌ Manual             |
 | Flexibility       | Limited                    | ✅ Complete control   |
-| Maintenance       | x402 team                  | You maintain          |
 
-## When to Use Each Approach
+## When to Use Custom Implementation
 
-**Use Wrappers (@x402/fetch, @x402/axios) when:**
-
-- Building standard applications
-- Want quick integration
-- Prefer automatic payment handling
-- Don't need custom flow control
-
-**Use Custom Implementation when:**
-
-- Need complete control over flow
-- Integrating with custom HTTP clients
+- Need complete control over every step of the payment flow
+- Integrating with non-standard HTTP libraries
 - Implementing custom retry/error logic
-- Learning the protocol internals
+- Learning how x402 works under the hood
 
 ## Adapting to Other HTTP Clients
 
 To use this pattern with other HTTP clients (axios, got, etc.):
 
 1. Detect 402 status code
-2. Extract payment requirements from headers
-3. Use `x402Client.createPayment()` to create payload
-4. Encode payload and add to retry request headers
-5. Extract settlement from successful response headers
-
-The pattern in `index.ts` can be adapted to any HTTP client library.
-
-## Next Steps
-
-- **[Basic Fetch Client](../fetch/)**: See the simple way using wrappers
-- **[Advanced Examples](../advanced/)**: Explore hooks and advanced patterns
-- **[Server Examples](../../servers/)**: Build servers that can receive these payments
-
-## Related Resources
-
-- [x402 Core Package Documentation](../../../../typescript/packages/core/)
-- [Payment Protocol Specification](../../../../specs/x402-specification.md)
+2. Extract requirements from `PAYMENT-REQUIRED` header
+3. Use `decodePaymentRequiredHeader()` to parse
+4. Use `x402Client.createPaymentPayload()` to create payload
+5. Use `encodePaymentSignatureHeader()` to encode
+6. Add `PAYMENT-SIGNATURE` header to retry request
+7. Extract settlement from `PAYMENT-RESPONSE` header
