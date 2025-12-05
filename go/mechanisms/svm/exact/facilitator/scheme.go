@@ -9,7 +9,6 @@ import (
 	solana "github.com/gagliardetto/solana-go"
 	computebudget "github.com/gagliardetto/solana-go/programs/compute-budget"
 	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/mechanisms/svm"
@@ -132,24 +131,25 @@ func (f *ExactSvmScheme) Verify(
 
 	// Step 5: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
-	if err := f.signer.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
-		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
+
+	// Extract feePayer from requirements
+	feePayerStr, ok := requirements.Extra["feePayer"].(string)
+	if !ok {
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", payer, network, nil)
 	}
 
-	rpcClient, err := f.signer.GetRPC(ctx, string(requirements.Network))
+	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
-		return nil, x402.NewVerifyError("failed_to_get_rpc_client", payer, network, err)
+		return nil, x402.NewVerifyError("invalid_fee_payer", payer, network, err)
 	}
 
-	// Simulate transaction
-	opts := rpc.SimulateTransactionOpts{
-		SigVerify:              true,
-		ReplaceRecentBlockhash: false,
-		Commitment:             svm.DefaultCommitment,
+	// Sign transaction with the feePayer's signer
+	if err := f.signer.SignTransaction(ctx, tx, feePayer, string(requirements.Network)); err != nil {
+		return nil, x402.NewVerifyError("transaction_signing_failed", payer, network, err)
 	}
 
-	simResult, err := rpcClient.SimulateTransactionWithOpts(ctx, tx, &opts)
-	if err != nil || (simResult != nil && simResult.Value != nil && simResult.Value.Err != nil) {
+	// Simulate transaction to verify it would succeed
+	if err := f.signer.SimulateTransaction(ctx, tx, string(requirements.Network)); err != nil {
 		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
 	}
 
@@ -208,25 +208,19 @@ func (f *ExactSvmScheme) Settle(
 			fmt.Errorf("expected %s, got %s", expectedFeePayer, actualFeePayer))
 	}
 
-	// Get specific signer for this feePayer
-	specificSigner, err := f.signer.GetSigner(ctx, expectedFeePayer, string(requirements.Network))
-	if err != nil {
-		return nil, x402.NewSettleError("no_signer_for_fee_payer", verifyResp.Payer, network, "", err)
-	}
-
-	// Sign with the correct signer
-	if err := specificSigner.SignTransaction(ctx, tx, string(requirements.Network)); err != nil {
+	// Sign with the feePayer's signer
+	if err := f.signer.SignTransaction(ctx, tx, expectedFeePayer, string(requirements.Network)); err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
-	// Send transaction
-	signature, err := specificSigner.SendTransaction(ctx, tx, string(requirements.Network))
+	// Send transaction to network
+	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
 		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
 	}
 
-	// Wait for confirmation (delegated to signer for custom retry logic)
-	if err := specificSigner.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
+	// Wait for confirmation
+	if err := f.signer.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
 		return nil, x402.NewSettleError("transaction_confirmation_failed", verifyResp.Payer, network, signature.String(), err)
 	}
 
