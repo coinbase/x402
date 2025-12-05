@@ -31,7 +31,9 @@ func main() {
 	}
 
 	svmPrivateKey := os.Getenv("SVM_PRIVATE_KEY")
-	network := x402.Network("eip155:84532")
+
+	evmNetwork := x402.Network("eip155:84532")
+	svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
 
 	evmSigner, err := newFacilitatorEvmSigner(evmPrivateKey, DefaultEvmRPC)
 	if err != nil {
@@ -50,7 +52,7 @@ func main() {
 	evmConfig := &evm.ExactEvmSchemeConfig{
 		DeployERC4337WithEIP6492: true,
 	}
-	facilitator.Register([]x402.Network{network}, evm.NewExactEvmScheme(evmSigner, evmConfig))
+	facilitator.Register([]x402.Network{evmNetwork}, evm.NewExactEvmScheme(evmSigner, evmConfig))
 
 	// Register V1 EVM scheme with smart wallet deployment enabled
 	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
@@ -59,7 +61,6 @@ func main() {
 	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config))
 
 	if svmSigner != nil {
-		svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
 		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))
 		facilitator.RegisterV1([]x402.Network{"solana-devnet"}, svmv1.NewExactSvmSchemeV1(svmSigner))
 	}
@@ -151,8 +152,12 @@ func main() {
 		c.JSON(http.StatusOK, result)
 	})
 
-	fmt.Printf("🚀 Facilitator: %s on %s\n", evmSigner.GetAddresses()[0], network)
-	fmt.Printf("   Listening on http://localhost:%s\n\n", DefaultPort)
+	fmt.Printf("🚀 Facilitator listening on http://localhost:%s\n", DefaultPort)
+	fmt.Printf("   EVM: %s on %s\n", evmSigner.GetAddresses()[0], evmNetwork)
+	if svmSigner != nil {
+		fmt.Printf("   SVM: %s on %s\n", svmSigner.GetAddresses()[0], svmNetwork)
+	}
+	fmt.Println()
 
 	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)

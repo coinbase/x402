@@ -373,7 +373,7 @@ func main() {
 	// Debug endpoint to inspect payment requirements
 	r.GET("/debug/requirements", func(c *gin.Context) {
 		ctx := context.Background()
-		requirements, err := x402Server.BuildPaymentRequirements(ctx, x402.ResourceConfig{
+		requirements, err := x402Server.BuildPaymentRequirementsFromConfig(ctx, x402.ResourceConfig{
 			Scheme:  "exact",
 			PayTo:   evmPayeeAddress,
 			Price:   "$0.001",
