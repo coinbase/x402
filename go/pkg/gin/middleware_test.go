@@ -226,19 +226,70 @@ func TestPaymentMiddleware_SettlementFails(t *testing.T) {
 	req.Header.Set("X-PAYMENT", paymentPayloadBase64)
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "success")
+	// Settlement failure should return 402, not the protected content
+	assert.Equal(t, http.StatusPaymentRequired, w.Code)
 
-	assert.NotEmpty(t, w.Header().Get("X-PAYMENT-RESPONSE"))
-
-	responseStr := w.Header().Get("X-PAYMENT-RESPONSE")
-	responseBytes, err := base64.StdEncoding.DecodeString(responseStr)
+	var response map[string]any
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
+	assert.Contains(t, response, "error")
+	assert.Contains(t, response, "accepts")
+}
 
-	var settleResponse types.SettleResponse
-	err = json.Unmarshal(responseBytes, &settleResponse)
+func TestPaymentMiddleware_HandlerErrorSkipsSettlement(t *testing.T) {
+	config := NewTestConfig()
+
+	// Create a custom router that returns an error from the handler
+	facilitatorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/verify":
+			w.WriteHeader(config.VerifyStatusCode)
+			json.NewEncoder(w).Encode(types.VerifyResponse{
+				IsValid:       config.VerifySuccess,
+				InvalidReason: config.InvalidReason,
+				Payer:         config.Payer,
+			})
+		case "/settle":
+			// This should NOT be called when handler returns error
+			t.Error("Settlement should not be called when handler returns error")
+			w.WriteHeader(config.SettleStatusCode)
+			json.NewEncoder(w).Encode(types.SettleResponse{
+				Success:     config.SettleSuccess,
+				ErrorReason: config.SettleErrorReason,
+				Transaction: config.Transaction,
+				Network:     config.Network,
+				Payer:       config.Payer,
+			})
+		}
+	}))
+	t.Cleanup(func() { facilitatorServer.Close() })
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	facilitatorConfig := &types.FacilitatorConfig{
+		URL: facilitatorServer.URL,
+	}
+
+	// Handler that returns 500 error
+	router.GET("/protected", x402gin.PaymentMiddleware(big.NewFloat(1.0), "0xTestAddress", x402gin.WithFacilitatorConfig(facilitatorConfig)), func(c *gin.Context) {
+		c.String(http.StatusInternalServerError, "internal error")
+	})
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/protected", nil)
+
+	paymentPayloadJson, err := json.Marshal(config.PaymentPayload)
 	assert.NoError(t, err)
-	assert.False(t, settleResponse.Success)
+	paymentPayloadBase64 := base64.StdEncoding.EncodeToString(paymentPayloadJson)
+	req.Header.Set("X-PAYMENT", paymentPayloadBase64)
+
+	router.ServeHTTP(w, req)
+
+	// Should return the handler's error, not settle payment
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "internal error")
+	assert.Empty(t, w.Header().Get("X-PAYMENT-RESPONSE"))
 }
 
 func TestPaymentMiddleware_SettlementServerError(t *testing.T) {
