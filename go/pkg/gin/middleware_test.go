@@ -273,7 +273,7 @@ func TestPaymentMiddleware_Options(t *testing.T) {
 				x402gin.WithDescription("Test Description"),
 				x402gin.WithMimeType("application/json"),
 				x402gin.WithMaxTimeoutSeconds(120),
-				x402gin.WithTestnet(true),
+				x402gin.WithNetwork("base-sepolia"),
 			},
 			amount:  big.NewFloat(1.0),
 			address: "0xTestAddress",
@@ -286,6 +286,14 @@ func TestPaymentMiddleware_Options(t *testing.T) {
 			},
 			amount:  big.NewFloat(2.0),
 			address: "0xTestAddress2",
+		},
+		{
+			name: "with explicit network",
+			opts: []x402gin.Options{
+				x402gin.WithNetwork("bsc"),
+			},
+			amount:  big.NewFloat(0.5),
+			address: "0xTestAddress3",
 		},
 	}
 
@@ -311,16 +319,34 @@ func TestPaymentMiddleware_Options(t *testing.T) {
 
 func TestPaymentMiddleware_NetworkSelection(t *testing.T) {
 	testCases := []struct {
-		name    string
-		testnet bool
+		name              string
+		opts              []x402gin.Options
+		expectedNetwork   string
+		expectedMaxAmount string
 	}{
 		{
-			name:    "base-sepolia",
-			testnet: true,
+			name:              "default uses base-sepolia",
+			opts:              nil,
+			expectedNetwork:   "base-sepolia",
+			expectedMaxAmount: "1000000",
 		},
 		{
-			name:    "base",
-			testnet: false,
+			name:              "base mainnet",
+			opts:              []x402gin.Options{x402gin.WithNetwork("base")},
+			expectedNetwork:   "base",
+			expectedMaxAmount: "1000000",
+		},
+		{
+			name:              "bsc mainnet",
+			opts:              []x402gin.Options{x402gin.WithNetwork("bsc")},
+			expectedNetwork:   "bsc",
+			expectedMaxAmount: "1000000000000000000",
+		},
+		{
+			name:              "bsc testnet",
+			opts:              []x402gin.Options{x402gin.WithNetwork("bsc-testnet")},
+			expectedNetwork:   "bsc-testnet",
+			expectedMaxAmount: "1000000000000000000",
 		},
 	}
 
@@ -331,7 +357,7 @@ func TestPaymentMiddleware_NetworkSelection(t *testing.T) {
 				big.NewFloat(1.0),
 				"0xTestAddress",
 				NewTestConfig(),
-				x402gin.WithTestnet(tc.testnet),
+				tc.opts...,
 			)
 
 			router.ServeHTTP(w, req)
@@ -348,12 +374,8 @@ func TestPaymentMiddleware_NetworkSelection(t *testing.T) {
 			requirements, ok := requirementsSlice[0].(map[string]any)
 			assert.True(t, ok)
 
-			expectedNetwork := "base"
-			if tc.testnet {
-				expectedNetwork = "base-sepolia"
-			}
-
-			assert.Equal(t, expectedNetwork, requirements["network"])
+			assert.Equal(t, tc.expectedNetwork, requirements["network"])
+			assert.Equal(t, tc.expectedMaxAmount, requirements["maxAmountRequired"])
 		})
 	}
 }
