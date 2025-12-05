@@ -345,12 +345,19 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 			X402Version: 2,
 			Accepted:    requirements,
 			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/data",
+			},
 			Extensions: map[string]interface{}{
 				bazaar.BAZAAR: extension,
 			},
 		}
 
-		info, err := bazaar.ExtractDiscoveryInfo(paymentPayload, map[string]interface{}{}, true)
+		// Marshal to bytes (new signature)
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -358,6 +365,8 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
 		assert.Equal(t, "http", bodyInput.Type)
+		assert.Equal(t, "https://api.example.com/data", info.ResourceURL)
+		assert.Equal(t, 2, info.X402Version)
 	})
 
 	t.Run("should extract info from v1 PaymentRequirements", func(t *testing.T) {
@@ -381,21 +390,20 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 			"payTo":             "0x...",
 			"maxTimeoutSeconds": 300,
 			"asset":             "0x...",
-			"extra":             map[string]interface{}{},
 		}
 
-		v1ReqStruct := x402.PaymentRequirements{
-			Scheme:  "exact",
-			Network: "eip155:8453",
+		v1Payload := map[string]interface{}{
+			"x402Version": 1,
+			"scheme":      "exact",
+			"network":     "eip155:8453",
+			"payload":     map[string]interface{}{},
 		}
 
-		v1Payload := x402.PaymentPayload{
-			X402Version: 1,
-			Accepted:    v1ReqStruct,
-			Payload:     map[string]interface{}{},
-		}
+		// Marshal to bytes (new signature)
+		payloadBytes, _ := json.Marshal(v1Payload)
+		requirementsBytes, _ := json.Marshal(v1Requirements)
 
-		info, err := bazaar.ExtractDiscoveryInfo(v1Payload, v1Requirements, true)
+		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -403,6 +411,8 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
 		assert.Equal(t, "http", queryInput.Type)
+		assert.Equal(t, "https://api.example.com/data", info.ResourceURL)
+		assert.Equal(t, 1, info.X402Version)
 	})
 
 	t.Run("should return nil when no discovery info is present", func(t *testing.T) {
@@ -417,9 +427,32 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 			Payload:     map[string]interface{}{},
 		}
 
-		info, err := bazaar.ExtractDiscoveryInfo(paymentPayload, map[string]interface{}{}, true)
+		// Marshal to bytes (new signature)
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		assert.Nil(t, info)
+	})
+
+	t.Run("should return error for invalid json", func(t *testing.T) {
+		info, err := bazaar.ExtractDiscoveryInfo([]byte("invalid"), []byte("{}"), true)
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "failed to parse version")
+	})
+
+	t.Run("should return error for unsupported version", func(t *testing.T) {
+		payload := map[string]interface{}{
+			"x402Version": 99,
+		}
+		payloadBytes, _ := json.Marshal(payload)
+
+		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, []byte("{}"), true)
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "unsupported version")
 	})
 }
 
@@ -837,19 +870,19 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			"extra":             map[string]interface{}{},
 		}
 
-		v1ReqStruct := x402.PaymentRequirements{
-			Scheme:  "exact",
-			Network: "eip155:8453",
+		v1Payload := map[string]interface{}{
+			"x402Version": 1,
+			"scheme":      "exact",
+			"network":     "eip155:8453",
+			"payload":     map[string]interface{}{},
 		}
 
-		v1Payload := x402.PaymentPayload{
-			X402Version: 1,
-			Accepted:    v1ReqStruct,
-			Payload:     map[string]interface{}{},
-		}
+		// Marshal to bytes (new signature)
+		payloadBytes, _ := json.Marshal(v1Payload)
+		requirementsBytes, _ := json.Marshal(v1Requirements)
 
 		// Facilitator extracts v1 info and transforms to v2
-		info, err := bazaar.ExtractDiscoveryInfo(v1Payload, v1Requirements, true)
+		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -864,6 +897,10 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		assert.NotNil(t, bodyMap["query"])
 		assert.NotNil(t, bodyMap["chain"])
 		assert.NotNil(t, bodyMap["type_hint"])
+
+		// Verify resource URL extracted correctly
+		assert.Equal(t, "https://mesh.heurist.xyz/x402/agents/TokenResolverAgent/search", info.ResourceURL)
+		assert.Equal(t, 1, info.X402Version)
 	})
 
 	t.Run("should handle unified extraction for both v1 and v2", func(t *testing.T) {
@@ -889,21 +926,30 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			X402Version: 2,
 			Accepted:    v2Requirements,
 			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/items",
+			},
 			Extensions: map[string]interface{}{
 				bazaar.BAZAAR: v2Extension,
 			},
 		}
 
-		v2Info, err := bazaar.ExtractDiscoveryInfo(v2Payload, map[string]interface{}{}, true)
+		// Marshal to bytes (new signature)
+		v2PayloadBytes, _ := json.Marshal(v2Payload)
+		v2RequirementsBytes, _ := json.Marshal(v2Requirements)
+
+		v2Info, err := bazaar.ExtractDiscoveryInfo(v2PayloadBytes, v2RequirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, v2Info)
 
 		queryInput, ok := v2Info.DiscoveryInfo.Input.(bazaar.QueryInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
+		assert.Equal(t, 2, v2Info.X402Version)
 
 		// V1 case - discovery info is in PaymentRequirements.outputSchema
 		v1Requirements := map[string]interface{}{
+			"resource": "https://api.example.com/search",
 			"outputSchema": map[string]interface{}{
 				"input": map[string]interface{}{
 					"discoverable": true,
@@ -914,24 +960,25 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			},
 		}
 
-		v1ReqStructSecond := x402.PaymentRequirements{
-			Scheme:  "exact",
-			Network: "eip155:8453",
+		v1Payload := map[string]interface{}{
+			"x402Version": 1,
+			"scheme":      "exact",
+			"network":     "eip155:8453",
+			"payload":     map[string]interface{}{},
 		}
 
-		v1Payload := x402.PaymentPayload{
-			X402Version: 1,
-			Accepted:    v1ReqStructSecond,
-			Payload:     map[string]interface{}{},
-		}
+		// Marshal to bytes (new signature)
+		v1PayloadBytes, _ := json.Marshal(v1Payload)
+		v1RequirementsBytes, _ := json.Marshal(v1Requirements)
 
-		v1Info, err := bazaar.ExtractDiscoveryInfo(v1Payload, v1Requirements, true)
+		v1Info, err := bazaar.ExtractDiscoveryInfo(v1PayloadBytes, v1RequirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, v1Info)
 
 		queryInput2, ok := v1Info.DiscoveryInfo.Input.(bazaar.QueryInput)
 		require.True(t, ok)
 		assert.Equal(t, bazaar.MethodGET, queryInput2.Method)
+		assert.Equal(t, 1, v1Info.X402Version)
 
 		// Both v1 and v2 return the same DiscoveryInfo structure
 		assert.IsType(t, v2Info.DiscoveryInfo.Input, v1Info.DiscoveryInfo.Input)

@@ -1328,14 +1328,14 @@ importers:
         specifier: ^5.7.2
         version: 5.8.3
 
-  facilitators/external-proxies/local/cdp-dev:
+  facilitators/external-proxies/cdp-dev:
     dependencies:
       '@coinbase/cdp-sdk':
         specifier: ^1.22.0
         version: 1.38.4(bufferutil@4.0.9)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
         specifier: workspace:*
-        version: link:../../../../../typescript/packages/core
+        version: link:../../../../typescript/packages/core
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -1363,7 +1363,7 @@ importers:
         version: 5.8.3
       x402:
         specifier: workspace:*
-        version: link:../../../../../typescript/packages/legacy/x402
+        version: link:../../../../typescript/packages/legacy/x402
 
   facilitators/typescript:
     dependencies:
