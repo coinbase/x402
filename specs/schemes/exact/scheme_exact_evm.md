@@ -11,7 +11,23 @@ The `payload` field of the `X-PAYMENT` header must contain the following fields:
 - `signature`: The signature of the `EIP-3009` `transferWithAuthorization` operation.
 - `authorization`: parameters required to reconstruct the messaged signed for the `transferWithAuthorization` operation.
 
-Example:
+### Encoding Rules
+
+Each field must be encoded as follows:
+
+| Field | Type | Encoding | Notes |
+|--------|------|-----------|-------|
+| `signature` | 65-byte EIP-712 Signature | Hex string | Must include `"0x"`or `"0X"` prefix. |
+| `from` | 20-byte Eth Address | Hex string (EIP-55 checksummed) | Must include `"0x"`or `"0X"` prefix. |
+| `to` | 120-bit Eth Address | Hex string (EIP-55 checksummed) | Must include `"0x"` or `"0X"` prefix. |
+| `value` |32-byte integer | Hex string, if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `validAfter` | 32-byte integer (UNIX timestamp) | Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `validBefore` | 32-byte integer (UNIX timestamp) | Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise. | May omit leading zeros. |
+| `nonce` | 32-byte integer |Hex string if starts with `"0x"` or `"0X"`. Decimal otherwise.  | May omit leading zeros. |
+
+### Example
+
+
 
 ```json
 {
