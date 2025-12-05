@@ -388,7 +388,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
