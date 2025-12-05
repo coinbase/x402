@@ -1,0 +1,24 @@
+{
+  "name": "x402-discover",
+  "version": "0.1.0",
+  "description": "Discovery client and CLI for x402 tools/resources",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "x402-discover": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "serve": "tsx src/server.ts",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}
