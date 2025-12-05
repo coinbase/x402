@@ -56,7 +56,6 @@ class HttpxHooks:
             request = response.request
 
             request.headers["X-Payment"] = payment_header
-            request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
             # Retry the request
             async with AsyncClient() as client:

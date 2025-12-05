@@ -141,7 +141,6 @@ describe("withPaymentInterceptor()", () => {
       ...error.config,
       headers: new AxiosHeaders({
         "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
       }),
       __is402Retry: true,
     });

@@ -102,7 +102,6 @@ describe("fetchWithPayment()", () => {
       headers: {
         "Content-Type": "application/json",
         "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
       },
       __is402Retry: true,
     } as RequestInitWithRetry);

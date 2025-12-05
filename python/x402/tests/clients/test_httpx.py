@@ -124,10 +124,6 @@ async def test_on_response_payment_flow(hooks, payment_requirements):
         assert mock_client.send.called
         retry_request = mock_client.send.call_args[0][0]
         assert retry_request.headers["X-Payment"] == mock_header
-        assert (
-            retry_request.headers["Access-Control-Expose-Headers"]
-            == "X-Payment-Response"
-        )
 
         # Verify the mocked methods were called with correct arguments
         hooks.client.select_payment_requirements.assert_called_once_with(
