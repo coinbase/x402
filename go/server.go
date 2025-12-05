@@ -127,20 +127,18 @@ func (s *x402ResourceServer) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to get supported from facilitator: %w", err)
 		}
 
-		// Populate facilitatorClients map from kinds (now grouped by version)
-		for _, kinds := range supported.Kinds {
-			for _, kind := range kinds {
-				network := Network(kind.Network)
-				scheme := kind.Scheme
+		// Populate facilitatorClients map from kinds (now flat array with version in each element)
+		for _, kind := range supported.Kinds {
+			network := Network(kind.Network)
+			scheme := kind.Scheme
 
-				if s.facilitatorClients[network] == nil {
-					s.facilitatorClients[network] = make(map[string]FacilitatorClient)
-				}
+			if s.facilitatorClients[network] == nil {
+				s.facilitatorClients[network] = make(map[string]FacilitatorClient)
+			}
 
-				// Only set if not already present (precedence to earlier clients)
-				if s.facilitatorClients[network][scheme] == nil {
-					s.facilitatorClients[network][scheme] = client
-				}
+			// Only set if not already present (precedence to earlier clients)
+			if s.facilitatorClients[network][scheme] == nil {
+				s.facilitatorClients[network][scheme] = client
 			}
 		}
 
@@ -471,19 +469,18 @@ func (s *x402ResourceServer) BuildPaymentRequirementsFromConfig(ctx context.Cont
 	// Check each cached facilitator response for matching supported kind
 	s.supportedCache.mu.RLock()
 	for _, cachedResponse := range s.supportedCache.data {
-		// V2 kinds are under version key "2"
-		if v2Kinds, hasV2 := cachedResponse.Kinds["2"]; hasV2 {
-			for _, kind := range v2Kinds {
-				// Match on scheme and network
-				if kind.Scheme == config.Scheme && string(kind.Network) == string(config.Network) {
-					supportedKind = types.SupportedKind{
-						Scheme:  kind.Scheme,
-						Network: string(kind.Network),
-						Extra:   kind.Extra, // This includes feePayer for SVM!
-					}
-					foundKind = true
-					break
+		// Iterate through flat kinds array (version is in each element)
+		for _, kind := range cachedResponse.Kinds {
+			// Match on scheme and network (only check V2 kinds)
+			if kind.X402Version == 2 && kind.Scheme == config.Scheme && string(kind.Network) == string(config.Network) {
+				supportedKind = types.SupportedKind{
+					X402Version: kind.X402Version,
+					Scheme:      kind.Scheme,
+					Network:     string(kind.Network),
+					Extra:       kind.Extra, // This includes feePayer for SVM!
 				}
+				foundKind = true
+				break
 			}
 		}
 		if foundKind {
