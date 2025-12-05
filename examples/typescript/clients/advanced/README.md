@@ -1,79 +1,73 @@
 # Advanced x402 Client Examples
 
-This directory contains advanced, production-ready patterns for x402 TypeScript clients using fetch. These examples go beyond the basics to demonstrate sophisticated techniques for building robust, scalable payment-enabled applications.
-
-## What This Shows
-
-Advanced patterns for production environments:
-
-- **Payment Lifecycle Hooks**: Custom logic at different payment stages
-
-## Examples
-
-### 1. Payment Lifecycle Hooks (`hooks`)
-
-**Production Pattern**: Register hooks for payment creation lifecycle events
-
-```bash
-npm start hooks
-```
-
-**Demonstrates:**
-
-- onBeforePaymentCreation: Custom validation before payment
-- onAfterPaymentCreation: Logging and metrics after payment
-- onPaymentCreationFailure: Error recovery strategies
-- Payment event lifecycle management
-
-**Use When:**
-
-- Need to log payment events for debugging/monitoring
-- Want custom validation before allowing payments
-- Require error recovery from payment failures
-- Building observable payment systems
+Advanced patterns for x402 TypeScript clients demonstrating payment lifecycle hooks and network preferences.
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- An Ethereum private key (testnet recommended)
+- Valid EVM and/or SVM private keys for making payments
 - A running x402 server (see [server examples](../../servers/))
-- Understanding of [basic fetch client](../fetch/)
+- Familiarity with the [basic fetch client](../fetch/)
 
 ## Setup
 
-1. Install and build all packages from the typescript examples root:
+1. Copy `.env-local` to `.env`:
+
+```bash
+cp .env-local .env
+```
+
+and fill required environment variables:
+
+- `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
+- `SVM_PRIVATE_KEY` - Solana private key for SVM payments (required for preferred-network)
+
+2. Install and build all packages from the typescript examples root:
 
 ```bash
 cd ../../
-pnpm install
-pnpm build
+pnpm install && pnpm build
 cd clients/advanced
 ```
 
-2. Copy `.env-example` to `.env` and add your Ethereum private key:
+3. Run the server
 
 ```bash
-cp .env-example .env
+pnpm dev
 ```
 
-## Running Examples
+## Available Examples
+
+Each example demonstrates a specific advanced pattern:
+
+| Example             | Command                      | Description                     |
+| ------------------- | ---------------------------- | ------------------------------- |
+| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks         |
+| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences |
+
+## Testing the Examples
+
+Start a server first:
 
 ```bash
-# Run specific advanced example
-npm start hooks
-# or
+cd ../../servers/express
+pnpm dev
+```
+
+Then run the examples:
+
+```bash
+cd ../../clients/advanced
 pnpm dev:hooks
 ```
 
-## Architecture Patterns
+## Example: Payment Lifecycle Hooks
 
-### Payment Lifecycle Hooks
-
-Register hooks for complete observability and control:
+Register custom logic at different payment stages for observability and control:
 
 ```typescript
-import { x402Client } from "@x402/fetch";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 
@@ -82,91 +76,76 @@ const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY);
 const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(signer))
   .onBeforePaymentCreation(async context => {
-    // Custom validation logic
     console.log("Creating payment for:", context.selectedRequirements);
-    // Optionally abort: return { abort: true, reason: "Not allowed" };
+    // Abort payment by returning: { abort: true, reason: "Not allowed" }
   })
   .onAfterPaymentCreation(async context => {
-    // Log successful payment creation
-    console.log("Payment created:", context.version);
+    console.log("Payment created:", context.paymentPayload.x402Version);
     // Send to analytics, database, etc.
   })
   .onPaymentCreationFailure(async context => {
-    // Handle failures
     console.error("Payment failed:", context.error);
-    // Optionally recover with alternative method
+    // Recover by returning: { recovered: true, payload: alternativePayload }
   });
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+const response = await fetchWithPayment("http://localhost:4021/weather");
 ```
 
-## Production Considerations
+Available hooks:
 
-### Hook Best Practices
+- `onBeforePaymentCreation` — Run before payment creation (can abort)
+- `onAfterPaymentCreation` — Run after successful payment creation
+- `onPaymentCreationFailure` — Run when payment creation fails (can recover)
 
-1. **Keep hooks fast**: Avoid blocking operations
-2. **Handle errors gracefully**: Don't throw in hooks
-3. **Log appropriately**: Use structured logging
-4. **Avoid side effects in before hooks**: Only use for validation
+**Use case:**
 
-### Error Recovery Strategy
+- Log payment events for debugging and monitoring
+- Custom validation before allowing payments
+- Implement retry or recovery logic for failed payments
+- Metrics and analytics collection
 
-Implement intelligent error handling in failure hooks:
+## Example: Preferred Network Selection
+
+Configure client-side network preferences with automatic fallback:
 
 ```typescript
-client.onPaymentCreationFailure(async context => {
-  const errorType = classifyError(context.error);
+import { x402Client, wrapFetchWithPayment, type PaymentRequirements } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
 
-  switch (errorType) {
-    case "network":
-      // Retry logic handled by client
-      return undefined;
-    case "insufficient_balance":
-      // Alert user, no recovery
-      notifyUser("Insufficient balance");
-      return undefined;
-    case "signing_error":
-      // Attempt recovery with different method
-      return {
-        recovered: true,
-        payload: await createAlternativePayment(),
-      };
+// Define network preference order (most preferred first)
+const networkPreferences = ["solana:", "eip155:"];
+
+const preferredNetworkSelector = (
+  _x402Version: number,
+  options: PaymentRequirements[],
+): PaymentRequirements => {
+  // Try each preference in order
+  for (const preference of networkPreferences) {
+    const match = options.find(opt => opt.network.startsWith(preference));
+    if (match) return match;
   }
-});
+  // Fallback to first mutually-supported option
+  return options[0];
+};
+
+const client = new x402Client(preferredNetworkSelector)
+  .register("eip155:*", new ExactEvmScheme(evmSigner))
+  .register("solana:*", new ExactSvmScheme(svmSigner));
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+const response = await fetchWithPayment("http://localhost:4021/weather");
 ```
 
-## Testing Against Local Server
+**Use case:**
 
-1. Start server:
+- Prefer payments on specific chains
+- User preference settings in wallet UIs
 
-```bash
-cd ../../servers/express
-pnpm dev
-```
+## Hook Best Practices
 
-2. Run advanced examples:
-
-```bash
-cd ../../clients/advanced
-pnpm dev:hooks
-```
-
-## Comparison: Basic vs Advanced
-
-| Feature          | Basic Client | Advanced Client             |
-| ---------------- | ------------ | --------------------------- |
-| Payment Hooks    | None         | ✅ Lifecycle event handling |
-| Observability    | Minimal      | ✅ Comprehensive logging    |
-| Error Recovery   | Basic        | ✅ Intelligent strategies   |
-| Production Ready | Basic        | ✅ Battle-tested patterns   |
-
-## Next Steps
-
-- **[Basic Fetch Client](../fetch/)**: Start here if you haven't already
-- **[Basic Axios Client](../axios/)**: Alternative HTTP client
-- **[Custom Client](../custom/)**: Learn the internals
-- **[Server Examples](../../servers/)**: Build complementary servers
-
-## Related Resources
-
-- [x402 Core Package Documentation](../../../../typescript/packages/core/)
-- [x402 Fetch Package Documentation](../../../../typescript/packages/x402-fetch/)
-- [Production Deployment Guide](../../../../docs/production.md)
+1. **Keep hooks fast** — Avoid blocking operations
+2. **Handle errors gracefully** — Don't throw in hooks
+3. **Log appropriately** — Use structured logging
+4. **Avoid side effects in before hooks** — Only use for validation
