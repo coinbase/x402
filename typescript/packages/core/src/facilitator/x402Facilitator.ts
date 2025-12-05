@@ -202,32 +202,28 @@ export class x402Facilitator {
   }
 
   /**
-   * Gets supported payment kinds, extensions, and signers in V2 format.
+   * Gets supported payment kinds, extensions, and signers.
    * Uses networks registered during register() calls - no parameters needed.
-   * Groups kinds by version and collects signer information by CAIP family.
+   * Returns flat array format for backward compatibility with V1 clients.
    *
-   * @returns Supported response with kinds grouped by version, extensions, and signers
+   * @returns Supported response with kinds as array (with version in each element), extensions, and signers
    */
   getSupported(): {
-    kinds: Record<
-      string,
-      Array<{
-        scheme: string;
-        network: string;
-        extra?: Record<string, unknown>;
-      }>
-    >;
+    kinds: Array<{
+      x402Version: number;
+      scheme: string;
+      network: string;
+      extra?: Record<string, unknown>;
+    }>;
     extensions: string[];
     signers: Record<string, string[]>;
   } {
-    const kindsByVersion: Record<
-      string,
-      Array<{
-        scheme: string;
-        network: string;
-        extra?: Record<string, unknown>;
-      }>
-    > = {};
+    const kinds: Array<{
+      x402Version: number;
+      scheme: string;
+      network: string;
+      extra?: Record<string, unknown>;
+    }> = [];
     const signersByFamily: Record<string, Set<string>> = {};
 
     // Iterate over registered scheme data (array supports multiple facilitators per version)
@@ -238,13 +234,9 @@ export class x402Facilitator {
 
         // Iterate over stored concrete networks
         for (const network of networks) {
-          const versionKey = version.toString();
-          if (!kindsByVersion[versionKey]) {
-            kindsByVersion[versionKey] = [];
-          }
-
           const extra = facilitator.getExtra(network);
-          kindsByVersion[versionKey].push({
+          kinds.push({
+            x402Version: version,
             scheme,
             network,
             ...(extra && { extra }),
@@ -267,7 +259,7 @@ export class x402Facilitator {
     }
 
     return {
-      kinds: kindsByVersion,
+      kinds,
       extensions: this.extensions,
       signers,
     };

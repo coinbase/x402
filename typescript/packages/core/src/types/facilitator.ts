@@ -26,13 +26,14 @@ export type SettleResponse = {
 };
 
 export type SupportedKind = {
+  x402Version: number;
   scheme: string;
   network: Network;
   extra?: Record<string, unknown>;
 };
 
 export type SupportedResponse = {
-  kinds: Record<string, SupportedKind[]>; // Version string → Array of kinds
+  kinds: SupportedKind[];
   extensions: string[];
   signers: Record<string, string[]>; // CAIP family pattern → Signer addresses
 };
