@@ -114,9 +114,11 @@ func TestFacilitatorRegister(t *testing.T) {
 
 	// Verify using GetSupported (no params needed - uses registered networks)
 	supported := facilitator.GetSupported()
-	v2Kinds, hasV2 := supported.Kinds["2"]
-	if !hasV2 {
-		t.Fatal("Expected V2 kinds to be present")
+	v2Kinds := []SupportedKind{}
+	for _, kind := range supported.Kinds {
+		if kind.X402Version == 2 {
+			v2Kinds = append(v2Kinds, kind)
+		}
 	}
 	if len(v2Kinds) != 1 {
 		t.Fatalf("Expected 1 V2 kind, got %d", len(v2Kinds))
@@ -128,9 +130,11 @@ func TestFacilitatorRegister(t *testing.T) {
 	// Test V1 registration
 	facilitator.RegisterV1([]Network{"eip155:1"}, mockFacilitatorV1)
 	supported = facilitator.GetSupported()
-	v1Kinds, hasV1 := supported.Kinds["1"]
-	if !hasV1 {
-		t.Fatal("Expected V1 kinds to be present")
+	v1Kinds := []SupportedKind{}
+	for _, kind := range supported.Kinds {
+		if kind.X402Version == 1 {
+			v1Kinds = append(v1Kinds, kind)
+		}
 	}
 	if len(v1Kinds) != 1 {
 		t.Fatalf("Expected 1 V1 kind, got %d", len(v1Kinds))
@@ -138,10 +142,15 @@ func TestFacilitatorRegister(t *testing.T) {
 
 	// Verify both V1 and V2 kinds are present
 	if len(supported.Kinds) != 2 {
-		t.Fatalf("Expected 2 version groups, got %d", len(supported.Kinds))
+		t.Fatalf("Expected 2 total kinds, got %d", len(supported.Kinds))
 	}
-	v2KindsCheck, hasV2Check := supported.Kinds["2"]
-	if !hasV2Check || len(v2KindsCheck) == 0 {
+	v2Count := 0
+	for _, kind := range supported.Kinds {
+		if kind.X402Version == 2 {
+			v2Count++
+		}
+	}
+	if v2Count == 0 {
 		t.Fatal("Expected V2 kinds to still be present")
 	}
 }
@@ -504,11 +513,7 @@ func TestFacilitatorGetSupported(t *testing.T) {
 
 	supported := facilitator.GetSupported()
 
-	// Count total kinds across all versions
-	totalKinds := 0
-	for _, kinds := range supported.Kinds {
-		totalKinds += len(kinds)
-	}
+	totalKinds := len(supported.Kinds)
 	if totalKinds != 3 {
 		t.Fatalf("Expected 3 supported kinds total, got %d", totalKinds)
 	}
@@ -520,13 +525,13 @@ func TestFacilitatorGetSupported(t *testing.T) {
 		t.Fatal("Expected 'bazaar' extension")
 	}
 
-	// Verify each kind (now grouped by version)
+	// Verify each kind (now flat array with version in each element)
 	foundV2Exact := false
 	foundV2Transfer := false
 	foundV1Exact := false
 
-	if v2Kinds, ok := supported.Kinds["2"]; ok {
-		for _, kind := range v2Kinds {
+	for _, kind := range supported.Kinds {
+		if kind.X402Version == 2 {
 			if kind.Scheme == "exact" && kind.Network == "eip155:1" {
 				foundV2Exact = true
 			}
@@ -534,10 +539,7 @@ func TestFacilitatorGetSupported(t *testing.T) {
 				foundV2Transfer = true
 			}
 		}
-	}
-
-	if v1Kinds, ok := supported.Kinds["1"]; ok {
-		for _, kind := range v1Kinds {
+		if kind.X402Version == 1 {
 			if kind.Scheme == "exact" && kind.Network == "eip155:1" {
 				foundV1Exact = true
 			}

@@ -261,13 +261,12 @@ func (c *FacilitatorClient) Settle(ctx context.Context, payloadBytes []byte, req
 // GetSupported gets supported payment kinds and extensions
 func (c *FacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
 	return x402.SupportedResponse{
-		Kinds: map[string][]x402.SupportedKind{
-			"2": {
-				{
-					Scheme:  "cash",
-					Network: "x402:cash",
-					Extra:   nil,
-				},
+		Kinds: []x402.SupportedKind{
+			{
+				X402Version: 2,
+				Scheme:      "cash",
+				Network:     "x402:cash",
+				Extra:       nil,
 			},
 		},
 		Extensions: []string{},

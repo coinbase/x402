@@ -154,7 +154,6 @@ type SchemeNetworkFacilitator interface {
 // FacilitatorClient interface for facilitators that support V1 and/or V2.
 // Uses bytes at network boundary - SDK internal routing unmarshals and routes to typed mechanisms.
 // Both modern facilitators (supporting V1+V2) and legacy facilitators (V1 only) implement this interface.
-// Legacy facilitators use LegacyHTTPFacilitatorClient adapter to convert V1 responses to V2 format.
 type FacilitatorClient interface {
 	// Verify a payment (detects version from bytes, routes internally)
 	Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error)
@@ -162,6 +161,6 @@ type FacilitatorClient interface {
 	// Settle a payment (detects version from bytes, routes internally)
 	Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error)
 
-	// GetSupported returns supported payment kinds in V2 format (grouped by version, with extensions and signers)
+	// GetSupported returns supported payment kinds in flat array format with x402Version in each element (backward compatible)
 	GetSupported(ctx context.Context) (SupportedResponse, error)
 }
