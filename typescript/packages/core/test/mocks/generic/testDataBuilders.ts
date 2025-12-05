@@ -88,11 +88,8 @@ export function buildSettleResponse(overrides?: Partial<SettleResponse>): Settle
 }
 
 /**
- * Builds a V2 supported response for testing.
- * The new V2 format groups kinds by version string and includes signers.
- *
- * For backward compatibility with tests, this function can also accept the old format
- * in overrides.kinds (array with x402Version) and will convert it to the new format.
+ * Builds a supported response for testing.
+ * Uses flat array format with x402Version in each kind for backward compatibility.
  *
  * Args:
  *   overrides: Partial overrides for the supported response
@@ -100,60 +97,25 @@ export function buildSettleResponse(overrides?: Partial<SettleResponse>): Settle
  * Returns:
  *   A complete SupportedResponse object with test defaults
  */
-export function buildSupportedResponse(
-  overrides?: Partial<SupportedResponse> & {
-    kinds?: any; // Allow old or new format
-  },
-): SupportedResponse {
+export function buildSupportedResponse(overrides?: Partial<SupportedResponse>): SupportedResponse {
   const base: SupportedResponse = {
-    kinds: {
-      "2": [
-        {
-          scheme: "test-scheme",
-          network: "test:network" as Network,
-          extra: {},
-        },
-      ],
-    },
+    kinds: [
+      {
+        x402Version: 2,
+        scheme: "test-scheme",
+        network: "test:network" as Network,
+        extra: {},
+      },
+    ],
     extensions: [],
     signers: {},
   };
 
   // If overrides are provided, merge them
   if (overrides) {
-    // Handle kinds specially - convert old format to new if needed
-    if (overrides.kinds) {
-      if (Array.isArray(overrides.kinds)) {
-        // Old format: convert array to grouped format
-        const kindsByVersion: Record<
-          string,
-          Array<{
-            scheme: string;
-            network: Network;
-            extra?: Record<string, unknown>;
-          }>
-        > = {};
-
-        for (const kind of overrides.kinds) {
-          const versionKey = (kind as any).x402Version?.toString() || "2";
-          if (!kindsByVersion[versionKey]) {
-            kindsByVersion[versionKey] = [];
-          }
-          kindsByVersion[versionKey].push({
-            scheme: kind.scheme,
-            network: kind.network,
-            ...(kind.extra && { extra: kind.extra }),
-          });
-        }
-
-        base.kinds = kindsByVersion;
-      } else {
-        // New format: use as is
-        base.kinds = overrides.kinds;
-      }
+    if (overrides.kinds !== undefined) {
+      base.kinds = overrides.kinds;
     }
-
-    // Merge other fields
     if (overrides.extensions !== undefined) {
       base.extensions = overrides.extensions;
     }
