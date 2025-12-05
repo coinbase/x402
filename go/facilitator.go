@@ -508,18 +508,18 @@ func (f *x402Facilitator) settleV2(ctx context.Context, payload types.PaymentPay
 	return nil, NewSettleError("no_facilitator_for_network", "", network, "", fmt.Errorf("no facilitator for scheme %s on network %s", scheme, network))
 }
 
-// GetSupported returns supported payment kinds in V2 format
+// GetSupported returns supported payment kinds
 // Uses networks registered during Register() calls - no parameters needed.
-// Groups kinds by version and collects signer information by CAIP family
+// Returns flat array format for backward compatibility with V1 clients.
 //
 // Returns:
 //
-//	SupportedResponse with kinds grouped by version, extensions, and signers
+//	SupportedResponse with kinds as array (with version in each element), extensions, and signers
 func (f *x402Facilitator) GetSupported() SupportedResponse {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
-	kindsByVersion := make(map[string][]SupportedKind)
+	kinds := []SupportedKind{}
 	signersByFamily := make(map[string]map[string]bool) // family → set of signers
 
 	// V1 schemes
@@ -529,13 +529,14 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 
 		for network := range data.networks {
 			kind := SupportedKind{
-				Scheme:  scheme,
-				Network: string(network),
+				X402Version: 1,
+				Scheme:      scheme,
+				Network:     string(network),
 			}
 			if extra := facilitator.GetExtra(network); extra != nil {
 				kind.Extra = extra
 			}
-			kindsByVersion["1"] = append(kindsByVersion["1"], kind)
+			kinds = append(kinds, kind)
 
 			// Collect signers by CAIP family for this network
 			family := facilitator.CaipFamily()
@@ -555,13 +556,14 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 
 		for network := range data.networks {
 			kind := SupportedKind{
-				Scheme:  scheme,
-				Network: string(network),
+				X402Version: 2,
+				Scheme:      scheme,
+				Network:     string(network),
 			}
 			if extra := facilitator.GetExtra(network); extra != nil {
 				kind.Extra = extra
 			}
-			kindsByVersion["2"] = append(kindsByVersion["2"], kind)
+			kinds = append(kinds, kind)
 
 			// Collect signers by CAIP family for this network
 			family := facilitator.CaipFamily()
@@ -585,7 +587,7 @@ func (f *x402Facilitator) GetSupported() SupportedResponse {
 	}
 
 	return SupportedResponse{
-		Kinds:      kindsByVersion,
+		Kinds:      kinds,
 		Extensions: f.extensions,
 		Signers:    signers,
 	}

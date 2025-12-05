@@ -38,10 +38,8 @@ func TestDynamicPayTo(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{
 		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: map[string][]x402.SupportedKind{
-					"2": {
-						{Scheme: "exact", Network: "eip155:8453"},
-					},
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
 				},
 				Extensions: []string{},
 				Signers:    make(map[string][]string),
@@ -91,10 +89,8 @@ func TestDynamicPrice(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{
 		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: map[string][]x402.SupportedKind{
-					"2": {
-						{Scheme: "exact", Network: "eip155:8453"},
-					},
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
 				},
 				Extensions: []string{},
 				Signers:    make(map[string][]string),
@@ -207,10 +203,8 @@ func TestDynamicPayToAndPrice(t *testing.T) {
 	mockFacilitator := &mockFacilitatorClient{
 		supported: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: map[string][]x402.SupportedKind{
-					"2": {
-						{Scheme: "exact", Network: "eip155:8453"},
-					},
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:8453"},
 				},
 				Extensions: []string{},
 				Signers:    make(map[string][]string),

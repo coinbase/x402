@@ -71,17 +71,16 @@ func (m *multiFacilitatorClient) Settle(ctx context.Context, payloadBytes []byte
 }
 
 func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.SupportedResponse, error) {
-	kindsByVersion := make(map[string][]x402.SupportedKind)
+	allKinds := []x402.SupportedKind{}
 	extensionMap := make(map[string]bool)
 	signersByFamily := make(map[string]map[string]bool)
 
 	for _, client := range m.clients {
 		supported, err := client.GetSupported(ctx)
 		if err == nil {
-			// Merge kinds by version
-			for version, kinds := range supported.Kinds {
-				kindsByVersion[version] = append(kindsByVersion[version], kinds...)
-			}
+			// Merge kinds (now flat array)
+			allKinds = append(allKinds, supported.Kinds...)
+
 			// Merge extensions
 			for _, ext := range supported.Extensions {
 				extensionMap[ext] = true
@@ -111,7 +110,7 @@ func (m *multiFacilitatorClient) GetSupported(ctx context.Context) (x402.Support
 	}
 
 	return x402.SupportedResponse{
-		Kinds:      kindsByVersion,
+		Kinds:      allKinds,
 		Extensions: extensions,
 		Signers:    signers,
 	}, nil
@@ -290,16 +289,16 @@ func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 
 		// Return supported response
 		response := x402.SupportedResponse{
-			Kinds: map[string][]x402.SupportedKind{
-				"2": {
-					{
-						Scheme:  "exact",
-						Network: "eip155:1",
-					},
-					{
-						Scheme:  "exact",
-						Network: "eip155:8453",
-					},
+			Kinds: []x402.SupportedKind{
+				{
+					X402Version: 2,
+					Scheme:      "exact",
+					Network:     "eip155:1",
+				},
+				{
+					X402Version: 2,
+					Scheme:      "exact",
+					Network:     "eip155:8453",
 				},
 			},
 			Extensions: []string{"bazaar"},
@@ -320,11 +319,7 @@ func TestHTTPFacilitatorClientGetSupported(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	// Count total kinds across all versions
-	totalKinds := 0
-	for _, kinds := range response.Kinds {
-		totalKinds += len(kinds)
-	}
+	totalKinds := len(response.Kinds)
 	if totalKinds != 2 {
 		t.Errorf("Expected 2 kinds, got %d", totalKinds)
 	}
@@ -514,10 +509,8 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: map[string][]x402.SupportedKind{
-					"2": {
-						{Scheme: "exact", Network: "eip155:1"},
-					},
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 				},
 				Extensions: []string{"ext1"},
 				Signers:    make(map[string][]string),
@@ -537,10 +530,8 @@ func TestMultiFacilitatorClient(t *testing.T) {
 		},
 		supportedFunc: func(ctx context.Context) (x402.SupportedResponse, error) {
 			return x402.SupportedResponse{
-				Kinds: map[string][]x402.SupportedKind{
-					"2": {
-						{Scheme: "transfer", Network: "eip155:8453"},
-					},
+				Kinds: []x402.SupportedKind{
+					{X402Version: 2, Scheme: "transfer", Network: "eip155:8453"},
 				},
 				Extensions: []string{"ext2"},
 				Signers:    make(map[string][]string),
@@ -609,11 +600,7 @@ func TestMultiFacilitatorClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	// Count total kinds across all versions
-	totalKinds := 0
-	for _, kinds := range supported.Kinds {
-		totalKinds += len(kinds)
-	}
+	totalKinds := len(supported.Kinds)
 	if totalKinds != 2 {
 		t.Errorf("Expected 2 kinds, got %d", totalKinds)
 	}
