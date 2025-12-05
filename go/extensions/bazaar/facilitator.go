@@ -7,6 +7,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/types"
 	v1 "github.com/coinbase/x402/go/extensions/v1"
+	x402types "github.com/coinbase/x402/go/types"
 	"github.com/xeipuuv/gojsonschema"
 )
 
@@ -91,22 +92,64 @@ type DiscoveredResource struct {
 	DiscoveryInfo *types.DiscoveryInfo
 }
 
+// ExtractDiscoveryInfo extracts discovery information from payment payload and requirements bytes.
+// This is the recommended function for facilitators to use in their hooks.
+//
+// Args:
+//   - payloadBytes: Raw JSON bytes of the payment payload
+//   - requirementsBytes: Raw JSON bytes of the payment requirements
+//   - validate: Whether to validate the discovery info against the schema (default: true)
+//
+// Returns:
+//   - DiscoveredResource with URL, method, version and discovery data, or nil if not found
+//   - Error if extraction or validation fails
+//
+// Example:
+//
+//	discovered, err := bazaar.ExtractDiscoveryInfo(
+//	    ctx.PayloadBytes,
+//	    ctx.RequirementsBytes,
+//	    true, // validate
+//	)
+//	if err != nil {
+//	    log.Printf("Failed to extract discovery info: %v", err)
+//	    return nil
+//	}
+//	if discovered != nil {
+//	    // Catalog the discovered resource
+//	}
 func ExtractDiscoveryInfo(
-	paymentPayload x402.PaymentPayload,
-	paymentRequirements interface{},
+	payloadBytes []byte,
+	requirementsBytes []byte,
 	validate bool,
 ) (*DiscoveredResource, error) {
+	// First detect version to know how to unmarshal
+	var versionCheck struct {
+		X402Version int `json:"x402Version"`
+	}
+	if err := json.Unmarshal(payloadBytes, &versionCheck); err != nil {
+		return nil, fmt.Errorf("failed to parse version: %w", err)
+	}
+
 	var discoveryInfo *types.DiscoveryInfo
 	var resourceURL string
+	version := versionCheck.X402Version
 
-	if paymentPayload.X402Version == 2 {
-		resourceURL = ""
-		if paymentPayload.Resource != nil {
-			resourceURL = paymentPayload.Resource.URL
+	if version == 2 {
+		// V2: Unmarshal full payload to access extensions and resource
+		var payload x402.PaymentPayload
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal v2 payload: %w", err)
 		}
 
-		if paymentPayload.Extensions != nil {
-			if bazaarExt, ok := paymentPayload.Extensions[types.BAZAAR]; ok {
+		// Extract resource URL
+		if payload.Resource != nil {
+			resourceURL = payload.Resource.URL
+		}
+
+		// Extract discovery info from extensions
+		if payload.Extensions != nil {
+			if bazaarExt, ok := payload.Extensions[types.BAZAAR]; ok {
 				extensionJSON, err := json.Marshal(bazaarExt)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
@@ -114,40 +157,44 @@ func ExtractDiscoveryInfo(
 
 				var extension types.DiscoveryExtension
 				if err := json.Unmarshal(extensionJSON, &extension); err != nil {
-					fmt.Printf("Warning: V2 discovery extension extraction failed: %v\n", err)
-				} else {
-					if validate {
-						result := ValidateDiscoveryExtension(extension)
-						if !result.Valid {
-							fmt.Printf("Warning: V2 discovery extension validation failed: %v\n", result.Errors)
-						} else {
-							discoveryInfo = &extension.Info
-						}
-					} else {
-						discoveryInfo = &extension.Info
+					return nil, fmt.Errorf("v2 discovery extension extraction failed: %w", err)
+				}
+
+				if validate {
+					result := ValidateDiscoveryExtension(extension)
+					if !result.Valid {
+						return nil, fmt.Errorf("v2 discovery extension validation failed: %s", result.Errors)
 					}
 				}
+				discoveryInfo = &extension.Info
 			}
 		}
-	} else if paymentPayload.X402Version == 1 {
-		metadata := v1.ExtractResourceMetadataV1(paymentRequirements)
-		if url, ok := metadata["url"]; ok {
-			resourceURL = url
+	} else if version == 1 {
+		// V1: Unmarshal requirements to access outputSchema
+		var requirementsV1 x402types.PaymentRequirementsV1
+		if err := json.Unmarshal(requirementsBytes, &requirementsV1); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal v1 requirements: %w", err)
 		}
 
-		infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequirements)
+		// Extract resource URL from requirements
+		resourceURL = requirementsV1.Resource
+
+		// Extract discovery info from outputSchema
+		infoV1, err := v1.ExtractDiscoveryInfoV1(requirementsV1)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("v1 discovery extraction failed: %w", err)
 		}
 		discoveryInfo = infoV1
 	} else {
-		return nil, nil
+		return nil, fmt.Errorf("unsupported version: %d", version)
 	}
 
+	// No discovery info found (not an error, just not discoverable)
 	if discoveryInfo == nil {
 		return nil, nil
 	}
 
+	// Extract method from discovery info
 	method := "UNKNOWN"
 	switch input := discoveryInfo.Input.(type) {
 	case types.QueryInput:
@@ -156,10 +203,14 @@ func ExtractDiscoveryInfo(
 		method = string(input.Method)
 	}
 
+	if method == "UNKNOWN" {
+		return nil, fmt.Errorf("failed to extract method from discovery info")
+	}
+
 	return &DiscoveredResource{
 		ResourceURL:   resourceURL,
 		Method:        method,
-		X402Version:   paymentPayload.X402Version,
+		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
 	}, nil
 }
