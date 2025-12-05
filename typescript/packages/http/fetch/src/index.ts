@@ -17,17 +17,16 @@ import { type PaymentRequired } from "@x402/core/types";
  *
  * @example
  * ```typescript
- * import { wrapFetchWithPayment } from '@x402/fetch';
- * import { EVMExactScheme } from '@x402/evm';
- * import { SolanaExactScheme } from '@x402/solana';
+ * import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
+ * import { ExactEvmScheme } from '@x402/evm';
+ * import { ExactSvmScheme } from '@x402/svm';
  *
- * const fetchWithPay = wrapFetchWithPayment(fetch, {
- *   schemes: [
- *     { network: 'eip155:8453', client: new EVMExactScheme({ signer: evmWallet }) },
- *     { network: 'solana:mainnet', client: new SolanaExactScheme({ signer: solanaWallet }) },
- *     { network: 'eip155:1', client: new EVMExactScheme({ signer: evmWallet }), x402Version: 1 }
- *   ]
- * });
+ * const client = new x402Client()
+ *   .register('eip155:8453', new ExactEvmScheme(evmSigner))
+ *   .register('solana:mainnet', new ExactSvmScheme(svmSigner))
+ *   .register('eip155:1', new ExactEvmScheme(evmSigner), 1); // v1 protocol
+ *
+ * const fetchWithPay = wrapFetchWithPayment(fetch, client);
  *
  * // Make a request that may require payment
  * const response = await fetchWithPay('https://api.example.com/paid-endpoint');

@@ -1,45 +1,52 @@
 # @x402/extensions
 
-x402 Payment Protocol Extensions
+x402 Payment Protocol Extensions.
 
 ## Installation
 
 ```bash
-npm install @x402/extensions
+pnpm install @x402/extensions
 ```
 
-## Usage
+## Bazaar Discovery Extension
+
+Enables facilitators to catalog and index x402-enabled resources by following server-declared discovery instructions.
+
+### For Resource Servers
+
+Declare endpoint discovery metadata in your payment middleware.
 
 ```typescript
-// Specific extensions imported directly
-import { declareDiscoveryExtension } from '@x402/extensions/bazaar';
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
-// Many extensions imported together
-import { declareDiscoveryExtension /* and any other extensions  */ } from "@x402/extensions";
+// In resource configuration
+const resources = {
+  "GET /weather": {
+    accepts: { scheme: "exact", price: "$0.001", network: "eip155:84532", payTo: address },
+    extensions: {
+      ...declareDiscoveryExtension({
+        input: { city: "San Francisco" },
+        inputSchema: {
+          properties: { city: { type: "string" } },
+          required: ["city"],
+        },
+        output: { example: { city: "San Francisco", weather: "foggy" } },
+      }),
+    },
+  },
+};
 ```
 
-## Development
+### For Facilitators
 
-### Build
+Extract discovery info from incoming payments:
 
-```bash
-npm run build
-```
+```typescript
+import { extractDiscoveryInfo } from "@x402/extensions/bazaar";
 
-### Test
+const discovered = extractDiscoveryInfo(paymentPayload, paymentRequirements);
 
-```bash
-npm run test
-```
-
-### Lint
-
-```bash
-npm run lint
-```
-
-### Format
-
-```bash
-npm run format
+if (discovered) {
+  // { resourceUrl, method, x402Version, discoveryInfo }
+}
 ```
