@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	solana "github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
 )
 
 // ExactSvmPayload represents a SVM (Solana) payment payload
@@ -29,28 +28,29 @@ type ClientSvmSigner interface {
 	SignTransaction(ctx context.Context, tx *solana.Transaction) error
 }
 
-// FacilitatorSvmSigner defines facilitator operations
-// Supports multiple addresses for load balancing, key rotation, and high availability
+// FacilitatorSvmSigner defines facilitator operations for SVM
+// Supports multiple signers for load balancing, key rotation, and high availability
+// All implementation details (RPC clients, key management) are hidden
 type FacilitatorSvmSigner interface {
 	// GetAddresses returns all addresses this facilitator can use as fee payers for a network
 	// Enables dynamic address selection for load balancing and key rotation
 	GetAddresses(ctx context.Context, network string) []solana.PublicKey
 
-	// GetSigner returns the specific signer instance for an address
-	// Used during settlement to sign with the correct key matching the feePayer
-	// Returns error if no signer exists for the address
-	GetSigner(ctx context.Context, address solana.PublicKey, network string) (FacilitatorSvmSigner, error)
+	// SignTransaction signs a transaction with the signer matching feePayer
+	// Transaction is modified in-place to add the facilitator's signature
+	// Returns error if no signer exists for feePayer or signing fails
+	SignTransaction(ctx context.Context, tx *solana.Transaction, feePayer solana.PublicKey, network string) error
 
-	// GetRPC returns an RPC client for the given network
-	GetRPC(ctx context.Context, network string) (*rpc.Client, error)
+	// SimulateTransaction simulates a signed transaction to verify it would succeed
+	// Returns error if simulation fails
+	SimulateTransaction(ctx context.Context, tx *solana.Transaction, network string) error
 
-	// SignTransaction signs a transaction with facilitator's key
-	SignTransaction(ctx context.Context, tx *solana.Transaction, network string) error
-
-	// SendTransaction sends a signed transaction
+	// SendTransaction sends a signed transaction to the network
+	// Returns transaction signature or error if send fails
 	SendTransaction(ctx context.Context, tx *solana.Transaction, network string) (solana.Signature, error)
 
 	// ConfirmTransaction waits for transaction confirmation
+	// Returns error if confirmation fails or times out
 	ConfirmTransaction(ctx context.Context, signature solana.Signature, network string) error
 }
 

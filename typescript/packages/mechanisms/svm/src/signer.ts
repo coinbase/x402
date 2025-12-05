@@ -9,7 +9,8 @@ import type {
   SolanaRpcApiMainnet,
   Address,
 } from "@solana/kit";
-import { createRpcClient } from "./utils";
+import { getBase64EncodedWireTransaction } from "@solana/kit";
+import { createRpcClient, decodeTransactionFromPayload } from "./utils";
 
 /**
  * Client-side signer for creating and signing Solana transactions
@@ -106,14 +107,11 @@ export type FacilitatorRpcCapabilities = {
 };
 
 /**
- * Facilitator-side interface combining signing and RPC operations
- * The facilitator needs to:
- * - Sign transactions as the fee payer
- * - Interact with the blockchain via RPC
- *
- * Supports multiple addresses for load balancing, key rotation, and high availability
+ * Minimal facilitator signer interface for SVM operations.
+ * Supports multiple signers for load balancing and high availability.
+ * All implementation details (RPC clients, key management, signature handling) are hidden.
  */
-export type FacilitatorSvmSigner = FacilitatorSigningCapabilities & {
+export type FacilitatorSvmSigner = {
   /**
    * Get all addresses this facilitator can use as fee payers
    * Enables dynamic address selection for load balancing and key rotation
@@ -123,23 +121,37 @@ export type FacilitatorSvmSigner = FacilitatorSigningCapabilities & {
   getAddresses(): readonly Address[];
 
   /**
-   * Get specific signer for a given address
-   * Used during settlement to sign with the correct key matching the feePayer
+   * Sign a partially-signed transaction with the signer matching feePayer
+   * Transaction is decoded, signed, and re-encoded internally
    *
-   * @param address - The address to get signer for
-   * @returns Signer for the specified address
-   * @throws Error if no signer exists for the address
+   * @param transaction - Base64 encoded partially-signed transaction
+   * @param feePayer - Fee payer address (determines which signer to use)
+   * @param network - CAIP-2 network identifier
+   * @returns Base64 encoded fully-signed transaction
+   * @throws Error if no signer exists for feePayer or signing fails
    */
-  getSigner(address: Address): FacilitatorSigningCapabilities;
+  signTransaction(transaction: string, feePayer: Address, network: string): Promise<string>;
 
   /**
-   * Get RPC client for a specific network
-   * Returns custom RPC if configured, otherwise creates default RPC
+   * Simulate a signed transaction to verify it would succeed
+   * Implementation manages RPC client selection and simulation details
    *
+   * @param transaction - Base64 encoded signed transaction
    * @param network - CAIP-2 network identifier
-   * @returns RPC client for the network
+   * @throws Error if simulation fails
    */
-  getRpcForNetwork(network: string): FacilitatorRpcClient;
+  simulateTransaction(transaction: string, network: string): Promise<void>;
+
+  /**
+   * Send a signed transaction to the network
+   * Implementation manages RPC client selection and sending details
+   *
+   * @param transaction - Base64 encoded signed transaction
+   * @param network - CAIP-2 network identifier
+   * @returns Transaction signature
+   * @throws Error if send fails
+   */
+  sendTransaction(transaction: string, network: string): Promise<string>;
 
   /**
    * Wait for transaction confirmation
@@ -301,38 +313,85 @@ export function toFacilitatorSvmSigner(
     }
   }
 
+  const getRpcForNetwork = (network: string): FacilitatorRpcClient => {
+    // 1. Check for exact network match
+    if (rpcMap[network]) {
+      return rpcMap[network];
+    }
+
+    // 2. Check for wildcard RPC
+    if (rpcMap["*"]) {
+      return rpcMap["*"];
+    }
+
+    // 3. Create default RPC for this network
+    return createRpcClient(network as `${string}:${string}`, defaultRpcUrl);
+  };
+
   return {
-    ...signer,
     getAddresses: () => {
       return [signer.address];
     },
-    getSigner: (address: Address) => {
-      if (address === signer.address) {
-        return signer;
-      }
-      throw new Error(`No signer for address ${address}. Available: ${signer.address}`);
-    },
-    getRpcForNetwork: (network: string) => {
-      // 1. Check for exact network match
-      if (rpcMap[network]) {
-        return rpcMap[network];
+
+    signTransaction: async (transaction: string, feePayer: Address, _: string) => {
+      if (feePayer !== signer.address) {
+        throw new Error(`No signer for feePayer ${feePayer}. Available: ${signer.address}`);
       }
 
-      // 2. Check for wildcard RPC
-      if (rpcMap["*"]) {
-        return rpcMap["*"];
-      }
+      // Decode transaction from base64
+      const tx = decodeTransactionFromPayload({ transaction });
 
-      // 3. Create default RPC for this network
-      return createRpcClient(network as `${string}:${string}`, defaultRpcUrl);
+      // Sign the transaction
+      const signableMessage = {
+        content: tx.messageBytes,
+        signatures: tx.signatures,
+      };
+
+      const [facilitatorSignatureDictionary] = await signer.signMessages([
+        signableMessage as never,
+      ]);
+
+      // Merge signatures and encode
+      const fullySignedTx = {
+        ...tx,
+        signatures: {
+          ...tx.signatures,
+          ...facilitatorSignatureDictionary,
+        },
+      };
+
+      return getBase64EncodedWireTransaction(fullySignedTx);
     },
+
+    simulateTransaction: async (transaction: string, network: string) => {
+      const rpc = getRpcForNetwork(network);
+      const result = await rpc
+        .simulateTransaction(transaction as never, {
+          sigVerify: true,
+          replaceRecentBlockhash: false,
+          commitment: "confirmed",
+          encoding: "base64",
+        })
+        .send();
+
+      if (result.value.err) {
+        throw new Error(`Simulation failed: ${JSON.stringify(result.value.err)}`);
+      }
+    },
+
+    sendTransaction: async (transaction: string, network: string) => {
+      const rpc = getRpcForNetwork(network);
+      return await rpc
+        .sendTransaction(transaction as never, {
+          encoding: "base64",
+        })
+        .send();
+    },
+
     confirmTransaction: async (signature: string, network: string) => {
-      const rpc =
-        rpcMap[network] ||
-        rpcMap["*"] ||
-        createRpcClient(network as `${string}:${string}`, defaultRpcUrl);
+      const rpc = getRpcForNetwork(network);
       const rpcCapabilities = createRpcCapabilitiesFromRpc(rpc);
       await rpcCapabilities.confirmTransaction(signature);
     },
-  } as FacilitatorSvmSigner;
+  };
 }
