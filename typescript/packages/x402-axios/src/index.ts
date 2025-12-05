@@ -99,7 +99,6 @@ export function withPaymentInterceptor(
         (originalConfig as { __is402Retry?: boolean }).__is402Retry = true;
 
         originalConfig.headers["X-PAYMENT"] = paymentHeader;
-        originalConfig.headers["Access-Control-Expose-Headers"] = "X-PAYMENT-RESPONSE";
 
         const secondResponse = await axiosClient.request(originalConfig);
         return secondResponse;

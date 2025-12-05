@@ -200,10 +200,6 @@ def test_adapter_payment_flow(adapter, payment_requirements):
         retry_call = mock_send.call_args_list[1]
         retry_request = retry_call[0][0]
         assert retry_request.headers["X-Payment"] == mock_header
-        assert (
-            retry_request.headers["Access-Control-Expose-Headers"]
-            == "X-Payment-Response"
-        )
 
 
 def test_adapter_payment_error(adapter, payment_requirements):
