@@ -1,4 +1,9 @@
-import { SettleResponse, VerifyResponse, SupportedResponse } from "../types/facilitator";
+import {
+  SettleResponse,
+  VerifyResponse,
+  SupportedResponse,
+  SupportedKind,
+} from "../types/facilitator";
 import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
 import { Price, Network, ResourceServerExtension } from "../types";
@@ -264,40 +269,38 @@ export class x402ResourceServer {
       try {
         const supported = await facilitatorClient.getSupported();
 
-        // Process each supported kind (now grouped by version)
-        for (const [versionStr, kinds] of Object.entries(supported.kinds)) {
-          const x402Version = parseInt(versionStr, 10);
+        // Process each supported kind (now flat array with version in each element)
+        for (const kind of supported.kinds) {
+          const x402Version = kind.x402Version;
 
-          for (const kind of kinds) {
-            // Get or create version map for supported responses
-            if (!this.supportedResponsesMap.has(x402Version)) {
-              this.supportedResponsesMap.set(x402Version, new Map());
-            }
-            const responseVersionMap = this.supportedResponsesMap.get(x402Version)!;
+          // Get or create version map for supported responses
+          if (!this.supportedResponsesMap.has(x402Version)) {
+            this.supportedResponsesMap.set(x402Version, new Map());
+          }
+          const responseVersionMap = this.supportedResponsesMap.get(x402Version)!;
 
-            // Get or create version map for facilitator clients
-            if (!this.facilitatorClientsMap.has(x402Version)) {
-              this.facilitatorClientsMap.set(x402Version, new Map());
-            }
-            const clientVersionMap = this.facilitatorClientsMap.get(x402Version)!;
+          // Get or create version map for facilitator clients
+          if (!this.facilitatorClientsMap.has(x402Version)) {
+            this.facilitatorClientsMap.set(x402Version, new Map());
+          }
+          const clientVersionMap = this.facilitatorClientsMap.get(x402Version)!;
 
-            // Get or create network map for responses
-            if (!responseVersionMap.has(kind.network)) {
-              responseVersionMap.set(kind.network, new Map());
-            }
-            const responseNetworkMap = responseVersionMap.get(kind.network)!;
+          // Get or create network map for responses
+          if (!responseVersionMap.has(kind.network)) {
+            responseVersionMap.set(kind.network, new Map());
+          }
+          const responseNetworkMap = responseVersionMap.get(kind.network)!;
 
-            // Get or create network map for clients
-            if (!clientVersionMap.has(kind.network)) {
-              clientVersionMap.set(kind.network, new Map());
-            }
-            const clientNetworkMap = clientVersionMap.get(kind.network)!;
+          // Get or create network map for clients
+          if (!clientVersionMap.has(kind.network)) {
+            clientVersionMap.set(kind.network, new Map());
+          }
+          const clientNetworkMap = clientVersionMap.get(kind.network)!;
 
-            // Only store if not already present (gives precedence to earlier facilitators)
-            if (!responseNetworkMap.has(kind.scheme)) {
-              responseNetworkMap.set(kind.scheme, supported);
-              clientNetworkMap.set(kind.scheme, facilitatorClient);
-            }
+          // Only store if not already present (gives precedence to earlier facilitators)
+          if (!responseNetworkMap.has(kind.scheme)) {
+            responseNetworkMap.set(kind.scheme, supported);
+            clientNetworkMap.set(kind.scheme, facilitatorClient);
           }
         }
       } catch (error) {
@@ -319,19 +322,18 @@ export class x402ResourceServer {
     x402Version: number,
     network: Network,
     scheme: string,
-  ): { scheme: string; network: Network; extra?: Record<string, unknown> } | undefined {
+  ): SupportedKind | undefined {
     const versionMap = this.supportedResponsesMap.get(x402Version);
     if (!versionMap) return undefined;
 
     const supportedResponse = findByNetworkAndScheme(versionMap, scheme, network);
     if (!supportedResponse) return undefined;
 
-    // Find the specific kind from the response (kinds are now grouped by version)
-    const versionKey = x402Version.toString();
-    const kindsForVersion = supportedResponse.kinds[versionKey];
-    if (!kindsForVersion) return undefined;
-
-    return kindsForVersion.find(kind => kind.network === network && kind.scheme === scheme);
+    // Find the specific kind from the response (kinds are flat array with version in each element)
+    return supportedResponse.kinds.find(
+      kind =>
+        kind.x402Version === x402Version && kind.network === network && kind.scheme === scheme,
+    );
   }
 
   /**
@@ -386,7 +388,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
