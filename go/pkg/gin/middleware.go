@@ -217,6 +217,14 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			return
 		}
 
+		// Don't settle if response failed (4xx/5xx status codes)
+		if writer.statusCode >= 400 {
+			c.Writer = writer.ResponseWriter
+			c.Writer.WriteHeader(writer.statusCode)
+			c.Writer.Write([]byte(writer.body.String()))
+			return
+		}
+
 		// Settle payment
 		settleResponse, err := facilitatorClient.Settle(paymentPayload, paymentRequirements)
 		if err != nil {
@@ -225,6 +233,18 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			c.Writer = writer.ResponseWriter
 			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
 				"error":       err.Error(),
+				"accepts":     []*types.PaymentRequirements{paymentRequirements},
+				"x402Version": x402Version,
+			})
+			return
+		}
+
+		// Check settlement success
+		if !settleResponse.Success {
+			fmt.Println("Settlement failed:", settleResponse.ErrorReason)
+			c.Writer = writer.ResponseWriter
+			c.AbortWithStatusJSON(http.StatusPaymentRequired, gin.H{
+				"error":       settleResponse.ErrorReason,
 				"accepts":     []*types.PaymentRequirements{paymentRequirements},
 				"x402Version": x402Version,
 			})
