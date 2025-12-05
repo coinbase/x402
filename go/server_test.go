@@ -47,7 +47,7 @@ func (m *mockSchemeNetworkServer) EnhancePaymentRequirements(ctx context.Context
 
 // mockServerFacilitatorClient extends mockFacilitatorClient for server tests
 type mockServerFacilitatorClient struct {
-	kinds map[string][]SupportedKind
+	kinds []SupportedKind
 }
 
 func (m *mockServerFacilitatorClient) Verify(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
@@ -84,10 +84,8 @@ func TestNewx402ResourceServer(t *testing.T) {
 
 func TestServerWithOptions(t *testing.T) {
 	mockClient := &mockFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{Scheme: "exact", Network: "eip155:1"},
-			},
+		kinds: []SupportedKind{
+			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
 	}
 	mockServer := &mockSchemeNetworkServer{scheme: "exact"}
@@ -114,16 +112,16 @@ func TestServerWithOptions(t *testing.T) {
 func TestServerInitialize(t *testing.T) {
 	ctx := context.Background()
 	mockClient := &mockServerFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{
-					Scheme:  "exact",
-					Network: "eip155:1",
-				},
-				{
-					Scheme:  "transfer",
-					Network: "eip155:8453",
-				},
+		kinds: []SupportedKind{
+			{
+				X402Version: 2,
+				Scheme:      "exact",
+				Network:     "eip155:1",
+			},
+			{
+				X402Version: 2,
+				Scheme:      "transfer",
+				Network:     "eip155:8453",
 			},
 		},
 	}
@@ -139,11 +137,7 @@ func TestServerInitialize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get supported: %v", err)
 	}
-	// Count total kinds across all versions
-	totalKinds := 0
-	for _, kinds := range supported.Kinds {
-		totalKinds += len(kinds)
-	}
+	totalKinds := len(supported.Kinds)
 	if totalKinds != 2 {
 		t.Fatalf("Expected 2 kinds, got %d", totalKinds)
 	}
@@ -154,28 +148,27 @@ func TestServerInitializeWithMultipleFacilitators(t *testing.T) {
 
 	// First facilitator supports exact on mainnet
 	mockClient1 := &mockServerFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{
-					Scheme:  "exact",
-					Network: "eip155:1",
-				},
+		kinds: []SupportedKind{
+			{
+				X402Version: 2,
+				Scheme:      "exact",
+				Network:     "eip155:1",
 			},
 		},
 	}
 
 	// Second facilitator supports exact on mainnet and Base
 	mockClient2 := &mockServerFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{
-					Scheme:  "exact",
-					Network: "eip155:1", // Same as first
-				},
-				{
-					Scheme:  "exact",
-					Network: "eip155:8453", // New network
-				},
+		kinds: []SupportedKind{
+			{
+				X402Version: 2,
+				Scheme:      "exact",
+				Network:     "eip155:1", // Same as first
+			},
+			{
+				X402Version: 2,
+				Scheme:      "exact",
+				Network:     "eip155:8453", // New network
 			},
 		},
 	}
@@ -339,10 +332,8 @@ func TestServerVerifyPayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{Scheme: "exact", Network: "eip155:1"},
-			},
+		kinds: []SupportedKind{
+			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
 		verify: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*VerifyResponse, error) {
 			return &VerifyResponse{
@@ -386,10 +377,8 @@ func TestServerSettlePayment(t *testing.T) {
 	ctx := context.Background()
 
 	mockClient := &mockFacilitatorClient{
-		kinds: map[string][]SupportedKind{
-			"2": {
-				{Scheme: "exact", Network: "eip155:1"},
-			},
+		kinds: []SupportedKind{
+			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
 		settle: func(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
 			return &SettleResponse{
@@ -571,10 +560,8 @@ func TestSupportedCache(t *testing.T) {
 	}
 
 	response := SupportedResponse{
-		Kinds: map[string][]SupportedKind{
-			"2": {
-				{Scheme: "exact", Network: "eip155:1"},
-			},
+		Kinds: []SupportedKind{
+			{X402Version: 2, Scheme: "exact", Network: "eip155:1"},
 		},
 		Extensions: []string{},
 		Signers:    make(map[string][]string),
