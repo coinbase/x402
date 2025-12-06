@@ -65,6 +65,18 @@ export function paymentProxy(
 ) {
   const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
 
+  // Dynamically register bazaar extension if routes declare it
+  let bazaarPromise: Promise<void> | null = null;
+  if (checkIfBazaarNeeded(routes)) {
+    bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
+      .then(({ bazaarResourceServerExtension }) => {
+        server.registerExtension(bazaarResourceServerExtension);
+      })
+      .catch(err => {
+        console.error("Failed to load bazaar extension:", err);
+      });
+  }
+
   return async (req: NextRequest) => {
     const context = createRequestContext(req);
 
@@ -75,6 +87,12 @@ export function paymentProxy(
 
     // Only initialize when processing a protected route
     await init();
+
+    // Await bazaar extension loading if needed
+    if (bazaarPromise) {
+      await bazaarPromise;
+      bazaarPromise = null;
+    }
 
     // Process payment requirement check
     const result = await httpServer.processHTTPRequest(context, paywallConfig);
@@ -136,22 +154,6 @@ export function paymentProxyFromConfig(
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
-  // Check if any routes declare bazaar extensions
-  const needsBazaar = checkIfBazaarNeeded(routes);
-
-  // Lazy load bazaar extension only if needed
-  if (needsBazaar) {
-    // Dynamic import to avoid bundling bazaar in Edge Runtime when not needed
-    // webpackIgnore tells webpack not to bundle this module
-    import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
-      .then(({ bazaarResourceServerExtension }) => {
-        ResourceServer.registerExtension(bazaarResourceServerExtension);
-      })
-      .catch(err => {
-        console.error("Failed to load bazaar extension:", err);
-      });
-  }
-
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
       ResourceServer.register(network, schemeServer);
@@ -159,6 +161,7 @@ export function paymentProxyFromConfig(
   }
 
   // Use the direct paymentProxy with the configured server
+  // Note: paymentProxy handles dynamic bazaar registration
   return paymentProxy(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
 }
 
@@ -214,15 +217,29 @@ export function withX402<T = unknown>(
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
 ): (request: NextRequest) => Promise<NextResponse<T>> {
-  const { httpServer, init } = createHttpServer(
-    { "*": routeConfig },
-    server,
-    paywall,
-    syncFacilitatorOnStart,
-  );
+  const routes = { "*": routeConfig };
+  const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
+
+  // Dynamically register bazaar extension if route declares it
+  let bazaarPromise: Promise<void> | null = null;
+  if (checkIfBazaarNeeded(routes)) {
+    bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
+      .then(({ bazaarResourceServerExtension }) => {
+        server.registerExtension(bazaarResourceServerExtension);
+      })
+      .catch(err => {
+        console.error("Failed to load bazaar extension:", err);
+      });
+  }
 
   return async (request: NextRequest): Promise<NextResponse<T>> => {
     await init();
+
+    // Await bazaar extension loading if needed
+    if (bazaarPromise) {
+      await bazaarPromise;
+      bazaarPromise = null;
+    }
 
     const context = createRequestContext(request);
 
