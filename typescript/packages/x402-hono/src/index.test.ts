@@ -878,7 +878,72 @@ describe("paymentMiddleware()", () => {
     expect(mockContext.json).toHaveBeenCalledWith(
       {
         x402Version: 1,
-        error: new Error("Invalid payment"),
+        error: "Invalid payment",
+        accepts: [
+          {
+            scheme: "exact",
+            network: "base-sepolia",
+            maxAmountRequired: "1000",
+            resource: "https://api.example.com/resource",
+            description: "Test payment",
+            mimeType: "application/json",
+            payTo: "0x1234567890123456789012345678901234567890",
+            maxTimeoutSeconds: 300,
+            asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            outputSchema,
+            extra: {
+              name: "USDC",
+              version: "2",
+            },
+          },
+        ],
+      },
+      402,
+    );
+  });
+
+  it("should return 402 if payment verification throws an error", async () => {
+    (mockContext.req.header as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
+      if (name === "X-PAYMENT") return encodedValidPayment;
+      return undefined;
+    });
+
+    // Mock findMatchingPaymentRequirements to return a valid requirement
+    vi.mocked(findMatchingPaymentRequirements).mockReturnValue({
+      scheme: "exact",
+      network: "base-sepolia",
+      maxAmountRequired: "1000",
+      resource: "https://api.example.com/resource",
+      description: "Test payment",
+      mimeType: "application/json",
+      payTo: "0x1234567890123456789012345678901234567890",
+      maxTimeoutSeconds: 300,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: {
+        input: {
+          type: "http",
+          method: "GET",
+          queryParams: { type: "string" },
+        },
+        output: { type: "object" },
+      },
+      extra: {
+        name: "USDC",
+        version: "2",
+      },
+    });
+
+    // Mock verify to throw an error
+    (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error("Facilitator connection failed"),
+    );
+
+    await middleware(mockContext, mockNext);
+
+    expect(mockContext.json).toHaveBeenCalledWith(
+      {
+        x402Version: 1,
+        error: "Facilitator connection failed",
         accepts: [
           {
             scheme: "exact",
@@ -1000,7 +1065,7 @@ describe("paymentMiddleware()", () => {
     expect(mockContext.json).toHaveBeenCalledWith(
       {
         x402Version: 1,
-        error: new Error("Settlement failed"),
+        error: "Settlement failed",
         accepts: [
           {
             scheme: "exact",
@@ -1043,6 +1108,287 @@ describe("paymentMiddleware()", () => {
 
     expect(mockSettle).not.toHaveBeenCalled();
     expect(mockContext.res.status).toBe(500);
+  });
+
+  describe("reverse proxy support", () => {
+    it("should use X-Forwarded-Proto and X-Forwarded-Host to construct resource URL", async () => {
+      const configWithoutResource: PaymentMiddlewareConfig = {
+        description: "Test payment",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
+      };
+
+      const testRoutesConfig: RoutesConfig = {
+        "/weather": {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      };
+
+      (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+        verb: "GET",
+        pattern: /^\/weather$/,
+        config: {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      });
+
+      const middlewareProxy = paymentMiddleware(payTo, testRoutesConfig, facilitatorConfig);
+
+      // Create a new mock context with the correct URL
+      const proxyContext = {
+        ...mockContext,
+        req: {
+          ...mockContext.req,
+          url: "http://localhost:3000/weather?foo=bar",
+          header: vi.fn((name: string) => {
+            if (name === "X-Forwarded-Proto") return "https";
+            if (name === "X-Forwarded-Host") return "example.com";
+            if (name === "Accept") return "application/json";
+            return undefined;
+          }),
+        },
+      } as unknown as Context;
+
+      await middlewareProxy(proxyContext, mockNext);
+
+      expect(proxyContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accepts: expect.arrayContaining([
+            expect.objectContaining({
+              resource: "https://example.com/weather?foo=bar",
+            }),
+          ]),
+        }),
+        402,
+      );
+    });
+
+    it("should fall back to c.req.url when X-Forwarded headers are not present", async () => {
+      const configWithoutResource: PaymentMiddlewareConfig = {
+        description: "Test payment",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
+      };
+
+      const testRoutesConfig: RoutesConfig = {
+        "/weather": {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      };
+
+      (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+        verb: "GET",
+        pattern: /^\/weather$/,
+        config: {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      });
+
+      const middlewareNoProxy = paymentMiddleware(payTo, testRoutesConfig, facilitatorConfig);
+
+      // Create a new mock context without forwarded headers
+      const noProxyContext = {
+        ...mockContext,
+        req: {
+          ...mockContext.req,
+          url: "http://localhost:3000/weather?foo=bar",
+          header: vi.fn((name: string) => {
+            if (name === "Accept") return "application/json";
+            return undefined;
+          }),
+        },
+      } as unknown as Context;
+
+      await middlewareNoProxy(noProxyContext, mockNext);
+
+      expect(noProxyContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accepts: expect.arrayContaining([
+            expect.objectContaining({
+              resource: "http://localhost:3000/weather?foo=bar",
+            }),
+          ]),
+        }),
+        402,
+      );
+    });
+
+    it("should prefer custom resource config over X-Forwarded headers", async () => {
+      const configWithCustomResource: PaymentMiddlewareConfig = {
+        description: "Test payment",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
+        resource: "https://custom.example.com/custom-resource",
+      };
+
+      const testRoutesConfig: RoutesConfig = {
+        "/weather": {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithCustomResource,
+        },
+      };
+
+      (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+        verb: "GET",
+        pattern: /^\/weather$/,
+        config: {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithCustomResource,
+        },
+      });
+
+      const middlewareCustom = paymentMiddleware(payTo, testRoutesConfig, facilitatorConfig);
+
+      // Create a new mock context with forwarded headers (should be ignored due to custom resource)
+      const customContext = {
+        ...mockContext,
+        req: {
+          ...mockContext.req,
+          url: "http://localhost:3000/weather",
+          header: vi.fn((name: string) => {
+            if (name === "X-Forwarded-Proto") return "https";
+            if (name === "X-Forwarded-Host") return "example.com";
+            if (name === "Accept") return "application/json";
+            return undefined;
+          }),
+        },
+      } as unknown as Context;
+
+      await middlewareCustom(customContext, mockNext);
+
+      expect(customContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accepts: expect.arrayContaining([
+            expect.objectContaining({
+              resource: "https://custom.example.com/custom-resource",
+            }),
+          ]),
+        }),
+        402,
+      );
+    });
+
+    it("should handle X-Forwarded-Proto alone without X-Forwarded-Host", async () => {
+      const configWithoutResource: PaymentMiddlewareConfig = {
+        description: "Test payment",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
+      };
+
+      const testRoutesConfig: RoutesConfig = {
+        "/weather": {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      };
+
+      (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+        verb: "GET",
+        pattern: /^\/weather$/,
+        config: {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      });
+
+      const middlewarePartial = paymentMiddleware(payTo, testRoutesConfig, facilitatorConfig);
+
+      // Create a new mock context with only X-Forwarded-Proto (missing X-Forwarded-Host)
+      const partialContext = {
+        ...mockContext,
+        req: {
+          ...mockContext.req,
+          url: "http://localhost:3000/weather",
+          header: vi.fn((name: string) => {
+            if (name === "X-Forwarded-Proto") return "https";
+            if (name === "Accept") return "application/json";
+            return undefined;
+          }),
+        },
+      } as unknown as Context;
+
+      await middlewarePartial(partialContext, mockNext);
+
+      // Should fall back to c.req.url since both headers are required
+      expect(partialContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accepts: expect.arrayContaining([
+            expect.objectContaining({
+              resource: "http://localhost:3000/weather",
+            }),
+          ]),
+        }),
+        402,
+      );
+    });
+
+    it("should preserve query parameters when using X-Forwarded headers", async () => {
+      const configWithoutResource: PaymentMiddlewareConfig = {
+        description: "Test payment",
+        mimeType: "application/json",
+        maxTimeoutSeconds: 300,
+      };
+
+      const testRoutesConfig: RoutesConfig = {
+        "/weather": {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      };
+
+      (findMatchingRoute as ReturnType<typeof vi.fn>).mockReturnValue({
+        verb: "GET",
+        pattern: /^\/weather$/,
+        config: {
+          price: "$0.001",
+          network: "base-sepolia",
+          config: configWithoutResource,
+        },
+      });
+
+      const middlewareWithQuery = paymentMiddleware(payTo, testRoutesConfig, facilitatorConfig);
+
+      // Create a new mock context with query parameters
+      const queryContext = {
+        ...mockContext,
+        req: {
+          ...mockContext.req,
+          url: "http://localhost:3000/weather?city=SF&temp=celsius",
+          header: vi.fn((name: string) => {
+            if (name === "X-Forwarded-Proto") return "https";
+            if (name === "X-Forwarded-Host") return "api.production.com";
+            if (name === "Accept") return "application/json";
+            return undefined;
+          }),
+        },
+      } as unknown as Context;
+
+      await middlewareWithQuery(queryContext, mockNext);
+
+      expect(queryContext.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          accepts: expect.arrayContaining([
+            expect.objectContaining({
+              resource: "https://api.production.com/weather?city=SF&temp=celsius",
+            }),
+          ]),
+        }),
+        402,
+      );
+    });
   });
 
   describe("session token integration", () => {
