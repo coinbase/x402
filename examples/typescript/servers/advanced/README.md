@@ -1,185 +1,314 @@
-# Advanced Express Server Examples
+# x402-express Advanced Examples
 
-This directory contains advanced examples demonstrating various x402 features and patterns for TypeScript servers using the Express framework.
+Express.js server demonstrating advanced x402 patterns including dynamic pricing, payment routing, lifecycle hooks and API discoverability.
 
-## Examples
+## Prerequisites
 
-### 1. Bazaar Discovery Extension (`bazaar`)
+- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
+- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
+- Valid EVM for receiving payments
+- URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
-**What it demonstrates:**
+## Setup
 
-- Adding the Bazaar discovery extension to make your API discoverable
-- Providing input/output schemas for machine-readable API documentation
-- Enabling clients and facilitators to discover your API capabilities
-
-**Use case:** When you want your x402-protected API to be discoverable by clients, AI agents, or through facilitator discovery mechanisms.
+1. Copy `.env-local` to `.env`:
 
 ```bash
-npm start bazaar
+cp .env-local .env
 ```
 
-### 2. Dynamic PayTo (`dynamic-pay-to`)
+and fill required environment variables:
 
-**What it demonstrates:**
+- `FACILITATOR_URL` - Facilitator endpoint URL
+- `EVM_ADDRESS` - Ethereum address to receive payments
 
-- Using a function to dynamically resolve the payment recipient address
-- Routing payments based on request context
-- Implementing marketplace-style payment routing
+2. Install and build all packages from the typescript examples root:
+
+```bash
+cd ../../
+pnpm install && pnpm build
+cd servers/advanced
+```
+
+3. Run the server
+
+```bash
+pnpm dev
+```
+
+## Available Examples
+
+Each example demonstrates a specific advanced pattern:
+
+| Example | Command | Description |
+| --- | --- | --- |
+| `bazaar` | `pnpm dev:bazaar` | API discoverability via Bazaar |
+| `hooks` | `pnpm dev:hooks` | Payment lifecycle hooks |
+| `dynamic-price` | `pnpm dev:dynamic-price` | Context-based pricing |
+| `dynamic-pay-to` | `pnpm dev:dynamic-pay-to` | Route payments to different recipients |
+| `custom-money-definition` | `pnpm dev:custom-money-definition` | Accept alternative tokens |
+
+## Testing the Server
+
+You can test the server using one of the example clients:
+
+### Using the Fetch Client
+
+```bash
+cd ../../clients/fetch
+# Ensure .env is setup
+pnpm dev
+```
+
+### Using the Axios Client
+
+```bash
+cd ../../clients/axios
+# Ensure .env is setup
+pnpm dev
+```
+
+## Example: Bazaar Discovery
+
+Adding the discovery extension to make your API discoverable:
+
+```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+        description: "Weather data",
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            input: { city: "San Francisco" },
+            inputSchema: {
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+            output: {
+              example: { city: "San Francisco", weather: "foggy", temperature: 60 },
+            },
+          }),
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
+
+**Use case:** Clients and AI agents can easily discover your service
+
+## Example: Dynamic Pricing
+
+Calculate prices at runtime based on request context:
+
+```typescript
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: context => {
+            const tier = context.adapter.getQueryParam?.("tier") ?? "standard";
+            return tier === "premium" ? "$0.005" : "$0.001";
+          },
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
+
+**Use case:** Implementing tiered pricing, user-based pricing, content-based pricing or any scenario where the price varies based on the request.
+
+## Example: Dynamic PayTo
+
+Route payments to different recipients based on request context:
+
+```typescript
+const addressLookup: Record<string, `0x${string}`> = {
+  US: "0x...",
+  UK: "0x...",
+};
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: context => {
+            const country = context.adapter.getQueryParam?.("country") ?? "US";
+            return addressLookup[country];
+          },
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
 
 **Use case:** Marketplace applications where payments should go to different sellers, content creators, or service providers based on the resource being accessed.
 
-```bash
-npm start dynamic-pay-to
+## Example: Lifecycle Hooks
+
+Run custom logic before/after verification and settlement:
+
+```typescript
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register("eip155:84532", new ExactEvmScheme())
+  .onBeforeVerify(async context => {
+    console.log("Before verify hook", context);
+    // Abort verification by returning { abort: true, reason: string }
+  })
+  .onAfterSettle(async context => {
+    await logPaymentToDatabase(context);
+  })
+  .onSettleFailure(async context => {
+    // Return a result with recovered=true to recover from the failure
+    // return { recovered: true, result: { success: true, transaction: "0x123..." } };
+  });
 ```
 
-### 3. Custom Money Definition (`custom-money-definition`)
+Available hooks:
 
-**What it demonstrates:**
+- `onBeforeVerify` — Run before verification (can abort)
+- `onAfterVerify` — Run after successful verification
+- `onVerifyFailure` — Run when verification fails (can recover)
+- `onBeforeSettle` — Run before settlement (can abort)
+- `onAfterSettle` — Run after successful settlement
+- `onSettleFailure` — Run when settlement fails (can recover)
 
-- Registering custom money parsers for alternative tokens
-- Using different tokens based on network or amount
-- Chain of responsibility pattern for price parsing
-
-**Use case:** When you want to accept payments in tokens other than USDC, or use different tokens based on conditions (e.g., DAI for large amounts, custom tokens for specific networks).
-
-```bash
-npm start custom-money-definition
-```
-
-### 4. Dynamic Price (`dynamic-price`)
-
-**What it demonstrates:**
-
-- Using a function to dynamically calculate prices
-- Implementing tiered pricing (premium vs. standard)
-- Context-based pricing decisions
-
-**Use case:** Implementing tiered pricing, user-based pricing, content-based pricing, or any scenario where the price varies based on the request.
-
-```bash
-npm start dynamic-price
-```
-
-### 5. Lifecycle Hooks (`hooks`)
-
-**What it demonstrates:**
-
-- Registering hooks for payment verification and settlement lifecycle
-- Running custom logic before/after verification and settlement
-- Implementing error recovery and custom validation
-- Logging and side effects
-
-**Use case:** When you need to:
+**Use case:**
 
 - Log payment events to a database or monitoring system
 - Perform custom validation before processing payments
 - Implement retry or recovery logic for failed payments
 - Trigger side effects (notifications, database updates) after successful payments
 
-```bash
-npm start hooks
+## Example: Custom Tokens
+
+Accept payments in custom tokens. Register a money parser on the scheme to support alternative tokens for specific networks.
+
+```typescript
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const resourceServer = new x402ResourceServer(facilitatorClient).register(
+  "eip155:84532",
+  new ExactEvmScheme().registerMoneyParser(async (amount, network) => {
+    // Use Wrapped XDAI on Gnosis Chain
+    if (network === "eip155:100") {
+      return {
+        amount: BigInt(Math.round(amount * 1e18)).toString(),
+        asset: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+        extra: { token: "Wrapped XDAI" },
+      };
+    }
+    return null; // Fall through to default parser
+  }),
+);
+
+// Use in payment requirements
+"GET /weather": {
+  accepts: {
+    scheme: "exact",
+    price: "$0.001",
+    network: "eip155:100",
+    payTo: evmAddress,
+  },
+},
 ```
 
-## Prerequisites
+**Use case:** When you want to accept payments in tokens other than USDC, or use different tokens based on conditions (e.g., DAI for large amounts, custom tokens for specific networks).
 
-- Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
-- pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- An Ethereum address to receive payments (testnet recommended)
-- Access to an x402 facilitator (e.g., `https://x402.org/facilitator`)
+## Response Format
 
-## Setup
+### Payment Required (402)
 
-1. Install and build all packages from the typescript examples root:
+```
+HTTP/1.1 402 Payment Required
+Content-Type: application/json; charset=utf-8
+PAYMENT-REQUIRED: <base64-encoded JSON>
 
-```bash
-cd ../../
-pnpm install
-pnpm build
-cd servers/advanced
+{}
 ```
 
-2. Copy `.env-local` to `.env` and configure:
+The `PAYMENT-REQUIRED` header contains base64-encoded JSON with the payment requirements. Note: `amount` is in atomic units (e.g., 1000 = 0.001 USDC, since USDC has 6 decimals).
 
-```bash
-cp .env-local .env
+```json
+{
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+    "url": "http://localhost:4021/weather",
+    "description": "Weather data",
+    "mimeType": "application/json"
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "amount": "1000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "name": "USDC",
+        "version": "2",
+        "resourceUrl": "http://localhost:4021/weather"
+      }
+    }
+  ]
+}
 ```
 
-Edit `.env`:
+### Successful Response
 
-```bash
-EVM_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-SVM_ADDRESS=YourSolanaAddress
-FACILITATOR_URL=https://x402.org/facilitator
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+PAYMENT-RESPONSE: <base64-encoded JSON>
+
+{"report":{"weather":"sunny","temperature":70}}
 ```
 
-## Running the Examples
+The `PAYMENT-RESPONSE` header contains base64-encoded JSON with the settlement details:
 
-**Each example can be run individually:**
-
-```bash
-npm start bazaar
-npm start hooks
-npm start dynamic-price
-npm start dynamic-pay-to
-npm start custom-money-definition
+```json
+{
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:84532",
+  "payer": "0x...",
+  "requirements": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "1000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x...",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+      "name": "USDC",
+      "version": "2",
+      "resourceUrl": "http://localhost:4021/weather"
+    }
+  }
+}
 ```
-
-Or use the convenience scripts:
-
-```bash
-pnpm dev                         # bazaar (default)
-pnpm dev:bazaar                  # bazaar
-pnpm dev:hooks                   # hooks
-pnpm dev:dynamic-price           # dynamic-price
-pnpm dev:dynamic-pay-to          # dynamic-pay-to
-pnpm dev:custom-money-definition # custom-money-definition
-```
-
-## Understanding the Patterns
-
-### Dynamic Configuration
-
-Both `dynamic-pay-to` and `dynamic-price` demonstrate using functions for runtime resolution. Instead of static values, you can provide functions that calculate the recipient address or price based on the request context.
-
-### Custom Money Parsers
-
-The `custom-money-definition` example shows how to register custom token parsers. Parsers are tried in order until one returns a result, allowing you to support multiple tokens.
-
-### Lifecycle Hooks
-
-The `hooks` example demonstrates all six lifecycle hooks:
-
-- `onBeforeVerify`: Run before verification (can abort)
-- `onAfterVerify`: Run after successful verification
-- `onVerifyFailure`: Run when verification fails (can recover)
-- `onBeforeSettle`: Run before settlement (can abort)
-- `onAfterSettle`: Run after successful settlement
-- `onSettleFailure`: Run when settlement fails (can recover)
-
-See `hooks.ts` for complete hook implementations.
-
-## Testing the Servers
-
-Use one of the example clients to test these servers:
-
-```bash
-# Start the server in one terminal
-cd servers/advanced
-pnpm dev:hooks
-
-# In another terminal, run a client
-cd ../../clients/fetch
-pnpm dev
-```
-
-## Next Steps
-
-- **[Basic Express Example](../express/)**: Start with the basics if you haven't already
-- **[Custom Server Example](../custom/)**: Learn how to implement x402 without middleware
-- **[Client Examples](../../clients/)**: Build clients that can interact with these servers
-
-## Related Resources
-
-- [x402 Express Package Documentation](../../../../typescript/packages/x402-express/)
-- [x402 Core Package Documentation](../../../../typescript/packages/core/)
-- [Go Server Examples](../../../go/servers/) - Similar patterns in Go

@@ -1,5 +1,5 @@
 {
-  "name": "@x402/axios-client-example",
+  "name": "@x402/fetch-client-example",
   "private": true,
   "type": "module",
   "scripts": {
