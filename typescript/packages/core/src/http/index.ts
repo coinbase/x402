@@ -94,6 +94,8 @@ export {
   CompiledRoute,
   DynamicPayTo,
   DynamicPrice,
+  UnpaidResponseBody,
+  UnpaidResponseResult,
   ProcessSettleResultResponse,
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
