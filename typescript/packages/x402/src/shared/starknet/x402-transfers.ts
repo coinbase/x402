@@ -134,73 +134,57 @@ export interface SessionKey {
 }
 
 /**
- * Nonce registry for replay protection
+ * Gets the next available nonce for an account from blockchain
+ * ✅ STATELESS: Uses blockchain nonce directly, no server-side state
+ *
+ * @param client - The Starknet client
+ * @param account - Account address
+ * @returns Next available nonce as string
  */
-export class NonceRegistry {
-  private usedNonces: Map<string, Set<string>> = new Map();
-  private nonceExpirations: Map<string, number> = new Map();
+export async function getNextNonce(
+  client: StarknetConnectedClient,
+  account: string,
+): Promise<string> {
+  // ✅ STATELESS: Get nonce directly from blockchain
+  const currentNonce = await client.provider.getNonceForAddress(account);
+  return String(BigInt(currentNonce) + 1n);
+}
 
-  /**
-   * Checks if a nonce has been used and marks it as used
-   *
-   * @param account - The account address
-   * @param nonce - The nonce to check
-   * @returns True if nonce is valid and unused, false if already used
-   */
-  async checkAndMarkUsed(account: string, nonce: string): Promise<boolean> {
-    const accountNonces = this.usedNonces.get(account) || new Set();
-
-    if (accountNonces.has(nonce)) {
-      return false; // Nonce already used
-    }
-
-    // Mark as used
-    accountNonces.add(nonce);
-    this.usedNonces.set(account, accountNonces);
-
-    // Set expiration (24 hours from now)
-    const expirationTime = Date.now() + 24 * 60 * 60 * 1000;
-    this.nonceExpirations.set(`${account}:${nonce}`, expirationTime);
-
-    // Clean up expired nonces periodically
-    this.cleanupExpiredNonces();
-
-    return true;
-  }
-
-  /**
-   * Gets the next available nonce for an account
-   *
-   * @param _ - Account address (reserved for future use)
-   * @returns Next available nonce as string
-   */
-  async getNextNonce(_: string): Promise<string> {
-    // Generate a unique nonce using timestamp and random value
-    return `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-  }
-
-  /**
-   * Cleans up expired nonces to prevent memory bloat
-   */
-  private cleanupExpiredNonces(): void {
-    const now = Date.now();
-
-    for (const [key, expiration] of this.nonceExpirations.entries()) {
-      if (expiration < now) {
-        const [account, nonce] = key.split(":");
-        const accountNonces = this.usedNonces.get(account);
-
-        if (accountNonces) {
-          accountNonces.delete(nonce);
-          if (accountNonces.size === 0) {
-            this.usedNonces.delete(account);
-          }
-        }
-
-        this.nonceExpirations.delete(key);
-      }
+/**
+ * Generates a 32-byte random nonce for x402/EIP-3009 compatibility
+ * ✅ STATELESS: Cryptographically random, blockchain will prevent reuse
+ * ✅ x402 SPEC COMPLIANT: 32-byte nonce as required by specification
+ *
+ * @returns 32-byte hex nonce (with 0x prefix)
+ */
+export function generateX402Nonce(): string {
+  // Generate 32 bytes (256 bits) of random data for x402/EIP-3009 compatibility
+  const bytes = new Uint8Array(32);
+  if (typeof window !== "undefined" && window.crypto) {
+    // Browser environment
+    window.crypto.getRandomValues(bytes);
+  } else if (typeof globalThis !== "undefined" && globalThis.crypto) {
+    // Node.js with Web Crypto API
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    // Fallback: use Math.random (less secure but works everywhere)
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
     }
   }
+
+  // Convert to hex string with 0x prefix
+  return "0x" + Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Alternative nonce generation using current timestamp + random
+ * For compatibility with existing systems that expect readable nonces
+ *
+ * @returns Human-readable timestamp-based nonce
+ */
+export function generateTimestampNonce(): string {
+  return `${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
 }
 
 /**
@@ -299,181 +283,142 @@ export async function executeTransferWithAuthorization(
 }
 
 /**
- * Session key manager for delegated signing
+ * Creates a session key authorization signature (stateless)
+ * ✅ STATELESS: No server-side storage, returns signed authorization
+ *
+ * @param masterSigner - The master account signer
+ * @param sessionKeyConfig - Session key configuration
+ * @returns Session key with master signature (no server storage)
  */
-export class SessionKeyManager {
-  private sessionKeys: Map<string, SessionKey> = new Map();
+export async function createSessionKeyAuthorization(
+  masterSigner: StarknetSigner,
+  sessionKeyConfig: Omit<SessionKey, "masterSignature">,
+): Promise<SessionKey> {
+  // Create the session key authorization message
+  const sessionKeyAuth: TypedData = {
+    domain: {
+      name: "x402-session-key",
+      version: "1",
+      chainId: masterSigner.network === "starknet" ? "0x534e5f4d41494e" : "0x534e5f5345504f4c4941",
+      revision: "1",
+    },
+    message: {
+      publicKey: sessionKeyConfig.publicKey,
+      expiresAt: sessionKeyConfig.expiresAt.toString(),
+      maxAmount: sessionKeyConfig.maxAmount,
+      allowedRecipients: sessionKeyConfig.allowedRecipients.join(","),
+      allowedTokens: sessionKeyConfig.allowedTokens.join(","),
+    },
+    primaryType: "SessionKey",
+    types: {
+      SessionKey: [
+        { name: "publicKey", type: "felt" },
+        { name: "expiresAt", type: "felt" },
+        { name: "maxAmount", type: "u256" },
+        { name: "allowedRecipients", type: "string" },
+        { name: "allowedTokens", type: "string" },
+      ],
+      StarknetDomain: [
+        { name: "name", type: "felt" },
+        { name: "version", type: "felt" },
+        { name: "chainId", type: "felt" },
+        { name: "revision", type: "felt" },
+      ],
+    },
+  };
 
-  /**
-   * Creates a new session key
-   *
-   * @param masterSigner - The master account signer
-   * @param sessionKeyConfig - Session key configuration without signature
-   * @returns Created session key with master signature
-   */
-  async createSessionKey(
-    masterSigner: StarknetSigner,
-    sessionKeyConfig: Omit<SessionKey, "masterSignature">,
-  ): Promise<SessionKey> {
-    // Create the session key authorization message
-    const sessionKeyAuth: TypedData = {
-      domain: {
-        name: "x402-session-key",
-        version: "1",
-        chainId:
-          masterSigner.network === "starknet" ? "0x534e5f4d41494e" : "0x534e5f5345504f4c4941",
-        revision: "1",
-      },
-      message: {
-        publicKey: sessionKeyConfig.publicKey,
-        expiresAt: sessionKeyConfig.expiresAt.toString(),
-        maxAmount: sessionKeyConfig.maxAmount,
-        allowedRecipients: sessionKeyConfig.allowedRecipients.join(","),
-        allowedTokens: sessionKeyConfig.allowedTokens.join(","),
-      },
-      primaryType: "SessionKey",
-      types: {
-        SessionKey: [
-          { name: "publicKey", type: "felt" },
-          { name: "expiresAt", type: "felt" },
-          { name: "maxAmount", type: "u256" },
-          { name: "allowedRecipients", type: "string" },
-          { name: "allowedTokens", type: "string" },
-        ],
-        StarknetDomain: [
-          { name: "name", type: "felt" },
-          { name: "version", type: "felt" },
-          { name: "chainId", type: "felt" },
-          { name: "revision", type: "felt" },
-        ],
-      },
-    };
+  // Sign with master account
+  const masterSignature = await masterSigner.account.signMessage(sessionKeyAuth);
 
-    // Sign with master account
-    const masterSignature = await masterSigner.account.signMessage(sessionKeyAuth);
-
-    const sessionKey: SessionKey = {
-      ...sessionKeyConfig,
-      masterSignature,
-    };
-
-    // Store the session key
-    this.sessionKeys.set(sessionKeyConfig.publicKey, sessionKey);
-
-    return sessionKey;
-  }
-
-  /**
-   * Validates a session key for a specific transfer
-   *
-   * @param sessionKeyPublicKey - The public key of the session key to validate
-   * @param authorization - The transfer authorization to validate against
-   * @returns True if the session key is valid for this transfer
-   */
-  async validateSessionKey(
-    sessionKeyPublicKey: string,
-    authorization: StarknetTransferAuthorization,
-  ): Promise<boolean> {
-    const sessionKey = this.sessionKeys.get(sessionKeyPublicKey);
-
-    if (!sessionKey) {
-      return false;
-    }
-
-    // Check expiration
-    if (Date.now() > sessionKey.expiresAt) {
-      return false;
-    }
-
-    // Check amount limit
-    if (BigInt(authorization.amount) > BigInt(sessionKey.maxAmount)) {
-      return false;
-    }
-
-    // Check allowed recipients
-    if (
-      sessionKey.allowedRecipients.length > 0 &&
-      !sessionKey.allowedRecipients.includes(authorization.to)
-    ) {
-      return false;
-    }
-
-    // Check allowed tokens
-    if (
-      sessionKey.allowedTokens.length > 0 &&
-      !sessionKey.allowedTokens.includes(authorization.tokenAddress)
-    ) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * Revokes a session key
-   *
-   * @param publicKey - The public key of the session key to revoke
-   */
-  revokeSessionKey(publicKey: string): void {
-    this.sessionKeys.delete(publicKey);
-  }
+  // ✅ STATELESS: Return session key without storing server-side
+  return {
+    ...sessionKeyConfig,
+    masterSignature,
+  };
 }
 
 /**
- * Starknet Facilitator Service with Production Features
- * This handles the verification and settlement of x402 payments on Starknet
+ * Validates a session key for a transfer (stateless validation)
+ * ✅ STATELESS: Pure validation function, no server state required
+ *
+ * @param sessionKey - The session key to validate
+ * @param authorization - The transfer authorization
+ * @returns True if session key is valid for this transfer
+ */
+export function validateSessionKeyAuthorization(
+  sessionKey: SessionKey,
+  authorization: StarknetTransferAuthorization,
+): boolean {
+  // Check expiration
+  if (Date.now() > sessionKey.expiresAt) {
+    return false;
+  }
+
+  // Check amount limit
+  if (BigInt(authorization.amount) > BigInt(sessionKey.maxAmount)) {
+    return false;
+  }
+
+  // Check allowed recipients
+  if (
+    sessionKey.allowedRecipients.length > 0 &&
+    !sessionKey.allowedRecipients.includes(authorization.to)
+  ) {
+    return false;
+  }
+
+  // Check allowed tokens
+  if (
+    sessionKey.allowedTokens.length > 0 &&
+    !sessionKey.allowedTokens.includes(authorization.tokenAddress)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Stateless Starknet Facilitator Service (x402 Compliant)
+ * ✅ FULLY STATELESS: No server-side state, all replay protection on-chain
  */
 export class StarknetFacilitator {
-  private nonceRegistry: NonceRegistry;
-  private sessionKeyManager: SessionKeyManager;
-  // NOTE: x402 is STATELESS by design - no server-side state management
-  // All replay protection happens at the blockchain level via Starknet account nonces
-
   /**
    * Creates a new StarknetFacilitator instance
+   * ✅ STATELESS: No internal state initialization
    *
    * @param client - The Starknet client instance
    * @param signer - The facilitator's signer
-   * @param config - Configuration options
-   * @param config.maxAmountPerDay - Maximum amount allowed per day
-   * @param config.maxTransactionsPerDay - Maximum transactions allowed per day
-   * @param config.enableRateLimiting - Whether to enable rate limiting
-   * @param config.enableSessionKeys - Whether to enable session key support
    */
   constructor(
     private client: StarknetConnectedClient,
     private signer: StarknetSigner,
-    private config?: {
-      maxAmountPerDay?: string;
-      maxTransactionsPerDay?: number;
-      enableRateLimiting?: boolean;
-      enableSessionKeys?: boolean;
-    },
   ) {
-    this.nonceRegistry = new NonceRegistry();
-    this.sessionKeyManager = new SessionKeyManager();
+    // ✅ STATELESS: No state initialization needed
   }
 
   /**
-   * Creates a session key for delegated payments
+   * Creates a session key authorization (stateless)
+   * ✅ STATELESS: No server storage, returns signed authorization
    *
-   * @param sessionKeyConfig - Session key configuration without signature
-   * @returns Created session key with master signature
+   * @param sessionKeyConfig - Session key configuration
+   * @returns Session key with master signature (not stored)
    */
   async createSessionKey(
     sessionKeyConfig: Omit<SessionKey, "masterSignature">,
   ): Promise<SessionKey> {
-    return await this.sessionKeyManager.createSessionKey(this.signer, sessionKeyConfig);
+    return await createSessionKeyAuthorization(this.signer, sessionKeyConfig);
   }
 
   /**
-   * Gets the next available nonce for an account
+   * Gets the next blockchain nonce for an account
+   * ✅ STATELESS: Queries blockchain directly
    *
    * @param account - Account address
-   * @returns Next available nonce as string
+   * @returns Next blockchain nonce as string
    */
   async getNextNonce(account: string): Promise<string> {
-    return await this.nonceRegistry.getNextNonce(account);
+    return await getNextNonce(this.client, account);
   }
 
   /**
@@ -498,21 +443,25 @@ export class StarknetFacilitator {
         return { valid: false, reason: "Authorization expired" };
       }
 
-      // ✅ STATELESS: Nonce validation happens on-chain via Starknet account contracts
-      // The blockchain will reject transactions with invalid/duplicate nonces
-      // No server-side nonce tracking needed
+      // ✅ x402 SPEC COMPLIANCE: Blockchain-level replay protection
+      // Per x402 spec: "EIP-3009 contracts inherently prevent nonce reuse at the smart contract level"
+      // Starknet account contracts provide equivalent replay protection through built-in nonces
+      // No server-side nonce tracking allowed per x402 stateless design
 
       // Check if this is a session key signature
-      if (payload.sessionKeyPublicKey && this.config?.enableSessionKeys) {
-        // ✅ STATELESS: Session key validation via account contract
-        const sessionValid = await this.sessionKeyManager.validateSessionKey(
-          payload.sessionKeyPublicKey,
+      if (payload.sessionKey) {
+        // ✅ STATELESS: Session key validation without server storage
+        const sessionValid = validateSessionKeyAuthorization(
+          payload.sessionKey,
           payload.authorization,
         );
 
         if (!sessionValid) {
           return { valid: false, reason: "Invalid session key or constraints" };
         }
+
+        // TODO: Implement session key signature verification if needed
+        // Session keys are implementation-specific, not part of core x402 spec
       }
 
       // ✅ STATELESS: Rate limiting should be implemented ON-CHAIN via account contracts
@@ -734,7 +683,7 @@ export function createStarknetPaymentRequirement(
     asset: getUsdcContractAddress(network),
     payTo,
     maxAmountRequired: amount,
-    nonce: nonce || Date.now().toString(),
+    nonce: nonce || generateX402Nonce(), // x402 spec compliant 32-byte nonce
     deadline: deadline || (Math.floor(Date.now() / 1000) + 3600).toString(), // 1 hour default
     metadata: {
       accountAbstraction: true,

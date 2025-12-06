@@ -278,7 +278,7 @@ export class StarknetPaymentProvider {
    */
   async getNextNonce(account: string): Promise<string> {
     const nonce = await getAccountNonce(this.client, account);
-    return String(nonce + 1n);
+    return String(BigInt(nonce) + 1n);
   }
 
   /**
