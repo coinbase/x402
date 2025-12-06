@@ -42,26 +42,43 @@ The v2 extension follows a pattern where:
 
 	import "github.com/coinbase/x402/go/extensions/bazaar"
 
+	// Extract from client's PaymentPayload (facilitator hook context)
 	// V2: Extensions are in PaymentPayload.Extensions (client copied from PaymentRequired)
 	// V1: Discovery info is in PaymentRequirements.OutputSchema
-	info, err := bazaar.ExtractDiscoveryInfo(
-		paymentPayload,
-		paymentRequirements,
+	discovered, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(
+		payloadBytes,
+		requirementsBytes,
 		true, // validate
 	)
 
-	if info != nil {
-		// Catalog info in Bazaar
+	if discovered != nil {
+		// Catalog discovered resource in Bazaar
+	}
+
+# For Clients (Processing 402 Responses)
+
+	import "github.com/coinbase/x402/go/extensions/bazaar"
+
+	// Extract from server's 402 PaymentRequired response
+	// V2: Checks PaymentRequired.Extensions, falls back to Accepts[0]
+	// V1: Checks Accepts[0].OutputSchema
+	discovered, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(
+		paymentRequiredBytes,
+		true, // validate
+	)
+
+	if discovered != nil {
+		// Use discovered resource to build UI or automate calls
 	}
 
 # V1 Support
 
 V1 discovery information is stored in the `outputSchema` field of PaymentRequirements.
-The `ExtractDiscoveryInfo` function automatically handles v1 format as a fallback.
+Both extraction functions automatically handle v1 format.
 
 	import v1 "github.com/coinbase/x402/go/extensions/bazaar/v1"
 
-	// Direct v1 extraction
+	// Direct v1 extraction (for advanced use cases)
 	infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequirementsV1)
 */
 package bazaar

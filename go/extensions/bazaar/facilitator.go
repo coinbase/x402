@@ -92,33 +92,37 @@ type DiscoveredResource struct {
 	DiscoveryInfo *types.DiscoveryInfo
 }
 
-// ExtractDiscoveryInfo extracts discovery information from payment payload and requirements bytes.
-// This is the recommended function for facilitators to use in their hooks.
+// ExtractDiscoveredResourceFromPaymentPayload extracts a discovered resource from a client's payment payload and requirements.
+// This is useful for facilitators processing payments in their hooks.
 //
 // Args:
-//   - payloadBytes: Raw JSON bytes of the payment payload
-//   - requirementsBytes: Raw JSON bytes of the payment requirements
+//   - payloadBytes: Raw JSON bytes of the payment payload (client's payment)
+//   - requirementsBytes: Raw JSON bytes of the payment requirements (what the client accepted)
 //   - validate: Whether to validate the discovery info against the schema (default: true)
 //
 // Returns:
 //   - DiscoveredResource with URL, method, version and discovery data, or nil if not found
 //   - Error if extraction or validation fails
 //
+// Logic:
+//   - V2: Reads PaymentPayload.extensions[bazaar] and PaymentPayload.resource
+//   - V1: Reads PaymentRequirements.outputSchema and PaymentRequirements.resource
+//
 // Example:
 //
-//	discovered, err := bazaar.ExtractDiscoveryInfo(
+//	discovered, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(
 //	    ctx.PayloadBytes,
 //	    ctx.RequirementsBytes,
 //	    true, // validate
 //	)
 //	if err != nil {
-//	    log.Printf("Failed to extract discovery info: %v", err)
+//	    log.Printf("Failed to extract discovered resource: %v", err)
 //	    return nil
 //	}
 //	if discovered != nil {
 //	    // Catalog the discovered resource
 //	}
-func ExtractDiscoveryInfo(
+func ExtractDiscoveredResourceFromPaymentPayload(
 	payloadBytes []byte,
 	requirementsBytes []byte,
 	validate bool,
@@ -181,6 +185,147 @@ func ExtractDiscoveryInfo(
 
 		// Extract discovery info from outputSchema
 		infoV1, err := v1.ExtractDiscoveryInfoV1(requirementsV1)
+		if err != nil {
+			return nil, fmt.Errorf("v1 discovery extraction failed: %w", err)
+		}
+		discoveryInfo = infoV1
+	} else {
+		return nil, fmt.Errorf("unsupported version: %d", version)
+	}
+
+	// No discovery info found (not an error, just not discoverable)
+	if discoveryInfo == nil {
+		return nil, nil
+	}
+
+	// Extract method from discovery info
+	method := "UNKNOWN"
+	switch input := discoveryInfo.Input.(type) {
+	case types.QueryInput:
+		method = string(input.Method)
+	case types.BodyInput:
+		method = string(input.Method)
+	}
+
+	if method == "UNKNOWN" {
+		return nil, fmt.Errorf("failed to extract method from discovery info")
+	}
+
+	return &DiscoveredResource{
+		ResourceURL:   resourceURL,
+		Method:        method,
+		X402Version:   version,
+		DiscoveryInfo: discoveryInfo,
+	}, nil
+}
+
+// ExtractDiscoveredResourceFromPaymentRequired extracts a discovered resource from a 402 PaymentRequired response.
+// This is useful for clients/facilitators that receive a 402 response and want to discover resource capabilities.
+//
+// Args:
+//   - paymentRequiredBytes: Raw JSON bytes of the 402 PaymentRequired response
+//   - validate: Whether to validate the discovery info against the schema (default: true)
+//
+// Returns:
+//   - DiscoveredResource with URL, method, version and discovery data, or nil if not found
+//   - Error if extraction or validation fails
+//
+// Logic:
+//   - V2: First checks PaymentRequired.extensions[bazaar]
+//     If not found, falls back to PaymentRequired.accepts[0] extensions
+//     Resource URL from PaymentRequired.resource
+//   - V1: Checks PaymentRequired.accepts[0].outputSchema
+//     Resource URL from PaymentRequired.accepts[0].resource
+//
+// Example:
+//
+//	// When receiving a 402 response
+//	discovered, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(
+//	    paymentRequiredBytes,
+//	    true, // validate
+//	)
+//	if err != nil {
+//	    log.Printf("Failed to extract discovered resource: %v", err)
+//	    return nil
+//	}
+//	if discovered != nil {
+//	    // Show UI for calling the discovered endpoint
+//	}
+func ExtractDiscoveredResourceFromPaymentRequired(
+	paymentRequiredBytes []byte,
+	validate bool,
+) (*DiscoveredResource, error) {
+	// First detect version to know how to unmarshal
+	var versionCheck struct {
+		X402Version int `json:"x402Version"`
+	}
+	if err := json.Unmarshal(paymentRequiredBytes, &versionCheck); err != nil {
+		return nil, fmt.Errorf("failed to parse version: %w", err)
+	}
+
+	var discoveryInfo *types.DiscoveryInfo
+	var resourceURL string
+	version := versionCheck.X402Version
+
+	if version == 2 {
+		// V2: Unmarshal full PaymentRequired to access extensions and accepts
+		var paymentRequired x402types.PaymentRequired
+		if err := json.Unmarshal(paymentRequiredBytes, &paymentRequired); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal v2 payment required: %w", err)
+		}
+
+		// Extract resource URL
+		if paymentRequired.Resource != nil {
+			resourceURL = paymentRequired.Resource.URL
+		}
+
+		// First check PaymentRequired.extensions for bazaar extension
+		if paymentRequired.Extensions != nil {
+			if bazaarExt, ok := paymentRequired.Extensions[types.BAZAAR]; ok {
+				extensionJSON, err := json.Marshal(bazaarExt)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal bazaar extension: %w", err)
+				}
+
+				var extension types.DiscoveryExtension
+				if err := json.Unmarshal(extensionJSON, &extension); err != nil {
+					return nil, fmt.Errorf("v2 discovery extension extraction failed: %w", err)
+				}
+
+				if validate {
+					result := ValidateDiscoveryExtension(extension)
+					if !result.Valid {
+						return nil, fmt.Errorf("v2 discovery extension validation failed: %s", result.Errors)
+					}
+				}
+				discoveryInfo = &extension.Info
+			}
+		}
+
+		// If no discovery info found in extensions, check accepts[0]
+		// Note: In v2, PaymentRequirements doesn't have extensions field yet, so this fallback
+		// is reserved for future compatibility when accepts[0] might contain extensions
+		if discoveryInfo == nil && len(paymentRequired.Accepts) > 0 {
+			// Future: Check paymentRequired.Accepts[0] for extensions with bazaar
+			// Currently no-op as v2 PaymentRequirements doesn't have extensions field
+		}
+	} else if version == 1 {
+		// V1: Unmarshal PaymentRequiredV1 to access accepts array
+		var paymentRequiredV1 x402types.PaymentRequiredV1
+		if err := json.Unmarshal(paymentRequiredBytes, &paymentRequiredV1); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal v1 payment required: %w", err)
+		}
+
+		// Check if accepts array has elements
+		if len(paymentRequiredV1.Accepts) == 0 {
+			return nil, nil // No accepts, no discovery info
+		}
+
+		// Extract resource URL from first accept
+		resourceURL = paymentRequiredV1.Accepts[0].Resource
+
+		// Extract discovery info from outputSchema
+		infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequiredV1.Accepts[0])
 		if err != nil {
 			return nil, fmt.Errorf("v1 discovery extraction failed: %w", err)
 		}
