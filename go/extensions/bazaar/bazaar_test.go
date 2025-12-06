@@ -322,7 +322,7 @@ func TestExtractDiscoveryInfoFromExtension(t *testing.T) {
 	})
 }
 
-func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
+func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 	t.Run("should extract info from v2 PaymentPayload with extensions", func(t *testing.T) {
 		extension, _ := bazaar.DeclareDiscoveryExtension(
 			bazaar.MethodPOST,
@@ -357,7 +357,7 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		payloadBytes, _ := json.Marshal(paymentPayload)
 		requirementsBytes, _ := json.Marshal(requirements)
 
-		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -403,7 +403,7 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		payloadBytes, _ := json.Marshal(v1Payload)
 		requirementsBytes, _ := json.Marshal(v1Requirements)
 
-		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -431,13 +431,13 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		payloadBytes, _ := json.Marshal(paymentPayload)
 		requirementsBytes, _ := json.Marshal(requirements)
 
-		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		assert.Nil(t, info)
 	})
 
 	t.Run("should return error for invalid json", func(t *testing.T) {
-		info, err := bazaar.ExtractDiscoveryInfo([]byte("invalid"), []byte("{}"), true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload([]byte("invalid"), []byte("{}"), true)
 		require.Error(t, err)
 		assert.Nil(t, info)
 		assert.Contains(t, err.Error(), "failed to parse version")
@@ -449,7 +449,7 @@ func TestExtractDiscoveryInfo_FullFlow(t *testing.T) {
 		}
 		payloadBytes, _ := json.Marshal(payload)
 
-		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, []byte("{}"), true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, []byte("{}"), true)
 		require.Error(t, err)
 		assert.Nil(t, info)
 		assert.Contains(t, err.Error(), "unsupported version")
@@ -882,7 +882,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		requirementsBytes, _ := json.Marshal(v1Requirements)
 
 		// Facilitator extracts v1 info and transforms to v2
-		info, err := bazaar.ExtractDiscoveryInfo(payloadBytes, requirementsBytes, true)
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, info)
 
@@ -938,7 +938,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		v2PayloadBytes, _ := json.Marshal(v2Payload)
 		v2RequirementsBytes, _ := json.Marshal(v2Requirements)
 
-		v2Info, err := bazaar.ExtractDiscoveryInfo(v2PayloadBytes, v2RequirementsBytes, true)
+		v2Info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(v2PayloadBytes, v2RequirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, v2Info)
 
@@ -971,7 +971,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		v1PayloadBytes, _ := json.Marshal(v1Payload)
 		v1RequirementsBytes, _ := json.Marshal(v1Requirements)
 
-		v1Info, err := bazaar.ExtractDiscoveryInfo(v1PayloadBytes, v1RequirementsBytes, true)
+		v1Info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(v1PayloadBytes, v1RequirementsBytes, true)
 		require.NoError(t, err)
 		require.NotNil(t, v1Info)
 
@@ -982,5 +982,277 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 		// Both v1 and v2 return the same DiscoveryInfo structure
 		assert.IsType(t, v2Info.DiscoveryInfo.Input, v1Info.DiscoveryInfo.Input)
+	})
+}
+
+func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
+	t.Run("v2: should extract discovery info from PaymentRequired.extensions", func(t *testing.T) {
+		// Create a v2 discovery extension
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"query": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Create a v2 PaymentRequired with extensions
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL:         "https://api.example.com/data",
+				Description: "Test resource",
+				MimeType:    "application/json",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					Amount:  "1000000",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+
+		assert.Equal(t, "https://api.example.com/data", info.ResourceURL)
+		assert.Equal(t, 2, info.X402Version)
+		assert.Equal(t, "GET", info.Method)
+
+		queryInput, ok := info.DiscoveryInfo.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
+	})
+
+	t.Run("v2: should return nil when no discovery info is present", func(t *testing.T) {
+		// Create a v2 PaymentRequired without extensions
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/data",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		assert.Nil(t, info)
+	})
+
+	t.Run("v2: should extract discovery info with POST body", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"name": "John", "age": 30},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{"type": "string"},
+					"age":  map[string]interface{}{"type": "number"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			&bazaar.OutputConfig{
+				Example: map[string]interface{}{"success": true},
+			},
+		)
+		require.NoError(t, err)
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/users",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+
+		assert.Equal(t, "POST", info.Method)
+		bodyInput, ok := info.DiscoveryInfo.Input.(bazaar.BodyInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.BodyTypeJSON, bodyInput.BodyType)
+	})
+
+	t.Run("v1: should extract discovery info from accepts[0].outputSchema", func(t *testing.T) {
+		// Create a v1 PaymentRequired with outputSchema in accepts[0]
+		v1PaymentRequired := map[string]interface{}{
+			"x402Version": 1,
+			"accepts": []interface{}{
+				map[string]interface{}{
+					"scheme":            "exact",
+					"network":           "eip155:8453",
+					"maxAmountRequired": "1000000",
+					"resource":          "https://api.example.com/data",
+					"payTo":             "0x123",
+					"asset":             "0x456",
+					"maxTimeoutSeconds": 300,
+					"outputSchema": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":         "http",
+							"method":       "GET",
+							"discoverable": true,
+							"queryParams": map[string]interface{}{
+								"query": "test",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+
+		assert.Equal(t, "https://api.example.com/data", info.ResourceURL)
+		assert.Equal(t, 1, info.X402Version)
+		assert.Equal(t, "GET", info.Method)
+
+		queryInput, ok := info.DiscoveryInfo.Input.(bazaar.QueryInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodGET, queryInput.Method)
+	})
+
+	t.Run("v1: should return nil when accepts array is empty", func(t *testing.T) {
+		v1PaymentRequired := map[string]interface{}{
+			"x402Version": 1,
+			"accepts":     []interface{}{},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		assert.Nil(t, info)
+	})
+
+	t.Run("v1: should extract discovery info from POST with bodyFields", func(t *testing.T) {
+		v1PaymentRequired := map[string]interface{}{
+			"x402Version": 1,
+			"accepts": []interface{}{
+				map[string]interface{}{
+					"scheme":            "exact",
+					"network":           "eip155:8453",
+					"maxAmountRequired": "1000000",
+					"resource":          "https://api.example.com/search",
+					"payTo":             "0x123",
+					"asset":             "0x456",
+					"maxTimeoutSeconds": 300,
+					"outputSchema": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":         "http",
+							"method":       "POST",
+							"bodyType":     "json",
+							"discoverable": true,
+							"bodyFields": map[string]interface{}{
+								"query": map[string]interface{}{
+									"type":        "string",
+									"description": "Search query",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+
+		assert.Equal(t, "POST", info.Method)
+		bodyInput, ok := info.DiscoveryInfo.Input.(bazaar.BodyInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.BodyTypeJSON, bodyInput.BodyType)
+	})
+
+	t.Run("should return error for invalid json", func(t *testing.T) {
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired([]byte("invalid"), true)
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "failed to parse version")
+	})
+
+	t.Run("should return error for unsupported version", func(t *testing.T) {
+		paymentRequired := map[string]interface{}{
+			"x402Version": 99,
+			"accepts":     []interface{}{},
+		}
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.Error(t, err)
+		assert.Nil(t, info)
+		assert.Contains(t, err.Error(), "unsupported version")
+	})
+
+	t.Run("v2: should skip validation when validate=false", func(t *testing.T) {
+		// Create a simple extension (may not be fully valid)
+		simpleExtension := map[string]interface{}{
+			"info": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":   "http",
+					"method": "GET",
+				},
+			},
+			"schema": map[string]interface{}{},
+		}
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/data",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": simpleExtension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, false)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "GET", info.Method)
 	})
 }
