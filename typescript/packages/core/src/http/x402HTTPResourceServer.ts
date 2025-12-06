@@ -78,6 +78,29 @@ export type DynamicPayTo = (context: HTTPRequestContext) => string | Promise<str
 export type DynamicPrice = (context: HTTPRequestContext) => Price | Promise<Price>;
 
 /**
+ * Result of the unpaid response callback containing content type and body.
+ */
+export interface UnpaidResponseResult {
+  /**
+   * The content type for the response (e.g., 'application/json', 'text/plain').
+   */
+  contentType: string;
+
+  /**
+   * The response body to include in the 402 response.
+   */
+  body: unknown;
+}
+
+/**
+ * Dynamic function to generate a custom response for unpaid requests.
+ * Receives the HTTP request context and returns the content type and body to include in the 402 response.
+ */
+export type UnpaidResponseBody = (
+  context: HTTPRequestContext,
+) => UnpaidResponseResult | Promise<UnpaidResponseResult>;
+
+/**
  * A single payment option for a route
  * Represents one way a client can pay for access to the resource
  */
@@ -105,6 +128,21 @@ export interface RouteConfig {
   description?: string;
   mimeType?: string;
   customPaywallHtml?: string;
+
+  /**
+   * Optional callback to generate a custom response for unpaid API requests.
+   * This allows servers to return preview data, error messages, or other content
+   * when a request lacks payment.
+   *
+   * For browser requests (Accept: text/html), the paywall HTML takes precedence.
+   * This callback is only used for API clients.
+   *
+   * If not provided, defaults to { contentType: 'application/json', body: {} }.
+   *
+   * @param context - The HTTP request context
+   * @returns An object containing both contentType and body for the 402 response
+   */
+  unpaidResponseBody?: UnpaidResponseBody;
 
   // Extensions
   extensions?: Record<string, unknown>;
@@ -281,6 +319,11 @@ export class x402HTTPResourceServer {
 
     // If no payment provided
     if (!paymentPayload) {
+      // Resolve custom unpaid response body if provided
+      const unpaidBody = routeConfig.unpaidResponseBody
+        ? await routeConfig.unpaidResponseBody(context)
+        : undefined;
+
       return {
         type: "payment-error",
         response: this.createHTTPResponse(
@@ -288,6 +331,7 @@ export class x402HTTPResourceServer {
           this.isWebBrowser(adapter),
           paywallConfig,
           routeConfig.customPaywallHtml,
+          unpaidBody,
         ),
       };
     }
@@ -464,6 +508,7 @@ export class x402HTTPResourceServer {
    * @param isWebBrowser - Whether request is from browser
    * @param paywallConfig - Paywall configuration
    * @param customHtml - Custom HTML template
+   * @param unpaidResponse - Optional custom response (content type and body) for unpaid API requests
    * @returns Response instructions
    */
   private createHTTPResponse(
@@ -471,6 +516,7 @@ export class x402HTTPResourceServer {
     isWebBrowser: boolean,
     paywallConfig?: PaywallConfig,
     customHtml?: string,
+    unpaidResponse?: UnpaidResponseResult,
   ): HTTPResponseInstructions {
     if (isWebBrowser) {
       const html = this.generatePaywallHTML(paymentRequired, paywallConfig, customHtml);
@@ -483,12 +529,18 @@ export class x402HTTPResourceServer {
     }
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
+
+    // Use callback result if provided, otherwise default to JSON with empty object
+    const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
+    const body = unpaidResponse ? unpaidResponse.body : {};
+
     return {
       status: 402,
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": contentType,
         ...response.headers,
       },
+      body,
     };
   }
 

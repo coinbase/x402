@@ -15,6 +15,8 @@ export type {
   CompiledRoute,
   HTTPAdapter,
   RoutesConfig,
+  UnpaidResponseBody,
+  UnpaidResponseResult,
   ProcessSettleResultResponse,
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
