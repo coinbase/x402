@@ -16,8 +16,8 @@
     "@coinbase/x402": "workspace:*",
     "@heroicons/react": "^2.2.0",
     "next": "canary",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "viem": "^2.21.26",
     "x402-next": "workspace:*"
   },
