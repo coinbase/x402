@@ -1,10 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { type KeyPairSigner, generateKeyPairSigner } from "@solana/kit";
+import { type TransactionSigner, generateKeyPairSigner } from "@solana/kit";
 import * as solanaKit from "@solana/kit";
 import * as transactionConfirmation from "@solana/transaction-confirmation";
 import { PaymentPayload, PaymentRequirements, ExactSvmPayload } from "../../../../types/verify";
-import { decodeTransactionFromPayload } from "../../../../shared/svm";
+import {
+  decodeTransactionFromPayload,
+  getTokenPayerFromTransaction,
+  signTransactionWithSigner,
+} from "../../../../shared/svm";
 import { getRpcClient, getRpcSubscriptions } from "../../../../shared/svm/rpc";
 import { verify } from "./verify";
 import * as settleModule from "./settle";
@@ -43,7 +47,8 @@ vi.mock("@solana/transaction-confirmation", async importOriginal => {
 });
 
 describe("SVM Settle", () => {
-  let signer: KeyPairSigner;
+  let signer: TransactionSigner;
+  let payerAddress: string;
   let paymentPayload: PaymentPayload;
   let paymentRequirements: PaymentRequirements;
   let mockRpcClient: any;
@@ -52,6 +57,7 @@ describe("SVM Settle", () => {
 
   beforeAll(async () => {
     signer = await generateKeyPairSigner();
+    payerAddress = (await generateKeyPairSigner()).address;
     const payToAddress = (await generateKeyPairSigner()).address;
     const assetAddress = (await generateKeyPairSigner()).address;
 
@@ -129,6 +135,8 @@ describe("SVM Settle", () => {
         instructions: [],
         version: 0,
       } as any);
+      vi.mocked(getTokenPayerFromTransaction).mockReturnValue(payerAddress);
+      vi.mocked(signTransactionWithSigner).mockResolvedValue(mockSignedTransaction);
       vi.mocked(transactionConfirmation.waitForRecentTransactionConfirmation).mockResolvedValue(
         undefined,
       );
@@ -139,16 +147,13 @@ describe("SVM Settle", () => {
       // Assert
       expect(verify).toHaveBeenCalledWith(signer, paymentPayload, paymentRequirements, undefined);
       expect(decodeTransactionFromPayload).toHaveBeenCalledWith(paymentPayload.payload);
+      expect(signTransactionWithSigner).toHaveBeenCalledWith(signer, mockSignedTransaction);
       expect(transactionConfirmation.waitForRecentTransactionConfirmation).toHaveBeenCalledOnce();
-      expect(solanaKit.signTransaction).toHaveBeenCalledWith(
-        [signer.keyPair],
-        mockSignedTransaction,
-      );
       expect(mockRpcClient.sendTransaction).toHaveBeenCalled();
       expect(result).toEqual({
         success: true,
         errorReason: undefined,
-        payer: signer.address.toString(),
+        payer: payerAddress,
         transaction: "mock_signature_123",
         network: "solana-devnet",
       });
@@ -183,9 +188,11 @@ describe("SVM Settle", () => {
       };
       vi.mocked(verify).mockResolvedValue(mockVerifyResponse);
       vi.mocked(decodeTransactionFromPayload).mockReturnValue(mockSignedTransaction);
+      vi.mocked(getTokenPayerFromTransaction).mockReturnValue(payerAddress);
       vi.mocked(getRpcClient).mockReturnValue(mockRpcClient);
       vi.mocked(getRpcSubscriptions).mockReturnValue(mockRpcSubscriptions);
-      // Mock the \sendAndConfirmSignedTransaction to throw an error
+      vi.mocked(signTransactionWithSigner).mockResolvedValue(mockSignedTransaction);
+      // Mock the sendAndConfirmSignedTransaction to throw an error
       vi.mocked(mockRpcClient.sendTransaction).mockReturnValue({
         send: vi.fn().mockRejectedValue(new Error("Unexpected error")),
       });
@@ -199,6 +206,7 @@ describe("SVM Settle", () => {
         errorReason: "unexpected_settle_error",
         network: "solana-devnet",
         transaction: "mock_signature_123",
+        payer: payerAddress,
       });
     });
   });
