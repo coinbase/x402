@@ -5,36 +5,38 @@ Express middleware integration for the x402 Payment Protocol. This package provi
 ## Installation
 
 ```bash
-npm install @x402/express
+pnpm install @x402/express
 ```
 
 ## Quick Start
 
 ```typescript
 import express from "express";
-import { paymentMiddleware } from "@x402/express";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 
 const app = express();
+
+const facilitatorClient = new HTTPFacilitatorClient({ url: "https://facilitator.x402.org" });
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register("eip155:84532", new ExactEvmScheme());
 
 // Apply the payment middleware with your configuration
 app.use(
   paymentMiddleware(
     {
-      "/protected-route": {
-        price: "$0.10",
-        network: "base-sepolia",
-        config: {
-          description: "Access to premium content",
+      "GET /protected-route": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.10",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
         },
+        description: "Access to premium content",
       },
     },
-    // Optional: custom facilitator client
-    undefined,
-    // Optional: paywall configuration
-    {
-      appName: "Your App",
-      appLogo: "/logo.svg",
-    },
+    resourceServer,
   ),
 );
 
@@ -48,21 +50,25 @@ app.listen(3000);
 
 ## Configuration
 
-The `paymentMiddleware` function accepts three parameters:
+The `paymentMiddleware` function accepts the following parameters:
 
 ```typescript
 paymentMiddleware(
   routes: RoutesConfig,
-  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
-  paywallConfig?: PaywallConfig
+  server: x402ResourceServer,
+  paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
+  syncFacilitatorOnStart?: boolean
 )
 ```
 
 ### Parameters
 
 1. **`routes`** (required): Route configurations for protected endpoints
-2. **`facilitatorClients`** (optional): Custom facilitator client(s) for payment processing
+2. **`server`** (required): Pre-configured x402ResourceServer instance
 3. **`paywallConfig`** (optional): Configuration for the built-in paywall UI
+4. **`paywall`** (optional): Custom paywall provider
+5. **`syncFacilitatorOnStart`** (optional): Whether to sync with facilitator on startup (defaults to true)
 
 See the sections below for detailed configuration options.
 
@@ -88,14 +94,16 @@ class ExpressAdapter implements HTTPAdapter {
 ```typescript
 function paymentMiddleware(
   routes: RoutesConfig,
-  facilitatorClients?: FacilitatorClient | FacilitatorClient[],
+  server: x402ResourceServer,
   paywallConfig?: PaywallConfig,
+  paywall?: PaywallProvider,
+  syncFacilitatorOnStart?: boolean,
 ): (req: Request, res: Response, next: NextFunction) => Promise<void>;
 ```
 
 Creates Express middleware that:
 
-1. Instantiates an x402HTTPResourceServer with the provided configuration
+1. Uses the provided x402ResourceServer for payment processing
 2. Checks if the incoming request matches a protected route
 3. Validates payment headers if required
 4. Returns payment instructions (402 status) if payment is missing or invalid
@@ -108,17 +116,19 @@ Routes are passed as the first parameter to `paymentMiddleware`:
 
 ```typescript
 const routes: RoutesConfig = {
-  "/api/protected": {
-    price: "$0.10",
-    network: "base-sepolia",
-    config: {
-      description: "Premium API access",
+  "GET /api/protected": {
+    accepts: {
+      scheme: "exact",
+      price: "$0.10",
+      network: "eip155:84532",
+      payTo: "0xYourAddress",
       maxTimeoutSeconds: 60,
     },
+    description: "Premium API access",
   },
 };
 
-app.use(paymentMiddleware(routes));
+app.use(paymentMiddleware(routes, resourceServer));
 ```
 
 ### Paywall Configuration
@@ -139,11 +149,10 @@ Then configure it:
 const paywallConfig: PaywallConfig = {
   appName: "Your App Name",
   appLogo: "/path/to/logo.svg",
-  sessionTokenEndpoint: "/api/x402/session-token",
   testnet: true,
 };
 
-app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig));
+app.use(paymentMiddleware(routes, resourceServer, paywallConfig));
 ```
 
 The paywall includes:
@@ -158,15 +167,15 @@ The paywall includes:
 
 Without `@x402/paywall` installed, the middleware returns a basic HTML page with payment instructions. This works but doesn't include wallet connections.
 
-**Option 3: Custom HTML**
+**Option 3: Custom Paywall Provider**
 
-Provide your own HTML template:
+Provide your own paywall provider:
 
 ```typescript
-app.use(paymentMiddleware(routes, undefined, undefined, paywallConfig, customHtml));
+app.use(paymentMiddleware(routes, resourceServer, paywallConfig, customPaywallProvider));
 ```
 
-This uses `@x402/paywall` if installed (full wallet UI), or falls back to basic HTML.
+This allows full customization of the paywall UI.
 
 **For advanced configuration** (builder pattern, network-specific bundles, custom handlers), see the [@x402/paywall README](../paywall/README.md).
 
@@ -176,34 +185,43 @@ This uses `@x402/paywall` if installed (full wallet UI), or falls back to basic 
 
 ```typescript
 app.use(
-  paymentMiddleware({
-    "/api/premium/*": {
-      price: "$1.00",
-      network: "base",
-      config: {
+  paymentMiddleware(
+    {
+      "GET /api/premium/*": {
+        accepts: {
+          scheme: "exact",
+          price: "$1.00",
+          network: "eip155:8453",
+          payTo: "0xYourAddress",
+        },
         description: "Premium API access",
       },
-    },
-    "/api/data": {
-      price: "$0.50",
-      network: "base-sepolia",
-      config: {
+      "GET /api/data": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.50",
+          network: "eip155:84532",
+          payTo: "0xYourAddress",
+          maxTimeoutSeconds: 120,
+        },
         description: "Data endpoint access",
-        maxTimeoutSeconds: 120,
       },
     },
-  }),
+    resourceServer,
+  ),
 );
 ```
 
 ### Custom Facilitator Client
 
-If you need to use a custom facilitator server, pass it as the second parameter:
+If you need to use a custom facilitator server, configure it when creating the x402ResourceServer:
 
 ```typescript
-import { createFacilitatorClient } from "@x402/core";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { x402ResourceServer } from "@x402/express";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
 
-const customFacilitator = createFacilitatorClient({
+const customFacilitator = new HTTPFacilitatorClient({
   url: "https://your-facilitator.com",
   createAuthHeaders: async () => ({
     verify: { Authorization: "Bearer your-token" },
@@ -211,7 +229,10 @@ const customFacilitator = createFacilitatorClient({
   }),
 });
 
-app.use(paymentMiddleware(routes, customFacilitator, paywallConfig));
+const resourceServer = new x402ResourceServer(customFacilitator)
+  .register("eip155:84532", new ExactEvmScheme());
+
+app.use(paymentMiddleware(routes, resourceServer, paywallConfig));
 ```
 
 ## Migration from x402-express
@@ -219,8 +240,8 @@ app.use(paymentMiddleware(routes, customFacilitator, paywallConfig));
 If you're migrating from the legacy `x402-express` package:
 
 1. **Update imports**: Change from `x402-express` to `@x402/express`
-2. **Simplified API**: The new `paymentMiddleware` function handles server instantiation internally
-3. **Parameter order**: Routes are now the first parameter, followed by optional facilitator and paywall config
+2. **New API**: Create an x402ResourceServer and register payment schemes
+3. **Parameter order**: Routes first, then resource server, then optional paywall config
 
 ### Before (x402-express):
 
@@ -240,22 +261,21 @@ app.use(
 ### After (@x402/express):
 
 ```typescript
-import { paymentMiddleware } from "@x402/express";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const facilitator = new HTTPFacilitatorClient({ url: facilitatorUrl });
+const resourceServer = new x402ResourceServer(facilitator)
+  .register("eip155:84532", new ExactEvmScheme());
 
 app.use(
   paymentMiddleware(
-    routes, // First param is now routes (payTo is part of route config)
-    facilitator, // Second param is facilitator client (optional)
-    paywall, // Third param is paywall config (optional)
+    routes, // First param is routes (payTo is part of route config)
+    resourceServer, // Second param is resource server (required)
+    paywallConfig, // Third param is paywall config (optional)
   ),
 );
 ```
 
 Note: The `payTo` address is now specified within each route configuration rather than as a separate parameter.
-
-## Resources
-
-- [x402 Protocol](https://x402.org)
-- [x402 Core Documentation](https://github.com/your-org/x402/tree/main/typescript/packages/core)
-- [CDP Documentation](https://docs.cdp.coinbase.com)
-- [CDP Discord](https://discord.com/invite/cdp)

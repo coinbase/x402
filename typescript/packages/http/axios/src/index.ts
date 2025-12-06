@@ -19,19 +19,18 @@ import type { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from "axio
  * @example
  * ```typescript
  * import axios from 'axios';
- * import { wrapAxiosWithPayment } from '@x402/axios';
- * import { x402Client } from '@x402/core/client';
- * import { registerExactEvmScheme } from '@x402/evm/exact/client';
+ * import { wrapAxiosWithPayment, x402Client } from '@x402/axios';
+ * import { ExactEvmScheme } from '@x402/evm';
  * import { privateKeyToAccount } from 'viem/accounts';
  *
  * const account = privateKeyToAccount('0x...');
- * const client = new x402Client();
- * registerExactEvmScheme(client, { signer: account });
+ * const client = new x402Client()
+ *   .register('eip155:*', new ExactEvmScheme(account));
  *
- * const axiosWithPayment = wrapAxiosWithPayment(axios.create(), client);
+ * const api = wrapAxiosWithPayment(axios.create(), client);
  *
  * // Make a request that may require payment
- * const response = await axiosWithPayment.get('https://api.example.com/paid-endpoint');
+ * const response = await api.get('https://api.example.com/paid-endpoint');
  * ```
  *
  * @throws {Error} If no schemes are provided
@@ -141,18 +140,18 @@ export function wrapAxiosWithPayment(
  * ```typescript
  * import axios from 'axios';
  * import { wrapAxiosWithPaymentFromConfig } from '@x402/axios';
- * import { ExactEvmClient } from '@x402/evm';
+ * import { ExactEvmScheme } from '@x402/evm';
  * import { privateKeyToAccount } from 'viem/accounts';
  *
  * const account = privateKeyToAccount('0x...');
  *
- * const axiosWithPayment = wrapAxiosWithPaymentFromConfig(axios.create(), {
+ * const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
  *   schemes: [
- *     { network: 'eip155:*', client: new ExactEvmClient(account) }
+ *     { network: 'eip155:*', client: new ExactEvmScheme(account) }
  *   ]
  * });
  *
- * const response = await axiosWithPayment.get('https://api.example.com/paid-endpoint');
+ * const response = await api.get('https://api.example.com/paid-endpoint');
  * ```
  */
 export function wrapAxiosWithPaymentFromConfig(
