@@ -7,7 +7,6 @@
 
 import type { StarknetSigner } from "./wallet";
 import type { StarknetConnectedClient } from "./client";
-import { getAccountNonce } from "./client";
 import {
   verifyTransferAuthorization,
   executeTransferWithAuthorization,
@@ -270,16 +269,9 @@ export class StarknetPaymentProvider {
    * Implement session keys in your Starknet account contract instead.
    */
 
-  /**
-   * Get next nonce for an account
-   *
-   * @param account - Account address
-   * @returns Next nonce as string
-   */
-  async getNextNonce(account: string): Promise<string> {
-    const nonce = await getAccountNonce(this.client, account);
-    return String(BigInt(nonce) + 1n);
-  }
+  // ❌ REMOVED: getNextNonce violated x402 stateless design
+  // x402 spec requires random 32-byte nonces, not blockchain nonces
+  // Use generateX402Nonce() for x402-compliant nonces
 
   /**
    * Wait for transaction confirmation

@@ -133,22 +133,7 @@ export interface SessionKey {
   masterSignature?: Signature;
 }
 
-/**
- * Gets the next available nonce for an account from blockchain
- * ✅ STATELESS: Uses blockchain nonce directly, no server-side state
- *
- * @param client - The Starknet client
- * @param account - Account address
- * @returns Next available nonce as string
- */
-export async function getNextNonce(
-  client: StarknetConnectedClient,
-  account: string,
-): Promise<string> {
-  // ✅ STATELESS: Get nonce directly from blockchain
-  const currentNonce = await client.provider.getNonceForAddress(account);
-  return String(BigInt(currentNonce) + 1n);
-}
+// Use generateX402Nonce() instead for x402-compliant random nonces
 
 /**
  * Generates a 32-byte random nonce for x402/EIP-3009 compatibility
@@ -410,16 +395,9 @@ export class StarknetFacilitator {
     return await createSessionKeyAuthorization(this.signer, sessionKeyConfig);
   }
 
-  /**
-   * Gets the next blockchain nonce for an account
-   * ✅ STATELESS: Queries blockchain directly
-   *
-   * @param account - Account address
-   * @returns Next blockchain nonce as string
-   */
-  async getNextNonce(account: string): Promise<string> {
-    return await getNextNonce(this.client, account);
-  }
+  // ❌ REMOVED: getNextNonce violated x402 stateless design
+  // x402 spec requires random 32-byte nonces, not blockchain account nonces
+  // For x402 payments, use generateX402Nonce() to create spec-compliant nonces
 
   /**
    * Verifies a payment payload (equivalent to /verify endpoint)

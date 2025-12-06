@@ -188,21 +188,6 @@ export class X402StarknetFacilitator {
   }
 
   /**
-   * NOTE: Session keys should be managed ON-CHAIN.
-   * This method has been removed to maintain stateless architecture.
-   */
-
-  /**
-   * Gets the next nonce for an account
-   *
-   * @param account - Account address
-   * @returns Next available nonce as string
-   */
-  async getNextNonce(account: string): Promise<string> {
-    return await this.starknetFacilitator.getNextNonce(account);
-  }
-
-  /**
    * Helper method to encode payment payload to base64
    *
    * @param payload - Payment payload object
@@ -415,8 +400,10 @@ export function createStarknetFacilitatorMiddleware(facilitator: X402StarknetFac
       _: unknown,
     ) => {
       try {
-        const { account } = req.params;
-        const nonce = await facilitator.getNextNonce(account);
+        // ❌ x402 spec violation: nonces should be random, not account-based
+        // Generate x402-compliant random nonce instead (account param ignored)
+        const { generateX402Nonce } = await import("./x402-transfers");
+        const nonce = generateX402Nonce();
         res.json({ nonce });
       } catch (error) {
         console.error("Nonce endpoint error:", error);
