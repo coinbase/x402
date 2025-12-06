@@ -72,8 +72,18 @@ Recipients (clients, facilitators) can extract extension data:
 ```go
 import "github.com/coinbase/x402/go/extensions/bazaar"
 
-// Facilitator extracts: "Let me catalog this discovered resource"
-discovered, _ := bazaar.ExtractDiscoveryInfo(paymentPayload, paymentRequirements, true)
+// Facilitator extracts from client payment (in hook context)
+discovered, _ := bazaar.ExtractDiscoveredResourceFromPaymentPayload(
+    payloadBytes, 
+    requirementsBytes, 
+    true,
+)
+
+// Client extracts from 402 response
+discovered, _ := bazaar.ExtractDiscoveredResourceFromPaymentRequired(
+    paymentRequiredBytes,
+    true,
+)
 
 if discovered != nil {
     // Application decides what to do with the data
@@ -118,16 +128,16 @@ Functions to declare extension support:
 Functions to extract and validate extension data:
 
 - **Purpose**: Make it easy for facilitators to parse extension metadata
-- **Example**: `ExtractDiscoveryInfo()` parses discovery data from payment payloads
+- **Example**: `ExtractDiscoveredResourceFromPaymentPayload()` extracts discovered resources from client payment payloads
 - **Validation**: Optional validation against JSON Schema
 
 #### Client Helpers
 
-Clients typically just pass extension data through:
+Functions to extract extension data from server responses:
 
-- Receive extensions in `PaymentRequired` response
-- Copy to `PaymentPayload` when creating payment
-- Let the server/facilitator handle the actual extension logic
+- **Purpose**: Help clients understand server capabilities from 402 responses
+- **Example**: `ExtractDiscoveredResourceFromPaymentRequired()` extracts discovered resources from PaymentRequired responses
+- **Use Case**: Building auto-discovery UI, generating client code, API exploration tools
 
 ## Available Extensions
 
@@ -149,7 +159,8 @@ github.com/coinbase/x402/go/extensions/bazaar
 
 **What it provides:**
 - `DeclareDiscoveryExtension()` - Server helper to declare discovery metadata
-- `ExtractDiscoveryInfo()` - Facilitator helper to parse discovery data
+- `ExtractDiscoveredResourceFromPaymentPayload()` - Facilitator helper to extract discovered resources from client payments
+- `ExtractDiscoveredResourceFromPaymentRequired()` - Client helper to extract discovered resources from 402 responses
 - `ValidateDiscoveryExtension()` - Validation helper
 - JSON Schema types for structure validation
 

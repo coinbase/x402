@@ -50,6 +50,33 @@ type DynamicPayToFunc func(context.Context, HTTPRequestContext) (string, error)
 // DynamicPriceFunc is a function that resolves price dynamically based on request context
 type DynamicPriceFunc func(context.Context, HTTPRequestContext) (x402.Price, error)
 
+// UnpaidResponse represents the custom response for unpaid (402) API requests.
+// This allows servers to return preview data, error messages, or other content
+// when a request lacks payment.
+type UnpaidResponse struct {
+	// ContentType is the content type for the response (e.g., "application/json", "text/plain").
+	ContentType string
+
+	// Body is the response body to include in the 402 response.
+	Body interface{}
+}
+
+// UnpaidResponseBodyFunc generates a custom response for unpaid API requests.
+// It receives the HTTP request context and returns the content type and body for the 402 response.
+//
+// For browser requests (Accept: text/html), the paywall HTML takes precedence.
+// This callback is only used for API clients.
+//
+// Args:
+//
+//	ctx: Context for cancellation
+//	reqCtx: HTTP request context
+//
+// Returns:
+//
+//	UnpaidResponse with ContentType and Body for the 402 response
+type UnpaidResponseBodyFunc func(ctx context.Context, reqCtx HTTPRequestContext) (*UnpaidResponse, error)
+
 // RouteConfig defines payment configuration for an HTTP endpoint
 // PayTo and Price can be static values or functions for dynamic resolution
 type RouteConfig struct {
@@ -70,6 +97,11 @@ type RouteConfig struct {
 	InputSchema       interface{}            `json:"inputSchema,omitempty"`
 	OutputSchema      interface{}            `json:"outputSchema,omitempty"`
 	Extensions        map[string]interface{} `json:"extensions,omitempty"`
+
+	// UnpaidResponseBody is an optional callback to generate a custom response for unpaid API requests.
+	// For browser requests (Accept: text/html), the paywall HTML takes precedence.
+	// If not provided, defaults to { ContentType: "application/json", Body: nil }.
+	UnpaidResponseBody UnpaidResponseBodyFunc `json:"-"`
 }
 
 // ResolvedRouteConfig is a RouteConfig with all dynamic values resolved to static values
@@ -91,6 +123,9 @@ type ResolvedRouteConfig struct {
 	InputSchema       interface{}
 	OutputSchema      interface{}
 	Extensions        map[string]interface{}
+
+	// UnpaidResponseBody callback (passed through from RouteConfig)
+	UnpaidResponseBody UnpaidResponseBodyFunc
 }
 
 // RoutesConfig maps route patterns to configurations
@@ -188,18 +223,19 @@ func Newx402HTTPResourceServer(routes RoutesConfig, opts ...x402.ResourceServerO
 //	Resolved route configuration with static values
 func (s *x402HTTPResourceServer) resolveRouteConfig(ctx context.Context, routeConfig *RouteConfig, reqCtx HTTPRequestContext) (*ResolvedRouteConfig, error) {
 	resolved := &ResolvedRouteConfig{
-		Scheme:            routeConfig.Scheme,
-		Network:           routeConfig.Network,
-		MaxTimeoutSeconds: routeConfig.MaxTimeoutSeconds,
-		Extra:             routeConfig.Extra,
-		Resource:          routeConfig.Resource,
-		Description:       routeConfig.Description,
-		MimeType:          routeConfig.MimeType,
-		CustomPaywallHTML: routeConfig.CustomPaywallHTML,
-		Discoverable:      routeConfig.Discoverable,
-		InputSchema:       routeConfig.InputSchema,
-		OutputSchema:      routeConfig.OutputSchema,
-		Extensions:        routeConfig.Extensions,
+		Scheme:             routeConfig.Scheme,
+		Network:            routeConfig.Network,
+		MaxTimeoutSeconds:  routeConfig.MaxTimeoutSeconds,
+		Extra:              routeConfig.Extra,
+		Resource:           routeConfig.Resource,
+		Description:        routeConfig.Description,
+		MimeType:           routeConfig.MimeType,
+		CustomPaywallHTML:  routeConfig.CustomPaywallHTML,
+		Discoverable:       routeConfig.Discoverable,
+		InputSchema:        routeConfig.InputSchema,
+		OutputSchema:       routeConfig.OutputSchema,
+		Extensions:         routeConfig.Extensions,
+		UnpaidResponseBody: routeConfig.UnpaidResponseBody,
 	}
 
 	// Resolve PayTo (string or DynamicPayToFunc)
@@ -311,6 +347,23 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			extensions,
 		)
 
+		// Call the UnpaidResponseBody callback if provided
+		var unpaidResponse *UnpaidResponse
+		if resolvedConfig.UnpaidResponseBody != nil {
+			unpaidResp, err := resolvedConfig.UnpaidResponseBody(ctx, reqCtx)
+			if err != nil {
+				return HTTPProcessResult{
+					Type: ResultPaymentError,
+					Response: &HTTPResponseInstructions{
+						Status:  500,
+						Headers: map[string]string{"Content-Type": "application/json"},
+						Body:    map[string]string{"error": fmt.Sprintf("Failed to generate unpaid response: %v", err)},
+					},
+				}
+			}
+			unpaidResponse = unpaidResp
+		}
+
 		return HTTPProcessResult{
 			Type: ResultPaymentError,
 			Response: s.createHTTPResponseV2(
@@ -318,6 +371,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 				s.isWebBrowser(reqCtx.Adapter),
 				paywallConfig,
 				resolvedConfig.CustomPaywallHTML,
+				unpaidResponse,
 			),
 		}
 	}
@@ -334,7 +388,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, ""),
+			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
 		}
 	}
 
@@ -353,7 +407,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
-			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, ""),
+			Response: s.createHTTPResponseV2(paymentRequired, false, paywallConfig, "", nil),
 		}
 	}
 
@@ -469,7 +523,15 @@ func (s *x402HTTPResourceServer) isWebBrowser(adapter HTTPAdapter) bool {
 }
 
 // createHTTPResponseV2 creates response instructions for V2 PaymentRequired
-func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
+//
+// Args:
+//
+//	paymentRequired: The payment required response
+//	isWebBrowser: Whether the request is from a web browser
+//	paywallConfig: Optional paywall configuration
+//	customHTML: Optional custom HTML for the paywall
+//	unpaidResponse: Optional custom response for API clients (ignored for browser requests)
+func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string, unpaidResponse *UnpaidResponse) *HTTPResponseInstructions {
 	if isWebBrowser {
 		html := s.generatePaywallHTMLV2(paymentRequired, paywallConfig, customHTML)
 		return &HTTPResponseInstructions{
@@ -482,12 +544,22 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 		}
 	}
 
+	// Use custom unpaid response if provided, otherwise default to JSON with no body
+	contentType := "application/json"
+	var body interface{}
+
+	if unpaidResponse != nil {
+		contentType = unpaidResponse.ContentType
+		body = unpaidResponse.Body
+	}
+
 	return &HTTPResponseInstructions{
 		Status: 402,
 		Headers: map[string]string{
-			"Content-Type":     "application/json",
+			"Content-Type":     contentType,
 			"PAYMENT-REQUIRED": encodePaymentRequiredHeader(paymentRequired),
 		},
+		Body: body,
 	}
 }
 
@@ -500,7 +572,7 @@ func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.Payment
 		Resource:    nil, // TODO: convert
 		Extensions:  paymentRequired.Extensions,
 	}
-	return s.createHTTPResponseV2(v2Required, isWebBrowser, paywallConfig, customHTML)
+	return s.createHTTPResponseV2(v2Required, isWebBrowser, paywallConfig, customHTML, nil)
 }
 
 // createSettlementHeaders creates settlement response headers

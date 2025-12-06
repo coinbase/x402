@@ -720,7 +720,7 @@ func main() {
 				log.Printf("✅ Payment verified: %s", paymentHash)
 
 				// Hook 2: Extract and catalog Bazaar discovery info using bazaar package
-				discovered, err := bazaar.ExtractDiscoveryInfo(
+				discovered, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(
 					ctx.PayloadBytes,
 					ctx.RequirementsBytes,
 					true, // validate
