@@ -9,8 +9,25 @@ import {
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextFunction, Request, Response } from "express";
-import { bazaarResourceServerExtension } from "@x402/extensions/bazaar";
 import { ExpressAdapter } from "./adapter";
+
+/**
+ * Check if any routes in the configuration declare bazaar extensions
+ *
+ * @param routes - Route configuration
+ * @returns True if any route has extensions.bazaar defined
+ */
+function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
+  // Handle single route config
+  if ("accepts" in routes) {
+    return !!(routes.extensions && "bazaar" in routes.extensions);
+  }
+
+  // Handle multiple routes
+  return Object.values(routes).some(routeConfig => {
+    return !!(routeConfig.extensions && "bazaar" in routeConfig.extensions);
+  });
+}
 
 /**
  * Configuration for registering a payment scheme with a specific network
@@ -71,6 +88,18 @@ export function paymentMiddleware(
   // Store initialization promise (not the result)
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? server.initialize() : null;
 
+  // Dynamically register bazaar extension if routes declare it
+  let bazaarPromise: Promise<void> | null = null;
+  if (checkIfBazaarNeeded(routes)) {
+    bazaarPromise = import("@x402/extensions/bazaar")
+      .then(({ bazaarResourceServerExtension }) => {
+        server.registerExtension(bazaarResourceServerExtension);
+      })
+      .catch(err => {
+        console.error("Failed to load bazaar extension:", err);
+      });
+  }
+
   return async (req: Request, res: Response, next: NextFunction) => {
     // Create adapter and context
     const adapter = new ExpressAdapter(req);
@@ -90,6 +119,12 @@ export function paymentMiddleware(
     if (initPromise) {
       await initPromise;
       initPromise = null; // Clear after first await
+    }
+
+    // Await bazaar extension loading if needed
+    if (bazaarPromise) {
+      await bazaarPromise;
+      bazaarPromise = null;
     }
 
     // Process payment requirement check
@@ -287,8 +322,6 @@ export function paymentMiddlewareFromConfig(
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
-  ResourceServer.registerExtension(bazaarResourceServerExtension);
-
   if (schemes) {
     schemes.forEach(({ network, server: schemeServer }) => {
       ResourceServer.register(network, schemeServer);
@@ -296,6 +329,7 @@ export function paymentMiddlewareFromConfig(
   }
 
   // Use the direct paymentMiddleware with the configured server
+  // Note: paymentMiddleware handles dynamic bazaar registration
   return paymentMiddleware(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
 }
 
