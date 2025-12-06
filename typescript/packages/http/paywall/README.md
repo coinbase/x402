@@ -79,22 +79,6 @@ const paywall = createPaywall()
   .build();
 ```
 
-### Option 4: Legacy API (Backwards Compatible)
-
-```typescript
-import { getPaywallHtml } from '@x402/paywall';
-
-const html = getPaywallHtml({
-  amount: 0.10,
-  paymentRequirements: [...],
-  currentUrl: "https://api.example.com/data",
-  testnet: true,
-  appName: "My App"
-});
-
-res.status(402).send(html);
-```
-
 ## Configuration
 
 ### PaywallConfig Options
@@ -103,7 +87,6 @@ res.status(402).send(html);
 interface PaywallConfig {
   appName?: string;              // App name shown in wallet connection
   appLogo?: string;              // App logo URL
-  sessionTokenEndpoint?: string; // Endpoint for onramp session tokens
   currentUrl?: string;           // URL of protected resource
   testnet?: boolean;             // Use testnet (default: true)
 }
@@ -139,12 +122,10 @@ const paywall = createPaywall()
 ### Supported Networks
 
 **EVM Networks** (via `evmPaywall`):
-- v2 CAIP-2: `eip155:*` (e.g., `eip155:8453` for Base)
-- v1 Legacy: `base`, `base-sepolia`, `polygon`, `avalanche`, etc.
+- CAIP-2: `eip155:*` (e.g., `eip155:8453` for Base, `eip155:84532` for Base Sepolia)
 
 **Solana Networks** (via `svmPaywall`):
-- v2 CAIP-2: `solana:*` (e.g., `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`)
-- v1 Legacy: `solana`, `solana-devnet`
+- CAIP-2: `solana:*` (e.g., `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` for mainnet)
 
 ## With HTTP Middleware
 
@@ -220,32 +201,4 @@ pnpm build          # Build TypeScript
 
 ```bash
 pnpm test           # Run unit tests
-```
-
-## Migration from Legacy
-
-### From `x402/paywall` (v1)
-
-**Before:**
-```typescript
-import { getPaywallHtml } from 'x402/paywall';
-const html = getPaywallHtml({...});
-```
-
-**After:**
-```typescript
-import { getPaywallHtml } from '@x402/paywall';
-const html = getPaywallHtml({...});  // Same API!
-```
-
-### Upgrade to Builder Pattern
-
-```typescript
-import { createPaywall } from '@x402/paywall';
-import { evmPaywall } from '@x402/paywall/evm';  // Only EVM
-
-const paywall = createPaywall()
-  .withNetwork(evmPaywall)
-  .withConfig({...})
-  .build();
 ```

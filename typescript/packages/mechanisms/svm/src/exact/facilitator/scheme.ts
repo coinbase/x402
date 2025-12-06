@@ -43,7 +43,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
    * @param signer - The SVM RPC client for facilitator operations
    * @returns ExactSvmFacilitator instance
    */
-  constructor(private readonly signer: FacilitatorSvmSigner) { }
+  constructor(private readonly signer: FacilitatorSvmSigner) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
