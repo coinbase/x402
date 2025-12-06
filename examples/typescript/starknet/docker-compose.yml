@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  facilitator:
+    build:
+      context: ..
+      dockerfile: examples/Dockerfile.facilitator
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - STARKNET_NETWORK=${STARKNET_NETWORK:-starknet-sepolia}
+      - FACILITATOR_PRIVATE_KEY=${FACILITATOR_PRIVATE_KEY}
+      - FACILITATOR_ADDRESS=${FACILITATOR_ADDRESS}
+      - MAX_AMOUNT_PER_DAY=${MAX_AMOUNT_PER_DAY:-1000000000}
+      - MAX_TRANSACTIONS_PER_DAY=${MAX_TRANSACTIONS_PER_DAY:-100}
+      - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
+      - ENABLE_SESSION_KEYS=${ENABLE_SESSION_KEYS:-true}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - x402-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - x402-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Optional: PostgreSQL for persistent state
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=x402_facilitator
+      - POSTGRES_USER=x402user
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - x402-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U x402user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - x402-network
+
+  # Optional: Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-app
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - x402-network
+
+volumes:
+  redis-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  x402-network:
+    driver: bridge

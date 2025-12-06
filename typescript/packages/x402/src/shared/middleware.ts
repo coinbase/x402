@@ -13,7 +13,7 @@ import {
 import { RoutesConfig } from "../types";
 import { safeBase64Decode } from "./base64";
 import { getUsdcChainConfigForChain } from "./evm";
-import { getNetworkId } from "./network";
+import { getNumericNetworkId } from "./network";
 
 /**
  * Computes the route patterns for the given routes config
@@ -122,7 +122,26 @@ export function findMatchingRoute(
  * @returns The default asset
  */
 export function getDefaultAsset(network: Network) {
-  const chainId = getNetworkId(network);
+  // For Starknet networks, return the Starknet USDC configuration
+  if (network === "starknet" || network === "starknet-sepolia") {
+    // Import Starknet USDC config dynamically to avoid circular dependencies
+    const starknetUsdc =
+      network === "starknet"
+        ? "0x053C91253BC9682c04929cA02ED00b3E423f6710D2ee7e0D5EBB06F3eCF368A8"
+        : "0x053b40A647CEDfca6cA84f542A0fe36736031905A9639a7f19A3C1e66bFd5080"; // USDC on Starknet Sepolia
+
+    return {
+      address: starknetUsdc,
+      decimals: 6,
+      eip712: {
+        name: "USD Coin",
+        version: "2",
+      },
+    };
+  }
+
+  // For EVM/SVM networks, use the existing logic with numeric chain ID
+  const chainId = getNumericNetworkId(network);
   const usdc = getUsdcChainConfigForChain(chainId);
   if (!usdc) {
     throw new Error(`Unable to get default asset on ${network}`);
