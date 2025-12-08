@@ -84,7 +84,7 @@ export type {
 export { BAZAAR } from "./types";
 
 // Export resource service functions (for servers)
-export { declareDiscoveryExtension } from "./resource-service";
+export { declareDiscoveryExtension } from "./resourceService";
 
 export { bazaarResourceServerExtension } from "./server";
 
@@ -99,3 +99,12 @@ export {
 
 // Export v1 functions (v1 data is transformed to v2 DiscoveryInfo format)
 export { extractDiscoveryInfoV1, isDiscoverableV1, extractResourceMetadataV1 } from "./v1";
+
+// Export client extension (for facilitator clients querying discovery)
+export {
+  withBazaar,
+  BazaarClientExtension,
+  ListDiscoveryResourcesParams,
+  DiscoveryResource,
+  DiscoveryResourcesResponse,
+} from "./facilitatorClient";

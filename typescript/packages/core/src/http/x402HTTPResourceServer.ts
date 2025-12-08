@@ -283,9 +283,9 @@ export class x402HTTPResourceServer {
     // Check for payment header (v1 or v2)
     const paymentPayload = this.extractPayment(adapter);
 
-    // Create resource info first
+    // Create resource info, using config override if provided
     const resourceInfo = {
-      url: context.adapter.getUrl(),
+      url: routeConfig.resource || context.adapter.getUrl(),
       description: routeConfig.description || "",
       mimeType: routeConfig.mimeType || "",
     };
@@ -296,14 +296,6 @@ export class x402HTTPResourceServer {
       paymentOptions,
       context,
     );
-
-    // Add resource URL to all payment requirements for discovery
-    requirements.forEach(req => {
-      if (!req.extra) {
-        req.extra = {};
-      }
-      req.extra.resourceUrl = resourceInfo.url;
-    });
 
     let extensions = routeConfig.extensions;
     if (extensions) {
