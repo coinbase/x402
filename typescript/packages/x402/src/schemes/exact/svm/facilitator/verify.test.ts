@@ -35,7 +35,6 @@ import {
   identifyToken2022Instruction,
   parseTransferCheckedInstruction as parseTransferCheckedInstruction2022,
   findAssociatedTokenPda,
-  parseCreateAssociatedTokenInstruction,
 } from "@solana-program/token-2022";
 import { COMPUTE_BUDGET_PROGRAM_ADDRESS } from "@solana-program/compute-budget";
 import {
@@ -73,7 +72,6 @@ vi.mock("@solana-program/token-2022", async () => {
     identifyToken2022Instruction: vi.fn(),
     parseTransferCheckedInstruction: vi.fn(),
     findAssociatedTokenPda: vi.fn(),
-    parseCreateAssociatedTokenInstruction: vi.fn(),
   };
 });
 
@@ -315,9 +313,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -330,9 +325,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -348,9 +340,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -366,9 +355,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -381,31 +367,10 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_amount_mismatch");
-    });
-
-    it("should not throw if receiver ATA is not found but tx has create ATA instruction", async () => {
-      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
-        { address: "sourceAta", exists: true },
-        { address: "destinationAta", exists: false },
-      ] as any);
-      await expect(
-        verifyTransferCheckedInstruction(
-          mockTokenInstruction,
-          mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: true,
-          },
-          mockSigner,
-          mockRpc,
-        ),
-      ).resolves.not.toThrow();
     });
 
     it("should throw an error if the fee payer is the transfer authority", async () => {
@@ -415,9 +380,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -431,9 +393,6 @@ describe("verify", () => {
         verifyTransferCheckedInstruction(
           mockTokenInstruction,
           mockPaymentRequirements,
-          {
-            txHasCreateDestATAInstruction: false,
-          },
           mockSigner,
           mockRpc,
         ),
@@ -589,7 +548,6 @@ describe("verify", () => {
     let mockComputeLimitInstruction: any;
     let mockComputePriceInstruction: any;
     let mockTransferInstruction: any;
-    let mockCreateATAInstruction: any;
     let mockRpc: any;
     let mockSigner: TransactionSigner;
 
@@ -626,12 +584,6 @@ describe("verify", () => {
           { address: "authorityAddress" },
         ],
       };
-      mockCreateATAInstruction = {
-        programAddress: { toString: () => "AssociatedTokenAccountProgram" },
-        accounts: [{ address: "payToAddress" }, { address: devnetUSDCAddress }],
-        data: new Uint8Array(),
-      };
-
       vi.mocked(parseTransferCheckedInstruction2022).mockReturnValue({
         programAddress: { toString: () => TOKEN_2022_PROGRAM_ADDRESS.toString() },
         accounts: {
@@ -649,12 +601,7 @@ describe("verify", () => {
         { address: "destinationAta", exists: true },
       ] as any);
       vi.mocked(rpc.getRpcClient).mockReturnValue({} as any);
-      vi.mocked(parseCreateAssociatedTokenInstruction).mockReturnValue({
-        accounts: {
-          owner: { address: "payToAddress" },
-          mint: { address: devnetUSDCAddress },
-        },
-      } as any);
+      // no create ATA parsing anymore
     });
 
     it("should throw an error if the transaction has less than 3 instructions", async () => {
@@ -672,12 +619,11 @@ describe("verify", () => {
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_instructions_length");
     });
 
-    it("should throw an error if the transaction has more than 4 instructions", async () => {
+    it("should throw an error if the transaction has more than 3 instructions", async () => {
       mockTransactionMessage = {
         instructions: [
           mockComputeLimitInstruction,
           mockComputePriceInstruction,
-          mockCreateATAInstruction,
           mockTransferInstruction,
           mockTransferInstruction,
         ],
@@ -715,55 +661,6 @@ describe("verify", () => {
           mockRpc,
         ),
       ).rejects.toThrow("invalid_exact_svm_payload_transaction_receiver_ata_not_found");
-    });
-
-    it("should throw if the 3rd instruction in a 4-instruction tx is not a create ATA instruction", async () => {
-      mockTransactionMessage = {
-        instructions: [
-          mockComputeLimitInstruction,
-          mockComputePriceInstruction,
-          mockTransferInstruction,
-          mockTransferInstruction,
-        ],
-      };
-
-      vi.mocked(parseCreateAssociatedTokenInstruction).mockImplementation(() => {
-        throw new Error("not a create ata ix");
-      });
-
-      await expect(
-        verifyTransactionInstructions(
-          mockTransactionMessage,
-          mockPaymentRequirements,
-          mockSigner,
-          mockRpc,
-        ),
-      ).rejects.toThrow("invalid_exact_svm_payload_transaction_create_ata_instruction");
-    });
-
-    it("should not throw if the tx has 4 instructions and the 3rd is a create ATA instruction", async () => {
-      vi.mocked(fetchEncodedAccounts).mockResolvedValue([
-        { address: "sourceAta", exists: true },
-        { address: "destinationAta", exists: false },
-      ] as any);
-
-      mockTransactionMessage = {
-        instructions: [
-          mockComputeLimitInstruction,
-          mockComputePriceInstruction,
-          mockCreateATAInstruction,
-          mockTransferInstruction,
-        ],
-      };
-
-      await expect(
-        verifyTransactionInstructions(
-          mockTransactionMessage,
-          mockPaymentRequirements,
-          mockSigner,
-          mockRpc,
-        ),
-      ).resolves.not.toThrow();
     });
 
     it("should throw an error if the fee payer address appears in any instruction's accounts", async () => {
@@ -833,33 +730,6 @@ describe("verify", () => {
         instructions: [
           mockComputeLimitInstruction,
           instructionWithFeePayer,
-          mockTransferInstruction,
-        ],
-      };
-
-      await expect(
-        verifyTransactionInstructions(
-          mockTransactionMessage,
-          mockPaymentRequirements,
-          mockSigner,
-          mockRpc,
-        ),
-      ).rejects.toThrow(
-        "invalid_exact_svm_payload_transaction_fee_payer_included_in_instruction_accounts",
-      );
-    });
-
-    it("should throw an error if the fee payer is in the create ata instruction accounts", async () => {
-      const createAtaWithFeePayer = {
-        ...mockCreateATAInstruction,
-        accounts: [{ address: mockSigner.address }, { address: devnetUSDCAddress }],
-      };
-
-      mockTransactionMessage = {
-        instructions: [
-          mockComputeLimitInstruction,
-          mockComputePriceInstruction,
-          createAtaWithFeePayer,
           mockTransferInstruction,
         ],
       };

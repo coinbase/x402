@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 const baseConfig = {
   entry: {
     index: "src/index.ts",
+    "session-token": "src/session-token.ts",
   },
   dts: {
     resolve: true,

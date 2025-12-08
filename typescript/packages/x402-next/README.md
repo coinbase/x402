@@ -5,12 +5,14 @@ Next.js middleware integration for the x402 Payment Protocol. This package allow
 ## Installation
 
 ```bash
-npm install x402-next
+pnpm install x402-next
 ```
 
 ## Quick Start
 
-Create a middleware file in your Next.js project (e.g., `middleware.ts`):
+### Protecting Page Routes
+
+Page routes are protected using the x402-next middleware. Create a middleware file in your Next.js project (e.g., `middleware.ts`):
 
 ```typescript
 import { paymentMiddleware, Network } from 'x402-next';
@@ -30,20 +32,55 @@ export const middleware = paymentMiddleware(
 
 // Configure which paths the middleware should run on
 export const config = {
-  matcher: [
-    '/protected/:path*',
-  ]
+  matcher: ['/protected/:path*'],
+  runtime: "nodejs",
 };
+```
+
+### Protecting API Routes
+
+API routes are protected using the `withX402` route wrapper. This is the recommended approach to protect API routes as it guarantees payment settlement only AFTER successful API responses (status < 400). API routes can also be protected by `paymentMiddleware`, however this will charge clients for failed API responses:
+
+```typescript
+// app/api/your-endpoint/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "x402-next";
+
+const handler = async (_: NextRequest) => {
+  return NextResponse.json({ data: "your response" });
+};
+
+export const GET = withX402(
+  handler,
+  "0xYourAddress",
+  {
+    price: "$0.01",
+    network: "base-sepolia",
+    config: { description: "Access to API endpoint" }
+  }
+);
 ```
 
 ## Configuration
 
-The `paymentMiddleware` function accepts three parameters:
+### paymentMiddleware
+
+The `paymentMiddleware` function is used to protect page routes. It can also protect API routes, however this will charge clients for failed API responses. It accepts four parameters:
 
 1. `payTo`: Your receiving address (`0x${string}`)
 2. `routes`: Route configurations for protected endpoints
 3. `facilitator`: (Optional) Configuration for the x402 facilitator service
 4. `paywall`: (Optional) Configuration for the built-in paywall
+
+### withX402
+
+The `withX402` function wraps API route handlers. This is the recommended approach to protect API routes as it guarantees payment settlement only AFTER successful API responses (status < 400). It accepts five parameters:
+
+1. `handler`: Your API route handler function
+2. `payTo`: Your receiving address (`0x${string}`)
+3. `routeConfig`: Payment configuration for this specific route
+4. `facilitator`: (Optional) Configuration for the x402 facilitator service
+5. `paywall`: (Optional) Configuration for the built-in paywall
 
 See the Middleware Options section below for detailed configuration options.
 
@@ -100,31 +137,15 @@ type PaywallConfig = {
 
 ## Accessing Mainnet with @coinbase/x402
 
-**TEMPORARY WORKAROUND**: The following configuration changes are only required until the `@coinbase/x402` package adds support for Edge runtime. Coinbase is actively working on making the package Edge-compatible, which will eliminate the need for these workarounds in the near future.
-
-To use the official Coinbase facilitator package (`@coinbase/x402`) in your Next.js project, you'll need to make the following **temporary** changes to your project configuration:
+To use the official Coinbase facilitator package (`@coinbase/x402`) in your Next.js project:
 
 1. Install the Coinbase facilitator package:
 
 ```bash
-npm install @coinbase/x402
+pnpm install @coinbase/x402
 ```
 
-2. Enable Node.js middleware as an experimental feature in your Next.js config:
-
-```ts
-// next.config.ts
-const nextConfig: NextConfig = {
-  // rest of your next config setup
-  experimental: {
-    nodeMiddleware: true, // TEMPORARY: Only needed until Edge runtime support is added
-  }
-};
-
-export default nextConfig;
-```
-
-3. Specify the Node.js runtime in your middleware file:
+2. Use it in your middleware file::
 
 ```ts
 // middleware.ts
@@ -142,36 +163,15 @@ export const middleware = paymentMiddleware(
   },
   facilitator // Use the Coinbase facilitator
 );
-
-export const config = {
-  matcher: ["/protected/:path*"],
-  runtime: 'nodejs', // TEMPORARY: Only needed until Edge runtime support is added
-};
 ```
 
-4. Update your Next.js dependency to the canary version to access experimental features:
-
-```json
-// package.json
-{
-  "dependencies": {
-    "next": "canary", // TEMPORARY: Only needed until Edge runtime support is added
-    "x402-next": "^1.0.0",
-    "@coinbase/x402": "^1.0.0"
-    // other dependencies
-  }
-}
-```
-
-5. Set up your CDP API keys as environment variables:
+3. Set up your CDP API keys as environment variables:
 
 ```bash
 # .env
 CDP_API_KEY_ID=your-cdp-api-key-id
 CDP_API_KEY_SECRET=your-cdp-api-key-secret
 ```
-
-**Important Note**: Once the `@coinbase/x402` package adds support for Edge runtime, you'll be able to use it directly without enforcing the nodejs runtime or requiring the canary version of next.
 
 ## Optional: Coinbase Onramp Integration
 
