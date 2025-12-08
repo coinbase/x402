@@ -92,7 +92,8 @@ func (d *DiscoveryInfo) UnmarshalJSON(data []byte) error {
 	var checkType struct {
 		BodyType *string `json:"bodyType"`
 	}
-	json.Unmarshal(raw.Input, &checkType)
+	// Intentionally ignore error - we're just probing for field existence
+	_ = json.Unmarshal(raw.Input, &checkType)
 
 	if checkType.BodyType != nil {
 		var bodyInput BodyInput

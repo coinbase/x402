@@ -58,10 +58,10 @@ func ExtractDiscoveryInfoV1(paymentRequirements interface{}) (*types.DiscoveryIn
 		// Try to marshal and unmarshal
 		data, err := json.Marshal(paymentRequirements)
 		if err != nil {
-			return nil, nil
+			return nil, nil //nolint:nilerr // Intentional: no discovery info available
 		}
 		if err := json.Unmarshal(data, &reqMap); err != nil {
-			return nil, nil
+			return nil, nil //nolint:nilerr // Intentional: no discovery info available
 		}
 	}
 

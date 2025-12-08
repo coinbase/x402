@@ -132,7 +132,9 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	// Get fee payer from requirements.extra (unmarshal Extra from json.RawMessage)
 	var extraMap map[string]interface{}
 	if requirements.Extra != nil {
-		json.Unmarshal(*requirements.Extra, &extraMap)
+		if err := json.Unmarshal(*requirements.Extra, &extraMap); err != nil {
+			return types.PaymentPayloadV1{}, fmt.Errorf("invalid extra field: %w", err)
+		}
 	}
 
 	feePayerAddr, ok := extraMap["feePayer"].(string)

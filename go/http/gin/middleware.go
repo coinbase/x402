@@ -240,7 +240,7 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 }
 
 // handlePaymentError handles payment error responses
-func handlePaymentError(c *gin.Context, response *x402http.HTTPResponseInstructions, config *MiddlewareConfig) {
+func handlePaymentError(c *gin.Context, response *x402http.HTTPResponseInstructions, _ *MiddlewareConfig) {
 	// Set status
 	c.Status(response.Status)
 
@@ -285,7 +285,7 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 	if writer.statusCode >= 400 {
 		// Write captured response
 		c.Writer.WriteHeader(writer.statusCode)
-		c.Writer.Write(writer.body.Bytes())
+		_, _ = c.Writer.Write(writer.body.Bytes())
 		return
 	}
 
@@ -343,7 +343,7 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 
 	// Write captured response
 	c.Writer.WriteHeader(writer.statusCode)
-	c.Writer.Write(writer.body.Bytes())
+	_, _ = c.Writer.Write(writer.body.Bytes())
 }
 
 // ============================================================================

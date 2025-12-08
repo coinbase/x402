@@ -139,7 +139,8 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 	var resourceURL string
 	version := versionCheck.X402Version
 
-	if version == 2 {
+	switch version {
+	case 2:
 		// V2: Unmarshal full payload to access extensions and resource
 		var payload x402.PaymentPayload
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -173,7 +174,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 				discoveryInfo = &extension.Info
 			}
 		}
-	} else if version == 1 {
+	case 1:
 		// V1: Unmarshal requirements to access outputSchema
 		var requirementsV1 x402types.PaymentRequirementsV1
 		if err := json.Unmarshal(requirementsBytes, &requirementsV1); err != nil {
@@ -189,7 +190,7 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 			return nil, fmt.Errorf("v1 discovery extraction failed: %w", err)
 		}
 		discoveryInfo = infoV1
-	} else {
+	default:
 		return nil, fmt.Errorf("unsupported version: %d", version)
 	}
 
@@ -267,7 +268,8 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 	var resourceURL string
 	version := versionCheck.X402Version
 
-	if version == 2 {
+	switch version {
+	case 2:
 		// V2: Unmarshal full PaymentRequired to access extensions and accepts
 		var paymentRequired x402types.PaymentRequired
 		if err := json.Unmarshal(paymentRequiredBytes, &paymentRequired); err != nil {
@@ -302,14 +304,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 			}
 		}
 
-		// If no discovery info found in extensions, check accepts[0]
-		// Note: In v2, PaymentRequirements doesn't have extensions field yet, so this fallback
-		// is reserved for future compatibility when accepts[0] might contain extensions
-		if discoveryInfo == nil && len(paymentRequired.Accepts) > 0 {
-			// Future: Check paymentRequired.Accepts[0] for extensions with bazaar
-			// Currently no-op as v2 PaymentRequirements doesn't have extensions field
-		}
-	} else if version == 1 {
+	case 1:
 		// V1: Unmarshal PaymentRequiredV1 to access accepts array
 		var paymentRequiredV1 x402types.PaymentRequiredV1
 		if err := json.Unmarshal(paymentRequiredBytes, &paymentRequiredV1); err != nil {
@@ -330,7 +325,7 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 			return nil, fmt.Errorf("v1 discovery extraction failed: %w", err)
 		}
 		discoveryInfo = infoV1
-	} else {
+	default:
 		return nil, fmt.Errorf("unsupported version: %d", version)
 	}
 

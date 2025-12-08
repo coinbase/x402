@@ -175,7 +175,8 @@ func TestParseERC6492Signature(t *testing.T) {
 			name: "invalid ERC-6492 format (malformed ABI)",
 			sig: func() []byte {
 				// Create invalid data with magic suffix
-				invalidData := make([]byte, 10)
+				invalidData := make([]byte, 0, 10+len(erc6492MagicBytes))
+				invalidData = append(invalidData, make([]byte, 10)...)
 				return append(invalidData, erc6492MagicBytes...)
 			},
 			wantErr: true,

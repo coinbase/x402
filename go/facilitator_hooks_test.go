@@ -45,7 +45,8 @@ func TestFacilitatorBeforeVerifyHook_Abort(t *testing.T) {
 	}
 
 	// Check error is VerifyError with correct reason
-	if ve, ok := err.(*VerifyError); ok {
+	ve := &VerifyError{}
+	if errors.As(err, &ve) {
 		if ve.Reason != "Facilitator security check failed" {
 			t.Errorf("Expected specific reason, got '%s'", ve.Reason)
 		}

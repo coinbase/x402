@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -125,7 +126,7 @@ func (f *ExactSvmScheme) Verify(
 	}
 
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], reqStruct); err != nil {
+	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], reqStruct); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
 	}
 
@@ -172,7 +173,8 @@ func (f *ExactSvmScheme) Settle(
 	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		// Convert VerifyError to SettleError
-		if ve, ok := err.(*x402.VerifyError); ok {
+		ve := &x402.VerifyError{}
+		if errors.As(err, &ve) {
 			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
 		}
 		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
@@ -298,7 +300,6 @@ func (f *ExactSvmScheme) verifyComputePriceInstruction(tx *solana.Transaction, i
 
 // verifyTransferInstruction verifies the transfer instruction
 func (f *ExactSvmScheme) verifyTransferInstruction(
-	ctx context.Context,
 	tx *solana.Transaction,
 	inst solana.CompiledInstruction,
 	requirements x402.PaymentRequirements,

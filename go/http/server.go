@@ -494,6 +494,8 @@ func (s *x402HTTPResourceServer) extractPaymentV2(adapter HTTPAdapter) (*types.P
 }
 
 // extractPayment extracts payment from headers (legacy method, now calls extractPaymentV2)
+//
+//nolint:unused // Legacy method kept for API compatibility
 func (s *x402HTTPResourceServer) extractPayment(adapter HTTPAdapter) *x402.PaymentPayload {
 	payload, err := s.extractPaymentV2(adapter)
 	if err != nil || payload == nil {
@@ -564,6 +566,8 @@ func (s *x402HTTPResourceServer) createHTTPResponseV2(paymentRequired types.Paym
 }
 
 // createHTTPResponse creates response instructions (legacy method)
+//
+//nolint:unused // Legacy method kept for API compatibility
 func (s *x402HTTPResourceServer) createHTTPResponse(paymentRequired x402.PaymentRequired, isWebBrowser bool, paywallConfig *PaywallConfig, customHTML string) *HTTPResponseInstructions {
 	// Convert to V2 and call V2 method
 	v2Required := types.PaymentRequired{
