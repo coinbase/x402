@@ -961,7 +961,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       next:
-        specifier: ^15.0.5
+        specifier: ^15.5.7
         version: 15.5.7(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       viem:
         specifier: ^2.21.26

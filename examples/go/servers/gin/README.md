@@ -1,101 +1,204 @@
-# Gin Server Example
+# x402-gin Example Server
 
-This example demonstrates how to integrate x402 payment middleware with a [Gin](https://gin-gonic.com/) web application to protect API endpoints with micropayments.
-
-## What This Example Shows
-
-- Setting up a Gin server with x402 payment middleware
-- Protecting specific routes with payment requirements
-- Configuring payment schemes (EVM exact scheme)
-- Handling both protected and public endpoints
+Gin server demonstrating how to protect API endpoints with a paywall using the 
+`x402/go/http/gin` middleware.
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- An Ethereum address to receive payments (testnet recommended for development)
-- Access to an x402 facilitator (e.g., `https://x402.org/facilitator`)
+- Go 1.24 or higher
+- Valid EVM address for receiving payments
+- URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
 ## Setup
 
-1. **Install dependencies:**
+1. Copy `.env-example` to `.env`:
 
+```bash
+cp .env-example .env
+```
+
+and fill required environment variables:
+
+- `FACILITATOR_URL` - Facilitator endpoint URL
+- `EVM_PAYEE_ADDRESS` - Ethereum address to receive payments
+
+2. Install dependencies:
 ```bash
 go mod download
 ```
 
-2. **Configure environment variables:**
-
-Create a `.env` file in this directory with the following variables:
-
-```bash
-EVM_PAYEE_ADDRESS=0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
-FACILITATOR_URL=https://x402.org/facilitator
-```
-
-## Running the Server
-
+3. Run the server:
 ```bash
 go run main.go
 ```
 
-## Testing the Endpoints
+## Testing the Server
 
-### Weather Endpoint (Payment Required)
+You can test the server using one of the example clients:
 
-When you access the `/weather` endpoint without payment, you'll receive a 402 Payment Required response with payment details:
-
+### Using the Go HTTP Client
 ```bash
-curl http://localhost:4021/weather
+cd ../../clients/http
+# Ensure .env is setup
+go run main.go
 ```
 
-Response (402 Payment Required):
+These clients will demonstrate how to:
+1. Make an initial request to get payment requirements
+2. Process the payment requirements
+3. Make a second request with the payment token
+
+## Example Endpoint
+
+The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia to access. The endpoint returns a simple weather report.
+
+## Response Format
+
+### Payment Required (402)
+
+```
+HTTP/1.1 402 Payment Required
+Content-Type: application/json; charset=utf-8
+PAYMENT-REQUIRED: <base64-encoded JSON>
+
+null
+```
+
+The `PAYMENT-REQUIRED` header contains base64-encoded JSON with the payment requirements.
+Note: `amount` is in atomic units (e.g., 1000 = 0.001 USDC, since USDC has 6 decimals):
+
 ```json
 {
-  "accepts": {
-    "scheme": "exact",
-    "network": "eip155:84532",
-    "price": "$0.001",
-    "payTo": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+    "url": "http://localhost:4021/weather",
+    "description": "Get weather data for a city",
+    "mimeType": "application/json"
   },
-  "description": "Get weather data for a city",
-  "mimeType": "application/json"
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "amount": "1000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "name": "USDC",
+        "version": "2",
+        "resourceUrl": "http://localhost:4021/weather"
+      }
+    }
+  ]
 }
 ```
 
-To successfully access this endpoint, you need to use an x402-compatible client that can create and sign payments. See the [client examples](../../clients/) for how to make paid requests.
+### Successful Response
 
-## How It Works
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+PAYMENT-RESPONSE: <base64-encoded JSON>
 
-1. **Middleware Configuration**: The x402 payment middleware is registered with Gin using `ginmw.X402Payment()`
-2. **Route Protection**: Routes are configured with payment requirements (scheme, price, network, payTo)
-3. **Payment Verification**: When a request arrives with payment headers, the middleware verifies the payment with the facilitator
-4. **Payment Settlement**: After verification, the payment is settled on-chain
-5. **Request Processing**: Only after successful payment settlement does the request reach your handler
+{"city":"San Francisco","weather":"foggy","temperature":60,"timestamp":"2025-01-01T12:00:00Z"}
+```
 
-## Key Concepts
+The `PAYMENT-RESPONSE` header contains base64-encoded JSON with the settlement details:
 
-### Payment Schemes
+```json
+{
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:84532",
+  "payer": "0x..."
+}
+```
 
-This example uses the `exact` scheme, which requires an exact payment amount ($0.001 USDC) to access the protected resource.
+## Extending the Example
 
-### Networks
+To add more paid endpoints, follow this pattern:
 
-The example uses `eip155:84532` (Base Sepolia testnet). You can configure different networks by:
-- Using other EVM networks (e.g., `eip155:1` for Ethereum mainnet)
-- Adding SVM support for Solana (see advanced examples)
+```go
+// First, configure the payment middleware with your routes
+routes := x402http.RoutesConfig{
+    "GET /your-endpoint": {
+        Scheme:      "exact",
+        PayTo:       evmPayeeAddress,
+        Price:       "$0.10",
+        Network:     x402.Network("eip155:84532"),
+        Description: "Your endpoint description",
+        MimeType:    "application/json",
+    },
+}
 
-### Middleware Configuration
+r.Use(ginmw.X402Payment(ginmw.Config{
+    Routes:      routes,
+    Facilitator: facilitatorClient,
+    Schemes: []ginmw.SchemeConfig{
+        {Network: x402.Network("eip155:*"), Server: evm.NewExactEvmScheme()},
+    },
+    Initialize: true,
+}))
 
-The middleware is configured with routes, schemes, and a facilitator client. See `main.go` for the complete setup.
+// Then define your routes as normal
+r.GET("/your-endpoint", func(c *gin.Context) {
+    c.JSON(http.StatusOK, gin.H{
+        // Your response data
+    })
+})
+```
+
+**Network identifiers** use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format, for example:
+- `eip155:84532` — Base Sepolia
+- `eip155:8453` — Base Mainnet
+- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
+- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+
+## x402ResourceServer Config
+
+The middleware uses scheme registrations to declare how payments for each network should be processed:
+
+```go
+r.Use(ginmw.X402Payment(ginmw.Config{
+    Routes:      routes,
+    Facilitator: facilitatorClient,
+    Schemes: []ginmw.SchemeConfig{
+        {Network: x402.Network("eip155:*"), Server: evm.NewExactEvmScheme()},  // All EVM chains
+        // {Network: x402.Network("solana:*"), Server: svm.NewExactSvmScheme()}, // All SVM chains
+    },
+    Initialize: true,
+    Timeout:    30 * time.Second,
+}))
+```
+
+## Facilitator Config
+
+The `HTTPFacilitatorClient` connects to a facilitator service that verifies and settles payments on-chain:
+
+```go
+facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+    URL: facilitatorURL,
+})
+
+// Or use multiple facilitators for redundancy
+facilitatorClients := []x402.FacilitatorClient{
+    x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{URL: primaryFacilitatorURL}),
+    x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{URL: backupFacilitatorURL}),
+}
+```
 
 ## Next Steps
 
-- **[Custom Server Example](../custom/)**: Learn how to implement x402 without middleware
-- **[Advanced Examples](../advanced/)**: Explore dynamic pricing, hooks, and extensions
-- **[Client Examples](../../clients/)**: Build clients that can make paid requests to this server
+See [Advanced Examples](../advanced/) for:
+- **Bazaar discovery** — make your API discoverable
+- **Dynamic pricing** — price based on request context
+- **Dynamic payTo** — route payments to different recipients
+- **Lifecycle hooks** — custom logic on verify/settle
+- **Custom tokens** — accept payments in custom tokens
 
 ## Related Resources
 
 - [Gin Documentation](https://gin-gonic.com/docs/)
 - [x402 Go Package Documentation](../../../../go/)
-
+- [Client Examples](../../clients/) — build clients that can make paid requests

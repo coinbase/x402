@@ -155,7 +155,7 @@ func main() {
 	fmt.Printf("🚀 Facilitator listening on http://localhost:%s\n", DefaultPort)
 	fmt.Printf("   EVM: %s on %s\n", evmSigner.GetAddresses()[0], evmNetwork)
 	if svmSigner != nil {
-		fmt.Printf("   SVM: %s on %s\n", svmSigner.GetAddresses()[0], svmNetwork)
+		fmt.Printf("   SVM: %s on %s\n", svmSigner.GetAddresses(context.Background(), string(svmNetwork))[0], svmNetwork)
 	}
 	fmt.Println()
 
