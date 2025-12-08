@@ -88,7 +88,7 @@ Request:
       "network": "eip155:84532",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "amount": "1000",
-      "payTo": "0x1c47E9C085c2B7458F5b6C16cCBD65A65255a9f6",
+      "payTo": "0x...",
       "maxTimeoutSeconds": 300,
       "extra": {
         "name": "USDC",
@@ -105,7 +105,7 @@ Request:
     "network": "eip155:84532",
     "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     "amount": "1000",
-    "payTo": "0x1c47E9C085c2B7458F5b6C16cCBD65A65255a9f6",
+    "payTo": "0x...",
     "maxTimeoutSeconds": 300,
     "extra": {
       "name": "USDC",

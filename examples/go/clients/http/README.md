@@ -1,83 +1,82 @@
-# Go HTTP Client Example
+# x402-http Example Client
 
-This example demonstrates how to use the x402 Go HTTP client to make requests to endpoints protected by the x402 payment protocol.
-
-## What This Example Shows
-
-- **HTTP Client Wrapping**: How to wrap `http.Client` with x402 payment handling
-- **Automatic Payment**: Transparent payment creation and retry on 402 responses
-- **Multiple Patterns**: Different ways to configure the client
-- **Signer Creation**: Using the signer helpers for easy key management
-- **Payment Extraction**: Reading settlement details from response headers
-
-## Available Examples
-
-This package contains two examples demonstrating different configuration patterns:
-
-### 1. Builder Pattern (`builder-pattern`)
-
-Demonstrates the basic way to configure the client by chaining `Register()` calls to map network patterns to scheme clients.
-
-**Use when:** You need fine-grained control over which networks use which signers.
-
-```go
-client := x402.Newx402Client().
-    Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
-    Register("solana:*", svm.NewExactSvmScheme(svmSigner))
-```
-
-### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
-
-Shows a convenient pattern using mechanism helpers with wildcard network registration for clean, simple client configuration.
-
-**Use when:** You want to register all networks of a type with the same signer using a clean, readable approach.
-
-```go
-client := x402.Newx402Client().
-    Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
-```
+Example client demonstrating how to use the x402 Go HTTP client to make requests to endpoints protected by the x402 payment protocol.
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- An Ethereum private key (testnet recommended for testing)
-- A Solana private key (optional, for SVM examples)
-- A running x402 server (see [server examples](../../servers/))
+- Go 1.24 or higher
+- A running x402 server (see [gin server example](../../servers/gin))
+- Valid EVM and/or SVM private keys for making payments
 
 ## Setup
 
-1. **Install dependencies:**
-
+1. Install dependencies:
 ```bash
 go mod download
 ```
 
-2. **Configure environment variables:**
-
-Create a `.env` file in this directory:
-
+2. Copy `.env-example` to `.env` and add your private keys:
 ```bash
-# Your Ethereum private key
-EVM_PRIVATE_KEY=<your-private-key-here>
-
-# Your Solana private key (needed for full multi-chain examples)
-SVM_PRIVATE_KEY=<your-private-key-here>
-
-# Optional: Server URL (defaults to http://localhost:4021)
-SERVER_URL=http://localhost:4021
+cp .env-example .env
 ```
+
+Required environment variables:
+- `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
+- `SVM_PRIVATE_KEY` - Solana private key for SVM payments (optional)
+- `SERVER_URL` - Server endpoint (defaults to `http://localhost:4021/weather`)
 
 **⚠️ Security Warning:** Never use mainnet keys in `.env` files! Use testnet keys only.
 
-## Running the Examples
+3. Run the client:
+```bash
+go run .
+```
+
+## Available Examples
+
+### 1. Builder Pattern (`builder-pattern`)
+
+Configure the client by chaining `.Register()` calls to map network patterns to scheme clients.
 
 ```bash
-# Run the default example (builder-pattern)
-go run .
-
-# Or run a specific example:
 go run . builder-pattern
+```
+
+### 2. Mechanism Helper Registration (`mechanism-helper-registration`)
+
+Use mechanism helpers with wildcard network registration for clean, simple configuration.
+
+```bash
 go run . mechanism-helper-registration
+```
+
+## Example Code
+
+```go
+import (
+    x402 "github.com/coinbase/x402/go"
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
+
+// Create signer
+signer, err := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+
+// Configure client with builder pattern
+client := x402.Newx402Client().
+    Register("eip155:*", evm.NewExactEvmScheme(signer))
+
+// Wrap HTTP client with payment handling
+httpClient := x402http.WrapHTTPClientWithPayment(
+    http.DefaultClient,
+    x402http.Newx402HTTPClient(client),
+)
+
+// Make request to paid endpoint (payment is handled automatically)
+resp, err := httpClient.Get("http://localhost:4021/weather")
+body, _ := io.ReadAll(resp.Body)
+fmt.Println(string(body))
 ```
 
 ## Example Output
@@ -101,45 +100,20 @@ Making request to: http://localhost:4021/weather
   Payer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 ```
 
-## How It Works
+## Network Registration
 
-The x402 HTTP client provides transparent payment handling:
-
-1. **Initial Request**: Client makes a normal HTTP request
-2. **402 Detection**: If server responds with 402 Payment Required
-3. **Payment Creation**: Client automatically creates a payment payload
-4. **Retry with Payment**: Request is retried with payment headers
-5. **Success**: Server processes payment and returns protected resource
-6. **Settlement Headers**: Response includes payment settlement details
-
-### Code Flow
-
-```go
-// 1. Create x402 client with registered schemes
-client := x402.Newx402Client().
-    Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
-
-// 2. Wrap HTTP client
-httpClient := x402http.WrapHTTPClientWithPayment(http.DefaultClient, x402http.Newx402HTTPClient(client))
-
-// 3. Make request (payment is handled automatically)
-resp, err := httpClient.Get("http://localhost:4021/weather")
-
-// 4. Read response normally
-body, _ := io.ReadAll(resp.Body)
-```
-
-## Network Registration Patterns
+**Network identifiers** use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format:
+- `eip155:84532` — Base Sepolia
+- `eip155:8453` — Base Mainnet
+- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
+- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
 
 ### Wildcard Registration
 
-Register all networks of a type:
+Register all networks of a type with a single signer:
 
 ```go
-// All EVM networks
 client.Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
-
-// All Solana networks
 client.Register("solana:*", svm.NewExactSvmScheme(svmSigner))
 ```
 
@@ -148,25 +122,12 @@ client.Register("solana:*", svm.NewExactSvmScheme(svmSigner))
 Register specific networks with different signers:
 
 ```go
-// Ethereum Mainnet with specific signer
-client.Register("eip155:1", evm.NewExactEvmScheme(mainnetSigner))
-
-// Base Sepolia with different signer
-client.Register("eip155:84532", evm.NewExactEvmScheme(testnetSigner))
-
-// Solana Mainnet
-client.Register("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", svm.NewExactSvmScheme(solanaMainnetSigner))
-```
-
-### Registration Precedence
-
-More specific registrations take precedence over wildcards:
-
-```go
 client.
     Register("eip155:*", evm.NewExactEvmScheme(defaultSigner)).    // Fallback for all EVM
-    Register("eip155:1", evm.NewExactEvmScheme(mainnetSigner))     // Specific for Ethereum Mainnet
+    Register("eip155:1", evm.NewExactEvmScheme(mainnetSigner))     // Override for Ethereum Mainnet
 ```
+
+More specific registrations take precedence over wildcards.
 
 ## Private Key Management
 
@@ -193,36 +154,23 @@ For testing, generate keys with these tools:
 ```bash
 # Using cast (foundry)
 cast wallet new
-
-# Or use an online tool (testnet only!)
 ```
 
 **Solana:**
 ```bash
 # Using solana CLI
 solana-keygen new
-
-# Or use an online tool (testnet only!)
 ```
-
-## Comparing Patterns
-
-| Pattern | Lines of Code | Flexibility | Best For |
-|---------|---------------|-------------|----------|
-| Builder Pattern | ~10 lines | High | Complex multi-network setups |
-| Mechanism Helper Registration | ~5 lines | Low | Simple, clean setup |
 
 ## Testing Against Local Server
 
 1. Start a local x402 server:
-
 ```bash
 cd ../../servers/gin
 go run main.go
 ```
 
 2. Run the client in another terminal:
-
 ```bash
 cd ../../clients/http
 go run . builder-pattern
@@ -230,13 +178,10 @@ go run . builder-pattern
 
 ## Next Steps
 
-- **[Advanced Client Examples](../advanced/)**: Explore custom transport, retry logic, and error handling
-- **[Custom Client Example](../custom/)**: Learn how to implement payment handling without the wrapper
-- **[Server Examples](../../servers/)**: Build servers that can receive these payments
+See [Advanced Examples](../advanced/) for custom transport, retry logic and error handling.
 
 ## Related Resources
 
-- [x402 HTTP Package Documentation](../../../../go/http/)
-- [x402 Core Package Documentation](../../../../go/)
+- [x402 Go Package Documentation](../../../../go/)
 - [Signer Helpers Documentation](../../../../go/signers/)
-
+- [Server Examples](../../servers/) — build servers that can receive these payments

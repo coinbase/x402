@@ -1,360 +1,176 @@
-# Custom Client Implementation
+# Custom x402 Client Implementation
 
-This example demonstrates how to implement x402 payment handling **manually** without using the pre-built HTTP client wrapper. It shows the complete payment flow step-by-step, making it an excellent learning resource for understanding how x402 works under the hood.
-
-## What This Example Shows
-
-- **Manual 402 Detection**: Detecting payment required responses
-- **Payment Requirement Extraction**: Parsing v1 and v2 payment requirements
-- **Payment Creation**: Using the core package to create payments
-- **Header Management**: Adding payment headers correctly
-- **Request Retry**: Implementing the retry flow manually
-- **Version Detection**: Handling both v1 and v2 protocols
-
-## Why Implement a Custom Client?
-
-You should implement a custom client when you need to:
-
-1. **Understand the internals**: Learn how x402 payment flow works
-2. **Custom HTTP client**: Integrate with frameworks that have their own HTTP client
-3. **Special requirements**: Need custom retry logic, caching, or error handling
-4. **Framework integration**: Building adapters for unsupported frameworks
-5. **Educational purposes**: Teaching or documenting the protocol
-
-## The Payment Flow
-
-This example implements the complete 6-step payment flow:
-
-### Step 1: Make Initial Request
-```go
-req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
-resp, _ := client.Do(req)
-```
-
-### Step 2: Detect 402 Payment Required
-```go
-if resp.StatusCode != http.StatusPaymentRequired {
-    return resp, nil // No payment needed
-}
-```
-
-### Step 3: Extract Payment Requirements
-```go
-// Detect protocol version (v1 or v2)
-version, _ := detectVersion(headers, body)
-
-// Extract requirements based on version
-if version == 2 {
-    requirements, resource, extensions, _ := extractV2Requirements(headers, body)
-} else {
-    requirements, _ := extractV1Requirements(body)
-}
-```
-
-### Step 4: Create Payment Payload
-```go
-// Use x402 core package to create payment
-if version == 2 {
-    payload, _ := x402Client.CreatePaymentPayload(ctx, requirements, resource, extensions)
-} else {
-    payload, _ := x402Client.CreatePaymentPayloadV1(ctx, requirementsV1)
-}
-
-payloadBytes, _ := json.Marshal(payload)
-```
-
-### Step 5: Retry with Payment
-```go
-// Encode payment as base64
-encodedPayment := base64.StdEncoding.EncodeToString(payloadBytes)
-
-// Add payment header
-retryReq.Header.Set("PAYMENT-SIGNATURE", encodedPayment) // v2
-// OR
-retryReq.Header.Set("X-PAYMENT", encodedPayment) // v1
-
-// Retry request
-retryResp, _ := client.Do(retryReq)
-```
-
-### Step 6: Handle Success
-```go
-// Extract settlement details from response
-if paymentHeader := resp.Header.Get("PAYMENT-RESPONSE"); paymentHeader != "" {
-    settleResp, _ := extractSettlementResponse(paymentHeader)
-}
-```
+Example client demonstrating how to implement x402 payment handling manually using only the core packages, without convenience wrappers like `x402http.WrapHTTPClientWithPayment`.
 
 ## Prerequisites
 
-- Go 1.21 or higher
-- An Ethereum private key (testnet recommended)
+- Go 1.24 or higher
+- Valid EVM private key for making payments
 - A running x402 server (see [server examples](../../servers/))
-- Understanding of [basic HTTP client](../http/)
 
 ## Setup
 
-1. **Install dependencies:**
+1. Copy `.env-example` to `.env`:
+
+```bash
+cp .env-example .env
+```
+
+and fill required environment variables:
+
+- `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
+- `SERVER_URL` - Server endpoint (defaults to `http://localhost:4021/weather`)
+
+2. Install dependencies:
 
 ```bash
 go mod download
 ```
 
-2. **Configure environment variables:**
-
-Create a `.env` file:
-
-```bash
-# Required
-EVM_PRIVATE_KEY=<your-private-key-here>
-
-# Optional
-SERVER_URL=http://localhost:4021
-```
-
-## Running the Example
+3. Run the example:
 
 ```bash
 go run .
 ```
 
-Expected output:
+## Testing the Example
 
-```
-🔧 Using custom payment implementation (no wrapper)
+Start a server first:
 
-📤 Step 1: Making initial request...
-   URL: http://localhost:4021/weather
-
-💳 Step 2: Payment required (402 response)
-🔍 Step 3: Extracting payment requirements...
-   Detected protocol version: v2
-   Network: eip155:84532
-   Scheme: exact
-   Amount: {Amount:1000 Asset:0x... Extra:map[...]}
-
-💰 Step 4: Creating payment payload...
-   Created payload: 542 bytes
-
-🔄 Step 5: Retrying request with payment...
-   Added PAYMENT-SIGNATURE header
-   Response status: 200
-✅ Step 6: Payment successful!
-
-✅ Response body:
-  {
-    "city": "San Francisco",
-    "weather": "foggy",
-    "temperature": 60
-  }
-
-💰 Payment Settlement Details:
-  Transaction: 0x1234567890abcdef...
-  Network: eip155:84532
-  Payer: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
-```
-
-## Code Structure
-
-### Main Flow (`main.go`)
-
-The example is organized into clear, educational sections:
-
-```go
-func makeRequestWithPayment(ctx, x402Client, url) (*http.Response, error) {
-    // Step 1: Make initial request
-    // Step 2: Check if payment is required
-    // Step 3: Extract payment requirements
-    // Step 4: Create payment payload
-    // Step 5: Retry request with payment
-    // Step 6: Verify success
-}
-```
-
-### Helper Functions
-
-**Version Detection:**
-```go
-func detectVersion(headers, body) (int, error)
-```
-- Detects whether server uses v1 or v2 protocol
-- Checks for `PAYMENT-REQUIRED` header (v2)
-- Falls back to body `x402Version` field (v1)
-
-**V2 Requirements Extraction:**
-```go
-func extractV2Requirements(headers, body) (PaymentRequirements, *ResourceInfo, map[string]interface{}, error)
-```
-- Decodes base64 `PAYMENT-REQUIRED` header
-- Parses payment requirements
-- Returns first acceptable requirement
-
-**V1 Requirements Extraction:**
-```go
-func extractV1Requirements(body) (PaymentRequirements, error)
-```
-- Parses V1 payment required from body
-- Converts to common requirements format
-
-**Settlement Extraction:**
-```go
-func extractSettlementResponse(headerValue) (SettleResponse, error)
-```
-- Decodes `PAYMENT-RESPONSE` header
-- Extracts transaction details
-
-## Protocol Differences: V1 vs V2
-
-### V1 Protocol
-
-**Payment Required (Response):**
-```json
-// Body:
-{
-  "x402Version": 1,
-  "accepts": [{
-    "scheme": "exact",
-    "network": "base-sepolia",
-    "address": "0x...",
-    "amount": { "amount": "1000", "asset": "0x..." }
-  }]
-}
-```
-
-**Payment Signature (Request):**
-```
-Header: X-PAYMENT
-Value: base64(payloadJSON)
-```
-
-### V2 Protocol
-
-**Payment Required (Response):**
-```
-Header: PAYMENT-REQUIRED
-Value: base64({
-  "accepts": [{
-    "scheme": "exact",
-    "network": "eip155:84532",
-    "payTo": "0x...",
-    "amount": { "amount": "1000", "asset": "0x..." }
-  }],
-  "resource": {...},
-  "extensions": {...}
-})
-```
-
-**Payment Signature (Request):**
-```
-Header: PAYMENT-SIGNATURE
-Value: base64(payloadJSON)
-```
-
-## Comparison: Wrapper vs Custom
-
-| Aspect | HTTP Wrapper | Custom Implementation |
-|--------|-------------|----------------------|
-| Code Lines | ~5 lines | ~250 lines |
-| Complexity | Very simple | Educational/detailed |
-| Flexibility | Limited | Complete control |
-| Understanding | Black box | Step-by-step visible |
-| Maintenance | x402 team | You maintain |
-| Use Case | Production use | Learning/custom needs |
-
-## When to Use Custom vs Wrapper
-
-### Use the Wrapper When:
-- ✅ Building standard applications
-- ✅ Want simple, maintainable code
-- ✅ Trust the x402 implementation
-- ✅ Need quick integration
-
-### Use Custom Implementation When:
-- ✅ Learning how x402 works
-- ✅ Integrating with custom frameworks
-- ✅ Need special error handling
-- ✅ Building adapters for other languages
-- ✅ Debugging protocol issues
-- ✅ Teaching/documentation
-
-## Adapting to Other Frameworks
-
-This example can be adapted to other HTTP frameworks:
-
-### For Resty
-```go
-resp, err := resty.New().R().Get(url)
-if resp.StatusCode() == 402 {
-    // Extract requirements
-    // Create payment
-    // Retry with SetHeader()
-}
-```
-
-### For Fiber Client
-```go
-agent := fiber.Get(url)
-resp := agent.Send()
-if resp.StatusCode() == 402 {
-    // Extract requirements
-    // Create payment
-    // Retry with agent.Set()
-}
-```
-
-### For gRPC Metadata
-```go
-md := metadata.New(map[string]string{
-    "payment-signature": encodedPayment,
-})
-ctx := metadata.NewOutgoingContext(ctx, md)
-// Make gRPC call with ctx
-```
-
-## Error Handling
-
-The example demonstrates proper error handling at each step:
-
-```go
-// Version detection error
-if version == 0 {
-    return fmt.Errorf("could not detect x402 version")
-}
-
-// Payment creation error
-if err := x402Client.CreatePaymentPayload(...); err != nil {
-    return fmt.Errorf("failed to create payment: %w", err)
-}
-
-// Payment failure
-if retryResp.StatusCode >= 400 {
-    return fmt.Errorf("payment failed: status %d", retryResp.StatusCode)
-}
-```
-
-## Testing Against Local Server
-
-1. Start server:
 ```bash
 cd ../../servers/gin
 go run main.go
 ```
 
-2. Run custom client:
+Then run the custom client:
+
 ```bash
 cd ../../clients/custom
 go run .
 ```
 
+## HTTP Headers (v2 Protocol)
+
+| Header              | Direction       | Description                            |
+| ------------------- | --------------- | -------------------------------------- |
+| `PAYMENT-REQUIRED`  | Server → Client | 402 response with payment requirements |
+| `PAYMENT-SIGNATURE` | Client → Server | Retry request with payment payload     |
+| `PAYMENT-RESPONSE`  | Server → Client | 200 response with settlement details   |
+
+## Payment Flow
+
+1. **Initial Request** — Make HTTP request to protected endpoint
+2. **402 Response** — Server responds with requirements in `PAYMENT-REQUIRED` header
+3. **Parse Requirements** — Decode requirements using version detection
+4. **Create Payment** — Use `x402Client.CreatePaymentPayload()` to generate payload
+5. **Encode Payment** — Base64 encode the payload for the header value
+6. **Retry with Payment** — Make new request with `PAYMENT-SIGNATURE` header
+7. **Success** — Receive 200 with settlement in `PAYMENT-RESPONSE` header
+
+## Key Implementation Details
+
+### 1. Setting Up the Client
+
+```go
+import (
+    x402 "github.com/coinbase/x402/go"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
+
+evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+
+client := x402.Newx402Client().
+    Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
+```
+
+### 2. Detecting Payment Required
+
+```go
+resp, _ := http.DefaultClient.Do(req)
+
+if resp.StatusCode == http.StatusPaymentRequired {
+    // Extract PAYMENT-REQUIRED header
+    headerValue := resp.Header.Get("PAYMENT-REQUIRED")
+    decoded, _ := base64.StdEncoding.DecodeString(headerValue)
+    
+    var paymentRequired types.PaymentRequired
+    json.Unmarshal(decoded, &paymentRequired)
+    // paymentRequired.Accepts contains the payment options
+}
+```
+
+### 3. Creating Payment Payload
+
+```go
+// Select first payment requirement
+requirements := paymentRequired.Accepts[0]
+
+// Create payment payload using the x402 client
+payload, _ := x402Client.CreatePaymentPayload(ctx, requirements, 
+    paymentRequired.Resource, paymentRequired.Extensions)
+
+payloadBytes, _ := json.Marshal(payload)
+encodedPayment := base64.StdEncoding.EncodeToString(payloadBytes)
+```
+
+### 4. Retrying with Payment
+
+```go
+retryReq, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+retryReq.Header.Set("PAYMENT-SIGNATURE", encodedPayment)
+
+retryResp, _ := http.DefaultClient.Do(retryReq)
+```
+
+### 5. Extracting Settlement
+
+```go
+settlementHeader := resp.Header.Get("PAYMENT-RESPONSE")
+decoded, _ := base64.StdEncoding.DecodeString(settlementHeader)
+
+var settlement x402.SettleResponse
+json.Unmarshal(decoded, &settlement)
+// settlement.Transaction, settlement.Network, settlement.Payer
+```
+
+## Wrapper vs Custom Comparison
+
+| Aspect            | With Wrapper (x402http) | Custom Implementation |
+| ----------------- | ----------------------- | --------------------- |
+| Code Complexity   | ~10 lines               | ~250 lines            |
+| Automatic Retry   | ✅ Yes                  | ❌ Manual             |
+| Error Handling    | ✅ Built-in             | ❌ You implement      |
+| Header Management | ✅ Automatic            | ❌ Manual             |
+| Flexibility       | Limited                 | ✅ Complete control   |
+
+## When to Use Custom Implementation
+
+- Need complete control over every step of the payment flow
+- Integrating with non-standard HTTP libraries (Resty, Fiber, etc.)
+- Implementing custom retry/error logic
+- Learning how x402 works under the hood
+- Building adapters for unsupported frameworks
+
+## Protocol Versions
+
+The example handles both v1 and v2 protocols:
+
+**V2 Protocol (recommended):**
+- Payment requirements in `PAYMENT-REQUIRED` header
+- Payment signature in `PAYMENT-SIGNATURE` header
+
+**V1 Protocol (legacy):**
+- Payment requirements in response body with `x402Version: 1`
+- Payment signature in `X-PAYMENT` header
+
 ## Next Steps
 
-- **[Basic HTTP Client](../http/)**: See the simple wrapper approach
-- **[Advanced Examples](../advanced/)**: Production patterns
-- **[Core Package Docs](../../../../go/)**: Deep dive into x402 core
+- **[Basic HTTP Client](../http/)** — See the simple wrapper approach
+- **[Server Examples](../../servers/)** — Build servers that accept payments
 
 ## Related Resources
 
-- [x402 Protocol Specification](../../../../specs/)
+- [x402 Go Package Documentation](../../../../go/)
 - [HTTP Client Package](../../../../go/http/)
 - [Payment Types](../../../../go/types/)
-
