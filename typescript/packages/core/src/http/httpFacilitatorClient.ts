@@ -54,8 +54,8 @@ export interface FacilitatorClient {
  * Handles HTTP communication with facilitator endpoints
  */
 export class HTTPFacilitatorClient implements FacilitatorClient {
-  private readonly url: string;
-  private readonly createAuthHeaders?: FacilitatorConfig["createAuthHeaders"];
+  readonly url: string;
+  private readonly _createAuthHeaders?: FacilitatorConfig["createAuthHeaders"];
 
   /**
    * Creates a new HTTPFacilitatorClient instance.
@@ -64,7 +64,7 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
    */
   constructor(config?: FacilitatorConfig) {
     this.url = config?.url || DEFAULT_FACILITATOR_URL;
-    this.createAuthHeaders = config?.createAuthHeaders;
+    this._createAuthHeaders = config?.createAuthHeaders;
   }
 
   /**
@@ -82,9 +82,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       "Content-Type": "application/json",
     };
 
-    if (this.createAuthHeaders) {
-      const authHeaders = await this.createAuthHeaders();
-      headers = { ...headers, ...authHeaders.verify };
+    if (this._createAuthHeaders) {
+      const authHeaders = await this.createAuthHeaders("verify");
+      headers = { ...headers, ...authHeaders.headers };
     }
 
     const response = await fetch(`${this.url}/verify`, {
@@ -120,9 +120,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       "Content-Type": "application/json",
     };
 
-    if (this.createAuthHeaders) {
-      const authHeaders = await this.createAuthHeaders();
-      headers = { ...headers, ...authHeaders.settle };
+    if (this._createAuthHeaders) {
+      const authHeaders = await this.createAuthHeaders("settle");
+      headers = { ...headers, ...authHeaders.headers };
     }
 
     const response = await fetch(`${this.url}/settle`, {
@@ -153,9 +153,9 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       "Content-Type": "application/json",
     };
 
-    if (this.createAuthHeaders) {
-      const authHeaders = await this.createAuthHeaders();
-      headers = { ...headers, ...authHeaders.supported };
+    if (this._createAuthHeaders) {
+      const authHeaders = await this.createAuthHeaders("supported");
+      headers = { ...headers, ...authHeaders.headers };
     }
 
     const response = await fetch(`${this.url}/supported`, {
@@ -169,6 +169,29 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
     }
 
     return (await response.json()) as SupportedResponse;
+  }
+
+  /**
+   * Creates authentication headers for a specific path.
+   *
+   * @param path - The path to create authentication headers for (e.g., "verify", "settle", "supported")
+   * @returns An object containing the authentication headers for the specified path
+   */
+  async createAuthHeaders(path: string): Promise<{
+    headers: Record<string, string>;
+  }> {
+    if (this._createAuthHeaders) {
+      const authHeaders = (await this._createAuthHeaders()) as Record<
+        string,
+        Record<string, string>
+      >;
+      return {
+        headers: authHeaders[path] ?? {},
+      };
+    }
+    return {
+      headers: {},
+    };
   }
 
   /**
