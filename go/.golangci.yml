@@ -97,11 +97,31 @@ linters:
       - linters:
           - mnd
         path: _test\.go$
-      # Reduce noise from gocritic in tests
+      # Reduce noise from gocritic in tests (if-else chains, etc.)
       - linters:
           - gocritic
         path: _test\.go$
-        text: "unnecessaryDefer|hugeParam|rangeValCopy"
+      # Allow unchecked errors in test files (common pattern for test setup)
+      - linters:
+          - errcheck
+        path: _test\.go$
+      # Allow HTTP calls without context in test files
+      - linters:
+          - noctx
+        path: _test\.go$
+      # Allow staticcheck style issues in test files
+      - linters:
+          - staticcheck
+        path: _test\.go$
+        text: "ST1023"
+      # Allow ineffective assignments in test files (often intentional)
+      - linters:
+          - ineffassign
+        path: _test\.go$
+      # Allow unused code in test files (mock implementations, etc.)
+      - linters:
+          - unused
+        path: test/
       # Allow error wrapping without %w in certain contexts
       - linters:
           - errorlint

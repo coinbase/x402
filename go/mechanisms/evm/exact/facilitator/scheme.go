@@ -2,6 +2,7 @@ package facilitator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -202,7 +203,8 @@ func (f *ExactEvmScheme) Settle(
 	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		// Convert VerifyError to SettleError
-		if ve, ok := err.(*x402.VerifyError); ok {
+		ve := &x402.VerifyError{}
+		if errors.As(err, &ve) {
 			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
 		}
 		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
@@ -245,7 +247,7 @@ func (f *ExactEvmScheme) Settle(
 			// Wallet not deployed
 			if f.config.DeployERC4337WithEIP6492 {
 				// Deploy wallet
-				err := f.deploySmartWallet(ctx, sigData, evmPayload.Authorization.From)
+				err := f.deploySmartWallet(ctx, sigData)
 				if err != nil {
 					return nil, x402.NewSettleError(evm.ErrSmartWalletDeploymentFailed, verifyResp.Payer, network, "", err)
 				}
@@ -338,7 +340,6 @@ func (f *ExactEvmScheme) Settle(
 //
 //	ctx: Context for cancellation
 //	sigData: Parsed ERC-6492 signature containing factory address and calldata
-//	expectedAddress: The expected address of the wallet being deployed
 //
 // Returns:
 //
@@ -346,7 +347,6 @@ func (f *ExactEvmScheme) Settle(
 func (f *ExactEvmScheme) deploySmartWallet(
 	ctx context.Context,
 	sigData *evm.ERC6492SignatureData,
-	expectedAddress string,
 ) error {
 	factoryAddr := common.BytesToAddress(sigData.Factory[:])
 
@@ -444,15 +444,12 @@ func (f *ExactEvmScheme) verifySignature(
 	if sigData != nil {
 		zeroFactory := [20]byte{}
 		if sigData.Factory != zeroFactory {
-			code, err := f.signer.GetCode(ctx, authorization.From)
+			_, err := f.signer.GetCode(ctx, authorization.From)
 			if err != nil {
 				return false, err
 			}
-
-			if len(code) == 0 {
-				// Wallet not deployed - this is OK in verify() if has deployment info
-				// Actual deployment happens in settle() if configured
-			}
+			// Wallet may not be deployed - this is OK in verify() if has deployment info
+			// Actual deployment happens in settle() if configured
 		}
 	}
 

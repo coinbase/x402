@@ -171,8 +171,12 @@ func (c *HTTPFacilitatorClient) GetSupported(ctx context.Context) (x402.Supporte
 func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.VerifyResponse, error) {
 	// Build request body
 	var payloadMap, requirementsMap map[string]interface{}
-	json.Unmarshal(payloadBytes, &payloadMap)
-	json.Unmarshal(requirementsBytes, &requirementsMap)
+	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+	if err := json.Unmarshal(requirementsBytes, &requirementsMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal requirements: %w", err)
+	}
 
 	requestBody := map[string]interface{}{
 		"x402Version":         version,
@@ -229,8 +233,12 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, payloadBytes, requirementsBytes []byte) (*x402.SettleResponse, error) {
 	// Build request body
 	var payloadMap, requirementsMap map[string]interface{}
-	json.Unmarshal(payloadBytes, &payloadMap)
-	json.Unmarshal(requirementsBytes, &requirementsMap)
+	if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+	if err := json.Unmarshal(requirementsBytes, &requirementsMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal requirements: %w", err)
+	}
 
 	requestBody := map[string]interface{}{
 		"x402Version":         version,
