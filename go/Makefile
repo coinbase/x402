@@ -1,9 +1,10 @@
-.PHONY: all build test lint fmt clean install help
+.PHONY: all build test lint lint-fix fmt clean install help
 
 # Variables
 GOPATH := $(shell go env GOPATH)
 GOBIN := $(GOPATH)/bin
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
+GOLANGCI_LINT_VERSION := v2.7.2
 MOCKGEN := $(GOBIN)/mockgen
 
 # Default target
@@ -51,6 +52,11 @@ test-e2e:
 lint: $(GOLANGCI_LINT)
 	@echo "Running linter..."
 	@$(GOLANGCI_LINT) run ./...
+
+## lint-fix: Run linter and auto-fix issues where possible
+lint-fix: $(GOLANGCI_LINT)
+	@echo "Running linter with auto-fix..."
+	@$(GOLANGCI_LINT) run --fix ./...
 
 ## fmt: Format code
 fmt:
@@ -115,8 +121,8 @@ release: clean verify build
 
 # Tool installations
 $(GOLANGCI_LINT):
-	@echo "Installing golangci-lint..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(MOCKGEN):
 	@echo "Installing mockgen..."
