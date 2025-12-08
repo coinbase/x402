@@ -274,7 +274,7 @@ func TestFacilitatorVerifyValidation(t *testing.T) {
 		PayTo:   "0xrecipient",
 	})
 
-	response, err = facilitator.Verify(ctx, validPayloadBytes, invalidReqsBytes)
+	_, _ = facilitator.Verify(ctx, validPayloadBytes, invalidReqsBytes)
 	// Validation happens internally, mock returns success
 	// This test needs the mock to actually validate if needed
 }
@@ -449,16 +449,14 @@ func TestFacilitatorSettleVerifiesFirst(t *testing.T) {
 	facilitator := Newx402Facilitator()
 
 	verifyCallCount := 0
-	var mockFacilitator *mockSchemeNetworkFacilitator
-	mockFacilitator = &mockSchemeNetworkFacilitator{
+	mockFacilitator := &mockSchemeNetworkFacilitator{
 		scheme: "exact",
 		verifyFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*VerifyResponse, error) {
 			verifyCallCount++
 			return nil, NewVerifyError("invalid_signature", "", Network(requirements.Network), nil)
 		},
 		settleFunc: func(ctx context.Context, payload types.PaymentPayload, requirements types.PaymentRequirements) (*SettleResponse, error) {
-			// Default settle calls verify first (like real mechanisms)
-			// Return failure since verify returns invalid
+
 			return nil, NewSettleError("invalid_signature", "", Network(requirements.Network), "", nil)
 		},
 	}

@@ -54,7 +54,7 @@ func TestVerifyUniversalSignature_EOA(t *testing.T) {
 			t.Error("expected valid signature")
 		}
 		if sigData == nil {
-			t.Error("expected sigData to be non-nil")
+			t.Fatal("expected sigData to be non-nil")
 		}
 		// Should have original signature as inner signature
 		if !bytesEqual(sigData.InnerSignature, sig) {
@@ -175,7 +175,7 @@ func TestVerifyUniversalSignature_ERC6492(t *testing.T) {
 			t.Error("expected valid ERC-6492 signature")
 		}
 		if sigData == nil {
-			t.Error("expected sigData to be non-nil")
+			t.Fatal("expected sigData to be non-nil")
 		}
 		// Should have deployment info
 		if common.BytesToAddress(sigData.Factory[:]) != factory {

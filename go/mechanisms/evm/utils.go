@@ -93,7 +93,7 @@ func ParseAmount(amount string, decimals int) (*big.Int, error) {
 		if len(decStr) > decimals {
 			decStr = decStr[:decimals]
 		} else {
-			decStr = decStr + strings.Repeat("0", decimals-len(decStr))
+			decStr += strings.Repeat("0", decimals-len(decStr))
 		}
 
 		decPart, ok = new(big.Int).SetString(decStr, 10)

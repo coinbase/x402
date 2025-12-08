@@ -194,6 +194,7 @@ func (t *PaymentRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 		return nil, fmt.Errorf("failed to detect payment version: %w", err)
 	}
 
+	//nolint:contextcheck // Intentionally using request's context for payment flow
 	ctx := req.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -375,30 +376,6 @@ func (c *x402HTTPClient) PostWithPayment(ctx context.Context, url string, body i
 // ============================================================================
 // Header Encoding/Decoding Functions
 // ============================================================================
-
-// encodePaymentSignatureHeader encodes a payment payload as base64
-func encodePaymentSignatureHeader(payload x402.PaymentPayload) string {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal payment payload: %v", err))
-	}
-	return base64.StdEncoding.EncodeToString(data)
-}
-
-// decodePaymentSignatureHeader decodes a base64 payment signature header
-func decodePaymentSignatureHeader(header string) (x402.PaymentPayload, error) {
-	data, err := base64.StdEncoding.DecodeString(header)
-	if err != nil {
-		return x402.PaymentPayload{}, fmt.Errorf("invalid base64 encoding: %w", err)
-	}
-
-	var payload x402.PaymentPayload
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return x402.PaymentPayload{}, fmt.Errorf("invalid payment payload JSON: %w", err)
-	}
-
-	return payload, nil
-}
 
 // encodePaymentRequiredHeader encodes payment requirements as base64
 func encodePaymentRequiredHeader(required x402.PaymentRequired) string {

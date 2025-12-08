@@ -133,7 +133,7 @@ func (s *ExactSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x40
 	}
 
 	// All custom parsers returned nil, use default conversion
-	return s.defaultMoneyConversion(decimalAmount, network, config)
+	return s.defaultMoneyConversion(decimalAmount, config)
 }
 
 // parseMoneyToDecimal converts Money (string | number) to decimal amount
@@ -171,7 +171,7 @@ func (s *ExactSvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) 
 }
 
 // defaultMoneyConversion converts decimal amount to USDC AssetAmount
-func (s *ExactSvmScheme) defaultMoneyConversion(amount float64, network x402.Network, config *svm.NetworkConfig) (x402.AssetAmount, error) {
+func (s *ExactSvmScheme) defaultMoneyConversion(amount float64, config *svm.NetworkConfig) (x402.AssetAmount, error) {
 	// Convert decimal to smallest unit (e.g., $1.50 -> 1500000 for USDC with 6 decimals)
 	amountStr := fmt.Sprintf("%.6f", amount)
 	parsedAmount, err := svm.ParseAmount(amountStr, config.DefaultAsset.Decimals)

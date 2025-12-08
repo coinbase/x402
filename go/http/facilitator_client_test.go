@@ -342,11 +342,12 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 		}
 
 		// Return minimal response
-		if r.URL.Path == "/verify" {
+		switch r.URL.Path {
+		case "/verify":
 			json.NewEncoder(w).Encode(x402.VerifyResponse{IsValid: true, Payer: "0xpayer"})
-		} else if r.URL.Path == "/settle" {
+		case "/settle":
 			json.NewEncoder(w).Encode(x402.SettleResponse{Success: true, Transaction: "0xtx", Payer: "0xpayer", Network: "eip155:1"})
-		} else if r.URL.Path == "/supported" {
+		case "/supported":
 			json.NewEncoder(w).Encode(x402.SupportedResponse{})
 		}
 	}))

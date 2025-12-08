@@ -3,6 +3,7 @@ package facilitator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -80,7 +81,9 @@ func (f *ExactSvmSchemeV1) Verify(
 	// Parse extra field for feePayer
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
-		json.Unmarshal(*requirements.Extra, &reqExtraMap)
+		if err := json.Unmarshal(*requirements.Extra, &reqExtraMap); err != nil {
+			return nil, x402.NewVerifyError("invalid_extra_field", "", network, err)
+		}
 	}
 
 	if reqExtraMap == nil || reqExtraMap["feePayer"] == nil {
@@ -125,7 +128,7 @@ func (f *ExactSvmSchemeV1) Verify(
 	}
 
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(ctx, tx, tx.Message.Instructions[2], requirements); err != nil {
+	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], requirements); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
 	}
 
@@ -172,7 +175,8 @@ func (f *ExactSvmSchemeV1) Settle(
 	verifyResp, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		// Convert VerifyError to SettleError
-		if ve, ok := err.(*x402.VerifyError); ok {
+		ve := &x402.VerifyError{}
+		if errors.As(err, &ve) {
 			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
 		}
 		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
@@ -193,7 +197,9 @@ func (f *ExactSvmSchemeV1) Settle(
 	// Parse extra field for feePayer (V1 uses *json.RawMessage)
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
-		json.Unmarshal(*requirements.Extra, &reqExtraMap)
+		if err := json.Unmarshal(*requirements.Extra, &reqExtraMap); err != nil {
+			return nil, x402.NewSettleError("invalid_extra_field", verifyResp.Payer, network, "", err)
+		}
 	}
 
 	// Extract and validate feePayer from requirements matches transaction
@@ -304,7 +310,6 @@ func (f *ExactSvmSchemeV1) verifyComputePriceInstruction(tx *solana.Transaction,
 
 // verifyTransferInstruction verifies the transfer instruction
 func (f *ExactSvmSchemeV1) verifyTransferInstruction(
-	ctx context.Context,
 	tx *solana.Transaction,
 	inst solana.CompiledInstruction,
 	requirements types.PaymentRequirementsV1,
@@ -342,7 +347,8 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	// Parse Extra to get feePayer
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
-		json.Unmarshal(*requirements.Extra, &reqExtraMap)
+		// Intentionally ignore error - feePayer check is optional validation
+		_ = json.Unmarshal(*requirements.Extra, &reqExtraMap)
 	}
 	feePayerAddr, ok := reqExtraMap["feePayer"].(string)
 	if ok && authorityAddr == feePayerAddr {
