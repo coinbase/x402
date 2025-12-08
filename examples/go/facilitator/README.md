@@ -61,31 +61,24 @@ For production deployments with additional features (Bazaar discovery, multiple 
 ## Prerequisites
 
 - Go 1.21 or higher
-- Understanding of x402 protocol
-- Familiarity with blockchain RPC interaction
+- EVM private key with Base Sepolia ETH for transaction fees
+- SVM private key with Solana Devnet SOL for transaction fees (optional)
 
 ## Setup
 
-1. **Install dependencies:**
+1. Create a `.env` file:
+
+```bash
+EVM_PRIVATE_KEY=<your-evm-private-key>
+SVM_PRIVATE_KEY=<your-svm-private-key>
+```
+
+**⚠️ Security Note:** The facilitator private key needs ETH/SOL for gas fees. Use a dedicated testnet account.
+
+2. Install dependencies and run:
 
 ```bash
 go mod download
-```
-
-2. **Configure environment variables:**
-
-Create a `.env` file:
-
-```bash
-EVM_PRIVATE_KEY=<your-private-key-here>
-SVM_PRIVATE_KEY=<your-private-key-here>
-```
-
-**⚠️ Security Note:** The facilitator private key needs ETH for gas fees to submit transactions. Use a dedicated testnet account with limited funds.
-
-## Running
-
-```bash
 go run .
 ```
 
@@ -135,6 +128,11 @@ Returns supported networks and schemes.
       "x402Version": 2,
       "scheme": "exact",
       "network": "eip155:84532"
+    },
+    {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
     }
   ]
 }
@@ -147,80 +145,157 @@ Verifies a payment signature.
 **Request:**
 ```json
 {
-  "paymentPayload": {...},
-  "paymentRequirements": {...}
+  "paymentPayload": {
+    "x402Version": 2,
+    "resource": {
+      "url": "http://localhost:4021/weather",
+      "description": "Weather data",
+      "mimeType": "application/json"
+    },
+    "accepted": {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "amount": "1000",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 300,
+      "extra": { "name": "USDC", "version": "2" }
+    },
+    "payload": {
+      "signature": "0x...",
+      "authorization": { "from": "0x...", "to": "0x...", "value": "1000", "..." : "..." }
+    }
+  },
+  "paymentRequirements": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "amount": "1000",
+    "payTo": "0x...",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+      "name": "USDC",
+      "version": "2"
+    }
+  }
 }
 ```
 
-**Response:**
+Response (success):
+
 ```json
 {
   "isValid": true,
-  "invalidReason": ""
+  "payer": "0x..."
+}
+```
+
+Response (failure):
+
+```json
+{
+  "isValid": false,
+  "invalidReason": "invalid_signature"
 }
 ```
 
 ### POST /settle
 
-Settles a payment on-chain.
+Settles a verified payment by broadcasting the transaction on-chain.
 
-**Request:**
-```json
-{
-  "paymentPayload": {...},
-  "paymentRequirements": {...}
-}
-```
+Request body is identical to `/verify`.
 
-**Response:**
+Response (success):
+
 ```json
 {
   "success": true,
-  "transaction": "0x1234...",
+  "transaction": "0x...",
   "network": "eip155:84532",
-  "payer": "0xabcd..."
+  "payer": "0x..."
 }
 ```
 
-## Lifecycle Hooks
+Response (failure):
 
-The example registers hooks for logging verification and settlement events. See `main.go` for the complete implementation.
-
-## Testing the Facilitator
-
-### 1. Start the Facilitator
-
-```bash
-go run .
+```json
+{
+  "success": false,
+  "errorReason": "insufficient_balance",
+  "transaction": "",
+  "network": "eip155:84532"
+}
 ```
 
-### 2. Test with Client and Server
+## Extending the Example
 
-Start a resource server (in another terminal):
+### Adding Networks
 
-```bash
-cd ../servers/gin
-go run main.go
+Register additional schemes for other networks:
+
+```go
+import (
+    x402 "github.com/coinbase/x402/go"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator"
+    svm "github.com/coinbase/x402/go/mechanisms/svm/exact/facilitator"
+)
+
+facilitator := x402.Newx402Facilitator()
+
+// Register EVM scheme with smart wallet deployment enabled
+evmConfig := &evm.ExactEvmSchemeConfig{
+    DeployERC4337WithEIP6492: true,
+}
+facilitator.Register([]x402.Network{"eip155:84532"}, evm.NewExactEvmScheme(evmSigner, evmConfig))
+
+// Register SVM scheme
+facilitator.Register([]x402.Network{"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"}, svm.NewExactSvmScheme(svmSigner))
 ```
 
-Start a client (in another terminal):
+### Lifecycle Hooks
 
-```bash
-cd ../clients/http
-go run . builder-pattern
+Add custom logic before/after verify and settle operations:
+
+```go
+facilitator := x402.Newx402Facilitator()
+
+facilitator.OnBeforeVerify(func(ctx x402.FacilitatorVerifyContext) (*x402.FacilitatorBeforeHookResult, error) {
+    // Log or validate before verification
+    return nil, nil
+})
+
+facilitator.OnAfterVerify(func(ctx x402.FacilitatorVerifyResultContext) error {
+    // Track verified payments
+    return nil
+})
+
+facilitator.OnVerifyFailure(func(ctx x402.FacilitatorVerifyFailureContext) (*x402.FacilitatorVerifyFailureHookResult, error) {
+    // Handle verification failures
+    return nil, nil
+})
+
+facilitator.OnBeforeSettle(func(ctx x402.FacilitatorSettleContext) (*x402.FacilitatorBeforeHookResult, error) {
+    // Validate before settlement
+    // Return &x402.FacilitatorBeforeHookResult{Abort: true, Reason: "..."} to cancel
+    return nil, nil
+})
+
+facilitator.OnAfterSettle(func(ctx x402.FacilitatorSettleResultContext) error {
+    // Track successful settlements
+    return nil
+})
+
+facilitator.OnSettleFailure(func(ctx x402.FacilitatorSettleFailureContext) (*x402.FacilitatorSettleFailureHookResult, error) {
+    // Handle settlement failures
+    return nil, nil
+})
 ```
 
+## Network Identifiers
 
+Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format:
 
-## Next Steps
-
-- **[E2E Facilitator](../../../e2e/facilitators/go/)**: Complete working implementation
-- **[Server Examples](../servers/)**: Build servers that use facilitators
-- **[Client Examples](../clients/)**: Build clients that connect to facilitators
-
-## Related Resources
-
-- [x402 Facilitator Package](../../../go/)
-- [EVM Scheme Documentation](../../../go/mechanisms/evm/)
-- [Facilitator Signer Proposal](../../../PROPOSAL_SIGNER_HELPERS.md)
-
+- `eip155:84532` — Base Sepolia
+- `eip155:8453` — Base Mainnet
+- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
+- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet

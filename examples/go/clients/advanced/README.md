@@ -1,302 +1,168 @@
-# Advanced Go Client Examples
+# Advanced x402 Client Examples
 
-This directory contains advanced, production-ready patterns for x402 Go clients. These examples go beyond the basics to demonstrate sophisticated techniques for building robust, scalable payment-enabled applications.
-
-## What This Shows
-
-Advanced patterns for production environments:
-- **Custom HTTP Transports**: Retry logic, circuit breakers, timeouts
-- **Error Recovery**: Sophisticated error handling and recovery strategies
-- **Multi-Network Priority**: Network-specific configuration with fallbacks
-- **Payment Lifecycle Hooks**: Custom logic at different payment stages
-
-## Examples
-
-### 1. Custom Transport (`custom-transport`)
-
-**Production Pattern**: Build resilient clients with retry logic and circuit breakers
-
-```bash
-go run . custom-transport
-```
-
-**Demonstrates:**
-- Exponential backoff retry logic
-- Request timing and instrumentation
-- Custom transport stacking
-- Connection pooling configuration
-
-**Use When:**
-- Building production services
-- Need automatic retry on transient failures
-- Want detailed request metrics
-- Require custom timeout strategies
-
-### 2. Error Recovery (`error-recovery`)
-
-**Production Pattern**: Implement comprehensive error handling with automatic recovery
-
-```bash
-go run . error-recovery
-```
-
-**Demonstrates:**
-- Error classification and categorization
-- Automatic recovery from payment failures
-- Fallback payment methods
-- Detailed error logging and metrics
-
-**Use When:**
-- Need robust error handling
-- Want automatic recovery from failures
-- Require detailed error diagnostics
-- Building fault-tolerant systems
-
-### 3. Multi-Network Priority (`multi-network-priority`)
-
-**Production Pattern**: Configure network-specific signers with priority fallback
-
-```bash
-go run . multi-network-priority
-```
-
-**Demonstrates:**
-- Network-specific signer registration
-- Wildcard fallback configuration
-- Registration precedence rules
-- Fine-grained network control
-
-**Use When:**
-- Managing multiple networks
-- Need different signers per network
-- Want mainnet/testnet separation
-- Building multi-chain applications
-
-### 4. Payment Lifecycle Hooks (`hooks`)
-
-**Production Pattern**: Register hooks for payment creation lifecycle events
-
-```bash
-go run . hooks
-```
-
-**Demonstrates:**
-- OnBeforePaymentCreation: Custom validation before payment
-- OnAfterPaymentCreation: Logging and metrics after payment
-- OnPaymentCreationFailure: Error recovery strategies
-- Payment event lifecycle management
-
-**Use When:**
-- Need to log payment events for debugging/monitoring
-- Want custom validation before allowing payments
-- Require error recovery from payment failures
-- Building observable payment systems
+Advanced patterns for x402 Go clients demonstrating payment lifecycle hooks, network preferences, and production-ready transports.
 
 ## Prerequisites
 
 - Go 1.21 or higher
 - An Ethereum private key (testnet recommended)
 - A running x402 server (see [server examples](../../servers/))
-- Understanding of [basic HTTP client](../http/)
+- Familiarity with the [basic HTTP client](../http/)
 
 ## Setup
 
-1. **Install dependencies:**
+1. Install dependencies:
 
 ```bash
 go mod download
 ```
 
-2. **Configure environment variables:**
-
-Create a `.env` file:
+2. Create a `.env` file:
 
 ```bash
 # Required
 EVM_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 # Optional
-SERVER_URL=http://localhost:4021
+SERVER_URL=http://localhost:4021/weather
 ```
 
-## Running Examples
+## Available Examples
+
+Each example demonstrates a specific advanced pattern:
+
+| Example | Command | Description |
+|---------|---------|-------------|
+| `custom-transport` | `go run . custom-transport` | Custom HTTP transport with retry logic |
+| `error-recovery` | `go run . error-recovery` | Error classification and recovery |
+| `multi-network-priority` | `go run . multi-network-priority` | Network-specific signer registration |
+| `hooks` | `go run . hooks` | Payment lifecycle hooks |
+
+## Testing the Examples
+
+Start a server first:
 
 ```bash
-# Run specific advanced example
-go run . custom-transport
-go run . error-recovery
-go run . multi-network-priority
+cd ../../servers/gin
+go run main.go
+```
+
+Then run the examples:
+
+```bash
+cd ../../clients/advanced
 go run . hooks
 ```
 
-## Architecture Patterns
+## Example: Payment Lifecycle Hooks
 
-### Custom Transport Stack
-
-Build layered transport architecture:
+Register custom logic at different payment stages for observability and control:
 
 ```go
-baseTransport := &http.Transport{
-    MaxIdleConns: 100,
-    IdleConnTimeout: 90 * time.Second,
-}
+import (
+    x402 "github.com/coinbase/x402/go"
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
 
-// Layer stack (innermost to outermost)
-retryTransport := &RetryTransport{Transport: baseTransport}
-timingTransport := &TimingTransport{Transport: retryTransport}
-paymentTransport := &PaymentRoundTripper{Transport: timingTransport}
+signer, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
 
-client := &http.Client{Transport: paymentTransport}
-```
+client := x402.Newx402Client().
+    Register("eip155:*", evm.NewExactEvmScheme(signer))
 
-### Error Recovery Strategy
-
-Implement intelligent error handling:
-
-```go
-client.OnPaymentCreationFailure(func(ctx PaymentCreationFailureContext) (*PaymentCreationFailureResult, error) {
-    // Classify error
-    errorType := classifyError(ctx.Error)
-    
-    switch errorType {
-    case "network":
-        return nil, nil // Retry
-    case "insufficient_balance":
-        return nil, ctx.Error // Fail
-    case "signing_error":
-        // Attempt recovery with alternative method
-        return &PaymentCreationFailureResult{
-            Recovered: true,
-            Payload: alternativePayload,
-        }, nil
-    }
+// OnBeforePaymentCreation: validation before payment
+client.OnBeforePaymentCreation(func(ctx x402.PaymentCreationContext) (*x402.BeforePaymentCreationHookResult, error) {
+    fmt.Printf("Creating payment for: %s\n", ctx.SelectedRequirements.GetNetwork())
+    // Abort payment by returning: &x402.BeforePaymentCreationHookResult{Abort: true, Reason: "Not allowed"}
+    return nil, nil
 })
+
+// OnAfterPaymentCreation: logging after successful payment
+client.OnAfterPaymentCreation(func(ctx x402.PaymentCreatedContext) error {
+    fmt.Printf("Payment created: version %d\n", ctx.Version)
+    return nil
+})
+
+// OnPaymentCreationFailure: error recovery
+client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x402.PaymentCreationFailureHookResult, error) {
+    fmt.Printf("Payment failed: %v\n", ctx.Error)
+    // Recover by returning: &x402.PaymentCreationFailureHookResult{Recovered: true, Payload: altPayload}
+    return nil, nil
+})
+
+httpClient := x402http.Newx402HTTPClient(client)
+wrappedClient := x402http.WrapHTTPClientWithPayment(http.DefaultClient, httpClient)
+
+resp, _ := wrappedClient.Get("http://localhost:4021/weather")
 ```
 
-### Concurrent Request Pattern
+Available hooks:
 
-Safe parallel execution:
+- `OnBeforePaymentCreation` — Run before payment creation (can abort)
+- `OnAfterPaymentCreation` — Run after successful payment creation
+- `OnPaymentCreationFailure` — Run when payment creation fails (can recover)
 
-```go
-var wg sync.WaitGroup
-results := make([]Result, len(urls))
+**Use case:** Log payment events, custom validation, retry/recovery logic, metrics collection.
 
-for i, url := range urls {
-    wg.Add(1)
-    go func(index int, u string) {
-        defer wg.Done()
-        resp, err := client.Get(u)
-        results[index] = processResponse(resp, err)
-    }(i, url)
-}
+## Example: Multi-Network Priority
 
-wg.Wait()
-// All requests completed, process results
-```
-
-### Network Priority Configuration
-
-Register networks with precedence:
+Configure network-specific signers with wildcard fallback:
 
 ```go
 client := x402.Newx402Client().
     // Specific networks (highest priority)
     Register("eip155:1", evm.NewExactEvmScheme(mainnetSigner)).
     Register("eip155:8453", evm.NewExactEvmScheme(baseSigner)).
+    Register("eip155:84532", evm.NewExactEvmScheme(testnetSigner)).
     // Wildcard fallback (lowest priority)
     Register("eip155:*", evm.NewExactEvmScheme(defaultSigner))
 ```
 
-## Production Considerations
+More specific registrations always override wildcards.
 
-### Retry Configuration
+**Use case:** Different signers per network, mainnet/testnet separation, multi-chain applications.
 
-```go
-retryTransport := &RetryTransport{
-    MaxRetries: 3,
-    RetryDelay: 100 * time.Millisecond,  // Base delay
-    // Implements exponential backoff: 100ms, 200ms, 400ms
-}
-```
+## Example: Custom Transport
 
-### Connection Pooling
+Build a custom HTTP transport with retry logic and timing:
 
 ```go
-transport := &http.Transport{
-    MaxIdleConns:        100,              // Total idle connections
-    MaxIdleConnsPerHost: 10,               // Per host
-    IdleConnTimeout:     90 * time.Second, // Connection reuse timeout
-    DisableCompression:  false,            // Enable compression
-}
-```
-
-### Timeout Strategy
-
-```go
-client := &http.Client{
-    Timeout: 30 * time.Second,  // Total request timeout
-    Transport: transport,
+// RetryTransport wraps a transport with exponential backoff
+type RetryTransport struct {
+    Transport  http.RoundTripper
+    MaxRetries int
+    RetryDelay time.Duration
 }
 
-// Per-request context timeout
-ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-defer cancel()
-req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+// Stack transports: Base -> Timing -> Retry -> x402 Payment
+baseTransport := &http.Transport{
+    MaxIdleConns:        100,
+    MaxIdleConnsPerHost: 10,
+    IdleConnTimeout:     90 * time.Second,
+}
+
+timingTransport := &TimingTransport{Transport: baseTransport}
+retryTransport := &RetryTransport{Transport: timingTransport, MaxRetries: 3, RetryDelay: 100 * time.Millisecond}
+
+wrappedClient := x402http.WrapHTTPClientWithPayment(
+    &http.Client{Transport: retryTransport, Timeout: 30 * time.Second},
+    httpClient,
+)
 ```
 
-### Error Classification
+**Use case:** Automatic retry on transient failures, request metrics, connection pooling.
 
-Implement smart error categorization:
+## Hook Best Practices
 
-- **Network errors**: Retry automatically
-- **Balance errors**: Fail fast, notify user
-- **Signing errors**: Attempt recovery
-- **Validation errors**: Log and fail
-- **Unknown errors**: Safe default behavior
-
-## Performance Optimization
-
-### Memory Management
-
-- Use connection pooling to reduce allocation overhead
-- Close response bodies promptly to free connections
-- Reuse HTTP clients across requests
-
-## Testing Against Local Server
-
-1. Start server:
-```bash
-cd ../../servers/gin
-go run main.go
-```
-
-2. Run advanced examples:
-```bash
-cd ../../clients/advanced
-go run . custom-transport
-```
-
-## Comparison: Basic vs Advanced
-
-| Feature | Basic Client | Advanced Client |
-|---------|-------------|-----------------|
-| Retry Logic | ❌ | ✅ Exponential backoff |
-| Error Recovery | Basic | ✅ Intelligent classification |
-| Concurrency | Manual | ✅ Safe patterns provided |
-| Network Priority | Simple | ✅ Fine-grained control |
-| Payment Hooks | None | ✅ Lifecycle event handling |
-| Observability | Minimal | ✅ Comprehensive logging |
-| Production Ready | Basic | ✅ Battle-tested patterns |
+1. **Keep hooks fast** — Avoid blocking operations
+2. **Handle errors gracefully** — Don't panic in hooks
+3. **Log appropriately** — Use structured logging
+4. **Avoid side effects in before hooks** — Only use for validation
 
 ## Next Steps
 
-- **[Basic HTTP Client](../http/)**: Start here if you haven't already
-- **[Custom Client](../custom/)**: Learn the internals
-- **[Server Examples](../../servers/)**: Build complementary servers
-
-## Related Resources
-
-- [x402 HTTP Package](../../../../go/http/)
-- [Production Deployment Guide](../../../../docs/production.md)
-- [Performance Tuning](../../../../docs/performance.md)
+- **[Basic HTTP Client](../http/)** — Start here if you haven't already
+- **[Custom Client](../custom/)** — Learn the internals
+- **[Server Examples](../../servers/)** — Build complementary servers
 
