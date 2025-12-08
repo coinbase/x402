@@ -17,9 +17,9 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@vercel/functions": "^2.2.8",
-    "next": "15.5.0",
-    "react": "19.1.1",
-    "react-dom": "19.1.1",
+    "next": "15.5.7",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
     "viem": "^2.21.26",
     "wagmi": "^2.15.6",
     "x402": "workspace:*",

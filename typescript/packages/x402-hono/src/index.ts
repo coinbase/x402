@@ -259,7 +259,7 @@ export function paymentMiddleware(
         {
           error:
             errorMessages?.invalidPayment ||
-            (error instanceof Error ? error : new Error("Invalid or malformed payment header")),
+            (error instanceof Error ? error.message : "Invalid or malformed payment header"),
           accepts: paymentRequirements,
           x402Version,
         },
@@ -283,14 +283,28 @@ export function paymentMiddleware(
       );
     }
 
-    const verification = await verify(decodedPayment, selectedPaymentRequirements);
+    try {
+      const verification = await verify(decodedPayment, selectedPaymentRequirements);
 
-    if (!verification.isValid) {
+      if (!verification.isValid) {
+        return c.json(
+          {
+            error: errorMessages?.verificationFailed || verification.invalidReason,
+            accepts: paymentRequirements,
+            payer: verification.payer,
+            x402Version,
+          },
+          402,
+        );
+      }
+    } catch (error) {
+      console.error("Payment verification failed:", error);
       return c.json(
         {
-          error: errorMessages?.verificationFailed || verification.invalidReason,
+          error:
+            errorMessages?.verificationFailed ||
+            (error instanceof Error ? error.message : "Payment verification failed"),
           accepts: paymentRequirements,
-          payer: verification.payer,
           x402Version,
         },
         402,
@@ -323,7 +337,7 @@ export function paymentMiddleware(
         {
           error:
             errorMessages?.settlementFailed ||
-            (error instanceof Error ? error : new Error("Failed to settle payment")),
+            (error instanceof Error ? error.message : "Failed to settle payment"),
           accepts: paymentRequirements,
           x402Version,
         },
