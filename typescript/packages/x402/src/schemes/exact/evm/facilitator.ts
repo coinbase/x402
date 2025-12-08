@@ -271,27 +271,51 @@ export async function settle<transport extends Transport, chain extends Chain>(
     }
   }
 
-  // Returns the original signature (no-op) if the signature is not a 6492 signature
-  const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
-  const parsedSig = parseSignature(unwrappedSignature);
+  let tx: Hex;
 
-  const tx = await wallet.writeContract({
-    address: paymentRequirements.asset as Address,
-    abi,
-    functionName: "transferWithAuthorization" as const,
-    args: [
-      payload.authorization.from as Address,
-      payload.authorization.to as Address,
-      BigInt(payload.authorization.value),
-      BigInt(payload.authorization.validAfter),
-      BigInt(payload.authorization.validBefore),
-      payload.authorization.nonce as Hex,
-      (parsedSig.v as number | undefined) || parsedSig.yParity,
-      parsedSig.r,
-      parsedSig.s,
-    ],
-    chain: wallet.chain as Chain,
-  });
+  if (isSmartWallet) {
+    // Smart wallets: Use bytes signature overload (requires FiatToken v2.0+)
+    // Unwrap EIP-6492 if present (no-op for regular signatures)
+    const { signature: unwrappedSignature } = parseErc6492Signature(payload.signature as Hex);
+
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        unwrappedSignature,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  } else {
+    // EOA: Use (v, r, s) overload for maximum compatibility
+    const parsedSig = parseSignature(payload.signature as Hex);
+    const v = parsedSig.v !== undefined ? Number(parsedSig.v) : 27 + parsedSig.yParity;
+
+    tx = await wallet.writeContract({
+      address: paymentRequirements.asset as Address,
+      abi,
+      functionName: "transferWithAuthorization" as const,
+      args: [
+        payload.authorization.from as Address,
+        payload.authorization.to as Address,
+        BigInt(payload.authorization.value),
+        BigInt(payload.authorization.validAfter),
+        BigInt(payload.authorization.validBefore),
+        payload.authorization.nonce as Hex,
+        v,
+        parsedSig.r,
+        parsedSig.s,
+      ],
+      chain: wallet.chain as Chain,
+    });
+  }
 
   const receipt = await wallet.waitForTransactionReceipt({ hash: tx });
 
