@@ -122,16 +122,14 @@ describe("fetchWithPayment()", () => {
     ).rejects.toThrow("Payment already attempted");
   });
 
-  it("should reject if missing request config", async () => {
+  it("should allow optional fetch request config", async () => {
     const errorResponse = createResponse(402, {
       accepts: validPaymentRequirements,
       x402Version: 1,
     });
     mockFetch.mockResolvedValue(errorResponse);
 
-    await expect(wrappedFetch("https://api.example.com")).rejects.toThrow(
-      "Missing fetch request configuration",
-    );
+    await expect(wrappedFetch("https://api.example.com")).resolves.toBeDefined();
   });
 
   it("should reject if payment amount exceeds maximum", async () => {
