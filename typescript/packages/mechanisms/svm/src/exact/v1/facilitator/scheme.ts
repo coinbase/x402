@@ -26,7 +26,7 @@ import type {
   VerifyResponse,
 } from "@x402/core/types";
 import type { PaymentPayloadV1, PaymentRequirementsV1 } from "@x402/core/types/v1";
-import { MAX_COMPUTE_UNIT_PRICE } from "../../../constants";
+import { MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS } from "../../../constants";
 import type { FacilitatorSvmSigner } from "../../../signer";
 import type { ExactSvmPayloadV1 } from "../../../types";
 import { decodeTransactionFromPayload, getTokenPayerFromTransaction } from "../../../utils";
@@ -99,10 +99,28 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
+    if (payloadV1.network !== requirements.network) {
+      return {
+        isValid: false,
+        invalidReason: "network_mismatch",
+        payer: "",
+      };
+    }
+
     if (!requirementsV1.extra?.feePayer || typeof requirementsV1.extra.feePayer !== "string") {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_missing_fee_payer",
+        payer: "",
+      };
+    }
+
+    // Verify that the requested feePayer is managed by this facilitator
+    const signerAddresses = this.signer.getAddresses().map(addr => addr.toString());
+    if (!signerAddresses.includes(requirementsV1.extra.feePayer)) {
+      return {
+        isValid: false,
+        invalidReason: "fee_payer_not_managed_by_facilitator",
         payer: "",
       };
     }
@@ -114,7 +132,7 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
     } catch {
       return {
         isValid: false,
-        invalidReason: "invalid_exact_svm_payload_transaction",
+        invalidReason: "invalid_exact_svm_payload_transaction_could_not_be_decoded",
         payer: "",
       };
     }
@@ -156,14 +174,6 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    if (payloadV1.network !== requirements.network) {
-      return {
-        isValid: false,
-        invalidReason: "network_mismatch",
-        payer,
-      };
-    }
-
     // Step 4: Verify Transfer Instruction
     const transferIx = instructions[2];
     const programAddress = transferIx.programAddress.toString();
@@ -195,10 +205,10 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    // Verify that the fee payer is not transferring their own funds
+    // Verify that the facilitator's signers are not transferring their own funds
     // SECURITY: Prevent facilitator from signing away their own tokens
     const authorityAddress = parsedTransfer.accounts.authority.address.toString();
-    if (authorityAddress === requirementsV1.extra.feePayer) {
+    if (signerAddresses.includes(authorityAddress)) {
       return {
         isValid: false,
         invalidReason: "invalid_exact_svm_payload_transaction_fee_payer_transferring_funds",
@@ -256,14 +266,7 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
     // Step 5: Sign and Simulate Transaction
     // CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
     try {
-      const feePayer = requirementsV1.extra?.feePayer as Address;
-      if (!feePayer) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_exact_svm_payload_missing_fee_payer",
-          payer,
-        };
-      }
+      const feePayer = requirementsV1.extra.feePayer as Address;
 
       // Sign transaction with the feePayer's signer
       const fullySignedTransaction = await this.signer.signTransaction(
@@ -274,10 +277,11 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
 
       // Simulate to verify transaction would succeed
       await this.signer.simulateTransaction(fullySignedTransaction, requirements.network);
-    } catch {
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         isValid: false,
-        invalidReason: "transaction_simulation_failed",
+        invalidReason: `transaction_simulation_failed: ${errorMessage}`,
         payer,
       };
     }
@@ -310,23 +314,14 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
         success: false,
         network: payloadV1.network,
         transaction: "",
-        errorReason: valid.invalidReason ?? "invalid_scheme",
+        errorReason: valid.invalidReason ?? "verification_failed",
         payer: valid.payer || "",
       };
     }
 
     try {
-      // Extract feePayer from requirements to ensure we sign with the correct key
-      const feePayer = requirements.extra?.feePayer as Address;
-      if (!feePayer) {
-        return {
-          success: false,
-          errorReason: "missing_fee_payer",
-          transaction: "",
-          network: payloadV1.network,
-          payer: valid.payer || "",
-        };
-      }
+      // Extract feePayer from requirements (already validated in verify)
+      const feePayer = requirements.extra.feePayer as Address;
 
       // Sign transaction with the feePayer's signer
       const fullySignedTransaction = await this.signer.signTransaction(
@@ -420,9 +415,10 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
     try {
       const parsedInstruction = parseSetComputeUnitPriceInstruction(instruction as never);
 
+      // Check if price exceeds maximum (5 lamports per compute unit)
       if (
         (parsedInstruction as unknown as { microLamports: bigint }).microLamports >
-        BigInt(MAX_COMPUTE_UNIT_PRICE * 1_000_000)
+        BigInt(MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS)
       ) {
         throw new Error(
           "invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high",

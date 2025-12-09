@@ -25,9 +25,11 @@ export const USDC_TESTNET_ADDRESS = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncD
 
 /**
  * Compute budget configuration
+ * All prices are in microlamports (1 lamport = 1,000,000 microlamports)
  */
-export const DEFAULT_COMPUTE_UNIT_PRICE = 1; // microlamports
-export const MAX_COMPUTE_UNIT_PRICE = 5; // lamports (facilitator validation)
+export const DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 1;
+export const MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000; // 5 lamports
+export const DEFAULT_COMPUTE_UNIT_LIMIT = 6500;
 
 /**
  * Solana address validation regex (base58, 32-44 characters)

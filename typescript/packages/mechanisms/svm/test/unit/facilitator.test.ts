@@ -10,6 +10,12 @@ describe("ExactSvmScheme", () => {
   beforeEach(() => {
     mockSigner = {
       address: "FacilitatorAddress1111111111111111111" as never,
+      getAddresses: vi
+        .fn()
+        .mockReturnValue([
+          "FeePayer1111111111111111111111111111",
+          "FacilitatorAddress1111111111111111111",
+        ]) as never,
       signTransactions: vi.fn() as never,
       signMessages: vi.fn().mockResolvedValue([
         {
@@ -120,9 +126,9 @@ describe("ExactSvmScheme", () => {
 
       const result = await facilitator.verify(payload, requirements);
 
-      // Transaction decoding happens first, so we get transaction error before network check
+      // Network check happens early in Step 1 (before transaction parsing)
       expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toContain("invalid_exact_svm_payload_transaction");
+      expect(result.invalidReason).toBe("network_mismatch");
     });
 
     it("should reject if feePayer is missing", async () => {

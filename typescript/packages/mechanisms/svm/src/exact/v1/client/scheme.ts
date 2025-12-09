@@ -12,7 +12,6 @@ import {
 import {
   appendTransactionMessageInstructions,
   createTransactionMessage,
-  fetchEncodedAccount,
   getBase64EncodedWireTransaction,
   partiallySignTransactionMessageWithSigners,
   pipe,
@@ -28,7 +27,10 @@ import type {
   SchemeNetworkClient,
 } from "@x402/core/types";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
-import { DEFAULT_COMPUTE_UNIT_PRICE } from "../../../constants";
+import {
+  DEFAULT_COMPUTE_UNIT_LIMIT,
+  DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS,
+} from "../../../constants";
 import type { ClientSvmConfig, ClientSvmSigner } from "../../../signer";
 import type { ExactSvmPayloadV1 } from "../../../types";
 import { createRpcClient } from "../../../utils";
@@ -89,20 +91,6 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
       tokenProgram: tokenProgramAddress,
     });
 
-    const sourceAccount = await fetchEncodedAccount(rpc, sourceATA);
-    if (!sourceAccount.exists) {
-      throw new Error(
-        `invalid_exact_svm_payload_ata_not_found: Source ATA does not exist for client ${this.signer.address}`,
-      );
-    }
-
-    const destAccount = await fetchEncodedAccount(rpc, destinationATA);
-    if (!destAccount.exists) {
-      throw new Error(
-        `invalid_exact_svm_payload_ata_not_found: Destination ATA does not exist for recipient ${selectedV1.payTo}`,
-      );
-    }
-
     const transferIx = getTransferCheckedInstruction(
       {
         source: sourceATA,
@@ -121,23 +109,18 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
       throw new Error("feePayer is required in paymentRequirements.extra for SVM transactions");
     }
 
-    const txToSimulate = pipe(
-      createTransactionMessage({ version: 0 }),
-      tx => setTransactionMessageComputeUnitPrice(DEFAULT_COMPUTE_UNIT_PRICE, tx),
-      tx => setTransactionMessageFeePayer(feePayer, tx),
-      tx => appendTransactionMessageInstructions([transferIx], tx),
-    );
-
-    const estimatedUnits = 6500;
     const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
 
     const tx = pipe(
-      txToSimulate,
+      createTransactionMessage({ version: 0 }),
+      tx => setTransactionMessageComputeUnitPrice(DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS, tx),
+      tx => setTransactionMessageFeePayer(feePayer, tx),
       tx =>
         prependTransactionMessageInstruction(
-          getSetComputeUnitLimitInstruction({ units: estimatedUnits }),
+          getSetComputeUnitLimitInstruction({ units: DEFAULT_COMPUTE_UNIT_LIMIT }),
           tx,
         ),
+      tx => appendTransactionMessageInstructions([transferIx], tx),
       tx => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
     );
 
