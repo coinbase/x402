@@ -6,7 +6,7 @@ Client-side Ed25519 signing for Solana-based x402 payments.
 
 ```go
 import (
-    "github.com/coinbase/x402/go/mechanisms/svm"
+    svmclient "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
     svmsigners "github.com/coinbase/x402/go/signers/svm"
 )
 
@@ -16,8 +16,8 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Use with ExactSvmClient
-svmClient := svm.NewExactSvmClient(signer)
+// Use with ExactSvmScheme
+svmScheme := svmclient.NewExactSvmScheme(signer)
 ```
 
 ## API
@@ -60,7 +60,7 @@ The helper implements `svm.ClientSvmSigner`:
 ```go
 type ClientSvmSigner interface {
     Address() solana.PublicKey
-    SignTransaction(tx *solana.Transaction) error
+    SignTransaction(ctx context.Context, tx *solana.Transaction) error
 }
 ```
 
