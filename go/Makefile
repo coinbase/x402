@@ -6,6 +6,7 @@ GOBIN := $(GOPATH)/bin
 GOLANGCI_LINT := $(GOBIN)/golangci-lint
 GOLANGCI_LINT_VERSION := v2.7.2
 MOCKGEN := $(GOBIN)/mockgen
+GOIMPORTS := $(GOBIN)/goimports
 
 # Default target
 all: fmt lint test build
@@ -59,10 +60,10 @@ lint-fix: $(GOLANGCI_LINT)
 	@$(GOLANGCI_LINT) run --fix ./...
 
 ## fmt: Format code
-fmt:
+fmt: $(GOIMPORTS)
 	@echo "Formatting code..."
 	@go fmt ./...
-	@goimports -w .
+	@$(GOIMPORTS) -w .
 
 ## clean: Clean build artifacts
 clean:
@@ -83,7 +84,7 @@ deps:
 	@go mod tidy
 
 ## deps-dev: Install development dependencies
-deps-dev: $(GOLANGCI_LINT) $(MOCKGEN)
+deps-dev: $(GOLANGCI_LINT) $(MOCKGEN) $(GOIMPORTS)
 	@echo "Development dependencies installed"
 
 ## generate: Generate code (mocks, etc.)
@@ -122,11 +123,15 @@ release: clean verify build
 # Tool installations
 $(GOLANGCI_LINT):
 	@echo "Installing golangci-lint $(GOLANGCI_LINT_VERSION)..."
-	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(MOCKGEN):
 	@echo "Installing mockgen..."
 	@go install github.com/golang/mock/mockgen@latest
+
+$(GOIMPORTS):
+	@echo "Installing goimports..."
+	@go install golang.org/x/tools/cmd/goimports@latest
 
 # Print variables for debugging
 ## vars: Print Makefile variables
@@ -135,3 +140,4 @@ vars:
 	@echo "GOBIN: $(GOBIN)"
 	@echo "GOLANGCI_LINT: $(GOLANGCI_LINT)"
 	@echo "MOCKGEN: $(MOCKGEN)"
+	@echo "GOIMPORTS: $(GOIMPORTS)"

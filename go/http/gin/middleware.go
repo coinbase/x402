@@ -165,11 +165,11 @@ func WithTimeout(timeout time.Duration) MiddlewareOption {
 // PaymentMiddleware creates Gin middleware for x402 payment handling
 func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) gin.HandlerFunc {
 	config := &MiddlewareConfig{
-		Routes:             routes,
-		FacilitatorClients: []x402.FacilitatorClient{},
-		Schemes:            []SchemeRegistration{},
+		Routes:                 routes,
+		FacilitatorClients:     []x402.FacilitatorClient{},
+		Schemes:                []SchemeRegistration{},
 		SyncFacilitatorOnStart: true,
-		Timeout:            30 * time.Second,
+		Timeout:                30 * time.Second,
 	}
 
 	// Apply options
@@ -312,7 +312,7 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 	fmt.Printf("   Success: %v\n", settleResult.Success)
 	fmt.Printf("   ErrorReason: %v\n", settleResult.ErrorReason)
 
-	// Check settlement success 
+	// Check settlement success
 	if !settleResult.Success {
 		errorReason := settleResult.ErrorReason
 		if errorReason == "" {
@@ -368,6 +368,11 @@ func (w *responseCapture) WriteHeader(code int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	w.writeHeaderLocked(code)
+}
+
+// writeHeaderLocked sets the status code (must be called with lock held)
+func (w *responseCapture) writeHeaderLocked(code int) {
 	if !w.written {
 		w.statusCode = code
 		w.written = true
@@ -380,7 +385,7 @@ func (w *responseCapture) Write(data []byte) (int, error) {
 	defer w.mu.Unlock()
 
 	if !w.written {
-		w.WriteHeader(http.StatusOK)
+		w.writeHeaderLocked(http.StatusOK)
 	}
 	return w.body.Write(data)
 }

@@ -384,25 +384,16 @@ func TestProcessSettlement(t *testing.T) {
 		Payload:     map[string]interface{}{},
 	}
 
-	// Test successful response (should settle)
-	headers, err := server.ProcessSettlement(ctx, payload, requirements, 200)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
+	// Test settlement processing
+	result := server.ProcessSettlement(ctx, payload, requirements)
+	if !result.Success {
+		t.Fatalf("Unexpected failure: %v", result.ErrorReason)
 	}
-	if headers == nil {
+	if result.Headers == nil {
 		t.Fatal("Expected settlement headers")
 	}
-	if headers["PAYMENT-RESPONSE"] == "" {
+	if result.Headers["PAYMENT-RESPONSE"] == "" {
 		t.Error("Expected PAYMENT-RESPONSE header")
-	}
-
-	// Test failed response (should not settle)
-	headers, err = server.ProcessSettlement(ctx, payload, requirements, 400)
-	if err != nil {
-		t.Fatalf("Unexpected error for 400: %v", err)
-	}
-	if headers != nil {
-		t.Error("Expected no headers for failed response")
 	}
 }
 

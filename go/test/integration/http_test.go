@@ -205,26 +205,25 @@ func TestHTTPIntegration(t *testing.T) {
 		}
 
 		// Process settlement (simulating successful response)
-		settlementHeaders, err := server.ProcessSettlement(
+		settlementResult := server.ProcessSettlement(
 			ctx,
 			*httpProcessResult2.PaymentPayload,
 			*httpProcessResult2.PaymentRequirements,
-			200, // Success status
 		)
-		if err != nil {
-			t.Fatalf("Failed to process settlement: %v", err)
+		if !settlementResult.Success {
+			t.Fatalf("Failed to process settlement: %v", settlementResult.ErrorReason)
 		}
 
-		if settlementHeaders == nil {
+		if settlementResult.Headers == nil {
 			t.Fatal("Expected settlement headers")
 		}
 
-		if settlementHeaders["PAYMENT-RESPONSE"] == "" {
+		if settlementResult.Headers["PAYMENT-RESPONSE"] == "" {
 			t.Error("Expected PAYMENT-RESPONSE header")
 		}
 
 		// Decode and verify settlement response
-		settleData, err := base64.StdEncoding.DecodeString(settlementHeaders["PAYMENT-RESPONSE"])
+		settleData, err := base64.StdEncoding.DecodeString(settlementResult.Headers["PAYMENT-RESPONSE"])
 		if err != nil {
 			t.Fatalf("Failed to decode settlement response: %v", err)
 		}
