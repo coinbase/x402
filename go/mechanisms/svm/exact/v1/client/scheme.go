@@ -103,24 +103,6 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 		return types.PaymentPayloadV1{}, fmt.Errorf("failed to derive destination ATA: %w", err)
 	}
 
-	// Check that source ATA exists
-	sourceAccount, err := rpcClient.GetAccountInfo(ctx, sourceATA)
-	if err != nil || sourceAccount == nil || sourceAccount.Value == nil {
-		return types.PaymentPayloadV1{}, fmt.Errorf(
-			"invalid_exact_solana_payload_ata_not_found: Source ATA does not exist for client %s",
-			c.signer.Address(),
-		)
-	}
-
-	// Check that destination ATA exists
-	destAccount, err := rpcClient.GetAccountInfo(ctx, destinationATA)
-	if err != nil || destAccount == nil || destAccount.Value == nil {
-		return types.PaymentPayloadV1{}, fmt.Errorf(
-			"invalid_exact_solana_payload_ata_not_found: Destination ATA does not exist for recipient %s",
-			requirements.PayTo,
-		)
-	}
-
 	// V1: Use MaxAmountRequired field
 	amountStr := requirements.MaxAmountRequired
 
@@ -161,19 +143,16 @@ func (c *ExactSvmSchemeV1) CreatePaymentPayload(
 	}
 	recentBlockhash := latestBlockhash.Value.Blockhash
 
-	// Hardcoded compute units for 3 instructions (ComputeLimit + ComputePrice + TransferChecked)
-	const estimatedUnits uint32 = 6500
-
 	// Build compute budget instructions
 	cuLimit, err := computebudget.NewSetComputeUnitLimitInstructionBuilder().
-		SetUnits(estimatedUnits).
+		SetUnits(svm.DefaultComputeUnitLimit).
 		ValidateAndBuild()
 	if err != nil {
 		return types.PaymentPayloadV1{}, fmt.Errorf("failed to build compute limit instruction: %w", err)
 	}
 
 	cuPrice, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
-		SetMicroLamports(svm.DefaultComputeUnitPrice).
+		SetMicroLamports(svm.DefaultComputeUnitPriceMicrolamports).
 		ValidateAndBuild()
 	if err != nil {
 		return types.PaymentPayloadV1{}, fmt.Errorf("failed to build compute price instruction: %w", err)
