@@ -1,0 +1,7 @@
+{
+  "name": "Crypto Sentiment API",
+  "description": "Real-time crypto sentiment analysis powered by Reddit and social media. Returns BUY/SELL/NEUTRAL signals with confidence scores for BTC, ETH, SOL and other major cryptocurrencies. Pay $0.03 USDC per query via x402 - no subscriptions, no API keys required.",
+  "logoUrl": "/logos/crypto-sentiment-api-logo.png",
+  "websiteUrl": "https://crypto-sentiment-api-production.up.railway.app",
+  "category": "Services/Endpoints"
+}
