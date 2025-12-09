@@ -13,11 +13,15 @@ const (
 	// DefaultDecimals is the default token decimals for USDC
 	DefaultDecimals = 6
 
-	// DefaultComputeUnitPrice is the default compute unit price in microlamports
-	DefaultComputeUnitPrice = 1 // microlamports per compute unit
+	// DefaultComputeUnitPriceMicrolamports is the default compute unit price in microlamports
+	DefaultComputeUnitPriceMicrolamports = 1
 
-	// MaxComputeUnitPrice is the maximum compute unit price in lamports (facilitator validation limit)
-	MaxComputeUnitPrice = 5 // lamports
+	// MaxComputeUnitPriceMicrolamports is the maximum compute unit price in microlamports (facilitator validation limit)
+	// 5 lamports = 5,000,000 microlamports
+	MaxComputeUnitPriceMicrolamports = 5_000_000
+
+	// DefaultComputeUnitLimit is the default compute unit limit for transactions
+	DefaultComputeUnitLimit uint32 = 6500
 
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed

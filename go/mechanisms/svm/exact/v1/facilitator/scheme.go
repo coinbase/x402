@@ -78,6 +78,11 @@ func (f *ExactSvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError("unsupported_scheme", "", network, nil)
 	}
 
+	// V1: Use payload.Network for validation (top level, not in Accepted)
+	if payload.Network != requirements.Network {
+		return nil, x402.NewVerifyError("network_mismatch", "", network, nil)
+	}
+
 	// Parse extra field for feePayer
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
@@ -90,6 +95,29 @@ func (f *ExactSvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", "", network, nil)
 	}
 
+	feePayerStr, ok := reqExtraMap["feePayer"].(string)
+	if !ok {
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", "", network, nil)
+	}
+
+	// Verify that the requested feePayer is managed by this facilitator
+	signerAddresses := f.signer.GetAddresses(ctx, string(network))
+	signerAddressStrs := make([]string, len(signerAddresses))
+	for i, addr := range signerAddresses {
+		signerAddressStrs[i] = addr.String()
+	}
+
+	feePayerManaged := false
+	for _, addr := range signerAddressStrs {
+		if addr == feePayerStr {
+			feePayerManaged = true
+			break
+		}
+	}
+	if !feePayerManaged {
+		return nil, x402.NewVerifyError("fee_payer_not_managed_by_facilitator", "", network, nil)
+	}
+
 	// Parse payload
 	svmPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
@@ -99,7 +127,7 @@ func (f *ExactSvmSchemeV1) Verify(
 	// Step 2: Parse and Validate Transaction Structure
 	tx, err := svm.DecodeTransaction(svmPayload.Transaction)
 	if err != nil {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction", "", network, err)
+		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction_could_not_be_decoded", "", network, err)
 	}
 
 	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
@@ -122,25 +150,15 @@ func (f *ExactSvmSchemeV1) Verify(
 		return nil, x402.NewVerifyError("invalid_exact_solana_payload_no_transfer_instruction", payer, network, err)
 	}
 
-	// V1: Use payload.Network for validation (top level, not in Accepted)
-	if payload.Network != requirements.Network {
-		return nil, x402.NewVerifyError("network_mismatch", payer, network, nil)
-	}
-
 	// Step 4: Verify Transfer Instruction
-	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], requirements); err != nil {
+	if err := f.verifyTransferInstruction(tx, tx.Message.Instructions[2], requirements, signerAddressStrs); err != nil {
 		return nil, x402.NewVerifyError(err.Error(), payer, network, err)
 	}
 
 	// Step 5: Sign and Simulate Transaction
 	// CRITICAL: Simulation proves transaction will succeed (catches insufficient balance, invalid accounts, etc)
 
-	// Extract feePayer from reqExtraMap (already parsed at line 81)
-	feePayerStr, ok := reqExtraMap["feePayer"].(string)
-	if !ok {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", payer, network, nil)
-	}
-
+	// feePayer already validated in Step 1
 	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
 		return nil, x402.NewVerifyError("invalid_fee_payer", payer, network, err)
@@ -298,7 +316,7 @@ func (f *ExactSvmSchemeV1) verifyComputePriceInstruction(tx *solana.Transaction,
 	// Check if it's SetComputeUnitPrice and validate the price
 	if priceInst, ok := decoded.Impl.(*computebudget.SetComputeUnitPrice); ok {
 		// Check if price exceeds maximum (5 lamports per compute unit = 5,000,000 microlamports)
-		if priceInst.MicroLamports > uint64(svm.MaxComputeUnitPrice*1_000_000) {
+		if priceInst.MicroLamports > uint64(svm.MaxComputeUnitPriceMicrolamports) {
 			return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction_too_high")
 		}
 	} else {
@@ -313,6 +331,7 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	tx *solana.Transaction,
 	inst solana.CompiledInstruction,
 	requirements types.PaymentRequirementsV1,
+	signerAddresses []string,
 ) error {
 	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
 
@@ -340,19 +359,13 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
 	}
 
-	// SECURITY: Verify that the fee payer is not transferring their own funds
+	// SECURITY: Verify that the facilitator's signers are not transferring their own funds
 	// Prevent facilitator from signing away their own tokens
 	authorityAddr := accounts[3].PublicKey.String() // TransferChecked: [source, mint, destination, authority, ...]
-
-	// Parse Extra to get feePayer
-	var reqExtraMap map[string]interface{}
-	if requirements.Extra != nil {
-		// Intentionally ignore error - feePayer check is optional validation
-		_ = json.Unmarshal(*requirements.Extra, &reqExtraMap)
-	}
-	feePayerAddr, ok := reqExtraMap["feePayer"].(string)
-	if ok && authorityAddr == feePayerAddr {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_fee_payer_transferring_funds")
+	for _, signerAddr := range signerAddresses {
+		if authorityAddr == signerAddr {
+			return fmt.Errorf("invalid_exact_solana_payload_transaction_fee_payer_transferring_funds")
+		}
 	}
 
 	// Verify mint address
