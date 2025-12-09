@@ -13,7 +13,7 @@ This roadmap shares what the x402 team is building now, what's next, and where t
 
 * Pick a "Community" item below, then **open a GitHub Issue in this repo** with the title: `Roadmap: <item> — Contribution Proposal`.
 * In your issue, include: goals, approach/design sketch, deliverables, estimated timeline, and how you'll demo/measure success.
-* The CDP team will **review and offer consulting** (design feedback, API guidance, intros) so you can ship confidently.
+* The team will **review and offer consulting** (design feedback, API guidance, intros) so you can ship confidently.
 * Docs are credibly neutral and community‑owned: contribute guides, templates, and examples to the GitBook repo → [https://github.com/murrlincoln/x402-gitbook](https://github.com/murrlincoln/x402-gitbook) (PRs welcome).
 
 
@@ -149,7 +149,7 @@ If you want to contribute, these items are especially well‑scoped for communit
 
 1. Open a GitHub Issue titled `Roadmap: <item> — Contribution Proposal`.
 2. Include problem, proposed approach, milestones/deliverables, and demo plan.
-3. We'll respond with feedback and assign a CDP point‑of‑contact for consulting.
+3. We'll respond with feedback and assign a point‑of‑contact for consulting.
 
 ---
 
