@@ -20,6 +20,9 @@ dependencies = [
     "pydantic-settings>=2.2.1",
     "python-dotenv>=1.0.1",
     "web3>=6.0.0",
+    "solana>=0.36.0",
+    "solders>=0.22.0",
+    "base58>=2.1.1",
 ]
 
 [project.scripts]
