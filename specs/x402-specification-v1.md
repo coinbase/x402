@@ -1,5 +1,7 @@
 # X402 Protocol Specification
 
+**Protocol Version**: 1
+
 **Document Scope**
 
 This specification defines the core x402 protocol for internet-native payments. It covers:
