@@ -88,10 +88,14 @@ func main() {
 
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
-			Scheme:      "exact",
-			PayTo:       evmPayeeAddress,
-			Price:       "$0.001",
-			Network:     evmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   "$0.001",
+					Network: evmNetwork,
+				},
+			},
 			Description: "Weather data",
 			MimeType:    "application/json",
 		},
@@ -103,7 +107,7 @@ func main() {
 		Schemes: []ginmw.SchemeConfig{
 			{Network: evmNetwork, Server: evmScheme}, // Use custom scheme
 		},
-		Initialize: true,
+		SyncFacilitatorOnStart: true,
 		Timeout:    30 * time.Second,
 	}))
 

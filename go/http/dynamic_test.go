@@ -20,17 +20,21 @@ func TestDynamicPayTo(t *testing.T) {
 
 	routes := RoutesConfig{
 		"GET /marketplace/item/*": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			Price:   "$10.00",
-			// Dynamic payTo based on item seller
-			PayTo: func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
-				// In production, would query database for seller address
-				// For testing, extract from path
-				if reqCtx.Path == "/marketplace/item/123" {
-					return "0xSeller123", nil
-				}
-				return "0xDefaultSeller", nil
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					Price:   "$10.00",
+					// Dynamic payTo based on item seller
+					PayTo: DynamicPayToFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
+						// In production, would query database for seller address
+						// For testing, extract from path
+						if reqCtx.Path == "/marketplace/item/123" {
+							return "0xSeller123", nil
+						}
+						return "0xDefaultSeller", nil
+					}),
+				},
 			},
 		},
 	}
@@ -100,17 +104,21 @@ func TestDynamicPrice(t *testing.T) {
 
 	routes := RoutesConfig{
 		"GET /api/data": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			PayTo:   "0xRecipient",
-			// Dynamic price based on tier query param
-			Price: func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
-				// In production, would check query params or headers
-				// For testing, use path-based logic
-				if reqCtx.Path == "/api/data?tier=premium" {
-					return "$0.10", nil
-				}
-				return "$0.01", nil
+			Accepts: []PaymentOption{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					PayTo:   "0xRecipient",
+					// Dynamic price based on tier query param
+					Price: DynamicPriceFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
+						// In production, would check query params or headers
+						// For testing, use path-based logic
+						if reqCtx.Path == "/api/data?tier=premium" {
+							return "$0.10", nil
+						}
+						return "$0.01", nil
+					}),
+				},
 			},
 		},
 	}
@@ -179,23 +187,27 @@ func TestDynamicPayToAndPrice(t *testing.T) {
 
 	routes := RoutesConfig{
 		"POST /content/*": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			// Dynamic payTo: Route payment to content creator
-			PayTo: func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
-				// Extract creatorId from path
-				if reqCtx.Path == "/content/creator123" {
-					return "0xCreator123Wallet", nil
-				}
-				return "0xDefaultCreator", nil
-			},
-			// Dynamic price: Based on content type
-			Price: func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
-				// In production, would check request body or headers
-				if reqCtx.Path == "/content/creator123" {
-					return "$5.00", nil // Premium content
-				}
-				return "$1.00", nil // Standard content
+			Accepts: []PaymentOption{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					// Dynamic payTo: Route payment to content creator
+					PayTo: DynamicPayToFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
+						// Extract creatorId from path
+						if reqCtx.Path == "/content/creator123" {
+							return "0xCreator123Wallet", nil
+						}
+						return "0xDefaultCreator", nil
+					}),
+					// Dynamic price: Based on content type
+					Price: DynamicPriceFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
+						// In production, would check request body or headers
+						if reqCtx.Path == "/content/creator123" {
+							return "$5.00", nil // Premium content
+						}
+						return "$1.00", nil // Standard content
+					}),
+				},
 			},
 		},
 	}
@@ -246,12 +258,16 @@ func TestDynamicPayToAndPrice(t *testing.T) {
 func TestDynamicPayTo_Error(t *testing.T) {
 	routes := RoutesConfig{
 		"GET /test": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			Price:   "$10.00",
-			// Dynamic payTo that returns an error
-			PayTo: func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
-				return "", fmt.Errorf("seller not found")
+			Accepts: []PaymentOption{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					Price:   "$10.00",
+					// Dynamic payTo that returns an error
+					PayTo: DynamicPayToFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (string, error) {
+						return "", fmt.Errorf("seller not found")
+					}),
+				},
 			},
 		},
 	}
@@ -290,12 +306,16 @@ func TestDynamicPayTo_Error(t *testing.T) {
 func TestDynamicPrice_Error(t *testing.T) {
 	routes := RoutesConfig{
 		"GET /test": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			PayTo:   "0xRecipient",
-			// Dynamic price that returns an error
-			Price: func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
-				return nil, fmt.Errorf("pricing server unavailable")
+			Accepts: []PaymentOption{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					PayTo:   "0xRecipient",
+					// Dynamic price that returns an error
+					Price: DynamicPriceFunc(func(ctx context.Context, reqCtx HTTPRequestContext) (x402.Price, error) {
+						return nil, fmt.Errorf("pricing server unavailable")
+					}),
+				},
 			},
 		},
 	}
@@ -334,10 +354,14 @@ func TestStaticPayToAndPrice(t *testing.T) {
 
 	routes := RoutesConfig{
 		"GET /test": RouteConfig{
-			Scheme:  "exact",
-			Network: "eip155:8453",
-			PayTo:   "0xStaticRecipient", // Static string
-			Price:   "$10.00",            // Static price
+			Accepts: []PaymentOption{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+					PayTo:   "0xStaticRecipient", // Static string
+					Price:   "$10.00",            // Static price
+				},
+			},
 		},
 	}
 

@@ -91,10 +91,14 @@ func main() {
 
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
-			Scheme:      "exact",
-			PayTo:       evmPayeeAddress,
-			Price:       "$0.001",
-			Network:     evmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   "$0.001",
+					Network: evmNetwork,
+				},
+			},
 			Description: "Get weather data for a city",
 			MimeType:    "application/json",
 			Extensions: map[string]interface{}{
@@ -109,7 +113,7 @@ func main() {
 		Schemes: []ginmw.SchemeConfig{
 			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
 		},
-		Initialize: true,
+		SyncFacilitatorOnStart: true,
 		Timeout:    30 * time.Second,
 	}))
 

@@ -25,9 +25,9 @@ import (
     ginfw "github.com/gin-gonic/gin"
     x402 "github.com/coinbase/x402/go"
     x402http "github.com/coinbase/x402/go/http"
-    "github.com/coinbase/x402/go/http/gin"
-    "github.com/coinbase/x402/go/mechanisms/evm"
-    "github.com/coinbase/x402/go/mechanisms/svm"
+    ginmw "github.com/coinbase/x402/go/http/gin"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+    svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
     "github.com/coinbase/x402/go/extensions/bazaar"
 )
 
@@ -37,45 +37,51 @@ r := ginfw.New()
 // Define payment routes
 routes := x402http.RoutesConfig{
     "GET /protected": {
-        Scheme:  "exact",
-        Network: "eip155:84532",
-        PayTo:   evmPayeeAddress,
-        Price:   "$0.001",
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                Network: "eip155:84532",
+                PayTo:   evmPayeeAddress,
+                Price:   "$0.001",
+            },
+        },
         Extensions: map[string]interface{}{
             "bazaar": discoveryExtension,
         },
     },
     "GET /protected-svm": {
-        Scheme:  "exact",
-        Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-        PayTo:   svmPayeeAddress,
-        Price:   "$0.001",
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+                PayTo:   svmPayeeAddress,
+                Price:   "$0.001",
+            },
+        },
         Extensions: map[string]interface{}{
             "bazaar": discoveryExtension,
         },
     },
 }
 
-// Create services
-evmServer := evm.NewExactEvmServer()
-svmServer := svm.NewExactEvmServer()
-
 // Apply payment middleware
-r.Use(gin.PaymentMiddleware(
-    routes,
-    gin.WithFacilitatorClient(facilitatorClient),
-    gin.WithScheme("eip155:84532", evmServer),
-    gin.WithScheme("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", svmServer),
-    gin.WithInitializeOnStart(true),
-))
+r.Use(ginmw.X402Payment(ginmw.Config{
+    Routes:      routes,
+    Facilitator: facilitatorClient,
+    Schemes: []ginmw.SchemeConfig{
+        {Network: "eip155:84532", Server: evm.NewExactEvmScheme()},
+        {Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", Server: svm.NewExactSvmScheme()},
+    },
+    Timeout: 30 * time.Second,
+}))
 
 // Define protected endpoints
 r.GET("/protected", func(c *ginfw.Context) {
-    c.JSON(200, gin.H{"message": "EVM payment successful!"})
+    c.JSON(200, ginfw.H{"message": "EVM payment successful!"})
 })
 
 r.GET("/protected-svm", func(c *ginfw.Context) {
-    c.JSON(200, gin.H{"message": "SVM payment successful!"})
+    c.JSON(200, ginfw.H{"message": "SVM payment successful!"})
 })
 ```
 

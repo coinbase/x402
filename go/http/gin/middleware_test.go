@@ -260,10 +260,14 @@ func TestGinAdapter_GetUserAgent(t *testing.T) {
 func TestPaymentMiddleware_CallsNextWhenNoPaymentRequired(t *testing.T) {
 	routes := x402http.RoutesConfig{
 		"GET /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -305,10 +309,14 @@ func TestPaymentMiddleware_Returns402JSONForPaymentError(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"GET /api": x402http.RouteConfig{
-			Scheme:      "exact",
-			PayTo:       "0xtest",
-			Price:       "$1.00",
-			Network:     "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 			Description: "API access",
 		},
 	}
@@ -357,10 +365,14 @@ func TestPaymentMiddleware_Returns402HTMLForBrowserRequest(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"*": x402http.RouteConfig{
-			Scheme:      "exact",
-			PayTo:       "0xtest",
-			Price:       "$5.00",
-			Network:     "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$5.00",
+					Network: "eip155:1",
+				},
+			},
 			Description: "Premium content",
 		},
 	}
@@ -442,10 +454,14 @@ func TestPaymentMiddleware_SettlesAndReturnsResponseForVerifiedPayment(t *testin
 
 	routes := x402http.RoutesConfig{
 		"POST /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -507,10 +523,14 @@ func TestPaymentMiddleware_SkipsSettlementWhenHandlerReturns400OrHigher(t *testi
 
 	routes := x402http.RoutesConfig{
 		"POST /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -569,10 +589,14 @@ func TestPaymentMiddleware_Returns402WhenSettlementFails(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"POST /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -640,10 +664,14 @@ func TestPaymentMiddleware_CustomErrorHandler(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"POST /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -719,10 +747,14 @@ func TestPaymentMiddleware_CustomSettlementHandler(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"POST /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -791,10 +823,14 @@ func TestPaymentMiddleware_WithTimeout(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"*": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -844,10 +880,14 @@ func TestX402Payment_CreatesWorkingMiddleware(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"GET /api": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -858,8 +898,8 @@ func TestX402Payment_CreatesWorkingMiddleware(t *testing.T) {
 		Schemes: []SchemeConfig{
 			{Network: "eip155:1", Server: mockServer},
 		},
-		Initialize: true,
-		Timeout:    5 * time.Second,
+		SyncFacilitatorOnStart: true,
+		Timeout:                5 * time.Second,
 	}))
 
 	router.GET("/api", func(c *gin.Context) {
@@ -917,10 +957,14 @@ func TestX402Payment_RegistersMultipleFacilitators(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"*": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -932,7 +976,7 @@ func TestX402Payment_RegistersMultipleFacilitators(t *testing.T) {
 		Schemes: []SchemeConfig{
 			{Network: "eip155:1", Server: mockServer},
 		},
-		Initialize: true,
+		SyncFacilitatorOnStart: true,
 	}))
 
 	router.GET("/test", func(c *gin.Context) {
@@ -954,10 +998,14 @@ func TestX402Payment_RegistersMultipleSchemes(t *testing.T) {
 
 	routes := x402http.RoutesConfig{
 		"*": x402http.RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -969,7 +1017,7 @@ func TestX402Payment_RegistersMultipleSchemes(t *testing.T) {
 			{Network: "eip155:1", Server: mockServer1},
 			{Network: "eip155:8453", Server: mockServer2},
 		},
-		Initialize: false,
+		SyncFacilitatorOnStart: false,
 	}))
 
 	router.GET("/test", func(c *gin.Context) {

@@ -169,10 +169,14 @@ The custom implementation demonstrates each step of the x402 payment flow:
 ```go
 routes := x402http.RoutesConfig{
     "GET /weather": {
-        Scheme:      "exact",
-        PayTo:       evmPayeeAddress,
-        Price:       "$0.001",
-        Network:     evmNetwork,
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   evmPayeeAddress,
+                Price:   "$0.001",
+                Network: evmNetwork,
+            },
+        },
         Description: "Get weather data for a city",
         MimeType:    "application/json",
     },
