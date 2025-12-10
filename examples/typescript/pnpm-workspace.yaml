@@ -8,4 +8,5 @@ packages:
   - "mcp-embedded-wallet"
   - "mcp"
   - "discovery"
+  - "negotiated-pricing"
   - "../../typescript/packages/*"
