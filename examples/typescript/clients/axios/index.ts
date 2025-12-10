@@ -1,7 +1,10 @@
 import { config } from "dotenv";
-import { wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
-import { createBuilderPatternClient } from "./builder-pattern";
-import { createMechanismHelperClient } from "./mechanism-helper-registration";
+import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
 import axios from "axios";
 
 config();
@@ -13,41 +16,22 @@ const endpointPath = process.env.ENDPOINT_PATH || "/weather";
 const url = `${baseURL}${endpointPath}`;
 
 /**
- * Main example runner for @x402/axios package demonstrations.
+ * Example demonstrating how to use @x402/axios to make requests to x402-protected endpoints.
  *
- * This example shows how to use the @x402/axios package to make a request
- * to a resource server that requires a payment. Different client creation
- * patterns can be selected via CLI argument:
+ * This uses the helper registration functions from @x402/evm and @x402/svm to register
+ * all supported networks for both v1 and v2 protocols.
  *
- * - builder-pattern: Basic builder pattern with registerScheme
- * - mechanism-helper-registration: Using helper functions for registration
- *
- * To run this example, you need to set the following environment variables:
+ * Required environment variables:
  * - EVM_PRIVATE_KEY: The private key of the EVM signer
  * - SVM_PRIVATE_KEY: The private key of the SVM signer
- *
- * Usage:
- *   npm start builder-pattern
- *   npm start mechanism-helper-registration
  */
 async function main(): Promise<void> {
-  const pattern = process.argv[2] || "builder-pattern";
+  const evmSigner = privateKeyToAccount(evmPrivateKey);
+  const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
-  console.log(`\nRunning example: ${pattern}\n`);
-
-  let client;
-  switch (pattern) {
-    case "builder-pattern":
-      client = await createBuilderPatternClient(evmPrivateKey, svmPrivateKey);
-      break;
-    case "mechanism-helper-registration":
-      client = await createMechanismHelperClient(evmPrivateKey, svmPrivateKey);
-      break;
-    default:
-      console.error(`Unknown pattern: ${pattern}`);
-      console.error("Available patterns: builder-pattern, mechanism-helper-registration");
-      process.exit(1);
-  }
+  const client = new x402Client();
+  registerExactEvmScheme(client, { signer: evmSigner });
+  registerExactSvmScheme(client, { signer: svmSigner });
 
   const api = wrapAxiosWithPayment(axios.create(), client);
 

@@ -1,6 +1,33 @@
-# x402-express Advanced Examples
+# @x402/express Advanced Examples
 
 Express.js server demonstrating advanced x402 patterns including dynamic pricing, payment routing, lifecycle hooks and API discoverability.
+
+```typescript
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+
+const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
+  .register("eip155:84532", new ExactEvmScheme())
+  .onBeforeVerify(async ctx => console.log("Verifying payment..."))
+  .onAfterSettle(async ctx => console.log("Settled:", ctx.result.transaction));
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: ctx => ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001",
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
 
 ## Prerequisites
 

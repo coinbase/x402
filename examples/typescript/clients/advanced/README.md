@@ -1,6 +1,24 @@
 # Advanced x402 Client Examples
 
-Advanced patterns for x402 TypeScript clients demonstrating payment lifecycle hooks and network preferences.
+Advanced patterns for x402 TypeScript clients demonstrating builder pattern registration, payment lifecycle hooks, and network preferences.
+
+```typescript
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(privateKeyToAccount(evmPrivateKey)))
+  .onBeforePaymentCreation(async ctx => {
+    console.log("Creating payment for:", ctx.selectedRequirements.network);
+  })
+  .onAfterPaymentCreation(async ctx => {
+    console.log("Payment created:", ctx.paymentPayload.x402Version);
+  });
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+const response = await fetchWithPayment("http://localhost:4021/weather");
+```
 
 ## Prerequisites
 
@@ -21,7 +39,7 @@ cp .env-local .env
 and fill required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
-- `SVM_PRIVATE_KEY` - Solana private key for SVM payments (required for preferred-network)
+- `SVM_PRIVATE_KEY` - Solana private key for SVM payments
 
 2. Install and build all packages from the typescript examples root:
 
@@ -41,10 +59,11 @@ pnpm dev
 
 Each example demonstrates a specific advanced pattern:
 
-| Example             | Command                      | Description                     |
-| ------------------- | ---------------------------- | ------------------------------- |
-| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks         |
-| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences |
+| Example             | Command                      | Description                            |
+| ------------------- | ---------------------------- | -------------------------------------- |
+| `builder-pattern`   | `pnpm dev:builder-pattern`   | Fine-grained network registration      |
+| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks                |
+| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences        |
 
 ## Testing the Examples
 
@@ -59,8 +78,37 @@ Then run the examples:
 
 ```bash
 cd ../../clients/advanced
-pnpm dev:hooks
+pnpm dev:builder-pattern
 ```
+
+## Example: Builder Pattern Registration
+
+Use the builder pattern for fine-grained control over which networks are supported and with which signers:
+
+```typescript
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const evmSigner = privateKeyToAccount(evmPrivateKey);
+const mainnetSigner = privateKeyToAccount(mainnetPrivateKey);
+
+// More specific patterns take precedence over wildcards
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(evmSigner))       // All EVM networks
+  .register("eip155:1", new ExactEvmScheme(mainnetSigner))   // Ethereum mainnet override
+  .register("solana:*", new ExactSvmScheme(svmSigner));      // All Solana networks
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+const response = await fetchWithPayment("http://localhost:4021/weather");
+```
+
+**Use case:**
+
+- Different signers for mainnet vs testnet
+- Separate keys for different networks
+- Explicit control over supported networks
 
 ## Example: Payment Lifecycle Hooks
 

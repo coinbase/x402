@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
-    "dev": "tsx index.ts hooks",
+    "dev": "tsx index.ts builder-pattern",
+    "dev:builder-pattern": "tsx index.ts builder-pattern",
     "dev:hooks": "tsx index.ts hooks",
     "dev:preferred-network": "tsx index.ts preferred-network",
     "format": "prettier -c .prettierrc --write \"**/*.{ts,js,cjs,json,md}\"",

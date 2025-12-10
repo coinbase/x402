@@ -1,6 +1,29 @@
-# x402-core Custom Server
+# @x402/core Custom Server
 
-Express.js server demonstrating how to implement x402 payment handling manually without using pre-built middleware packages like `@x402/express` or `@x402/hono`.
+Demonstrates how to implement x402 payment handling manually without using pre-built middleware packages like `@x402/express` or `@x402/hono`.
+
+```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
+  .register("eip155:84532", new ExactEvmScheme());
+
+// In your request handler:
+if (!paymentHeader) {
+  const paymentRequired = resourceServer.createPaymentRequiredResponse([requirements], resource);
+  res.status(402).set("PAYMENT-REQUIRED", encode(paymentRequired)).json({});
+  return;
+}
+
+const paymentPayload = decode(paymentHeader);
+const verifyResult = await resourceServer.verifyPayment(paymentPayload, requirements);
+if (!verifyResult.isValid) return res.status(402).json({ error: verifyResult.invalidReason });
+
+// Execute handler, then settle
+const settleResult = await resourceServer.settlePayment(paymentPayload, requirements);
+res.set("PAYMENT-RESPONSE", encode(settleResult));
+```
 
 ## Prerequisites
 

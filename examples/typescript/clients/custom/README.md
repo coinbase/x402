@@ -1,6 +1,32 @@
 # Custom x402 Client Implementation
 
-Express.js client demonstrating how to implement x402 payment handling manually using only the core packages, without convenience wrappers like `@x402/fetch` or `@x402/axios`.
+Demonstrates how to implement x402 payment handling manually using only the core packages, without convenience wrappers like `@x402/fetch` or `@x402/axios`.
+
+```typescript
+import { x402Client } from "@x402/core/client";
+import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402/core/http";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const client = new x402Client()
+  .register("eip155:*", new ExactEvmScheme(privateKeyToAccount(evmPrivateKey)));
+
+// 1. Make initial request
+let response = await fetch(url);
+
+// 2. Handle 402 Payment Required
+if (response.status === 402) {
+  const paymentRequired = decodePaymentRequiredHeader(response.headers.get("PAYMENT-REQUIRED"));
+  const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+  // 3. Retry with payment
+  response = await fetch(url, {
+    headers: { "PAYMENT-SIGNATURE": encodePaymentSignatureHeader(paymentPayload) },
+  });
+}
+
+console.log(await response.json());
+```
 
 ## Prerequisites
 

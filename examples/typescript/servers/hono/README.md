@@ -1,7 +1,31 @@
-# x402-hono Example Server
+# @x402/hono Example Server
 
-Hono server demonstrating how to protect API endpoints with a paywall using the
-`x402-hono` middleware.
+Hono server demonstrating how to protect API endpoints with a paywall using the `@x402/hono` middleware.
+
+```typescript
+import { Hono } from "hono";
+import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+
+const app = new Hono();
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: { scheme: "exact", price: "$0.001", network: "eip155:84532", payTo: evmAddress },
+        description: "Weather data",
+        mimeType: "application/json",
+      },
+    },
+    new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
+      .register("eip155:84532", new ExactEvmScheme()),
+  ),
+);
+
+app.get("/weather", c => c.json({ weather: "sunny", temperature: 70 }));
+```
 
 ## Prerequisites
 
