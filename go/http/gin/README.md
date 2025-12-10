@@ -40,7 +40,7 @@ func main() {
 		},
 	}
 
-	r.Use(ginmw.PaymentMiddleware(routes,
+	r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 		ginmw.WithFacilitatorClient(facilitator),
 		ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 	))
@@ -55,16 +55,37 @@ func main() {
 
 ## Configuration
 
-The `PaymentMiddleware` function accepts routes and optional configuration functions:
+There are two approaches to configuring the middleware:
+
+### 1. PaymentMiddlewareFromConfig (Functional Options)
+
+Use `PaymentMiddlewareFromConfig` with functional options:
 
 ```go
-func PaymentMiddleware(
-	routes x402http.RoutesConfig,
-	opts ...MiddlewareOption,
-) gin.HandlerFunc
+r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
+	ginmw.WithFacilitatorClient(facilitator),
+	ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
+))
 ```
 
-### Configuration Options
+### 2. PaymentMiddleware with Pre-configured Server
+
+Use `PaymentMiddleware` when you need to configure the server separately (e.g., with lifecycle hooks):
+
+```go
+server := x402.Newx402ResourceServer(
+	x402.WithFacilitatorClient(facilitator),
+).
+	Register("eip155:*", evm.NewExactEvmScheme()).
+	OnAfterSettle(func(ctx x402.SettleResultContext) error {
+		log.Printf("Payment settled: %s", ctx.Result.Transaction)
+		return nil
+	})
+
+r.Use(ginmw.PaymentMiddleware(routes, server))
+```
+
+### Middleware Options
 
 - `WithFacilitatorClient(client)` - Add a facilitator client
 - `WithScheme(network, server)` - Register a payment scheme
@@ -112,7 +133,7 @@ paywallConfig := &x402http.PaywallConfig{
 	Testnet: true,
 }
 
-r.Use(ginmw.PaymentMiddleware(routes,
+r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 	ginmw.WithFacilitatorClient(facilitator),
 	ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 	ginmw.WithPaywallConfig(paywallConfig),
@@ -137,7 +158,7 @@ import (
 	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 )
 
-r.Use(ginmw.PaymentMiddleware(routes,
+r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 	ginmw.WithFacilitatorClient(facilitator),
 	ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 	ginmw.WithScheme("solana:*", svm.NewExactSvmScheme()),
@@ -165,7 +186,7 @@ facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
 Track successful payments:
 
 ```go
-r.Use(ginmw.PaymentMiddleware(routes,
+r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 	ginmw.WithFacilitatorClient(facilitator),
 	ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 	ginmw.WithSettlementHandler(func(c *gin.Context, settlement *x402.SettleResponse) {
@@ -183,7 +204,7 @@ r.Use(ginmw.PaymentMiddleware(routes,
 Custom error handling:
 
 ```go
-r.Use(ginmw.PaymentMiddleware(routes,
+r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 	ginmw.WithFacilitatorClient(facilitator),
 	ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 	ginmw.WithErrorHandler(func(c *gin.Context, err error) {
@@ -241,7 +262,7 @@ func main() {
 		Testnet: true,
 	}
 
-	r.Use(ginmw.PaymentMiddleware(routes,
+	r.Use(ginmw.PaymentMiddlewareFromConfig(routes,
 		ginmw.WithFacilitatorClient(facilitator),
 		ginmw.WithScheme("eip155:*", evm.NewExactEvmScheme()),
 		ginmw.WithPaywallConfig(paywallConfig),
@@ -269,7 +290,22 @@ func main() {
 
 ## Convenience Functions
 
-For simple use cases, use the convenience function:
+### X402Payment (Config Struct)
+
+With struct-based configuration:
+
+```go
+r.Use(ginmw.X402Payment(ginmw.Config{
+	Routes:      routes,
+	Facilitator: facilitator,
+	Schemes:     []ginmw.SchemeConfig{{Network: "eip155:*", Server: evm.NewExactEvmScheme()}},
+	Timeout:     30 * time.Second,
+}))
+```
+
+### SimplePaymentMiddleware
+
+Apply payment requirements to all routes:
 
 ```go
 r.Use(ginmw.SimplePaymentMiddleware(
@@ -278,7 +314,4 @@ r.Use(ginmw.SimplePaymentMiddleware(
 	"eip155:84532",
 	"https://facilitator.x402.org",
 ))
-```
-
-This applies payment requirements to all routes.
 ```
