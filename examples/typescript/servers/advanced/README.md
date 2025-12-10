@@ -18,7 +18,7 @@ app.use(
       "GET /weather": {
         accepts: {
           scheme: "exact",
-          price: ctx => ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001",
+          price: ctx => (ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001"),
           network: "eip155:84532",
           payTo: evmAddress,
         },
