@@ -66,7 +66,6 @@ class x402HTTPAdapter(HTTPAdapter):
             # Mark as retry and add payment header
             self._is_retry = True
             request.headers["X-Payment"] = payment_header
-            request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
 
             retry_response = super().send(request, **kwargs)
 
