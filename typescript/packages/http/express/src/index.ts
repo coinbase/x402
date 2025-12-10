@@ -86,7 +86,8 @@ export function paymentMiddleware(
   }
 
   // Store initialization promise (not the result)
-  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? server.initialize() : null;
+  // httpServer.initialize() fetches facilitator support and validates routes
+  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
 
   // Dynamically register bazaar extension if routes declare it
   let bazaarPromise: Promise<void> | null = null;
@@ -344,5 +345,9 @@ export type {
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig } from "@x402/core/server";
+
+export { RouteConfigurationError } from "@x402/core/server";
+
+export type { RouteValidationError } from "@x402/core/server";
 
 export { ExpressAdapter } from "./adapter";

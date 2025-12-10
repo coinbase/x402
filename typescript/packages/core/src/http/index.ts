@@ -99,6 +99,8 @@ export {
   ProcessSettleResultResponse,
   ProcessSettleSuccessResponse,
   ProcessSettleFailureResponse,
+  RouteValidationError,
+  RouteConfigurationError,
 } from "./x402HTTPResourceServer";
 export {
   HTTPFacilitatorClient,

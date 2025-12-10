@@ -16,6 +16,7 @@ import {
 // Mock @x402/core/server
 vi.mock("@x402/core/server", () => {
   const MockHTTPResourceServer = vi.fn().mockImplementation(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
     registerPaywallProvider: vi.fn(),
     processSettlement: vi.fn(),
     requiresPayment: vi.fn().mockReturnValue(true),
@@ -73,7 +74,8 @@ describe("createHttpServer", () => {
 
     expect(httpServer).toBeDefined();
     await init();
-    expect(server.initialize).toHaveBeenCalled();
+    // httpServer.initialize() is called (which internally calls server.initialize() and validates)
+    expect(httpServer.initialize).toHaveBeenCalled();
   });
 
   it("does not initialize when syncFacilitatorOnStart is false", async () => {
@@ -84,13 +86,13 @@ describe("createHttpServer", () => {
     } as const;
     const server = createMockResourceServer();
 
-    const { init } = createHttpServer(routes, server, undefined, false);
+    const { httpServer, init } = createHttpServer(routes, server, undefined, false);
 
     await init();
-    expect(server.initialize).not.toHaveBeenCalled();
+    expect(httpServer.initialize).not.toHaveBeenCalled();
   });
 
-  it("registers custom paywall provider when provided", () => {
+  it("registers custom paywall provider when provided", async () => {
     const routes = {
       "/api/*": {
         accepts: { scheme: "exact", payTo: "0x123", price: "$0.01", network: "eip155:84532" },
@@ -99,8 +101,10 @@ describe("createHttpServer", () => {
     const server = createMockResourceServer();
     const paywall: PaywallProvider = { generateHtml: vi.fn() };
 
-    const { httpServer } = createHttpServer(routes, server, paywall);
+    const { httpServer, init } = createHttpServer(routes, server, paywall);
 
+    // Wait for initialization to complete to avoid warnings
+    await init();
     expect(httpServer.registerPaywallProvider).toHaveBeenCalledWith(paywall);
   });
 });

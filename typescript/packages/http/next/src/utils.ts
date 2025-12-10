@@ -42,7 +42,8 @@ export function createHttpServer(
   }
 
   // Store initialization promise (not the result)
-  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? server.initialize() : null;
+  // httpServer.initialize() fetches facilitator support and validates routes
+  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
 
   return {
     httpServer,

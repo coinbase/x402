@@ -46,6 +46,7 @@ vi.mock("@x402/core/server", () => ({
     register: vi.fn(),
   })),
   x402HTTPResourceServer: vi.fn().mockImplementation(() => ({
+    initialize: vi.fn().mockResolvedValue(undefined),
     processHTTPRequest: mockProcessHTTPRequest,
     processSettlement: mockProcessSettlement,
     registerPaywallProvider: mockRegisterPaywallProvider,
@@ -443,6 +444,7 @@ describe("paymentMiddlewareFromConfig", () => {
     vi.mocked(HTTPResourceServer).mockImplementation(
       () =>
         ({
+          initialize: vi.fn().mockResolvedValue(undefined),
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,

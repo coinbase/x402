@@ -147,6 +147,17 @@ export class x402ResourceServer {
   }
 
   /**
+   * Check if a scheme is registered for a given network.
+   *
+   * @param network - The network identifier
+   * @param scheme - The payment scheme name
+   * @returns True if the scheme is registered for the network, false otherwise
+   */
+  hasRegisteredScheme(network: Network, scheme: string): boolean {
+    return !!findByNetworkAndScheme(this.registeredServerSchemes, scheme, network);
+  }
+
+  /**
    * Registers a resource service extension that can enrich extension declarations.
    *
    * @param extension - The extension to register

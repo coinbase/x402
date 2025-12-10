@@ -12,6 +12,7 @@ import {
   Network,
   PaymentRequirements,
 } from "../types";
+import { x402Version } from "..";
 
 /**
  * Framework-agnostic HTTP adapter interface
@@ -213,12 +214,49 @@ export type ProcessSettleResultResponse =
   | ProcessSettleFailureResponse;
 
 /**
+ * Represents a validation error for a specific route's payment configuration.
+ */
+export interface RouteValidationError {
+  /** The route pattern (e.g., "GET /api/weather") */
+  routePattern: string;
+  /** The payment scheme that failed validation */
+  scheme: string;
+  /** The network that failed validation */
+  network: Network;
+  /** The type of validation failure */
+  reason: "missing_scheme" | "missing_facilitator";
+  /** Human-readable error message */
+  message: string;
+}
+
+/**
+ * Error thrown when route configuration validation fails.
+ */
+export class RouteConfigurationError extends Error {
+  /** The validation errors that caused this exception */
+  public readonly errors: RouteValidationError[];
+
+  /**
+   * Creates a new RouteConfigurationError with the given validation errors.
+   *
+   * @param errors - The validation errors that caused this exception.
+   */
+  constructor(errors: RouteValidationError[]) {
+    const message = `x402 Route Configuration Errors:\n${errors.map(e => `  - ${e.message}`).join("\n")}`;
+    super(message);
+    this.name = "RouteConfigurationError";
+    this.errors = errors;
+  }
+}
+
+/**
  * HTTP-enhanced x402 resource server
  * Provides framework-agnostic HTTP protocol handling
  */
 export class x402HTTPResourceServer {
   private ResourceServer: x402ResourceServer;
   private compiledRoutes: CompiledRoute[] = [];
+  private routesConfig: RoutesConfig;
   private paywallProvider?: PaywallProvider;
 
   /**
@@ -229,6 +267,7 @@ export class x402HTTPResourceServer {
    */
   constructor(ResourceServer: x402ResourceServer, routes: RoutesConfig) {
     this.ResourceServer = ResourceServer;
+    this.routesConfig = routes;
 
     // Handle both single route and multiple routes
     const normalizedRoutes =
@@ -243,6 +282,33 @@ export class x402HTTPResourceServer {
         regex: parsed.regex,
         config,
       });
+    }
+  }
+
+  /**
+   * Initialize the HTTP resource server.
+   *
+   * This method initializes the underlying resource server (fetching facilitator support)
+   * and then validates that all route payment configurations have corresponding
+   * registered schemes and facilitator support.
+   *
+   * @throws RouteConfigurationError if any route's payment options don't have
+   *         corresponding registered schemes or facilitator support
+   *
+   * @example
+   * ```typescript
+   * const httpServer = new x402HTTPResourceServer(server, routes);
+   * await httpServer.initialize();
+   * ```
+   */
+  async initialize(): Promise<void> {
+    // First, initialize the underlying resource server (fetches facilitator support)
+    await this.ResourceServer.initialize();
+
+    // Then validate route configuration
+    const errors = this.validateRouteConfiguration();
+    if (errors.length > 0) {
+      throw new RouteConfigurationError(errors);
     }
   }
 
@@ -439,6 +505,60 @@ export class x402HTTPResourceServer {
    */
   private normalizePaymentOptions(routeConfig: RouteConfig): PaymentOption[] {
     return Array.isArray(routeConfig.accepts) ? routeConfig.accepts : [routeConfig.accepts];
+  }
+
+  /**
+   * Validates that all payment options in routes have corresponding registered schemes
+   * and facilitator support.
+   *
+   * @returns Array of validation errors (empty if all routes are valid)
+   */
+  private validateRouteConfiguration(): RouteValidationError[] {
+    const errors: RouteValidationError[] = [];
+
+    // Normalize routes to array of [pattern, config] pairs
+    const normalizedRoutes =
+      typeof this.routesConfig === "object" && !("accepts" in this.routesConfig)
+        ? Object.entries(this.routesConfig as Record<string, RouteConfig>)
+        : [["*", this.routesConfig as RouteConfig] as [string, RouteConfig]];
+
+    for (const [pattern, config] of normalizedRoutes) {
+      const paymentOptions = this.normalizePaymentOptions(config);
+
+      for (const option of paymentOptions) {
+        // Check 1: Is scheme registered?
+        if (!this.ResourceServer.hasRegisteredScheme(option.network, option.scheme)) {
+          errors.push({
+            routePattern: pattern,
+            scheme: option.scheme,
+            network: option.network,
+            reason: "missing_scheme",
+            message: `Route "${pattern}": No scheme implementation registered for "${option.scheme}" on network "${option.network}"`,
+          });
+          // Skip facilitator check if scheme isn't registered
+          continue;
+        }
+
+        // Check 2: Does facilitator support this scheme/network combination?
+        const supportedKind = this.ResourceServer.getSupportedKind(
+          x402Version,
+          option.network,
+          option.scheme,
+        );
+
+        if (!supportedKind) {
+          errors.push({
+            routePattern: pattern,
+            scheme: option.scheme,
+            network: option.network,
+            reason: "missing_facilitator",
+            message: `Route "${pattern}": Facilitator does not support scheme "${option.scheme}" on network "${option.network}"`,
+          });
+        }
+      }
+    }
+
+    return errors;
   }
 
   /**
