@@ -84,8 +84,8 @@ type MiddlewareConfig struct {
 	// Paywall configuration
 	PaywallConfig *x402http.PaywallConfig
 
-	// Initialize on startup
-	InitializeOnStart bool
+	// Sync with facilitator on start
+	SyncFacilitatorOnStart bool
 
 	// Custom error handler
 	ErrorHandler func(*gin.Context, error)
@@ -130,10 +130,10 @@ func WithPaywallConfig(config *x402http.PaywallConfig) MiddlewareOption {
 	}
 }
 
-// WithInitializeOnStart sets whether to initialize on startup
-func WithInitializeOnStart(initialize bool) MiddlewareOption {
+// WithSyncFacilitatorOnStart sets whether to sync with facilitator on startup
+func WithSyncFacilitatorOnStart(sync bool) MiddlewareOption {
 	return func(c *MiddlewareConfig) {
-		c.InitializeOnStart = initialize
+		c.SyncFacilitatorOnStart = sync
 	}
 }
 
@@ -165,11 +165,11 @@ func WithTimeout(timeout time.Duration) MiddlewareOption {
 // PaymentMiddleware creates Gin middleware for x402 payment handling
 func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) gin.HandlerFunc {
 	config := &MiddlewareConfig{
-		Routes:             routes,
-		FacilitatorClients: []x402.FacilitatorClient{},
-		Schemes:            []SchemeRegistration{},
-		InitializeOnStart:  true,
-		Timeout:            30 * time.Second,
+		Routes:                 routes,
+		FacilitatorClients:     []x402.FacilitatorClient{},
+		Schemes:                []SchemeRegistration{},
+		SyncFacilitatorOnStart: true,
+		Timeout:                30 * time.Second,
 	}
 
 	// Apply options
@@ -192,7 +192,7 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 	}
 
 	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
-	if config.InitializeOnStart {
+	if config.SyncFacilitatorOnStart {
 		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 		defer cancel()
 		if err := server.Initialize(ctx); err != nil {
@@ -202,10 +202,6 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 
 	// Create middleware handler
 	return func(c *gin.Context) {
-		// Create context with timeout
-		ctx, cancel := context.WithTimeout(c.Request.Context(), config.Timeout)
-		defer cancel()
-
 		// Create adapter and request context
 		adapter := NewGinAdapter(c)
 		reqCtx := x402http.HTTPRequestContext{
@@ -214,7 +210,16 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 			Method:  c.Request.Method,
 		}
 
-		// Process HTTP request
+		// Check if route requires payment before waiting for initialization
+		if !server.RequiresPayment(reqCtx) {
+			c.Next()
+			return
+		}
+
+		// Create context with timeout
+		ctx, cancel := context.WithTimeout(c.Request.Context(), config.Timeout)
+		defer cancel()
+
 		result := server.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
 
 		// Debug logging for request processing
@@ -297,48 +302,47 @@ func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx cont
 	fmt.Printf("   PaymentRequirements: %+v\n", result.PaymentRequirements)
 
 	// Process settlement
-	settlementHeaders, err := server.ProcessSettlement(
+	settleResult := server.ProcessSettlement(
 		ctx,
 		*result.PaymentPayload,
 		*result.PaymentRequirements,
-		writer.statusCode,
 	)
 
 	fmt.Printf("🔍 [GIN SETTLEMENT DEBUG] Settlement completed\n")
-	fmt.Printf("   Error: %v\n", err)
-	fmt.Printf("   Headers: %+v\n", settlementHeaders)
+	fmt.Printf("   Success: %v\n", settleResult.Success)
+	fmt.Printf("   ErrorReason: %v\n", settleResult.ErrorReason)
 
-	if err != nil {
-		// Settlement failed
+	// Check settlement success
+	if !settleResult.Success {
+		errorReason := settleResult.ErrorReason
+		if errorReason == "" {
+			errorReason = "Settlement failed"
+		}
 		if config.ErrorHandler != nil {
-			config.ErrorHandler(c, fmt.Errorf("settlement failed: %w", err))
+			config.ErrorHandler(c, fmt.Errorf("settlement failed: %s", errorReason))
 		} else {
-			// Default error handling
-			c.JSON(http.StatusInternalServerError, gin.H{
+			c.JSON(http.StatusPaymentRequired, gin.H{
 				"error":   "Settlement failed",
-				"details": err.Error(),
+				"details": errorReason,
 			})
 		}
 		return
 	}
 
 	// Add settlement headers
-	if settlementHeaders != nil {
-		for key, value := range settlementHeaders {
-			c.Header(key, value)
-		}
+	for key, value := range settleResult.Headers {
+		c.Header(key, value)
+	}
 
-		// Call settlement handler if configured
-		if config.SettlementHandler != nil && settlementHeaders["PAYMENT-RESPONSE"] != "" {
-			// Decode settlement response
-			httpClient := x402http.Newx402HTTPClient(x402.Newx402Client())
-			headers := make(map[string]string)
-			for k, v := range settlementHeaders {
-				headers[k] = v
-			}
-			settleResponse, _ := httpClient.GetPaymentSettleResponse(headers)
-			config.SettlementHandler(c, settleResponse)
+	// Call settlement handler if configured
+	if config.SettlementHandler != nil {
+		settleResponse := &x402.SettleResponse{
+			Success:     true,
+			Transaction: settleResult.Transaction,
+			Network:     settleResult.Network,
+			Payer:       settleResult.Payer,
 		}
+		config.SettlementHandler(c, settleResponse)
 	}
 
 	// Write captured response
@@ -364,6 +368,11 @@ func (w *responseCapture) WriteHeader(code int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	w.writeHeaderLocked(code)
+}
+
+// writeHeaderLocked sets the status code (must be called with lock held)
+func (w *responseCapture) writeHeaderLocked(code int) {
 	if !w.written {
 		w.statusCode = code
 		w.written = true
@@ -376,7 +385,7 @@ func (w *responseCapture) Write(data []byte) (int, error) {
 	defer w.mu.Unlock()
 
 	if !w.written {
-		w.WriteHeader(http.StatusOK)
+		w.writeHeaderLocked(http.StatusOK)
 	}
 	return w.body.Write(data)
 }
@@ -409,7 +418,7 @@ func SimplePaymentMiddleware(payTo string, price string, network x402.Network, f
 
 	return PaymentMiddleware(routes,
 		WithFacilitatorClient(facilitator),
-		WithInitializeOnStart(true),
+		WithSyncFacilitatorOnStart(true),
 	)
 }
 

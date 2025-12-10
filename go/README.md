@@ -31,7 +31,7 @@ These core classes are **framework-agnostic** and can be used in any context (HT
 The package exports HTTP-specific wrappers around the core classes:
 
 - **`x402http.HTTPClient`** - Wraps `http.Client` with automatic payment handling for clients
-- **`x402http.HTTPResourceServer`** - Integrates resource server with HTTP request processing
+- **`x402http.HTTPServer`** - Integrates resource server with HTTP request processing
 - **`x402http.HTTPFacilitatorClient`** - HTTP client for calling facilitator endpoints
 
 These wrappers handle HTTP-specific concerns like headers, status codes, and request/response serialization.
@@ -196,6 +196,7 @@ github.com/coinbase/x402/go
 │   └── *_hooks.go             - Lifecycle hooks
 │
 ├── http/                      - HTTP transport layer
+│   ├── http.go                - Type aliases and convenience functions
 │   ├── client.go              - HTTP client wrapper
 │   ├── server.go              - HTTP server integration
 │   ├── facilitator_client.go  - Facilitator HTTP client
@@ -220,7 +221,10 @@ github.com/coinbase/x402/go
 │
 └── types/                     - Type definitions
     ├── v1.go                  - V1 protocol types
-    └── v2.go                  - V2 protocol types
+    ├── v2.go                  - V2 protocol types
+    ├── helpers.go             - Version detection utilities
+    ├── raw.go                 - Raw type handling
+    └── extensions.go          - Extension type definitions
 ```
 
 ## Supported Networks

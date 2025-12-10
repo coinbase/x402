@@ -6,7 +6,7 @@ Client-side EIP-712 signing for Ethereum-based x402 payments.
 
 ```go
 import (
-    "github.com/coinbase/x402/go/mechanisms/evm"
+    evmclient "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
     evmsigners "github.com/coinbase/x402/go/signers/evm"
 )
 
@@ -16,8 +16,8 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Use with ExactEvmClient
-evmClient := evm.NewExactEvmClient(signer)
+// Use with ExactEvmScheme
+evmScheme := evmclient.NewExactEvmScheme(signer)
 ```
 
 ## API
@@ -57,7 +57,7 @@ The helper implements `evm.ClientEvmSigner`:
 ```go
 type ClientEvmSigner interface {
     Address() string
-    SignTypedData(domain TypedDataDomain, types map[string][]TypedDataField, 
+    SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, 
                   primaryType string, message map[string]interface{}) ([]byte, error)
 }
 ```
