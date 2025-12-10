@@ -50,11 +50,15 @@ func (m *mockHTTPAdapter) GetUserAgent() string {
 
 func TestNewx402HTTPResourceServer(t *testing.T) {
 	routes := RoutesConfig{
-		"GET /api": RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -74,11 +78,15 @@ func TestProcessHTTPRequestNoPaymentRequired(t *testing.T) {
 	ctx := context.Background()
 
 	routes := RoutesConfig{
-		"GET /api": RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 
@@ -108,11 +116,15 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 	ctx := context.Background()
 
 	routes := RoutesConfig{
-		"GET /api": RouteConfig{
-			Scheme:      "exact",
-			PayTo:       "0xtest",
-			Price:       "$1.00",
-			Network:     "eip155:1",
+		"GET /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 			Description: "API access",
 		},
 	}
@@ -180,11 +192,15 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 	ctx := context.Background()
 
 	routes := RoutesConfig{
-		"*": RouteConfig{
-			Scheme:      "exact",
-			PayTo:       "0xtest",
-			Price:       "$5.00",
-			Network:     "eip155:1",
+		"*": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$5.00",
+					Network: "eip155:1",
+				},
+			},
 			Description: "Premium content",
 		},
 	}
@@ -251,11 +267,15 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 	ctx := context.Background()
 
 	routes := RoutesConfig{
-		"POST /api": RouteConfig{
-			Scheme:  "exact",
-			PayTo:   "0xtest",
-			Price:   "$1.00",
-			Network: "eip155:1",
+		"POST /api": {
+			Accepts: PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   "0xtest",
+					Price:   "$1.00",
+					Network: "eip155:1",
+				},
+			},
 		},
 	}
 

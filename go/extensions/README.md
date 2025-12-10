@@ -31,7 +31,9 @@ extension, _ := bazaar.DeclareDiscoveryExtension(...)
 
 routes := x402http.RoutesConfig{
     "GET /api/data": {
-        // ... payment config ...
+        Accepts: x402http.PaymentOptions{
+            {Scheme: "exact", PayTo: "0x...", Price: "$0.001", Network: "eip155:84532"},
+        },
         Extensions: map[string]interface{}{
             "bazaar": extension,  // Attach extension metadata
         },

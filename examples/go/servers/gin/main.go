@@ -10,6 +10,7 @@ import (
 	x402http "github.com/coinbase/x402/go/http"
 	ginmw "github.com/coinbase/x402/go/http/gin"
 	evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+	svm "github.com/coinbase/x402/go/mechanisms/svm/exact/server"
 	ginfw "github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -21,10 +22,15 @@ const (
 func main() {
 	godotenv.Load()
 
-	evmPayeeAddress := os.Getenv("EVM_PAYEE_ADDRESS")
-	if evmPayeeAddress == "" {
+	evmAddress := os.Getenv("EVM_PAYEE_ADDRESS")
+	if evmAddress == "" {
 		fmt.Println("❌ EVM_PAYEE_ADDRESS environment variable is required")
-		fmt.Println("   Set your Ethereum address to receive payments")
+		os.Exit(1)
+	}
+
+	svmAddress := os.Getenv("SVM_PAYEE_ADDRESS")
+	if svmAddress == "" {
+		fmt.Println("❌ SVM_PAYEE_ADDRESS environment variable is required")
 		os.Exit(1)
 	}
 
@@ -37,11 +43,14 @@ func main() {
 
 	// Network configuration - Base Sepolia testnet
 	evmNetwork := x402.Network("eip155:84532")
+	svmNetwork := x402.Network("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
 
 	fmt.Printf("🚀 Starting Gin x402 server...\n")
-	fmt.Printf("   Payee address: %s\n", evmPayeeAddress)
+	fmt.Printf("   EVM Payee address: %s\n", evmAddress)
+	fmt.Printf("   SVM Payee address: %s\n", svmAddress)
+	fmt.Printf("   EVM Network: %s\n", evmNetwork)
+	fmt.Printf("   SVM Network: %s\n", svmNetwork)
 	fmt.Printf("   Facilitator: %s\n", facilitatorURL)
-	fmt.Printf("   Network: %s\n", evmNetwork)
 
 	// Create Gin router
 	r := ginfw.Default()
@@ -59,11 +68,21 @@ func main() {
 	 * a 402 Payment Required response with payment details.
 	 */
 	routes := x402http.RoutesConfig{
-		"GET /weather": {
-			Scheme:      "exact",
-			PayTo:       evmPayeeAddress,
-			Price:       "$0.001", // 0.1 cents in USDC
-			Network:     evmNetwork,
+		"GET /weather": x402http.RouteConfig{
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					Price:   "$0.001",
+					Network: "eip155:84532",
+					PayTo:   evmAddress,
+				},
+				{
+					Scheme:  "exact",
+					Price:   "$0.001",
+					Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+					PayTo:   svmAddress,
+				},
+			},
 			Description: "Get weather data for a city",
 			MimeType:    "application/json",
 		},
@@ -74,9 +93,9 @@ func main() {
 		Routes:      routes,
 		Facilitator: facilitatorClient,
 		Schemes: []ginmw.SchemeConfig{
-			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
+			ginmw.SchemeConfig{Network: "eip155:84532", Server: evm.NewExactEvmScheme()},
+			ginmw.SchemeConfig{Network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", Server: svm.NewExactSvmScheme()},
 		},
-		Initialize: true,
 		Timeout:    30 * time.Second,
 	}))
 
@@ -121,8 +140,7 @@ func main() {
 		})
 	})
 
-	fmt.Printf("🚀 Server: %s on %s\n", evmPayeeAddress, evmNetwork)
-	fmt.Printf("   Listening on http://localhost:%s\n\n", DefaultPort)
+	fmt.Printf("   Server listening on http://localhost:%s\n\n", DefaultPort)
 
 	if err := r.Run(":" + DefaultPort); err != nil {
 		fmt.Printf("Error starting server: %v\n", err)

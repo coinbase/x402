@@ -84,10 +84,14 @@ discoveryExtension, err := bazaar.DeclareDiscoveryExtension(
 
 routes := x402http.RoutesConfig{
     "GET /weather": {
-        Scheme:      "exact",
-        PayTo:       evmPayeeAddress,
-        Price:       "$0.001",
-        Network:     evmNetwork,
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   evmPayeeAddress,
+                Price:   "$0.001",
+                Network: evmNetwork,
+            },
+        },
         Description: "Weather data",
         MimeType:    "application/json",
         Extensions: map[string]interface{}{
@@ -114,10 +118,14 @@ dynamicPrice := func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (x
 
 routes := x402http.RoutesConfig{
     "GET /weather": {
-        Scheme:  "exact",
-        PayTo:   evmPayeeAddress,
-        Price:   x402http.DynamicPriceFunc(dynamicPrice),
-        Network: evmNetwork,
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   evmPayeeAddress,
+                Price:   x402http.DynamicPriceFunc(dynamicPrice),
+                Network: evmNetwork,
+            },
+        },
     },
 }
 ```
@@ -145,10 +153,14 @@ dynamicPayTo := func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (s
 
 routes := x402http.RoutesConfig{
     "GET /weather": {
-        Scheme:  "exact",
-        PayTo:   x402http.DynamicPayToFunc(dynamicPayTo),
-        Price:   "$0.001",
-        Network: evmNetwork,
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   x402http.DynamicPayToFunc(dynamicPayTo),
+                Price:   "$0.001",
+                Network: evmNetwork,
+            },
+        },
     },
 }
 ```

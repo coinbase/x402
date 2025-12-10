@@ -81,10 +81,14 @@ func main() {
 
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
-			Scheme:      "exact",
-			PayTo:       evmPayeeAddress,
-			Price:       x402http.DynamicPriceFunc(dynamicPrice),
-			Network:     evmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   x402http.DynamicPriceFunc(dynamicPrice),
+					Network: evmNetwork,
+				},
+			},
 			Description: "Weather data",
 			MimeType:    "application/json",
 		},

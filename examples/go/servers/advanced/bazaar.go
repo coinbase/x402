@@ -91,10 +91,14 @@ func main() {
 
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
-			Scheme:      "exact",
-			PayTo:       evmPayeeAddress,
-			Price:       "$0.001",
-			Network:     evmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   "$0.001",
+					Network: evmNetwork,
+				},
+			},
 			Description: "Get weather data for a city",
 			MimeType:    "application/json",
 			Extensions: map[string]interface{}{

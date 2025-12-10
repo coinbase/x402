@@ -160,10 +160,14 @@ func SimpleX402Payment(payTo string, price string, network x402.Network, facilit
 	// Create routes for all endpoints
 	routes := x402http.RoutesConfig{
 		"*": {
-			Scheme:  "exact",
-			PayTo:   payTo,
-			Price:   x402.Price(price),
-			Network: network,
+			Accepts: []x402http.PaymentOption{
+				{
+					Scheme:  "exact",
+					PayTo:   payTo,
+					Price:   x402.Price(price),
+					Network: network,
+				},
+			},
 		},
 	}
 

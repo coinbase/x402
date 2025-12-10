@@ -64,11 +64,15 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 
 		// Setup routes configuration
 		routes := x402http.RoutesConfig{
-			"/web/protected": x402http.RouteConfig{
-				Scheme:      "cash",
-				PayTo:       "merchant@example.com",
-				Price:       "$5.00",
-				Network:     "x402:cash",
+			"/web/protected": {
+				Accepts: x402http.PaymentOptions{
+					{
+						Scheme:  "cash",
+						PayTo:   "merchant@example.com",
+						Price:   "$5.00",
+						Network: "x402:cash",
+					},
+				},
 				Description: "Premium Web Content",
 				MimeType:    "text/html",
 			},

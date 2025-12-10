@@ -108,19 +108,27 @@ func main() {
 
 	routes := x402http.RoutesConfig{
 		"GET /protected": {
-			Scheme:  "exact",
-			PayTo:   evmPayeeAddress,
-			Price:   "$0.001",
-			Network: evmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   evmPayeeAddress,
+					Price:   "$0.001",
+					Network: evmNetwork,
+				},
+			},
 			Extensions: map[string]interface{}{
 				types.BAZAAR: discoveryExtension,
 			},
 		},
 		"GET /protected-svm": {
-			Scheme:  "exact",
-			PayTo:   svmPayeeAddress,
-			Price:   "$0.001",
-			Network: svmNetwork,
+			Accepts: x402http.PaymentOptions{
+				{
+					Scheme:  "exact",
+					PayTo:   svmPayeeAddress,
+					Price:   "$0.001",
+					Network: svmNetwork,
+				},
+			},
 			Extensions: map[string]interface{}{
 				types.BAZAAR: discoveryExtension,
 			},

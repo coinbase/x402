@@ -21,6 +21,7 @@ and fill required environment variables:
 
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_PAYEE_ADDRESS` - Ethereum address to receive payments
+- `SVM_PAYEE_ADDRESS` - Solana address to receive payments
 
 2. Install dependencies:
 ```bash
@@ -50,7 +51,7 @@ These clients will demonstrate how to:
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia to access. The endpoint returns a simple weather report.
+The server includes a single example endpoint at `/weather` that accepts payment of 0.001 USDC on either Base Sepolia (EVM) or Solana Devnet (SVM). The endpoint returns a simple weather report.
 
 ## Response Format
 
@@ -82,12 +83,23 @@ Note: `amount` is in atomic units (e.g., 1000 = 0.001 USDC, since USDC has 6 dec
       "network": "eip155:84532",
       "amount": "1000",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "payTo": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+      "payTo": "0x...",
       "maxTimeoutSeconds": 300,
       "extra": {
         "name": "USDC",
         "version": "2",
         "resourceUrl": "http://localhost:4021/weather"
+      }
+    },
+    {
+      "scheme": "exact",
+      "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+      "amount": "1000",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "payTo": "...",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "feePayer": "...",
       }
     }
   ]
@@ -123,10 +135,14 @@ To add more paid endpoints, follow this pattern:
 // First, configure the payment middleware with your routes
 routes := x402http.RoutesConfig{
     "GET /your-endpoint": {
-        Scheme:      "exact",
-        PayTo:       evmPayeeAddress,
-        Price:       "$0.10",
-        Network:     x402.Network("eip155:84532"),
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   evmPayeeAddress,
+                Price:   "$0.10",
+                Network: x402.Network("eip155:84532"),
+            },
+        },
         Description: "Your endpoint description",
         MimeType:    "application/json",
     },
@@ -138,7 +154,7 @@ r.Use(ginmw.X402Payment(ginmw.Config{
     Schemes: []ginmw.SchemeConfig{
         {Network: x402.Network("eip155:*"), Server: evm.NewExactEvmScheme()},
     },
-    Initialize: true,
+    Timeout: 30 * time.Second,
 }))
 
 // Then define your routes as normal

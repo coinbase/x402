@@ -67,11 +67,15 @@ func TestHTTPIntegration(t *testing.T) {
 
 		// Setup routes configuration
 		routes := x402http.RoutesConfig{
-			"/api/protected": x402http.RouteConfig{
-				Scheme:      "cash",
-				PayTo:       "merchant@example.com",
-				Price:       "$0.10",
-				Network:     "x402:cash",
+			"/api/protected": {
+				Accepts: x402http.PaymentOptions{
+					{
+						Scheme:  "cash",
+						PayTo:   "merchant@example.com",
+						Price:   "$0.10",
+						Network: "x402:cash",
+					},
+				},
 				Description: "Access to protected API",
 				MimeType:    "application/json",
 			},

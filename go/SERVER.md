@@ -39,10 +39,14 @@ func main() {
     // 1. Configure payment routes
     routes := x402http.RoutesConfig{
         "GET /data": {
-            Scheme:      "exact",
-            PayTo:       "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
-            Price:       "$0.001",
-            Network:     "eip155:84532",
+            Accepts: x402http.PaymentOptions{
+                {
+                    Scheme:  "exact",
+                    PayTo:   "0x...",
+                    Price:   "$0.001",
+                    Network: "eip155:84532",
+                },
+            },
             Description: "Get data",
             MimeType:    "application/json",
         },
@@ -81,10 +85,14 @@ Routes define payment requirements for specific endpoints.
 ```go
 routes := x402http.RoutesConfig{
     "GET /resource": {
-        Scheme:      "exact",           // Payment scheme (exact, upto, etc.)
-        PayTo:       "0x...",           // Payment recipient address
-        Price:       "$0.001",          // Price in USD
-        Network:     "eip155:84532",    // Blockchain network
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",           // Payment scheme (exact, upto, etc.)
+                PayTo:   "0x...",           // Payment recipient address
+                Price:   "$0.001",          // Price in USD
+                Network: "eip155:84532",    // Blockchain network
+            },
+        },
         Description: "Resource description",
         MimeType:    "application/json",
     },
@@ -225,15 +233,19 @@ Charge different amounts based on request context:
 ```go
 routes := x402http.RoutesConfig{
     "GET /data": {
-        Scheme:  "exact",
-        PayTo:   "0x...",
-        Network: "eip155:84532",
-        Price: func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (x402.Price, error) {
-            tier := extractTierFromRequest(reqCtx)
-            if tier == "premium" {
-                return "$0.005", nil
-            }
-            return "$0.001", nil
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   "0x...",
+                Network: "eip155:84532",
+                Price: x402http.DynamicPriceFunc(func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (x402.Price, error) {
+                    tier := extractTierFromRequest(reqCtx)
+                    if tier == "premium" {
+                        return "$0.005", nil
+                    }
+                    return "$0.001", nil
+                }),
+            },
         },
     },
 }
@@ -246,12 +258,16 @@ Route payments to different addresses:
 ```go
 routes := x402http.RoutesConfig{
     "GET /marketplace/item/*": {
-        Scheme:  "exact",
-        Price:   "$10.00",
-        Network: "eip155:84532",
-        PayTo: func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (string, error) {
-            sellerID := extractSellerFromPath(reqCtx.Path)
-            return getSellerAddress(sellerID)
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                Price:   "$10.00",
+                Network: "eip155:84532",
+                PayTo: x402http.DynamicPayToFunc(func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (string, error) {
+                    sellerID := extractSellerFromPath(reqCtx.Path)
+                    return getSellerAddress(sellerID)
+                }),
+            },
         },
     },
 }
@@ -318,7 +334,9 @@ discoveryExt, _ := bazaar.DeclareDiscoveryExtension(
 
 routes := x402http.RoutesConfig{
     "GET /weather": {
-        // ... payment config ...
+        Accepts: x402http.PaymentOptions{
+            {Scheme: "exact", PayTo: "0x...", Price: "$0.001", Network: "eip155:84532"},
+        },
         Extensions: map[string]interface{}{
             types.BAZAAR: discoveryExt,
         },
@@ -364,13 +382,17 @@ func (s *X402ResourceServer) SettlePayment(ctx context.Context, payload PaymentP
 type RoutesConfig map[string]RouteConfig
 
 type RouteConfig struct {
-    Scheme      string                  // "exact", etc.
-    PayTo       interface{}             // string or DynamicPayToFunc
-    Price       interface{}             // x402.Price or DynamicPriceFunc
-    Network     x402.Network            // "eip155:84532", etc.
+    Accepts     []PaymentOption         // Payment options for this route
     Description string                  // Resource description
     MimeType    string                  // Response content type
     Extensions  map[string]interface{}  // Protocol extensions
+}
+
+type PaymentOption struct {
+    Scheme  string                  // "exact", etc.
+    PayTo   interface{}             // string or DynamicPayToFunc
+    Price   interface{}             // x402.Price or DynamicPriceFunc
+    Network x402.Network            // "eip155:84532", etc.
 }
 ```
 
@@ -447,9 +469,11 @@ r.Use(ginmw.X402Payment(ginmw.Config{
 ```go
 routes := x402http.RoutesConfig{
     "GET /api/weather": {
+        Accepts: x402http.PaymentOptions{
+            {Scheme: "exact", PayTo: "0x...", Price: "$0.001", Network: "eip155:84532"},
+        },
         Description: "Get current weather data for a city",
         MimeType:    "application/json",
-        // ...
     },
 }
 ```
@@ -475,8 +499,8 @@ Don't protect everything:
 ```go
 routes := x402http.RoutesConfig{
     // Protected
-    "GET /api/premium":    {Price: "$1.00", ...},
-    "POST /api/compute":   {Price: "$5.00", ...},
+    "GET /api/premium":    {Accepts: x402http.PaymentOptions{{Price: "$1.00", ...}}},
+    "POST /api/compute":   {Accepts: x402http.PaymentOptions{{Price: "$5.00", ...}}},
     // Leave /health, /docs, etc. unprotected
 }
 ```
@@ -519,9 +543,9 @@ Different prices for different endpoints:
 
 ```go
 routes := x402http.RoutesConfig{
-    "GET /api/basic":       {Price: "$0.001", ...},  // Cheap
-    "GET /api/premium":     {Price: "$0.10", ...},   // Medium
-    "POST /api/compute":    {Price: "$1.00", ...},   // Expensive
+    "GET /api/basic":       {Accepts: x402http.PaymentOptions{{Price: "$0.001", ...}}},   // Cheap
+    "GET /api/premium":     {Accepts: x402http.PaymentOptions{{Price: "$0.10", ...}}},    // Medium
+    "POST /api/compute":    {Accepts: x402http.PaymentOptions{{Price: "$1.00", ...}}},    // Expensive
 }
 ```
 
@@ -532,20 +556,26 @@ Implement dynamic pricing based on request context:
 ```go
 routes := x402http.RoutesConfig{
     "GET /api/data": {
-        Price: func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (x402.Price, error) {
-            tier := getUserTier(reqCtx)
-            switch tier {
-            case "free":
-                return "$0.10", nil
-            case "premium":
-                return "$0.01", nil
-            case "enterprise":
-                return "$0.001", nil
-            default:
-                return "$0.10", nil
-            }
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                PayTo:   "0x...",
+                Network: "eip155:84532",
+                Price: x402http.DynamicPriceFunc(func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (x402.Price, error) {
+                    tier := getUserTier(reqCtx)
+                    switch tier {
+                    case "free":
+                        return "$0.10", nil
+                    case "premium":
+                        return "$0.01", nil
+                    case "enterprise":
+                        return "$0.001", nil
+                    default:
+                        return "$0.10", nil
+                    }
+                }),
+            },
         },
-        // ...
     },
 }
 ```
@@ -557,15 +587,21 @@ Route payments to different sellers:
 ```go
 routes := x402http.RoutesConfig{
     "GET /marketplace/item/*": {
-        PayTo: func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (string, error) {
-            itemID := extractItemID(reqCtx.Path)
-            seller, err := db.GetItemSeller(itemID)
-            if err != nil {
-                return "", err
-            }
-            return seller.WalletAddress, nil
+        Accepts: x402http.PaymentOptions{
+            {
+                Scheme:  "exact",
+                Price:   "$10.00",
+                Network: "eip155:84532",
+                PayTo: x402http.DynamicPayToFunc(func(ctx context.Context, reqCtx x402http.HTTPRequestContext) (string, error) {
+                    itemID := extractItemID(reqCtx.Path)
+                    seller, err := db.GetItemSeller(itemID)
+                    if err != nil {
+                        return "", err
+                    }
+                    return seller.WalletAddress, nil
+                }),
+            },
         },
-        // ...
     },
 }
 ```
