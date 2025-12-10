@@ -22,10 +22,10 @@ type PaymentMiddlewareOptions struct {
 	MaxTimeoutSeconds int
 	OutputSchema      *json.RawMessage
 	FacilitatorConfig *types.FacilitatorConfig
-	Testnet           bool
 	CustomPaywallHTML string
 	Resource          string
 	ResourceRootURL   string
+	Network           string
 }
 
 // Options is the type for the options for the PaymentMiddleware.
@@ -66,13 +66,6 @@ func WithFacilitatorConfig(config *types.FacilitatorConfig) Options {
 	}
 }
 
-// WithTestnet is an option for the PaymentMiddleware to set the testnet flag.
-func WithTestnet(testnet bool) Options {
-	return func(options *PaymentMiddlewareOptions) {
-		options.Testnet = testnet
-	}
-}
-
 // WithCustomPaywallHTML is an option for the PaymentMiddleware to set the custom paywall HTML.
 func WithCustomPaywallHTML(customPaywallHTML string) Options {
 	return func(options *PaymentMiddlewareOptions) {
@@ -93,6 +86,42 @@ func WithResourceRootURL(resourceRootURL string) Options {
 	}
 }
 
+// WithNetwork is an option for the PaymentMiddleware to set the network explicitly.
+func WithNetwork(network string) Options {
+	return func(options *PaymentMiddlewareOptions) {
+		options.Network = network
+	}
+}
+
+type networkConfig struct {
+	assetAddress string
+	decimals     int
+	tokenName    string
+}
+
+var supportedNetworks = map[string]networkConfig{
+	"base": {
+		assetAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+		decimals:     6,
+		tokenName:    "USD Coin",
+	},
+	"base-sepolia": {
+		assetAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+		decimals:     6,
+		tokenName:    "USDC",
+	},
+	"bsc": {
+		assetAddress: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d",
+		decimals:     18,
+		tokenName:    "USD Coin",
+	},
+	"bsc-testnet": {
+		assetAddress: "0x64544969ed7ebf5f083679233325356ebe738930",
+		decimals:     18,
+		tokenName:    "USDC",
+	},
+}
+
 // PaymentMiddleware is the Gin middleware for the resource server using the x402payment protocol.
 // Amount: the decimal denominated amount to charge (ex: 0.01 for 1 cent)
 func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.HandlerFunc {
@@ -101,7 +130,6 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			URL: facilitatorclient.DefaultFacilitatorURL,
 		},
 		MaxTimeoutSeconds: 60,
-		Testnet:           true,
 	}
 
 	for _, opt := range opts {
@@ -110,16 +138,31 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 
 	return func(c *gin.Context) {
 		var (
-			network              = "base"
-			usdcAddress          = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-			facilitatorClient    = facilitatorclient.NewFacilitatorClient(options.FacilitatorConfig)
-			maxAmountRequired, _ = new(big.Float).Mul(amount, big.NewFloat(1e6)).Int(nil)
+			network           string
+			usdcAddress       string
+			facilitatorClient = facilitatorclient.NewFacilitatorClient(options.FacilitatorConfig)
+			maxAmountRequired *big.Int
+			netCfg            networkConfig
 		)
 
-		if options.Testnet {
-			network = "base-sepolia"
-			usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+		network = options.Network
+		if network == "" {
+			network = "base-sepolia" // default network
 		}
+
+		netCfg, exists := supportedNetworks[network]
+		if !exists {
+			errMsg := fmt.Sprintf("unsupported network: %s", network)
+			fmt.Println(errMsg)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error":       errMsg,
+				"x402Version": x402Version,
+			})
+			return
+		}
+
+		usdcAddress = netCfg.assetAddress
+		maxAmountRequired = AmountToAssetUnits(amount, netCfg.decimals)
 
 		fmt.Println("Payment middleware checking request:", c.Request.URL)
 
@@ -147,7 +190,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			Extra:             nil,
 		}
 
-		if err := paymentRequirements.SetUSDCInfo(options.Testnet); err != nil {
+		if err := paymentRequirements.SetUSDCInfo(netCfg.tokenName); err != nil {
 			fmt.Println("failed to set USDC info:", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
 				"error":       err.Error(),
@@ -285,4 +328,13 @@ func (w *responseWriter) WriteString(s string) (int, error) {
 // getPaywallHtml is the default paywall HTML for the PaymentMiddleware.
 func getPaywallHtml(_ *PaymentMiddlewareOptions) string {
 	return "<html><body>Payment Required</body></html>"
+}
+
+// AmountToAssetUnits converts a human-readable amount into base units using the token's decimals.
+func AmountToAssetUnits(amount *big.Float, decimals int) *big.Int {
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(decimals)), nil)
+	scaleFloat := new(big.Float).SetPrec(256).SetInt(scale)
+	amountFloat := new(big.Float).SetPrec(256).Set(amount)
+	res, _ := new(big.Float).Mul(amountFloat, scaleFloat).Int(nil)
+	return res
 }
