@@ -143,7 +143,7 @@ func main() {
 			{Network: evmNetwork, Server: evm.NewExactEvmScheme()},
 			{Network: svmNetwork, Server: svm.NewExactSvmScheme()},
 		},
-		Initialize: true,
+		SyncFacilitatorOnStart: true,
 		Timeout:    30 * time.Second,
 		ErrorHandler: func(c *ginfw.Context, err error) {
 			// Log detailed error information for debugging

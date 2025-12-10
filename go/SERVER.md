@@ -64,7 +64,6 @@ func main() {
         Schemes: []ginmw.SchemeConfig{
             {Network: "eip155:84532", Server: evm.NewExactEvmScheme()},
         },
-        Initialize: true,
     }))
     
     // 4. Protected endpoint handler
@@ -179,7 +178,6 @@ r.Use(ginmw.X402Payment(ginmw.Config{
     Routes:      routes,
     Facilitator: facilitator,
     Schemes:     schemes,
-    Initialize:  true,
     Timeout:     30 * time.Second,
 }))
 ```
@@ -450,7 +448,7 @@ Query facilitator capabilities during startup:
 
 ```go
 r.Use(ginmw.X402Payment(ginmw.Config{
-    Initialize: true,  // Query /supported endpoint
+    SyncFacilitatorOnStart: true,  // Query /supported endpoint on start
     // ...
 }))
 ```

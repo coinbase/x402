@@ -68,7 +68,7 @@ func main() {
 	 * a 402 Payment Required response with payment details.
 	 */
 	routes := x402http.RoutesConfig{
-		"GET /weather": x402http.RouteConfig{
+		"GET /weather": {
 			Accepts: x402http.PaymentOptions{
 				{
 					Scheme:  "exact",

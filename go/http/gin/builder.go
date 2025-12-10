@@ -28,9 +28,9 @@ type Config struct {
 	// PaywallConfig for browser-based payment UI (optional)
 	PaywallConfig *x402http.PaywallConfig
 
-	// Initialize fetches supported kinds from facilitators on startup
+	// SyncFacilitatorOnStart fetches supported kinds from facilitators on startup
 	// Default: true
-	Initialize bool
+	SyncFacilitatorOnStart bool
 
 	// Timeout for payment operations
 	// Default: 30 seconds
@@ -69,7 +69,7 @@ type SchemeConfig struct {
 //	        {Network: "eip155:*", Server: evm.NewExactEvmServer()},
 //	        {Network: "solana:*", Server: svm.NewExactEvmServer()},
 //	    },
-//	    Initialize: true,
+//	    SyncFacilitatorOnStart: true,
 //	    Timeout: 30 * time.Second,
 //	}))
 func X402Payment(config Config) gin.HandlerFunc {
@@ -78,16 +78,16 @@ func X402Payment(config Config) gin.HandlerFunc {
 		config.Timeout = 30 * time.Second
 	}
 
-	// Default to initialize unless explicitly disabled
-	initialize := config.Initialize
-	if !initialize && config.Facilitator == nil && len(config.Facilitators) == 0 {
+	// Default to sync unless explicitly disabled
+	syncOnStart := config.SyncFacilitatorOnStart
+	if !syncOnStart && config.Facilitator == nil && len(config.Facilitators) == 0 {
 		// If no explicit setting and no facilitators, default to false
-		initialize = false
+		syncOnStart = false
 	} else if config.Facilitator != nil || len(config.Facilitators) > 0 {
-		// If facilitators provided but Initialize not explicitly set, default to true
+		// If facilitators provided but SyncFacilitatorOnStart not explicitly set, default to true
 		if config.Timeout != 0 {
 			// User set something, so they're configuring - default to true
-			initialize = true
+			syncOnStart = true
 		}
 	}
 
@@ -100,7 +100,7 @@ func X402Payment(config Config) gin.HandlerFunc {
 
 	// Convert to middleware options
 	opts := []MiddlewareOption{
-		WithSyncFacilitatorOnStart(initialize),
+		WithSyncFacilitatorOnStart(syncOnStart),
 		WithTimeout(config.Timeout),
 	}
 
@@ -172,8 +172,8 @@ func SimpleX402Payment(payTo string, price string, network x402.Network, facilit
 	}
 
 	return X402Payment(Config{
-		Routes:      routes,
-		Facilitator: facilitator,
-		Initialize:  true,
+		Routes:                 routes,
+		Facilitator:            facilitator,
+		SyncFacilitatorOnStart: true,
 	})
 }

@@ -183,7 +183,6 @@ r.Use(ginmw.X402Payment(ginmw.Config{
         {Network: x402.Network("eip155:*"), Server: evm.NewExactEvmScheme()},  // All EVM chains
         // {Network: x402.Network("solana:*"), Server: svm.NewExactSvmScheme()}, // All SVM chains
     },
-    Initialize: true,
     Timeout:    30 * time.Second,
 }))
 ```

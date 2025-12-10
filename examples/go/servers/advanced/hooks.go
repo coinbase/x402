@@ -70,7 +70,7 @@ func main() {
 		Schemes: []ginmw.SchemeConfig{
 			{Network: evmNetwork, Server: evmScheme},
 		},
-		Initialize: true,
+		SyncFacilitatorOnStart: true,
 		Timeout:    30 * time.Second,
 	}))
 
