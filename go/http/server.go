@@ -176,8 +176,13 @@ type x402HTTPResourceServer struct {
 
 // Newx402HTTPResourceServer creates a new HTTP resource server
 func Newx402HTTPResourceServer(routes RoutesConfig, opts ...x402.ResourceServerOption) *x402HTTPResourceServer {
+	return Wrappedx402HTTPResourceServer(routes, x402.Newx402ResourceServer(opts...))
+}
+
+// Wrappedx402HTTPResourceServer wraps an existing resource server with HTTP functionality.
+func Wrappedx402HTTPResourceServer(routes RoutesConfig, resourceServer *x402.X402ResourceServer) *x402HTTPResourceServer {
 	server := &x402HTTPResourceServer{
-		X402ResourceServer: x402.Newx402ResourceServer(opts...),
+		X402ResourceServer: resourceServer,
 		compiledRoutes:     []CompiledRoute{},
 	}
 

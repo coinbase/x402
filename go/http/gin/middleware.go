@@ -162,8 +162,40 @@ func WithTimeout(timeout time.Duration) MiddlewareOption {
 // Payment Middleware
 // ============================================================================
 
-// PaymentMiddleware creates Gin middleware for x402 payment handling
-func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) gin.HandlerFunc {
+// PaymentMiddleware creates Gin middleware for x402 payment handling using a pre-configured server.
+func PaymentMiddleware(routes x402http.RoutesConfig, server *x402.X402ResourceServer, opts ...MiddlewareOption) gin.HandlerFunc {
+	config := &MiddlewareConfig{
+		Routes:                 routes,
+		SyncFacilitatorOnStart: true,
+		Timeout:                30 * time.Second,
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(config)
+	}
+
+	// Wrap the resource server with HTTP functionality
+	httpServer := x402http.Wrappedx402HTTPResourceServer(routes, server)
+
+	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
+
+	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
+	if config.SyncFacilitatorOnStart {
+		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+		defer cancel()
+		if err := httpServer.Initialize(ctx); err != nil {
+			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
+		}
+	}
+
+	// Create middleware handler using shared logic
+	return createMiddlewareHandler(httpServer, config)
+}
+
+// PaymentMiddlewareFromConfig creates Gin middleware for x402 payment handling.
+// This creates the server internally from the provided options.
+func PaymentMiddlewareFromConfig(routes x402http.RoutesConfig, opts ...MiddlewareOption) gin.HandlerFunc {
 	config := &MiddlewareConfig{
 		Routes:                 routes,
 		FacilitatorClients:     []x402.FacilitatorClient{},
@@ -182,25 +214,30 @@ func PaymentMiddleware(routes x402http.RoutesConfig, opts ...MiddlewareOption) g
 		serverOpts = append(serverOpts, x402.WithFacilitatorClient(client))
 	}
 
-	server := x402http.Newx402HTTPResourceServer(config.Routes, serverOpts...)
+	httpServer := x402http.Newx402HTTPResourceServer(config.Routes, serverOpts...)
 
-	server.RegisterExtension(bazaar.BazaarResourceServerExtension)
+	httpServer.RegisterExtension(bazaar.BazaarResourceServerExtension)
 
 	// Register schemes
 	for _, scheme := range config.Schemes {
-		server.Register(scheme.Network, scheme.Server)
+		httpServer.Register(scheme.Network, scheme.Server)
 	}
 
 	// Initialize if requested - queries facilitator /supported to populate facilitatorClients map
 	if config.SyncFacilitatorOnStart {
 		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
 		defer cancel()
-		if err := server.Initialize(ctx); err != nil {
+		if err := httpServer.Initialize(ctx); err != nil {
 			fmt.Printf("Warning: failed to initialize x402 server: %v\n", err)
 		}
 	}
 
 	// Create middleware handler
+	return createMiddlewareHandler(httpServer, config)
+}
+
+// createMiddlewareHandler creates the actual Gin handler function.
+func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Create adapter and request context
 		adapter := NewGinAdapter(c)

@@ -172,26 +172,35 @@ routes := x402http.RoutesConfig{
 Run custom logic before/after verification and settlement:
 
 ```go
-server := x402http.NewServer(routes, x402.WithFacilitatorClient(facilitatorClient))
-server.Register(evmNetwork, evm.NewExactEvmScheme())
-
-server.OnBeforeVerify(func(ctx x402.VerifyContext) (*x402.BeforeHookResult, error) {
-    fmt.Println("Before verify hook", ctx)
-    // Abort verification by returning &x402.BeforeHookResult{Abort: true, Reason: "..."}
-    return nil, nil
+// Create facilitator client
+facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+    URL: facilitatorURL,
 })
 
-server.OnAfterSettle(func(ctx x402.SettleResultContext) error {
-    // Log payment to database
-    db.RecordTransaction(ctx.Result.Transaction, ctx.Result.Payer)
-    return nil
-})
+// Create x402 resource server with hooks
+server := x402.Newx402ResourceServer(
+    x402.WithFacilitatorClient(facilitatorClient),
+).
+    Register(evmNetwork, evm.NewExactEvmScheme()).
+    OnBeforeVerify(func(ctx x402.VerifyContext) (*x402.BeforeHookResult, error) {
+        fmt.Println("Before verify hook", ctx)
+        // Abort verification by returning &x402.BeforeHookResult{Abort: true, Reason: "..."}
+        return nil, nil
+    }).
+    OnAfterSettle(func(ctx x402.SettleResultContext) error {
+        // Log payment to database
+        db.RecordTransaction(ctx.Result.Transaction, ctx.Result.Payer)
+        return nil
+    }).
+    OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
+        // Return a result with Recovered=true to recover from the failure
+        // return &x402.SettleFailureHookResult{Recovered: true, Result: &x402.SettleResponse{...}}
+        return nil, nil
+    })
 
-server.OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
-    // Return a result with Recovered=true to recover from the failure
-    // return &x402.SettleFailureHookResult{Recovered: true, Result: &x402.SettleResponse{...}}
-    return nil, nil
-})
+// Use PaymentMiddleware with the pre-configured server
+r := gin.Default()
+r.Use(ginmw.PaymentMiddleware(routes, server))
 ```
 
 Available hooks:

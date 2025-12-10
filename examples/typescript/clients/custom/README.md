@@ -8,8 +8,10 @@ import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "@x402
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
 
-const client = new x402Client()
-  .register("eip155:*", new ExactEvmScheme(privateKeyToAccount(evmPrivateKey)));
+const client = new x402Client().register(
+  "eip155:*",
+  new ExactEvmScheme(privateKeyToAccount(evmPrivateKey)),
+);
 
 // 1. Make initial request
 let response = await fetch(url);

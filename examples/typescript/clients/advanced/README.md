@@ -59,11 +59,11 @@ pnpm dev
 
 Each example demonstrates a specific advanced pattern:
 
-| Example             | Command                      | Description                            |
-| ------------------- | ---------------------------- | -------------------------------------- |
-| `builder-pattern`   | `pnpm dev:builder-pattern`   | Fine-grained network registration      |
-| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks                |
-| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences        |
+| Example             | Command                      | Description                       |
+| ------------------- | ---------------------------- | --------------------------------- |
+| `builder-pattern`   | `pnpm dev:builder-pattern`   | Fine-grained network registration |
+| `hooks`             | `pnpm dev:hooks`             | Payment lifecycle hooks           |
+| `preferred-network` | `pnpm dev:preferred-network` | Client-side network preferences   |
 
 ## Testing the Examples
 
@@ -96,9 +96,9 @@ const mainnetSigner = privateKeyToAccount(mainnetPrivateKey);
 
 // More specific patterns take precedence over wildcards
 const client = new x402Client()
-  .register("eip155:*", new ExactEvmScheme(evmSigner))       // All EVM networks
-  .register("eip155:1", new ExactEvmScheme(mainnetSigner))   // Ethereum mainnet override
-  .register("solana:*", new ExactSvmScheme(svmSigner));      // All Solana networks
+  .register("eip155:*", new ExactEvmScheme(evmSigner)) // All EVM networks
+  .register("eip155:1", new ExactEvmScheme(mainnetSigner)) // Ethereum mainnet override
+  .register("solana:*", new ExactSvmScheme(svmSigner)); // All Solana networks
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 const response = await fetchWithPayment("http://localhost:4021/weather");

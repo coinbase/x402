@@ -6,8 +6,9 @@ Demonstrates how to implement x402 payment handling manually without using pre-b
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 
-const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
-  .register("eip155:84532", new ExactEvmScheme());
+const resourceServer = new x402ResourceServer(
+  new HTTPFacilitatorClient({ url: facilitatorUrl }),
+).register("eip155:84532", new ExactEvmScheme());
 
 // In your request handler:
 if (!paymentHeader) {

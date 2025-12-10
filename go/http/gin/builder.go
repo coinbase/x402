@@ -125,8 +125,8 @@ func X402Payment(config Config) gin.HandlerFunc {
 		opts = append(opts, WithSettlementHandler(config.SettlementHandler))
 	}
 
-	// Delegate to existing PaymentMiddleware (reuse all logic)
-	return PaymentMiddleware(config.Routes, opts...)
+	// Delegate to PaymentMiddlewareFromConfig (reuse all logic)
+	return PaymentMiddlewareFromConfig(config.Routes, opts...)
 }
 
 // SimpleX402Payment creates middleware with minimal configuration.

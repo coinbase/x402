@@ -272,7 +272,7 @@ func TestPaymentMiddleware_CallsNextWhenNoPaymentRequired(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes, WithSyncFacilitatorOnStart(false)))
+	router.Use(PaymentMiddlewareFromConfig(routes, WithSyncFacilitatorOnStart(false)))
 
 	nextCalled := false
 	router.GET("/public", func(c *gin.Context) {
@@ -322,7 +322,7 @@ func TestPaymentMiddleware_Returns402JSONForPaymentError(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithSyncFacilitatorOnStart(true),
@@ -383,7 +383,7 @@ func TestPaymentMiddleware_Returns402HTMLForBrowserRequest(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithPaywallConfig(paywallConfig),
@@ -466,7 +466,7 @@ func TestPaymentMiddleware_SettlesAndReturnsResponseForVerifiedPayment(t *testin
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithSyncFacilitatorOnStart(true),
@@ -535,7 +535,7 @@ func TestPaymentMiddleware_SkipsSettlementWhenHandlerReturns400OrHigher(t *testi
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithSyncFacilitatorOnStart(true),
@@ -601,7 +601,7 @@ func TestPaymentMiddleware_Returns402WhenSettlementFails(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithSyncFacilitatorOnStart(true),
@@ -683,7 +683,7 @@ func TestPaymentMiddleware_CustomErrorHandler(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithErrorHandler(customErrorHandler),
@@ -766,7 +766,7 @@ func TestPaymentMiddleware_CustomSettlementHandler(t *testing.T) {
 	}
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithSettlementHandler(customSettlementHandler),
@@ -837,7 +837,7 @@ func TestPaymentMiddleware_WithTimeout(t *testing.T) {
 	timeout := 10 * time.Second
 
 	router := createTestRouter()
-	router.Use(PaymentMiddleware(routes,
+	router.Use(PaymentMiddlewareFromConfig(routes,
 		WithFacilitatorClient(mockClient),
 		WithScheme("eip155:1", mockServer),
 		WithTimeout(timeout),

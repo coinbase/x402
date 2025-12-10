@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	x402 "github.com/coinbase/x402/go"
 	x402http "github.com/coinbase/x402/go/http"
@@ -41,14 +40,72 @@ func main() {
 
 	evmNetwork := x402.Network("eip155:84532") // Base Sepolia
 
-	r := ginfw.Default()
-
+	// Create facilitator client
 	facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
 		URL: facilitatorURL,
 	})
 
+	// Create EVM scheme server
 	evmScheme := evm.NewExactEvmScheme()
 
+	// Create x402 resource server with hooks 
+	server := x402.Newx402ResourceServer(
+		x402.WithFacilitatorClient(facilitatorClient),
+	).
+		Register(evmNetwork, evmScheme).
+		// Hook 1: Before Verify - Called before payment verification
+		// Can abort verification by returning &BeforeHookResult{Abort: true, Reason: "..."}
+		OnBeforeVerify(func(ctx x402.VerifyContext) (*x402.BeforeHookResult, error) {
+			fmt.Printf("🔵 Before verify hook - Scheme: %s, Network: %s\n",
+				ctx.Requirements.GetScheme(), ctx.Requirements.GetNetwork())
+			// Example: Abort verification
+			// return &x402.BeforeHookResult{Abort: true, Reason: "Custom validation failed"}, nil
+			return nil, nil
+		}).
+		// Hook 2: After Verify - Called after successful payment verification
+		OnAfterVerify(func(ctx x402.VerifyResultContext) error {
+			fmt.Printf("🟢 After verify hook - IsValid: %v\n", ctx.Result.IsValid)
+			return nil
+		}).
+		// Hook 3: Verify Failure - Called when payment verification fails
+		// Can recover from failure by returning &VerifyFailureHookResult{Recovered: true, Result: ...}
+		OnVerifyFailure(func(ctx x402.VerifyFailureContext) (*x402.VerifyFailureHookResult, error) {
+			fmt.Printf("🔴 Verify failure hook - Error: %v\n", ctx.Error)
+			// Example: Recover from failure
+			// return &x402.VerifyFailureHookResult{
+			// 	Recovered: true,
+			// 	Result:    &x402.VerifyResponse{IsValid: true, InvalidReason: "Recovered from failure"},
+			// }, nil
+			return nil, nil
+		}).
+		// Hook 4: Before Settle - Called before payment settlement
+		// Can abort settlement by returning &BeforeHookResult{Abort: true, Reason: "..."}
+		OnBeforeSettle(func(ctx x402.SettleContext) (*x402.BeforeHookResult, error) {
+			fmt.Printf("🔵 Before settle hook - Scheme: %s, Network: %s\n",
+				ctx.Requirements.GetScheme(), ctx.Requirements.GetNetwork())
+			// Example: Abort settlement
+			// return &x402.BeforeHookResult{Abort: true, Reason: "Settlement temporarily disabled"}, nil
+			return nil, nil
+		}).
+		// Hook 5: After Settle - Called after successful payment settlement
+		OnAfterSettle(func(ctx x402.SettleResultContext) error {
+			fmt.Printf("🟢 After settle hook - Success: %v, Transaction: %s\n",
+				ctx.Result.Success, ctx.Result.Transaction)
+			return nil
+		}).
+		// Hook 6: Settle Failure - Called when payment settlement fails
+		// Can recover from failure by returning &SettleFailureHookResult{Recovered: true, Result: ...}
+		OnSettleFailure(func(ctx x402.SettleFailureContext) (*x402.SettleFailureHookResult, error) {
+			fmt.Printf("🔴 Settle failure hook - Error: %v\n", ctx.Error)
+			// Example: Recover from failure
+			// return &x402.SettleFailureHookResult{
+			// 	Recovered: true,
+			// 	Result:    &x402.SettleResponse{Success: true, Transaction: "0x123..."},
+			// }, nil
+			return nil, nil
+		})
+
+	// Define routes
 	routes := x402http.RoutesConfig{
 		"GET /weather": {
 			Accepts: x402http.PaymentOptions{
@@ -64,15 +121,9 @@ func main() {
 		},
 	}
 
-	r.Use(ginmw.X402Payment(ginmw.Config{
-		Routes:      routes,
-		Facilitator: facilitatorClient,
-		Schemes: []ginmw.SchemeConfig{
-			{Network: evmNetwork, Server: evmScheme},
-		},
-		SyncFacilitatorOnStart: true,
-		Timeout:    30 * time.Second,
-	}))
+	// Create Gin router with x402 payment middleware
+	r := ginfw.Default()
+	r.Use(ginmw.PaymentMiddleware(routes, server))
 
 	r.GET("/weather", func(c *ginfw.Context) {
 		c.JSON(http.StatusOK, ginfw.H{
@@ -91,4 +142,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
