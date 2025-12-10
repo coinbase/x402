@@ -15,6 +15,8 @@ export const NetworkSchema = z.enum([
   "polygon",
   "polygon-amoy",
   "peaq",
+  "ton:mainnet",
+  "ton:testnet",
   "story",
   "educhain",
   "skale-base-sepolia",
@@ -64,9 +66,18 @@ export const SvmNetworkToChainId = new Map<Network, number>([
   ["solana", 101],
 ]);
 
+// ton
+export const SupportedTONNetworks: Network[] = ["ton:mainnet", "ton:testnet"];
+export const TonNetworkToChainId = new Map<Network, number>([
+  ["ton:mainnet", 200],
+  ["ton:testnet", 201],
+]);
+
 export const ChainIdToNetwork = Object.fromEntries(
-  [...SupportedEVMNetworks, ...SupportedSVMNetworks].map(network => [
-    EvmNetworkToChainId.get(network),
+  [...SupportedEVMNetworks, ...SupportedSVMNetworks, ...SupportedTONNetworks].map(network => [
+    EvmNetworkToChainId.get(network) ??
+      SvmNetworkToChainId.get(network) ??
+      TonNetworkToChainId.get(network),
     network,
   ]),
 ) as Record<number, Network>;
