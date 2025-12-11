@@ -30,8 +30,14 @@ export function HeroSection({ codeSnippet }: HeroSectionProps) {
             <span className="text-base font-medium">Payment Required</span>
           </motion.div>
 
-          <motion.p variants={fadeInUp} className="text-base sm:text-lg font-medium leading-relaxed max-w-[600px]">
-            x402 is the internet&apos;s payment standard. It absolves the original sin of the internet—ads—creating win-win economies that empower agentic payments at scale. x402 exists to build a more free and fair internet.
+          <motion.p
+            variants={fadeInUp}
+            className="text-base sm:text-lg font-medium leading-relaxed max-w-[600px]"
+          >
+            x402 is an open, neutral standard for internet-native payments. It absolves the
+            Internet's original sin by natively making payments possible between clients and
+            servers, creating win-win economies that empower agentic payments at scale. x402 exists
+            to build a more free and fair internet.
           </motion.p>
 
           <motion.div variants={fadeInUp} className="w-full max-w-[1040px] mt-4">
