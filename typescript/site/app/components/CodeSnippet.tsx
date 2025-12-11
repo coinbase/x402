@@ -64,10 +64,9 @@ export function CodeSnippet({ code, title, description }: CodeSnippetProps) {
           </button>
           <div className="overflow-x-auto pr-12">
             <code
-              className="whitespace-pre text-black"
+              className="whitespace-pre-wrap md:whitespace-pre break-words md:break-normal text-black text-[11px] md:text-[13px]"
               style={{
                 fontFamily: '"DM Mono", monospace',
-                fontSize: "13px",
                 fontStyle: "normal",
                 fontWeight: 400,
                 lineHeight: "20px",

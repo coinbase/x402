@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -21,6 +21,30 @@ type PartitionResult = {
   featured: Partner[];
   byCategory: Record<string, Partner[]>;
 };
+
+function FolderIcon({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/images/icons/folder.svg"
+      alt=""
+      width={20}
+      height={20}
+      className={className}
+    />
+  );
+}
+
+function IndentArrowIcon({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/images/icons/indent_group5.svg"
+      alt=""
+      width={20}
+      height={20}
+      className={className}
+    />
+  );
+}
 
 function partitionPartners(partners: Partner[], categories: CategoryInfo[]): PartitionResult {
   const byCategory: Record<string, Partner[]> = { everything: [...partners] };
@@ -55,6 +79,8 @@ export default function EcosystemClient({
   const searchParams = useSearchParams();
   const router = useRouter();
 
+  const [isExpanded, setIsExpanded] = useState(true);
+
   const activeFilter =
     (searchParams.get("filter") ?? initialSelectedCategory ?? "everything") || "everything";
 
@@ -84,12 +110,12 @@ export default function EcosystemClient({
     <div className="mx-auto max-w-container px-6 py-16 sm:px-10">
       {/* Hero */}
       <section className="relative mb-16">
-        <div className="pointer-events-none absolute left-[239px] top-[159px] z-0 h-[509px] w-[514px] opacity-30">
+        <div className="pointer-events-none absolute left-[350px] top-[25px] z-0 h-[509px] w-[514px] opacity-30">
           <Image
             src="/images/ecosystem-halftone.svg"
             alt=""
             width={514}
-            height={509}
+            height={550}
             className="h-full w-full"
             priority
           />
@@ -135,36 +161,45 @@ export default function EcosystemClient({
           className="w-full text-sm lg:w-48 xl:w-56"
           aria-label="Ecosystem categories"
         >
-          <div className="mb-2 flex items-center gap-1.5">
-            <div
-              className="flex h-5 w-5 items-center justify-center overflow-hidden"
-              aria-hidden="true"
-            >
-              <div className="h-0.5 w-2 rounded-[0.2px] bg-foreground" />
-            </div>
-            <span className="font-mono text-sm font-medium">Ecosystem</span>
-          </div>
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="mb-2 flex w-full cursor-pointer items-center gap-2 py-1 text-left"
+            aria-expanded={isExpanded}
+          >
+            <FolderIcon className="h-7 w-7 shrink-0" />
+            <span className="font-mono text-sm font-medium tracking-[-0.28px]">Ecosystem</span>
+          </button>
 
-          <nav className="flex flex-col gap-1.5 pl-2">
-            {[
-              { id: "everything", name: "Everything" },
-              ...categories.map((category) => ({ id: category.id, name: category.name })),
-            ].map((category) => {
-              const isActive = activeFilter === category.id;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => handleFilterChange(category.id)}
-                  className={`flex items-center gap-1.5 text-left font-mono text-sm font-medium transition-colors ${
-                    isActive ? "text-foreground" : "text-foreground/30 hover:text-foreground/60"
-                  }`}
-                >
-                  <div className="h-5 w-5 overflow-hidden" aria-hidden="true" />
-                  <span>{category.name}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <AnimatePresence initial={false}>
+            {isExpanded && (
+              <motion.nav
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="flex flex-col gap-0.5 overflow-hidden pl-2"
+              >
+                {[
+                  { id: "everything", name: "Everything" },
+                  ...categories.map((category) => ({ id: category.id, name: category.name })),
+                ].map((category) => {
+                  const isActive = activeFilter === category.id;
+                  return (
+                    <button
+                      key={category.id}
+                      onClick={() => handleFilterChange(category.id)}
+                      className={`relative flex w-full cursor-pointer items-center gap-1.5 py-1.5 text-left font-mono text-sm font-medium tracking-[-0.28px] transition-colors ${
+                        isActive ? "text-foreground" : "text-foreground/30 hover:text-foreground/60"
+                      }`}
+                    >
+                      <IndentArrowIcon className="h-4 w-4 shrink-0" />
+                      <span>{category.name}</span>
+                    </button>
+                  );
+                })}
+              </motion.nav>
+            )}
+          </AnimatePresence>
         </aside>
 
         <div className="flex-1 space-y-16">
@@ -191,7 +226,7 @@ export default function EcosystemClient({
                       aria-labelledby={`${category.id}-heading`}
                       className="scroll-mt-24 space-y-4"
                     >
-                      <h2 id={`${category.id}-heading`} className="text-lg font-medium">
+                      <h2 id={`${category.id}-heading`} className="font-['Helvetica_Neue',sans-serif] text-lg font-medium">
                         {category.name}
                       </h2>
 
@@ -222,7 +257,7 @@ export default function EcosystemClient({
                 transition={{ duration: 0.2, ease: "easeInOut" }}
               >
                 <section className="scroll-mt-24 space-y-4">
-                  <h2 className="text-lg font-medium">
+                  <h2 className="font-['Helvetica_Neue',sans-serif] text-lg font-medium">
                     {categories.find((category) => category.id === activeFilter)?.name ??
                       "Ecosystem"}
                   </h2>
