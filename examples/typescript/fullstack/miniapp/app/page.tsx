@@ -15,7 +15,8 @@ import {
   WalletDropdownDisconnect,
 } from "@coinbase/onchainkit/wallet";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useAccount, useWalletClient } from "wagmi";
+import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
@@ -46,17 +47,20 @@ function wagmiToClientSigner(walletClient: WalletClient): ClientEvmSigner {
 }
 
 export default function App() {
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
+  const { setMiniAppReady, isMiniAppReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
   const [isInMiniApp, setIsInMiniApp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const { address, isConnected, chainId } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const { switchChainAsync } = useSwitchChain();
+
+  sdk.actions.ready();
 
   const addFrame = useAddFrame();
 
-  // Initialize Farcaster Mini App SDK
+  // Check if running in Mini App context
   useEffect(() => {
     const initMiniApp = async () => {
       try {
@@ -70,15 +74,21 @@ export default function App() {
         );
       }
     };
-
     initMiniApp();
   }, []);
 
   useEffect(() => {
-    if (!isFrameReady) {
-      setFrameReady();
+    if (!isMiniAppReady) {
+      setMiniAppReady();
     }
-  }, [setFrameReady, isFrameReady]);
+  }, [setMiniAppReady, isMiniAppReady]);
+
+  // Auto-switch to Base Sepolia on connect
+  useEffect(() => {
+    if (isConnected && chainId !== baseSepolia.id) {
+      switchChainAsync({ chainId: baseSepolia.id }).catch(console.error);
+    }
+  }, [isConnected, chainId, switchChainAsync]);
 
   const handleAddFrame = useCallback(async () => {
     const result = await addFrame();
@@ -95,6 +105,11 @@ export default function App() {
     setMessage("");
 
     try {
+      // Ensure we're on Base Sepolia before signing
+      if (chainId !== baseSepolia.id) {
+        await switchChainAsync({ chainId: baseSepolia.id });
+      }
+
       // Create x402 client and register EVM scheme with wagmi signer
       const client = new x402Client();
       const signer = wagmiToClientSigner(walletClient);
@@ -122,7 +137,7 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, walletClient]);
+  }, [isConnected, walletClient, chainId, switchChainAsync]);
 
   const saveFrameButton = useMemo(() => {
     if (context && !context.client.added) {
@@ -131,7 +146,7 @@ export default function App() {
           onClick={handleAddFrame}
           className="text-blue-600 hover:text-blue-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
         >
-          Save Frame
+          Save App
         </button>
       );
     }
@@ -162,7 +177,7 @@ export default function App() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-                x402 Mini App (v2)
+                x402 Mini App
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {isInMiniApp ? "Running as Mini App" : "Running in browser"}
@@ -260,8 +275,7 @@ export default function App() {
               Protected Action
             </h3>
             <p className="text-gray-600 dark:text-gray-300 mb-6">
-              This button calls an x402-protected API endpoint. Payment is
-              automatically handled using the v2 SDK.
+              This button calls an x402-protected API endpoint.
             </p>
             <button
               onClick={handleProtectedAction}
@@ -343,4 +357,3 @@ export default function App() {
     </div>
   );
 }
-

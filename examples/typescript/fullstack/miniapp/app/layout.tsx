@@ -53,9 +53,9 @@ export const metadata: Metadata = {
     follow: false,
   },
 
-  // Farcaster Frame metadata
+  // Farcaster Mini App embed metadata
   other: {
-    "fc:frame": JSON.stringify({
+    "fc:miniapp": JSON.stringify({
       version: "next",
       imageUrl: process.env.NEXT_PUBLIC_APP_HERO_IMAGE,
       button: {
