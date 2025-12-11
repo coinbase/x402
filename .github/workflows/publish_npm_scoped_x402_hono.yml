@@ -1,0 +1,51 @@
+name: Publish @x402/hono package to NPM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-npm-x402-hono:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda
+        with:
+          version: 10.7.0
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+          cache-dependency-path: ./typescript
+      
+      - name: Install and build
+        working-directory: ./typescript
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r --filter=@x402/core --filter=@x402/extensions --filter=@x402/hono run build
+      
+      - name: Publish @x402/hono package
+        working-directory: ./typescript/packages/http/hono
+        run: |
+          # Get package information directly
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          
+          echo "Package: $PACKAGE_NAME@$PACKAGE_VERSION"
+          
+          # Check if running on main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "Publishing to NPM (main branch)"
+            pnpm publish --provenance --access public
+          else
+            echo "Dry run only (non-main branch: ${{ github.ref }})"
+            pnpm publish --dry-run --no-git-checks
+          fi
+
