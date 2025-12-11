@@ -45,8 +45,8 @@ export function CodeSnippet({ code, title, description }: CodeSnippetProps) {
           </div>
         )}
 
-        <div className="flex justify-between items-center bg-[#F1F1F1] px-3 py-1.5 mb-4">
-          <code className="font-mono text-sm tracking-tight">{code}</code>
+        <div className="flex justify-between items-start bg-[#F1F1F1] px-3 py-1.5 mb-4">
+          <code className="font-mono text-sm tracking-tight whitespace-pre flex-1 min-w-0">{code}</code>
           <button
             onClick={handleCopy}
             className="flex items-center gap-1 bg-black text-white px-2 py-1 text-sm font-medium hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"

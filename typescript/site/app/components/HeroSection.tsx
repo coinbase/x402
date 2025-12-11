@@ -31,9 +31,8 @@ function ArrowIcon() {
 }
 
 export function HeroSection() {
-  const codeSnippet = `const response = await fetch(url, {
-  headers: { "X-PAYMENT": payment },
-});`;
+  const codeSnippet = `const fetchWithPayment = wrapFetchWithPayment(fetch, registerExactEvmScheme(new x402Client(), { signer: evmAccount }));
+const response = fetchWithPayment(url)`
 
   return (
     <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-4 md:pt-6 pb-12 sm:pb-16 md:pb-20">

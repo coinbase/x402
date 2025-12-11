@@ -47,9 +47,9 @@ export function Footer() {
               <Link href="https://www.x402.org/x402-whitepaper.pdf" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
                 ↳ Whitepaper
               </Link>
-              <span className="text-white/40 text-base cursor-default">
+              <Link href="/writing/x402-v2-launch" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
                 ↳ Writing
-              </span>
+              </Link>
             </div>
           </div>
 
