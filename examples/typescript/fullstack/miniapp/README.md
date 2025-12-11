@@ -1,23 +1,6 @@
 # x402 Farcaster Mini App Example (v2 SDK)
 
-This is a [Next.js](https://nextjs.org) project demonstrating how to build a [Farcaster Mini App](https://miniapps.farcaster.xyz/) with x402 payment-protected API endpoints using the **v2 x402 SDK**.
-
-## Features
-
-- **Farcaster Mini App**: Native-like app experience within Farcaster
-- **x402 v2 SDK**: Modern payment processing using `@x402/next`, `@x402/fetch`, `@x402/evm`
-- **Wallet Integration**: Connect with Coinbase Wallet via OnchainKit 1.1.2
-- **Protected API Routes**: Server-side payment verification with `withX402` wrapper
-- **Facilitator-based Payments**: No CDP API keys required, uses external facilitator
-- **Responsive Design**: Optimized for mobile and desktop experiences
-
-## Tech Stack
-
-- **Frontend**: Next.js 16, React 19
-- **Styling**: Tailwind CSS 4
-- **Wallet**: OnchainKit, Wagmi
-- **Payments**: x402 v2 SDK with Base Sepolia
-- **Farcaster**: Mini App SDK for Mini App detection and integration
+This is a [Next.js](https://nextjs.org) project demonstrating how to build a [Farcaster Mini App](https://miniapps.farcaster.xyz/) with x402 payment-protected API endpoints using the `@x402/next`, `@x402/fetch` and `@x402/evm` packages.
 
 ## Prerequisites
 
@@ -145,6 +128,40 @@ import { sdk } from "@farcaster/miniapp-sdk";
 await sdk.actions.ready();
 const isInMiniApp = await sdk.isInMiniApp();
 ```
+
+### Manifest Configuration
+
+The app serves a manifest at `/.well-known/farcaster.json` which is required for publishing the Mini App to Farcaster and the Base app. Configure your app in `minikit.config.ts`:
+
+```typescript
+// minikit.config.ts
+export const minikitConfig = {
+  // Generate at https://warpcast.com/~/developers/mini-apps/manifest
+  accountAssociation: {
+    header: "your-signed-header",
+    payload: "your-signed-payload",
+    signature: "your-signature",
+  },
+  baseBuilder: {
+    ownerAddress: "0xYourWalletAddress",
+  },
+  miniapp: {
+    version: "1",
+    name: "x402 Mini App",
+    // ... other config
+  },
+};
+```
+
+**Before publishing**, you must:
+
+1. Generate `accountAssociation` using [Base Dev Mini App Tools](https://www.base.dev/preview?tab=account) or [Farcaster Manifest Tool](https://farcaster.xyz/~/developers/mini-apps/manifest)
+2. Set `baseBuilder.ownerAddress` to your wallet address
+3. Set `NEXT_PUBLIC_URL` to your production domain
+4. Ensure images meet size requirements:
+   - `iconUrl`: 1024x1024px PNG, no alpha
+   - `splashImageUrl`: 200x200px
+   - `heroImageUrl`: 1200x630px (1.91:1 aspect ratio)
 
 ## Response Format
 
