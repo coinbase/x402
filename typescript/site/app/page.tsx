@@ -87,8 +87,16 @@ const x402Steps = [
 ];
 
 const heroCodeSnippet = {
-  code: `const fetchWithPayment = wrapFetchWithPayment(fetch, registerExactEvmScheme(new x402Client(), { signer: evmAccount }));
-const response = fetchWithPayment(url);`,
+  code: `app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: [...],                 // As many networks / schemes as you want to support
+        description: "Weather data",    // What your endpoint does
+      },
+    },
+  )
+);`,
   title: "Accept payments with a single line of code",
   description: "That's it. Add one line of code to require payment for each incoming request. If a request arrives without payment, the server responds with HTTP 402, prompting the client to pay and retry.",
 };

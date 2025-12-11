@@ -1,10 +1,13 @@
 import { base58 } from "@scure/base";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { x402Facilitator } from "@x402/core/facilitator";
+import { Network } from "@x402/core/types";
 import { toFacilitatorEvmSigner } from "@x402/evm";
-import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmScheme } from "@x402/evm/exact/facilitator";
+import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
-import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
@@ -86,17 +89,11 @@ async function createFacilitator(): Promise<x402Facilitator> {
   const svmSigner = toFacilitatorSvmSigner(svmAccount);
 
   // Create and configure the facilitator
-  const facilitator = new x402Facilitator();
-
-  // Register EVM and SVM schemes using the new register helpers
-  registerExactEvmScheme(facilitator, {
-    signer: evmSigner,
-    networks: "eip155:84532", // Base Sepolia
-  });
-  registerExactSvmScheme(facilitator, {
-    signer: svmSigner,
-    networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
-  });
+  const facilitator = new x402Facilitator()
+    .register("eip155:84532", new ExactEvmScheme(evmSigner))
+    .registerV1("base-sepolia" as Network, new ExactEvmSchemeV1(evmSigner))
+    .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
+    .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
 
   return facilitator;
 }
