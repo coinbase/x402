@@ -9,14 +9,6 @@ export function NavBar() {
           {/* Left side navigation - flattened */}
           <div className="flex flex-1 items-center gap-6 justify-start">
             <Link
-              href="https://x402.gitbook.io/x402"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
-            >
-              Docs
-            </Link>
-            <Link
               href="https://www.x402.org/x402-whitepaper.pdf"
               target="_blank"
               rel="noopener noreferrer"

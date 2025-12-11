@@ -94,7 +94,7 @@ export function FAQ() {
         {faqData.map((item, index) => (
           <div key={index}>
             <div
-              className="border-t border-black"
+              className="border-t border-black cursor-pointer"
               onClick={(event) => {
                 const target = event.target as HTMLElement;
                 // Make entire open item clickable to toggle, but don't interfere with button or links
@@ -104,7 +104,7 @@ export function FAQ() {
             >
               <button
                 onClick={() => toggleItem(index)}
-                className="w-full flex justify-between items-center py-4 sm:py-5 px-4 sm:px-6 md:px-10 hover:bg-gray-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black"
+                className="w-full flex cursor-pointer justify-between items-center py-4 sm:py-5 px-4 sm:px-6 md:px-10 hover:bg-gray-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black"
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
               >
