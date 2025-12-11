@@ -1,6 +1,6 @@
 {
   "name": "x402-hono",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.22.0",
-    "@solana/kit": "^2.1.1",
+    "@solana/kit": "^5.0.0",
     "hono": "^4.7.1",
     "viem": "^2.21.26",
     "x402": "workspace:^",
@@ -54,6 +54,16 @@
       "require": {
         "types": "./dist/cjs/index.d.ts",
         "default": "./dist/cjs/index.js"
+      }
+    },
+    "./session-token": {
+      "import": {
+        "types": "./dist/esm/session-token.d.mts",
+        "default": "./dist/esm/session-token.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/session-token.d.ts",
+        "default": "./dist/cjs/session-token.js"
       }
     }
   },

@@ -1,6 +1,6 @@
 {
   "name": "x402-express",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
@@ -39,7 +39,7 @@
     "vitest": "^3.0.5"
   },
   "dependencies": {
-    "@solana/kit": "^2.1.1",
+    "@solana/kit": "^5.0.0",
     "@coinbase/cdp-sdk": "^1.22.0",
     "express": "^4.18.2",
     "viem": "^2.21.26",
