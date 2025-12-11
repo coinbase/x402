@@ -80,7 +80,7 @@ function MinusIcon() {
 }
 
 export function FAQ() {
-  const [openIndex, setOpenIndex] = useState<number>(0);
+  const [openIndex, setOpenIndex] = useState<number>(-1);
 
   const toggleItem = (index: number) => {
     setOpenIndex((current) => (current === index ? -1 : index));
