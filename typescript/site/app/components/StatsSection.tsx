@@ -6,10 +6,10 @@ interface StatsData {
 }
 
 const STATIC_STATS: StatsData = {
-  transactions: "39.04M",
-  volume: "$23.32M",
-  buyers: "342.65K",
-  sellers: "69K",
+  transactions: "75.41M",
+  volume: "$24.24M",
+  buyers: "94.06K",
+  sellers: "22K",
 };
 
 interface StatItemProps {
