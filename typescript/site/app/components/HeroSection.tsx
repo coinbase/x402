@@ -16,7 +16,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ codeSnippet }: HeroSectionProps) {
   return (
-    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-8 md:pt-10 pb-12 sm:pb-16 md:pb-20">
+    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-8 md:pt-10 pb-12 sm:pb-16 md:pb-20 overflow-x-clip">
       <div className="flex flex-col lg:flex-row gap-8 md:gap-12 lg:gap-8 items-start lg:items-center">
         {/* Animated left column */}
         <motion.div
@@ -49,9 +49,9 @@ export function HeroSection({ codeSnippet }: HeroSectionProps) {
           </motion.div>
         </motion.div>
 
-        {/* Animated right column */}
+        {/* Animated right column - only show at xl (1280px+) where there's room */}
         <motion.div
-          className="relative hidden lg:block flex-shrink-0 lg:w-[720px]"
+          className="relative hidden xl:block flex-shrink-0 xl:w-[720px]"
           variants={fadeInFromRight}
           initial="initial"
           animate="animate"
