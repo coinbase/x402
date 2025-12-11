@@ -115,7 +115,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 11. `Facilitator server` returns a `Payment Execution Response` to the resource server.
 
-12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `X-PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64 encoded JSON if the payment was executed successfully.
+12. `Resource server` returns a `200 OK` response to the `Client` with the resource they requested as the body of the HTTP response, and a `PAYMENT-RESPONSE` header containing the `Settlement Response` as Base64 encoded JSON if the payment was executed successfully.
 
 ### Schemes
 
