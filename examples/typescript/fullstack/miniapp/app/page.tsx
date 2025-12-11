@@ -62,11 +62,19 @@ export default function App() {
 
   // Check if running in Mini App context
   useEffect(() => {
-    sdk.isInMiniApp()
-      .then((inMiniApp) => setIsInMiniApp(inMiniApp))
-      .catch(() => {
-        console.log("Not running in Mini App context");
-      });
+    const initMiniApp = async () => {
+      try {
+        await sdk.actions.ready();
+        const inMiniApp = await sdk.isInMiniApp();
+        setIsInMiniApp(inMiniApp);
+      } catch (error) {
+        console.log(
+          "Not running in Mini App context or SDK not available:",
+          error,
+        );
+      }
+    };
+    initMiniApp();
   }, []);
 
   useEffect(() => {
