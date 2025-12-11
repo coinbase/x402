@@ -43,7 +43,7 @@ jobs:
           # Check if running on @coinbase/x402 branch
           if [[ "${{ github.ref }}" == "refs/heads/@coinbase/x402" ]]; then
             echo "Publishing to NPM (@coinbase/x402 branch)"
-            pnpm publish --provenance --access public --no-git-checks
+            pnpm publish --provenance --access public --publish-branch "@coinbase/x402"
           else
             echo "Dry run only (non-release branch: ${{ github.ref }})"
             pnpm publish --dry-run --no-git-checks
