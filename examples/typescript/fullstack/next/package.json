@@ -1,5 +1,5 @@
 {
-  "name": "next-example",
+  "name": "@x402/next-example",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,29 +14,31 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "next": "^15.5.7",
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
-    "viem": "^2.21.26",
-    "x402-next": "workspace:*",
-    "@coinbase/x402": "workspace:*"
+    "@x402/core": "workspace:*",
+    "@x402/evm": "workspace:*",
+    "@x402/svm": "workspace:*",
+    "@x402/next": "workspace:*",
+    "@x402/paywall": "workspace:*",
+    "@x402/extensions": "workspace:*",
+    "next": "^16.0.7",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "devDependencies": {
-    "@svgr/webpack": "^8.1.0",
-    "@types/node": "^20",
+    "@eslint/js": "^9.24.0",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.13.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@eslint/js": "^9.24.0",
-    "eslint": "^9.24.0",
-    "eslint-plugin-jsdoc": "^50.6.9",
-    "eslint-plugin-prettier": "^5.2.6",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
+    "eslint": "^9.24.0",
+    "eslint-config-next": "16.0.6",
     "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jsdoc": "^50.6.9",
+    "eslint-plugin-prettier": "^5.2.6",
     "prettier": "3.5.2",
-    "eslint-config-next": "15.1.7",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
+    "tailwindcss": "^4.0.0",
     "typescript": "^5"
   }
 }
