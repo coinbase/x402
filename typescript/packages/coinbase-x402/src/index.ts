@@ -1,11 +1,10 @@
 import { generateJwt } from "@coinbase/cdp-sdk/auth";
-import { FacilitatorConfig } from "x402/types";
-import { CreateHeaders } from "x402/verify";
+import { FacilitatorConfig } from "@x402/core/http";
 
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
-const X402_SDK_VERSION = "1.0.1";
+const X402_SDK_VERSION = "2.0.0";
 const CDP_SDK_VERSION = "1.29.0";
 
 /**
@@ -59,7 +58,10 @@ export function createCorrelationHeader(): string {
  * @param apiKeySecret - The CDP API key secret
  * @returns A function that returns the auth headers
  */
-export function createCdpAuthHeaders(apiKeyId?: string, apiKeySecret?: string): CreateHeaders {
+export function createCdpAuthHeaders(
+  apiKeyId?: string,
+  apiKeySecret?: string,
+): FacilitatorConfig["createAuthHeaders"] {
   const requestHost = COINBASE_FACILITATOR_BASE_URL.replace("https://", "");
 
   return async () => {
