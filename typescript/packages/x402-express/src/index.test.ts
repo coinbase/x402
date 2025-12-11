@@ -1,3 +1,4 @@
+import { Address } from "viem";
 import { NextFunction, Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { findMatchingRoute } from "x402/shared";
@@ -99,6 +100,7 @@ describe("paymentMiddleware()", () => {
   let mockRes: Partial<Response>;
   let mockNext: NextFunction;
   let middleware: ReturnType<typeof paymentMiddleware>;
+  let middlewarePayToFoo: ReturnType<typeof paymentMiddleware>;
   let mockVerify: ReturnType<typeof useFacilitator>["verify"];
   let mockSettle: ReturnType<typeof useFacilitator>["settle"];
   let mockSupported: ReturnType<typeof useFacilitator>["supported"];
@@ -127,6 +129,10 @@ describe("paymentMiddleware()", () => {
   };
 
   const payTo = "0x1234567890123456789012345678901234567890";
+  const payToFoo: () => Promise<Address> = () =>
+    new Promise(resolve =>
+      setTimeout(() => resolve("0x1234567890123456789012345678901234567891"), 50),
+    );
 
   const routesConfig: RoutesConfig = {
     "/test": {
@@ -212,11 +218,26 @@ describe("paymentMiddleware()", () => {
     });
 
     middleware = paymentMiddleware(payTo, routesConfig, facilitatorConfig);
+    middlewarePayToFoo = paymentMiddleware(payToFoo, routesConfig, facilitatorConfig);
   });
 
   it("should return 402 with payment requirements when no payment header is present", async () => {
     mockReq.headers = {};
     await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "X-PAYMENT header is required",
+        accepts: expect.any(Array),
+        x402Version: 1,
+      }),
+    );
+  });
+
+  it("should return 402 with payment requirements when payTo is a function when no payment header is present", async () => {
+    mockReq.headers = {};
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockRes.json).toHaveBeenCalledWith(
@@ -239,6 +260,17 @@ describe("paymentMiddleware()", () => {
     expect(mockRes.send).toHaveBeenCalledWith("<html>Paywall</html>");
   });
 
+  it("should return HTML paywall for browser requests even when payTo is a function", async () => {
+    mockReq.headers = {
+      accept: "text/html",
+      "user-agent": "Mozilla/5.0",
+    };
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.send).toHaveBeenCalledWith("<html>Paywall</html>");
+  });
+
   it("should verify payment and proceed if valid", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
@@ -256,6 +288,29 @@ describe("paymentMiddleware()", () => {
     });
 
     await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
+    expect(mockVerify).toHaveBeenCalledWith(validPayment, expect.any(Object));
+    expect(mockNext).toHaveBeenCalled();
+  });
+
+  it("should verify payment and proceed if valid when payTo is a function", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      transaction: "0x123",
+      network: "base-sepolia",
+    });
+
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
+
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
 
     expect(exact.evm.decodePayment).toHaveBeenCalledWith(encodedValidPayment);
     expect(mockVerify).toHaveBeenCalledWith(validPayment, expect.any(Object));
@@ -335,6 +390,39 @@ describe("paymentMiddleware()", () => {
     });
   });
 
+  it("should return 402 if payment verification throws an error when payTo is a function", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Unexpected error"));
+
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: "Unexpected error",
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567891",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
   it("should handle settlement after response", async () => {
     mockReq.headers = {
       "x-payment": encodedValidPayment,
@@ -386,6 +474,45 @@ describe("paymentMiddleware()", () => {
           description: "Test payment",
           mimeType: "application/json",
           payTo: "0x1234567890123456789012345678901234567890",
+          maxTimeoutSeconds: 300,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          outputSchema,
+          extra: {
+            name: "USDC",
+            version: "2",
+          },
+        },
+      ],
+    });
+  });
+
+  it("should handle settle throwing an error before response is sent when payTo is a function", async () => {
+    mockReq.headers = {
+      "x-payment": encodedValidPayment,
+    };
+    (mockVerify as ReturnType<typeof vi.fn>).mockResolvedValue({ isValid: true });
+    (mockSettle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("Settlement failed"));
+
+    // Simulate route handler calling res.end()
+    (mockNext as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      (mockRes.end as ReturnType<typeof vi.fn>)();
+    });
+
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockRes.json).toHaveBeenCalledWith({
+      x402Version: 1,
+      error: "Settlement failed",
+      accepts: [
+        {
+          scheme: "exact",
+          network: "base-sepolia",
+          maxAmountRequired: "1000",
+          resource: "https://api.example.com/resource",
+          description: "Test payment",
+          mimeType: "application/json",
+          payTo: "0x1234567890123456789012345678901234567891",
           maxTimeoutSeconds: 300,
           asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
           outputSchema,
@@ -619,6 +746,69 @@ describe("paymentMiddleware()", () => {
 
     mockReq.headers = {};
     await middleware(mockReq as Request, mockRes as Response, mockNext);
+
+    expect(mockRes.status).toHaveBeenCalledWith(402);
+    expect(mockSupported).toHaveBeenCalled();
+    expect(mockRes.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accepts: expect.arrayContaining([
+          expect.objectContaining({
+            network: "solana",
+            payTo: solanaPayTo,
+            extra: expect.objectContaining({
+              feePayer: feePayer,
+            }),
+          }),
+        ]),
+      }),
+    );
+
+    const responseJson = (mockRes.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(responseJson.accepts[0].extra.feePayer).toBe(feePayer);
+  });
+
+  it("should return 402 with feePayer for solana mainnet when no payment header is present when payTo is a function", async () => {
+    const solanaRoutesConfig: RoutesConfig = {
+      "/test": {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    };
+    const solanaPayTo = "CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz";
+    const solanaPayToFoo: () => Promise<SolanaAddress> = () =>
+      new Promise(resolve =>
+        setTimeout(
+          () => resolve("CKy5kSzS3K2V4RcedtEa7hC43aYk5tq6z6A4vZnE1fVz" as SolanaAddress),
+          50,
+        ),
+      );
+    const feePayer = "FeePayerAddressMainnet";
+    const supportedResponse = {
+      kinds: [
+        {
+          scheme: "exact",
+          network: "solana",
+          extra: { feePayer },
+        },
+      ],
+    };
+    (mockSupported as ReturnType<typeof vi.fn>).mockResolvedValue(supportedResponse);
+
+    vi.mocked(findMatchingRoute).mockReturnValue({
+      pattern: /^\/test$/,
+      verb: "GET",
+      config: {
+        price: "$0.001",
+        network: "solana",
+        config: middlewareConfig,
+      },
+    });
+
+    middlewarePayToFoo = paymentMiddleware(solanaPayToFoo, solanaRoutesConfig, facilitatorConfig);
+
+    mockReq.headers = {};
+    await middlewarePayToFoo(mockReq as Request, mockRes as Response, mockNext);
 
     expect(mockRes.status).toHaveBeenCalledWith(402);
     expect(mockSupported).toHaveBeenCalled();

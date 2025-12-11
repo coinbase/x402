@@ -73,7 +73,10 @@ import { useFacilitator } from "x402/verify";
  * ```
  */
 export function paymentMiddleware(
-  payTo: Address | SolanaAddress,
+  payTo:
+    | Address
+    | SolanaAddress
+    | ((req: Request, res: Response) => Address | SolanaAddress | Promise<Address | SolanaAddress>),
   routes: RoutesConfig,
   facilitator?: FacilitatorConfig,
   paywall?: PaywallConfig,
@@ -117,6 +120,8 @@ export function paymentMiddleware(
       resource || (`${req.protocol}://${req.headers.host}${req.path}` as Resource);
 
     let paymentRequirements: PaymentRequirements[] = [];
+
+    payTo = typeof payTo === "function" ? await payTo(req, res) : payTo;
 
     // TODO: create a shared middleware function to build payment requirements
     // evm networks

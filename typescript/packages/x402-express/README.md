@@ -44,7 +44,7 @@ app.listen(3000);
 
 The `paymentMiddleware` function accepts three parameters:
 
-1. `payTo`: Your receiving address (`0x${string}`)
+1. `payTo`: Your receiving address (`0x${string}`) or a function that returns your receiving address with the express request and response objects available to you (``(req: Request, res: Response) => `0x${string}` ``)
 2. `routes`: Route configurations for protected endpoints
 3. `facilitator`: (Optional) Configuration for the x402 facilitator service
 4. `paywall`: (Optional) Configuration for the built-in paywall
