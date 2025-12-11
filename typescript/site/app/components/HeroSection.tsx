@@ -16,7 +16,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ codeSnippet }: HeroSectionProps) {
   return (
-    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-8 md:pt-10 pb-12 sm:pb-16 md:pb-20">
+    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-8 md:pt-10 pb-12 sm:pb-16 md:pb-20 overflow-x-clip">
       <div className="flex flex-col lg:flex-row gap-8 md:gap-12 lg:gap-8 items-start lg:items-center">
         {/* Animated left column */}
         <motion.div
@@ -30,8 +30,14 @@ export function HeroSection({ codeSnippet }: HeroSectionProps) {
             <span className="text-base font-medium">Payment Required</span>
           </motion.div>
 
-          <motion.p variants={fadeInUp} className="text-base sm:text-lg font-medium leading-relaxed max-w-[600px]">
-            x402 is the internet&apos;s payment standard. It absolves the original sin of the internet—ads—creating win-win economies that empower agentic payments at scale. x402 exists to build a more free and fair internet.
+          <motion.p
+            variants={fadeInUp}
+            className="text-base sm:text-lg font-medium leading-relaxed max-w-[600px]"
+          >
+            x402 is an open, neutral standard for internet-native payments. It absolves the
+            Internet's original sin by natively making payments possible between clients and
+            servers, creating win-win economies that empower agentic payments at scale. x402 exists
+            to build a more free and fair internet.
           </motion.p>
 
           <motion.div variants={fadeInUp} className="w-full max-w-[1040px] mt-4">
