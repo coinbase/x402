@@ -7,3 +7,6 @@ proxy
 .env
 __pycache__/
 **/.DS_Store
+e2e/facilitators/external-proxies
+*.d.ts
+examples/go
