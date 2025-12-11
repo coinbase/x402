@@ -21,6 +21,7 @@
     "@solana/kit": "^2.1.1",
     "@vercel/functions": "^2.2.8",
     "@x402/paywall": "workspace:*",
+    "motion": "^11.18.0",
     "next": "^16.0.7",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

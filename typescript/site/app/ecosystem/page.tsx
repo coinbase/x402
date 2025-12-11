@@ -4,7 +4,7 @@ import { categories, type Partner } from './data'; // Import categories and Part
 import EcosystemClient from './ecosystem-client';
 import Link from 'next/link';
 import { ChevronLeftIcon } from '@heroicons/react/24/solid';
-import NavBar from "../components/NavBar"; // Added import
+import { NavBar } from "../components/NavBar";
 
 async function getPartners(): Promise<Partner[]> {
   const partnersDirectory = path.join(process.cwd(), 'app/ecosystem/partners-data');
