@@ -196,7 +196,7 @@ export default function HomePage() {
               </div>
               <div className="col-span-1 relative rounded overflow-hidden">
                 <Image
-                  src="/images/homepage_build4.jpeg"
+                  src="/images/homepage_build4.png"
                   alt="Community of builders"
                   fill
                   className="object-cover"

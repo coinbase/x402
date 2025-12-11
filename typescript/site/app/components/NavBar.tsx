@@ -19,12 +19,10 @@ export function NavBar() {
               ]}
             />
             <Link
-              href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-black font-medium text-sm hover:text-gray-60 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              href="/ecosystem"
+              className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
             >
-              Contact
+              Ecosystem
             </Link>
           </div>
 
@@ -96,7 +94,7 @@ export function NavBar() {
                   fill="currentColor"
                 />
               </svg>
-              <span>Build with us</span>
+              <span>Contact</span>
             </Link>
           </div>
         </div>

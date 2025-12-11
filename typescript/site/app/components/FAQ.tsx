@@ -1,22 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 interface FAQItem {
   question: string;
-  answer?: string;
+  answer?: ReactNode;
 }
 
 const faqData: FAQItem[] = [
   {
-    question: "Is x402 run by Coinbase?",
-    answer:
-      "Nope. The x402 protocol and ecosystem was incubated by Coinbase as part of its mission to create a freer, fairer internet and financial system. Today, x402 is an independent foundation which Coinbase supports financially but has no governing role in.",
-  },
-  {
     question: "What is x402 used for?",
     answer:
-      "x402 enables instant, low-cost payments for digital services. It's designed for API monetization, AI agent transactions, and any scenario where traditional payment methods are too slow or expensive.",
+      "x402 enables instant, low-cost payments for digital services. It's designed for API monetization, agentic commerce, paywalled content, and any scenario where traditional payment methods are too slow or expensive.",
   },
   {
     question: "Is x402 production ready?",
@@ -26,12 +21,24 @@ const faqData: FAQItem[] = [
   {
     question: "How do I integrate x402?",
     answer:
-      "Integration is simple - add a single line of middleware to your server. Check our documentation for detailed guides and examples in multiple programming languages.",
+      <>
+        Integration is simple - add a single line of middleware to your server.
+        Check our{" "}
+        <a
+          className="underline"
+          href="https://x402.gitbook.io/x402/getting-started/quickstart-for-sellers#id-2.-add-payment-middleware"
+          target="_blank"
+          rel="noreferrer"
+        >
+          documentation
+        </a>{" "}
+        for detailed guides and examples in multiple programming languages.
+      </>,
   },
   {
     question: "What blockchains does x402 support?",
     answer:
-      "x402 is blockchain-agnostic and supports multiple networks including Ethereum, Base, and other EVM-compatible chains. Stablecoin payments are the primary use case.",
+      "x402 is blockchain-agnostic and supports all EVM-compatible chains, Solana, and more. Stablecoin payments are the primary use case. x402 is also extensible to traditional payment methods.",
   },
 ];
 

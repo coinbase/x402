@@ -19,12 +19,7 @@
   --max-width-container: 1432px;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: #1a1a2e;
-    --color-foreground: #ededed;
-  }
-}
+/* Marketing site is always light mode - no dark mode override */
 
 body {
   color: var(--color-foreground);

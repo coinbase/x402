@@ -53,18 +53,6 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Get involved column */}
-          <div className="flex flex-col">
-            <p className="text-white font-medium text-base mb-4">Get involved</p>
-            <div className="flex flex-col gap-[7px]">
-              <Link href="https://github.com/coinbase/x402" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-                ↳ Fork and build x402
-              </Link>
-              <Link href="/x402_brand_kit.zip" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-                ↳ Brand kit
-              </Link>
-            </div>
-          </div>
         </div>
 
         {/* Social icons */}
@@ -94,9 +82,8 @@ export function Footer() {
 
         {/* Bottom row */}
         <div className="flex justify-between items-center">
-          <p className="text-white/40 text-sm">© The x402 Foundation</p>
           <p className="text-white/40 text-sm">
-            By using this site, you agree to be bound by the{" "}
+          While x402 is an open and neutral protocol, this website is maintained by Coinbase Developer Platform pending establishment of the independent x402 Foundation. By using this site, you agree to be bound by the{" "}
             <Link
               href="https://www.coinbase.com/legal/developer-platform/terms-of-service"
               target="_blank"
