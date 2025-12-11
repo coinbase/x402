@@ -31,9 +31,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "x402 - Payment Required | Internet-Native Payments Protocol",
+  title: "x402 - Payment Required | Internet-Native Payments Standard",
   description:
-    "x402 is the internet's payment standard. An open protocol for internet-native payments that empowers agentic payments at scale. Build a more free and fair internet.",
+    "x402 is the internet's payment standard. An open standard for internet-native payments that empowers agentic payments at scale. Build a more free and fair internet.",
   openGraph: {
     title: "x402 - Payment Required",
     description: "x402 is the internet's payment standard for agentic payments at scale.",
@@ -58,8 +58,8 @@ export default function RootLayout({
       className={`${inter.variable} ${dmMono.variable} ${instrumentSerif.variable} ${inconsolata.variable}`}
     >
       <head>
-        <link rel="icon" type="image/png" href="/x402-icon-black.png" />
-        <link rel="apple-touch-icon" href="/x402-icon-black.png" />
+        <link rel="icon" type="image/svg+xml" href="/images/icons/x_group8.svg" />
+        <link rel="apple-touch-icon" href="/images/icons/x_group8.png" />
         <meta name="apple-mobile-web-app-title" content="x402" />
         <link rel="manifest" href="/site.webmanifest" />
       </head>

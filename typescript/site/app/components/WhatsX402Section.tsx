@@ -5,7 +5,7 @@ import { textStagger, fadeInUp } from "@/lib/animations";
 
 export function WhatsX402Section() {
   return (
-    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 py-16 md:py-20">
+    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 pt-32 md:pt-44 pb-16 md:pb-20">
       <motion.div
         className="flex flex-col md:flex-row md:justify-between items-start gap-8 md:gap-16 lg:gap-20"
         variants={textStagger}

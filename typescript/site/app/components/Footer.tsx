@@ -30,29 +30,43 @@ function DiscordIcon({ className }: { className?: string }) {
 
 export function Footer() {
   return (
-    <footer
-      className="bg-black text-white relative overflow-hidden bg-[url('/images/x402_vector.svg')] bg-no-repeat bg-center bg-cover"
-      role="contentinfo"
-    >
-      <div className="relative z-10 max-w-container mx-auto px-10 pt-16 pb-8">
-        {/* Navigation columns */}
-        <div className="flex justify-between items-start mb-20">
-          {/* Standard column */}
-          <div className="flex flex-col">
-            <p className="text-white font-medium text-base mb-4">Standard</p>
-            <div className="flex flex-col gap-[7px]">
-              <Link href="https://x402.gitbook.io/x402" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-                ↳ Docs
+    <footer className="bg-black text-white" role="contentinfo">
+      {/* Content section */}
+      <div className="max-w-container mx-auto px-10 pt-20 pb-10">
+        {/* Top row: navigation */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-6 mb-10">
+          <nav aria-label="Footer navigation">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Link
+                href="https://x402.gitbook.io/x402"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                Docs
               </Link>
-              <Link href="https://www.x402.org/x402-whitepaper.pdf" target="_blank" rel="noopener noreferrer" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-                ↳ Whitepaper
+              <Link
+                href="https://www.x402.org/x402-whitepaper.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                Whitepaper
               </Link>
-              <Link href="/writing/x402-v2-launch" className="text-white hover:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black">
-                ↳ Writing
+              <Link
+                href="/writing/x402-v2-launch"
+                className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                Writing
+              </Link>
+              <Link
+                href="/ecosystem"
+                className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              >
+                Ecosystem
               </Link>
             </div>
-          </div>
-
+          </nav>
         </div>
 
         {/* Social icons */}
@@ -61,7 +75,7 @@ export function Footer() {
             href="https://github.com/coinbase/x402"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
+            className="hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             aria-label="GitHub"
           >
             <GithubIcon className="w-6 h-6" />
@@ -70,7 +84,7 @@ export function Footer() {
             href="https://discord.com/invite/cdp"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
+            className="hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             aria-label="Discord"
           >
             <DiscordIcon className="w-6 h-6" />
@@ -80,10 +94,11 @@ export function Footer() {
         {/* Divider */}
         <div className="h-px bg-white/40 mb-8" />
 
-        {/* Bottom row */}
+        {/* Copyright row */}
         <div className="flex justify-between items-center">
           <p className="text-white/40 text-sm">
-          While x402 is an open and neutral protocol, this website is maintained by Coinbase Developer Platform pending establishment of the independent x402 Foundation. By using this site, you agree to be bound by the{" "}
+            While x402 is an open and neutral standard, this website is maintained by
+            {" "}Coinbase Developer Platform. By using this site, you agree to be bound by the{" "}
             <Link
               href="https://www.coinbase.com/legal/developer-platform/terms-of-service"
               target="_blank"
@@ -104,6 +119,17 @@ export function Footer() {
             .
           </p>
         </div>
+      </div>
+
+      {/* Logo section - below copyright */}
+      <div className="relative w-full">
+        <img
+          src="/images/x402_vector.svg"
+          alt=""
+          aria-hidden="true"
+          className="w-full h-auto"
+          style={{ filter: 'brightness(0.75)' }}
+        />
       </div>
     </footer>
   );

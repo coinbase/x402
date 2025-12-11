@@ -16,7 +16,7 @@
   --font-code-ui: "Inconsolata", monospace;
   --font-display: "Instrument Serif", serif;
   --spacing-15: 3.75rem;
-  --max-width-container: 1432px;
+  --max-width-container: 1512px;
 }
 
 /* Marketing site is always light mode - no dark mode override */

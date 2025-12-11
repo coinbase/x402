@@ -86,12 +86,19 @@ const x402Steps = [
   },
 ];
 
+const heroCodeSnippet = {
+  code: `const fetchWithPayment = wrapFetchWithPayment(fetch, registerExactEvmScheme(new x402Client(), { signer: evmAccount }));
+const response = fetchWithPayment(url);`,
+  title: "Accept payments with a single line of code",
+  description: "That's it. Add one line of code to require payment for each incoming request. If a request arrives without payment, the server responds with HTTP 402, prompting the client to pay and retry.",
+};
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-black">
       <NavBar />
 
-      <HeroSection />
+      <HeroSection codeSnippet={heroCodeSnippet} />
 
       {/* Stats Section */}
       <StatsSection />
@@ -147,6 +154,7 @@ export default function HomePage() {
             align="center"
             className="mb-12 md:mb-16 lg:mb-20"
             maxDescriptionWidth="635px"
+            descriptionSize="small"
           />
 
           <ComparisonTable

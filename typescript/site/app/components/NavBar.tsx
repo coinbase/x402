@@ -1,23 +1,35 @@
 import Link from "next/link";
 import { X402Logo } from "./Logo";
-import { NavDropdown } from "./NavDropdown";
 
 export function NavBar() {
   return (
-    <nav className="w-full bg-white border-b border-gray-10" role="navigation" aria-label="Main navigation">
-      <div className="max-w-[1512px] mx-auto px-6 py-3">
+    <nav className="w-full bg-white" role="navigation" aria-label="Main navigation">
+      <div className="max-w-container mx-auto px-6 py-3">
         <div className="flex items-center justify-between gap-8">
-          {/* Left side navigation */}
-          <div className="flex flex-1 items-center gap-8 justify-start">
-            <NavDropdown
-              label="Standard"
-              alignment="left"
-              items={[
-                { label: "Docs", href: "https://x402.gitbook.io/x402", external: true },
-                { label: "Whitepaper", href: "https://www.x402.org/x402-whitepaper.pdf", external: true },
-                { label: "Writing", href: "/writing/x402-v2-launch" },
-              ]}
-            />
+          {/* Left side navigation - flattened */}
+          <div className="flex flex-1 items-center gap-6 justify-start">
+            <Link
+              href="https://x402.gitbook.io/x402"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
+            >
+              Docs
+            </Link>
+            <Link
+              href="https://www.x402.org/x402-whitepaper.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
+            >
+              Whitepaper
+            </Link>
+            <Link
+              href="/writing/x402-v2-launch"
+              className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
+            >
+              Writing
+            </Link>
             <Link
               href="/ecosystem"
               className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
@@ -38,7 +50,7 @@ export function NavBar() {
             {/* Docs button */}
             <Link
               href="https://x402.gitbook.io/x402"
-              className="flex items-center gap-1 px-4 py-2 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="flex items-center gap-1 px-4 py-2 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -75,7 +87,7 @@ export function NavBar() {
               href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 px-4 py-2 bg-black text-white font-medium text-sm hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              className="flex items-center gap-1 px-4 py-2 bg-black text-white font-medium text-sm hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
             >
               <svg
                 width="20"

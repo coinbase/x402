@@ -10,17 +10,23 @@ interface AnimatedSectionHeaderProps {
   className?: string;
   maxDescriptionWidth?: string;
   viewportOnce?: boolean;
+  descriptionSize?: "default" | "small";
 }
 
 export function AnimatedSectionHeader({
   title,
   description,
+  descriptionSize = "default",
   align = "center",
   className,
   maxDescriptionWidth,
   viewportOnce = true,
 }: AnimatedSectionHeaderProps) {
   const alignment = align === "center" ? "items-center text-center" : "items-start text-left";
+  const descriptionClass =
+    descriptionSize === "small"
+      ? "text-sm font-mono text-gray-70"
+      : "text-base font-medium text-gray-70";
 
   return (
     <motion.div
@@ -36,7 +42,7 @@ export function AnimatedSectionHeader({
       {description ? (
         <motion.p
           variants={fadeInUp}
-          className="text-base font-medium text-gray-70"
+          className={descriptionClass}
           style={maxDescriptionWidth ? { maxWidth: maxDescriptionWidth } : undefined}
         >
           {description}

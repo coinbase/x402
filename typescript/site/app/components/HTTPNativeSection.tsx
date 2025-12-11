@@ -37,7 +37,7 @@ const connectorVariants: Variants = {
 function IconCircle({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      className="w-[52px] h-[52px] flex items-center justify-center rounded-full border-2 border-black bg-white cursor-pointer"
+      className="w-[68px] h-[68px] flex items-center justify-center rounded-full border-2 border-black bg-white cursor-pointer"
       variants={iconVariants}
       whileHover={{
         scale: 1.08,
@@ -54,8 +54,8 @@ function IconCircle({ children }: { children: React.ReactNode }) {
 function AgentIcon() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="28"
+      height="28"
       viewBox="0 0 20 20"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -69,26 +69,23 @@ function AgentIcon() {
   );
 }
 
-function ServerIcon() {
+function TransactionIcon() {
   return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 20 20"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <Image
+      src="/images/icons/transaction.svg"
+      alt=""
+      width={28}
+      height={28}
       aria-hidden="true"
-    >
-      <path d="M5.67773 10.3604L15.1367 10.3613L16.8311 12.0566L16.832 15.1621H15.1543L15.1533 15.1602H5.69531L4 13.4658V10.3584H5.67871L5.67773 10.3604ZM5.67871 12.7695L6.39062 13.4814H15.1533L15.1543 12.752L14.4414 12.0391H5.67773L5.67871 12.7695ZM5.67773 5.00293L15.1367 5.00391L16.8311 6.69824L16.832 9.80469H15.1543L15.1533 9.80176H5.69531L4 8.10742V5H5.67871L5.67773 5.00293ZM5.67871 7.41113L6.39062 8.12402H15.1533L15.1543 7.39355L14.4414 6.68066H5.67773L5.67871 7.41113Z" fill="black"/>
-    </svg>
+    />
   );
 }
 
 function PunkIcon() {
   return (
     <svg
-      width="20"
-      height="20"
+      width="28"
+      height="28"
       viewBox="0 0 20 20"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -120,10 +117,11 @@ function DottedConnector() {
 
 export function HTTPNativeSection() {
   return (
-    <section className="max-w-container mx-auto px-4 sm:px-6 md:px-10 py-16 md:py-20 flex flex-col md:flex-row items-center md:items-start justify-between gap-10 md:gap-12">
-      <div className="flex-1 flex flex-col gap-6 md:gap-8">
+    <section className="py-20 md:py-28">
+      {/* Full-width icon row */}
+      <div className="full-bleed px-4 sm:px-6 md:px-10">
         <motion.div
-          className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-4"
+          className="max-w-container mx-auto flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-4"
           variants={containerVariants}
           initial="initial"
           whileInView="animate"
@@ -134,45 +132,50 @@ export function HTTPNativeSection() {
           </IconCircle>
           <DottedConnector />
           <IconCircle>
-            <ServerIcon />
+            <TransactionIcon />
           </IconCircle>
           <DottedConnector />
           <IconCircle>
             <PunkIcon />
           </IconCircle>
         </motion.div>
-
-        <motion.div
-          className="max-w-[540px]"
-          variants={textStagger}
-          initial="initial"
-          whileInView="animate"
-          viewport={{ once: true, margin: "-50px" }}
-        >
-          <motion.h3
-            variants={fadeInUp}
-            className="text-2xl sm:text-3xl md:text-4xl font-display font-medium tracking-tight mb-3 text-center md:text-left"
-          >
-            HTTP-native. It&apos;s built-in to the internet.
-          </motion.h3>
-          <motion.p
-            variants={fadeInUp}
-            className="text-sm sm:text-base font-medium text-gray-70 leading-relaxed text-center md:text-left"
-          >
-            x402 is built-in to existing HTTP requests, with no any additional communication required.
-          </motion.p>
-        </motion.div>
       </div>
 
-      <div className="flex-shrink-0 w-full md:w-auto flex justify-center md:justify-end mt-10 md:mt-0">
-        <Image
-          src="/images/http_native_halftone.svg"
-          alt="Halftone illustration representing HTTP native flow"
-          width={400}
-          height={320}
-          className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[400px] h-auto"
-          priority
-        />
+      {/* Content row: text and illustration */}
+      <div className="max-w-container mx-auto px-4 sm:px-6 md:px-10 mt-10 md:mt-12 flex flex-col md:flex-row items-center md:items-start justify-between gap-10 md:gap-12">
+        <div className="flex-1 flex flex-col gap-6 md:gap-8">
+          <motion.div
+            className="max-w-[540px]"
+            variants={textStagger}
+            initial="initial"
+            whileInView="animate"
+            viewport={{ once: true, margin: "-50px" }}
+          >
+            <motion.h3
+              variants={fadeInUp}
+              className="text-2xl sm:text-3xl md:text-4xl font-display font-medium tracking-tight mb-3 text-center md:text-left"
+            >
+              HTTP-native. It&apos;s built-in to the internet.
+            </motion.h3>
+            <motion.p
+              variants={fadeInUp}
+              className="text-sm sm:text-base font-medium text-gray-70 leading-relaxed text-center md:text-left"
+            >
+              x402 is built-in to existing HTTP requests, with no additional communication required.
+            </motion.p>
+          </motion.div>
+        </div>
+
+        <div className="flex-shrink-0 w-full md:w-auto flex justify-center md:justify-end mt-10 md:mt-0">
+          <Image
+            src="/images/http_native_halftone.svg"
+            alt="Halftone illustration representing HTTP native flow"
+            width={400}
+            height={320}
+            className="w-full max-w-[320px] sm:max-w-[380px] md:max-w-[400px] h-auto"
+            priority
+          />
+        </div>
       </div>
     </section>
   );

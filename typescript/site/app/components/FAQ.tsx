@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "motion/react";
 
 interface FAQItem {
   question: string;
@@ -82,7 +83,7 @@ export function FAQ() {
   const [openIndex, setOpenIndex] = useState<number>(0);
 
   const toggleItem = (index: number) => {
-    setOpenIndex(openIndex === index ? -1 : index);
+    setOpenIndex((current) => (current === index ? -1 : index));
   };
 
   return (
@@ -92,10 +93,18 @@ export function FAQ() {
       <div className="bg-white">
         {faqData.map((item, index) => (
           <div key={index}>
-            <div className="border-t border-black">
+            <div
+              className="border-t border-black"
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                // Make entire open item clickable to toggle, but don't interfere with button or links
+                if (target.closest("button, a")) return;
+                toggleItem(index);
+              }}
+            >
               <button
                 onClick={() => toggleItem(index)}
-                className="w-full flex justify-between items-center py-4 sm:py-5 px-4 sm:px-6 md:px-10 hover:bg-gray-10 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-black"
+                className="w-full flex justify-between items-center py-4 sm:py-5 px-4 sm:px-6 md:px-10 hover:bg-gray-10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black"
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
               >
@@ -107,11 +116,22 @@ export function FAQ() {
                 </div>
               </button>
 
-              {openIndex === index && item.answer && (
-                <div id={`faq-answer-${index}`} className="px-4 sm:px-6 md:px-10 pb-4 sm:pb-6">
-                  <p className="text-sm sm:text-base leading-relaxed">{item.answer}</p>
-                </div>
-              )}
+              <AnimatePresence initial={false}>
+                {openIndex === index && item.answer && (
+                  <motion.div
+                    id={`faq-answer-${index}`}
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 sm:px-6 md:px-10 pb-4 sm:pb-6">
+                      <p className="text-sm sm:text-base leading-relaxed">{item.answer}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         ))}

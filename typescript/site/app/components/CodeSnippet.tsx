@@ -18,7 +18,7 @@ export function CodeSnippet({ code, title, description }: CodeSnippetProps) {
   };
 
   return (
-    <div className="w-full max-w-[663px] border-t-[7px] border-black">
+    <div className="w-full border-t-[7px] border-black">
       <div className="border border-t-0 border-black bg-white p-4">
         {title && (
           <div className="flex items-center gap-2 mb-4">
@@ -39,34 +39,44 @@ export function CodeSnippet({ code, title, description }: CodeSnippetProps) {
                 fill="black"
               />
             </svg>
-            <h3 className="font-mono text-lg font-semibold tracking-tight">
+            <h3 className="font-mono text-lg font-medium tracking-tight">
               {title}
             </h3>
           </div>
         )}
 
-        <div className="flex justify-between items-start bg-[#F1F1F1] px-3 py-1.5 mb-4">
-          <code className="font-mono text-sm tracking-tight whitespace-pre flex-1 min-w-0">{code}</code>
+        <div className="relative bg-[#F1F1F1] px-3 py-2 mb-4">
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 bg-black text-white px-2 py-1 text-sm font-medium hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            className="absolute top-2 right-2 p-1.5 bg-black text-white hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
             aria-label={copied ? "Copied to clipboard" : "Copy code"}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-            >
-              <path
-                d="M4.76172 3.1001L15.2207 3.10107L16.915 4.79639L16.916 16.9019H15.2383L15.2373 16.8999H4.7793L3.08398 15.2056V3.09814H4.7627L4.76172 3.1001ZM4.7627 14.5093L5.47461 15.2212H15.2373L15.2383 5.4917L14.5254 4.77881H4.76172L4.7627 14.5093Z"
-                fill="white"
-              />
-            </svg>
-            {copied ? "Copied!" : "Copy"}
+            {copied ? (
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M4 10L8 14L16 6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <rect x="6" y="6" width="10" height="12" rx="1" stroke="white" strokeWidth="2" fill="none"/>
+                <path d="M4 14V3C4 2.44772 4.44772 2 5 2H12" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            )}
           </button>
+          <div className="overflow-x-auto pr-12">
+            <code
+              className="whitespace-pre text-black"
+              style={{
+                fontFamily: '"DM Mono", monospace',
+                fontSize: "13px",
+                fontStyle: "normal",
+                fontWeight: 400,
+                lineHeight: "20px",
+                letterSpacing: "-0.7px",
+              }}
+            >
+              {code}
+            </code>
+          </div>
         </div>
 
         {description && (
