@@ -46,12 +46,10 @@ export function Footer() {
                 Docs
               </Link>
               <Link
-                href="https://www.x402.org/x402-whitepaper.pdf"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/ecosystem"
                 className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                Whitepaper
+                Ecosystem
               </Link>
               <Link
                 href="/writing/x402-v2-launch"
@@ -60,10 +58,12 @@ export function Footer() {
                 Writing
               </Link>
               <Link
-                href="/ecosystem"
+                href="https://www.x402.org/x402-whitepaper.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                Ecosystem
+                Whitepaper
               </Link>
             </div>
           </nav>

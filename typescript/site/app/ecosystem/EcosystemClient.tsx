@@ -123,7 +123,6 @@ export default function EcosystemClient({
         <div className="relative z-10">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-4">
-              <p className="text-sm font-medium uppercase tracking-widest text-gray-60">Ecosystem</p>
               <h1 className="font-display text-7xl tracking-tight">Ecosystem</h1>
             </div>
             <p className="max-w-[400px] text-right font-code-ui text-base leading-relaxed text-gray-60 sm:text-lg">
