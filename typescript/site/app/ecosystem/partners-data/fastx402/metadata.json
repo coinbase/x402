@@ -1,7 +1,7 @@
 {
   "name": "Fastx402",
   "description": "🚀 The fast way to build x402 servers and clients",
-  "logoUrl": "/logos/FASTX402.png,
+  "logoUrl": "/logos/FASTX402.png",
   "websiteUrl": "https://fastx402.com", // ideally pointing to somehwere to learn more about the x402 integration
   "category": "Client-Side Integrations" // Must match one of our categories: - `Client-Side Integrations`, `Services/Endpoints`, `Infrastructure & Tooling`, `Learning & Community Resources`
 }
