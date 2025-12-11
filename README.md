@@ -16,6 +16,36 @@ app.use(
 // That's it! See examples/ for full details
 ```
 
+<details>
+<summary><b>Installation</b></summary>
+
+### Typescript
+
+```shell
+# All available reference sdks
+npm install @x402/core @x402/evm @x402/svm @x402/axios @x402/fetch @x402/express @x402/hono @x402/next @x402/paywall @x402/extensions
+
+# Minimal Fetch client
+npm install @x402/core @x402/evm @x402/svm @x402/fetch
+
+# Minimal express Server
+npm install @x402/core @x402/evm @x402/svm @x402/express
+```
+
+### Python
+
+```shell
+pip install x402
+```
+
+### Go
+
+```shell
+go get github.com/coinbase/x402/go
+```
+
+</details>
+
 ## Principles
 
 - **Open standard:** the x402 protocol will never force reliance on a single party
@@ -59,7 +89,7 @@ See `specs/` for full documentation of the x402 standard/
 ### Typical x402 flow
 
 x402 payments typically adhere to the following flow, but servers have a lot of flexibility. See `advanced` folders in `examples/`.
-![](./static/flow.png.png)
+![](./static/flow.png)
 
 The following outlines the flow of a payment using the `x402` protocol. Note that steps (1) and (2) are optional if the client already knows the payment details accepted for a resource.
 
@@ -71,7 +101,7 @@ The following outlines the flow of a payment using the `x402` protocol. Note tha
 
 4. `Client` sends the HTTP request with the `PAYMENT-SIGNATURE` header containing the `PaymentPayload` to the resource server.
 
-5. `Resource server` verifies the `Paymen Payload` is valid either via local verification or by POSTing the `PaymentPayload` and `PaymentRequirements` to the `/verify` endpoint of a `facilitator`.
+5. `Resource server` verifies the `PaymentPayload` is valid either via local verification or by POSTing the `PaymentPayload` and `PaymentRequirements` to the `/verify` endpoint of a `facilitator`.
 
 6. `Facilitator` performs verification of the object based on the `scheme` and `network` of the `PaymentPayload` and returns a `Verification Response`.
 
