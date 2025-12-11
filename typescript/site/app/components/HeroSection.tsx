@@ -49,9 +49,9 @@ export function HeroSection({ codeSnippet }: HeroSectionProps) {
           </motion.div>
         </motion.div>
 
-        {/* Animated right column */}
+        {/* Animated right column - only show at xl (1280px+) where there's room */}
         <motion.div
-          className="relative hidden lg:block flex-shrink-0 lg:w-[720px]"
+          className="relative hidden xl:block flex-shrink-0 xl:w-[720px]"
           variants={fadeInFromRight}
           initial="initial"
           animate="animate"
