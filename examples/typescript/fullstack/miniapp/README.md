@@ -13,17 +13,16 @@ This is a [Next.js](https://nextjs.org) project demonstrating how to build a [Fa
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React 19, TypeScript
+- **Frontend**: Next.js 16, React 19
 - **Styling**: Tailwind CSS 4
-- **Wallet**: OnchainKit 1.1.2, Coinbase Wallet, Wagmi
+- **Wallet**: OnchainKit, Wagmi
 - **Payments**: x402 v2 SDK with Base Sepolia
-- **Farcaster**: Frame SDK 0.1.12 for Mini App detection and integration
+- **Farcaster**: Mini App SDK for Mini App detection and integration
 
 ## Prerequisites
 
 - Node.js 22+
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- Coinbase Wallet
 - USDC on Base Sepolia testnet
 
 ## Getting Started
@@ -90,17 +89,26 @@ The `/api/protected` endpoint uses the `withX402` wrapper for payment protection
 ```typescript
 // app/api/protected/route.ts
 import { withX402 } from "@x402/next";
-import { server, evmAddress } from "../../../proxy";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: process.env.FACILITATOR_URL,
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
 
 export const GET = withX402(
   handler,
   {
-    accepts: [{
-      scheme: "exact",
-      price: "$0.01",
-      network: "eip155:84532", // base-sepolia
-      payTo: evmAddress,
-    }],
+    accepts: [
+      {
+        scheme: "exact",
+        price: "$0.01",
+        network: "eip155:84532", // base-sepolia
+        payTo: process.env.EVM_ADDRESS,
+      },
+    ],
     description: "Access to protected Mini App API",
     mimeType: "application/json",
   },
@@ -110,7 +118,7 @@ export const GET = withX402(
 
 ### Client-Side Payment Handling
 
-The frontend uses `@x402/fetch` to automatically handle payments:
+The frontend uses `@x402/fetch` to handle payments:
 
 ```typescript
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
@@ -129,10 +137,10 @@ const response = await fetchWithPayment("/api/protected");
 
 ### Farcaster Mini App Integration
 
-The app uses the Farcaster Frame SDK to detect Mini App context:
+The app uses the Farcaster Mini App SDK to detect Mini App context:
 
 ```typescript
-import { sdk } from "@farcaster/frame-sdk";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 await sdk.actions.ready();
 const isInMiniApp = await sdk.isInMiniApp();
@@ -154,13 +162,17 @@ The `PAYMENT-REQUIRED` header contains payment requirements:
 {
   "x402Version": 2,
   "error": "Payment required",
-  "accepts": [{
-    "scheme": "exact",
-    "network": "eip155:84532",
-    "amount": "10000",
-    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    "payTo": "0x..."
-  }]
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:84532",
+      "amount": "10000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 300,
+      "extra": { "name": "USDC", "version": "2" }
+    }
+  ]
 }
 ```
 
@@ -182,29 +194,38 @@ The `PAYMENT-REQUIRED` header contains payment requirements:
 
 ### Adding More Protected Routes
 
-Update the proxy configuration in `proxy.ts`:
+Create a new route file (e.g., `app/api/premium/route.ts`) and use the `withX402` wrapper:
 
 ```typescript
-export const proxy = paymentProxy(
+// app/api/premium/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { withX402 } from "@x402/next";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: process.env.FACILITATOR_URL,
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+
+const handler = async (_: NextRequest) => {
+  return NextResponse.json({ message: "Premium content!" });
+};
+
+export const GET = withX402(
+  handler,
   {
-    "/api/protected": {
-      accepts: [{
-        scheme: "exact",
-        price: "$0.01",
-        network: "eip155:84532",
-        payTo: evmAddress,
-      }],
-      description: "Protected endpoint",
-    },
-    "/api/premium": {
-      accepts: [{
+    accepts: [
+      {
         scheme: "exact",
         price: "$0.10",
         network: "eip155:84532",
-        payTo: evmAddress,
-      }],
-      description: "Premium content access",
-    },
+        payTo: process.env.EVM_ADDRESS,
+      },
+    ],
+    description: "Premium content access",
+    mimeType: "application/json",
   },
   server,
 );
@@ -225,5 +246,3 @@ Network identifiers use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/mai
 - [MiniKit Documentation](https://docs.base.org/builderkits/minikit/overview)
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Tailwind CSS v4 Documentation](https://tailwindcss.com/docs)
-
-
