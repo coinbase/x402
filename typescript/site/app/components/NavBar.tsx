@@ -1,55 +1,14 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { X402Logo } from "./Logo";
 import { NavDropdown } from "./NavDropdown";
 
-function CloseIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path d="M6 6L18 18M6 18L18 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export function NavBar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
   return (
     <nav className="w-full bg-white border-b border-gray-10" role="navigation" aria-label="Main navigation">
-      <div className="max-w-[1512px] mx-auto px-4 sm:px-6 py-3">
-        <div className="flex items-center justify-between gap-4 sm:gap-8">
-          {/* Mobile: Hamburger button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-1 -ml-1 text-black hover:bg-gray-10 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
-            aria-expanded={mobileMenuOpen}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-          >
-            {mobileMenuOpen ? (
-              <CloseIcon />
-            ) : (
-              <Image
-                src="/images/hamburger.svg"
-                alt=""
-                width={24}
-                height={24}
-                aria-hidden="true"
-              />
-            )}
-          </button>
-
-          {/* Desktop: Left side navigation */}
-          <div className="hidden lg:flex flex-1 items-center gap-8 justify-start">
+      <div className="max-w-[1512px] mx-auto px-6 py-3">
+        <div className="flex items-center justify-between gap-8">
+          {/* Left side navigation */}
+          <div className="flex flex-1 items-center gap-8 justify-start">
             <NavDropdown
               label="Standard"
               alignment="left"
@@ -70,14 +29,14 @@ export function NavBar() {
           </div>
 
           {/* Center logo (home link) */}
-          <div className="flex flex-1 lg:flex-none justify-center">
+          <div className="flex flex-none justify-center">
             <Link href="/" aria-label="x402 home" className="inline-flex items-center">
               <X402Logo className="h-7 w-auto" />
             </Link>
           </div>
 
-          {/* Desktop: Right side actions */}
-          <div className="hidden lg:flex flex-1 items-center gap-6 justify-end">
+          {/* Right side actions */}
+          <div className="flex flex-1 items-center gap-6 justify-end">
             {/* Docs button */}
             <Link
               href="https://x402.gitbook.io/x402"
@@ -140,98 +99,8 @@ export function NavBar() {
               <span>Build with us</span>
             </Link>
           </div>
-
-          {/* Mobile: Spacer to balance hamburger */}
-          <div className="lg:hidden w-10" aria-hidden="true" />
         </div>
       </div>
-
-      {/* Mobile menu */}
-      {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-gray-10 bg-white">
-          <div className="px-4 py-4 space-y-4">
-            {/* Standard section */}
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-gray-60 uppercase tracking-wider">Standard</p>
-              <div className="space-y-1">
-                <Link
-                  href="https://x402.gitbook.io/x402"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Docs
-                </Link>
-                <Link
-                  href="https://www.x402.org/x402-whitepaper.pdf"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Whitepaper
-                </Link>
-                <Link
-                  href="/writing/x402-v2-launch"
-                  className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Writing
-                </Link>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-10" />
-
-            {/* Other links */}
-            <div className="space-y-1">
-              <Link
-                href="/ecosystem"
-                className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Ecosystem
-              </Link>
-              <Link
-                href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Contact
-              </Link>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-10" />
-
-            {/* CTA buttons */}
-            <div className="space-y-3 pt-2">
-              <Link
-                href="https://x402.gitbook.io/x402"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Docs
-              </Link>
-              <Link
-                href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-black text-white font-medium text-sm hover:bg-gray-800 transition-colors"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Build with us
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }
