@@ -1,64 +1,106 @@
 import Link from "next/link";
-import {
-  QuestionMarkCircleIcon,
-  ArrowDownTrayIcon,
-  BriefcaseIcon,
-} from "@heroicons/react/24/outline";
-import GithubIcon from "../assets/github.svg";
-import DiscordIcon from "../assets/discord.svg";
+import { X402Logo } from "./Logo";
+import { NavDropdown } from "./NavDropdown";
 
-const NavBar = () => {
+export function NavBar() {
   return (
-    <section className="max-w-6xl mx-auto px-4 pt-4 relative z-20">
-      <div className="flex gap-4 md:gap-8 justify-between sm:justify-end">
-        <Link
-          href="https://forms.gle/VZKvX93ifiew1ksW9"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-        >
-          <QuestionMarkCircleIcon className="w-4 h-4 mr-1" />
-          Get In Touch
-        </Link>
-        <Link
-          href="/x402.pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-        >
-          <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
-          One-pager
-        </Link>
-        <Link
-          href="/x402_brand_kit.zip"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono hover:text-blue-400 transition-colors flex items-center gap-1 text-sm"
-        >
-          <BriefcaseIcon className="w-4 h-4 mr-1" />
-          Brand kit
-        </Link>
-        <Link
-          href="https://github.com/coinbase/x402"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
-        >
-          <GithubIcon className="w-4 h-4 mr-1" fill="currentColor" />
-          GitHub
-        </Link>
-        <Link
-          href="https://discord.gg/invite/cdp"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono hover:text-blue-400 transition-colors flex items-center gap-2 text-sm"
-        >
-          <DiscordIcon className="w-4 h-4 mr-1" fill="currentColor" />
-          Discord
-        </Link>
-      </div>
-    </section>
-  );
-};
+    <nav className="w-full bg-white border-b border-gray-10" role="navigation" aria-label="Main navigation">
+      <div className="max-w-[1512px] mx-auto px-6 py-3">
+        <div className="flex items-center justify-between gap-8">
+          {/* Left side navigation */}
+          <div className="flex flex-1 items-center gap-8 justify-start">
+            <NavDropdown
+              label="Standard"
+              alignment="left"
+              items={[
+                { label: "Docs", href: "https://x402.gitbook.io/x402", external: true },
+                { label: "Whitepaper", href: "https://www.x402.org/x402-whitepaper.pdf", external: true },
+                { label: "Writing", disabled: true },
+              ]}
+            />
+            <Link
+              href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-black font-medium text-sm hover:text-gray-60 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            >
+              Contact
+            </Link>
+          </div>
 
-export default NavBar;
+          {/* Center logo (home link) */}
+          <div className="flex flex-none justify-center">
+            <Link href="/" aria-label="x402 home" className="inline-flex items-center">
+              <X402Logo className="h-7 w-auto" />
+            </Link>
+          </div>
+
+          {/* Right side actions */}
+          <div className="flex flex-1 items-center gap-6 justify-end">
+            {/* Docs button */}
+            <Link
+              href="https://x402.gitbook.io/x402"
+              className="flex items-center gap-1 px-4 py-2 border border-black text-black font-medium text-sm hover:bg-gray-10 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4.76172 3.1001L15.2207 3.10107L16.915 4.79639L16.916 16.9019H15.2383L15.2373 16.8999H4.7793L3.08398 15.2056V3.09814H4.7627L4.76172 3.1001ZM4.7627 14.5093L5.47461 15.2212H15.2373L15.2383 5.4917L14.5254 4.77881H4.76172L4.7627 14.5093Z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M13.8297 6.55029C13.9402 6.55029 14.0297 6.63984 14.0297 6.75029V7.73018C14.0297 7.84063 13.9402 7.93018 13.8297 7.93018H6.17021C6.05976 7.93018 5.97021 7.84063 5.97021 7.73018V6.75029C5.97021 6.63984 6.05976 6.55029 6.17021 6.55029H13.8297Z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M13.8297 9.31006C13.9402 9.31006 14.0297 9.3996 14.0297 9.51006V10.4899C14.0297 10.6004 13.9402 10.6899 13.8297 10.6899H6.17021C6.05976 10.6899 5.97021 10.6004 5.97021 10.4899V9.51006C5.97021 9.3996 6.05976 9.31006 6.17021 9.31006H13.8297Z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M13.8297 12.0698C13.9402 12.0698 14.0297 12.1594 14.0297 12.2698V13.2497C14.0297 13.3602 13.9402 13.4497 13.8297 13.4497H6.17021C6.05976 13.4497 5.97021 13.3602 5.97021 13.2497V12.2698C5.97021 12.1594 6.05976 12.0698 6.17021 12.0698H13.8297Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span>Docs</span>
+            </Link>
+
+            {/* Build with us button */}
+            <Link
+              href="https://docs.google.com/forms/d/e/1FAIpQLSc2rlaeH31rZpJ_RFNL7egxi9fYTEUjW9r2kwkhd2pMae2dog/viewform"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-4 py-2 bg-black text-white font-medium text-sm hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <path
+                  d="M10.1772 14.2772L14.027 10.4274L14.027 9.57257L10.1772 5.72285L11.1851 4.71495L15.4524 8.98217L15.4524 11.0178L11.1851 15.285L10.1772 14.2772Z"
+                  fill="currentColor"
+                />
+                <path
+                  d="M4.54761 9.45635C4.54761 9.369 4.64796 9.2982 4.77174 9.2982H14.0704C14.1941 9.2982 14.2945 9.369 14.2945 9.45635V10.5633C14.2945 10.6507 14.1941 10.7215 14.0704 10.7215H4.77174C4.64796 10.7215 4.54761 10.6507 4.54761 10.5633V9.45635Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <span>Build with us</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
