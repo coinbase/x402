@@ -109,18 +109,14 @@ class TestCreateX402Config:
         )
 
         paywall_config = PaywallConfig(
-            cdp_client_key="test-key",
             app_name="Test App",
             app_logo="https://example.com/logo.png",
-            session_token_endpoint="https://example.com/token",
         )
 
         config = create_x402_config("Payment required", [payment_req], paywall_config)
 
-        assert config["cdpClientKey"] == "test-key"
         assert config["appName"] == "Test App"
         assert config["appLogo"] == "https://example.com/logo.png"
-        assert config["sessionTokenEndpoint"] == "https://example.com/token"
 
     def test_create_config_empty_requirements(self):
         config = create_x402_config("No requirements", [])

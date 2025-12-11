@@ -213,10 +213,8 @@ def test_api_client_request_returns_json():
 def test_paywall_config_injection():
     """Test that paywall configuration is properly injected into HTML."""
     paywall_config = {
-        "cdp_client_key": "test-key-123",
         "app_name": "Test Application",
         "app_logo": "https://example.com/logo.png",
-        "session_token_endpoint": "https://example.com/token",
     }
 
     app = create_app_with_middleware(
@@ -242,7 +240,6 @@ def test_paywall_config_injection():
 
         html_content = resp.get_data(as_text=True)
         assert "window.x402" in html_content
-        assert '"cdpClientKey": "test-key-123"' in html_content
         assert '"appName": "Test Application"' in html_content
         assert '"appLogo": "https://example.com/logo.png"' in html_content
         assert '"amount": 2.5' in html_content

@@ -32,7 +32,7 @@ jobs:
           pnpm -r --filter=x402 run build
       
       - name: Publish x402 package
-        working-directory: ./typescript/packages/x402
+        working-directory: ./typescript/packages/legacy/x402
         run: |
           # Get package information directly
           PACKAGE_NAME=$(node -p "require('./package.json').name")

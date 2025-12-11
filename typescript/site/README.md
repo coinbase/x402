@@ -35,10 +35,11 @@ x402 is an open protocol for internet-native payments built around the HTTP 402 
 2. Configure your environment variables in `.env`:
 
   ```bash
-  NEXT_PUBLIC_FACILITATOR_URL=your_facilitator_url
-  RESOURCE_WALLET_ADDRESS=your_wallet_address
-  NETWORK=sepolia
-  PRIVATE_KEY=your_private_key
+  FACILITATOR_URL=your_facilitator_url
+  RESOURCE_EVM_ADDRESS=your_evm_wallet_address
+  RESOURCE_SVM_ADDRESS=your_solana_wallet_address
+  FACILITATOR_EVM_PRIVATE_KEY=your_evm_private_key
+  FACILITATOR_SVM_PRIVATE_KEY=your_solana_private_key
   ```
 
 ### Running the Development Server

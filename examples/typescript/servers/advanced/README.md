@@ -1,117 +1,305 @@
-# x402 Advanced Resource Server Example
+# @x402/express Advanced Examples
 
-This is an advanced example of an Express.js server that demonstrates how to implement paywall functionality without using middleware. This approach is useful for more complex scenarios, such as:
+Express.js server demonstrating advanced x402 patterns including dynamic pricing, payment routing, lifecycle hooks and API discoverability.
 
-- Asynchronous payment settlement
-- Custom payment validation logic
-- Complex routing requirements
-- Integration with existing authentication systems
+```typescript
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
+
+const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: facilitatorUrl }))
+  .register("eip155:84532", new ExactEvmScheme())
+  .onBeforeVerify(async ctx => console.log("Verifying payment..."))
+  .onAfterSettle(async ctx => console.log("Settled:", ctx.result.transaction));
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: ctx => (ctx.adapter.getQueryParam?.("tier") === "premium" ? "$0.01" : "$0.001"),
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
 
 ## Prerequisites
 
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
-- A valid Ethereum address for receiving payments
-- Coinbase Developer Platform API Key & Secret (if accepting payments on Base mainnet)
-  -- Get them here [https://portal.cdp.coinbase.com/projects](https://portal.cdp.coinbase.com/projects)
+- Valid EVM for receiving payments
+- URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
 ## Setup
 
-1. Copy `.env-local` to `.env` and add your Ethereum address:
+1. Copy `.env-local` to `.env`:
 
 ```bash
 cp .env-local .env
 ```
 
+and fill required environment variables:
+
+- `FACILITATOR_URL` - Facilitator endpoint URL
+- `EVM_ADDRESS` - Ethereum address to receive payments
+
 2. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
-pnpm install
-pnpm build
+pnpm install && pnpm build
 cd servers/advanced
 ```
 
 3. Run the server
+
 ```bash
-pnpm install
 pnpm dev
 ```
 
-## Implementation Overview
+## Available Examples
 
-This advanced implementation provides a structured approach to handling payments with:
+Each example demonstrates a specific advanced pattern:
 
-1. Helper functions for creating payment requirements and verifying payments
-2. Support for delayed payment settlement
-3. Dynamic pricing capabilities
-4. Multiple payment requirement options
-5. Proper error handling and response formatting
-6. Integration with the x402 facilitator service
+| Example | Command | Description |
+| --- | --- | --- |
+| `bazaar` | `pnpm dev:bazaar` | API discoverability via Bazaar |
+| `hooks` | `pnpm dev:hooks` | Payment lifecycle hooks |
+| `dynamic-price` | `pnpm dev:dynamic-price` | Context-based pricing |
+| `dynamic-pay-to` | `pnpm dev:dynamic-pay-to` | Route payments to different recipients |
+| `custom-money-definition` | `pnpm dev:custom-money-definition` | Accept alternative tokens |
 
 ## Testing the Server
 
 You can test the server using one of the example clients:
 
 ### Using the Fetch Client
+
 ```bash
 cd ../../clients/fetch
 # Ensure .env is setup
-pnpm install
 pnpm dev
 ```
 
 ### Using the Axios Client
+
 ```bash
 cd ../../clients/axios
 # Ensure .env is setup
-pnpm install
 pnpm dev
 ```
 
-## Example Endpoints
+## Example: Bazaar Discovery
 
-The server includes example endpoints that demonstrate different payment scenarios:
+Adding the discovery extension to make your API discoverable:
 
-### Delayed Settlement
-- `/delayed-settlement` - Demonstrates asynchronous payment processing
-- Returns the weather data immediately without waiting for payment settlement
-- Processes payment asynchronously in the background
-- Useful for scenarios where immediate response is critical and payment settlement can be handled later
+```typescript
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 
-### Dynamic Pricing
-- `/dynamic-price` - Shows how to implement variable pricing based on request parameters
-- Accepts a `multiplier` query parameter to adjust the base price
-- Demonstrates how to calculate and validate payments with dynamic amounts
-- Useful for implementing tiered pricing or demand-based pricing models
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+        description: "Weather data",
+        mimeType: "application/json",
+        extensions: {
+          ...declareDiscoveryExtension({
+            input: { city: "San Francisco" },
+            inputSchema: {
+              properties: { city: { type: "string" } },
+              required: ["city"],
+            },
+            output: {
+              example: { city: "San Francisco", weather: "foggy", temperature: 60 },
+            },
+          }),
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
 
-### Multiple Payment Requirements
-- `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
-- Allows clients to pay using different assets (e.g., USDC or USDT)
-- Supports multiple networks (e.g., Base and Base Sepolia)
-- Useful for providing flexibility in payment methods and networks
+**Use case:** Clients and AI agents can easily discover your service
+
+## Example: Dynamic Pricing
+
+Calculate prices at runtime based on request context:
+
+```typescript
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: context => {
+            const tier = context.adapter.getQueryParam?.("tier") ?? "standard";
+            return tier === "premium" ? "$0.005" : "$0.001";
+          },
+          network: "eip155:84532",
+          payTo: evmAddress,
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
+
+**Use case:** Implementing tiered pricing, user-based pricing, content-based pricing or any scenario where the price varies based on the request.
+
+## Example: Dynamic PayTo
+
+Route payments to different recipients based on request context:
+
+```typescript
+const addressLookup: Record<string, `0x${string}`> = {
+  US: "0x...",
+  UK: "0x...",
+};
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /weather": {
+        accepts: {
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:84532",
+          payTo: context => {
+            const country = context.adapter.getQueryParam?.("country") ?? "US";
+            return addressLookup[country];
+          },
+        },
+      },
+    },
+    resourceServer,
+  ),
+);
+```
+
+**Use case:** Marketplace applications where payments should go to different sellers, content creators, or service providers based on the resource being accessed.
+
+## Example: Lifecycle Hooks
+
+Run custom logic before/after verification and settlement:
+
+```typescript
+const resourceServer = new x402ResourceServer(facilitatorClient)
+  .register("eip155:84532", new ExactEvmScheme())
+  .onBeforeVerify(async context => {
+    console.log("Before verify hook", context);
+    // Abort verification by returning { abort: true, reason: string }
+  })
+  .onAfterSettle(async context => {
+    await logPaymentToDatabase(context);
+  })
+  .onSettleFailure(async context => {
+    // Return a result with recovered=true to recover from the failure
+    // return { recovered: true, result: { success: true, transaction: "0x123..." } };
+  });
+```
+
+Available hooks:
+
+- `onBeforeVerify` — Run before verification (can abort)
+- `onAfterVerify` — Run after successful verification
+- `onVerifyFailure` — Run when verification fails (can recover)
+- `onBeforeSettle` — Run before settlement (can abort)
+- `onAfterSettle` — Run after successful settlement
+- `onSettleFailure` — Run when settlement fails (can recover)
+
+**Use case:**
+
+- Log payment events to a database or monitoring system
+- Perform custom validation before processing payments
+- Implement retry or recovery logic for failed payments
+- Trigger side effects (notifications, database updates) after successful payments
+
+## Example: Custom Tokens
+
+Accept payments in custom tokens. Register a money parser on the scheme to support alternative tokens for specific networks.
+
+```typescript
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+
+const resourceServer = new x402ResourceServer(facilitatorClient).register(
+  "eip155:84532",
+  new ExactEvmScheme().registerMoneyParser(async (amount, network) => {
+    // Use Wrapped XDAI on Gnosis Chain
+    if (network === "eip155:100") {
+      return {
+        amount: BigInt(Math.round(amount * 1e18)).toString(),
+        asset: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+        extra: { token: "Wrapped XDAI" },
+      };
+    }
+    return null; // Fall through to default parser
+  }),
+);
+
+// Use in payment requirements
+"GET /weather": {
+  accepts: {
+    scheme: "exact",
+    price: "$0.001",
+    network: "eip155:100",
+    payTo: evmAddress,
+  },
+},
+```
+
+**Use case:** When you want to accept payments in tokens other than USDC, or use different tokens based on conditions (e.g., DAI for large amounts, custom tokens for specific networks).
 
 ## Response Format
 
 ### Payment Required (402)
+
+```
+HTTP/1.1 402 Payment Required
+Content-Type: application/json; charset=utf-8
+PAYMENT-REQUIRED: <base64-encoded JSON>
+
+{}
+```
+
+The `PAYMENT-REQUIRED` header contains base64-encoded JSON with the payment requirements. Note: `amount` is in atomic units (e.g., 1000 = 0.001 USDC, since USDC has 6 decimals).
+
 ```json
 {
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
+  "x402Version": 2,
+  "error": "Payment required",
+  "resource": {
+    "url": "http://localhost:4021/weather",
+    "description": "Weather data",
+    "mimeType": "application/json"
+  },
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
-      "maxAmountRequired": "1000",
-      "resource": "http://localhost:3001/weather",
-      "description": "Access to weather data",
-      "mimeType": "",
-      "payTo": "0xYourAddress",
-      "maxTimeoutSeconds": 60,
-      "asset": "0x...",
-      "outputSchema": null,
+      "network": "eip155:84532",
+      "amount": "1000",
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "payTo": "0x...",
+      "maxTimeoutSeconds": 300,
       "extra": {
-        "name": "USD Coin",
-        "version": "1"
+        "name": "USDC",
+        "version": "2",
+        "resourceUrl": "http://localhost:4021/weather"
       }
     }
   ]
@@ -119,58 +307,35 @@ The server includes example endpoints that demonstrate different payment scenari
 ```
 
 ### Successful Response
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+PAYMENT-RESPONSE: <base64-encoded JSON>
+
+{"report":{"weather":"sunny","temperature":70}}
+```
+
+The `PAYMENT-RESPONSE` header contains base64-encoded JSON with the settlement details:
+
 ```json
-// Body
 {
-  "report": {
-    "weather": "sunny",
-    "temperature": 70
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:84532",
+  "payer": "0x...",
+  "requirements": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "1000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x...",
+    "maxTimeoutSeconds": 300,
+    "extra": {
+      "name": "USDC",
+      "version": "2",
+      "resourceUrl": "http://localhost:4021/weather"
+    }
   }
 }
-// Headers
-{
-  "X-PAYMENT-RESPONSE": "..." // Encoded response object
-}
 ```
-
-## Extending the Example
-
-To add more paid endpoints with delayed payment settlement, you can follow this pattern:
-
-```typescript
-app.get("/your-endpoint", async (req, res) => {
-  const resource = `${req.protocol}://${req.headers.host}${req.originalUrl}` as Resource;
-  const paymentRequirements = [createExactPaymentRequirements(
-    "$0.001", // Your price
-    "base-sepolia", // Your network
-    resource,
-    "Description of your resource"
-  )];
-
-  const isValid = await verifyPayment(req, res, paymentRequirements);
-  if (!isValid) return;
-
-  // Return your protected resource immediately
-  res.json({
-    // Your response data
-  });
-
-  // Process payment asynchronously
-  try {
-    const settleResponse = await settle(
-      exact.evm.decodePayment(req.header("X-PAYMENT")!),
-      paymentRequirements[0]
-    );
-    const responseHeader = settleResponseHeader(settleResponse);
-    // In a real application, you would store this response header
-    // and associate it with the payment for later verification
-    console.log("Payment settled:", responseHeader);
-  } catch (error) {
-    console.error("Payment settlement failed:", error);
-    // In a real application, you would handle the failed payment
-    // by marking it for retry or notifying the user
-  }
-});
-```
-
-For dynamic pricing or multiple payment requirements, refer to the `/dynamic-price` and `/multiple-payment-requirements` endpoints in the example code for implementation details.

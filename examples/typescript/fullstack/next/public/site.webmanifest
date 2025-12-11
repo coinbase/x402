@@ -1,21 +1,19 @@
 {
-  "name": "x402.org",
-  "short_name": "x402",
+  "name": "x402 Next.js Demo",
+  "short_name": "x402 Demo",
   "icons": [
     {
-      "src": "/web-app-manifest-192x192.png",
+      "src": "/x402-icon-black.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     },
     {
-      "src": "/web-app-manifest-512x512.png",
+      "src": "/x402-icon-black.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     }
   ],
-  "theme_color": "#ffffff",
+  "theme_color": "#000000",
   "background_color": "#ffffff",
   "display": "standalone"
 }

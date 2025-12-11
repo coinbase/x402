@@ -11,5 +11,12 @@
     "baseUrl": ".",
     "types": ["node"]
   },
-  "include": ["index.ts"]
+  "include": [
+    "index.ts",
+    "bazaar.ts",
+    "custom-money-definition.ts",
+    "dynamic-pay-to.ts",
+    "dynamic-price.ts",
+    "hooks.ts"
+  ]
 }
