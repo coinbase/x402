@@ -56,29 +56,39 @@ export function wrapFetchWithPayment(
   fetch: typeof globalThis.fetch,
   walletClient: Signer | MultiNetworkSigner,
   maxValue: bigint = BigInt(0.1 * 10 ** 6), // Default to 0.10 USDC
-  paymentRequirementsSelector: PaymentRequirementsSelector = selectPaymentRequirements,
+  paymentRequirementsSelector: PaymentRequirementsSelector =
+    selectPaymentRequirements,
   config?: X402Config,
-) {
-  return async (input: RequestInfo, init?: RequestInit) => {
-    const response = await fetch(input, init);
+): typeof globalThis.fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init);
+    const cloned = request.clone();
+
+    const response = await fetch(request);
 
     if (response.status !== 402) {
       return response;
+    }
+
+    if (request.headers.has("X-PAYMENT")) {
+      throw new Error("Payment already attempted");
     }
 
     const { x402Version, accepts } = (await response.json()) as {
       x402Version: number;
       accepts: unknown[];
     };
-    const parsedPaymentRequirements = accepts.map(x => PaymentRequirementsSchema.parse(x));
+    const parsedPaymentRequirements = accepts.map((x) =>
+      PaymentRequirementsSchema.parse(x)
+    );
 
     const network = isMultiNetworkSigner(walletClient)
       ? undefined
       : evm.isSignerWallet(walletClient as typeof evm.EvmSigner)
-        ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
-        : isSvmSignerWallet(walletClient)
-          ? (["solana", "solana-devnet"] as Network[])
-          : undefined;
+      ? ChainIdToNetwork[(walletClient as typeof evm.EvmSigner).chain?.id]
+      : isSvmSignerWallet(walletClient)
+      ? (["solana", "solana-devnet"] as Network[])
+      : undefined;
 
     const selectedPaymentRequirements = paymentRequirementsSelector(
       parsedPaymentRequirements,
@@ -97,21 +107,13 @@ export function wrapFetchWithPayment(
       config,
     );
 
-    if (init && (init as { __is402Retry?: boolean }).__is402Retry) {
-      throw new Error("Payment already attempted");
-    }
+    cloned.headers.append("X-PAYMENT", paymentHeader);
+    cloned.headers.append(
+      "Access-Control-Expose-Headers",
+      "X-PAYMENT-RESPONSE",
+    );
 
-    const newInit = {
-      ...init,
-      headers: {
-        ...(init?.headers || {}),
-        "X-PAYMENT": paymentHeader,
-        "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
-      },
-      __is402Retry: true,
-    };
-
-    const secondResponse = await fetch(input, newInit);
+    const secondResponse = await fetch(cloned);
     return secondResponse;
   };
 }
