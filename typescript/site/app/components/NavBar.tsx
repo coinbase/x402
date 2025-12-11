@@ -15,7 +15,7 @@ export function NavBar() {
               items={[
                 { label: "Docs", href: "https://x402.gitbook.io/x402", external: true },
                 { label: "Whitepaper", href: "https://www.x402.org/x402-whitepaper.pdf", external: true },
-                { label: "Writing", disabled: true },
+                { label: "Writing", href: "/writing/x402-v2-launch" },
               ]}
             />
             <Link
