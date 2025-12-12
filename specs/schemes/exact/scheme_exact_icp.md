@@ -15,33 +15,29 @@ Example:
 ```json
 {
   "scheme": "exact",
-  "network": "icp",
-  "maxAmountRequired": "100000000",
-  "asset": "druyg-tyaaa-aaaaq-aactq-cai",
+  "network": "icp:mainnet",
+  "amount": "100000000",
+  "asset": "ryjl3-tyaaa-aaaaa-aaaba-cai",
   "payTo": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
-  "resource": "https://internetcomputer.org",
-  "description": "Payment for some resource",
-  "maxTimeoutSeconds": 300
+  "maxTimeoutSeconds": 60
 }
 ```
 
-The `network` should be `icp`, since there is no testnet for ICP.
+The `network` should be `icp:mainnet`, since there is no testnet for ICP. For development purposes, developers can use `icp:local`.
 
-## `X-Payment` header payload
+## PaymentPayload `payload` Field
 
-The `payload` field of the `X-PAYMENT` header must contain the following fields:
+The `payload` field of the `PaymentPayload` must contain the following fields:
 
 - `signature`: The signature of the `authorization` signed by Internet Identity.
 - `authorization`: Parameters required for payment.
 
-Example:
+Example `payload`:
 
 ```json
 {
   "signature": "o2Fk92FwWCwwKjAFBgMrZXADIQBLRapCR7X0Q5-C7bXiAmeYjX2E5q_g7k3uIaI3hBlvPGFzWEAPj4lw96yz4NBuPgluhZs2Squup9SZU7IOk8P1vzQ2Ox1WeKxBt88CJHCzU38NzpeXH3JhII_dEP1aQ0IN8j8K",
   "authorization": {
-    "scheme": "exact",
-    "asset": "druyg-tyaaa-aaaaq-aactq-cai",
     "to": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
     "value": "100000000",
     "expiresAt": 1761637062000,
@@ -50,18 +46,27 @@ Example:
 }
 ```
 
-Full `X-PAYMENT` header:
+Full `PaymentPayload` object:
 
 ```json
 {
-  "x402Version": 1,
-  "scheme": "exact",
-  "network": "icp",
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "icp:mainnet",
+    "amount": "100000000",
+    "asset": "ryjl3-tyaaa-aaaaa-aaaba-cai",
+    "payTo": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
+    "maxTimeoutSeconds": 60
+  },
   "payload": {
     "signature": "o2Fk92FwWCwwKjAFBgMrZXADIQBLRapCR7X0Q5-C7bXiAmeYjX2E5q_g7k3uIaI3hBlvPGFzWEAPj4lw96yz4NBuPgluhZs2Squup9SZU7IOk8P1vzQ2Ox1WeKxBt88CJHCzU38NzpeXH3JhII_dEP1aQ0IN8j8K",
     "authorization": {
-      "scheme": "exact",
-      "asset": "druyg-tyaaa-aaaaq-aactq-cai",
       "to": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
       "value": "100000000",
       "expiresAt": 1761637062000,
@@ -79,8 +84,6 @@ The `authorization` schema contains the following fields:
 
 | Field Name  | Type     | Required | Description                                                                                                                                                                           |
 | ----------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scheme`    | `string` | Yes      | Payment scheme identifier (e.g., "exact")                                                                                                                                             |
-| `asset`     | `string` | Yes      | ICRC2 token ledger canister address                                                                                                                                                   |
 | `to`        | `string` | Yes      | Recipient wallet address for the payment                                                                                                                                              |
 | `value`     | `string` | Yes      | Required payment amount in atomic token units. For `exact` scheme, this is the exact amount to be transferred. For `upto` scheme, this is the maximum amount that can be transferred. |
 | `expiresAt` | `number` | Yes      | Expiration time of the authorization in milliseconds since epoch                                                                                                                      |
@@ -130,3 +133,12 @@ Therefore, we recommend skipping balance checks during verification and relying 
 ## Settlement
 
 The facilitator settles the payment by calling the `icrc2_transfer_from` method on the specified ICRC2 token ledger canister, using the parameters from the `authorization` object in the `X-PAYMENT` header payload. Users should ensure (via `icrc2_allowance` and `icrc2_approve`) that the facilitator has the necessary allowances to perform the transfer on behalf of the client.
+
+## Appendix
+
+### Facilitator Implementations
+
+1. Anda x402 Facilitator
+   - Endpoint: https://ogkpr-lyaaa-aaaap-an5fq-cai.icp0.io
+   - Source code: https://github.com/ldclabs/anda-cloud/tree/main/rs/anda_x402_canister
+   - Example: https://github.com/ldclabs/anda-cloud/blob/main/examples/ts/anda_x402/app.ts
