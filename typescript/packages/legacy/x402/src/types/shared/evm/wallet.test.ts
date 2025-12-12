@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { base, baseSepolia, avalancheFuji, abstract } from "viem/chains";
-import { skaleBaseSepolia } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createConnectedClient, createSigner } from "./wallet";
 
@@ -85,13 +84,6 @@ describe("createConnectedClient", () => {
     expect(client.transport).toBe("mock-transport");
   });
 
-  it("should create a public client for skale-base-sepolia network", () => {
-    const client = createConnectedClient("skale-base-sepolia");
-
-    expect(client.chain).toEqual(skaleBaseSepolia);
-    expect(client.transport).toBe("mock-transport");
-  });
-
   it("should throw an error for unsupported network", () => {
     expect(() => createConnectedClient("unsupported-network")).toThrow(
       "Unsupported network: unsupported-network",
@@ -137,16 +129,6 @@ describe("createSigner", () => {
     const signer = createSigner("avalanche-fuji", mockPrivateKey);
 
     expect(signer.chain).toEqual(avalancheFuji);
-    expect(signer.transport).toBe("mock-transport");
-    expect(signer.account).toBeDefined();
-    expect(signer.account.address).toBe("0x1234567890123456789012345678901234567890");
-    expect(privateKeyToAccount).toHaveBeenCalledWith(mockPrivateKey);
-  });
-
-  it("should create a wallet client for skale-base-sepolia network with private key", () => {
-    const signer = createSigner("skale-base-sepolia", mockPrivateKey);
-
-    expect(signer.chain).toEqual(skaleBaseSepolia);
     expect(signer.transport).toBe("mock-transport");
     expect(signer.account).toBeDefined();
     expect(signer.account.address).toBe("0x1234567890123456789012345678901234567890");
