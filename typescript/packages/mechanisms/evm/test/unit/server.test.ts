@@ -71,6 +71,50 @@ describe("ExactEvmScheme (Server)", () => {
       });
     });
 
+    describe("SKALE Base Sepolia network", () => {
+      const network = "eip155:324705682";
+
+      it("should use SKALE USDC address", async () => {
+        const result = await server.parsePrice("1.00", network);
+        expect(result.asset).toBe("0x2e08028E3C4c2356572E096d8EF835cD5C6030bD");
+        expect(result.amount).toBe("1000000");
+        expect(result.extra).toEqual({ name: "Bridged USDC (SKALE Bridge)", version: "2" });
+      });
+    });
+
+    describe("Avalanche mainnet network", () => {
+      const network = "eip155:43114";
+
+      it("should use Avalanche USDC address", async () => {
+        const result = await server.parsePrice("1.00", network);
+        expect(result.asset).toBe("0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E");
+        expect(result.amount).toBe("1000000");
+        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
+      });
+    });
+
+    describe("Polygon mainnet network", () => {
+      const network = "eip155:137";
+
+      it("should use Polygon USDC address", async () => {
+        const result = await server.parsePrice("1.00", network);
+        expect(result.asset).toBe("0x3c499c542cef5e3811e1192ce70d8cc03d5c3359");
+        expect(result.amount).toBe("1000000");
+        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
+      });
+    });
+
+    describe("Abstract mainnet network", () => {
+      const network = "eip155:2741";
+
+      it("should use Abstract USDC address", async () => {
+        const result = await server.parsePrice("1.00", network);
+        expect(result.asset).toBe("0x84a71ccd554cc1b02749b35d22f684cc8ec987e1");
+        expect(result.amount).toBe("1000000");
+        expect(result.extra).toEqual({ name: "Bridged USDC", version: "2" });
+      });
+    });
+
     describe("pre-parsed price objects", () => {
       it("should handle pre-parsed price objects with asset", async () => {
         const result = await server.parsePrice(

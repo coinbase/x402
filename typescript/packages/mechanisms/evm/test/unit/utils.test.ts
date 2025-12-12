@@ -27,6 +27,34 @@ describe("EVM Utils", () => {
       expect(getEvmChainId("polygon-amoy")).toBe(80002);
     });
 
+    it("should return correct chain ID for Avalanche", () => {
+      expect(getEvmChainId("avalanche")).toBe(43114);
+    });
+
+    it("should return correct chain ID for Avalanche Fuji", () => {
+      expect(getEvmChainId("avalanche-fuji")).toBe(43113);
+    });
+
+    it("should return correct chain ID for Sei", () => {
+      expect(getEvmChainId("sei")).toBe(1329);
+    });
+
+    it("should return correct chain ID for Sei Testnet", () => {
+      expect(getEvmChainId("sei-testnet")).toBe(1328);
+    });
+
+    it("should return correct chain ID for Abstract", () => {
+      expect(getEvmChainId("abstract")).toBe(2741);
+    });
+
+    it("should return correct chain ID for Abstract Testnet", () => {
+      expect(getEvmChainId("abstract-testnet")).toBe(11124);
+    });
+
+    it("should return correct chain ID for SKALE Base Sepolia", () => {
+      expect(getEvmChainId("skale-base-sepolia")).toBe(324705682);
+    });
+
     it("should return default chain ID (1) for unknown networks", () => {
       expect(getEvmChainId("unknown-network")).toBe(1);
     });
