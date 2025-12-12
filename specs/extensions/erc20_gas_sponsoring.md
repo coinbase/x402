@@ -1,8 +1,8 @@
-# Extension: `erc20_approval_gas_sponsoring`
+# Extension: `erc20ApprovalGasSponsoring`
 
 ## Summary
 
-The `erc20_approval_gas_sponsoring` extension enables a **gasless ERC-20 approval flow** for the `schema_exact_evm.md` schema.
+The `erc20ApprovalGasSponsoring` extension enables a **gasless ERC-20 approval flow** for the [`scheme_exact_evm.md`](../schemes/exact/scheme_exact_evm.md) scheme.
 
 Because these tokens lack native gasless approvals:
 
@@ -11,24 +11,35 @@ Because these tokens lack native gasless approvals:
 
   - Fund the Client’s wallet with enough native gas token.
   - Broadcast the Client’s signed approval transaction.
-  - Immediately perform settlement via `x402Permit2Proxy` after the approval confirms.
+  - Immediately perform settlement via [`x402Permit2Proxy`](../schemes/exact/scheme_exact_evm.md#reference-implementation-x402permit2proxy) after the approval confirms.
 
 This flow is typically executed using an **atomic batch transaction**.
 
 ---
 
-# PaymentRequired
+## PaymentRequired
 
-A Facilitator advertises support for this extension by including an `erc20_approval_gas_sponsoring` entry inside the `extensions` object in the **402 Payment Required** response.
+A Facilitator advertises support for this extension by including an `erc20ApprovalGasSponsoring` entry inside the `extensions` object in the **402 Payment Required** response.
 
 ```json
 {
   "x402Version": "2",
+  "accepts": [
+    {
+      "scheme": "permit2",
+      "network": "eip155:84532",
+      "amount": "10000",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "maxTimeoutSeconds": 60,
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    }
+  ],
   "extensions": {
-    "erc20_approval_gas_sponsoring": {
+    "erc20ApprovalGasSponsoring": {
       "info": {
-        "description": "Facilitator accepts a raw signed approval transaction and will sponsor the gas fees.",
+        "description": "The facilitator accepts a raw signed approval transaction and will sponsor the gas fees.",
         "version": "1"
+        // Nothing here because everything is populated by the Client
       },
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -42,7 +53,12 @@ A Facilitator advertises support for this extension by including an `erc20_appro
           "asset": {
             "type": "string",
             "pattern": "^0x[a-fA-F0-9]{40}$",
-            "description": "The ERC-20 token contract address."
+            "description": "The ERC-20 token contract address to approve."
+          },
+          "spender": {
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "The address of the spender (Canonical Permit2)."
           },
           "amount": {
             "type": "string",
@@ -53,9 +69,21 @@ A Facilitator advertises support for this extension by including an `erc20_appro
             "type": "string",
             "pattern": "^0x[a-fA-F0-9]+$",
             "description": "RLP-encoded signed transaction calling ERC20.approve()."
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+(\\.[0-9]+)*$", // e.g. "1", "1.0", "1.2.3"
+            "description": "Schema version identifier."
           }
         },
-        "required": ["from", "asset", "amount", "signedTransaction"]
+        "required": [
+          "from",
+          "asset",
+          "spender",
+          "amount",
+          "signedTransaction",
+          "version"
+        ]
       }
     }
   }
@@ -64,7 +92,7 @@ A Facilitator advertises support for this extension by including an `erc20_appro
 
 ---
 
-# Usage: PaymentPayload
+## Usage: PaymentPayload
 
 To use this extension:
 
@@ -79,7 +107,7 @@ To use this extension:
 3. The Client inserts the **raw signed transaction hex** under:
 
 ```
-extensions.erc20_approval_gas_sponsoring
+extensions.erc20ApprovalGasSponsoring
 ```
 
 ### Client Implementation Note
@@ -93,38 +121,46 @@ Incorrect fees or nonce values invalidate the signed transaction.
 
 ---
 
-## Example PaymentPayload
+### Example PaymentPayload
 
 ```json
 {
   "x402Version": "2",
-  "signature": "0xPermit2WitnessSignature...",
-  "permit2Authorization": {
-    "permitted": {
-      "token": "0xStandardTokenAddress...",
-      "amount": "100000"
-    },
-    "from": "0xUserWallet...",
-    "spender": "0xPermit2ProxyAddress...",
-    "nonce": "0xf37466...",
-    "deadline": "1740672154",
-    "witness": {
-      "to": "0xReceiverAddress...",
-      "validAfter": "1740672089",
-      "extra": {}
+  "accepted": {
+    "scheme": "permit2",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "payload": {
+    "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
+    "permit2Authorization": {
+      "permitted": {
+        "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "10000"
+      },
+      "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      "spender": "0xx402Permit2ProxyAddress",
+      "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
+      "deadline": "1740672154",
+      "witness": {
+        "to": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+        "validAfter": "1740672089",
+        "extra": {}
+      }
     }
   },
   "extensions": {
-    "erc20_approval_gas_sponsoring": {
+    "erc20ApprovalGasSponsoring": {
       "info": {
-        "description": "Facilitator accepts a raw signed approval transaction and will sponsor the gas fees.",
-        "version": "1"
-      },
-      "schema": {
-        "from": "0xUserWallet...",
-        "asset": "0xStandardTokenAddress...",
+        "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "spender": "0xCanonicalPermit2",
         "amount": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
-        "signedTransaction": "0xf86d8201..."
+        "signedTransaction": "0x505cbf0d9a4a227e0c52c6c2d6a7588d6acca34008c8e8986a12832597641d6293af148b571c73608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3",
+        "version": "1"
       }
     }
   }
@@ -135,7 +171,7 @@ Incorrect fees or nonce values invalidate the signed transaction.
 
 ## Verification Logic
 
-Upon receiving a `PaymentPayload` containing `erc20_approval_gas_sponsoring`:
+Upon receiving a `PaymentPayload` containing `erc20ApprovalGasSponsoring`:
 
 ### 1. Decode the raw signed transaction
 
@@ -148,11 +184,13 @@ Upon receiving a `PaymentPayload` containing `erc20_approval_gas_sponsoring`:
 - **calldata** corresponds to:
 
   ```
-  approve(Permit2CanonicalAddress, amount)
+  approve(spender, amount)
   ```
 
+- **Note**: The Facilitator MUST verify that `spender` in the extension data matches the spender in the decoded transaction and matches the expected contract (e.g., Canonical Permit2).
+
 - **nonce** matches user’s current on-chain nonce
-- **maxFee** and \*_maxPriorityFee_ match the current network prices
+- **maxFee** and **maxPriorityFee** match the current network prices
 
 ### 3. Simulate the full execution sequence
 

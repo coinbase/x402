@@ -26,10 +26,28 @@ The `payload` field must contain:
 - `signature`: The 65-byte signature of the `transferWithAuthorization` operation.
 - `authorization`: The parameters required to reconstruct the signed message.
 
-**Example Payload:**
+**Example PaymentPayload:**
 
 ```json
 {
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "name": "USDC",
+      "version": "2"
+    }
+  },
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "authorization": {
@@ -54,7 +72,7 @@ The `payload` field must contain:
 
 ### Phase 3: Settlement Logic
 
-Settlement is performed via the facilitator calling the `transferWithAuthorization` function on the `EIP-3009` compliant contract with the `payload.signature` and `payload.authorization` parameters from the `PAYMENT-SIGNATURE` header
+Settlement is performed via the facilitator calling the `transferWithAuthorization` function on the `EIP-3009` compliant contract with the `payload.signature` and `payload.authorization` parameters from the `PAYMENT-SIGNATURE` header.
 
 ---
 
@@ -72,14 +90,14 @@ The user submits a standard on-chain `approve(Permit2)` transaction paying their
 
 - _Prerequisite:_ User must have Native Gas currency.
 
-#### Option B: Sponsored ERC20 Approval (Extension: `erc20_approval_gas_sponsoring`)
+#### Option B: Sponsored ERC20 Approval (Extension: [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md))
 
 The Facilitator pays the gas for the approval transaction on the user's behalf.
 
 - _Prerequisite:_ Server supports this extension.
 - _Flow:_ Facilitator batches the following transactions: `from.transfer(gas_amount)` -\> `ERC20.approve(Permit2)` -\> `settle`.
 
-#### Option C: EIP2612 Permit (Extension: `eip2612_gas_sponsoring`)
+#### Option C: EIP2612 Permit (Extension: [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md))
 
 If the token supports EIP-2612, the user signs a permit authorizing Permit2.
 
@@ -99,16 +117,25 @@ The `payload` field must contain:
 
 ```json
 {
+  "x402Version": 2,
+  "accepted": {
+    "scheme": "permit2",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  }
   "payload": {
-    "signature": "0x2d6a7588d6...",
+    "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "permit2Authorization": {
       "permitted": {
-        "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-        "amount": "100000"
+        "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "10000"
       },
-      "from": "0x....",
-      "spender": "0xPermit2ProxyAddress...",
-      "nonce": "0xf37466...",
+      "from": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      "spender": "0xx402Permit2ProxyAddress",
+      "nonce": "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
       "deadline": "1740672154",
       "witness": {
         "to": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -116,7 +143,7 @@ The `payload` field must contain:
         "extra": {}
       }
     }
-  }
+  },
 }
 ```
 
@@ -124,15 +151,15 @@ The `payload` field must contain:
 
 The verifier must execute these checks in order:
 
-1.  **Verify** `payload.signature` is valid and recovers to the `payment2Authorization.from`.
+1.  **Verify** `payload.signature` is valid and recovers to the `permit2Authorization.from`.
 
     - Note that `extra` must be converted to its ABI encoded version.
 
 2.  **Verify** that the `client` has enabled the Permit2 approval.
 
     - if ERC20.allowance(from, Permit2_Address) < amount:
-      - Check for **Sponsored ERC20 Approval** (Extension): Refers to `erc20_approval_gas_sponsoring.md`.
-      - Check for **EIP2612 Permit** (Extension): Refers to `eip2612_gas_sponsoring.md`.
+      - Check for **Sponsored ERC20 Approval** (Extension): Refers to [`erc20ApprovalGasSponsoring`](../../extensions/erc20_gas_sponsoring.md).
+      - Check for **EIP2612 Permit** (Extension): Refers to [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md).
       - **If neither exists:** Return `412 Precondition Failed` (Error Code: `PERMIT2_ALLOWANCE_REQUIRED`). This signals the client that a one-time Direct Approval transaction is required before retrying.
 
 3.  **Verify** the `client` has sufficient balance of the `asset`.
@@ -157,10 +184,10 @@ Settlement is performed by calling the `x402Permit2Proxy`.
     If the user has a sufficient direct allowance, call `x402Permit2Proxy.settle`.
 
 2.  **With Sponsored ERC20 Approval (Extension):**
-    If `erc20_approval_gas_sponsoring` is used, the facilitator must construct a batched transaction that executes the sponsored `ERC20.approve` call strictly before the `x402Permit2Proxy.settle` call.
+    If `erc20ApprovalGasSponsoring` is used, the facilitator must construct a batched transaction that executes the sponsored `ERC20.approve` call strictly before the `x402Permit2Proxy.settle` call.
 
 3.  **With EIP-2612 Permit (Extension):**
-    If `eip2612_gas_sponsoring` is used, call `x402Permit2Proxy.settleWithPermit`.
+    If `eip2612GasSponsoring` is used, call `x402Permit2Proxy.settleWithPermit`.
 
 ---
 
