@@ -20,9 +20,9 @@
     "@x402/evm": "workspace:*",
     "@x402/fetch": "workspace:*",
     "@x402/next": "workspace:*",
-    "next": "^16.0.7",
-    "react": "^19.2.1",
-    "react-dom": "^19.2.1",
+    "next": "^16.0.10",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "viem": "^2.27.2",
     "wagmi": "^2.14.11"
   },
