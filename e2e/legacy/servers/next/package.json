@@ -14,9 +14,9 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
-    "next": "^15.5.7",
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
+    "next": "^15.5.9",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "viem": "^2.21.26",
     "x402-next": "workspace:*"
   },
