@@ -1,19 +1,5 @@
-import { settle } from "x402/facilitator";
-import {
-  PaymentPayload,
-  PaymentPayloadSchema,
-  PaymentRequirements,
-  PaymentRequirementsSchema,
-  SettleResponse,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
-  createSigner,
-} from "x402/types";
-
-type SettleRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
+import { PaymentPayload, PaymentRequirements, SettleResponse } from "@x402/core/types";
+import { getFacilitator } from "../index";
 
 /**
  * Handles POST requests to settle x402 payments
@@ -22,70 +8,79 @@ type SettleRequest = {
  * @returns A JSON response with the settlement result
  */
 export async function POST(req: Request) {
-  const body: SettleRequest = await req.json();
+  // Parse request body - only use "unknown:unknown" if parsing fails
+  let paymentPayload: PaymentPayload | undefined;
+  let paymentRequirements: PaymentRequirements | undefined;
 
-  const network = body.paymentRequirements.network;
-  const privateKey = SupportedEVMNetworks.includes(network)
-    ? process.env.PRIVATE_KEY
-    : SupportedSVMNetworks.includes(network)
-      ? process.env.SOLANA_PRIVATE_KEY
-      : undefined;
-
-  if (!privateKey) {
-    return Response.json(
-      {
-        success: false,
-        errorReason: "invalid_network",
-      } as SettleResponse,
-      { status: 400 },
-    );
-  }
-
-  const wallet = await createSigner(network, privateKey);
-
-  let paymentPayload: PaymentPayload;
   try {
-    paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
+    const body = await req.json();
+    paymentPayload = body.paymentPayload as PaymentPayload;
+    paymentRequirements = body.paymentRequirements as PaymentRequirements;
   } catch (error) {
-    console.error("Invalid payment payload:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to parse request body:", errorMessage);
     return Response.json(
       {
         success: false,
-        errorReason: "invalid_payload",
+        errorReason: "invalid_json",
+        error: "Failed to parse request body",
         transaction: "",
-        network: body.paymentPayload?.network || "",
+        network: "unknown:unknown" as `${string}:${string}`,
       } as SettleResponse,
       { status: 400 },
     );
   }
 
-  let paymentRequirements: PaymentRequirements;
-  try {
-    paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-  } catch (error) {
-    console.error("Invalid payment requirements:", error);
+  // Check for missing parameters
+  if (!paymentPayload || !paymentRequirements) {
     return Response.json(
       {
         success: false,
-        errorReason: "invalid_payment_requirements",
+        errorReason: "missing_parameters",
+        error: "Missing paymentPayload or paymentRequirements",
         transaction: "",
-        network: paymentPayload.network,
+        // Use network from paymentRequirements if available, otherwise unknown
+        network: (paymentRequirements?.network || "unknown:unknown") as `${string}:${string}`,
       } as SettleResponse,
       { status: 400 },
     );
   }
 
+  // At this point we know we have both paymentPayload and paymentRequirements
+  const network = paymentRequirements.network;
+
   try {
-    const response = await settle(wallet, paymentPayload, paymentRequirements);
+    const facilitator = await getFacilitator();
+
+    // Hooks will automatically:
+    // - Validate payment was verified (onBeforeSettle - will abort if not)
+    // - Check verification timeout (onBeforeSettle)
+    // - Clean up tracking (onAfterSettle / onSettleFailure)
+    const response: SettleResponse = await facilitator.settle(paymentPayload, paymentRequirements);
+
     return Response.json(response);
   } catch (error) {
-    console.error("Error settling payment:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Settle error:", errorMessage);
+
+    // Check if this was an abort from hook
+    if (error instanceof Error && error.message.includes("Settlement aborted:")) {
+      // Return a proper SettleResponse instead of 500 error
+      return Response.json({
+        success: false,
+        errorReason: error.message.replace("Settlement aborted: ", ""),
+        transaction: "",
+        network: network,
+      } as SettleResponse);
+    }
+
     return Response.json(
       {
         success: false,
-        errorReason: "unexpected_settle_error",
+        errorReason: "unexpected_error",
+        error: errorMessage,
         transaction: "",
-        network: paymentPayload.network,
+        network: network,
       } as SettleResponse,
       { status: 500 },
     );

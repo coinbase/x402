@@ -9,6 +9,15 @@
         "dist/**"
       ]
     },
+    "site#build": {
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**"
+      ]
+    },
     "test": {
       "dependsOn": [
         "build"

@@ -23,22 +23,42 @@ from x402.paywall import is_browser_request, get_paywall_html
 
 
 class ResponseWrapper:
-    """Wrapper to capture response status and headers for settlement logic."""
+    """Wrapper to capture and buffer response for settlement logic."""
 
     def __init__(self, start_response):
-        self.start_response = start_response
+        self.original_start_response = start_response
         self.status_code = None
+        self.status = None
         self.headers = []
-        self.body = []
+        self.write_callable_chunks = []
 
     def __call__(self, status, headers, exc_info=None):
+        # Buffer the status, headers and write callable chunks
+        self.status = status
         self.status_code = int(status.split()[0])
-        self.headers = headers
-        return self.start_response(status, headers, exc_info)
+        self.headers = list(headers)
+
+        def buffered_write(data):
+            if data:
+                self.write_callable_chunks.append(data)
+
+        return buffered_write
 
     def add_header(self, name, value):
         """Add a header to the response."""
         self.headers.append((name, value))
+
+    def send_response(self, body_chunks):
+        """Send the buffered response after settlement."""
+        write = self.original_start_response(self.status, self.headers)
+        # Send data written via write callable first
+        for chunk in self.write_callable_chunks:
+            if chunk:
+                write(chunk)
+        # Then send data from response iterator
+        for chunk in body_chunks:
+            if chunk:
+                write(chunk)
 
 
 class PaymentMiddleware:
@@ -55,6 +75,7 @@ class PaymentMiddleware:
     def __init__(self, app: Flask):
         self.app = app
         self.middleware_configs = []
+        self.original_wsgi_app = app.wsgi_app
 
     def add(
         self,
@@ -115,8 +136,7 @@ class PaymentMiddleware:
 
     def _apply_middleware(self):
         """Apply all middleware configurations to the Flask app."""
-        # Create the middleware chain
-        current_wsgi_app = self.app.wsgi_app
+        current_wsgi_app = self.original_wsgi_app
 
         for config in self.middleware_configs:
             middleware = self._create_middleware(config, current_wsgi_app)
@@ -134,7 +154,7 @@ class PaymentMiddleware:
                 f"Unsupported network: {config['network']}. Must be one of: {supported_networks}"
             )
 
-        # Process price configuration (same as FastAPI)
+        # Process price configuration
         try:
             max_amount_required, asset_address, eip712_domain = (
                 process_price_to_atomic_amount(config["price"], config["network"])
@@ -264,8 +284,10 @@ class PaymentMiddleware:
                 # Create response wrapper to capture status and headers
                 response_wrapper = ResponseWrapper(start_response)
 
-                # Process the request
-                response = next_app(environ, response_wrapper)
+                # Process the request and buffer all response chunks
+                response_body_chunks = []
+                for chunk in next_app(environ, response_wrapper):
+                    response_body_chunks.append(chunk)
 
                 # Check if response is successful (2xx status code)
                 if (
@@ -292,15 +314,21 @@ class PaymentMiddleware:
                                 "X-PAYMENT-RESPONSE", settlement_header
                             )
                         else:
-                            # If settlement fails, we can't return a new response since headers are already sent
-                            # Just log the error and continue with the original response
-                            print(f"Settle failed: {settle_response.error_reason}")
+                            # Settlement failed - discard buffered response and return 402
+                            return x402_response(
+                                "Settle failed: "
+                                + (settle_response.error_reason or "Unknown error")
+                            )
                     except Exception as e:
-                        # Log the error but don't try to return a new response
-                        print(f"Settle failed: {str(e)}")
+                        # Settlement error - discard buffered response and return 402
+                        return x402_response(
+                            "Settle failed: " + (str(e) or "Unknown error")
+                        )
                     finally:
                         loop.close()
 
-                return response
+                # Send the buffered response
+                response_wrapper.send_response(response_body_chunks)
+                return []
 
         return middleware
