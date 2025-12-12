@@ -17,6 +17,20 @@ export type PaywallConfig = {
   sessionTokenEndpoint?: string;
 };
 
+/**
+ * Metadata for discovery catalog (Bazaar)
+ */
+export type DiscoveryMetadata = {
+  name?: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  documentation?: string;
+  logo?: string;
+  provider?: string;
+  [key: string]: unknown;
+};
+
 export type PaymentMiddlewareConfig = {
   description?: string;
   mimeType?: string;
@@ -27,6 +41,11 @@ export type PaymentMiddlewareConfig = {
   customPaywallHtml?: string;
   resource?: Resource;
   signatureType?: "authorization" | "permit";
+  /**
+   * Metadata for the Bazaar discovery catalog.
+   * Use declareDiscoveryExtension() from "@b3dotfun/anyspend-x402/extensions" for convenience.
+   */
+  discoveryMetadata?: DiscoveryMetadata;
   errorMessages?: {
     paymentRequired?: string;
     invalidPayment?: string;

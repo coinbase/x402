@@ -11,6 +11,7 @@ const baseConfig = {
     "facilitator/index": "src/facilitator/index.ts",
     "paywall/index": "src/paywall/index.ts",
     "types/index": "src/types/index.ts",
+    "extensions/index": "src/extensions/index.ts",
   },
   dts: {
     resolve: true,
