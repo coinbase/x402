@@ -4,7 +4,7 @@
 
 This document specifies the `exact` payment scheme for the x402 protocol on Internet Computer (ICP).
 
-This scheme facilitates payments of a specific amount of an ICRC2 token on the ICP blockchain.
+This scheme facilitates payments of a specific amount of an ICRC-2 token on the ICP blockchain.
 
 ## `PaymentRequirements` for `exact`
 
@@ -15,7 +15,7 @@ Example:
 ```json
 {
   "scheme": "exact",
-  "network": "icp:mainnet",
+  "network": "icp:1",
   "amount": "100000000",
   "asset": "ryjl3-tyaaa-aaaaa-aaaba-cai",
   "payTo": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
@@ -23,7 +23,7 @@ Example:
 }
 ```
 
-The `network` should be `icp:mainnet`, since there is no testnet for ICP. For development purposes, developers can use `icp:local`.
+The `network` should be `icp:1`, since there is no testnet for ICP.
 
 ## PaymentPayload `payload` Field
 
@@ -58,7 +58,7 @@ Full `PaymentPayload` object:
   },
   "accepted": {
     "scheme": "exact",
-    "network": "icp:mainnet",
+    "network": "icp:1",
     "amount": "100000000",
     "asset": "ryjl3-tyaaa-aaaaa-aaaba-cai",
     "payTo": "77ibd-jp5kr-moeco-kgoar-rro5v-5tng4-krif5-5h2i6-osf2f-2sjtv-kqe",
@@ -117,9 +117,9 @@ A full example of interaction with facilitator on ICP can be found in the [anda_
 
 Steps to verify a payment for the `exact` scheme:
 
-1. Verify the authorization parameters are for the agreed-upon ICRC2 contract and chain
+1. Verify the authorization parameters are for the agreed-upon ICRC-2 contract and chain
 2. Verify the signature is valid
-3. Verify the value in `payload.authorization` is sufficient to cover `paymentRequirements.maxAmountRequired`
+3. Verify the value in `payload.authorization` is sufficient to cover `paymentRequirements.amount`
 4. Verify the authorization parameters are within the valid time range
 5. Verify the nonce is the expected value
 
@@ -132,7 +132,7 @@ Therefore, we recommend skipping balance checks during verification and relying 
 
 ## Settlement
 
-The facilitator settles the payment by calling the `icrc2_transfer_from` method on the specified ICRC2 token ledger canister, using the parameters from the `authorization` object in the `X-PAYMENT` header payload. Users should ensure (via `icrc2_allowance` and `icrc2_approve`) that the facilitator has the necessary allowances to perform the transfer on behalf of the client.
+The facilitator settles the payment by calling the `icrc2_transfer_from` method on the specified ICRC-2 token ledger canister. Users should ensure (via `icrc2_allowance` and `icrc2_approve`) that the facilitator has the necessary allowances to perform the transfer on behalf of the client.
 
 ## Appendix
 
