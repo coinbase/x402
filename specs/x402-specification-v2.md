@@ -624,6 +624,8 @@ Both EVM and Solana networks are supported by the reference implementations, e.g
 - **`eip155:43114`**: Avalanche mainnet
 - **`solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`**: Solana mainnet
 - **`solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`**: Solana devnet
+- **`icp:mainnet`**: Internet Computer mainnet
+- **`icp:local`**: Internet Computer local development network
 
 **11.2 Supported Assets**
 
