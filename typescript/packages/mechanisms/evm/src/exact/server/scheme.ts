@@ -178,26 +178,102 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   private getDefaultAsset(network: Network): { address: string; name: string; version: string } {
     // Map of network to USDC info including EIP-712 domain parameters
     const usdcInfo: Record<string, { address: string; name: string; version: string }> = {
+      // Base
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         name: "USD Coin",
         version: "2",
-      }, // Base mainnet USDC
+      },
       "eip155:84532": {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         name: "USDC",
         version: "2",
-      }, // Base Sepolia USDC
+      },
+      // Ethereum
       "eip155:1": {
         address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
         name: "USD Coin",
         version: "2",
-      }, // Ethereum mainnet USDC
+      },
       "eip155:11155111": {
         address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
         name: "USDC",
         version: "2",
-      }, // Sepolia USDC
+      },
+      // Avalanche
+      "eip155:43114": {
+        address: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        name: "USD Coin",
+        version: "2",
+      },
+      "eip155:43113": {
+        address: "0x5425890298aed601595a70AB815c96711a31Bc65",
+        name: "USD Coin",
+        version: "2",
+      },
+      // Polygon
+      "eip155:137": {
+        address: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+        name: "USD Coin",
+        version: "2",
+      },
+      "eip155:80002": {
+        address: "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+        name: "USDC",
+        version: "2",
+      },
+      // Sei
+      "eip155:1329": {
+        address: "0xe15fc38f6d8c56af07bbcbe3baf5708a2bf42392",
+        name: "USDC",
+        version: "2",
+      },
+      "eip155:1328": {
+        address: "0x4fcf1784b31630811181f670aea7a7bef803eaed",
+        name: "USDC",
+        version: "2",
+      },
+      // Abstract (ZK Stack)
+      "eip155:2741": {
+        address: "0x84a71ccd554cc1b02749b35d22f684cc8ec987e1",
+        name: "Bridged USDC",
+        version: "2",
+      },
+      "eip155:11124": {
+        address: "0xe4C7fBB0a626ed208021ccabA6Be1566905E2dFc",
+        name: "Bridged USDC",
+        version: "2",
+      },
+      // IoTeX
+      "eip155:4689": {
+        address: "0xcdf79194c6c285077a58da47641d4dbe51f63542",
+        name: "Bridged USDC",
+        version: "2",
+      },
+      // Peaq
+      "eip155:3338": {
+        address: "0xbbA60da06c2c5424f03f7434542280FCAd453d10",
+        name: "USDC",
+        version: "2",
+      },
+      // Story
+      "eip155:1514": {
+        address: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
+        name: "Bridged USDC",
+        version: "2",
+      },
+      // Educhain
+      "eip155:41923": {
+        address: "0x12a272A581feE5577A5dFa371afEB4b2F3a8C2F8",
+        name: "Bridged USDC (Stargate)",
+        version: "2",
+      },
+      // SKALE Base Sepolia
+      "eip155:324705682": {
+        address: "0x2e08028E3C4c2356572E096d8EF835cD5C6030bD",
+        name: "Bridged USDC (SKALE Bridge)",
+        version: "2",
+      },
     };
 
     const assetInfo = usdcInfo[network];
