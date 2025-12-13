@@ -10,7 +10,12 @@ This approach has two properties aligned with x402 trust-minimization goals:
 - The facilitator cannot redirect funds because any mutation of a signed XRPL transaction invalidates its signature.
 - The resource server cannot collect more than the amount the payer has signed.
 
-This proposal is **XRPL mainnet only**.
+This proposal supports the XRPL public networks:
+- Mainnet
+- Testnet
+- Devnet
+
+This proposal excludes sidechains / parallel networks.
 
 ## Network identifier (CAIP-2)
 
@@ -18,6 +23,8 @@ x402 v2 requires network identifiers to use CAIP-2 format `namespace:reference`.
 
 This document proposes:
 - XRPL mainnet: `xrpl:0`
+- XRPL testnet: `xrpl:1`
+- XRPL devnet: `xrpl:2`
 
 This is a proposal value. x402 maintainers may prefer a different CAIP-2 reference convention for XRPL.
 
@@ -43,7 +50,7 @@ The scheme uses the standard x402 v2 `PaymentRequirements` structure and constra
 ### Required fields
 
 - `scheme`: MUST be `exact`.
-- `network`: MUST be `xrpl:0`.
+- `network`: MUST be one of `xrpl:0`, `xrpl:1`, or `xrpl:2`.
 - `amount`: MUST be a base-10 integer string representing drops.
 - `asset`: MUST be `XRP`.
 - `payTo`: MUST be a valid XRPL destination address.
