@@ -9,11 +9,11 @@ Because these tokens lack native gasless approvals:
 - The **Client** must sign a normal EVM transaction calling `approve(Permit2, amount)`.
 - The **Facilitator** agrees to:
 
-  - Fund the Client’s wallet with enough native gas token.
+  - Fund the Client’s wallet with enough native gas token **if the Client lacks sufficient funds**.
   - Broadcast the Client’s signed approval transaction.
   - Immediately perform settlement via [`x402Permit2Proxy`](../schemes/exact/scheme_exact_evm.md#reference-implementation-x402permit2proxy) after the approval confirms.
 
-This flow is typically executed using an **atomic batch transaction**.
+This flow is typically executed using an **atomic batch transaction** to mitigate the risk of malicious actors front-running the transaction and intercepting funds between the Facilitator funding step and the final settlement operation.
 
 ---
 
@@ -192,11 +192,17 @@ Upon receiving a `PaymentPayload` containing `erc20ApprovalGasSponsoring`:
 - **nonce** matches user’s current on-chain nonce
 - **maxFee** and **maxPriorityFee** match the current network prices
 
-### 3. Simulate the full execution sequence
+### 3. Check User Balance
+
+- Check if the user (`from`) has enough native gas tokens to cover the transaction cost.
+- If the user has enough balance, the Facilitator skips the funding step.
+- If the user lacks balance, the Facilitator calculates the deficit.
+
+### 4. Simulate the full execution sequence
 
 The Facilitator must simulate in a single atomic batch transaction:
 
-1. **Funding** → sending native gas token to the user
+1. **Funding** → sending native gas token to the user (if needed)
 2. **Approval Relay** → broadcasting the user’s signed approval
 3. **Settlement** → calling `x402Permit2Proxy.settle`
 
@@ -206,7 +212,7 @@ The Facilitator must simulate in a single atomic batch transaction:
 
 The Facilitator constructs an **atomic bundle** with the following ordered operations:
 
-1. Gas Funding: Send enough native gas token to the user (`from`) to pay for gas used by the approval transaction.
+1. Gas Funding: If the user has insufficient native gas, send enough native gas token to the user (`from`) to pay for gas used by the approval transaction.
 
 2. Broadcast Approval: Broadcast the Client-provided `signedTransaction` which calls `ERC20.approve(Permit2, amount)`
 

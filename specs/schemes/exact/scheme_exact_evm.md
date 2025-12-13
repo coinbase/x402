@@ -4,20 +4,22 @@
 
 The `exact` scheme on EVM executes a transfer where the Facilitator (server) pays the gas, but the Client (user) controls the exact flow of funds via cryptographic signatures.
 
-This is implemented via one of two mechanisms, depending on the token's capabilities:
+This is implemented via one of two permit types, depending on the token's capabilities:
 
-| Mechanism       | Use Case                                                     | Recommendation                                 |
+| PermitType      | Use Case                                                     | Recommendation                                 |
 | :-------------- | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009** | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**  | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+
+If no `permitType` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
 In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
 
 ---
 
-## 1. Mechanism: `EIP-3009`
+## 1. PermitType: `EIP-3009`
 
-The `eip3009` mechanism uses the `transferWithAuthorization` function directly on token contracts that support it.
+The `eip3009` permit type uses the `transferWithAuthorization` function directly on token contracts that support it.
 
 ### Phase 1: `PAYMENT-SIGNATURE` Header Payload
 
@@ -44,6 +46,7 @@ The `payload` field must contain:
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
     "extra": {
+      "permitType": "eip3009",
       "name": "USDC",
       "version": "2"
     }
@@ -76,9 +79,9 @@ Settlement is performed via the facilitator calling the `transferWithAuthorizati
 
 ---
 
-## 2\. Mechanism: `Permit2`
+## 2\. PermitType: `Permit2`
 
-This mechanism uses the `permitWitnessTransferFrom` from the canonical **Permit2** contract combined with a `x402Permit2Proxy` to enforce receiver address security via the "Witness" pattern.
+This permit type uses the `permitWitnessTransferFrom` from the canonical **Permit2** contract combined with a `x402Permit2Proxy` to enforce receiver address security via the "Witness" pattern.
 
 ### Phase 1: One-Time Gas Approval
 
@@ -119,12 +122,17 @@ The `payload` field must contain:
 {
   "x402Version": 2,
   "accepted": {
-    "scheme": "permit2",
+    "scheme": "exact",
     "network": "eip155:84532",
     "amount": "10000",
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
-    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "extra": {
+      "permitType": "permit2",
+      "name": "USDC",
+      "version": "2"
+    }
   }
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
