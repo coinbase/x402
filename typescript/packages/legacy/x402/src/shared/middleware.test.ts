@@ -374,9 +374,9 @@ describe("getDefaultAsset", () => {
 
 describe("processPriceToAtomicAmount", () => {
   it("should handle string price in dollars", () => {
-    const result = processPriceToAtomicAmount("$0.01", "base-sepolia");
+    const result = processPriceToAtomicAmount("$4.02", "base-sepolia");
     expect(result).toEqual({
-      maxAmountRequired: "10000",
+      maxAmountRequired: "4020000",
       asset: {
         address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         decimals: 6,
