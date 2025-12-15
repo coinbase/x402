@@ -50,12 +50,10 @@ export function NavBar() {
           {/* Desktop: Left side navigation - flattened */}
           <div className="hidden lg:flex flex-1 items-center gap-6 justify-start">
             <Link
-              href="https://www.x402.org/x402-whitepaper.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
+              href="/ecosystem"
               className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
             >
-              Whitepaper
+              Ecosystem
             </Link>
             <Link
               href="/writing/x402-v2-launch"
@@ -64,10 +62,12 @@ export function NavBar() {
               Writing
             </Link>
             <Link
-              href="/ecosystem"
+              href="https://www.x402.org/x402-whitepaper.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-sm font-medium text-black hover:text-gray-600 transition-colors"
             >
-              Ecosystem
+              Whitepaper
             </Link>
           </div>
 
@@ -155,13 +155,11 @@ export function NavBar() {
             {/* Navigation links */}
             <div className="space-y-1">
               <Link
-                href="https://www.x402.org/x402-whitepaper.pdf"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/ecosystem"
                 className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Whitepaper
+                Ecosystem
               </Link>
               <Link
                 href="/writing/x402-v2-launch"
@@ -171,11 +169,13 @@ export function NavBar() {
                 Writing
               </Link>
               <Link
-                href="/ecosystem"
+                href="https://www.x402.org/x402-whitepaper.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="block py-2 text-black font-medium text-sm hover:text-gray-60 transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Ecosystem
+                Whitepaper
               </Link>
             </div>
 

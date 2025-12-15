@@ -25,6 +25,7 @@ body {
   color: var(--color-foreground);
   background: var(--color-background);
   font-family: var(--font-sans);
+  container-type: inline-size;
 }
 
 /* REPOMARK:SCOPE: 2 - Add skip-to-content accessibility styles */
@@ -44,8 +45,8 @@ body {
 /* ... existing utilities ... */
 
 @utility full-bleed {
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
+  width: 100cqw;
+  margin-left: calc(50% - 50cqw);
 }
 
 @utility unset-full-bleed {
