@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/coinbase/x402/go/types"
 )
@@ -27,6 +28,9 @@ type x402Facilitator struct {
 	schemes    []*schemeData // V2 (default)
 	extensions []string
 
+	// Settlement idempotency cache
+	settlementCache *SettlementCache
+
 	// Lifecycle hooks
 	beforeVerifyHooks    []FacilitatorBeforeVerifyHook
 	afterVerifyHooks     []FacilitatorAfterVerifyHook
@@ -38,9 +42,10 @@ type x402Facilitator struct {
 
 func Newx402Facilitator() *x402Facilitator {
 	return &x402Facilitator{
-		schemesV1:  []*schemeData{},
-		schemes:    []*schemeData{},
-		extensions: []string{},
+		schemesV1:       []*schemeData{},
+		schemes:         []*schemeData{},
+		extensions:      []string{},
+		settlementCache: NewSettlementCache(10 * time.Minute),
 	}
 }
 
@@ -283,9 +288,36 @@ func (f *x402Facilitator) Verify(ctx context.Context, payloadBytes []byte, requi
 
 // Settle settles a payment (detects version from bytes, routes to typed mechanism)
 func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requirementsBytes []byte) (*SettleResponse, error) {
+	// Generate deduplication key for idempotency
+	cacheKey := GenerateSettlementKey(payloadBytes)
+
+	// Atomically check cache and mark in-flight to prevent race conditions
+	status, result, done := f.settlementCache.CheckAndMark(cacheKey)
+
+	switch status {
+	case StatusCached:
+		return result, nil
+
+	case StatusInFlight:
+		// Wait for the in-flight settlement to complete, respecting context cancellation
+		result, err := f.settlementCache.WaitForResult(ctx, cacheKey, done)
+		if err != nil {
+			return nil, NewSettleError("context_cancelled", "", "", "", err)
+		}
+		if result != nil {
+			return result, nil
+		}
+		// In-flight request failed, recursively retry (will get new in-flight slot)
+		return f.Settle(ctx, payloadBytes, requirementsBytes)
+
+	case StatusNotFound:
+		// This request owns the in-flight slot, proceed with settlement
+	}
+
 	// Detect version
 	version, err := types.DetectVersion(payloadBytes)
 	if err != nil {
+		f.settlementCache.Fail(cacheKey, done)
 		return nil, NewSettleError("invalid_version", "", "", "", err)
 	}
 
@@ -298,10 +330,12 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 	case 1:
 		payload, err := types.ToPaymentPayloadV1(payloadBytes)
 		if err != nil {
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, NewSettleError("invalid_v1_payload", "", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirementsV1(requirementsBytes)
 		if err != nil {
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, NewSettleError("invalid_v1_requirements", "", "", "", err)
 		}
 
@@ -319,9 +353,11 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeSettleHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
+				f.settlementCache.Fail(cacheKey, done)
 				return nil, err
 			}
 			if result != nil && result.Abort {
+				f.settlementCache.Fail(cacheKey, done)
 				return nil, NewSettleError(result.Reason, "", "", "", nil)
 			}
 		}
@@ -335,9 +371,12 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 			for _, hook := range f.onSettleFailureHooks {
 				result, _ := hook(failureCtx)
 				if result != nil && result.Recovered {
+					// Recovery hook provided a result, cache it
+					f.settlementCache.Complete(cacheKey, result.Result, done)
 					return result.Result, nil
 				}
 			}
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, settleErr
 		}
 
@@ -347,15 +386,19 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 			_ = hook(resultCtx) // Log errors but don't fail
 		}
 
+		// Cache successful result
+		f.settlementCache.Complete(cacheKey, settleResult, done)
 		return settleResult, nil
 
 	case 2:
 		payload, err := types.ToPaymentPayload(payloadBytes)
 		if err != nil {
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, NewSettleError("invalid_v2_payload", "", "", "", err)
 		}
 		requirements, err := types.ToPaymentRequirements(requirementsBytes)
 		if err != nil {
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, NewSettleError("invalid_v2_requirements", "", "", "", err)
 		}
 
@@ -373,9 +416,11 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 		for _, hook := range f.beforeSettleHooks {
 			result, err := hook(hookCtx)
 			if err != nil {
+				f.settlementCache.Fail(cacheKey, done)
 				return nil, err
 			}
 			if result != nil && result.Abort {
+				f.settlementCache.Fail(cacheKey, done)
 				return nil, NewSettleError(result.Reason, "", "", "", nil)
 			}
 		}
@@ -389,9 +434,12 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 			for _, hook := range f.onSettleFailureHooks {
 				result, _ := hook(failureCtx)
 				if result != nil && result.Recovered {
+					// Recovery hook provided a result, cache it
+					f.settlementCache.Complete(cacheKey, result.Result, done)
 					return result.Result, nil
 				}
 			}
+			f.settlementCache.Fail(cacheKey, done)
 			return nil, settleErr
 		}
 
@@ -401,9 +449,12 @@ func (f *x402Facilitator) Settle(ctx context.Context, payloadBytes []byte, requi
 			_ = hook(resultCtx) // Log errors but don't fail
 		}
 
+		// Cache successful result
+		f.settlementCache.Complete(cacheKey, settleResult, done)
 		return settleResult, nil
 
 	default:
+		f.settlementCache.Fail(cacheKey, done)
 		return nil, NewSettleError(fmt.Sprintf("unsupported_version_%d", version), "", "", "", nil)
 	}
 }
