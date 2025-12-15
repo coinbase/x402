@@ -2,9 +2,10 @@ import prompts from 'prompts';
 import { DiscoveredClient, DiscoveredServer, DiscoveredFacilitator, TestScenario } from '../types';
 import { TestFilters, getUniqueVersions, getUniqueProtocolFamilies } from './filters';
 import { log } from '../logger';
+import { NetworkMode, getNetworkModeDescription } from '../networks/networks';
 
 export interface InteractiveSelections extends TestFilters {
-  // All fields from TestFilters
+  networkMode: NetworkMode;
 }
 
 /**
@@ -15,13 +16,15 @@ export interface InteractiveSelections extends TestFilters {
  * @param allFacilitators - All discovered facilitators
  * @param allScenarios - All test scenarios
  * @param minimize - If true (--min flag), default all items selected. If false, default none selected.
+ * @param preselectedNetworkMode - If provided, skip network selection prompt
  */
 export async function runInteractiveMode(
   allClients: DiscoveredClient[],
   allServers: DiscoveredServer[],
   allFacilitators: DiscoveredFacilitator[],
   allScenarios: TestScenario[],
-  minimize: boolean = false
+  minimize: boolean = false,
+  preselectedNetworkMode?: NetworkMode
 ): Promise<InteractiveSelections | null> {
 
   log('\n🎯 Interactive Mode');
@@ -237,6 +240,47 @@ export async function runInteractiveMode(
     selectedFamilies = availableFamilies;
   }
 
+  // Question 7: Select network mode (testnet/mainnet) - LAST question
+  // Skip if preselected via CLI flag
+  let networkMode: NetworkMode;
+
+  if (preselectedNetworkMode) {
+    networkMode = preselectedNetworkMode;
+    log(`🌐 Network mode: ${networkMode} (${getNetworkModeDescription(networkMode)})\n`);
+  } else {
+    const networkChoices = [
+      {
+        title: `Testnet (${getNetworkModeDescription('testnet')})`,
+        value: 'testnet' as NetworkMode,
+        selected: true
+      },
+      {
+        title: `Mainnet (${getNetworkModeDescription('mainnet')}) ⚠️  Real funds required!`,
+        value: 'mainnet' as NetworkMode,
+      }
+    ];
+
+    const networkResponse = await prompts({
+      type: 'select',
+      name: 'networkMode',
+      message: 'Select network mode',
+      choices: networkChoices,
+      initial: 0,
+      hint: 'Mainnet requires funded wallets'
+    });
+
+    if (!networkResponse.networkMode) {
+      return null;
+    }
+
+    networkMode = networkResponse.networkMode;
+
+    if (networkMode === 'mainnet') {
+      log('\n⚠️  WARNING: Mainnet selected - tests will use real funds!');
+      log('   Make sure your wallets are funded on Base and Solana mainnet.\n');
+    }
+  }
+
   return {
     facilitators: facilitatorsResponse.facilitators,
     servers: serversResponse.servers,
@@ -244,6 +288,7 @@ export async function runInteractiveMode(
     extensions: selectedExtensions,
     versions: selectedVersions,
     protocolFamilies: selectedFamilies,
+    networkMode,
   };
 }
 
@@ -319,4 +364,3 @@ function formatVersions(versions?: number[]): string {
   if (versions.length === 1) return `v${versions[0]}`;
   return `v${versions.join(', v')}`;
 }
-
