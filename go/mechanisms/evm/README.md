@@ -51,17 +51,12 @@ github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator
 
 ## Supported Networks
 
-All EVM-compatible networks using CAIP-2 network identifiers:
+Networks with default assets configured (see [DEFAULT_ASSET.md](./DEFAULT_ASSET.md) for adding new chains):
 
-- **Ethereum Mainnet**: `eip155:1`
-- **Base Mainnet**: `eip155:8453`
-- **Base Sepolia**: `eip155:84532`
-- **Optimism**: `eip155:10`
-- **Arbitrum**: `eip155:42161`
-- **Polygon**: `eip155:137`
-- Any other EVM chain via `eip155:{chainId}`
+- **Base Mainnet**: `eip155:8453` (USDC)
+- **Base Sepolia**: `eip155:84532` (USDC)
 
-Use `eip155:*` wildcard to support all EVM networks.
+Additional EVM networks can be supported by adding their default asset configuration. See [DEFAULT_ASSET.md](./DEFAULT_ASSET.md) for guidelines.
 
 ## Scheme Implementation
 

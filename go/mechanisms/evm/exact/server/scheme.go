@@ -362,23 +362,3 @@ func (s *ExactEvmScheme) GetSupportedNetworks() []string {
 	}
 	return networks
 }
-
-// GetSupportedAssets returns the list of supported assets for a network
-func (s *ExactEvmScheme) GetSupportedAssets(network string) ([]string, error) {
-	config, err := evm.GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
-	}
-
-	assets := make([]string, 0, len(config.SupportedAssets))
-	for symbol := range config.SupportedAssets {
-		assets = append(assets, symbol)
-	}
-
-	// Also add the addresses
-	for _, asset := range config.SupportedAssets {
-		assets = append(assets, asset.Address)
-	}
-
-	return assets, nil
-}

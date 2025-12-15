@@ -177,6 +177,9 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    */
   private getDefaultAsset(network: Network): { address: string; name: string; version: string } {
     // Map of network to USDC info including EIP-712 domain parameters
+    // Each network has the right to determine it's own default stablecoin that can be expressed as a USD string by calling servers
+    // NOTE: Currently only EIP-3009 supporting stablecoins can be used with this scheme
+    // Generic ERC20 support via EIP-2612/permit2 is planned, but not yet implemented.
     const usdcInfo: Record<string, { address: string; name: string; version: string }> = {
       "eip155:8453": {
         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
@@ -188,16 +191,6 @@ export class ExactEvmScheme implements SchemeNetworkServer {
         name: "USDC",
         version: "2",
       }, // Base Sepolia USDC
-      "eip155:1": {
-        address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-        name: "USD Coin",
-        version: "2",
-      }, // Ethereum mainnet USDC
-      "eip155:11155111": {
-        address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
-        name: "USDC",
-        version: "2",
-      }, // Sepolia USDC
     };
 
     const assetInfo = usdcInfo[network];

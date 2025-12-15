@@ -50,6 +50,7 @@ const (
 
 var (
 	// NetworkConfigs maps CAIP-2 identifiers to network configurations
+	// See DEFAULT_ASSET.md for guidelines on adding new networks
 	NetworkConfigs = map[string]NetworkConfig{
 		SolanaMainnetCAIP2: {
 			Name:   "Solana Mainnet",
@@ -59,13 +60,6 @@ var (
 				Address:  USDCMainnetAddress,
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
-			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCMainnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
 			},
 		},
 		SolanaDevnetCAIP2: {
@@ -77,13 +71,6 @@ var (
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
 			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCDevnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
-			},
 		},
 		SolanaTestnetCAIP2: {
 			Name:   "Solana Testnet",
@@ -93,13 +80,6 @@ var (
 				Address:  USDCTestnetAddress,
 				Symbol:   "USDC",
 				Decimals: DefaultDecimals,
-			},
-			SupportedAssets: map[string]AssetInfo{
-				"USDC": {
-					Address:  USDCTestnetAddress,
-					Symbol:   "USDC",
-					Decimals: DefaultDecimals,
-				},
 			},
 		},
 	}

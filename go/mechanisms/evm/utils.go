@@ -163,23 +163,17 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 
 	// Check if it's an address
 	if IsValidAddress(assetSymbolOrAddress) {
-		// For now, assume it's USDC if the address matches
 		normalizedAddr := NormalizeAddress(assetSymbolOrAddress)
 		if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
 			return &config.DefaultAsset, nil
 		}
-		// Could extend this to support more tokens
+		// Unknown token - return basic info
 		return &AssetInfo{
 			Address:  normalizedAddr,
 			Name:     "Unknown Token",
 			Version:  "1",
 			Decimals: 18, // Default to 18 decimals for unknown tokens
 		}, nil
-	}
-
-	// Look up by symbol
-	if asset, ok := config.SupportedAssets[strings.ToUpper(assetSymbolOrAddress)]; ok {
-		return &asset, nil
 	}
 
 	// Default to the network's default asset

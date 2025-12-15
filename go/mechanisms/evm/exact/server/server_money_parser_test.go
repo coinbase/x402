@@ -7,6 +7,9 @@ import (
 	x402 "github.com/coinbase/x402/go"
 )
 
+// Base mainnet USDC address
+const baseMainnetUSDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+
 // TestRegisterMoneyParser_SingleCustomParser tests a single custom money parser
 func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	server := NewExactEvmScheme()
@@ -16,7 +19,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 		if amount > 100 {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e18),             // DAI has 18 decimals
-				Asset:  "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI on mainnet
+				Asset:  "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
 				Extra: map[string]interface{}{
 					"token": "DAI",
 					"tier":  "large",
@@ -27,7 +30,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	})
 
 	// Test large amount - should use custom parser (DAI)
-	result1, err := server.ParsePrice(150.0, "eip155:1")
+	result1, err := server.ParsePrice(150.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -46,7 +49,7 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 	}
 
 	// Test small amount - should fall back to default (USDC)
-	result2, err := server.ParsePrice(50.0, "eip155:1")
+	result2, err := server.ParsePrice(50.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -56,8 +59,8 @@ func TestRegisterMoneyParser_SingleCustomParser(t *testing.T) {
 		t.Errorf("Expected amount %s, got %s", expectedAmount2, result2.Amount)
 	}
 
-	// Mainnet USDC address
-	if result2.Asset != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" {
+	// Base mainnet USDC address
+	if result2.Asset != baseMainnetUSDC {
 		t.Errorf("Expected USDC asset, got %s", result2.Asset)
 	}
 }
@@ -103,7 +106,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	})
 
 	// Test premium tier
-	result1, err := server.ParsePrice(2000.0, "eip155:1")
+	result1, err := server.ParsePrice(2000.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -112,7 +115,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test large tier
-	result2, err := server.ParsePrice(200.0, "eip155:1")
+	result2, err := server.ParsePrice(200.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -121,7 +124,7 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test medium tier
-	result3, err := server.ParsePrice(20.0, "eip155:1")
+	result3, err := server.ParsePrice(20.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -130,12 +133,12 @@ func TestRegisterMoneyParser_MultipleInChain(t *testing.T) {
 	}
 
 	// Test default (small amount)
-	result4, err := server.ParsePrice(5.0, "eip155:1")
+	result4, err := server.ParsePrice(5.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 	// Should use default USDC
-	if result4.Asset != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" {
+	if result4.Asset != baseMainnetUSDC {
 		t.Errorf("Expected USDC, got %s", result4.Asset)
 	}
 }
@@ -166,12 +169,12 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 		t.Errorf("Expected custom token, got %s", result1.Asset)
 	}
 
-	// Test Ethereum Mainnet - should use default
-	result2, err := server.ParsePrice(10.0, "eip155:1")
+	// Test Base Mainnet - should use default
+	result2, err := server.ParsePrice(10.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if result2.Asset != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" {
+	if result2.Asset != baseMainnetUSDC {
 		t.Errorf("Expected default USDC, got %s", result2.Asset)
 	}
 }
@@ -195,15 +198,15 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 		price         string
 		expectedAsset string
 	}{
-		{"Dollar format", "$100", "0xDAI"},                                       // > 50, uses DAI
-		{"Plain decimal", "25.50", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"}, // <= 50, uses USDC
+		{"Dollar format", "$100", "0xDAI"},               // > 50, uses DAI
+		{"Plain decimal", "25.50", baseMainnetUSDC},      // <= 50, uses USDC
 		{"With USD suffix", "75 USD", "0xDAI"},
-		{"With USDC suffix", "10 USDC", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"},
+		{"With USDC suffix", "10 USDC", baseMainnetUSDC},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := server.ParsePrice(tt.price, "eip155:1")
+			result, err := server.ParsePrice(tt.price, "eip155:8453")
 			if err != nil {
 				t.Fatalf("Expected no error, got %v", err)
 			}
@@ -238,7 +241,7 @@ func TestRegisterMoneyParser_ErrorHandling(t *testing.T) {
 	})
 
 	// Error in first parser should be skipped, second parser should handle
-	result, err := server.ParsePrice(99.0, "eip155:1")
+	result, err := server.ParsePrice(99.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error (should skip erroring parser), got %v", err)
 	}
@@ -269,13 +272,13 @@ func TestRegisterMoneyParser_NoCustomParsers(t *testing.T) {
 	server := NewExactEvmScheme()
 
 	// No custom parsers registered, should use default
-	result, err := server.ParsePrice(10.0, "eip155:1")
+	result, err := server.ParsePrice(10.0, "eip155:8453")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Should use default USDC
-	if result.Asset != "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" {
+	if result.Asset != baseMainnetUSDC {
 		t.Errorf("Expected default USDC, got %s", result.Asset)
 	}
 
