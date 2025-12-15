@@ -26,12 +26,17 @@ A Facilitator advertises support for this extension by including an `erc20Approv
   "x402Version": "2",
   "accepts": [
     {
-      "scheme": "permit2",
+      "scheme": "exact",
       "network": "eip155:84532",
       "amount": "10000",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
       "maxTimeoutSeconds": 60,
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "extra": {
+        "permitType": "permit2",
+        "name": "USDC",
+        "version": "2"
+      }
     }
   ],
   "extensions": {
