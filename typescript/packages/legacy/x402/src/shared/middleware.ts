@@ -164,9 +164,7 @@ export function processPriceToAtomicAmount(
     }
     const parsedUsdAmount = parsedAmount.data;
     asset = getDefaultAsset(network);
-    const [intPart, decPart = ""] = String(parsedUsdAmount).split(".");
-    const paddedDec = decPart.padEnd(asset.decimals, "0").slice(0, asset.decimals);
-    maxAmountRequired = (intPart + paddedDec).replace(/^0+/, "") || "0";
+    maxAmountRequired = (parsedUsdAmount * 10 ** asset.decimals).toString();
   } else {
     // Token amount in atomic units
     maxAmountRequired = price.amount;
