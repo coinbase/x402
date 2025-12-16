@@ -112,8 +112,8 @@ describe("@x402/svm", () => {
 
     describe("parsePrice", () => {
       it("should parse dollar string prices", async () => {
-        const result = await server.parsePrice("$4.02", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
-        expect(result.amount).toBe("4020000"); // 4.02 USDC = 4020000 smallest units
+        const result = await server.parsePrice("$0.1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+        expect(result.amount).toBe("100000"); // 4.02 USDC = 4020000 smallest units
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
@@ -177,6 +177,11 @@ describe("@x402/svm", () => {
               "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             ),
         ).rejects.toThrow("Asset address must be specified");
+      });
+
+      it("should avoid floating-point rounding error", async () => {
+        const result = await server.parsePrice("$4.02", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+        expect(result.amount).toBe("4020000"); // 4.02 USDC
       });
     });
 
