@@ -110,6 +110,9 @@ export function paymentMiddleware(
       customPaywallHtml,
       resource,
       discoverable,
+      discoveryInput,
+      discoveryOutput,
+      discoveryMetadata,
       signatureType,
     } = config;
 
@@ -148,8 +151,11 @@ export function paymentMiddleware(
             method: req.method.toUpperCase(),
             discoverable: discoverable ?? true,
             ...inputSchema,
+            ...(discoveryInput && { discoveryInput }),
           },
           output: outputSchema,
+          ...(discoveryOutput && { discoveryOutput }),
+          ...(discoveryMetadata && { metadata: discoveryMetadata }),
         },
         extra: {
           ...(asset as ERC20TokenAmount["asset"]).eip712,
@@ -195,8 +201,11 @@ export function paymentMiddleware(
             method: req.method.toUpperCase(),
             discoverable: discoverable ?? true,
             ...inputSchema,
+            ...(discoveryInput && { discoveryInput }),
           },
           output: outputSchema,
+          ...(discoveryOutput && { discoveryOutput }),
+          ...(discoveryMetadata && { metadata: discoveryMetadata }),
         },
         extra: {
           feePayer,

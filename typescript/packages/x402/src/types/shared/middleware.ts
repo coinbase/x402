@@ -31,6 +31,14 @@ export type DiscoveryMetadata = {
   [key: string]: unknown;
 };
 
+/**
+ * Schema definition for discovery input/output
+ */
+export type DiscoverySchemaDefinition = {
+  example?: unknown;
+  schema?: Record<string, unknown>;
+};
+
 export type PaymentMiddlewareConfig = {
   description?: string;
   mimeType?: string;
@@ -41,6 +49,16 @@ export type PaymentMiddlewareConfig = {
   customPaywallHtml?: string;
   resource?: Resource;
   signatureType?: "authorization" | "permit";
+  /**
+   * Discovery input schema for Bazaar catalog (example + JSON schema).
+   * Use declareDiscoveryExtension() from "@b3dotfun/anyspend-x402/extensions" for convenience.
+   */
+  discoveryInput?: DiscoverySchemaDefinition;
+  /**
+   * Discovery output schema for Bazaar catalog (example + JSON schema).
+   * Use declareDiscoveryExtension() from "@b3dotfun/anyspend-x402/extensions" for convenience.
+   */
+  discoveryOutput?: DiscoverySchemaDefinition;
   /**
    * Metadata for the Bazaar discovery catalog.
    * Use declareDiscoveryExtension() from "@b3dotfun/anyspend-x402/extensions" for convenience.

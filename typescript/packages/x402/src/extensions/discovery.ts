@@ -144,14 +144,8 @@ export interface DiscoveryExtensionOptions {
  */
 export interface DiscoveryExtensionConfig {
   discoverable: boolean;
-  inputSchema?: {
-    example?: unknown;
-    schema?: JSONSchema;
-  };
-  outputSchema?: {
-    example?: unknown;
-    schema?: JSONSchema;
-  };
+  discoveryInput?: SchemaDefinition;
+  discoveryOutput?: SchemaDefinition;
   discoveryMetadata?: DiscoveryMetadata;
 }
 
@@ -219,14 +213,14 @@ export function declareDiscoveryExtension(
   };
 
   if (input) {
-    config.inputSchema = {
+    config.discoveryInput = {
       ...(input.example !== undefined && { example: input.example }),
       ...(input.schema && { schema: input.schema }),
     };
   }
 
   if (output) {
-    config.outputSchema = {
+    config.discoveryOutput = {
       ...(output.example !== undefined && { example: output.example }),
       ...(output.schema && { schema: output.schema }),
     };
