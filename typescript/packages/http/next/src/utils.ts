@@ -1,0 +1,157 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  HTTPRequestContext,
+  HTTPResponseInstructions,
+  PaywallProvider,
+  x402HTTPResourceServer,
+  x402ResourceServer,
+  RoutesConfig,
+} from "@x402/core/server";
+import { PaymentPayload, PaymentRequirements } from "@x402/core/types";
+import { NextAdapter } from "./adapter";
+
+/**
+ * Result of createHttpServer
+ */
+export interface HttpServerInstance {
+  httpServer: x402HTTPResourceServer;
+  init: () => Promise<void>;
+}
+
+/**
+ * Creates and configures the x402 HTTP server with initialization logic
+ *
+ * @param routes - The route configuration for the server
+ * @param server - The x402 resource server instance
+ * @param paywall - Optional paywall provider for custom payment UI
+ * @param syncFacilitatorOnStart - Whether to sync with the facilitator on start (defaults to true)
+ * @returns The HTTP server instance with initialization function
+ */
+export function createHttpServer(
+  routes: RoutesConfig,
+  server: x402ResourceServer,
+  paywall?: PaywallProvider,
+  syncFacilitatorOnStart: boolean = true,
+): HttpServerInstance {
+  // Create the x402 HTTP server instance with the resource server
+  const httpServer = new x402HTTPResourceServer(server, routes);
+
+  // Register custom paywall provider if provided
+  if (paywall) {
+    httpServer.registerPaywallProvider(paywall);
+  }
+
+  // Store initialization promise (not the result)
+  // httpServer.initialize() fetches facilitator support and validates routes
+  let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
+
+  return {
+    httpServer,
+    async init() {
+      // Ensure initialization completes before processing
+      if (initPromise) {
+        await initPromise;
+        initPromise = null; // Clear after first await
+      }
+    },
+  };
+}
+
+/**
+ * Creates HTTP request context from a Next.js request
+ *
+ * @param request - The Next.js request object
+ * @returns The HTTP request context for x402 processing
+ */
+export function createRequestContext(request: NextRequest): HTTPRequestContext {
+  // Create adapter and context
+  const adapter = new NextAdapter(request);
+  return {
+    adapter,
+    path: request.nextUrl.pathname,
+    method: request.method,
+    paymentHeader: adapter.getHeader("payment-signature") || adapter.getHeader("x-payment"),
+  };
+}
+
+/**
+ * Handles payment error result by creating a 402 response
+ *
+ * @param response - The HTTP response instructions from payment verification
+ * @returns A Next.js response with the appropriate 402 status and headers
+ */
+export function handlePaymentError(response: HTTPResponseInstructions): NextResponse {
+  // Payment required but not provided or invalid
+  const headers = new Headers(response.headers);
+  if (response.isHtml) {
+    headers.set("Content-Type", "text/html");
+    return new NextResponse(response.body as string, {
+      status: response.status,
+      headers,
+    });
+  }
+  headers.set("Content-Type", "application/json");
+  return new NextResponse(JSON.stringify(response.body || {}), {
+    status: response.status,
+    headers,
+  });
+}
+
+/**
+ * Handles settlement after a successful response
+ *
+ * @param httpServer - The x402 HTTP resource server instance
+ * @param response - The Next.js response from the protected route
+ * @param paymentPayload - The payment payload from the client
+ * @param paymentRequirements - The payment requirements for the route
+ * @returns The response with settlement headers or an error response if settlement fails
+ */
+export async function handleSettlement(
+  httpServer: x402HTTPResourceServer,
+  response: NextResponse,
+  paymentPayload: PaymentPayload,
+  paymentRequirements: PaymentRequirements,
+): Promise<NextResponse> {
+  // If the response from the protected route is >= 400, do not settle payment
+  if (response.status >= 400) {
+    return response;
+  }
+
+  try {
+    const result = await httpServer.processSettlement(paymentPayload, paymentRequirements);
+
+    if (!result.success) {
+      // Settlement failed - do not return the protected resource
+      return new NextResponse(
+        JSON.stringify({
+          error: "Settlement failed",
+          details: result.errorReason,
+        }),
+        {
+          status: 402,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Settlement succeeded - add headers and return original response
+    Object.entries(result.headers).forEach(([key, value]) => {
+      response.headers.set(key, value);
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Settlement failed:", error);
+    // If settlement fails, return an error response
+    return new NextResponse(
+      JSON.stringify({
+        error: "Settlement failed",
+        details: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 402,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+}

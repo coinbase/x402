@@ -6,6 +6,10 @@
     "evm",
     "svm"
   ],
+  "x402Versions": [
+    1,
+    2
+  ],
   "environment": {
     "required": [
       "EVM_PRIVATE_KEY",

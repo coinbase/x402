@@ -80,11 +80,13 @@ export abstract class BaseProxy {
 
       let output = '';
       let stderr = '';
+      let resolved = false;
 
       this.process.stdout?.on('data', (data) => {
         output += data.toString();
         verboseLog(`[${this.directory}] stdout: ${data.toString()}`);
-        if (output.includes(this.readyLog)) {
+        if (output.includes(this.readyLog) && !resolved) {
+          resolved = true;
           resolve();
         }
       });
@@ -96,19 +98,29 @@ export abstract class BaseProxy {
 
       this.process.on('error', (error) => {
         errorLog(`[${this.directory}] Error: ${error}`);
-        reject(error);
+        if (!resolved) {
+          resolved = true;
+          reject(error);
+        }
       });
 
       this.process.on('exit', (code) => {
-        // Only log non-zero exit codes for debugging
-        if (code !== 0) {
+        // If process exits during startup with non-zero code, reject
+        if (code !== 0 && !resolved) {
+          resolved = true;
+          const errorMsg = `Process exited with code ${code} during startup`;
+          errorLog(`[${this.directory}] ${errorMsg}`);
+          reject(new Error(errorMsg));
+        } else if (code !== 0) {
+          // Already resolved, just log for debugging
           errorLog(`[${this.directory}] Process exited with code ${code}`);
         }
       });
 
       // Timeout after 30 seconds
       setTimeout(() => {
-        if (this.process && !this.process.killed) {
+        if (this.process && !this.process.killed && !resolved) {
+          resolved = true;
           resolve();
         }
       }, 30000);
@@ -173,20 +185,28 @@ export abstract class BaseProxy {
       });
 
       childProcess.on('close', (code: number | null) => {
-        if (code === 0) {
-          try {
-            // Find JSON result in stdout
-            const lines = stdout.split('\n');
-            const jsonLine = lines.find(line => line.trim().startsWith('{'));
-            if (jsonLine) {
-              const result = JSON.parse(jsonLine);
+        // Try to find JSON in stdout regardless of exit code
+        try {
+          const lines = stdout.split('\n');
+          const jsonLine = lines.find(line => line.trim().startsWith('{'));
+          if (jsonLine) {
+            const result = JSON.parse(jsonLine);
+            if (code === 0) {
               resolve({ success: true, data: result, exitCode: code });
             } else {
-              resolve({ success: false, error: 'No JSON result found', exitCode: code });
+              // Non-zero exit but we have JSON error details
+              const errorMsg = result.error || `Process exited with code ${code}`;
+              resolve({ success: false, error: errorMsg, exitCode: code || undefined });
             }
-          } catch (error) {
-            resolve({ success: false, error: `Failed to parse result: ${error}`, exitCode: code });
+            return;
           }
+        } catch (error) {
+          // Failed to parse JSON, fall through to default error handling
+        }
+
+        // No JSON found or parse failed
+        if (code === 0) {
+          resolve({ success: false, error: 'No JSON result found', exitCode: code });
         } else {
           resolve({ success: false, error: stderr || `Process exited with code ${code}`, exitCode: code || undefined });
         }

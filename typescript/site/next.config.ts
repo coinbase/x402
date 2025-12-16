@@ -1,11 +1,61 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  env: {
-    RESOURCE_WALLET_ADDRESS: process.env.RESOURCE_WALLET_ADDRESS,
-    NEXT_PUBLIC_FACILITATOR_URL: process.env.NEXT_PUBLIC_FACILITATOR_URL,
-    PRIVATE_KEY: process.env.PRIVATE_KEY,
-    NETWORK: process.env.NETWORK,
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
+  async headers() {
+    return [
+      {
+        source: "/api/stats",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "s-maxage=300, stale-while-revalidate=600",
+          },
+        ],
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/build",
+        destination: "/build-with-us",
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: "/protocol",
+        destination: "/",
+        permanent: false,
+      },
+      {
+        source: "/foundation",
+        destination: "/",
+        permanent: false,
+      },
+      {
+        source: "/build",
+        destination: "/",
+        permanent: false,
+      },
+      {
+        source: "/build-with-us",
+        destination: "/",
+        permanent: false,
+      },
+    ];
+  },
+  turbopack: {
+    rules: {
+      "*.svg": {
+        loaders: ["@svgr/webpack"],
+        as: "*.js",
+      },
+    },
   },
   webpack(config) {
     config.module.rules.push({

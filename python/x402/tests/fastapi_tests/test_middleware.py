@@ -379,10 +379,8 @@ def test_paywall_config_injection():
     """Test that paywall configuration is properly injected into HTML."""
     # Use a plain dict that will be compatible with PaywallConfig
     paywall_config = {
-        "cdp_client_key": "test-key-123",
         "app_name": "Test Application",
         "app_logo": "https://example.com/logo.png",
-        "session_token_endpoint": "https://example.com/token",
     }
 
     app = FastAPI()
@@ -409,7 +407,6 @@ def test_paywall_config_injection():
 
     html_content = response.text
     assert "window.x402" in html_content
-    assert '"cdpClientKey": "test-key-123"' in html_content
     assert '"appName": "Test Application"' in html_content
     assert '"appLogo": "https://example.com/logo.png"' in html_content
     assert '"amount": 2.5' in html_content

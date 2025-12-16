@@ -6,7 +6,7 @@ on:
 jobs:
   publish-npm-coinbase-x402:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/main' && 'npm' || '' }}
+    environment: ${{ github.ref == 'refs/heads/@coinbase/x402' && 'npm' || '' }}
     permissions:
       contents: read
       id-token: write
@@ -40,12 +40,12 @@ jobs:
           
           echo "Package: $PACKAGE_NAME@$PACKAGE_VERSION"
           
-          # Check if running on main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "Publishing to NPM (main branch)"
-            pnpm publish --provenance --access public
+          # Check if running on @coinbase/x402 branch
+          if [[ "${{ github.ref }}" == "refs/heads/@coinbase/x402" ]]; then
+            echo "Publishing to NPM (@coinbase/x402 branch)"
+            pnpm publish --provenance --access public --publish-branch "@coinbase/x402"
           else
-            echo "Dry run only (non-main branch: ${{ github.ref }})"
+            echo "Dry run only (non-release branch: ${{ github.ref }})"
             pnpm publish --dry-run --no-git-checks
           fi
         env:
