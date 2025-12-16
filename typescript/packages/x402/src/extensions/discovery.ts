@@ -38,22 +38,10 @@
  * ```
  */
 
-import { DiscoveryMetadata } from "../types/shared/middleware";
+import { DiscoveryMetadata, JSONSchema } from "../types/shared/middleware";
 
-/**
- * Simplified JSON Schema type (compatible with JSON Schema Draft 7)
- */
-export type JSONSchema = {
-  [key: string]: unknown;
-  type?: string | string[];
-  properties?: Record<string, JSONSchema>;
-  items?: JSONSchema | JSONSchema[];
-  required?: string[];
-  enum?: unknown[];
-  const?: unknown;
-  description?: string;
-  default?: unknown;
-};
+// Re-export JSONSchema for convenience
+export type { JSONSchema };
 
 /**
  * Schema definition for input/output

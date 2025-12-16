@@ -18,6 +18,21 @@ export type PaywallConfig = {
 };
 
 /**
+ * Simplified JSON Schema type (compatible with JSON Schema Draft 7)
+ */
+export type JSONSchema = {
+  [key: string]: unknown;
+  type?: string | string[];
+  properties?: Record<string, JSONSchema>;
+  items?: JSONSchema | JSONSchema[];
+  required?: string[];
+  enum?: unknown[];
+  const?: unknown;
+  description?: string;
+  default?: unknown;
+};
+
+/**
  * Metadata for discovery catalog (Bazaar)
  */
 export type DiscoveryMetadata = {
@@ -36,7 +51,7 @@ export type DiscoveryMetadata = {
  */
 export type DiscoverySchemaDefinition = {
   example?: unknown;
-  schema?: Record<string, unknown>;
+  schema?: JSONSchema;
 };
 
 export type PaymentMiddlewareConfig = {
