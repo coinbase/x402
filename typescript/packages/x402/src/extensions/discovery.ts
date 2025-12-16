@@ -204,7 +204,7 @@ export interface DiscoveryExtensionConfig {
  * ```
  */
 export function declareDiscoveryExtension(
-  options: DiscoveryExtensionOptions = {}
+  options: DiscoveryExtensionOptions = {},
 ): DiscoveryExtensionConfig {
   const { discoverable = true, input, output, metadata } = options;
 
@@ -236,9 +236,7 @@ export function declareDiscoveryExtension(
 /**
  * Type guard to check if config has discovery extension
  */
-export function hasDiscoveryExtension(
-  config: unknown
-): config is DiscoveryExtensionConfig {
+export function hasDiscoveryExtension(config: unknown): config is DiscoveryExtensionConfig {
   return (
     typeof config === "object" &&
     config !== null &&
