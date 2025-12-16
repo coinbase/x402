@@ -21,6 +21,7 @@ export type PaywallConfig = {
  * Metadata for discovery catalog (Bazaar)
  */
 export type DiscoveryMetadata = {
+  [key: string]: unknown;
   name?: string;
   description?: string;
   category?: string;
@@ -28,7 +29,6 @@ export type DiscoveryMetadata = {
   documentation?: string;
   logo?: string;
   provider?: string;
-  [key: string]: unknown;
 };
 
 /**

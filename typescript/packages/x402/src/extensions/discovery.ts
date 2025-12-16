@@ -38,10 +38,13 @@
  * ```
  */
 
+import { DiscoveryMetadata } from "../types/shared/middleware";
+
 /**
  * Simplified JSON Schema type (compatible with JSON Schema Draft 7)
  */
 export type JSONSchema = {
+  [key: string]: unknown;
   type?: string | string[];
   properties?: Record<string, JSONSchema>;
   items?: JSONSchema | JSONSchema[];
@@ -50,7 +53,6 @@ export type JSONSchema = {
   const?: unknown;
   description?: string;
   default?: unknown;
-  [key: string]: unknown;
 };
 
 /**
@@ -68,50 +70,8 @@ export interface SchemaDefinition {
   schema?: JSONSchema;
 }
 
-/**
- * Metadata for discovery catalog
- */
-export interface DiscoveryMetadata {
-  /**
-   * Human-readable name for the service
-   */
-  name?: string;
-
-  /**
-   * Description of what the service does
-   */
-  description?: string;
-
-  /**
-   * Category for filtering (e.g., "data", "ai", "finance")
-   */
-  category?: string;
-
-  /**
-   * Tags for search and filtering
-   */
-  tags?: string[];
-
-  /**
-   * URL to documentation
-   */
-  documentation?: string;
-
-  /**
-   * URL to logo image
-   */
-  logo?: string;
-
-  /**
-   * Provider/organization name
-   */
-  provider?: string;
-
-  /**
-   * Additional custom metadata
-   */
-  [key: string]: unknown;
-}
+// Re-export DiscoveryMetadata for convenience
+export { DiscoveryMetadata };
 
 /**
  * Options for declareDiscoveryExtension
@@ -119,6 +79,7 @@ export interface DiscoveryMetadata {
 export interface DiscoveryExtensionOptions {
   /**
    * Whether this endpoint should be discoverable in the Bazaar
+   *
    * @default true
    */
   discoverable?: boolean;
@@ -212,14 +173,16 @@ export function declareDiscoveryExtension(
     discoverable,
   };
 
-  if (input) {
+  // Only add discoveryInput if it has meaningful content
+  if (input?.example !== undefined || input?.schema) {
     config.discoveryInput = {
       ...(input.example !== undefined && { example: input.example }),
       ...(input.schema && { schema: input.schema }),
     };
   }
 
-  if (output) {
+  // Only add discoveryOutput if it has meaningful content
+  if (output?.example !== undefined || output?.schema) {
     config.discoveryOutput = {
       ...(output.example !== undefined && { example: output.example }),
       ...(output.schema && { schema: output.schema }),
@@ -235,6 +198,9 @@ export function declareDiscoveryExtension(
 
 /**
  * Type guard to check if config has discovery extension
+ *
+ * @param config - The configuration object to check
+ * @returns True if the config has discovery extension properties
  */
 export function hasDiscoveryExtension(config: unknown): config is DiscoveryExtensionConfig {
   return (
