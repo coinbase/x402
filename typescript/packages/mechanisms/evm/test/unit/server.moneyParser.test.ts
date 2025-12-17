@@ -123,6 +123,20 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       expect(result.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
       expect(result.amount).toBe("1000000"); // 1 * 1e6
     });
+
+    it("should avoid floating-point rounding error when fall back to default", async () => {
+      const server = new ExactEvmScheme();
+
+      server.registerMoneyParser(async _amount => {
+        return null; // Always delegate
+      });
+
+      const result = await server.parsePrice(4.02, "eip155:8453");
+
+      // Should use default Base USDC conversion
+      expect(result.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+      expect(result.amount).toBe("4020000"); // 4.02* 1e6
+    });
   });
 
   describe("Multiple parsers - chain of responsibility", () => {
