@@ -1,19 +1,21 @@
-package x402
+package idempotency
 
 import (
 	"context"
 	"sync"
 	"testing"
 	"time"
+
+	x402 "github.com/coinbase/x402/go"
 )
 
-func TestGenerateSettlementKey(t *testing.T) {
+func TestDefaultKeyGenerator(t *testing.T) {
 	payload1 := []byte(`{"x402Version":2,"payload":{"nonce":"123"},"accepted":{"scheme":"exact"}}`)
 	payload2 := []byte(`{"x402Version":2,"payload":{"nonce":"456"},"accepted":{"scheme":"exact"}}`)
 
-	key1 := GenerateSettlementKey(payload1)
-	key2 := GenerateSettlementKey(payload2)
-	key3 := GenerateSettlementKey(payload1)
+	key1 := DefaultKeyGenerator(payload1)
+	key2 := DefaultKeyGenerator(payload2)
+	key3 := DefaultKeyGenerator(payload1)
 
 	// Same payload should produce same key
 	if key1 != key3 {
@@ -31,10 +33,10 @@ func TestGenerateSettlementKey(t *testing.T) {
 	}
 }
 
-func TestSettlementCache_CheckAndMark_Cached(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_CheckAndMark_Cached(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "test-key"
-	response := &SettleResponse{
+	response := &x402.SettleResponse{
 		Success:     true,
 		Transaction: "0x123",
 		Payer:       "0xabc",
@@ -42,7 +44,7 @@ func TestSettlementCache_CheckAndMark_Cached(t *testing.T) {
 	}
 
 	// First call should return NotFound and mark in-flight
-	status, result, done := cache.CheckAndMark(key)
+	status, result, done := store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Errorf("Expected StatusNotFound, got %v", status)
 	}
@@ -51,10 +53,10 @@ func TestSettlementCache_CheckAndMark_Cached(t *testing.T) {
 	}
 
 	// Complete the settlement
-	cache.Complete(key, response, done)
+	store.Complete(key, response, done)
 
 	// Second call should return Cached
-	status, result, _ = cache.CheckAndMark(key)
+	status, result, _ = store.CheckAndMark(key)
 	if status != StatusCached {
 		t.Errorf("Expected StatusCached, got %v", status)
 	}
@@ -63,18 +65,18 @@ func TestSettlementCache_CheckAndMark_Cached(t *testing.T) {
 	}
 }
 
-func TestSettlementCache_CheckAndMark_InFlight(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_CheckAndMark_InFlight(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "inflight-test"
 
 	// First call marks in-flight
-	status1, _, done1 := cache.CheckAndMark(key)
+	status1, _, done1 := store.CheckAndMark(key)
 	if status1 != StatusNotFound {
 		t.Errorf("Expected StatusNotFound, got %v", status1)
 	}
 
 	// Second call should see in-flight
-	status2, _, done2 := cache.CheckAndMark(key)
+	status2, _, done2 := store.CheckAndMark(key)
 	if status2 != StatusInFlight {
 		t.Errorf("Expected StatusInFlight, got %v", status2)
 	}
@@ -85,19 +87,19 @@ func TestSettlementCache_CheckAndMark_InFlight(t *testing.T) {
 	}
 }
 
-func TestSettlementCache_Expiry(t *testing.T) {
-	cache := NewSettlementCache(50 * time.Millisecond)
+func TestInMemoryStore_Expiry(t *testing.T) {
+	store := NewInMemoryStore(50 * time.Millisecond)
 	key := "expiry-test"
-	response := &SettleResponse{Success: true, Transaction: "0x999"}
+	response := &x402.SettleResponse{Success: true, Transaction: "0x999"}
 
-	status, _, done := cache.CheckAndMark(key)
+	status, _, done := store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Fatalf("Expected StatusNotFound, got %v", status)
 	}
-	cache.Complete(key, response, done)
+	store.Complete(key, response, done)
 
 	// Should be cached immediately
-	status, result, _ := cache.CheckAndMark(key)
+	status, result, _ := store.CheckAndMark(key)
 	if status != StatusCached {
 		t.Error("Expected StatusCached immediately after complete")
 	}
@@ -109,44 +111,44 @@ func TestSettlementCache_Expiry(t *testing.T) {
 	time.Sleep(60 * time.Millisecond)
 
 	// Should be expired (treated as NotFound)
-	status, _, done = cache.CheckAndMark(key)
+	status, _, done = store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Errorf("Expected StatusNotFound after expiry, got %v", status)
 	}
-	cache.Fail(key, done) // Clean up
+	store.Fail(key, done) // Clean up
 }
 
-func TestSettlementCache_Fail(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_Fail(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "fail-test"
 
 	// Mark as in-flight
-	status, _, done := cache.CheckAndMark(key)
+	status, _, done := store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Fatalf("Expected StatusNotFound, got %v", status)
 	}
 
 	// Fail the settlement
-	cache.Fail(key, done)
+	store.Fail(key, done)
 
 	// Should be able to retry (not cached, not in-flight)
-	status, _, done2 := cache.CheckAndMark(key)
+	status, _, done2 := store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Errorf("Expected StatusNotFound after fail (retry allowed), got %v", status)
 	}
-	cache.Fail(key, done2) // Clean up
+	store.Fail(key, done2) // Clean up
 }
 
-func TestSettlementCache_WaitForResult_Success(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_WaitForResult_Success(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "wait-test"
-	response := &SettleResponse{Success: true, Transaction: "0xwaited"}
+	response := &x402.SettleResponse{Success: true, Transaction: "0xwaited"}
 
 	// First request marks in-flight
-	_, _, done := cache.CheckAndMark(key)
+	_, _, done := store.CheckAndMark(key)
 
 	var wg sync.WaitGroup
-	var waitResult *SettleResponse
+	var waitResult *x402.SettleResponse
 	var waitErr error
 
 	// Second request waits
@@ -154,14 +156,14 @@ func TestSettlementCache_WaitForResult_Success(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		ctx := context.Background()
-		waitResult, waitErr = cache.WaitForResult(ctx, key, done)
+		waitResult, waitErr = store.WaitForResult(ctx, key, done)
 	}()
 
 	// Give waiter time to start
 	time.Sleep(10 * time.Millisecond)
 
 	// Complete the settlement
-	cache.Complete(key, response, done)
+	store.Complete(key, response, done)
 
 	wg.Wait()
 
@@ -173,12 +175,12 @@ func TestSettlementCache_WaitForResult_Success(t *testing.T) {
 	}
 }
 
-func TestSettlementCache_WaitForResult_ContextCancelled(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_WaitForResult_ContextCancelled(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "cancel-test"
 
 	// Mark in-flight
-	_, _, done := cache.CheckAndMark(key)
+	_, _, done := store.CheckAndMark(key)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -188,7 +190,7 @@ func TestSettlementCache_WaitForResult_ContextCancelled(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_, waitErr = cache.WaitForResult(ctx, key, done)
+		_, waitErr = store.WaitForResult(ctx, key, done)
 	}()
 
 	// Give waiter time to start
@@ -204,21 +206,21 @@ func TestSettlementCache_WaitForResult_ContextCancelled(t *testing.T) {
 	}
 
 	// Clean up
-	cache.Fail(key, done)
+	store.Fail(key, done)
 }
 
-func TestSettlementCache_ConcurrentWaiters(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_ConcurrentWaiters(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "concurrent-test"
 
 	// First request marks in-flight
-	status, _, done := cache.CheckAndMark(key)
+	status, _, done := store.CheckAndMark(key)
 	if status != StatusNotFound {
 		t.Fatalf("Expected StatusNotFound, got %v", status)
 	}
 
 	var wg sync.WaitGroup
-	results := make([]*SettleResponse, 3)
+	results := make([]*x402.SettleResponse, 3)
 	errors := make([]error, 3)
 
 	// Start 3 goroutines that wait for the result
@@ -227,7 +229,7 @@ func TestSettlementCache_ConcurrentWaiters(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 			ctx := context.Background()
-			results[idx], errors[idx] = cache.WaitForResult(ctx, key, done)
+			results[idx], errors[idx] = store.WaitForResult(ctx, key, done)
 		}(i)
 	}
 
@@ -235,8 +237,8 @@ func TestSettlementCache_ConcurrentWaiters(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Complete with a result
-	response := &SettleResponse{Success: true, Transaction: "0xshared"}
-	cache.Complete(key, response, done)
+	response := &x402.SettleResponse{Success: true, Transaction: "0xshared"}
+	store.Complete(key, response, done)
 
 	wg.Wait()
 
@@ -256,8 +258,8 @@ func TestSettlementCache_ConcurrentWaiters(t *testing.T) {
 	}
 }
 
-func TestSettlementCache_AtomicCheckAndMark(t *testing.T) {
-	cache := NewSettlementCache(5 * time.Minute)
+func TestInMemoryStore_AtomicCheckAndMark(t *testing.T) {
+	store := NewInMemoryStore(5 * time.Minute)
 	key := "atomic-test"
 
 	var wg sync.WaitGroup
@@ -270,7 +272,7 @@ func TestSettlementCache_AtomicCheckAndMark(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			status, _, _ := cache.CheckAndMark(key)
+			status, _, _ := store.CheckAndMark(key)
 			mu.Lock()
 			if status == StatusNotFound {
 				notFoundCount++
