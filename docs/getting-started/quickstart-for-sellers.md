@@ -351,18 +351,61 @@ payment_middleware.add(
 {% endtab %}
 {% endtabs %}
 
-This is the interface for the payment middleware config:
+### Understanding Network Identifiers
+
+The network identifier format differs between SDK versions:
+
+**TypeScript (V2 API)** uses [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/master/CAIPs/caip-2.md) format:
+- Base Sepolia: `eip155:84532`
+- Base Mainnet: `eip155:8453`
+- Solana Devnet: `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`
+
+**Python (V1 API)** uses string identifiers:
+- Base Sepolia: `"base-sepolia"`
+- Base Mainnet: `"base"`
+
+**Wildcard Registration**: V2 SDKs support wildcard scheme registration for handling multiple networks:
+```typescript
+// Register once to handle all EVM chains
+server.register("eip155:*", new ExactEvmScheme());
+
+// Register once to handle all Solana clusters  
+server.register("solana:*", new ExactSvmScheme());
+```
+
+**TypeScript V2 Route Configuration Interface:**
 
 ```typescript
-interface PaymentMiddlewareConfig {
-  description?: string;               // Description of the payment
-  mimeType?: string;                  // MIME type of the resource
-  maxTimeoutSeconds?: number;         // Maximum time for payment (default: 60)
-  outputSchema?: Record; // JSON schema for the response
-  customPaywallHtml?: string;         // Custom HTML for the paywall
+// Payment option for a route (one way to pay)
+interface PaymentOption {
+  scheme: string;                     // Payment scheme (e.g., "exact")
+  payTo: string;                      // Recipient wallet address
+  price: string;                      // Price (e.g., "$0.001")
+  network: string;                    // Network in CAIP-2 format (e.g., "eip155:84532")
+  maxTimeoutSeconds?: number;         // Max time for payment (default: 60)
+}
+
+// Route configuration
+interface RouteConfig {
+  accepts: PaymentOption | PaymentOption[];  // Single or multiple payment options
+  description?: string;               // Description of the resource
+  mimeType?: string;                  // MIME type of the response
   resource?: string;                  // Resource URL (defaults to request URL)
+  customPaywallHtml?: string;         // Custom HTML for the paywall
+  extensions?: Record<string, unknown>; // Protocol extensions (e.g., bazaar)
 }
 ```
+
+**Python V1 Middleware Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | `str` | Path pattern to protect |
+| `price` | `str` | Payment amount (e.g., `"$0.001"`) |
+| `pay_to_address` | `str` | Recipient wallet address |
+| `network` | `str` | Network identifier (e.g., `"base-sepolia"`) |
+| `description` | `str` | Optional resource description |
+| `max_deadline_seconds` | `int` | Max time for payment (default: 60) |
 
 When a request is made to this route without payment, your server will respond with the HTTP 402 Payment Required code and payment instructions.
 
