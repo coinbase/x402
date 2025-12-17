@@ -1,0 +1,7 @@
+{
+  "name": "Nevermined",
+  "category": "Client-Side Integrations",
+  "logoUrl": "/logos/nevermined.jpg",
+  "description": "Nevermined enables AI agent payments and monetization using x402. Provides TypeScript and Python SDKs for rapid integration with payment plans and API request validation.",
+  "websiteUrl": "https://nevermined.ai"
+}
