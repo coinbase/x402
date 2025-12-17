@@ -1,46 +1,56 @@
-import axios from "axios";
 import { config } from "dotenv";
-import { withPaymentInterceptor, decodeXPaymentResponse, createSigner, type Hex } from "x402-axios";
+import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+import axios from "axios";
 
 config();
 
-const privateKey = process.env.PRIVATE_KEY as Hex | string;
-const baseURL = process.env.RESOURCE_SERVER_URL as string; // e.g. https://example.com
-const endpointPath = process.env.ENDPOINT_PATH as string; // e.g. /weather
-
-if (!baseURL || !privateKey || !endpointPath) {
-  console.error("Missing required environment variables");
-  process.exit(1);
-}
+const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
+const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
+const endpointPath = process.env.ENDPOINT_PATH || "/weather";
+const url = `${baseURL}${endpointPath}`;
 
 /**
- * This example shows how to use the x402-axios package to make a request to a resource server that requires a payment.
+ * Example demonstrating how to use @x402/axios to make requests to x402-protected endpoints.
  *
- * To run this example, you need to set the following environment variables:
- * - PRIVATE_KEY: The private key of the signer
- * - RESOURCE_SERVER_URL: The URL of the resource server
- * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
+ * This uses the helper registration functions from @x402/evm and @x402/svm to register
+ * all supported networks for both v1 and v2 protocols.
  *
+ * Required environment variables:
+ * - EVM_PRIVATE_KEY: The private key of the EVM signer
+ * - SVM_PRIVATE_KEY: The private key of the SVM signer
  */
 async function main(): Promise<void> {
-  // const signer = await createSigner("solana-devnet", privateKey); // uncomment for solana
-  const signer = await createSigner("base-sepolia", privateKey);
+  const evmSigner = privateKeyToAccount(evmPrivateKey);
+  const svmSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
 
-  const api = withPaymentInterceptor(
-    axios.create({
-      baseURL,
-    }),
-    signer,
-  );
+  const client = new x402Client();
+  registerExactEvmScheme(client, { signer: evmSigner });
+  registerExactSvmScheme(client, { signer: svmSigner });
 
-  const response = await api.get(endpointPath);
-  console.log(response.data);
+  const api = wrapAxiosWithPayment(axios.create(), client);
 
-  const paymentResponseHeader = response.headers["x-payment-response"];
-  if (paymentResponseHeader) {
-    const paymentResponse = decodeXPaymentResponse(paymentResponseHeader);
-    console.log(paymentResponse);
+  console.log(`Making request to: ${url}\n`);
+  const response = await api.get(url);
+  const body = response.data;
+  console.log("Response body:", body);
+
+  if (response.status < 400) {
+    const paymentResponse = new x402HTTPClient(client).getPaymentSettleResponse(
+      name => response.headers[name.toLowerCase()],
+    );
+    console.log("\nPayment response:", paymentResponse);
+  } else {
+    console.log(`\nNo payment settled (response status: ${response.status})`);
   }
 }
 
-main();
+main().catch(error => {
+  console.error(error?.response?.data?.error ?? error);
+  process.exit(1);
+});

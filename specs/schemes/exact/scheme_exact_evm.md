@@ -2,16 +2,16 @@
 
 ## Summary
 
-The `exact` scheme on EVM chains uses `EIP-3009` to authorize a transfer of a specific amount of an `ERC20 token` from the payer to the resource server. The approach results in the facilitator having no ability to direct funds anywhere but the address specified by the resource server in paymentRequirements.
+The `exact` scheme on EVM chains uses `EIP-3009` to authorize a transfer of a specific amount of an `ERC20 token` from the payer to the resource server. The approach results in the facilitator having no ability to direct funds anywhere but the address specified by the resource server in PaymentRequirements.
 
-## `X-Payment` header payload
+## PaymentPayload `payload` Field
 
-The `payload` field of the `X-PAYMENT` header must contain the following fields:
+The `payload` field of the `PaymentPayload` must contain the following fields:
 
 - `signature`: The signature of the `EIP-3009` `transferWithAuthorization` operation.
-- `authorization`: parameters required to reconstruct the messaged signed for the `transferWithAuthorization` operation.
+- `authorization`: Parameters required to reconstruct the message signed for the `transferWithAuthorization` operation.
 
-Example:
+Example `payload`:
 
 ```json
 {
@@ -27,13 +27,28 @@ Example:
 }
 ```
 
-Full `X-PAYMENT` header:
+Full `PaymentPayload` object:
 
 ```json
 {
-  "x402Version": 1,
-  "scheme": "exact",
-  "network": "base-sepolia",
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "name": "USDC",
+      "version": "2"
+    }
+  },
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "authorization": {
@@ -53,8 +68,8 @@ Full `X-PAYMENT` header:
 Steps to verify a payment for the `exact` scheme:
 
 1. Verify the signature is valid
-2. Verify the `client` has enough of the `asset` (ERC20 token) to cover `paymentRequirements.maxAmountRequired`
-3. Verify the value in the `payload.authorization` is enough to cover `paymentRequirements.maxAmountRequired`
+2. Verify the `client` has enough of the `asset` (ERC20 token) to cover `PaymentRequirements.amount`
+3. Verify the value in the `payload.authorization` is enough to cover `PaymentRequirements.amount`
 4. Verify the authorization parameters are within the valid time range
 5. Verify nonce is not used
 6. Verify the authorization parameters are for the agreed upon ERC20 contract and chain
@@ -62,7 +77,7 @@ Steps to verify a payment for the `exact` scheme:
 
 ## Settlement
 
-Settlement is performed via the facilitator calling the `transferWithAuthorization` function on the `EIP-3009` compliant contract with the `payload.signature` and `payload.authorization` parameters from the `X-PAYMENT` header.
+Settlement is performed via the facilitator calling the `transferWithAuthorization` function on the `EIP-3009` compliant contract with the `payload.signature` and `payload.authorization` parameters from the `PaymentPayload`.
 
 ## Appendix
 
