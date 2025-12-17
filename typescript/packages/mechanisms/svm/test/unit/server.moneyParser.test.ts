@@ -112,6 +112,20 @@ describe("ExactSvmScheme - registerMoneyParser", () => {
       expect(result.asset).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
       expect(result.amount).toBe("1000000");
     });
+
+    it("should avoid floating-point rounding error when fall back to default", async () => {
+      const server = new ExactSvmScheme();
+
+      server.registerMoneyParser(async _amount => {
+        return null; // Always delegate
+      });
+
+      const result = await server.parsePrice(4.02, "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+
+      // Should use default Solana mainnet USDC
+      expect(result.asset).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+      expect(result.amount).toBe("4020000");
+    });
   });
 
   describe("Multiple parsers - chain of responsibility", () => {
