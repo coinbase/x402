@@ -163,8 +163,10 @@ export class ExactEvmScheme implements SchemeNetworkServer {
       throw new Error(`Invalid amount: ${decimalAmount}`);
     }
     // Convert to smallest unit (e.g., for USDC with 6 decimals: 0.10 * 10^6 = 100000)
-    const tokenAmount = Math.floor(amount * Math.pow(10, decimals));
-    return tokenAmount.toString();
+    const [intPart, decPart = ""] = String(amount).split(".");
+    const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
+    const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
+    return tokenAmount;
   }
 
   /**
