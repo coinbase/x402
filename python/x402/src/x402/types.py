@@ -164,10 +164,49 @@ class EIP3009Authorization(BaseModel):
         return v
 
 
+class Remediation(BaseModel):
+    """Provides actionable guidance to clients on how to fix a payment failure."""
+
+    action: str
+    """Suggested action (e.g., 'top_up', 'retry', 'switch_network')"""
+    reason: Optional[str] = None
+    """Why this action would help"""
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+        extra="allow",  # Allow action-specific parameters
+    )
+
+
+class IntentTrace(BaseModel):
+    """Provides structured context for payment decisions.
+    Used to communicate why a payment was declined or failed.
+    """
+
+    reason_code: str
+    """Enumerated code identifying the primary reason"""
+    trace_summary: Optional[str] = None
+    """Human-readable summary (max 500 chars)"""
+    metadata: Optional[Dict[str, Union[str, int, bool]]] = None
+    """Flat key-value object for additional context"""
+    remediation: Optional[Remediation] = None
+    """Suggested action to resolve the issue"""
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
 class VerifyResponse(BaseModel):
     is_valid: bool = Field(alias="isValid")
     invalid_reason: Optional[str] = Field(None, alias="invalidReason")
-    payer: Optional[str]
+    payer: Optional[str] = None
+    intent_trace: Optional[IntentTrace] = Field(None, alias="intentTrace")
+    """Structured context for why verification failed"""
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -182,6 +221,8 @@ class SettleResponse(BaseModel):
     transaction: Optional[str] = None
     network: Optional[str] = None
     payer: Optional[str] = None
+    intent_trace: Optional[IntentTrace] = Field(None, alias="intentTrace")
+    """Structured context for why settlement failed"""
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -199,6 +240,38 @@ class PaymentPayload(BaseModel):
     scheme: str
     network: str
     payload: SchemePayloads
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class ResourceInfoSimple(BaseModel):
+    """Simplified resource info for decline messages."""
+
+    url: str
+    description: Optional[str] = None
+    mime_type: Optional[str] = None
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
+
+
+class PaymentDecline(BaseModel):
+    """Payment decline message sent by clients when they choose not to pay.
+    Includes optional intent trace to explain the reason for declining.
+    """
+
+    x402_version: int
+    decline: Literal[True] = True
+    resource: ResourceInfoSimple
+    intent_trace: Optional[IntentTrace] = Field(None, alias="intentTrace")
+    """Structured context for why the payment was declined"""
 
     model_config = ConfigDict(
         alias_generator=to_camel,

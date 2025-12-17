@@ -148,3 +148,18 @@ export function deepEqual(obj1: unknown, obj2: unknown): boolean {
     return JSON.stringify(obj1) === JSON.stringify(obj2);
   }
 }
+
+// Export intent trace utilities
+export {
+  FailureReasonCodes,
+  createInsufficientFundsTrace,
+  createSignatureExpiredTrace,
+  createSignatureNotYetValidTrace,
+  createInvalidSignatureTrace,
+  createRecipientMismatchTrace,
+  createAmountMismatchTrace,
+  createTransactionRevertedTrace,
+  createUndeployedWalletTrace,
+  createGenericFailureTrace,
+} from "./intentTrace";
+export type { FailureReasonCode } from "./intentTrace";

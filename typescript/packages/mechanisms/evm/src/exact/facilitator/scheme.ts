@@ -5,6 +5,16 @@ import {
   SettleResponse,
   VerifyResponse,
 } from "@x402/core/types";
+import {
+  createInsufficientFundsTrace,
+  createSignatureExpiredTrace,
+  createSignatureNotYetValidTrace,
+  createInvalidSignatureTrace,
+  createRecipientMismatchTrace,
+  createAmountMismatchTrace,
+  createUndeployedWalletTrace,
+  createTransactionRevertedTrace,
+} from "@x402/core/utils";
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
@@ -141,6 +151,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
           isValid: false,
           invalidReason: "invalid_exact_evm_payload_signature",
           payer: exactEvmPayload.authorization.from,
+          intentTrace: createInvalidSignatureTrace(exactEvmPayload.authorization.from),
         };
       }
     } catch {
@@ -171,6 +182,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
               isValid: false,
               invalidReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
               payer: payerAddress,
+              intentTrace: createUndeployedWalletTrace(payerAddress),
             };
           }
           // EIP-6492 signature with deployment info - allow through
@@ -181,6 +193,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
             isValid: false,
             invalidReason: "invalid_exact_evm_payload_signature",
             payer: exactEvmPayload.authorization.from,
+            intentTrace: createInvalidSignatureTrace(exactEvmPayload.authorization.from),
           };
         }
       } else {
@@ -189,6 +202,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
           isValid: false,
           invalidReason: "invalid_exact_evm_payload_signature",
           payer: exactEvmPayload.authorization.from,
+          intentTrace: createInvalidSignatureTrace(exactEvmPayload.authorization.from),
         };
       }
     }
@@ -199,6 +213,10 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_recipient_mismatch",
         payer: exactEvmPayload.authorization.from,
+        intentTrace: createRecipientMismatchTrace(
+          requirements.payTo,
+          exactEvmPayload.authorization.to,
+        ),
       };
     }
 
@@ -209,6 +227,10 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_authorization_valid_before",
         payer: exactEvmPayload.authorization.from,
+        intentTrace: createSignatureExpiredTrace(
+          exactEvmPayload.authorization.validBefore,
+          now,
+        ),
       };
     }
 
@@ -218,6 +240,10 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_authorization_valid_after",
         payer: exactEvmPayload.authorization.from,
+        intentTrace: createSignatureNotYetValidTrace(
+          exactEvmPayload.authorization.validAfter,
+          now,
+        ),
       };
     }
 
@@ -235,6 +261,12 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
           isValid: false,
           invalidReason: "insufficient_funds",
           payer: exactEvmPayload.authorization.from,
+          intentTrace: createInsufficientFundsTrace(
+            requirements.amount,
+            balance.toString(),
+            requirements.asset,
+            requirements.network,
+          ),
         };
       }
     } catch {
@@ -247,6 +279,10 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         isValid: false,
         invalidReason: "invalid_exact_evm_payload_authorization_value",
         payer: exactEvmPayload.authorization.from,
+        intentTrace: createAmountMismatchTrace(
+          requirements.amount,
+          exactEvmPayload.authorization.value,
+        ),
       };
     }
 

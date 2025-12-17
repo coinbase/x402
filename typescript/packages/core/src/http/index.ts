@@ -1,5 +1,10 @@
-import { SettleResponse } from "../types";
-import { PaymentPayload, PaymentRequired, PaymentRequirements } from "../types/payments";
+import { IntentTrace, SettleResponse } from "../types";
+import {
+  PaymentDecline,
+  PaymentPayload,
+  PaymentRequired,
+  PaymentRequirements,
+} from "../types/payments";
 import { Base64EncodedRegex, safeBase64Decode, safeBase64Encode } from "../utils";
 
 // HTTP Methods that typically use query parameters
@@ -77,6 +82,52 @@ export function decodePaymentResponseHeader(paymentResponseHeader: string): Sett
     throw new Error("Invalid payment response header");
   }
   return JSON.parse(safeBase64Decode(paymentResponseHeader)) as SettleResponse;
+}
+
+/**
+ * Encodes a payment decline as a base64 header value.
+ *
+ * @param paymentDecline - The payment decline to encode
+ * @returns Base64 encoded string representation of the payment decline
+ */
+export function encodePaymentDeclineHeader(paymentDecline: PaymentDecline): string {
+  return safeBase64Encode(JSON.stringify(paymentDecline));
+}
+
+/**
+ * Decodes a base64 payment decline header into a payment decline object.
+ *
+ * @param paymentDeclineHeader - The base64 encoded payment decline header
+ * @returns The decoded payment decline object
+ */
+export function decodePaymentDeclineHeader(paymentDeclineHeader: string): PaymentDecline {
+  if (!Base64EncodedRegex.test(paymentDeclineHeader)) {
+    throw new Error("Invalid payment decline header");
+  }
+  return JSON.parse(safeBase64Decode(paymentDeclineHeader)) as PaymentDecline;
+}
+
+/**
+ * Encodes an intent trace as a base64 header value.
+ *
+ * @param intentTrace - The intent trace to encode
+ * @returns Base64 encoded string representation of the intent trace
+ */
+export function encodeIntentTraceHeader(intentTrace: IntentTrace): string {
+  return safeBase64Encode(JSON.stringify(intentTrace));
+}
+
+/**
+ * Decodes a base64 intent trace header into an intent trace object.
+ *
+ * @param intentTraceHeader - The base64 encoded intent trace header
+ * @returns The decoded intent trace object
+ */
+export function decodeIntentTraceHeader(intentTraceHeader: string): IntentTrace {
+  if (!Base64EncodedRegex.test(intentTraceHeader)) {
+    throw new Error("Invalid intent trace header");
+  }
+  return JSON.parse(safeBase64Decode(intentTraceHeader)) as IntentTrace;
 }
 
 // Export HTTP service and types

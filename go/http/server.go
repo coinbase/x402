@@ -145,6 +145,7 @@ type HTTPProcessResult struct {
 	Response            *HTTPResponseInstructions
 	PaymentPayload      *types.PaymentPayload      // V2 only
 	PaymentRequirements *types.PaymentRequirements // V2 only
+	PaymentDecline      *x402.PaymentDecline       // When client declines payment
 }
 
 // Result type constants
@@ -152,6 +153,7 @@ const (
 	ResultNoPaymentRequired = "no-payment-required"
 	ResultPaymentVerified   = "payment-verified"
 	ResultPaymentError      = "payment-error"
+	ResultPaymentDeclined   = "payment-declined"
 )
 
 // ProcessSettleResult represents the result of settlement processing
@@ -292,6 +294,28 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		return HTTPProcessResult{
 			Type:     ResultPaymentError,
 			Response: &HTTPResponseInstructions{Status: 400, Body: map[string]string{"error": "Invalid payment"}},
+		}
+	}
+
+	// Check for payment decline header
+	paymentDecline := s.extractPaymentDecline(reqCtx.Adapter)
+	if paymentDecline != nil {
+		// Log the decline for analytics
+		if paymentDecline.IntentTrace != nil {
+			fmt.Printf("Payment declined for %s: %s - %s\n",
+				reqCtx.Adapter.GetURL(),
+				paymentDecline.IntentTrace.ReasonCode,
+				paymentDecline.IntentTrace.TraceSummary)
+		}
+
+		return HTTPProcessResult{
+			Type:           ResultPaymentDeclined,
+			PaymentDecline: paymentDecline,
+			Response: &HTTPResponseInstructions{
+				Status:  200,
+				Headers: map[string]string{"Content-Type": "application/json"},
+				Body:    map[string]string{"acknowledged": "true"},
+			},
 		}
 	}
 
@@ -516,6 +540,28 @@ func (s *x402HTTPResourceServer) extractPayment(adapter HTTPAdapter) *x402.Payme
 		Resource:    nil,
 		Extensions:  payload.Extensions,
 	}
+}
+
+// extractPaymentDecline extracts a payment decline from HTTP headers
+func (s *x402HTTPResourceServer) extractPaymentDecline(adapter HTTPAdapter) *x402.PaymentDecline {
+	// Check for decline header
+	header := adapter.GetHeader("PAYMENT-DECLINE")
+	if header == "" {
+		header = adapter.GetHeader("payment-decline")
+	}
+
+	if header == "" {
+		return nil // No decline header
+	}
+
+	// Decode base64 header
+	decline, err := DecodePaymentDeclineHeader(header)
+	if err != nil {
+		fmt.Printf("Warning: Failed to decode PAYMENT-DECLINE header: %v\n", err)
+		return nil
+	}
+
+	return decline
 }
 
 // decodeBase64Header decodes a base64 header to JSON bytes

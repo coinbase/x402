@@ -12,7 +12,7 @@ from x402.common import (
     x402_VERSION,
     find_matching_payment_requirements,
 )
-from x402.encoding import safe_base64_decode
+from x402.encoding import safe_base64_decode, decode_payment_decline_header
 from x402.facilitator import FacilitatorClient, FacilitatorConfig
 from x402.path import path_is_match
 from x402.paywall import is_browser_request, get_paywall_html
@@ -153,6 +153,21 @@ def require_payment(
                     status_code=status_code,
                     headers=headers,
                 )
+
+        # Check for payment decline header first
+        decline_header = request.headers.get("PAYMENT-DECLINE", "")
+        if decline_header:
+            try:
+                decline = decode_payment_decline_header(decline_header)
+                # Return 200 OK acknowledgment for decline
+                return JSONResponse(
+                    content={"acknowledged": True},
+                    status_code=200,
+                    headers={"Content-Type": "application/json"},
+                )
+            except Exception:
+                # Invalid decline header, continue with normal payment flow
+                pass
 
         # Check for payment header
         payment_header = request.headers.get("X-PAYMENT", "")

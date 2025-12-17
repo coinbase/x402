@@ -1,10 +1,12 @@
 import { x402ResourceServer } from "../server";
 import {
+  decodePaymentDeclineHeader,
   decodePaymentSignatureHeader,
   encodePaymentRequiredHeader,
   encodePaymentResponseHeader,
 } from ".";
 import {
+  PaymentDecline,
   PaymentPayload,
   PaymentRequired,
   SettleResponse,
@@ -171,6 +173,7 @@ export interface HTTPRequestContext {
   path: string;
   method: string;
   paymentHeader?: string;
+  declineHeader?: string;
 }
 
 /**
@@ -193,7 +196,12 @@ export type HTTPProcessResult =
       paymentPayload: PaymentPayload;
       paymentRequirements: PaymentRequirements;
     }
-  | { type: "payment-error"; response: HTTPResponseInstructions };
+  | { type: "payment-error"; response: HTTPResponseInstructions }
+  | {
+      type: "payment-declined";
+      paymentDecline: PaymentDecline;
+      response: HTTPResponseInstructions;
+    };
 
 /**
  * Result of processSettlement
@@ -348,6 +356,30 @@ export class x402HTTPResourceServer {
 
     // Check for payment header (v1 or v2)
     const paymentPayload = this.extractPayment(adapter);
+
+    // Check for payment decline header
+    const paymentDecline = this.extractPaymentDecline(adapter);
+
+    // If client is declining payment, acknowledge and return
+    if (paymentDecline) {
+      // Log the decline for analytics (server can process intent trace as needed)
+      if (paymentDecline.intentTrace) {
+        console.info(
+          `Payment declined for ${adapter.getUrl()}: ${paymentDecline.intentTrace.reason_code}`,
+          paymentDecline.intentTrace.trace_summary || "",
+        );
+      }
+
+      return {
+        type: "payment-declined",
+        paymentDecline,
+        response: {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+          body: { acknowledged: true },
+        },
+      };
+    }
 
     // Create resource info, using config override if provided
     const resourceInfo = {
@@ -595,6 +627,26 @@ export class x402HTTPResourceServer {
         return decodePaymentSignatureHeader(header);
       } catch (error) {
         console.warn("Failed to decode PAYMENT-SIGNATURE header:", error);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract payment decline from HTTP headers
+   *
+   * @param adapter - HTTP adapter
+   * @returns Decoded payment decline or null
+   */
+  private extractPaymentDecline(adapter: HTTPAdapter): PaymentDecline | null {
+    const header = adapter.getHeader("payment-decline") || adapter.getHeader("PAYMENT-DECLINE");
+
+    if (header) {
+      try {
+        return decodePaymentDeclineHeader(header);
+      } catch (error) {
+        console.warn("Failed to decode PAYMENT-DECLINE header:", error);
       }
     }
 
