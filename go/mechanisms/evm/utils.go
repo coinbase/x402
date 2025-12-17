@@ -135,7 +135,16 @@ func FormatAmount(amount *big.Int, decimals int) string {
 	return quotient.String() + "." + decStr
 }
 
-// GetNetworkConfig returns the configuration for a network
+// GetNetworkConfig returns the configuration for a network.
+// For networks with configured defaults (Base, Base Sepolia), returns the full config.
+// For other valid EIP-155 networks, returns a config with just the chain ID (no default asset).
+//
+// Args:
+//   - network: The network identifier (eip155:CHAIN_ID or legacy name)
+//
+// Returns:
+//   - NetworkConfig with chain ID (and default asset if configured)
+//   - Error if the network format is invalid
 func GetNetworkConfig(network string) (*NetworkConfig, error) {
 	networkStr := network
 
@@ -147,27 +156,51 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 		networkStr = "eip155:84532"
 	}
 
+	// Check if we have a pre-configured network with default asset
 	if config, ok := NetworkConfigs[networkStr]; ok {
 		return &config, nil
 	}
 
-	return nil, fmt.Errorf("unsupported network: %s", network)
-}
-
-// GetAssetInfo returns information about an asset on a network
-func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
-	config, err := GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
+	// For any valid EIP-155 network, dynamically create a config with just the chain ID
+	if strings.HasPrefix(networkStr, "eip155:") {
+		chainIdStr := strings.TrimPrefix(networkStr, "eip155:")
+		chainId, ok := new(big.Int).SetString(chainIdStr, 10)
+		if ok {
+			return &NetworkConfig{
+				ChainID: chainId,
+				// No DefaultAsset - callers using TokenAsset don't need it
+			}, nil
+		}
 	}
 
-	// Check if it's an address
+	return nil, fmt.Errorf("invalid network format: %s (expected eip155:CHAIN_ID)", network)
+}
+
+// GetAssetInfo returns information about an asset on a network.
+// If assetSymbolOrAddress is a valid address, returns info for that specific token.
+// If assetSymbolOrAddress is empty or a symbol, attempts to use the network's default asset.
+//
+// Args:
+//   - network: The network identifier
+//   - assetSymbolOrAddress: Either an asset address (0x...) or empty for default
+//
+// Returns:
+//   - AssetInfo for the requested asset
+//   - Error if default asset is requested but not configured for this network
+func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, error) {
+	// Check if it's an explicit address - works for ANY network
 	if IsValidAddress(assetSymbolOrAddress) {
 		normalizedAddr := NormalizeAddress(assetSymbolOrAddress)
-		if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
-			return &config.DefaultAsset, nil
+
+		// Check if this matches a known default asset for richer metadata
+		config, err := GetNetworkConfig(network)
+		if err == nil && config.DefaultAsset.Address != "" {
+			if normalizedAddr == NormalizeAddress(config.DefaultAsset.Address) {
+				return &config.DefaultAsset, nil
+			}
 		}
-		// Unknown token - return basic info
+
+		// Unknown token - return basic info (works for any EVM network)
 		return &AssetInfo{
 			Address:  normalizedAddr,
 			Name:     "Unknown Token",
@@ -176,7 +209,17 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 		}, nil
 	}
 
-	// Default to the network's default asset
+	// Not an explicit address - need the network's default asset
+	config, err := GetNetworkConfig(network)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if default asset is configured
+	if config.DefaultAsset.Address == "" {
+		return nil, fmt.Errorf("no default asset configured for network %s; specify an explicit asset address or register a money parser", network)
+	}
+
 	return &config.DefaultAsset, nil
 }
 

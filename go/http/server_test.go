@@ -156,7 +156,9 @@ func TestProcessHTTPRequestPaymentRequired(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	// Request to protected path without payment
 	adapter := &mockHTTPAdapter{
@@ -213,7 +215,9 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	// Browser request
 	adapter := &mockHTTPAdapter{
@@ -305,7 +309,9 @@ func TestProcessHTTPRequestWithPaymentVerified(t *testing.T) {
 		x402.WithFacilitatorClient(mockClient),
 		x402.WithSchemeServer("eip155:1", mockServer),
 	)
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	// Create payment payload that matches the route requirements exactly
 	acceptedRequirements := x402.PaymentRequirements{
@@ -388,7 +394,9 @@ func TestProcessSettlement(t *testing.T) {
 		RoutesConfig{},
 		x402.WithFacilitatorClient(mockClient),
 	)
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",

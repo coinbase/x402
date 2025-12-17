@@ -198,8 +198,8 @@ func TestRegisterMoneyParser_StringPrices(t *testing.T) {
 		price         string
 		expectedAsset string
 	}{
-		{"Dollar format", "$100", "0xDAI"},               // > 50, uses DAI
-		{"Plain decimal", "25.50", baseMainnetUSDC},      // <= 50, uses USDC
+		{"Dollar format", "$100", "0xDAI"},          // > 50, uses DAI
+		{"Plain decimal", "25.50", baseMainnetUSDC}, // <= 50, uses USDC
 		{"With USD suffix", "75 USD", "0xDAI"},
 		{"With USDC suffix", "10 USDC", baseMainnetUSDC},
 	}

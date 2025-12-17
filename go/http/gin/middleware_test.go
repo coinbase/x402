@@ -99,7 +99,7 @@ func createTestRouter() *gin.Engine {
 }
 
 // createPaymentHeader creates a base64-encoded payment header for testing
-func createPaymentHeader(payTo string) string {
+func createPaymentHeader(_ string) string {
 	payload := x402.PaymentPayload{
 		X402Version: 2,
 		Payload:     map[string]interface{}{"sig": "test"},
@@ -108,7 +108,7 @@ func createPaymentHeader(payTo string) string {
 			Network:           "eip155:1",
 			Asset:             "USDC",
 			Amount:            "1000000",
-			PayTo:             payTo,
+			PayTo:             "0xtest",
 			MaxTimeoutSeconds: 300,
 			Extra: map[string]interface{}{
 				"resourceUrl": "http://example.com/api",

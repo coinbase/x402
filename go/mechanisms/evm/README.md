@@ -51,12 +51,20 @@ github.com/coinbase/x402/go/mechanisms/evm/exact/facilitator
 
 ## Supported Networks
 
-Networks with default assets configured (see [DEFAULT_ASSET.md](./DEFAULT_ASSET.md) for adding new chains):
+All EVM networks are supported by default. The only consideration is how prices are transformed from money syntax (e.g. `"$0.10"`) to a stablecoin token.
+
+**If prices are defined as `TokenAsset`:** Any EVM chain works out of the box—no additional configuration needed.
+
+**If prices are defined as Money (a USD string like `"$0.10"`):** The server must either:
+1. Register a custom money parser in their `ExactEvmScheme` via `RegisterMoneyParser()`, OR
+2. Use a chain that has a default asset configuration
+
+Networks with default assets configured:
 
 - **Base Mainnet**: `eip155:8453` (USDC)
 - **Base Sepolia**: `eip155:84532` (USDC)
 
-Additional EVM networks can be supported by adding their default asset configuration. See [DEFAULT_ASSET.md](./DEFAULT_ASSET.md) for guidelines.
+To add default asset support for additional chains, see [DEFAULT_ASSET.md](./DEFAULT_ASSET.md).
 
 ## Scheme Implementation
 
