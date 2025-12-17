@@ -13,7 +13,7 @@ Because these tokens lack native gasless approvals:
   - Broadcast the Client’s signed approval transaction.
   - Immediately perform settlement via [`x402Permit2Proxy`](../schemes/exact/scheme_exact_evm.md#reference-implementation-x402permit2proxy) after the approval confirms.
 
-This flow is typically executed using an **atomic batch transaction** to mitigate the risk of malicious actors front-running the transaction and intercepting funds between the Facilitator funding step and the final settlement operation.
+This flow must be executed using an **atomic batch transaction** to mitigate the risk of malicious actors front-running the transaction and intercepting funds between the Facilitator funding step and the final settlement operation.
 
 ---
 

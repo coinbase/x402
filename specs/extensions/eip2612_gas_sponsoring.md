@@ -4,7 +4,7 @@
 
 The `eip2612GasSponsoring` extension enables a "gasless" approval flow to the `Permit` Contract for tokens that implement **EIP-2612** for the [`scheme_exact_evm.md`](../schemes/exact/scheme_exact_evm.md) scheme.
 
-When this extension is active, the Facilitator agrees to accept this off-chain signature and submit it to the blockchain on the user's behalf, paying the gas fees. This is typically batched atomically with the settlement transaction.
+When this extension is active, the Facilitator agrees to accept this off-chain signature and submit it to the blockchain on the user's behalf, paying the gas fees.
 
 ## `PaymentRequired`
 
