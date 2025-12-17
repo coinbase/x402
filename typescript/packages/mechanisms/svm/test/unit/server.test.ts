@@ -54,7 +54,7 @@ describe("ExactSvmScheme", () => {
       const network = SOLANA_DEVNET_CAIP2;
 
       it("should use Devnet USDC address", async () => {
-        const result = await serrorserver.parsePrice("1.00", network);
+        const result = await server.parsePrice("1.00", network);
         expect(result.asset).toBe(USDC_DEVNET_ADDRESS);
         expect(result.amount).toBe("1000000");
       });
