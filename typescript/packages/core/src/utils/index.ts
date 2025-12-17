@@ -76,7 +76,8 @@ export const findFacilitatorBySchemeAndNetwork = <T>(
   return undefined;
 };
 
-export const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;
+// Regex to validate base64 encoded strings - requires at least one character
+export const Base64EncodedRegex = /^[A-Za-z0-9+/]+={0,2}$/;
 
 /**
  * Encodes a string to base64 format
