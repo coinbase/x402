@@ -4,22 +4,22 @@
 
 The `exact` scheme on EVM executes a transfer where the Facilitator (server) pays the gas, but the Client (user) controls the exact flow of funds via cryptographic signatures.
 
-This is implemented via one of two permit types, depending on the token's capabilities:
+This is implemented via one of two asset transfer methods, depending on the token's capabilities:
 
-| PermitType      | Use Case                                                     | Recommendation                                 |
-| :-------------- | :----------------------------------------------------------- | :--------------------------------------------- |
-| **1. EIP-3009** | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
-| **2. Permit2**  | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+| AssetTransferMethod | Use Case                                                     | Recommendation                                 |
+| :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
+| **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
+| **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
 
-If no `permitType` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
+If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
 In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
 
 ---
 
-## 1. PermitType: `EIP-3009`
+## 1. AssetTransferMethod: `EIP-3009`
 
-The `eip3009` permit type uses the `transferWithAuthorization` function directly on token contracts that support it.
+The `eip3009` asset transfer method uses the `transferWithAuthorization` function directly on token contracts that support it.
 
 ### Phase 1: `PAYMENT-SIGNATURE` Header Payload
 
@@ -46,7 +46,7 @@ The `payload` field must contain:
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "maxTimeoutSeconds": 60,
     "extra": {
-      "permitType": "eip3009",
+      "assetTransferMethod": "eip3009",
       "name": "USDC",
       "version": "2"
     }
@@ -79,9 +79,9 @@ Settlement is performed via the facilitator calling the `transferWithAuthorizati
 
 ---
 
-## 2\. PermitType: `Permit2`
+## 2\. AssetTransferMethod: `Permit2`
 
-This permit type uses the `permitWitnessTransferFrom` from the canonical **Permit2** contract combined with a `x402Permit2Proxy` to enforce receiver address security via the "Witness" pattern.
+This asset transfer method uses the `permitWitnessTransferFrom` from the canonical **Permit2** contract combined with a `x402Permit2Proxy` to enforce receiver address security via the "Witness" pattern.
 
 ### Phase 1: One-Time Gas Approval
 
@@ -129,7 +129,7 @@ The `payload` field must contain:
     "maxTimeoutSeconds": 60,
     "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     "extra": {
-      "permitType": "permit2",
+      "assetTransferMethod": "permit2",
       "name": "USDC",
       "version": "2"
     }

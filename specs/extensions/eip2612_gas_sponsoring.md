@@ -22,7 +22,7 @@ A Facilitator advertises support for this extension by including the `eip2612Gas
       "maxTimeoutSeconds": 60,
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "extra": {
-        "permitType": "permit2",
+        "assetTransferMethod": "permit2",
         "name": "USDC",
         "version": "2"
       }
@@ -114,7 +114,7 @@ To utilize this extension, the client must generate a valid EIP-2612 signature a
       "maxTimeoutSeconds": 60,
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "extra": {
-        "permitType": "permit2",
+        "assetTransferMethod": "permit2",
         "name": "USDC",
         "version": "2"
       }

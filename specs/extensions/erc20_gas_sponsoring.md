@@ -33,7 +33,7 @@ A Facilitator advertises support for this extension by including an `erc20Approv
       "maxTimeoutSeconds": 60,
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "extra": {
-        "permitType": "permit2",
+        "assetTransferMethod": "permit2",
         "name": "USDC",
         "version": "2"
       }
@@ -140,7 +140,7 @@ Incorrect fees or nonce values invalidate the signed transaction.
       "maxTimeoutSeconds": 60,
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "extra": {
-        "permitType": "permit2",
+        "assetTransferMethod": "permit2",
         "name": "USDC",
         "version": "2"
       }
