@@ -594,5 +594,29 @@ describe("EVM Integration Tests", () => {
       expect(requirements[0].extra?.exchangeRate).toBe(1.02);
       expect(requirements[0].extra?.originalUSD).toBe(100);
     });
+
+    it("should avoid floating-point rounding error", async () => {
+      // Test different Money formats
+      const testCases = [
+        { input: "$4.02", expectedAmount: "4020000" },
+        { input: "4.02", expectedAmount: "4020000" },
+        { input: "4.02 USDC", expectedAmount: "4020000" },
+        { input: "4.02 USD", expectedAmount: "4020000" },
+        { input: 4.02, expectedAmount: "4020000" },
+      ];
+
+      for (const testCase of testCases) {
+        const requirements = await server.buildPaymentRequirements({
+          scheme: "exact",
+          payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          price: testCase.input,
+          network: "eip155:84532" as Network,
+        });
+
+        expect(requirements).toHaveLength(1);
+        expect(requirements[0].amount).toBe(testCase.expectedAmount);
+        expect(requirements[0].asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e"); // Base Sepolia USDC
+      }
+    });
   });
 });
