@@ -32,4 +32,3 @@
 ## Guides
 
 * [MCP Server with x402](guides/mcp-server-with-x402.md)
-* [Building Miniapps](guides/miniapps.md)
