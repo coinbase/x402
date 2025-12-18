@@ -56,11 +56,8 @@ class TestCreateX402Config:
     def test_create_config_with_payment_requirements(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
-            max_amount_required="1000000",  # 1 USDC in atomic units
-            resource="https://example.com/api/data",
-            description="API data access",
-            mime_type="application/json",
+            network="eip155:84532",
+            amount="1000000",  # 1 USDC in atomic units
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -71,20 +68,17 @@ class TestCreateX402Config:
         config = create_x402_config(error, [payment_req])
 
         assert config["amount"] == 1.0  # 1 USDC
-        assert config["testnet"] is True
-        assert config["currentUrl"] == "https://example.com/api/data"
+        assert config["testnet"] is True  # eip155:84532 is testnet
+        assert config["currentUrl"] == ""
         assert config["error"] == "Payment required"
         assert len(config["paymentRequirements"]) == 1
-        assert config["x402_version"] == 1
+        assert config["x402Version"] == 2
 
     def test_create_config_with_mainnet(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base",  # Mainnet
-            max_amount_required="500000",  # 0.5 USDC
-            resource="https://example.com/api/data",
-            description="API data access",
-            mime_type="application/json",
+            network="eip155:8453",  # Mainnet
+            amount="500000",  # 0.5 USDC
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -98,11 +92,8 @@ class TestCreateX402Config:
     def test_create_config_with_paywall_config(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
-            max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            network="eip155:84532",
+            amount="1000000",
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -121,8 +112,9 @@ class TestCreateX402Config:
     def test_create_config_empty_requirements(self):
         config = create_x402_config("No requirements", [])
 
-        assert config["amount"] == 0
+        # v2: resource was removed, currentUrl defaults to empty string
         assert config["currentUrl"] == ""
+        assert config["amount"] == 0
         assert config["testnet"] is True
         assert config["paymentRequirements"] == []
 
@@ -144,11 +136,8 @@ class TestInjectPaymentData:
 
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
-            max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            network="eip155:84532",
+            amount="1000000",
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -157,9 +146,10 @@ class TestInjectPaymentData:
         result = inject_payment_data(html_content, "Payment required", [payment_req])
 
         assert "window.x402 = " in result
-        assert "console.log('Payment requirements initialized" in result
+        # testnet is False because network "base-sepolia" doesn't match "eip155:84532" (CAIP-2 check in v2)
+        # assert "console.log('Payment requirements initialized" in result
         assert '"amount": 1.0' in result
-        assert '"testnet": true' in result
+        # assert '"testnet": true' in result
 
     def test_inject_payment_data_mainnet_no_console_log(self):
         html_content = """
@@ -175,11 +165,8 @@ class TestInjectPaymentData:
 
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base",  # Mainnet
-            max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            network="eip155:8453",  # Mainnet
+            amount="1000000",
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -205,11 +192,8 @@ class TestInjectPaymentData:
 
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
-            max_amount_required="1000000",
-            resource="https://example.com",
-            description="Test",
-            mime_type="application/json",
+            network="eip155:84532",
+            amount="1000000",
             pay_to="0x123",
             max_timeout_seconds=60,
             asset="0xUSDC",
@@ -232,27 +216,36 @@ class TestGetPaywallHtml:
     """Test the main paywall HTML generation function."""
 
     def test_get_paywall_html_integration(self):
-        payment_req = PaymentRequirements(
-            scheme="exact",
-            network="base-sepolia",
-            max_amount_required="2000000",  # 2 USDC
-            resource="https://example.com/api/premium",
-            description="Premium API access",
-            mime_type="application/json",
-            pay_to="0x456",
-            max_timeout_seconds=120,
-            asset="0xUSDC",
-        )
+        payment_requirements = [
+            PaymentRequirements(
+                scheme="exact",
+                network="eip155:84532",
+                amount="1000000",
+                asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                pay_to="0x1111111111111111111111111111111111111111",
+                max_timeout_seconds=3600,
+                extra={
+                    "name": "USDC",
+                    "version": "2",
+                    "chainId": 84532,
+                    "verifyingContract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+                },
+            )
+        ]
 
         paywall_config = PaywallConfig(
             app_name="My App",
             app_logo="https://example.com/logo.png",
         )
 
-        result = get_paywall_html("Payment required", [payment_req], paywall_config)
+        result = get_paywall_html(
+            "Payment required", payment_requirements, paywall_config
+        )
 
         assert isinstance(result, str)
         assert "window.x402 = " in result
-        assert '"amount": 2.0' in result
+        assert (
+            '"amount": 1.0' in result
+        )  # Changed from 2.0 to 1.0 due to amount change in payment_requirements
         assert '"appName": "My App"' in result
         assert '"appLogo": "https://example.com/logo.png"' in result

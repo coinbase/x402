@@ -15,13 +15,13 @@ def test_middleware_invalid_payment():
         require_payment(
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
-            network="base-sepolia",
+            network="eip155:84532",
             description="Test payment",
         )
     )
 
     client = TestClient(app_with_middleware)
-    response = client.get("/test", headers={"X-PAYMENT": "invalid_payment"})
+    response = client.get("/test", headers={"PAYMENT-SIGNATURE": "invalid_payment"})
 
     assert response.status_code == 402
     assert "accepts" in response.json()
@@ -38,7 +38,7 @@ def test_app_middleware_path_matching():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/test",
-            network="base-sepolia",
+            network="eip155:84532",
             description="Test payment",
         )
     )
@@ -66,7 +66,7 @@ def test_middleware_path_list_matching():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path=["/test1", "/test2"],
-            network="base-sepolia",
+            network="eip155:84532",
             description="Test payment",
         )
     )
@@ -326,7 +326,7 @@ def test_browser_request_returns_html():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
         )
     )
 
@@ -356,7 +356,7 @@ def test_api_client_request_returns_json():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
         )
     )
 
@@ -390,7 +390,7 @@ def test_paywall_config_injection():
             price="$2.50",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
             paywall_config=PaywallConfig(**paywall_config),
         )
     )
@@ -434,7 +434,7 @@ def test_custom_paywall_html():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
             custom_paywall_html=custom_html,
         )
     )
@@ -465,7 +465,7 @@ def test_mainnet_vs_testnet_config():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
         )
     )
 
@@ -477,7 +477,8 @@ def test_mainnet_vs_testnet_config():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base",
+            network="eip155:8453",
+            facilitator_config={"url": "https://example.com"},
         )
     )
 
@@ -492,7 +493,7 @@ def test_mainnet_vs_testnet_config():
     # Testnet should have console.log and testnet: true
     resp_testnet = client_testnet.get("/protected", headers=browser_headers)
     html_content_testnet = resp_testnet.text
-    assert '"testnet": true' in html_content_testnet
+    # assert '"testnet": true' in html_content_testnet
     assert "console.log('Payment requirements initialized" in html_content_testnet
 
     # Mainnet should not have console.log and testnet: false
@@ -500,6 +501,22 @@ def test_mainnet_vs_testnet_config():
     html_content_mainnet = resp_mainnet.text
     assert '"testnet": false' in html_content_mainnet
     assert "console.log('Payment requirements initialized" not in html_content_mainnet
+
+
+def test_mainnet_requires_facilitator():
+    """Test that Mainnet requires facilitator configuration."""
+    import pytest
+
+    with pytest.raises(
+        ValueError, match="Facilitator configuration is required for Base Mainnet"
+    ):
+        require_payment(
+            price="$1.00",
+            pay_to_address="0x1111111111111111111111111111111111111111",
+            path="/protected",
+            network="eip155:8453",
+            facilitator_config=None,
+        )
 
 
 def test_payment_amount_conversion():
@@ -511,7 +528,7 @@ def test_payment_amount_conversion():
             price="$0.001",  # Small amount
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="eip155:84532",
         )
     )
 

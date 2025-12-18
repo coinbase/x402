@@ -9,7 +9,7 @@ from x402.clients.base import (
     PaymentSelectorCallable,
 )
 from x402.types import x402PaymentRequiredResponse
-import copy
+from x402.encoding import safe_base64_decode
 
 
 class x402HTTPAdapter(HTTPAdapter):
@@ -46,11 +46,10 @@ class x402HTTPAdapter(HTTPAdapter):
             return response
 
         try:
-            # Save the content before we parse it to avoid consuming it
-            content = copy.deepcopy(response.content)
+            # Check for PAYMENT-REQUIRED header (V2 standard)
+            payment_required_header = response.headers["PAYMENT-REQUIRED"]
+            data = json.loads(safe_base64_decode(payment_required_header))
 
-            # Parse the JSON content without using response.json() which consumes it
-            data = json.loads(content.decode("utf-8"))
             payment_response = x402PaymentRequiredResponse(**data)
 
             # Select payment requirements
@@ -65,8 +64,8 @@ class x402HTTPAdapter(HTTPAdapter):
 
             # Mark as retry and add payment header
             self._is_retry = True
-            request.headers["X-Payment"] = payment_header
-            request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
+            request.headers["PAYMENT-SIGNATURE"] = payment_header
+            request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE"
 
             retry_response = super().send(request, **kwargs)
 

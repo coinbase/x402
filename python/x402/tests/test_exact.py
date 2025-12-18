@@ -22,15 +22,11 @@ def account():
 def payment_requirements():
     return PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="eip155:84532",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
+        amount="10000",
         max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -66,7 +62,7 @@ def test_prepare_payment_header(account, payment_requirements):
     auth = header["payload"]["authorization"]
     assert auth["from"] == account.address
     assert auth["to"] == payment_requirements.pay_to
-    assert auth["value"] == payment_requirements.max_amount_required
+    assert auth["value"] == payment_requirements.amount
     assert isinstance(auth["nonce"], bytes)
     assert len(auth["nonce"]) == 32
 
@@ -99,7 +95,7 @@ def test_sign_payment_header(account, payment_requirements):
     auth = decoded["payload"]["authorization"]
     assert auth["from"] == account.address
     assert auth["to"] == payment_requirements.pay_to
-    assert auth["value"] == payment_requirements.max_amount_required
+    assert auth["value"] == payment_requirements.amount
     assert int(auth["validAfter"]) < int(time.time())
     assert int(auth["validBefore"]) > int(time.time())
 

@@ -20,15 +20,11 @@ def account():
 def payment_requirements():
     return PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="eip155:84532",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
+        amount="10000",
         max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -84,9 +80,15 @@ async def test_on_response_payment_flow(hooks, payment_requirements):
     )
 
     # Create initial 402 response
-    response = Response(402)
+    response = Response(
+        402,
+        headers={
+            "PAYMENT-REQUIRED": base64.b64encode(
+                json.dumps(payment_response.model_dump(by_alias=True)).encode()
+            ).decode()
+        },
+    )
     response.request = Request("GET", "https://example.com")
-    response._content = json.dumps(payment_response.model_dump(by_alias=True)).encode()
 
     # Mock the retry response with payment response header
     payment_result = {
@@ -123,10 +125,9 @@ async def test_on_response_payment_flow(hooks, payment_requirements):
         # Verify the retry request was made
         assert mock_client.send.called
         retry_request = mock_client.send.call_args[0][0]
-        assert retry_request.headers["X-Payment"] == mock_header
+        assert retry_request.headers["PAYMENT-SIGNATURE"] == mock_header
         assert (
-            retry_request.headers["Access-Control-Expose-Headers"]
-            == "X-Payment-Response"
+            retry_request.headers["Access-Control-Expose-Headers"] == "PAYMENT-RESPONSE"
         )
 
         # Verify the mocked methods were called with correct arguments
@@ -148,9 +149,15 @@ async def test_on_response_payment_error(hooks, payment_requirements):
     )
 
     # Create initial 402 response
-    response = Response(402)
+    response = Response(
+        402,
+        headers={
+            "PAYMENT-REQUIRED": base64.b64encode(
+                json.dumps(payment_response.model_dump(by_alias=True)).encode()
+            ).decode()
+        },
+    )
     response.request = Request("GET", "https://example.com")
-    response._content = json.dumps(payment_response.model_dump(by_alias=True)).encode()
 
     # Test payment error handling
     with pytest.raises(PaymentError):
@@ -162,9 +169,11 @@ async def test_on_response_payment_error(hooks, payment_requirements):
 
 async def test_on_response_general_error(hooks):
     # Create initial 402 response with invalid JSON
-    response = Response(402)
+    response = Response(
+        402,
+        headers={"PAYMENT-REQUIRED": base64.b64encode(b"invalid json").decode()},
+    )
     response.request = Request("GET", "https://example.com")
-    response._content = b"invalid json"
 
     # Test general error handling
     with pytest.raises(PaymentError):

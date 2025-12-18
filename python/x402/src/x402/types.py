@@ -1,55 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional, Union, Dict, Literal, List
+from typing import Any, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
 from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic.alias_generators import to_camel
-
 from x402.networks import SupportedNetworks
-
-
-# Add HTTP request structure types
-class HTTPVerbs(str, Enum):
-    GET = "GET"
-    POST = "POST"
-    PUT = "PUT"
-    DELETE = "DELETE"
-    PATCH = "PATCH"
-    OPTIONS = "OPTIONS"
-    HEAD = "HEAD"
-
-
-class HTTPInputSchema(BaseModel):
-    """Schema for HTTP request input, excluding spec and method which are handled by the middleware"""
-
-    query_params: Optional[Dict[str, str]] = None
-    body_type: Optional[
-        Literal["json", "form-data", "multipart-form-data", "text", "binary"]
-    ] = None
-    body_fields: Optional[Dict[str, Any]] = None
-    header_fields: Optional[Dict[str, Any]] = None
-
-    model_config = ConfigDict(
-        alias_generator=to_camel,
-        populate_by_name=True,
-        from_attributes=True,
-    )
-
-
-class HTTPRequestStructure(HTTPInputSchema):
-    """Complete HTTP request structure including protocol type and method"""
-
-    type: Literal["http"]
-    method: HTTPVerbs
-
-
-# For now we only support HTTP, but could add MCP and OpenAPI later
-RequestStructure = HTTPRequestStructure
 
 
 class TokenAmount(BaseModel):
@@ -96,11 +56,7 @@ Price = Union[Money, TokenAmount]
 class PaymentRequirements(BaseModel):
     scheme: str
     network: SupportedNetworks
-    max_amount_required: str
-    resource: str
-    description: str
-    mime_type: str
-    output_schema: Optional[Any] = None
+    amount: str
     pay_to: str
     max_timeout_seconds: int
     asset: str
@@ -112,15 +68,25 @@ class PaymentRequirements(BaseModel):
         from_attributes=True,
     )
 
-    @field_validator("max_amount_required")
-    def validate_max_amount_required(cls, v):
+    @field_validator("amount")
+    def validate_amount(cls, v):
         try:
             int(v)
         except ValueError:
-            raise ValueError(
-                "max_amount_required must be an integer encoded as a string"
-            )
+            raise ValueError("amount must be an integer encoded as a string")
         return v
+
+
+class ResourceInfo(BaseModel):
+    url: str
+    description: str
+    mime_type: str
+
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True,
+    )
 
 
 # Returned by a server as json alongside a 402 response code
@@ -128,6 +94,7 @@ class x402PaymentRequiredResponse(BaseModel):
     x402_version: int
     accepts: list[PaymentRequirements]
     error: str
+    resource: Optional[ResourceInfo] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -167,7 +134,8 @@ class EIP3009Authorization(BaseModel):
 class VerifyResponse(BaseModel):
     is_valid: bool = Field(alias="isValid")
     invalid_reason: Optional[str] = Field(None, alias="invalidReason")
-    payer: Optional[str]
+    payer: Optional[str] = None
+    error: Optional[str] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -196,9 +164,10 @@ SchemePayloads = ExactPaymentPayload
 
 class PaymentPayload(BaseModel):
     x402_version: int
-    scheme: str
-    network: str
+    resource: Optional[ResourceInfo] = None
+    accepted: Optional[PaymentRequirements] = None
     payload: SchemePayloads
+    extensions: Optional[dict[str, Any]] = None
 
     model_config = ConfigDict(
         alias_generator=to_camel,
@@ -208,7 +177,13 @@ class PaymentPayload(BaseModel):
 
 
 class X402Headers(BaseModel):
-    x_payment: str
+    payment_signature: Optional[str] = Field(None, alias="payment-signature")
+    payment_response: Optional[str] = Field(None, alias="payment-response")
+    payment_required: Optional[str] = Field(None, alias="payment-required")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class UnsupportedSchemeException(Exception):

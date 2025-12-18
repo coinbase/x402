@@ -119,7 +119,7 @@ class x402Client:
             if scheme == "exact":
                 # Check max value if set
                 if max_value is not None:
-                    max_amount = int(paymentRequirements.max_amount_required)
+                    max_amount = int(paymentRequirements.amount)
                     if max_amount > max_value:
                         raise PaymentAmountExceededError(
                             f"Payment amount {max_amount} exceeds maximum allowed value {max_value}"
@@ -171,12 +171,13 @@ class x402Client:
             "x402Version": x402_version,
             "scheme": payment_requirements.scheme,
             "network": payment_requirements.network,
+            "accepted": payment_requirements.model_dump(by_alias=True),
             "payload": {
                 "signature": None,
                 "authorization": {
                     "from": self.account.address,
                     "to": payment_requirements.pay_to,
-                    "value": payment_requirements.max_amount_required,
+                    "value": payment_requirements.amount,
                     "validAfter": str(int(time.time()) - 60),  # 60 seconds before
                     "validBefore": str(
                         int(time.time()) + payment_requirements.max_timeout_seconds

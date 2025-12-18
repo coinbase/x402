@@ -35,7 +35,7 @@ def prepare_payment_header(
             "authorization": {
                 "from": sender_address,
                 "to": payment_requirements.pay_to,
-                "value": payment_requirements.max_amount_required,
+                "value": payment_requirements.amount,
                 "validAfter": valid_after,
                 "validBefore": valid_before,
                 "nonce": nonce,

@@ -1,23 +1,18 @@
-NETWORK_TO_ID = {
-    "base-sepolia": "84532",
-    "base": "8453",
-    "avalanche-fuji": "43113",
-    "avalanche": "43114",
-}
-
-
 def get_chain_id(network: str) -> str:
     """Get the chain ID for a given network
-    Supports string encoded chain IDs and human readable networks
+    Supports CAIP-2 identifiers (e.g. eip155:84532) and string encoded chain IDs
     """
+    # Handle CAIP-2 format
+    if network.startswith("eip155:"):
+        return network.split(":")[1]
+
     try:
         int(network)
         return network
     except ValueError:
         pass
-    if network not in NETWORK_TO_ID:
-        raise ValueError(f"Unsupported network: {network}")
-    return NETWORK_TO_ID[network]
+
+    raise ValueError(f"Unsupported network format: {network}")
 
 
 KNOWN_TOKENS = {

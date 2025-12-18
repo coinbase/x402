@@ -1,0 +1,26 @@
+[project]
+name = "x402-example-mainnet"
+version = "0.1.0"
+description = "V2 Mainnet x402 usage with CDP Facilitator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-dotenv",
+    "cdp-sdk",
+    "x402",
+]
+
+[tool.uv.sources]
+x402 = { path = "../../../../../python/x402", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.uv]
+package = false

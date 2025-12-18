@@ -32,22 +32,16 @@ def adapter(account):
 
 @pytest.fixture
 def payment_requirements():
-    return PaymentRequirements(
+    requirements = PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
-        asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
-        max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
-        extra={
-            "name": "USD Coin",
-            "version": "2",
-        },
+        network="eip155:84532",
+        amount="1000000",
+        asset="0xUSDC",
+        pay_to="0xRecipient",
+        max_timeout_seconds=3600,
+        extra=None,
     )
+    return requirements
 
 
 def test_request_success(session):
@@ -140,9 +134,12 @@ def test_adapter_payment_flow(adapter, payment_requirements):
     # Create initial 402 response
     initial_response = Response()
     initial_response.status_code = 402
-    initial_response._content = json.dumps(
-        payment_response.model_dump(by_alias=True)
-    ).encode()
+    initial_response._content = b""
+    initial_response.headers = {
+        "PAYMENT-REQUIRED": base64.b64encode(
+            json.dumps(payment_response.model_dump(by_alias=True)).encode()
+        ).decode()
+    }
 
     # Mock the retry response with payment response header
     payment_result = {
@@ -154,7 +151,7 @@ def test_adapter_payment_flow(adapter, payment_requirements):
     retry_response = Response()
     retry_response.status_code = 200
     retry_response.headers = {
-        "X-Payment-Response": base64.b64encode(
+        "PAYMENT-RESPONSE": base64.b64encode(
             json.dumps(payment_result).encode()
         ).decode()
     }
@@ -185,7 +182,7 @@ def test_adapter_payment_flow(adapter, payment_requirements):
 
         # Verify the result
         assert response.status_code == 200
-        assert "X-Payment-Response" in response.headers
+        assert "PAYMENT-RESPONSE" in response.headers
 
         # Verify the mocked methods were called with correct arguments
         adapter.client.select_payment_requirements.assert_called_once_with(
@@ -199,10 +196,9 @@ def test_adapter_payment_flow(adapter, payment_requirements):
         assert mock_send.call_count == 2
         retry_call = mock_send.call_args_list[1]
         retry_request = retry_call[0][0]
-        assert retry_request.headers["X-Payment"] == mock_header
+        assert retry_request.headers["PAYMENT-SIGNATURE"] == mock_header
         assert (
-            retry_request.headers["Access-Control-Expose-Headers"]
-            == "X-Payment-Response"
+            retry_request.headers["Access-Control-Expose-Headers"] == "PAYMENT-RESPONSE"
         )
 
 
@@ -218,9 +214,12 @@ def test_adapter_payment_error(adapter, payment_requirements):
     # Create initial 402 response
     initial_response = Response()
     initial_response.status_code = 402
-    initial_response._content = json.dumps(
-        payment_response.model_dump(by_alias=True)
-    ).encode()
+    initial_response._content = b""
+    initial_response.headers = {
+        "PAYMENT-REQUIRED": base64.b64encode(
+            json.dumps(payment_response.model_dump(by_alias=True)).encode()
+        ).decode()
+    }
 
     # Create a prepared request
     request = PreparedRequest()
@@ -238,7 +237,10 @@ def test_adapter_general_error(adapter):
     # Create initial 402 response with invalid JSON
     initial_response = Response()
     initial_response.status_code = 402
-    initial_response._content = b"invalid json"
+    initial_response._content = b""
+    initial_response.headers = {
+        "PAYMENT-REQUIRED": base64.b64encode(b"invalid json").decode()
+    }
 
     # Create a prepared request
     request = PreparedRequest()

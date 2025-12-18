@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Dict, List
 from httpx import Request, Response, AsyncClient
 from eth_account import Account
@@ -8,6 +9,7 @@ from x402.clients.base import (
     PaymentSelectorCallable,
 )
 from x402.types import x402PaymentRequiredResponse
+from x402.encoding import safe_base64_decode
 
 
 class HttpxHooks:
@@ -34,10 +36,9 @@ class HttpxHooks:
             if not response.request:
                 raise MissingRequestConfigError("Missing request configuration")
 
-            # Read the response content before parsing
-            await response.aread()
-
-            data = response.json()
+            # Check for PAYMENT-REQUIRED header (V2 standard)
+            payment_required_header = response.headers["PAYMENT-REQUIRED"]
+            data = json.loads(safe_base64_decode(payment_required_header))
 
             payment_response = x402PaymentRequiredResponse(**data)
 
@@ -55,8 +56,8 @@ class HttpxHooks:
             self._is_retry = True
             request = response.request
 
-            request.headers["X-Payment"] = payment_header
-            request.headers["Access-Control-Expose-Headers"] = "X-Payment-Response"
+            request.headers["PAYMENT-SIGNATURE"] = payment_header
+            request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE"
 
             # Retry the request
             async with AsyncClient() as client:

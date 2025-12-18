@@ -1,10 +1,11 @@
 import json
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from x402.types import PaymentRequirements, PaywallConfig
+from x402.chains import get_chain_id
 from x402.common import x402_VERSION
 from x402.evm_paywall_template import EVM_PAYWALL_TEMPLATE
 from x402.svm_paywall_template import SVM_PAYWALL_TEMPLATE
+from x402.types import PaymentRequirements, PaywallConfig
 
 
 def get_paywall_template(network: str) -> str:
@@ -49,28 +50,58 @@ def create_x402_config(
     if requirements:
         # Convert atomic amount back to USD (assuming USDC with 6 decimals)
         try:
-            display_amount = (
-                float(requirements.max_amount_required) / 1000000
-            )  # USDC has 6 decimals
+            display_amount = float(requirements.amount) / 1000000  # USDC has 6 decimals
         except (ValueError, TypeError):
             display_amount = 0
 
-        current_url = requirements.resource or ""
-        testnet = requirements.network == "base-sepolia"
+        # resource field is removed in v2
+        current_url = ""
+        testnet = requirements.network == "eip155:84532"
 
     # Get paywall config values or defaults
     config = paywall_config or {}
 
+    formatted_requirements = []
+    if payment_requirements:
+        for req in payment_requirements:
+            req_dict = req.model_dump(by_alias=True)
+
+            # Inject fields required specifically by EVM_PAYWALL_TEMPLATE and SVM_PAYWALL_TEMPLATE.
+            # These templates are currently hardcoded to expect these keys (chainId, tokenAddress, recipient)
+            # to initialize their internal wallet connection logic.
+
+            # 1. Inject chainId (int) derived from network
+            try:
+                # get_chain_id returns string (e.g. "84532"), convert to int
+                chain_id_str = get_chain_id(req.network)
+                req_dict["chainId"] = int(chain_id_str)
+            except (ValueError, TypeError):
+                # If network is not EIP155 or invalid, skip chainId injection
+                pass
+
+            # 2. Inject tokenAddress (alias for asset)
+            if "asset" in req_dict and "tokenAddress" not in req_dict:
+                req_dict["tokenAddress"] = req_dict["asset"]
+
+            # 3. Inject recipient (alias for payTo)
+            if "payTo" in req_dict and "recipient" not in req_dict:
+                req_dict["recipient"] = req_dict["payTo"]
+
+            formatted_requirements.append(req_dict)
+
     # Create the window.x402 configuration object
     return {
+        "paymentRequired": {
+            "accepts": formatted_requirements,
+            "x402Version": x402_VERSION,
+            "error": error,
+        },
         "amount": display_amount,
-        "paymentRequirements": [
-            req.model_dump(by_alias=True) for req in payment_requirements
-        ],
+        "paymentRequirements": formatted_requirements,
         "testnet": testnet,
         "currentUrl": current_url,
         "error": error,
-        "x402_version": x402_VERSION,
+        "x402Version": x402_VERSION,
         "appName": config.get("app_name", ""),
         "appLogo": config.get("app_logo", ""),
     }
@@ -124,6 +155,4 @@ def get_paywall_html(
         raise ValueError("payment_requirements cannot be empty")
     network = payment_requirements[0].network
     template = get_paywall_template(network)
-    return inject_payment_data(
-        template, error, payment_requirements, paywall_config
-    )
+    return inject_payment_data(template, error, payment_requirements, paywall_config)

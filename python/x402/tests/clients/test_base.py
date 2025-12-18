@@ -26,15 +26,11 @@ def client(account):
 def payment_requirements():
     return PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="eip155:84532",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
+        amount="10000",
         max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -47,7 +43,7 @@ def test_decode_x_payment_response():
     response = {
         "success": True,
         "transaction": "0x1234",
-        "network": "base-sepolia",
+        "network": "eip155:84532",
         "payer": "0x5678",
     }
     encoded = base64.b64encode(json.dumps(response).encode()).decode()
@@ -112,7 +108,7 @@ def test_select_payment_requirements(client, payment_requirements):
 
     # Test selecting with network filter
     selected = client.select_payment_requirements(
-        [payment_requirements], network_filter="base-sepolia"
+        [payment_requirements], network_filter="eip155:84532"
     )
     assert selected == payment_requirements
 
@@ -157,15 +153,11 @@ def test_create_payment_header(client, payment_requirements):
 def test_payment_requirements_sorting(client):
     base_req = PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="eip155:84532",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
+        amount="10000",
         max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -174,15 +166,11 @@ def test_payment_requirements_sorting(client):
 
     other_req = PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="eip155:84532",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
-        max_amount_required="10000",
-        resource="https://example.com",
-        description="test",
+        amount="10000",
         max_timeout_seconds=1000,
-        mime_type="text/plain",
-        output_schema=None,
         extra={
             "name": "USD Coin",
             "version": "2",
@@ -191,4 +179,4 @@ def test_payment_requirements_sorting(client):
 
     # Test both networks are equal
     selected = client.select_payment_requirements([other_req, base_req])
-    assert selected.network == "base-sepolia"
+    assert selected.network == "eip155:84532"

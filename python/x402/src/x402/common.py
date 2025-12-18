@@ -105,10 +105,17 @@ def find_matching_payment_requirements(
     Returns:
         The matching payment requirements or None if no match is found
     """
-    for req in payment_requirements:
-        if req.scheme == payment.scheme and req.network == payment.network:
-            return req
+    # If payment has accepted requirements, check if they match (V2)
+    if payment.accepted:
+        for req in payment_requirements:
+            if (
+                req.scheme == payment.accepted.scheme
+                and req.network == payment.accepted.network
+            ):
+                return req
+
+    # If no match found or no accepted field, return None
     return None
 
 
-x402_VERSION = 1
+x402_VERSION = 2

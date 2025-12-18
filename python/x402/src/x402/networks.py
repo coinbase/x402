@@ -1,11 +1,8 @@
 from typing import Literal
 
-
-SupportedNetworks = Literal["base", "base-sepolia", "avalanche-fuji", "avalanche"]
-
-EVM_NETWORK_TO_CHAIN_ID = {
-    "base-sepolia": 84532,
-    "base": 8453,
-    "avalanche-fuji": 43113,
-    "avalanche": 43114,
-}
+SupportedNetworks = Literal[
+    "eip155:8453",
+    "eip155:84532",
+    "eip155:43113",
+    "eip155:43114",
+]
