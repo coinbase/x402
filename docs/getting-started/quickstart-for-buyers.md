@@ -2,54 +2,63 @@
 
 This guide walks you through how to use **x402** to interact with services that require payment. By the end of this guide, you will be able to programmatically discover payment requirements, complete a payment, and access a paid resource.
 
+The x402 helper packages greatly simplify your integration. They automatically:
+1. Make the initial request
+2. Parse payment requirements from the `PAYMENT-REQUIRED` header if a 402 response is received
+3. Create a payment payload using the configured x402Client and registered schemes
+4. Retry the request with the `PAYMENT-SIGNATURE` header
+
 ### Prerequisites
 
 Before you begin, ensure you have:
 
 * A crypto wallet with USDC (any EVM-compatible wallet)
-* [Node.js](https://nodejs.org/en) and npm, or Python and pip
+* [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip
 * A service that requires payment via x402
 
+**Note:** The Python SDK is currently under development for x402 v2. For immediate v2 support, use TypeScript or Go.
+
 **Note**\
-We have pre-configured [examples available in our repo](https://github.com/coinbase/x402/tree/main/examples), including examples for fetch, Axios, and MCP.
+We have pre-configured [examples available in our repo](https://github.com/coinbase/x402/tree/main/examples), including examples for fetch, Axios, Go, and MCP.
 
 ### 1. Install Dependencies
 
 {% tabs %}
 {% tab title="Node.js" %}
-**HTTP Clients (Axios/Fetch)**
-Install [x402-axios](https://www.npmjs.com/package/x402-axios) or [x402-fetch](https://www.npmjs.com/package/x402-fetch):
+Install the x402 client packages:
 
 ```bash
-npm install x402-axios
-# or
-npm install x402-fetch
+# For fetch-based clients
+npm install @x402/fetch @x402/evm
+
+# For axios-based clients
+npm install @x402/axios @x402/evm
+
+# For Solana support, also add:
+npm install @x402/svm
 ```
+{% endtab %}
 
-**MCP (Unofficial)**
-This [community package](https://github.com/ethanniser/x402-mcp) showcases how AI agents can use Model Context Protocol (MCP) with x402. We're working on enshrining an official MCP spec in x402 soon.
-
-Install the required packages for MCP support:
+{% tab title="Go" %}
+Add the x402 Go module to your project:
 
 ```bash
-npm install x402-mcp ai @modelcontextprotocol/sdk
+go get github.com/coinbase/x402/go
 ```
 {% endtab %}
 
 {% tab title="Python" %}
 Install the [x402 package](https://pypi.org/project/x402/)
 
-```
+```bash
 pip install x402
 ```
+
+**Note:** Python SDK currently uses v1 patterns. For v2 support, use TypeScript or Go.
 {% endtab %}
 {% endtabs %}
 
-
-
-### 2. Create a Wallet Client
-
-#### Create a Wallet Client
+### 2. Create a Wallet Signer
 
 {% tabs %}
 {% tab title="Node.js (viem)" %}
@@ -59,15 +68,27 @@ Install the required package:
 npm install viem
 ```
 
-Then instantiate the wallet account:
+Then instantiate the wallet signer:
 
 ```typescript
-import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
 
-// Create a wallet client (using your private key)
-const account = privateKeyToAccount("0xYourPrivateKey"); // we recommend using an environment variable for this
+// Create a signer from private key (use environment variable)
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+```
+{% endtab %}
+
+{% tab title="Go" %}
+```go
+import (
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
+
+// Load private key from environment
+evmSigner, err := evmsigners.NewLocalSigner(os.Getenv("EVM_PRIVATE_KEY"))
+if err != nil {
+    log.Fatal(err)
+}
 ```
 {% endtab %}
 
@@ -83,7 +104,7 @@ Then instantiate the wallet account:
 ```python
 from eth_account import Account
 
-account = Account.from_key("your_private_key") # we recommend using an environment variable for this
+account = Account.from_key(os.getenv("PRIVATE_KEY"))
 ```
 {% endtab %}
 {% endtabs %}
@@ -97,182 +118,261 @@ import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
 
 // 64-byte base58 secret key (private + public)
-const signer = await createKeyPairSignerFromBytes(
+const svmSigner = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SOLANA_PRIVATE_KEY!)
 );
 ```
 
 ### 3. Make Paid Requests Automatically
 
-#### Node.js
-
-You can use either `x402-fetch` or `x402-axios` to automatically handle 402 Payment Required responses and complete payment flows.
-
 {% tabs %}
 {% tab title="Fetch" %}
-**x402-fetch** extends the native `fetch` API to handle 402 responses and payment headers for you. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/fetch)
+**@x402/fetch** extends the native `fetch` API to handle 402 responses and payment headers for you. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/fetch)
 
 ```typescript
-import { wrapFetchWithPayment, decodePaymentResponse } from "x402-fetch";
-// other imports...
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
 
-// wallet creation logic...
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
 
-const fetchWithPayment = wrapFetchWithPayment(fetch, account);
+// Create x402 client and register EVM scheme
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
 
-fetchWithPayment(url, { //url should be something like https://api.example.com/paid-endpoint
+// Wrap fetch with payment handling
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+// Make request - payment is handled automatically
+const response = await fetchWithPayment("https://api.example.com/paid-endpoint", {
   method: "GET",
-})
-  .then(async response => {
-    const body = await response.json();
-    console.log(body);
+});
 
-    const paymentResponse = decodePaymentResponse(response.headers.get("payment-response")!);
-    console.log(paymentResponse);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+const data = await response.json();
+console.log("Response:", data);
+
+// Get payment receipt from response headers
+if (response.ok) {
+  const httpClient = new x402HTTPClient(client);
+  const paymentResponse = httpClient.getPaymentSettleResponse(
+    (name) => response.headers.get(name)
+  );
+  console.log("Payment settled:", paymentResponse);
+}
 ```
 {% endtab %}
 
 {% tab title="Axios" %}
-**x402-axios** adds a payment interceptor to Axios, so your requests are retried with payment headers automatically. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/axios)
+**@x402/axios** adds a payment interceptor to Axios, so your requests are retried with payment headers automatically. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/axios)
 
 ```typescript
-import { withPaymentInterceptor, decodePaymentResponse } from "x402-axios";
+import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
 import axios from "axios";
-// other imports...
 
-// wallet creation logic...
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+
+// Create x402 client and register EVM scheme
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
 
 // Create an Axios instance with payment handling
-const api = withPaymentInterceptor(
-  axios.create({
-    baseURL, // e.g. https://api.example.com
-  }),
-  account,
+const api = wrapAxiosWithPayment(
+  axios.create({ baseURL: "https://api.example.com" }),
+  client,
 );
 
-api
-  .get(endpointPath) // e.g. /paid-endpoint
-  .then(response => {
-    console.log(response.data);
+// Make request - payment is handled automatically
+const response = await api.get("/paid-endpoint");
+console.log("Response:", response.data);
 
-    const paymentResponse = decodePaymentResponse(response.headers["payment-response"]);
-    console.log(paymentResponse);
-  })
-  .catch(error => {
-    console.error(error.response?.data?.error);
-  });
+// Get payment receipt
+const httpClient = new x402HTTPClient(client);
+const paymentResponse = httpClient.getPaymentSettleResponse(
+  (name) => response.headers[name.toLowerCase()]
+);
+console.log("Payment settled:", paymentResponse);
 ```
 {% endtab %}
 
-{% tab title="x402-mcp" %}
-**x402-mcp** provides payment handling for MCP clients, allowing AI agents to automatically pay for tools. [Full example here](https://github.com/ethanniser/x402-mcp/tree/main/apps/example)
+{% tab title="Go" %}
+[Full example here](https://github.com/coinbase/x402/tree/main/examples/go/clients/http)
 
-```typescript
-import { convertToModelMessages, stepCountIs, streamText } from "ai";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { experimental_createMCPClient as createMCPClient } from "ai";
-import { withPayment } from "x402-mcp";
+```go
+package main
 
-// Create MCP client with payment capabilities
-const mcpClient = await createMCPClient({
-  transport: new StreamableHTTPClientTransport(mcpServerUrl), // URL of your MCP server
-}).then((client) => withPayment(client, {
-  account, // Your wallet account from step 2
-  network: "base" // or "base-sepolia" for testnet
-}));
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "os"
+    "time"
 
-// Get available tools (both paid and free)
-const tools = await mcpClient.tools();
+    x402 "github.com/coinbase/x402/go"
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
 
-// Use the tools with your AI model
-const result = streamText({
-  model: "gpt-4", // or any AI model
-  tools,
-  messages: convertToModelMessages(messages),
-  stopWhen: stepCountIs(5), // Limit tool calls for safety
-  onFinish: async () => {
-    await mcpClient.close();
-  },
-  system: "ALWAYS prompt the user to confirm before authorizing payments",
-});
+func main() {
+    url := "http://localhost:4021/weather"
+
+    // Create EVM signer
+    evmSigner, _ := evmsigners.NewLocalSigner(os.Getenv("EVM_PRIVATE_KEY"))
+
+    // Create x402 client and register EVM scheme
+    x402Client := x402.Newx402Client().
+        Register("eip155:*", evm.NewExactEvmClient(evmSigner))
+
+    // Wrap HTTP client with payment handling
+    httpClient := x402http.Newx402HTTPClient(x402Client)
+
+    // Make request - payment is handled automatically
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        fmt.Printf("Request failed: %v\n", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    // Read response
+    var data map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&data)
+    fmt.Printf("Response: %+v\n", data)
+
+    // Check payment response header
+    paymentHeader := resp.Header.Get("PAYMENT-RESPONSE")
+    if paymentHeader != "" {
+        fmt.Println("Payment settled successfully!")
+    }
+}
 ```
-
-**Features:**
-- Automatically detects when MCP tools require payment
-- Handles x402 payment flow transparently
-- Supports both paid and free tools from the same server
-- Integrates seamlessly with Vercel AI SDK
-
-**Note:** The `withPayment` wrapper adds payment capabilities to any MCP client. When a tool call requires payment, it will automatically handle the x402 payment flow using your configured wallet.
 {% endtab %}
-{% endtabs %}
 
-#### Python
+{% tab title="Python" %}
+**Note:** Python SDK currently uses v1 patterns.
 
-You can use either `httpx` or `Requests`  to automatically handle 402 Payment Required responses and complete payment flows.
+You can use either `httpx` or `Requests` to automatically handle 402 Payment Required responses.
 
-* **Requests** is a well-established library for **synchronous** HTTP requests. It is simple and ideal for straightforward, sequential workflows.
-* **HTTPX** is a modern library that supports both **synchronous** and **asynchronous** (async) HTTP requests. Use HTTPX if you need high concurrency, advanced features like HTTP/2, or want to leverage Python’s async capabilities
+[Full HTTPX example](https://github.com/coinbase/x402/tree/main/examples/python/clients/httpx) | [Full Requests example](https://github.com/coinbase/x402/tree/main/examples/python/clients/requests)
 
-Both support a **simple** and **extensible** approach. The simple returns a pre-configured client that handles payments automatically, while the extensible lets you use an existing session/client. The simple is covered here, while the extensible is in the README of the full examples linked below.
+```python
+from x402.clients.httpx import x402HttpxClient
+from eth_account import Account
 
-{% tabs %}
-{% tab title="HTTPX" %}
-[Full example here](https://github.com/coinbase/x402/tree/main/examples/python/clients/httpx)
+# Create wallet account
+account = Account.from_key(os.getenv("PRIVATE_KEY"))
 
-<pre class="language-python"><code class="lang-python">from x402.clients.httpx import x402HttpxClient
-# Other imports...
-
-# Wallet creation logic ...
-<strong>
-</strong><strong># Create client and make request
-</strong>async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
+# Create client and make request
+async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
     response = await client.get("/protected-endpoint")
     print(await response.aread())
-</code></pre>
-{% endtab %}
-
-{% tab title="Requests" %}
-[Full example here](https://github.com/coinbase/x402/tree/main/examples/python/clients/requests)
-
-<pre class="language-python"><code class="lang-python">from x402.clients.requests import x402_requests
-# Other imports...
-
-# Wallet creation logic ...
-<strong>
-</strong><strong># Create session and make request
-</strong>session = x402_requests(account)
-response = session.get("https://api.example.com/protected-endpoint")
-print(response.content)
-</code></pre>
+```
 {% endtab %}
 {% endtabs %}
 
-### 4. Error Handling
+### Multi-Network Client Setup
+
+You can register multiple payment schemes to handle different networks:
+
+```typescript
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core/client";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+
+// Create signers
+const evmSigner = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const svmSigner = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SOLANA_PRIVATE_KEY!)
+);
+
+// Create client with multiple schemes
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: evmSigner });
+registerExactSvmScheme(client, { signer: svmSigner });
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+// Now handles both EVM and Solana networks automatically!
+```
+
+### 4. Discover Available Services (Optional)
+
+Instead of hardcoding endpoints, you can use the x402 Bazaar to dynamically discover available services. This is especially powerful for building autonomous agents.
+
+```typescript
+// Fetch available services from the Bazaar API
+const response = await fetch(
+  "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources"
+);
+const services = await response.json();
+
+// Filter services by criteria
+const affordableServices = services.items.filter((item) =>
+  item.accepts.some((req) => Number(req.amount) < 100000) // Under $0.10
+);
+
+console.log("Available services:", affordableServices);
+```
+
+Learn more about service discovery in the [Bazaar documentation](../extensions/bazaar.md).
+
+### 5. Error Handling
 
 Clients will throw errors if:
 
+* No scheme is registered for the required network
 * The request configuration is missing
 * A payment has already been attempted for the request
 * There is an error creating the payment header
 
+Common error handling:
+
+```typescript
+try {
+  const response = await fetchWithPayment(url, { method: "GET" });
+  // Handle success
+} catch (error) {
+  if (error.message.includes("No scheme registered")) {
+    console.error("Network not supported - register the appropriate scheme");
+  } else if (error.message.includes("Payment already attempted")) {
+    console.error("Payment failed on retry");
+  } else {
+    console.error("Request failed:", error);
+  }
+}
+```
+
 ### Summary
 
-* Install an x402 client package
-* Create a wallet client
+* Install x402 client packages (`@x402/fetch` or `@x402/axios`) and mechanism packages (`@x402/evm`, `@x402/svm`)
+* Create a wallet signer
+* Create an `x402Client` and register payment schemes
 * Use the provided wrapper/interceptor to make paid API requests
+* (Optional) Use the x402 Bazaar to discover services dynamically
 * Payment flows are handled automatically for you
 
 ***
 
 **References:**
 
-* [x402-fetch npm docs](https://www.npmjs.com/package/x402-fetch)
-* [x402-axios npm docs](https://www.npmjs.com/package/x402-axios)
-* [x402 PyPi page](https://pypi.org/project/x402/)
+* [@x402/fetch on npm](https://www.npmjs.com/package/@x402/fetch)
+* [@x402/axios on npm](https://www.npmjs.com/package/@x402/axios)
+* [@x402/evm on npm](https://www.npmjs.com/package/@x402/evm)
+* [x402 Go module](https://github.com/coinbase/x402/tree/main/go)
+* [x402 Bazaar documentation](../extensions/bazaar.md) - Discover available services
 
 For questions or support, join our [Discord](https://discord.gg/invite/cdp).
