@@ -298,7 +298,7 @@ func main() {
 {% endtab %}
 
 {% tab title="FastAPI" %}
-Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/fastapi).
+Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/legacy).
 
 **Note:** Python SDK currently uses v1 patterns with string network identifiers.
 
@@ -331,7 +331,7 @@ async def get_weather() -> Dict[str, Any]:
 {% endtab %}
 
 {% tab title="Flask" %}
-Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/flask).
+Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/legacy).
 
 **Note:** Python SDK currently uses v1 patterns with string network identifiers.
 

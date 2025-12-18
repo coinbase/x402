@@ -2,12 +2,6 @@
 
 This guide walks you through how to use **x402** to interact with services that require payment. By the end of this guide, you will be able to programmatically discover payment requirements, complete a payment, and access a paid resource.
 
-The x402 helper packages greatly simplify your integration. They automatically:
-1. Make the initial request
-2. Parse payment requirements from the `PAYMENT-REQUIRED` header if a 402 response is received
-3. Create a payment payload using the configured x402Client and registered schemes
-4. Retry the request with the `PAYMENT-SIGNATURE` header
-
 ### Prerequisites
 
 Before you begin, ensure you have:
@@ -15,8 +9,6 @@ Before you begin, ensure you have:
 * A crypto wallet with USDC (any EVM-compatible wallet)
 * [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip
 * A service that requires payment via x402
-
-**Note:** The Python SDK is currently under development for x402 v2. For immediate v2 support, use TypeScript or Go.
 
 **Note**\
 We have pre-configured [examples available in our repo](https://github.com/coinbase/x402/tree/main/examples), including examples for fetch, Axios, Go, and MCP.
@@ -85,7 +77,7 @@ import (
 )
 
 // Load private key from environment
-evmSigner, err := evmsigners.NewLocalSigner(os.Getenv("EVM_PRIVATE_KEY"))
+evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
 if err != nil {
     log.Fatal(err)
 }
@@ -223,14 +215,17 @@ func main() {
     url := "http://localhost:4021/weather"
 
     // Create EVM signer
-    evmSigner, _ := evmsigners.NewLocalSigner(os.Getenv("EVM_PRIVATE_KEY"))
+    evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
 
     // Create x402 client and register EVM scheme
     x402Client := x402.Newx402Client().
-        Register("eip155:*", evm.NewExactEvmClient(evmSigner))
+        Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
 
     // Wrap HTTP client with payment handling
-    httpClient := x402http.Newx402HTTPClient(x402Client)
+    httpClient := x402http.WrapHTTPClientWithPayment(
+        http.DefaultClient,
+        x402http.Newx402HTTPClient(x402Client),
+    )
 
     // Make request - payment is handled automatically
     ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
