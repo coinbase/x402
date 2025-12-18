@@ -86,13 +86,17 @@ Fetch the list of available x402 services using the facilitator client:
 {% tabs %}
 {% tab title="TypeScript" %}
 ```typescript
-import { useFacilitator } from "@x402/core";
-import { cdpFacilitator } from "@x402/facilitators";
+import { HTTPFacilitatorClient } from "@x402/core/http";
+import { withBazaar } from "@x402/extensions";
 
-const { list } = useFacilitator(cdpFacilitator);
+// Create facilitator client with Bazaar discovery extension
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
+const client = withBazaar(facilitatorClient);
 
 // Fetch all available services
-const services = await list();
+const response = await client.extensions.discovery.listResources({ type: "http" });
 
 // NOTE: in an MCP context, you can see the full list then decide which service to use
 
@@ -100,7 +104,7 @@ const services = await list();
 const usdcAsset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const maxPrice = 100000; // $0.10 in USDC atomic units (6 decimals)
 
-const affordableServices = services.items.filter(item =>
+const affordableServices = response.items.filter(item =>
   item.accepts.find(paymentRequirements =>
     paymentRequirements.asset === usdcAsset &&
     Number(paymentRequirements.maxAmountRequired) < maxPrice
@@ -111,15 +115,13 @@ const affordableServices = services.items.filter(item =>
 
 {% tab title="Python" %}
 ```python
-from x402.core import FacilitatorClient, FacilitatorConfig
-from x402.facilitators import create_cdp_facilitator_config
+from x402.facilitator import FacilitatorClient
 
-# Set up facilitator client
-facilitator_config = create_cdp_facilitator_config()
-facilitator = FacilitatorClient(facilitator_config)
+# Set up facilitator client (defaults to https://x402.org/facilitator)
+facilitator = FacilitatorClient()
 
 # Fetch all available services
-services = await facilitator.list()
+response = await facilitator.list()
 
 # NOTE: in an MCP context, you can see the full list then decide which service to use
 
@@ -129,7 +131,7 @@ max_price = 100000  # $0.10 in USDC atomic units (6 decimals)
 
 affordable_services = [
   item
-  for item in services.items
+  for item in response.items
   if any(
     payment_req.asset == usdc_asset
     and int(payment_req.max_amount_required) < max_price
@@ -308,6 +310,91 @@ app.middleware("http")(
         facilitator=cdp_facilitator
     )
 )
+```
+{% endtab %}
+
+{% tab title="Go" %}
+```go
+package main
+
+import (
+    x402 "github.com/coinbase/x402/go"
+    "github.com/coinbase/x402/go/extensions/bazaar"
+    "github.com/coinbase/x402/go/extensions/types"
+    x402http "github.com/coinbase/x402/go/http"
+    ginmw "github.com/coinbase/x402/go/http/gin"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+    "github.com/gin-gonic/gin"
+)
+
+func main() {
+    r := gin.Default()
+
+    facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+        URL: "https://x402.org/facilitator",
+    })
+
+    // Create Bazaar Discovery Extension with input/output schemas
+    discoveryExtension, _ := bazaar.DeclareDiscoveryExtension(
+        bazaar.MethodGET,
+        map[string]interface{}{"location": "San Francisco"},
+        types.JSONSchema{
+            "properties": map[string]interface{}{
+                "location": map[string]interface{}{
+                    "type":        "string",
+                    "description": "City name or coordinates",
+                },
+            },
+            "required": []string{"location"},
+        },
+        "",
+        &types.OutputConfig{
+            Schema: types.JSONSchema{
+                "properties": map[string]interface{}{
+                    "temperature": map[string]interface{}{"type": "number"},
+                    "conditions":  map[string]interface{}{"type": "string"},
+                    "humidity":    map[string]interface{}{"type": "number"},
+                },
+            },
+        },
+    )
+
+    routes := x402http.RoutesConfig{
+        "GET /weather": {
+            Accepts: x402http.PaymentOptions{{
+                Scheme:  "exact",
+                PayTo:   "0xYourAddress",
+                Price:   "$0.001",
+                Network: x402.Network("eip155:8453"),
+            }},
+            Description: "Get current weather data for any location",
+            Extensions: map[string]interface{}{
+                types.BAZAAR: discoveryExtension,
+            },
+        },
+    }
+
+    r.Use(ginmw.X402Payment(ginmw.Config{
+        Routes:      routes,
+        Facilitator: facilitatorClient,
+        Schemes: []ginmw.SchemeConfig{{
+            Network: x402.Network("eip155:8453"),
+            Server:  evm.NewExactEvmScheme(),
+        }},
+    }))
+
+    r.GET("/weather", func(c *gin.Context) {
+        location := c.DefaultQuery("location", "San Francisco")
+        c.JSON(200, gin.H{
+            "location":    location,
+            "temperature": 70,
+            "conditions":  "sunny",
+            "humidity":    45,
+        })
+    })
+
+    r.Run(":4021")
+}
 ```
 {% endtab %}
 {% endtabs %}
