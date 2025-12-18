@@ -19,15 +19,7 @@
 * [Wallet](core-concepts/wallet.md)
 * [Protocol Layers](core-concepts/protocol-layers.md)
 * [Networks & Token Support](core-concepts/network-and-token-support.md)
-
-## Extensions
-
-* [Overview](extensions/overview.md)
-* [Bazaar Discovery](extensions/bazaar.md)
-
-## Advanced
-
-* [Lifecycle Hooks](advanced/lifecycle-hooks.md)
+* [Bazaar (Discovery Layer)](core-concepts/bazaar-discovery-layer.md)
 
 ## Guides
 

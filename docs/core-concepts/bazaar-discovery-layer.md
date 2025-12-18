@@ -1,0 +1,339 @@
+# Bazaar (Discovery Layer)
+
+The x402 Bazaar is the discovery layer for the x402 ecosystem - a machine-readable catalog that helps developers and AI agents find and integrate with x402-compatible API endpoints. Think of it as a search index for payable APIs, enabling the autonomous discovery and consumption of services.
+
+The x402 Bazaar is in early development. While our vision is to build the "Google for agentic endpoints," we're currently more like "Yahoo search" - functional but evolving. Features and APIs may change as we gather feedback and expand capabilities.
+
+### Overview
+
+The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**. Without it, x402-compatible endpoints are like hidden stalls in a vast market. The Bazaar provides:
+
+* **For Buyers (API Consumers)**: Programmatically discover available x402-enabled services, understand their capabilities, pricing, and schemas
+* **For Sellers (API Providers)**: Automatic visibility for your x402-enabled services to a global audience of developers and AI agents
+* **For AI Agents**: Dynamic service discovery without pre-baked integrations - query, find, pay, and use
+
+### How It Works
+
+The Bazaar currently provides a simple `/list` endpoint that returns all x402-compatible services registered with the CDP facilitator. Services are automatically opted-in when they use the CDP facilitator and enable the bazaar extension, making discovery frictionless for sellers.
+
+**Note:** While a discovery layer is live today for the CDP Facilitator, the spec for the marketplace items is open and part of the x402 scheme, meaning any facilitator can create their own discovery layer.
+
+#### Basic Flow
+
+1. **Discovery**: Clients query the `/list` endpoint to find available services
+2. **Selection**: Choose a service based on price, capabilities, and requirements
+3. **Execution**: Use x402 to pay for and access the selected service
+4. **No Manual Setup**: No API keys, no account creation, just discover and pay
+
+### API Reference
+
+#### List Endpoint
+
+Retrieve all available x402-compatible endpoints:
+
+```bash
+GET https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources
+```
+
+**Note**: The recommended way to use this endpoint is to use the `useFacilitator` hook as described below.
+
+**Response Schema**
+
+Each endpoint in the list contains the following fields:
+
+```json
+{
+  "accepts": [
+    {
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "description": "",
+      "extra": {
+        "name": "USD Coin",
+        "version": "2"
+      },
+      "maxAmountRequired": "200",
+      "maxTimeoutSeconds": 60,
+      "mimeType": "",
+      "network": "eip155:8453",
+      "outputSchema": {
+        "input": {
+          "method": "GET",
+          "type": "http"
+        },
+        "output": null
+      },
+      "payTo": "0xa2477E16dCB42E2AD80f03FE97D7F1a1646cd1c0",
+      "resource": "https://api.example.com/x402/weather",
+      "scheme": "exact"
+    }
+  ],
+  "lastUpdated": "2025-08-09T01:07:04.005Z",
+  "metadata": {},
+  "resource": "https://api.example.com/x402/weather",
+  "type": "http",
+  "x402Version": 2
+}
+```
+
+### Quickstart for Buyers
+
+See the full example here for [Python](https://github.com/coinbase/x402/tree/main/examples/python/discovery) and [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/discovery).
+
+#### Step 1: Discover Available Services
+
+Fetch the list of available x402 services using the facilitator client:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+```typescript
+import { useFacilitator } from "@x402/core";
+import { cdpFacilitator } from "@x402/facilitators";
+
+const { list } = useFacilitator(cdpFacilitator);
+
+// Fetch all available services
+const services = await list();
+
+// NOTE: in an MCP context, you can see the full list then decide which service to use
+
+// Find services under $0.10
+const usdcAsset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const maxPrice = 100000; // $0.10 in USDC atomic units (6 decimals)
+
+const affordableServices = services.items.filter(item =>
+  item.accepts.find(paymentRequirements =>
+    paymentRequirements.asset === usdcAsset &&
+    Number(paymentRequirements.maxAmountRequired) < maxPrice
+  )
+);
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+from x402.core import FacilitatorClient, FacilitatorConfig
+from x402.facilitators import create_cdp_facilitator_config
+
+# Set up facilitator client
+facilitator_config = create_cdp_facilitator_config()
+facilitator = FacilitatorClient(facilitator_config)
+
+# Fetch all available services
+services = await facilitator.list()
+
+# NOTE: in an MCP context, you can see the full list then decide which service to use
+
+# Find services under $0.10
+usdc_asset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+max_price = 100000  # $0.10 in USDC atomic units (6 decimals)
+
+affordable_services = [
+  item
+  for item in services.items
+  if any(
+    payment_req.asset == usdc_asset
+    and int(payment_req.max_amount_required) < max_price
+    for payment_req in item.accepts
+  )
+]
+```
+{% endtab %}
+{% endtabs %}
+
+#### Step 2: Call a Discovered Service
+
+Once you've found a suitable service, use an x402 client to call it:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+```typescript
+import { wrapAxiosWithPayment, x402Client } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import axios from "axios";
+import { privateKeyToAccount } from "viem/accounts";
+
+// Set up your payment account
+const account = privateKeyToAccount("0xYourPrivateKey");
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: account });
+
+// Select a service from discovery
+const selectedService = affordableServices[0];
+
+// Create a payment-enabled client for that service
+const api = wrapAxiosWithPayment(
+  axios.create({ baseURL: selectedService.resource }),
+  client
+);
+
+// Select the payment method of your choice
+const selectedPaymentRequirements = selectedService.accepts[0];
+const inputSchema = selectedPaymentRequirements.outputSchema.input;
+
+// Build the request using the service's schema
+const response = await api.request({
+  method: inputSchema.method,
+  url: inputSchema.resource,
+  params: { location: "San Francisco" } // Based on inputSchema
+});
+
+console.log("Response data:", response.data);
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+from x402.client import X402Client
+from eth_account import Account
+
+# Set up your payment account
+account = Account.from_key("0xYourPrivateKey")
+client = X402Client(account)
+
+# Select a service from discovery
+selected_service = affordable_services[0]
+
+# Select the payment method of your choice
+selected_payment_requirements = selected_service.accepts[0]
+input_schema = selected_payment_requirements.output_schema.input
+
+# Make the request
+response = client.request(
+    method=input_schema.method,
+    url=input_schema.resource,
+    params={"location": "San Francisco"}  # Based on input_schema
+)
+
+print(f"Response data: {response}")
+```
+{% endtab %}
+{% endtabs %}
+
+### Quickstart for Sellers
+
+#### Automatic Listing with Bazaar Extension
+
+If your API uses the CDP facilitator for x402 payments, it's **automatically listed in the bazaar when you enable the bazaar extension with `discoverable: true`**.
+
+#### Adding Metadata
+
+To enhance your listing with descriptions and schemas, include them when setting up your x402 middleware. **You should include descriptions for each parameter to make it clear for agents to call your endpoints**:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+```typescript
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+import { bazaarResourceServerExtension } from "@x402/extensions";
+
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+
+const routes = {
+  "GET /weather": {
+    price: "$0.001",
+    network: "eip155:8453",
+    resource: "0xYourAddress",
+    description: "Get current weather data for any location",
+    extensions: {
+      bazaar: {
+        discoverable: true,
+        inputSchema: {
+          queryParams: {
+            location: {
+              type: "string",
+              description: "City name or coordinates",
+              required: true
+            }
+          }
+        },
+        outputSchema: {
+          type: "object",
+          properties: {
+            temperature: { type: "number" },
+            conditions: { type: "string" },
+            humidity: { type: "number" }
+          }
+        }
+      }
+    }
+  }
+};
+
+app.use(paymentMiddleware(routes, server));
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+from x402.middleware.fastapi import payment_middleware
+from x402.facilitators import cdp_facilitator
+
+app.middleware("http")(
+    payment_middleware(
+        routes={
+            "/weather": {
+                "price": "$0.001",
+                "network": "eip155:8453",
+                "resource": "0xYourAddress",
+                "description": "Get current weather data for any location",
+                "extensions": {
+                    "bazaar": {
+                        "discoverable": True,
+                        "inputSchema": {
+                            "queryParams": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "City name or coordinates",
+                                    "required": True
+                                }
+                            }
+                        },
+                        "outputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "temperature": {"type": "number"},
+                                "conditions": {"type": "string"},
+                                "humidity": {"type": "number"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        facilitator=cdp_facilitator
+    )
+)
+```
+{% endtab %}
+{% endtabs %}
+
+### Coming Soon
+
+The x402 Bazaar is rapidly evolving, and your feedback helps us prioritize features.
+
+### Support
+
+* **GitHub**: [github.com/coinbase/x402](https://github.com/coinbase/x402)
+* **Discord**: [Join #x402 channel](https://discord.com/invite/cdp)
+
+### FAQ
+
+**Q: How do I get my service listed?**
+A: If you're using the CDP facilitator, your service is listed once you enable the bazaar extension with `discoverable: true`.
+
+**Q: How can I make endpoint calls more accurate?**
+A: Include descriptions clearly stating what each parameter does and how to call your endpoint, but do so as succinctly as possible.
+
+**Q: How does pricing work?**
+A: Listing is free. Services set their own prices per API call, paid via x402.
+
+**Q: What networks are supported?**
+A: Currently Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) with USDC payments.
+
+**Q: Can I list non-x402 services?**
+A: No, only x402-compatible endpoints can be listed. See our [Quickstart for Sellers](../getting-started/quickstart-for-sellers.md) to make your API x402-compatible.
