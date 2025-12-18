@@ -385,7 +385,7 @@ To verify:
 
 ### 4. Enhance Discovery with Metadata (Recommended)
 
-When using the CDP facilitator, your endpoints can be listed in the [x402 Bazaar](../extensions/bazaar.md), our discovery layer that helps buyers and AI agents find services. To enable discovery:
+When using the CDP facilitator, your endpoints can be listed in the [x402 Bazaar](../core-concepts/bazaar-discovery-layer.md), our discovery layer that helps buyers and AI agents find services. To enable discovery:
 
 ```typescript
 {
@@ -411,7 +411,7 @@ When using the CDP facilitator, your endpoints can be listed in the [x402 Bazaar
 }
 ```
 
-Learn more about the discovery layer in the [Bazaar documentation](../extensions/bazaar.md).
+Learn more about the discovery layer in the [Bazaar documentation](../core-concepts/bazaar-discovery-layer.md).
 
 ### 5. Error Handling
 
@@ -562,7 +562,7 @@ See [Network Support](../core-concepts/network-and-token-support.md) for the ful
 
 * Looking for something more advanced? Check out the [Advanced Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced)
 * Get started as a [buyer](quickstart-for-buyers.md)
-* Learn about the [Bazaar discovery layer](../extensions/bazaar.md)
+* Learn about the [Bazaar discovery layer](../core-concepts/bazaar-discovery-layer.md)
 
 For questions or support, join our [Discord](https://discord.gg/invite/cdp).
 

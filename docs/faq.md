@@ -126,7 +126,7 @@ We acknowledge that the repo is primarily under Coinbase ownership today. This i
 
 ### Troubleshooting
 
-#### I keep getting `402 Payment Required`, even after attaching `X‑PAYMENT`. Why?
+#### I keep getting `402 Payment Required`, even after attaching `PAYMENT-SIGNATURE`. Why?
 
 1. Signature is invalid (wrong chain ID or payload fields).
 2. Payment amount is less than the required `amount` in the payment requirements.

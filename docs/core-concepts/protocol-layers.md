@@ -225,7 +225,7 @@ Build trust through on-chain reputation scores.
 * **Independent** - Extensions don't affect core protocol
 * **Upgradeable** - New extensions can be added without breaking changes
 
-**Learn more:** [Extensions Overview](../extensions/overview.md) | [Bazaar Discovery](../extensions/bazaar.md)
+**Learn more:** [Bazaar Discovery Layer](bazaar-discovery-layer.md)
 
 ---
 
@@ -386,5 +386,4 @@ This design enables:
 
 **Next steps:**
 - [Quickstart for Sellers](../getting-started/quickstart-for-sellers.md) - Start accepting payments
-- [Extensions Overview](../extensions/overview.md) - Learn about available extensions
-- [Lifecycle Hooks](../advanced/lifecycle-hooks.md) - Advanced customization
+- [Bazaar Discovery Layer](bazaar-discovery-layer.md) - Service discovery for AI agents

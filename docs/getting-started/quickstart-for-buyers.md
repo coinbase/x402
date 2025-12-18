@@ -323,7 +323,7 @@ const affordableServices = services.items.filter((item) =>
 console.log("Available services:", affordableServices);
 ```
 
-Learn more about service discovery in the [Bazaar documentation](../extensions/bazaar.md).
+Learn more about service discovery in the [Bazaar documentation](../core-concepts/bazaar-discovery-layer.md).
 
 ### 5. Error Handling
 
@@ -368,6 +368,6 @@ try {
 * [@x402/axios on npm](https://www.npmjs.com/package/@x402/axios)
 * [@x402/evm on npm](https://www.npmjs.com/package/@x402/evm)
 * [x402 Go module](https://github.com/coinbase/x402/tree/main/go)
-* [x402 Bazaar documentation](../extensions/bazaar.md) - Discover available services
+* [x402 Bazaar documentation](../core-concepts/bazaar-discovery-layer.md) - Discover available services
 
 For questions or support, join our [Discord](https://discord.gg/invite/cdp).
