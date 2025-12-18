@@ -2,7 +2,7 @@
 
 * [Welcome to x402](README.md)
 * [x402 Landing Page](https://x402.org)
-* [GitBook Repo (open for contributions)](https://github.com/murrlincoln/x402-gitbook)
+* [GitBook Repo (open for contributions)](https://github.com/coinbase/x402)
 * [Vercel x402 Starter Template](https://vercel.com/templates/ai/x402-ai-starter)
 * [FAQ](faq.md)
 
