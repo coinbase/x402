@@ -17,7 +17,6 @@
 * [Client / Server](core-concepts/client-server.md)
 * [Facilitator](core-concepts/facilitator.md)
 * [Wallet](core-concepts/wallet.md)
-* [Protocol Layers](core-concepts/protocol-layers.md)
 * [Networks & Token Support](core-concepts/network-and-token-support.md)
 * [Bazaar (Discovery Layer)](core-concepts/bazaar-discovery-layer.md)
 
