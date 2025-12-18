@@ -81,17 +81,29 @@ Fixed-price payments where the exact amount is known upfront.
 
 **Example:**
 ```typescript
-import { createPaymentMiddleware, exact } from "@x402/express";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-app.use(createPaymentMiddleware({
-  recipient: "0xYourAddress",
-  routes: {
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+
+app.use(paymentMiddleware(
+  {
     "GET /weather": {
-      network: "eip155:84532",
-      scheme: exact({ amount: "$0.001" })
-    }
-  }
-}));
+      accepts: [{
+        scheme: "exact",
+        price: "$0.001",
+        network: "eip155:84532",
+        payTo: "0xYourAddress",
+      }],
+    },
+  },
+  server,
+));
 ```
 
 #### 2. `upto` Scheme (Coming Soon)
@@ -148,32 +160,44 @@ Enables automatic service discovery and marketplace integration.
 
 **Example:**
 ```typescript
-import { createPaymentMiddleware, exact } from "@x402/express";
-import { bazaar } from "@x402/extensions";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-app.use(createPaymentMiddleware({
-  recipient: "0xYourAddress",
-  extensions: [
-    bazaar({
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+
+app.use(paymentMiddleware(
+  {
+    "/api/weather": {
+      accepts: [{
+        scheme: "exact",
+        price: "$0.001",
+        network: "eip155:84532",
+        payTo: "0xYourAddress",
+      }],
       description: "Get current weather data",
-      inputSchema: {
-        queryParams: {
-          location: {
-            type: "string",
-            description: "City name or coordinates",
-            required: true
+      extensions: {
+        bazaar: {
+          discoverable: true,
+          inputSchema: {
+            queryParams: {
+              location: {
+                type: "string",
+                description: "City name or coordinates",
+                required: true
+              }
+            }
           }
         }
       }
-    })
-  ],
-  routes: {
-    "/api/weather": {
-      network: "eip155:84532",
-      scheme: exact({ amount: "$0.001" })
     }
-  }
-}));
+  },
+  server,
+));
 ```
 
 #### Analytics Extension (Coming Soon)
@@ -220,11 +244,12 @@ Use only what you need:
 
 ```typescript
 // Minimal setup - just transport + exact scheme
-import { createPaymentMiddleware, exact } from "@x402/express";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-// With extensions
-import { createPaymentMiddleware, exact } from "@x402/express";
-import { bazaar, analytics } from "@x402/extensions";
+// With extensions - configure in route config
+// Extensions like bazaar are specified per-route in the accepts config
 ```
 
 ### 3. Extensibility
@@ -255,33 +280,40 @@ The layered design allows the protocol to evolve:
 Here's a complete example showing all three layers:
 
 ```typescript
-import { createPaymentMiddleware, exact } from "@x402/express";
-import { bazaar } from "@x402/extensions";
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-// Layer 3: Extensions (optional)
-const extensions = [
-  bazaar({
-    description: "Premium weather data with forecasts",
-    inputSchema: { /* ... */ }
-  })
-];
+// Layer 1: Transport (automatic via HTTP 402)
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
 
-// Layer 2: Scheme (required)
-const weatherScheme = exact({ amount: "$0.01" });
+// Layer 2: Scheme (required - register payment schemes)
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
 
-// Layer 1: Transport (automatic)
-app.use(createPaymentMiddleware({
-  recipient: "0xYourAddress",
-  facilitator: { url: "https://x402.org/facilitator" },
-  extensions,  // Layer 3
-  routes: {
+// Layer 3: Extensions + Routes (configure per-route)
+app.use(paymentMiddleware(
+  {
     "/api/weather": {
-      network: "eip155:84532",
-      scheme: weatherScheme  // Layer 2
+      accepts: [{
+        scheme: "exact",        // Layer 2: exact payment scheme
+        price: "$0.01",
+        network: "eip155:84532",
+        payTo: "0xYourAddress",
+      }],
+      description: "Premium weather data with forecasts",
+      extensions: {             // Layer 3: optional extensions
+        bazaar: {
+          discoverable: true,
+        }
+      }
     }
-  }
-  // Layer 1 (HTTP 402) is handled automatically
-}));
+  },
+  server,
+));
+// Layer 1 (HTTP 402 headers) is handled automatically
 ```
 
 **What happens:**
@@ -309,19 +341,32 @@ paymentMiddleware(
 
 **V2 (Layered):**
 ```typescript
-createPaymentMiddleware({
-  recipient: "0xAddress",
-  facilitator: { url: "https://x402.org/facilitator" },
-  routes: {
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
+
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://x402.org/facilitator"
+});
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);
+
+app.use(paymentMiddleware(
+  {
     "GET /weather": {
-      network: "eip155:84532",
-      scheme: exact({ amount: "$0.001" })
-    }
-  }
-})
+      accepts: [{
+        scheme: "exact",
+        price: "$0.001",
+        network: "eip155:84532",
+        payTo: "0xAddress",
+      }],
+    },
+  },
+  server,
+));
 ```
 
-The V2 approach makes it clear which layer each configuration belongs to and allows for easier extension.
+The V2 approach separates concerns: facilitator client handles communication, resource server manages scheme registration, and routes define payment requirements per-endpoint.
 
 ---
 

@@ -31,7 +31,6 @@ Network support in x402 depends on which facilitator you use. Here are the curre
 
 * **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
 * **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
-* **URL**: https://x402.org/facilitator
 
 #### CDP's x402 Facilitator
 
@@ -83,7 +82,7 @@ Tokens must implement the `transferWithAuthorization` function from the EIP-3009
 When configuring payment requirements, you have two options:
 
 1. **Price String** (e.g., `"$0.01"`) - The system infers USDC as the token
-2. [**TokenAmount**](https://github.com/coinbase/x402/blob/094dcd2b95b5e13e8673264cc026d080417ee142/typescript/packages/x402/src/types/shared/middleware.ts#L28) - Specify exact atomic units of any EIP-3009 token
+2. **TokenAmount** - Specify exact atomic units of any EIP-3009 token
 
 #### Using Custom EIP-3009 Tokens
 
@@ -143,72 +142,64 @@ The EIP-3009 standard is essential for x402 because it enables:
 
 ### Adding Support for New Networks
 
-There are two ways to add support for new EVM networks in x402:
+x402 V2 uses dynamic network registration - you can support any EVM network without modifying source files.
 
-#### Option 1: Contributing to x402 Packages
+#### V2: Dynamic Registration (Recommended)
 
-You can add official network support by submitting a PR to the x402 repository. This makes your network available to all x402 users.
+In V2, networks are supported through the registration pattern using CAIP-2 identifiers. No source code changes are required:
 
-**Files to Modify**
+{% tabs %}
+{% tab title="TypeScript" %}
+```typescript
+import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-1.  **`typescript/packages/x402/src/types/shared/evm/config.ts`**
+const facilitatorClient = new HTTPFacilitatorClient({
+  url: "https://your-facilitator.com"  // Facilitator that supports your network
+});
 
-    Add your network's chain ID and USDC address:
+const server = new x402ResourceServer(facilitatorClient);
+registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
 
-    ```typescript
-    // Example: Adding Avalanche networks
-    "43113": {  // Avalanche Fuji testnet chain ID
-      usdcAddress: "0x5425890298aed601595a70AB815c96711a31Bc65",
-      usdcName: "USD Coin",
-    },
-    "43114": {  // Avalanche mainnet chain ID
-      usdcAddress: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-      usdcName: "USDC",
-    },
-    ```
-2.  **`typescript/packages/x402/src/types/shared/network.ts`**
+// Now use any CAIP-2 network identifier in your routes:
+const routes = {
+  "GET /api/data": {
+    accepts: [{
+      scheme: "exact",
+      price: "$0.001",
+      network: "eip155:43114",  // Avalanche mainnet
+      payTo: "0xYourAddress",
+    }],
+  },
+};
+```
+{% endtab %}
 
-    Add your network to the schema and mappings:
+{% tab title="Go" %}
+```go
+import (
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+)
 
-    ```typescript
-    // Update the NetworkSchema enum
-    export const NetworkSchema = z.enum(["base-sepolia", "base", "avalanche-fuji", "avalanche"]);
+facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+    URL: "https://your-facilitator.com",
+})
 
-    // Add to SupportedEVMNetworks array
-    export const SupportedEVMNetworks: Network[] = [
-      "base-sepolia",
-      "base",
-      "avalanche-fuji",
-      "avalanche",
-    ];
+// Register EVM scheme - supports any CAIP-2 EVM network
+schemes := []ginmw.SchemeConfig{
+    {Network: x402.Network("eip155:43114"), Server: evm.NewExactEvmScheme()},  // Avalanche
+}
+```
+{% endtab %}
+{% endtabs %}
 
-    // Add to EvmNetworkToChainId mapping
-    ["avalanche-fuji", 43113],
-    ["avalanche", 43114],
-    ```
-3.  **`typescript/packages/x402/src/types/shared/evm/wallet.ts` - Update `getChainFromNetwork` function**
+**Key Points:**
+- Use CAIP-2 format: `eip155:<chainId>` for any EVM network
+- The scheme implementation handles the network automatically
+- You only need a facilitator that supports your target network (or run your own)
 
-    Add your network to the `getChainFromNetwork` function to map your network string to the viem chain object:
-
-    ```typescript
-    import { avalanche, avalancheFuji } from "viem/chains";
-
-    // Add your network to the switch statement in getChainFromNetwork
-    case "avalanche":
-      return avalanche;
-    case "avalanche-fuji":
-      return avalancheFuji;
-    ```
-
-**Key Requirements**
-
-* **Network key**: Use a consistent network identifier (e.g., `avalanche-fuji`) across all files
-* **Viem chain**: Your network must be available in viem/chains or you'll need to define it manually
-* **USDC address**: Must be EIP-3009 compatible (has `transferWithAuthorization` function)
-* **Chain ID**: Use your network's official chain ID in the config
-* **Consistency**: Ensure the network name matches across `NetworkSchema`, `SupportedEVMNetworks`, `EvmNetworkToChainId`, and the `getChainFromNetwork` switch statement
-
-#### Option 2: Running Your Own Facilitator
+#### Running Your Own Facilitator
 
 If you need immediate support or want to test before contributing, you can run your own facilitator.
 

@@ -18,7 +18,7 @@
 * [Facilitator](core-concepts/facilitator.md)
 * [Wallet](core-concepts/wallet.md)
 * [Protocol Layers](core-concepts/protocol-layers.md)
-* [Networks & Assets](core-concepts/network-and-token-support.md)
+* [Networks & Token Support](core-concepts/network-and-token-support.md)
 
 ## Extensions
 

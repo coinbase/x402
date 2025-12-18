@@ -24,7 +24,7 @@ Clients can include:
 * **Initiate requests:** Send an HTTP request to the resource server.
 * **Handle payment requirements:** Read the `402 Payment Required` response and extract payment details.
 * **Prepare payment payload:** Use the provided payment requirements to construct a valid payment payload.
-* **Resubmit request with payment:** Retry the request with the `X-PAYMENT` header containing the signed payment payload.
+* **Resubmit request with payment:** Retry the request with the `PAYMENT-SIGNATURE` header containing the signed payment payload.
 
 Clients do not need to manage accounts, credentials, or session tokens beyond their crypto wallet. All interactions are stateless and occur over standard HTTP requests.
 
