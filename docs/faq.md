@@ -8,7 +8,7 @@ x402 is an open‑source protocol that turns the dormant HTTP `402 Payment Requi
 
 **Is x402 a CDP Product?**
 
-_No._ While Coinbase Developer Platform provides tooling and are the creators of the standard, it is an open protocol (Apache-2.0 license) and you don't need any Coinbase products to use it. We look forward to further clarifying this distinction and making x402 a credibly neutral payment standard.&#x20;
+_No._ While Coinbase Developer Platform provides tooling and are the creators of the standard, it is an open protocol (Apache-2.0 license) and you don't need any Coinbase products to use it. We look forward to further clarifying this distinction and making x402 a credibly neutral payment standard.
 
 #### Why not use traditional payment rails or API keys?
 
@@ -23,9 +23,9 @@ No. Any web API or content provider—crypto or web2—can integrate x402 if it 
 
 #### What languages and frameworks are supported?
 
-TypeScript and Python are **the reference implementations**, but x402 is an **open protocol**.
+Typescript, Python, and Go are reference implementations, but x402 is an **open protocol**.
 
-Nothing prevents you from implementing the spec in Go, Rust, etc. If you're interested in building support for your favorite language, please [open an issue](https://github.com/coinbase/x402/issues) and let us know, we'd be happy to help!
+Nothing prevents you from implementing the spec in Rust, Java, or other languages. If you're interested in building support for your favorite language, please [open an issue](https://github.com/coinbase/x402/issues) and let us know, we'd be happy to help!
 
 ### Facilitators
 
@@ -72,7 +72,7 @@ _Support for additional chains and assets is on the roadmap and community‑driv
 
 #### Does x402 support fiat off‑ramps or credit‑card deposits?
 
-Not natively. However, facilitators or third‑party gateways can wrap x402 flows with on‑ and off‑ramps.&#x20;
+Not natively. However, facilitators or third‑party gateways can wrap x402 flows with on‑ and off‑ramps.
 
 ### Security
 
@@ -97,9 +97,9 @@ The current `exact` scheme is a _push payment_—irreversible once executed. Two
 Agents follow the same flow as humans:
 
 1. Make a request.
-2. Parse the `402` JSON (`accepts` array).
+2. Parse the `PAYMENT-REQUIRED` header.
 3. Choose a suitable requirement and sign a payload via the x402 client SDKs.
-4. Retry with `X‑PAYMENT`.
+4. Retry with the `PAYMENT-SIGNATURE` header. 
 
 #### Do agents need wallets?
 
@@ -129,13 +129,13 @@ We acknowledge that the repo is primarily under Coinbase ownership today. This i
 #### I keep getting `402 Payment Required`, even after attaching `X‑PAYMENT`. Why?
 
 1. Signature is invalid (wrong chain ID or payload fields).
-2. Payment amount < `maxAmountRequired`.
+2. Payment amount is less than the required `amount` in the payment requirements.
 3. Address has insufficient USDC or was flagged by KYT.\
    Check the `error` field in the server's JSON response for details.
 
 #### My test works on Base Sepolia but fails on Base mainnet—what changed?
 
-* Ensure you set `network: "base"` (not `"base‑sepolia"`).
+* Ensure you set `network: "eip155:8453"` (Base mainnet) instead of `"eip155:84532"` (Base Sepolia).
 * Confirm your wallet has _mainnet_ USDC.
 * Gas fees are higher on mainnet; fund the wallet with a small amount of ETH for gas.
 
