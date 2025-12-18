@@ -1,6 +1,6 @@
 {
   "name": "Mogami facilitator",
-  "description": "Facilitator running on base (testnet & mainnet) with a development console - You can run it as a Docker image within your own infrastructure, or use our always-on hosted facilitator online",
+  "description": "A free, developer-focused, production-ready facilitator for x402 payments. Use it instantly online, or launch your own Docker image in seconds.",
   "logoUrl": "/logos/logo_mogami_vertical_small.png",
   "websiteUrl": "https://facilitator.mogami.tech",
   "category": "Facilitators",
