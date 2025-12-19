@@ -85,7 +85,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    */
   getSupported(): Promise<SupportedResponse> {
     // Delegate to actual facilitator to get real supported kinds
-    return Promise.resolve(this.facilitator.getSupported());
+    return this.facilitator.getSupported() as Promise<SupportedResponse>;
   }
 }
 

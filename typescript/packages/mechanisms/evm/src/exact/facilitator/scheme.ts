@@ -1,4 +1,5 @@
 import {
+  Network,
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
@@ -48,9 +49,9 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
    * For EVM, no extra data is needed.
    *
    * @param _ - The network identifier (unused for EVM)
-   * @returns undefined (EVM has no extra data)
+   * @returns Promise resolving to undefined (EVM has no extra data)
    */
-  getExtra(_: string): Record<string, unknown> | undefined {
+  async getExtra(_: Network): Promise<Record<string, unknown> | undefined> {
     return undefined;
   }
 

@@ -77,7 +77,7 @@ export class ExactStellarScheme implements SchemeNetworkServer {
    * @param supportedKind.x402Version - The x402 protocol version
    * @param supportedKind.scheme - The payment scheme
    * @param supportedKind.network - The network identifier
-   * @param supportedKind.extra - Extra metadata including maxLedger
+   * @param supportedKind.extra - Extra metadata including maxLedger from facilitator
    * @param extensionKeys - Extension keys supported by the facilitator
    * @returns Enhanced payment requirements with maxLedger in extra
    */

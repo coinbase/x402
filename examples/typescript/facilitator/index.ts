@@ -220,7 +220,7 @@ app.post("/settle", async (req, res) => {
  */
 app.get("/supported", async (req, res) => {
   try {
-    const response = facilitator.getSupported();
+    const response = await facilitator.getSupported();
     res.json(response);
   } catch (error) {
     console.error("Supported error:", error);

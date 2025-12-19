@@ -23,12 +23,14 @@ export function registerExactStellarScheme(
   server: x402ResourceServer,
   config: StellarResourceServerConfig = {},
 ): x402ResourceServer {
+  const scheme = new ExactStellarScheme();
+
   if (config.networks && config.networks.length > 0) {
     config.networks.forEach(network => {
-      server.register(network, new ExactStellarScheme());
+      server.register(network, scheme);
     });
   } else {
-    server.register("stellar:*", new ExactStellarScheme());
+    server.register("stellar:*", scheme);
   }
 
   return server;

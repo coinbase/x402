@@ -8,7 +8,7 @@ import { getFacilitator } from "../index";
 export async function GET() {
   try {
     const facilitator = await getFacilitator();
-    const response = facilitator.getSupported();
+    const response = await facilitator.getSupported();
     return Response.json(response);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

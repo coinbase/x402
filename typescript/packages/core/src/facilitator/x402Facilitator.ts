@@ -206,9 +206,9 @@ export class x402Facilitator {
    * Uses networks registered during register() calls - no parameters needed.
    * Returns flat array format for backward compatibility with V1 clients.
    *
-   * @returns Supported response with kinds as array (with version in each element), extensions, and signers
+   * @returns Promise resolving to supported response with kinds as array (with version in each element), extensions, and signers
    */
-  getSupported(): {
+  async getSupported(): Promise<{
     kinds: Array<{
       x402Version: number;
       scheme: string;
@@ -217,7 +217,7 @@ export class x402Facilitator {
     }>;
     extensions: string[];
     signers: Record<string, string[]>;
-  } {
+  }> {
     const kinds: Array<{
       x402Version: number;
       scheme: string;
@@ -234,7 +234,7 @@ export class x402Facilitator {
 
         // Iterate over stored concrete networks
         for (const network of networks) {
-          const extra = facilitator.getExtra(network);
+          const extra = await facilitator.getExtra(network);
           kinds.push({
             x402Version: version,
             scheme,

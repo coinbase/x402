@@ -97,7 +97,7 @@ describe("ExactStellarScheme", () => {
   });
 
   describe("enhancePaymentRequirements", () => {
-    it("should add maxLedger to payment requirements", async () => {
+    it("should add maxLedger from facilitator to payment requirements", async () => {
       const requirements = {
         scheme: "exact",
         network: STELLAR_PUBNET_CAIP2,
@@ -108,21 +108,20 @@ describe("ExactStellarScheme", () => {
         extra: {},
       };
 
-      const maxLedger = "12345678";
       const result = await server.enhancePaymentRequirements(
         requirements as never,
         {
           x402Version: 2,
           scheme: "exact",
           network: STELLAR_PUBNET_CAIP2,
-          extra: { maxLedger },
+          extra: { maxLedger: 1012 },
         },
         [],
       );
 
       expect(result).toEqual({
         ...requirements,
-        extra: { maxLedger },
+        extra: { maxLedger: 1012 },
       });
     });
 
@@ -143,14 +142,14 @@ describe("ExactStellarScheme", () => {
           x402Version: 2,
           scheme: "exact",
           network: STELLAR_TESTNET_CAIP2,
-          extra: { maxLedger: "87654321" },
+          extra: { maxLedger: 5012 },
         },
         [],
       );
 
       expect(result.extra).toEqual({
         custom: "value",
-        maxLedger: "87654321",
+        maxLedger: 5012,
       });
     });
   });

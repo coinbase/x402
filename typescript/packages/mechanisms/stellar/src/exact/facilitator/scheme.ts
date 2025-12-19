@@ -13,6 +13,7 @@ import { ExactStellarPayloadV2 } from "../../types";
 import { getRpcClient, getNetworkPassphrase } from "../../utils";
 import type { FacilitatorStellarSigner } from "../../signer";
 import type {
+  Network,
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
@@ -22,6 +23,7 @@ import type {
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
+const DEFAULT_LEDGER_BUFFER = 12;
 
 /**
  * Creates an invalid verification response
@@ -57,24 +59,28 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    * @param signer - The Stellar signer for facilitator operations
    * @param rpcConfig - Optional RPC configuration with custom RPC URL
    * @param rpcConfig.url - Custom RPC URL to use instead of defaults
+   * @param ledgerBuffer - Number of ledgers to add as buffer for maxLedger (default: 12)
    * @returns ExactStellarScheme instance
    */
   constructor(
     private readonly signer: FacilitatorStellarSigner,
     private readonly rpcConfig?: { url?: string },
+    private readonly ledgerBuffer: number = DEFAULT_LEDGER_BUFFER,
   ) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For Stellar, this includes maxLedger for transaction expiration.
+   * For Stellar, fetches the latest ledger from the network and returns maxLedger.
    *
-   * @param _ - The network identifier (unused for Stellar)
-   * @returns Extra data with maxLedger
+   * @param network - The network identifier
+   * @returns Promise resolving to extra data with maxLedger
    */
-  getExtra(_: string): Record<string, unknown> | undefined {
-    return {
-      maxLedger: 0, // Should be set based on current ledger
-    };
+  async getExtra(network: Network): Promise<Record<string, unknown> | undefined> {
+    const rpcServer = getRpcClient(network, this.rpcConfig);
+    const latestLedger = await rpcServer.getLatestLedger();
+    const maxLedger = latestLedger.sequence + this.ledgerBuffer;
+
+    return { maxLedger };
   }
 
   /**
