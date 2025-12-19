@@ -23,3 +23,4 @@
 ## Guides
 
 * [MCP Server with x402](guides/mcp-server-with-x402.md)
+* [Migration Guide: V1 to V2](guides/migration-v1-to-v2.md)
