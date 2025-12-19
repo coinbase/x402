@@ -79,13 +79,13 @@ Settlement is performed via the facilitator calling the `transferWithAuthorizati
 
 ---
 
-## 2\. AssetTransferMethod: `Permit2`
+## 2. AssetTransferMethod: `Permit2`
 
-This asset transfer method uses the `permitWitnessTransferFrom` from the canonical **Permit2** contract combined with a `x402Permit2Proxy` to enforce receiver address security via the "Witness" pattern.
+This asset transfer method uses the `permitWitnessTransferFrom` from the [canonical **Permit2** contract](#canonical-permit2) combined with a [`x402Permit2Proxy`](#reference-implementation-x402permit2proxy) to enforce receiver address security via the "Witness" pattern.
 
 ### Phase 1: One-Time Gas Approval
 
-Permit2 requires the user to approve the **Permit2 Contract** (Canonical Address) to spend their tokens. This is a one-time setup. The specification supports three ways to handle this:
+Permit2 requires the user to approve the [**Permit2 Contract** (Canonical Address)](#canonical-permit2) to spend their tokens. This is a one-time setup. The specification supports three ways to handle this:
 
 #### Option A: Direct User Approval (Standard)
 
@@ -98,7 +98,7 @@ The user submits a standard on-chain `approve(Permit2)` transaction paying their
 The Facilitator pays the gas for the approval transaction on the user's behalf.
 
 - _Prerequisite:_ Server supports this extension.
-- _Flow:_ Facilitator batches the following transactions: `from.transfer(gas_amount)` -\> `ERC20.approve(Permit2)` -\> `settle`.
+- _Flow:_ Facilitator batches the following transactions: `from.transfer(gas_amount)` -> `ERC20.approve(Permit2)` -> `settle`.
 
 #### Option C: EIP2612 Permit (Extension: [`eip2612GasSponsoring`](../../extensions/eip2612_gas_sponsoring.md))
 
@@ -114,7 +114,9 @@ The `payload` field must contain:
 - `signature`: The signature for `permitWitnessTransferFrom`.
 - `permit2Authorization`: Parameters to reconstruct the message.
 
-**Important Logic:** The `spender` in the signature is the **x402Permit2Proxy**, not the Facilitator. This Proxy enforces that funds are only sent to the `witness.to` address.
+**Important Logic:** The `spender` in the signature is the [**x402Permit2Proxy**](#reference-implementation-x402permit2proxy), not the Facilitator. This Proxy enforces that funds are only sent to the `witness.to` address.
+
+> **Requirement**: This contract will be deployed to the same address across all supported EVM chains using `CREATE2` to ensure consistent behavior and simpler integration.
 
 **Example PaymentPayload:**
 
@@ -181,7 +183,7 @@ The verifier must execute these checks in order:
 7.  **Simulation:**
 
     - _Standard:_ Simulate `x402Permit2Proxy.settle`.
-    - _With "Sponsored ERC20 Approval" (Extension):_ Simulate batch `transfer` -\> `approve` -\> `settle`.
+    - _With "Sponsored ERC20 Approval" (Extension):_ Simulate batch `transfer` -> `approve` -> `settle`.
     - _With "EIP2612 Permit" (Extension):_ Simulate `x402Permit2Proxy.settleWithPermit`.
 
 ### Phase 4: Settlement Logic
@@ -199,9 +201,17 @@ Settlement is performed by calling the `x402Permit2Proxy`.
 
 ---
 
-## Reference Implementation: `x402Permit2Proxy`
+## Annex
+
+### Canonical Permit2
+
+The Canonical Permit2 contract address can be found at [https://docs.uniswap.org/contracts/v4/deployments](https://docs.uniswap.org/contracts/v4/deployments).
+
+### Reference Implementation: `x402Permit2Proxy`
 
 This contract acts as the authorized Spender. It validates the Witness data to ensure the destination cannot be altered by the Facilitator.
+
+> **Requirement**: This contract will be deployed to the same address across all supported EVM chains using `CREATE2` to ensure consistent behavior and simpler integration.
 
 ```solidity
 // SPDX-License-Identifier: MIT

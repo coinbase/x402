@@ -199,7 +199,7 @@ Upon receiving a `PaymentPayload` containing `erc20ApprovalGasSponsoring`:
   approve(spender, amount)
   ```
 
-- **Note**: The Facilitator MUST verify that `spender` in the extension data matches the spender in the decoded transaction and matches the expected contract (e.g., Canonical Permit2).
+- **Note**: The Facilitator MUST verify that `spender` in the extension data matches the spender in the decoded transaction and matches the expected contract (e.g., [Canonical Permit2](../schemes/exact/scheme_exact_evm.md#canonical-permit2)).
 
 - **nonce** matches user’s current on-chain nonce
 - **maxFee** and **maxPriorityFee** match the current network prices

@@ -161,9 +161,9 @@ When the Facilitator receives a payload containing `eip2612GasSponsoring` data, 
 
 1.  **Verify** the `asset` address actually implements `IERC20Permit`.
 2.  **Verify** the `signature` was signed for the `spender` and recovers to `from`.
-    - **Note**: The Facilitator MUST verify that `spender` matches the expected contract (e.g., Canonical Permit2).
+    - **Note**: The Facilitator MUST verify that `spender` matches the expected contract (e.g., [Canonical Permit2](../schemes/exact/scheme_exact_evm.md#canonical-permit2)).
 3.  **Simulate** `x402Permit2Proxy.settleWithPermit`
 
 ## Settlement Logic
 
-The Settlement is performed by calling the `x402Permit2Proxy.settleWithPermit`.
+The Settlement is performed by calling the [`x402Permit2Proxy.settleWithPermit`](../schemes/exact/scheme_exact_evm.md#reference-implementation-x402permit2proxy).
