@@ -147,14 +147,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 			Extra:             nil,
 		}
 
-		if err := paymentRequirements.SetUSDCInfo(options.Testnet); err != nil {
-			fmt.Println("failed to set USDC info:", err)
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error":       err.Error(),
-				"x402Version": x402Version,
-			})
-			return
-		}
+		paymentRequirements.SetUSDCInfo(options.Testnet)
 
 		payment := c.GetHeader("X-PAYMENT")
 		paymentPayload, err := types.DecodePaymentPayloadFromBase64(payment)
@@ -179,7 +172,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		paymentPayload.X402Version = x402Version
 
 		// Verify payment
-		response, err := facilitatorClient.Verify(paymentPayload, paymentRequirements)
+		response, err := facilitatorClient.Verify(c.Request.Context(), paymentPayload, paymentRequirements)
 		if err != nil {
 			fmt.Println("failed to verify", err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -218,7 +211,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		}
 
 		// Settle payment
-		settleResponse, err := facilitatorClient.Settle(paymentPayload, paymentRequirements)
+		settleResponse, err := facilitatorClient.Settle(c.Request.Context(), paymentPayload, paymentRequirements)
 		if err != nil {
 			fmt.Println("Settlement failed:", err)
 			// Reset the response writer
