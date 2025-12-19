@@ -46,15 +46,15 @@ func NewTestConfig() TestServerConfig {
 			X402Version: 1,
 			Scheme:      "exact",
 			Network:     "base-sepolia",
-			Payload: &types.ExactEvmPayload{
-				Signature: "0xvalidSignature",
-				Authorization: &types.ExactEvmPayloadAuthorization{
-					From:        "0xvalidFrom",
-					To:          "0xvalidTo",
-					Value:       "1000000",
-					ValidAfter:  "1745323800",
-					ValidBefore: "1745323985",
-					Nonce:       "0xvalidNonce",
+			Payload: map[string]any{
+				"signature": "0xvalidSignature",
+				"authorization": map[string]any{
+					"from":        "0xvalidFrom",
+					"to":          "0xvalidTo",
+					"value":       "1000000",
+					"validAfter":  "1745323800",
+					"validBefore": "1745323985",
+					"nonce":       "0xvalidNonce",
 				},
 			},
 		},
@@ -171,7 +171,8 @@ func TestPaymentMiddleware_ValidPayment(t *testing.T) {
 func TestPaymentMiddleware_VerificationFails(t *testing.T) {
 	config := NewTestConfig()
 	config.VerifySuccess = false
-	config.PaymentPayload.Payload.Signature = "0xInvalidSignature"
+	// Update signature in the map[string]any payload
+	config.PaymentPayload.Payload["signature"] = "0xInvalidSignature"
 
 	router, w, req := setupTest(t, big.NewFloat(1.0), "0xTestAddress", config)
 
@@ -255,7 +256,7 @@ func TestPaymentMiddleware_SettlementServerError(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-	assert.Contains(t, w.Body.String(), "failed to settle payment: 500 Internal Server Error")
+	assert.Contains(t, w.Body.String(), "settle request failed")
 
 	assert.Empty(t, w.Header().Get("X-PAYMENT-RESPONSE"))
 }

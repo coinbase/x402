@@ -13,6 +13,26 @@ import (
 	"github.com/coinbase/x402/go/pkg/types"
 )
 
+// createTestPayload creates a test payment payload with proper map[string]any format
+func createTestPayload() *types.PaymentPayload {
+	return &types.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+		Payload: map[string]any{
+			"signature": "0xvalidSignature",
+			"authorization": map[string]any{
+				"from":        "0xvalidFrom",
+				"to":          "0xvalidTo",
+				"value":       "1000000",
+				"validAfter":  "1745323800",
+				"validBefore": "1745323985",
+				"nonce":       "0xvalidNonce",
+			},
+		},
+	}
+}
+
 func TestVerify(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,22 +57,7 @@ func TestVerify(t *testing.T) {
 	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test data
-	paymentPayload := &types.PaymentPayload{
-		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base-sepolia",
-		Payload: &types.ExactEvmPayload{
-			Signature: "0xvalidSignature",
-			Authorization: &types.ExactEvmPayloadAuthorization{
-				From:        "0xvalidFrom",
-				To:          "0xvalidTo",
-				Value:       "1000000",
-				ValidAfter:  "1745323800",
-				ValidBefore: "1745323985",
-				Nonce:       "0xvalidNonce",
-			},
-		},
-	}
+	paymentPayload := createTestPayload()
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
 		Network:           "base-sepolia",
@@ -66,7 +71,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	// Test verify
-	resp, err := client.Verify(paymentPayload, paymentRequirements)
+	resp, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -101,22 +106,7 @@ func TestSettle(t *testing.T) {
 	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test data
-	paymentPayload := &types.PaymentPayload{
-		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base-sepolia",
-		Payload: &types.ExactEvmPayload{
-			Signature: "0xvalidSignature",
-			Authorization: &types.ExactEvmPayloadAuthorization{
-				From:        "0xvalidFrom",
-				To:          "0xvalidTo",
-				Value:       "1000000",
-				ValidAfter:  "1745323800",
-				ValidBefore: "1745323985",
-				Nonce:       "0xvalidNonce",
-			},
-		},
-	}
+	paymentPayload := createTestPayload()
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
 		Network:           "base-sepolia",
@@ -130,7 +120,7 @@ func TestSettle(t *testing.T) {
 	}
 
 	// Test settle
-	resp, err := client.Settle(paymentPayload, paymentRequirements)
+	resp, err := client.Settle(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -170,7 +160,7 @@ func TestTimeout(t *testing.T) {
 	paymentRequirements := &types.PaymentRequirements{}
 
 	// Test verify with timeout
-	_, err := client.Verify(paymentPayload, paymentRequirements)
+	_, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	t.Log(err)
 	if err == nil {
 		t.Error("Expected timeout error, got err == nil")
@@ -209,22 +199,7 @@ func TestVerifyWithAuthHeaders(t *testing.T) {
 	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test verify with auth headers
-	paymentPayload := &types.PaymentPayload{
-		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base-sepolia",
-		Payload: &types.ExactEvmPayload{
-			Signature: "0xvalidSignature",
-			Authorization: &types.ExactEvmPayloadAuthorization{
-				From:        "0xvalidFrom",
-				To:          "0xvalidTo",
-				Value:       "1000000",
-				ValidAfter:  "1745323800",
-				ValidBefore: "1745323985",
-				Nonce:       "0xvalidNonce",
-			},
-		},
-	}
+	paymentPayload := createTestPayload()
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
 		Network:           "base-sepolia",
@@ -237,7 +212,7 @@ func TestVerifyWithAuthHeaders(t *testing.T) {
 		Asset:             "0xusdcAddress",
 	}
 
-	_, err := client.Verify(paymentPayload, paymentRequirements)
+	_, err := client.Verify(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -280,22 +255,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 	client := facilitatorclient.NewFacilitatorClient(config)
 
 	// Test settle with auth headers
-	paymentPayload := &types.PaymentPayload{
-		X402Version: 1,
-		Scheme:      "exact",
-		Network:     "base-sepolia",
-		Payload: &types.ExactEvmPayload{
-			Signature: "0xvalidSignature",
-			Authorization: &types.ExactEvmPayloadAuthorization{
-				From:        "0xvalidFrom",
-				To:          "0xvalidTo",
-				Value:       "1000000",
-				ValidAfter:  "1745323800",
-				ValidBefore: "1745323985",
-				Nonce:       "0xvalidNonce",
-			},
-		},
-	}
+	paymentPayload := createTestPayload()
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
 		Network:           "base-sepolia",
@@ -308,7 +268,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 		Asset:             "0xusdcAddress",
 	}
 
-	_, err := client.Settle(paymentPayload, paymentRequirements)
+	_, err := client.Settle(context.Background(), paymentPayload, paymentRequirements)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
