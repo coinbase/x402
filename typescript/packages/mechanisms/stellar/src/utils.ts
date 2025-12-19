@@ -21,6 +21,16 @@ export interface RpcConfig {
 }
 
 /**
+ * Checks if a network is a Stellar network
+ *
+ * @param network - The CAIP-2 network identifier
+ * @returns `true` if the network is a Stellar network, `false` otherwise
+ */
+export function isStellarNetwork(network: Network): boolean {
+  return STELLAR_NETWORK_TO_PASSPHRASE.has(network);
+}
+
+/**
  * Validates a Stellar destination address (G-account, C-account, or M-account)
  *
  * @param address - Stellar destination address to validate

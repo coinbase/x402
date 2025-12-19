@@ -7,6 +7,7 @@ import {
   getRpcClient,
   getRpcUrl,
   getUsdcAddress,
+  isStellarNetwork,
   RpcConfig,
   validateStellarAssetAddress,
   validateStellarDestinationAddress,
@@ -49,6 +50,27 @@ describe("Stellar RPC Helper Functions", () => {
     it("should return false for invalid addresses", () => {
       expect(validateStellarAssetAddress("")).toBe(false);
       expect(validateStellarAssetAddress("invalid")).toBe(false);
+    });
+  });
+
+  describe("isStellarNetwork", () => {
+    it("should return true for Stellar pubnet", () => {
+      expect(isStellarNetwork(STELLAR_PUBNET_CAIP2)).toBe(true);
+    });
+
+    it("should return true for Stellar testnet", () => {
+      expect(isStellarNetwork(STELLAR_TESTNET_CAIP2)).toBe(true);
+    });
+
+    it("should return false for invalid networks", () => {
+      expect(isStellarNetwork("invalid-network" as any)).toBe(false);
+      expect(isStellarNetwork("" as any)).toBe(false);
+    });
+
+    it("should return false for non-Stellar CAIP-2 networks", () => {
+      expect(isStellarNetwork("eip155:1" as any)).toBe(false);
+      expect(isStellarNetwork("eip155:8453" as any)).toBe(false);
+      expect(isStellarNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" as any)).toBe(false);
     });
   });
 
