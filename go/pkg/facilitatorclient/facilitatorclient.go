@@ -239,8 +239,7 @@ func (c *Client) RegisterResource(ctx context.Context, resource string, accepts 
 		Metadata: metadata,
 	}
 
-	var resp map[string]any
-	if err := c.doRequest(ctx, "POST", "/discovery/resources", "discovery", reqBody, &resp); err != nil {
+	if err := c.doRequest(ctx, "POST", "/discovery/resources", "discovery", reqBody, nil); err != nil {
 		return fmt.Errorf("register resource request failed: %w", err)
 	}
 
@@ -252,8 +251,7 @@ func (c *Client) UnregisterResource(ctx context.Context, resource string) error 
 	// URL encode the resource
 	path := "/discovery/resources/" + url.PathEscape(resource)
 
-	var resp map[string]any
-	if err := c.doRequest(ctx, "DELETE", path, "discovery", nil, &resp); err != nil {
+	if err := c.doRequest(ctx, "DELETE", path, "discovery", nil, nil); err != nil {
 		return fmt.Errorf("unregister resource request failed: %w", err)
 	}
 
