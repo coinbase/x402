@@ -1,6 +1,6 @@
 {
   "name": "Mogami examples",
-  "description": "A collection of x402 examples in Java (client and server)",
+  "description": "Learn x402 in Java with real client, server, and hosted examples.",
   "logoUrl": "/logos/logo_mogami_vertical_small.png",
   "websiteUrl": "https://mogami.tech/#examples",
   "category": "Learning & Community Resources"
