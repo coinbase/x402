@@ -5,11 +5,14 @@ Example client demonstrating how to use `@x402/axios` to make HTTP requests to e
 ```typescript
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import axios from "axios";
 
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.EVM_PRIVATE_KEY) });
+registerExactStellarScheme(client, { signer: createEd25519Signer(process.env.STELLAR_PRIVATE_KEY!, "stellar:testnet"), networks: "stellar:testnet" });
 
 const api = wrapAxiosWithPayment(axios.create(), client);
 
@@ -22,7 +25,7 @@ console.log(response.data);
 - Node.js v20+ (install via [nvm](https://github.com/nvm-sh/nvm))
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - A running x402 server (see [express server example](../../servers/express))
-- Valid EVM and/or SVM private keys for making payments
+- Valid EVM, SVM, and/or Stellar private keys for making payments
 
 ## Setup
 
@@ -44,6 +47,7 @@ Required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key for EVM payments
 - `SVM_PRIVATE_KEY` - Solana private key for SVM payments
+- `STELLAR_PRIVATE_KEY` - Stellar private key for Stellar payments
 
 3. Run the client:
 

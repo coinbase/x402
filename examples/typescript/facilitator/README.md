@@ -8,6 +8,7 @@ Express.js facilitator service that verifies and settles payments on-chain for t
 - pnpm v10 (install via [pnpm.io/installation](https://pnpm.io/installation))
 - EVM private key with Base Sepolia ETH for transaction fees
 - SVM private key with Solana Devnet SOL for transaction fees
+- Stellar private key with Stellar Testnet XLM for transaction fees
 
 ## Setup
 
@@ -21,6 +22,7 @@ and fill required environment variables:
 
 - `EVM_PRIVATE_KEY` - Ethereum private key
 - `SVM_PRIVATE_KEY` - Solana private key
+- `STELLAR_PRIVATE_KEY` - Stellar private key
 - `PORT` - Server port (optional, defaults to 4022)
 
 2. Install and build all packages from the typescript examples root:
@@ -58,12 +60,21 @@ Returns payment schemes and networks this facilitator supports.
       "extra": {
         "feePayer": "..."
       }
+    },
+    {
+      "x402Version": 2,
+      "scheme": "exact",
+      "network": "stellar:testnet",
+      "extra": {
+        "maxLedger": 12345678
+      }
     }
   ],
   "extensions": [],
   "signers": {
     "eip155": ["0x..."],
-    "solana": ["..."]
+    "solana": ["..."],
+    "stellar": ["G..."]
   }
 }
 ```
@@ -170,6 +181,8 @@ Register additional schemes for other networks:
 ```typescript
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
+import { createEd25519Signer } from "@x402/stellar";
 
 const facilitator = new x402Facilitator();
 
@@ -181,6 +194,11 @@ registerExactEvmScheme(facilitator, {
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+});
+
+registerExactStellarScheme(facilitator, {
+  signer: createEd25519Signer(stellarPrivateKey, "stellar:testnet"),
+  networks: "stellar:testnet",
 });
 ```
 
@@ -219,3 +237,5 @@ Networks use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/cai
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `stellar:testnet` — Stellar Testnet
+- `stellar:mainnet` — Stellar Mainnet
