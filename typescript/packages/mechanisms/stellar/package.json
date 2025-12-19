@@ -59,16 +59,6 @@
         "default": "./dist/cjs/index.js"
       }
     },
-    "./v1": {
-      "import": {
-        "types": "./dist/esm/v1/index.d.mts",
-        "default": "./dist/esm/v1/index.mjs"
-      },
-      "require": {
-        "types": "./dist/cjs/v1/index.d.ts",
-        "default": "./dist/cjs/v1/index.js"
-      }
-    },
     "./exact/client": {
       "import": {
         "types": "./dist/esm/exact/client/index.d.mts",
@@ -97,26 +87,6 @@
       "require": {
         "types": "./dist/cjs/exact/facilitator/index.d.ts",
         "default": "./dist/cjs/exact/facilitator/index.js"
-      }
-    },
-    "./exact/v1/client": {
-      "import": {
-        "types": "./dist/esm/exact/v1/client/index.d.mts",
-        "default": "./dist/esm/exact/v1/client/index.mjs"
-      },
-      "require": {
-        "types": "./dist/cjs/exact/v1/client/index.d.ts",
-        "default": "./dist/cjs/exact/v1/client/index.js"
-      }
-    },
-    "./exact/v1/facilitator": {
-      "import": {
-        "types": "./dist/esm/exact/v1/facilitator/index.d.mts",
-        "default": "./dist/esm/exact/v1/facilitator/index.mjs"
-      },
-      "require": {
-        "types": "./dist/cjs/exact/v1/facilitator/index.d.ts",
-        "default": "./dist/cjs/exact/v1/facilitator/index.js"
       }
     }
   },
