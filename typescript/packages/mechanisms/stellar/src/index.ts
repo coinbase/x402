@@ -6,6 +6,7 @@
 
 // Export signer utilities and types
 export type { ClientStellarSigner, FacilitatorStellarSigner, Ed25519Signer } from "./signer";
+export { createEd25519Signer } from "./signer";
 
 // Export constants
 export * from "./constants";
