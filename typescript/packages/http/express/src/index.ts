@@ -34,7 +34,7 @@ function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
  */
 export interface SchemeRegistration {
   /**
-   * The network identifier (e.g., 'eip155:84532', 'solana:mainnet')
+   * The network identifier (e.g., 'eip155:84532', 'solana:mainnet', 'stellar:testnet')
    */
   network: Network;
 
@@ -63,9 +63,11 @@ export interface SchemeRegistration {
  * import { paymentMiddleware } from "@x402/express";
  * import { x402ResourceServer } from "@x402/core/server";
  * import { registerExactEvmScheme } from "@x402/evm/exact/server";
+ * import { registerExactStellarScheme } from "@x402/stellar/exact/server";
  *
  * const server = new x402ResourceServer(myFacilitatorClient);
  * registerExactEvmScheme(server, { signer: myServerSigner });
+ * registerExactStellarScheme(server, { networks: ["stellar:testnet"] });
  *
  * app.use(paymentMiddleware(routes, server, paywallConfig));
  * ```
@@ -308,7 +310,10 @@ export function paymentMiddleware(
  * app.use(paymentMiddlewareFromConfig(
  *   routes,
  *   myFacilitatorClient,
- *   [{ network: "eip155:8453", server: evmSchemeServer }],
+ *   [
+ *     { network: "eip155:8453", server: evmSchemeServer },
+ *     { network: "stellar:testnet", server: stellarSchemeServer },
+ *   ],
  *   paywallConfig
  * ));
  * ```

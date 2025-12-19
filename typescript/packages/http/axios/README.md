@@ -55,8 +55,8 @@ Convenience wrapper that creates an x402Client from a configuration object.
 - `axiosInstance`: The Axios instance to wrap (typically from `axios.create()`)
 - `config`: Configuration object with the following properties:
   - `schemes`: Array of scheme registrations, each containing:
-    - `network`: Network identifier (e.g., 'eip155:8453', 'solana:mainnet', 'eip155:*' for wildcards)
-    - `client`: The scheme client implementation (e.g., `ExactEvmScheme`, `ExactSvmScheme`)
+    - `network`: Network identifier (e.g., 'eip155:8453', 'solana:mainnet', 'stellar:testnet', 'eip155:*' for wildcards)
+    - `client`: The scheme client implementation (e.g., `ExactEvmScheme`, `ExactSvmScheme`, `ExactStellarScheme`)
     - `x402Version`: Optional protocol version (defaults to 2, set to 1 for legacy support)
   - `paymentRequirementsSelector`: Optional function to select payment requirements from multiple options
 
@@ -78,18 +78,23 @@ import axios from "axios";
 import { wrapAxiosWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/axios";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmScheme } from "@x402/evm";
+import { ExactStellarScheme, createEd25519Signer } from "@x402/stellar";
 
 config();
 
 const { EVM_PRIVATE_KEY, API_URL } = process.env;
 
-const account = privateKeyToAccount(EVM_PRIVATE_KEY as `0x${string}`);
-
+const evmSigner = privateKeyToAccount(EVM_PRIVATE_KEY as `0x${string}`);
+const stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY!, "stellar:testnet");
 const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
   schemes: [
     {
       network: "eip155:*", // Support all EVM chains
-      client: new ExactEvmScheme(account),
+      client: new ExactEvmScheme(evmSigner),
+    },
+    {
+      network: "stellar:testnet", // Stellar Testnet
+      client: new ExactStellarScheme(stellarSigner),
     },
   ],
 });
@@ -122,6 +127,8 @@ import axios from "axios";
 import { wrapAxiosWithPayment, x402Client } from "@x402/axios";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -129,11 +136,13 @@ import { base58 } from "@scure/base";
 // Create signers
 const evmSigner = privateKeyToAccount("0xYourPrivateKey");
 const svmSigner = await createKeyPairSignerFromBytes(base58.decode("YourSvmPrivateKey"));
+const stellarSigner = createEd25519Signer("YourStellarPrivateKey", "stellar:testnet");
 
 // Build client with multiple schemes
 const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(evmSigner))
-  .register("solana:*", new ExactSvmScheme(svmSigner));
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .register("stellar:*", new ExactStellarScheme(stellarSigner));
 
 // Wrap axios with the client
 const api = wrapAxiosWithPayment(axios.create(), client);
@@ -146,6 +155,7 @@ import axios from "axios";
 import { wrapAxiosWithPaymentFromConfig } from "@x402/axios";
 import { ExactEvmScheme } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm";
+import { ExactStellarScheme } from "@x402/stellar";
 
 const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
   schemes: [
@@ -158,6 +168,11 @@ const api = wrapAxiosWithPaymentFromConfig(axios.create(), {
     {
       network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana devnet
       client: new ExactSvmScheme(svmSigner),
+    },
+    // Stellar chains
+    {
+      network: "stellar:testnet", // Stellar Testnet
+      client: new ExactStellarScheme(stellarSigner),
     },
   ],
 });

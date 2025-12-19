@@ -18,20 +18,28 @@ Page routes are protected using the `paymentProxy`. Create a proxy (middleware) 
 import { paymentProxy, x402ResourceServer } from "@x402/next";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: "https://facilitator.x402.org" });
 const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register("eip155:84532", new ExactEvmScheme());
+  .register("eip155:84532", new ExactEvmScheme())
+  .register("stellar:testnet", new ExactStellarScheme());
 
 export const proxy = paymentProxy(
   {
     "/protected": {
-      accepts: {
+      accepts: [{
         scheme: "exact",
         price: "$0.01",
         network: "eip155:84532",
         payTo: "0xYourAddress",
       },
+      {
+        scheme: "exact",
+        price: "$0.01",
+        network: "stellar:testnet",
+        payTo: "GYourStellarAddress",
+      }],
       description: "Access to protected content",
     },
   },
@@ -163,12 +171,14 @@ import { paymentProxy, x402ResourceServer } from "@x402/next";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { registerExactStellarScheme } from "@x402/stellar/exact/server";
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: facilitatorUrl });
 const server = new x402ResourceServer(facilitatorClient);
 
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
+registerExactStellarScheme(server);
 
 export const middleware = paymentProxy(
   {
@@ -186,6 +196,12 @@ export const middleware = paymentProxy(
           network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
           payTo: svmAddress,
         },
+        {
+          scheme: "exact",
+          price: "$0.001",
+          network: "stellar:testnet",
+          payTo: stellarAddress,
+        },
       ],
       description: "Premium content",
       mimeType: "text/html",
@@ -201,10 +217,12 @@ export const middleware = paymentProxy(
 import { createPaywall } from "@x402/paywall";
 import { evmPaywall } from "@x402/paywall/evm";
 import { svmPaywall } from "@x402/paywall/svm";
+import { stellarPaywall } from "@x402/paywall/stellar";
 
 const paywall = createPaywall()
   .withNetwork(evmPaywall)
   .withNetwork(svmPaywall)
+  .withNetwork(stellarPaywall)
   .withConfig({
     appName: "My App",
     appLogo: "/logo.png",

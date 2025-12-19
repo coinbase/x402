@@ -16,10 +16,12 @@ pnpm install @x402/core
 import { x402Client } from '@x402/core/client';
 import { x402HTTPClient } from '@x402/core/http';
 import { ExactEvmScheme } from '@x402/evm/exact/client';
+import { ExactStellarScheme } from '@x402/stellar';
 
 // Create core client and register payment schemes
 const coreClient = new x402Client()
-  .register('eip155:*', new ExactEvmScheme(evmSigner));
+  .register('eip155:*', new ExactEvmScheme(evmSigner))
+  .register('stellar:testnet', new ExactStellarScheme(stellarSigner));
 
 // Wrap with HTTP client for header encoding/decoding
 const client = new x402HTTPClient(coreClient);
@@ -33,14 +35,14 @@ if (response.status === 402) {
     (name) => response.headers.get(name),
     await response.json()
   );
-  
+
   // Create and send payment
   const paymentPayload = await client.createPaymentPayload(paymentRequired);
-  
+
   const paidResponse = await fetch('https://api.example.com/protected', {
     headers: client.encodePaymentSignatureHeader(paymentPayload),
   });
-  
+
   // Get settlement confirmation
   const settlement = client.getPaymentSettleResponse(
     (name) => paidResponse.headers.get(name)
@@ -55,6 +57,7 @@ if (response.status === 402) {
 import { x402ResourceServer, HTTPFacilitatorClient } from '@x402/core/server';
 import { x402HTTPResourceServer } from '@x402/core/http';
 import { ExactEvmScheme } from '@x402/evm/exact/server';
+import { ExactStellarScheme } from '@x402/stellar/exact/server';
 
 // Connect to facilitator
 const facilitatorClient = new HTTPFacilitatorClient({
@@ -63,7 +66,8 @@ const facilitatorClient = new HTTPFacilitatorClient({
 
 // Create resource server with payment schemes
 const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register('eip155:*', new ExactEvmScheme());
+  .register('eip155:*', new ExactEvmScheme())
+  .register('stellar:testnet', new ExactStellarScheme());
 
 // Initialize (fetches supported kinds from facilitator)
 await resourceServer.initialize();
@@ -91,6 +95,7 @@ const httpServer = new x402HTTPResourceServer(resourceServer, routes);
 ```typescript
 import { x402Facilitator } from '@x402/core/facilitator';
 import { registerExactEvmScheme } from '@x402/evm/exact/facilitator';
+import { registerExactStellarScheme } from '@x402/stellar/exact/facilitator';
 
 const facilitator = new x402Facilitator();
 
@@ -98,6 +103,11 @@ const facilitator = new x402Facilitator();
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
   networks: 'eip155:84532',
+});
+
+registerExactStellarScheme(facilitator, {
+  signer: stellarSigner,
+  networks: 'stellar:testnet',
 });
 
 // Verify payment
@@ -127,8 +137,8 @@ const routes = {
     description: 'Data endpoint',
     mimeType: 'application/json',
   },
-  
-  // Multiple payment options (EVM + SVM)
+
+  // Multiple payment options (EVM + SVM + Stellar)
   'POST /api/*': {
     accepts: [
       {
@@ -141,6 +151,12 @@ const routes = {
         scheme: 'exact',
         network: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp',
         payTo: svmAddress,
+        price: '$0.05',
+      },
+      {
+        scheme: 'exact',
+        network: 'stellar:testnet',
+        payTo: stellarAddress,
         price: '$0.05',
       },
     ],
@@ -157,6 +173,7 @@ const client = x402Client.fromConfig({
   schemes: [
     { network: 'eip155:8453', client: new ExactEvmScheme(evmSigner) },
     { network: 'solana:mainnet', client: new ExactSvmScheme(svmSigner) },
+    { network: 'stellar:pubnet', client: new ExactStellarScheme(stellarSigner) },
   ],
   policies: [
     // Filter by max price
@@ -272,7 +289,7 @@ type PaymentRequired = {
 For framework-specific middleware, use:
 
 - `@x402/express` - Express.js middleware
-- `@x402/hono` - Hono middleware  
+- `@x402/hono` - Hono middleware
 - `@x402/next` - Next.js integration
 - `@x402/axios` - Axios interceptor
 - `@x402/fetch` - Fetch wrapper
@@ -283,6 +300,7 @@ For blockchain-specific implementations:
 
 - `@x402/evm` - Ethereum and EVM-compatible chains
 - `@x402/svm` - Solana blockchain
+- `@x402/stellar` - Stellar blockchain
 
 ## Examples
 
