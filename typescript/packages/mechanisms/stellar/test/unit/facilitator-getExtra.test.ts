@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ExactStellarScheme } from "../../src/exact/facilitator/scheme";
 import { STELLAR_TESTNET_CAIP2 } from "../../src/constants";
+import { ExactStellarScheme } from "../../src/exact/facilitator/scheme";
 import { createEd25519Signer } from "../../src/signer";
 import * as stellarUtils from "../../src/utils";
 

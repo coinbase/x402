@@ -68,7 +68,7 @@ describe("ExactStellarScheme - Verify", () => {
   const { tx: baseTransactionXDR } = JSON.parse(
     Buffer.from(signedTxJson, "base64").toString("utf8"),
   );
-  
+
   // Create a transaction with proper ledger bounds for testing
   // The transaction needs ledger bounds within [currentLedger, currentLedger + maxLedgerOffset]
   // We'll rebuild it with proper bounds in beforeAll
@@ -95,7 +95,7 @@ describe("ExactStellarScheme - Verify", () => {
     );
 
     facilitator = new ExactStellarScheme(facilitatorSigner);
-    
+
     // Use the original transaction XDR directly - it should already have ledger bounds
     // The verify method no longer checks ledger expiration, so we don't need to rebuild
     mockTransactionXDR = baseTransactionXDR;

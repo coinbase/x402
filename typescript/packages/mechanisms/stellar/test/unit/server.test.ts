@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { ExactStellarScheme } from "../../src/exact/server/scheme";
 import {
   USDC_PUBNET_ADDRESS,
   USDC_TESTNET_ADDRESS,
   STELLAR_PUBNET_CAIP2,
   STELLAR_TESTNET_CAIP2,
 } from "../../src/constants";
+import { ExactStellarScheme } from "../../src/exact/server/scheme";
 
 describe("ExactStellarScheme", () => {
   const server = new ExactStellarScheme();
