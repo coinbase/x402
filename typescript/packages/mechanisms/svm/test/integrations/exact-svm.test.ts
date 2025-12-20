@@ -508,5 +508,29 @@ describe("SVM Integration Tests", () => {
       expect(requirements[0].extra?.exchangeRate).toBe(0.98);
       expect(requirements[0].extra?.originalUSD).toBe(100);
     });
+
+    it("should avoid floating-point rounding error", async () => {
+      // Test different Money formats
+      const testCases = [
+        { input: "$4.02", expectedAmount: "4020000" },
+        { input: "4.02", expectedAmount: "4020000" },
+        { input: "4.02 USDC", expectedAmount: "4020000" },
+        { input: "4.02 USD", expectedAmount: "4020000" },
+        { input: 4.02, expectedAmount: "4020000" },
+      ];
+
+      for (const testCase of testCases) {
+        const requirements = await server.buildPaymentRequirements({
+          scheme: "exact",
+          payTo: RESOURCE_SERVER_ADDRESS,
+          price: testCase.input,
+          network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as Network,
+        });
+
+        expect(requirements).toHaveLength(1);
+        expect(requirements[0].amount).toBe(testCase.expectedAmount);
+        expect(requirements[0].asset).toBe("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"); // Devnet USDC
+      }
+    });
   });
 });
