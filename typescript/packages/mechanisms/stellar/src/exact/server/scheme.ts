@@ -77,9 +77,9 @@ export class ExactStellarScheme implements SchemeNetworkServer {
    * @param supportedKind.x402Version - The x402 protocol version
    * @param supportedKind.scheme - The payment scheme
    * @param supportedKind.network - The network identifier
-   * @param supportedKind.extra - Extra metadata including maxLedger from facilitator
+   * @param supportedKind.extra - Extra metadata including maxLedgerOffset from facilitator
    * @param extensionKeys - Extension keys supported by the facilitator
-   * @returns Enhanced payment requirements with maxLedger in extra
+   * @returns Enhanced payment requirements with maxLedgerOffset in extra
    */
   enhancePaymentRequirements(
     paymentRequirements: PaymentRequirements,
@@ -94,13 +94,14 @@ export class ExactStellarScheme implements SchemeNetworkServer {
     // Mark unused parameters to satisfy linter
     void extensionKeys;
 
-    // Add maxLedger from supportedKind.extra to payment requirements
-    // The facilitator provides maxLedger for transaction expiration
+    // Add maxLedgerOffset from supportedKind.extra to payment requirements
+    // The facilitator provides maxLedgerOffset which clients use to calculate transaction expiration
+    const maxLedgerOffset = supportedKind.extra?.maxLedgerOffset;
     return Promise.resolve({
       ...paymentRequirements,
       extra: {
         ...paymentRequirements.extra,
-        maxLedger: supportedKind.extra?.maxLedger,
+        ...(typeof maxLedgerOffset === "number" && { maxLedgerOffset }),
       },
     });
   }

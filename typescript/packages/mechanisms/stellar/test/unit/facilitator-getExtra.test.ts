@@ -23,55 +23,50 @@ describe("ExactStellarScheme - getExtra", () => {
     vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockRpcClient as never);
   });
 
-  it("should fetch latest ledger and return maxLedger", async () => {
+  it("should return maxLedgerOffset", async () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
     );
-    mockRpcClient.getLatestLedger.mockResolvedValue({ sequence: 1000 });
 
     scheme = new ExactStellarScheme(signer);
 
     const result = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
 
     expect(result).toEqual({
-      maxLedger: 1012, // 1000 + 12 (default buffer)
+      maxLedgerOffset: 12, // default offset
     });
-    expect(mockRpcClient.getLatestLedger).toHaveBeenCalledTimes(1);
+    expect(mockRpcClient.getLatestLedger).not.toHaveBeenCalled();
   });
 
-  it("should always fetch fresh ledger value on each call", async () => {
+  it("should return consistent maxLedgerOffset on each call", async () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
     );
-    mockRpcClient.getLatestLedger
-      .mockResolvedValueOnce({ sequence: 1000 })
-      .mockResolvedValueOnce({ sequence: 2000 });
 
     scheme = new ExactStellarScheme(signer);
 
     const result1 = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
-    expect(result1).toEqual({ maxLedger: 1012 });
+    expect(result1).toEqual({ maxLedgerOffset: 12 });
 
     const result2 = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
-    expect(result2).toEqual({ maxLedger: 2012 });
+    expect(result2).toEqual({ maxLedgerOffset: 12 });
 
-    expect(mockRpcClient.getLatestLedger).toHaveBeenCalledTimes(2);
+    expect(mockRpcClient.getLatestLedger).not.toHaveBeenCalled();
   });
 
-  it("should use custom ledger buffer", async () => {
+  it("should use custom maxLedgerOffset", async () => {
     const signer = createEd25519Signer(
       "SDV3OZOPGIO6GQAVI7T6ZJ7NSNFB26JX6QZYCI64TBC7BAZY6FQVAXXK",
       STELLAR_TESTNET_CAIP2,
     );
-    mockRpcClient.getLatestLedger.mockResolvedValue({ sequence: 2000 });
 
     scheme = new ExactStellarScheme(signer, undefined, 20);
 
     const result = await scheme.getExtra(STELLAR_TESTNET_CAIP2);
     expect(result).toEqual({
-      maxLedger: 2020, // 2000 + 20 (custom buffer)
+      maxLedgerOffset: 20, // custom offset
     });
   });
 });

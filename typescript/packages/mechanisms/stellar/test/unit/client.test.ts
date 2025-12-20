@@ -19,6 +19,7 @@ vi.mock("../../src/utils", async () => {
   return {
     ...actual,
     getRpcUrl: vi.fn(),
+    getRpcClient: vi.fn(),
     isStellarNetwork: vi.fn(),
     validateStellarAssetAddress: vi.fn(),
     validateStellarDestinationAddress: vi.fn(),
@@ -43,7 +44,7 @@ describe("ExactStellarScheme", () => {
     payTo: "GCHEI4PQEFJOA27MNZRPQNLGURS6KASW76X5UZCUZIXCOJLKXYCXOR2W",
     maxTimeoutSeconds: 60,
     asset: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-    extra: { maxLedger: 123456 },
+    extra: { maxLedgerOffset: 12 },
   };
 
   const mockTransaction = {
@@ -59,12 +60,17 @@ describe("ExactStellarScheme", () => {
     mockTransaction.needsNonInvokerSigningBy.mockReturnValueOnce([]);
   };
 
+  const mockRpcServer = {
+    getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100000 }),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(stellarUtils.isStellarNetwork).mockReturnValue(true);
     vi.mocked(stellarUtils.validateStellarAssetAddress).mockReturnValue(true);
     vi.mocked(stellarUtils.validateStellarDestinationAddress).mockReturnValue(true);
     vi.mocked(stellarUtils.getRpcUrl).mockReturnValue("https://soroban-testnet.stellar.org");
+    vi.mocked(stellarUtils.getRpcClient).mockReturnValue(mockRpcServer as never);
     vi.mocked(AssembledTransaction.build).mockResolvedValue(
       mockTransaction as unknown as AssembledTransaction<unknown>,
     );
@@ -85,7 +91,6 @@ describe("ExactStellarScheme", () => {
       ["unsupported network", { network: "base-sepolia" as never }, "Unsupported Stellar network"],
       ["invalid payTo", { payTo: "invalid-address" }, "Invalid Stellar destination address"],
       ["invalid asset", { asset: "invalid-asset" }, "Invalid Stellar asset address"],
-      ["missing maxLedger", { extra: {} }, /Invalid max ledger/],
     ])("should throw for %s", async (_, overrides, expectedError) => {
       const client = new ExactStellarScheme(mockSigner);
       if ("network" in overrides && overrides.network) {
@@ -240,10 +245,11 @@ describe("ExactStellarScheme", () => {
           rpcUrl,
           parseResultXdr: expect.any(Function),
         });
+        // Expiration is calculated as currentLedger (100000) + maxLedgerOffset (12) = 100012
         expect(mockTransaction.signAuthEntries).toHaveBeenCalledWith({
           address: mockSignerAddress,
           signAuthEntry: mockSigner.signAuthEntry,
-          expiration: 123456,
+          expiration: 100012,
         });
         expect(mockTransaction.simulate).toHaveBeenCalled();
         expect(result).toEqual({

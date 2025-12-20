@@ -23,7 +23,7 @@ import type {
 
 const DEFAULT_TIMEOUT_SECONDS = 60;
 const SUPPORTED_X402_VERSION = 2;
-const DEFAULT_LEDGER_BUFFER = 12;
+const DEFAULT_MAX_LEDGER_OFFSET = 12;
 
 /**
  * Creates an invalid verification response
@@ -59,28 +59,24 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
    * @param signer - The Stellar signer for facilitator operations
    * @param rpcConfig - Optional RPC configuration with custom RPC URL
    * @param rpcConfig.url - Custom RPC URL to use instead of defaults
-   * @param ledgerBuffer - Number of ledgers to add as buffer for maxLedger (default: 12)
+   * @param maxLedgerOffset - Max number of ledgers a signature is allowed to have in order to be submitted by the server (default: 12)
    * @returns ExactStellarScheme instance
    */
   constructor(
     private readonly signer: FacilitatorStellarSigner,
     private readonly rpcConfig?: { url?: string },
-    private readonly ledgerBuffer: number = DEFAULT_LEDGER_BUFFER,
+    private readonly maxLedgerOffset: number = DEFAULT_MAX_LEDGER_OFFSET,
   ) {}
 
   /**
    * Get mechanism-specific extra data for the supported kinds endpoint.
-   * For Stellar, fetches the latest ledger from the network and returns maxLedger.
+   * For Stellar, returns maxLedgerOffset which clients use to calculate transaction expiration.
    *
-   * @param network - The network identifier
-   * @returns Promise resolving to extra data with maxLedger
+   * @param _ - The network identifier (unused, offset is network-agnostic)
+   * @returns Extra data with maxLedgerOffset
    */
-  async getExtra(network: Network): Promise<Record<string, unknown> | undefined> {
-    const rpcServer = getRpcClient(network, this.rpcConfig);
-    const latestLedger = await rpcServer.getLatestLedger();
-    const maxLedger = latestLedger.sequence + this.ledgerBuffer;
-
-    return { maxLedger };
+  getExtra(_: Network): Record<string, unknown> | undefined {
+    return { maxLedgerOffset: this.maxLedgerOffset };
   }
 
   /**
@@ -315,6 +311,16 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
           }),
         )
         .build();
+
+      // Check for authEntries expiration ledger
+      const latestLedger = await server.getLatestLedger();
+      const currentLedger = latestLedger.sequence;
+      const maxLedger = currentLedger + this.maxLedgerOffset;
+      invokeOp?.auth?.forEach(auth => {
+        if (auth.credentials()?.address()?.signatureExpirationLedger() > maxLedger) {
+          return invalidVerifyResponse("invalid_exact_stellar_payload_expired_signature", payer);
+        }
+      });
 
       // Step 5: Sign transaction with facilitator's key
       const { signedTxXdr, error: signError } = await this.signer.signTransaction(

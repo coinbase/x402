@@ -3,6 +3,7 @@ import { AssembledTransaction } from "@stellar/stellar-sdk/contract";
 import { handleSimulationResult } from "../../shared";
 import {
   getRpcUrl,
+  getRpcClient,
   isStellarNetwork,
   RpcConfig,
   validateStellarAssetAddress,
@@ -51,6 +52,19 @@ export class ExactStellarScheme implements SchemeNetworkClient {
     const { networkPassphrase } = await this.signer.getNetwork();
     const rpcUrl = getRpcUrl(network, this.rpcConfig);
 
+    // Get maxLedgerOffset from extra and validate, defaulting to 12 if invalid
+    const maxLedgerOffsetValue = extra?.maxLedgerOffset;
+    const maxLedgerOffset =
+      typeof maxLedgerOffsetValue === "number" && maxLedgerOffsetValue > 0
+        ? maxLedgerOffsetValue
+        : 12;
+
+    // Fetch current ledger and calculate maxLedger
+    const rpcServer = getRpcClient(network, this.rpcConfig);
+    const latestLedger = await rpcServer.getLatestLedger();
+    const currentLedger = latestLedger.sequence;
+    const maxLedger = currentLedger + maxLedgerOffset;
+
     const tx = await AssembledTransaction.build({
       contractId: asset,
       method: "transfer",
@@ -75,7 +89,7 @@ export class ExactStellarScheme implements SchemeNetworkClient {
     await tx.signAuthEntries({
       address: sourcePublicKey,
       signAuthEntry: this.signer.signAuthEntry,
-      expiration: extra?.maxLedger as number,
+      expiration: maxLedger,
     });
 
     await tx.simulate();
@@ -101,7 +115,7 @@ export class ExactStellarScheme implements SchemeNetworkClient {
    * @throws Error if validation fails
    */
   private validateCreateAndSignPaymentInput(paymentRequirements: PaymentRequirements): void {
-    const { scheme, network, payTo, asset, extra } = paymentRequirements;
+    const { scheme, network, payTo, asset } = paymentRequirements;
     if (scheme !== "exact") {
       throw new Error(`Unsupported scheme: ${scheme}`);
     }
@@ -116,10 +130,6 @@ export class ExactStellarScheme implements SchemeNetworkClient {
 
     if (!validateStellarAssetAddress(asset)) {
       throw new Error(`Invalid Stellar asset address: ${asset}`);
-    }
-
-    if (!extra || !extra.maxLedger || typeof extra.maxLedger !== "number") {
-      throw new Error(`Invalid max ledger: ${extra.maxLedger ?? "not provided"}`);
     }
   }
 }

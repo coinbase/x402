@@ -51,9 +51,9 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
    * For EVM, no extra data is needed.
    *
    * @param _ - The network identifier (unused for EVM)
-   * @returns Promise resolving to undefined (EVM has no extra data)
+   * @returns undefined (EVM has no extra data)
    */
-  async getExtra(_: string): Promise<Record<string, unknown> | undefined> {
+  getExtra(_: string): Record<string, unknown> | undefined {
     return undefined;
   }
 

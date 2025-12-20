@@ -92,7 +92,7 @@ class SvmFacilitatorClient implements FacilitatorClient {
   getSupported(): Promise<SupportedResponse> {
     // Delegate to actual facilitator to get real supported kinds
     // This includes dynamically selected feePayer addresses
-    return this.facilitator.getSupported() as Promise<SupportedResponse>;
+    return Promise.resolve(this.facilitator.getSupported());
   }
 }
 

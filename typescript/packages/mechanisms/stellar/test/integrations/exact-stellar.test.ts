@@ -162,23 +162,9 @@ describe("Stellar Integration Tests", () => {
     });
 
     it("server should successfully verify and settle a Stellar payment from a client", async () => {
-      // Get maxLedger from facilitator
-      const supported = await facilitatorClient.getSupported();
-      const stellarKind = supported.kinds.find(
-        k => k.scheme === "exact" && k.network === STELLAR_TESTNET_CAIP2,
-      );
-      const maxLedger = (stellarKind?.extra?.maxLedger as number) || 0;
-
+      // Get maxLedgerOffset from facilitator (server will add it automatically)
       const baseRequirements = buildStellarPaymentRequirements(RESOURCE_SERVER_ADDRESS, "1000");
-      const accepts = [
-        {
-          ...baseRequirements,
-          extra: {
-            ...baseRequirements.extra,
-            maxLedger,
-          },
-        },
-      ];
+      const accepts = [baseRequirements];
       const resource = {
         url: "https://company.co",
         description: "Company Co. resource",

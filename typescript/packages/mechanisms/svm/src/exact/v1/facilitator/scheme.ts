@@ -51,9 +51,9 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
    * Random selection distributes load across multiple signers.
    *
    * @param _ - The network identifier (unused for SVM)
-   * @returns Promise resolving to extra data with feePayer address
+   * @returns Extra data with feePayer address
    */
-  async getExtra(_: string): Promise<Record<string, unknown> | undefined> {
+  getExtra(_: string): Record<string, unknown> | undefined {
     // Randomly select from available signers to distribute load
     const addresses = this.signer.getAddresses();
     const randomIndex = Math.floor(Math.random() * addresses.length);

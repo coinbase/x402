@@ -46,29 +46,29 @@ export interface SchemeNetworkFacilitator {
    * This method is called when building the facilitator's supported response.
    *
    * @param network - The network identifier for context
-   * @returns Promise resolving to extra data object or undefined if no extra data is needed
+   * @returns Extra data object or undefined if no extra data is needed
    *
    * @example
    * // EVM schemes return undefined (no extra data needed)
-   * async getExtra(network: Network): Promise<undefined> {
+   * getExtra(network: Network): undefined {
    *   return undefined;
    * }
    *
    * @example
    * // SVM schemes return feePayer address
-   * async getExtra(network: Network): Promise<Record<string, unknown> | undefined> {
+   * getExtra(network: Network): Record<string, unknown | undefined> {
    *   return { feePayer: this.signer.address };
    * }
    *
    * @example
    * // Stellar schemes fetch latest ledger from network
-   * async getExtra(network: Network): Promise<Record<string, unknown> | undefined> {
+   * getExtra(network: Network): Record<string, unknown | undefined> {
    *   const server = getRpcClient(network, this.rpcConfig);
    *   const latestLedger = await server.getLatestLedger();
    *   return { maxLedger: latestLedger.sequence + this.ledgerBuffer };
    * }
    */
-  getExtra(network: Network): Promise<Record<string, unknown> | undefined>;
+  getExtra(network: Network): Record<string, unknown> | undefined;
 
   /**
    * Get signer addresses used by this facilitator for a given network.

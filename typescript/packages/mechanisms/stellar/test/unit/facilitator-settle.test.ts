@@ -38,7 +38,7 @@ describe("ExactStellarScheme - Settle", () => {
     maxTimeoutSeconds: 60,
     asset: ASSET,
     extra: {
-      maxLedger: 123456,
+      maxLedgerOffset: 12,
     },
   };
 
@@ -93,6 +93,7 @@ describe("ExactStellarScheme - Settle", () => {
       getTransaction: vi
         .fn()
         .mockResolvedValue({ status: "SUCCESS" } as Api.GetTransactionResponse),
+      getLatestLedger: vi.fn().mockResolvedValue({ sequence: 100000 }),
       simulateTransaction: vi.fn().mockResolvedValue({
         id: "test",
         latestLedger: 123,
