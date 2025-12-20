@@ -2,11 +2,13 @@ import { config } from "dotenv";
 import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 config();
 
 const evmAddress = process.env.EVM_ADDRESS as `0x${string}`;
-if (!evmAddress) {
+const stellarAddress = process.env.STELLAR_ADDRESS;
+if (!evmAddress || !stellarAddress) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
@@ -24,21 +26,35 @@ app.use(
   paymentMiddleware(
     {
       "GET /weather": {
-        accepts: {
-          scheme: "exact",
-          price: context => {
-            // Dynamic pricing based on HTTP request context
-            const tier = context.adapter.getQueryParam?.("tier") ?? "standard";
-            return tier === "premium" ? "$0.005" : "$0.001";
+        accepts: [
+          {
+            scheme: "exact",
+            price: context => {
+              // Dynamic pricing based on HTTP request context
+              const tier = context.adapter.getQueryParam?.("tier") ?? "standard";
+              return tier === "premium" ? "$0.005" : "$0.001";
+            },
+            network: "eip155:84532",
+            payTo: evmAddress,
           },
-          network: "eip155:84532",
-          payTo: evmAddress,
-        },
+          {
+            scheme: "exact",
+            price: context => {
+              // Dynamic pricing based on HTTP request context
+              const tier = context.adapter.getQueryParam?.("tier") ?? "standard";
+              return tier === "premium" ? "$0.005" : "$0.001";
+            },
+            network: "stellar:testnet",
+            payTo: stellarAddress,
+          },
+        ],
         description: "Weather data",
         mimeType: "application/json",
       },
     },
-    new x402ResourceServer(facilitatorClient).register("eip155:84532", new ExactEvmScheme()),
+    new x402ResourceServer(facilitatorClient)
+      .register("eip155:84532", new ExactEvmScheme())
+      .register("stellar:testnet", new ExactStellarScheme()),
   ),
 );
 
