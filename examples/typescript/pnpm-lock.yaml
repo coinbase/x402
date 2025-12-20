@@ -1329,6 +1329,9 @@ importers:
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -1384,6 +1387,9 @@ importers:
       '@x402/fetch':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/fetch
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2650,6 +2656,9 @@ importers:
       '@x402/extensions':
         specifier: workspace:*
         version: link:../../../../typescript/packages/extensions
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm
@@ -2705,6 +2714,9 @@ importers:
       '@x402/evm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/evm
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -2827,6 +2839,9 @@ importers:
       '@x402/hono':
         specifier: workspace:*
         version: link:../../../../typescript/packages/http/hono
+      '@x402/stellar':
+        specifier: workspace:*
+        version: link:../../../../typescript/packages/mechanisms/stellar
       '@x402/svm':
         specifier: workspace:*
         version: link:../../../../typescript/packages/mechanisms/svm

@@ -15,6 +15,7 @@
     "@solana/kit": "^2.1.1",
     "@x402/core": "workspace:*",
     "@x402/evm": "workspace:*",
+    "@x402/stellar": "workspace:*",
     "@x402/svm": "workspace:*",
     "dotenv": "^16.4.7",
     "viem": "^2.39.0"
