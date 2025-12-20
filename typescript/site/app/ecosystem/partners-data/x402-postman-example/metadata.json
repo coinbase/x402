@@ -1,0 +1,7 @@
+{
+  "name": "x402 Postman Example",
+  "description": "New to x402? Check out this postman example. It should take you through how x402 works and wrap your head around how it could change the world! Brought to you by x402instant.com",
+  "logoUrl": "/logos/x402instant.png",
+  "websiteUrl": "https://www.postman.com/maintenance-observer-51406799-455462/x402instant-s-workspace/collection/50941807-1192cd8c-0c16-414b-b0e1-0a5552333ef5/?action=share&creator=50941807", // ideally pointing to somehwere to learn more about the x402 integration
+  "category": "Learning & Community Resources" // Must match one of our categories: - `Client-Side Integrations`, `Services/Endpoints`, `Infrastructure & Tooling`, `Learning & Community Resources`
+}
