@@ -33,11 +33,14 @@ type PaymentRequirements struct {
 	OutputSchema *OutputSchema `json:"outputSchema,omitempty"`
 }
 
+// ResourceTypeHTTP is the resource type for HTTP endpoints
+const ResourceTypeHTTP = "http"
+
 // OutputSchema contains the request/response structure for discovery.
 // This matches the TypeScript SDK format used by express middleware.
 type OutputSchema struct {
 	Input           *OutputSchemaInput         `json:"input,omitempty"`
-	Output          any                        `json:"output,omitempty"`
+	Output          any                        `json:"output,omitempty"` // Output defines the schema of the successful response body
 	DiscoveryOutput *DiscoverySchemaDefinition `json:"discoveryOutput,omitempty"`
 	Metadata        *DiscoveryMetadata         `json:"metadata,omitempty"`
 }

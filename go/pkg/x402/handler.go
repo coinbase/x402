@@ -142,7 +142,8 @@ func (h *Handler) BuildPaymentRequirements(
 	if config.Discoverable {
 		requirements.OutputSchema = &types.OutputSchema{
 			Input: &types.OutputSchemaInput{
-				Type:           "http",
+				Type:           types.ResourceTypeHTTP,
+				Method:         config.Method,
 				Discoverable:   true,
 				DiscoveryInput: config.DiscoveryInput,
 			},
