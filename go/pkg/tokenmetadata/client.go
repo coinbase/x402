@@ -17,15 +17,15 @@ const DefaultTimeout = 10 * time.Second
 
 // TokenMetadata represents the response from the token metadata API
 type TokenMetadata struct {
-	ChainID        int    `json:"chainId"`
-	TokenAddress   string `json:"tokenAddress"`
-	Name           string `json:"name"`
-	Symbol         string `json:"symbol"`
-	Decimals       int    `json:"decimals"`
-	LogoURL        string `json:"logoUrl"`
+	ChainID         int    `json:"chainId"`
+	TokenAddress    string `json:"tokenAddress"`
+	Name            string `json:"name"`
+	Symbol          string `json:"symbol"`
+	Decimals        int    `json:"decimals"`
+	LogoURL         string `json:"logoUrl"`
 	SupportsEip2612 bool   `json:"supportsEip2612"`
 	SupportsEip3009 bool   `json:"supportsEip3009"`
-	Version        string `json:"version,omitempty"`
+	Version         string `json:"version,omitempty"`
 }
 
 // Config contains configuration for the token metadata client

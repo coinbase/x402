@@ -12,13 +12,13 @@ var (
 
 // Payment processing errors
 var (
-	ErrPaymentRequired      = errors.New("x402: payment required")
-	ErrInvalidPayment       = errors.New("x402: invalid payment")
-	ErrPaymentExpired       = errors.New("x402: payment expired")
-	ErrInsufficientFunds    = errors.New("x402: insufficient funds")
-	ErrVerificationFailed   = errors.New("x402: payment verification failed")
-	ErrSettlementFailed     = errors.New("x402: payment settlement failed")
-	ErrQuoteFailed          = errors.New("x402: quote request failed")
-	ErrTokenMetadataFailed  = errors.New("x402: failed to fetch token metadata")
-	ErrDiscoveryFailed      = errors.New("x402: discovery registration failed")
+	ErrPaymentRequired     = errors.New("x402: payment required")
+	ErrInvalidPayment      = errors.New("x402: invalid payment")
+	ErrPaymentExpired      = errors.New("x402: payment expired")
+	ErrInsufficientFunds   = errors.New("x402: insufficient funds")
+	ErrVerificationFailed  = errors.New("x402: payment verification failed")
+	ErrSettlementFailed    = errors.New("x402: payment settlement failed")
+	ErrQuoteFailed         = errors.New("x402: quote request failed")
+	ErrTokenMetadataFailed = errors.New("x402: failed to fetch token metadata")
+	ErrDiscoveryFailed     = errors.New("x402: discovery registration failed")
 )

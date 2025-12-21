@@ -1,7 +1,6 @@
 package gin
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -20,7 +19,7 @@ type PaymentMiddlewareOptions struct {
 	Description       string
 	MimeType          string
 	MaxTimeoutSeconds int
-	OutputSchema      *json.RawMessage
+	OutputSchema      *types.OutputSchema
 	FacilitatorConfig *types.FacilitatorConfig
 	Testnet           bool
 	CustomPaywallHTML string
@@ -53,7 +52,7 @@ func WithMaxTimeoutSeconds(maxTimeoutSeconds int) Options {
 }
 
 // WithOutputSchema is an option for the PaymentMiddleware to set the output schema.
-func WithOutputSchema(outputSchema *json.RawMessage) Options {
+func WithOutputSchema(outputSchema *types.OutputSchema) Options {
 	return func(options *PaymentMiddlewareOptions) {
 		options.OutputSchema = outputSchema
 	}
