@@ -137,12 +137,19 @@ func (h *Handler) BuildPaymentRequirements(
 		}
 	}
 
-	// Add discovery fields if configured
+	// Add discovery fields if configured (matching TypeScript SDK format)
+	// The facilitator expects: outputSchema.input.discoverable, outputSchema.metadata, etc.
 	if config.Discoverable {
-		requirements.Discoverable = true
-		requirements.DiscoveryInput = config.DiscoveryInput
-		requirements.DiscoveryOutput = config.DiscoveryOutput
-		requirements.DiscoveryMetadata = config.DiscoveryMetadata
+		requirements.OutputSchema = &types.OutputSchema{
+			Input: &types.OutputSchemaInput{
+				Type:           types.ResourceTypeHTTP,
+				Method:         config.Method,
+				Discoverable:   true,
+				DiscoveryInput: config.DiscoveryInput,
+			},
+			DiscoveryOutput: config.DiscoveryOutput,
+			Metadata:        config.DiscoveryMetadata,
+		}
 	}
 
 	// If buyer specified a preferred token, get a quote for cross-token payment

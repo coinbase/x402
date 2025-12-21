@@ -22,6 +22,8 @@ type Config struct {
 	MimeType string `json:"mimeType,omitempty"`
 	// MaxTimeoutSeconds is how long the payment signature is valid (default: 60)
 	MaxTimeoutSeconds int `json:"maxTimeoutSeconds,omitempty"`
+	// Method is the HTTP method for the resource (e.g., "POST", "GET")
+	Method string `json:"method,omitempty"`
 
 	// Optional - Bazaar discovery
 	// Discoverable controls whether this resource appears in the discovery catalog

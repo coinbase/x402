@@ -28,14 +28,29 @@ type PaymentRequirements struct {
 	// Extra contains token EIP-712 domain info for signature creation
 	Extra *PaymentExtra `json:"extra,omitempty"`
 
-	// Discovery extension fields (Bazaar)
-	Discoverable      bool                       `json:"discoverable,omitempty"`
-	DiscoveryInput    *DiscoverySchemaDefinition `json:"discoveryInput,omitempty"`
-	DiscoveryOutput   *DiscoverySchemaDefinition `json:"discoveryOutput,omitempty"`
-	DiscoveryMetadata *DiscoveryMetadata         `json:"metadata,omitempty"`
+	// OutputSchema contains discovery extension fields in the same format as TypeScript SDK.
+	// The facilitator expects: outputSchema.input.discoverable, outputSchema.metadata, etc.
+	OutputSchema *OutputSchema `json:"outputSchema,omitempty"`
+}
 
-	// Legacy field for backward compatibility
-	OutputSchema *json.RawMessage `json:"outputSchema,omitempty"`
+// ResourceTypeHTTP is the resource type for HTTP endpoints
+const ResourceTypeHTTP = "http"
+
+// OutputSchema contains the request/response structure for discovery.
+// This matches the TypeScript SDK format used by express middleware.
+type OutputSchema struct {
+	Input           *OutputSchemaInput         `json:"input,omitempty"`
+	Output          any                        `json:"output,omitempty"` // Output defines the schema of the successful response body
+	DiscoveryOutput *DiscoverySchemaDefinition `json:"discoveryOutput,omitempty"`
+	Metadata        *DiscoveryMetadata         `json:"metadata,omitempty"`
+}
+
+// OutputSchemaInput contains input schema and discovery flag.
+type OutputSchemaInput struct {
+	Type           string                     `json:"type,omitempty"`   // e.g., "http"
+	Method         string                     `json:"method,omitempty"` // e.g., "POST"
+	Discoverable   bool                       `json:"discoverable,omitempty"`
+	DiscoveryInput *DiscoverySchemaDefinition `json:"discoveryInput,omitempty"`
 }
 
 // PaymentExtra contains additional token metadata required for EIP-712 signature verification.
