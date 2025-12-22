@@ -399,7 +399,7 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
-	// Create test server that returns invalid JSON
+	// Create test server that returns errors
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Bad request"))
@@ -428,16 +428,16 @@ func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 	payloadBytes, _ := json.Marshal(payload)
 	requirementsBytes, _ := json.Marshal(requirements)
 
-	// Test Verify error - invalid JSON should fail
+	// Test Verify error
 	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
-		t.Error("Expected error for verify with invalid JSON")
+		t.Error("Expected error for verify")
 	}
 
-	// Test Settle error - invalid JSON should fail
+	// Test Settle error
 	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
-		t.Error("Expected error for settle with invalid JSON")
+		t.Error("Expected error for settle")
 	}
 
 	// Test GetSupported error

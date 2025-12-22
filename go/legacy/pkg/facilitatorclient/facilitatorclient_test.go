@@ -320,11 +320,11 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 	}
 }
 
-func TestVerify400WithValidResponse(t *testing.T) {
+func TestVerify400WithInvalidSignature(t *testing.T) {
 	invalidReason := "invalid_signature"
 	payer := "0xpayer"
 
-	// Create test server that returns 400 with valid VerifyResponse
+	// Create test server that returns 400 with invalid signature
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -359,11 +359,11 @@ func TestVerify400WithValidResponse(t *testing.T) {
 	}
 }
 
-func TestSettle400WithValidResponse(t *testing.T) {
+func TestSettle400WithInsufficientAllowance(t *testing.T) {
 	errorReason := "insufficient_allowance"
 	payer := "0xpayer"
 
-	// Create test server that returns 400 with valid SettleResponse
+	// Create test server that returns 400 with insufficient allowance
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
