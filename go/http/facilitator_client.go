@@ -215,10 +215,27 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	// Parse response - try to decode as VerifyResponse regardless of status code
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var verifyResponse x402.VerifyResponse
-	if err := json.NewDecoder(resp.Body).Decode(&verifyResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode verify response (%d): %w", resp.StatusCode, err)
+	if err := json.Unmarshal(responseBody, &verifyResponse); err != nil {
+			return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
+	}
+
+	// For non-200 responses, return an error with the details from the response
+	if resp.StatusCode != http.StatusOK {
+		if verifyResponse.InvalidReason != "" {
+			return nil, x402.NewVerifyError(
+				verifyResponse.InvalidReason,
+				verifyResponse.Payer,
+				"",
+				fmt.Errorf("facilitator returned %d", resp.StatusCode),
+			)
+		}
+		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
 	return &verifyResponse, nil
@@ -271,10 +288,28 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	// Parse response - try to decode as SettleResponse regardless of status code
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
 	var settleResponse x402.SettleResponse
-	if err := json.NewDecoder(resp.Body).Decode(&settleResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode settle response (%d): %w", resp.StatusCode, err)
+	if err := json.Unmarshal(responseBody, &settleResponse); err != nil {
+			return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(responseBody))
+	}
+
+	// For non-200 responses, return an error with the details from the response
+	if resp.StatusCode != http.StatusOK {
+		if settleResponse.ErrorReason != "" {
+			return nil, x402.NewSettleError(
+				settleResponse.ErrorReason,
+				settleResponse.Payer,
+				settleResponse.Network,
+				settleResponse.Transaction,
+				fmt.Errorf("facilitator returned %d", resp.StatusCode),
+			)
+		}
+		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(responseBody))
 	}
 
 	return &settleResponse, nil
