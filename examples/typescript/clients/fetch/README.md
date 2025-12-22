@@ -6,9 +6,12 @@ Example client demonstrating how to use `@x402/fetch` to make HTTP requests to e
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
 
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.EVM_PRIVATE_KEY) });
+registerExactSvmScheme(client, { signer: (await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey))) });
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
