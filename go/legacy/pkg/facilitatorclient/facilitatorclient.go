@@ -127,13 +127,9 @@ func (c *FacilitatorClient) Settle(payload *types.PaymentPayload, requirements *
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to settle payment: %s", resp.Status)
-	}
-
 	var settleResp types.SettleResponse
 	if err := json.NewDecoder(resp.Body).Decode(&settleResp); err != nil {
-		return nil, fmt.Errorf("failed to decode settle response: %w", err)
+		return nil, fmt.Errorf("failed to decode settle response (%s): %w", resp.Status, err)
 	}
 
 	return &settleResp, nil
