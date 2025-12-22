@@ -1,6 +1,6 @@
-mod types;
-mod client;
-mod server;
+pub mod types;
+pub mod client;
+pub mod server;
 mod errors;
 pub mod frameworks;
 

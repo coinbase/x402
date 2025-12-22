@@ -2,7 +2,7 @@ use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use crate::types::{PaymentPayload, PaymentRequired, X402Header};
 
 pub struct X402Client {
-    client: Client,
+    pub client: Client,
 }
 
 impl X402Client {
