@@ -55,6 +55,6 @@ If you're not using our `x402-fetch` or `x402-axios` packages, you can manually 
    - The `Access-Control-Expose-Headers` field set to `"X-PAYMENT-RESPONSE"` to receive the server's transaction response
 
 For implementation examples, we recommend reviewing our official client packages:
-- [x402-fetch implementation](https://github.com/coinbase/x402/blob/main/typescript/packages/x402-fetch/src/index.ts)
-- [x402-axios implementation](https://github.com/coinbase/x402/blob/main/typescript/packages/x402-axios/src/index.ts)
+- [x402-fetch implementation](https://github.com/coinbase/x402/tree/719680037aec3f7328c12284df181f78d63b721f/typescript/packages/legacy/x402-fetch))
+- [x402-axios implementation](https://github.com/coinbase/x402/tree/719680037aec3f7328c12284df181f78d63b721f/typescript/packages/legacy/x402-axios)
 
