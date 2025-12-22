@@ -1,1 +1,2 @@
-mod axum_integration;
+#[cfg(feature = "axum")]
+pub mod axum_integration;

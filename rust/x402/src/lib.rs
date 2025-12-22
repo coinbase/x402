@@ -2,9 +2,7 @@ mod types;
 mod client;
 mod server;
 mod errors;
-
-#[cfg(feature = "axum")]
-pub mod axum_integration;
+pub mod frameworks;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

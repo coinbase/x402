@@ -35,7 +35,7 @@ pub struct PaymentPayload {
 
 
 /// Helper trait to handle the Base64 encoding/decoding for headers
-pub trait x402Header: Serialize + for<'de> Deserialize<'de> {
+pub trait X402Header: Serialize + for<'de> Deserialize<'de> {
     fn to_header(&self) -> Result<String, Box<dyn std::error::Error>> {
         let json = serde_json::to_string(self)?;
         Ok(URL_SAFE_NO_PAD.encode(json))
@@ -48,8 +48,8 @@ pub trait x402Header: Serialize + for<'de> Deserialize<'de> {
     }
 }
 
-impl x402Header for PaymentPayload {}
-impl x402Header for PaymentRequired {}
+impl X402Header for PaymentPayload {}
+impl X402Header for PaymentRequired {}
 
 
 #[cfg(test)]
