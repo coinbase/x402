@@ -10,8 +10,7 @@ use x402::types::{PaymentPayload, PaymentRequired, PaymentRequirements};
 
 #[tokio::test]
 async fn test_full_x402_axum_flow() {
-    //TODO replace with coinbase facilitator
-    let facilitator = Arc::new(Facilitator::new("http://localhost:9999"));
+    let facilitator = Arc::new(Facilitator::new("https://x402.org/facilitator"));
 
     let payment_requirements = PaymentRequired {
         x402_version: 0,

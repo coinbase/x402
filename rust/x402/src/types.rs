@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use crate::errors::X402Result;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentRequirements {
@@ -36,12 +37,12 @@ pub struct PaymentPayload {
 
 /// Helper trait to handle the Base64 encoding/decoding for headers
 pub trait X402Header: Serialize + for<'de> Deserialize<'de> {
-    fn to_header(&self) -> Result<String, Box<dyn std::error::Error>> {
+    fn to_header(&self) -> X402Result<String> {
         let json = serde_json::to_string(self)?;
         Ok(URL_SAFE_NO_PAD.encode(json))
     }
 
-    fn from_header(header: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    fn from_header(header: &str) -> X402Result<Self> {
         let decoded = URL_SAFE_NO_PAD.decode(header)?;
         let header: Self = serde_json::from_str(&String::from_utf8(decoded)?)?;
         Ok(header)

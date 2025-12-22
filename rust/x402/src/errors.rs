@@ -1,0 +1,31 @@
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum X402Error {
+    #[error("Payment Required")]
+    PaymentRequired,
+
+    #[error("Invalid x402 header: {0}")]
+    InvalidHeader(String),
+
+    #[error("Verification failed: {0}")]
+    VerificationFailed(String),
+
+    #[error("Facilitator error: {0}")]
+    FacilitatorError(#[from] reqwest::Error),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] serde_json::Error),
+
+    #[error("Base64 error: {0}")]
+    Base64Error(#[from] base64::DecodeError),
+
+    #[error("UTF8 error: {0}")]
+    Utf8Error(#[from] std::string::FromUtf8Error),
+
+    #[error("Internal error: {0}")]
+    Internal(String)
+}
+
+/// x402 specific Result type for x402 operations. Returns a result with a x402 error
+pub type X402Result<T> = std::result::Result<T, X402Error>;
