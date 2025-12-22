@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+# Optional Dependecies
+axum = { version = "^0.8.8", optional = true }
+
+[features]
+default=[]
+axum  = ["dep:axum"]
