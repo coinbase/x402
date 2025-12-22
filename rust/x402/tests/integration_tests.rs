@@ -2,15 +2,32 @@ use std::sync::Arc;
 use axum::middleware::from_fn_with_state;
 use axum::Router;
 use axum::routing::get;
+use reqwest::StatusCode;
 use tokio::net::TcpListener;
+use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::matchers::{method, path};
 use x402::client::X402Client;
 use x402::frameworks::axum_integration::{x402_middleware, X402Config};
-use x402::server::Facilitator;
+use x402::server::{Facilitator, VerifyResponse};
 use x402::types::{PaymentPayload, PaymentRequired, PaymentRequirements};
 
 #[tokio::test]
-async fn test_full_x402_axum_flow() {
-    let facilitator = Arc::new(Facilitator::new("https://x402.org/facilitator"));
+async fn test_x402_axum_flow_with_mock_facilitator() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/verify"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            VerifyResponse {
+                is_valid: true,
+                invalid_reason: None,
+                payer: Some("0x123".to_string()),
+            }
+        ))
+        .mount(&mock_server)
+        .await;
+
+    let facilitator = Arc::new(Facilitator::new(&mock_server.uri()));
 
     let payment_requirements = PaymentRequired {
         x402_version: 0,
@@ -65,7 +82,9 @@ async fn test_full_x402_axum_flow() {
                 extensions: None,
             })
         }
-    ).await;
+    ).await.unwrap();
 
-    assert!(res.is_err() || res.unwrap().status().is_client_error());
+    dbg!(&res);
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.text().await.unwrap(), "Successfully completed!");
 }

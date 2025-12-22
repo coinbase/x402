@@ -14,6 +14,8 @@ thiserror = "2.0.17"
 # Optional Dependecies
 axum = { version = "^0.8.8", optional = true }
 
+[dev-dependencies]
+wiremock = "0.6.5"
 
 
 [features]
