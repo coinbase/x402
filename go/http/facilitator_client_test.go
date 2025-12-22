@@ -399,7 +399,7 @@ func TestHTTPFacilitatorClientWithAuth(t *testing.T) {
 func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 	ctx := context.Background()
 
-	// Create test server that returns errors
+	// Create test server that returns invalid JSON
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Bad request"))
@@ -428,22 +428,96 @@ func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 	payloadBytes, _ := json.Marshal(payload)
 	requirementsBytes, _ := json.Marshal(requirements)
 
-	// Test Verify error
+	// Test Verify error - invalid JSON should fail
 	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
-		t.Error("Expected error for verify")
+		t.Error("Expected error for verify with invalid JSON")
 	}
 
-	// Test Settle error
+	// Test Settle error - invalid JSON should fail
 	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
 	if err == nil {
-		t.Error("Expected error for settle")
+		t.Error("Expected error for settle with invalid JSON")
 	}
 
 	// Test GetSupported error
 	_, err = client.GetSupported(ctx)
 	if err == nil {
 		t.Error("Expected error for getSupported")
+	}
+}
+
+func TestHTTPFacilitatorClient400WithValidResponse(t *testing.T) {
+	ctx := context.Background()
+
+	// Create test server that returns 400 with valid response structures
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		switch r.URL.Path {
+		case "/verify":
+			response := x402.VerifyResponse{
+				IsValid:       false,
+				InvalidReason: "invalid_signature",
+				Payer:         "0xpayer",
+			}
+			json.NewEncoder(w).Encode(response)
+		case "/settle":
+			response := x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "insufficient_allowance",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}
+			json.NewEncoder(w).Encode(response)
+		}
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{
+		URL: server.URL,
+	})
+
+	requirements := x402.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	// Test Verify - should return response even with 400 status
+	verifyResp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+	if err != nil {
+		t.Fatalf("Expected no error for verify with valid response, got: %v", err)
+	}
+	if verifyResp.IsValid {
+		t.Error("Expected IsValid to be false")
+	}
+	if verifyResp.InvalidReason != "invalid_signature" {
+		t.Errorf("Expected InvalidReason 'invalid_signature', got %s", verifyResp.InvalidReason)
+	}
+
+	// Test Settle - should return response even with 400 status
+	settleResp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
+	if err != nil {
+		t.Fatalf("Expected no error for settle with valid response, got: %v", err)
+	}
+	if settleResp.Success {
+		t.Error("Expected Success to be false")
+	}
+	if settleResp.ErrorReason != "insufficient_allowance" {
+		t.Errorf("Expected ErrorReason 'insufficient_allowance', got %s", settleResp.ErrorReason)
 	}
 }
 
