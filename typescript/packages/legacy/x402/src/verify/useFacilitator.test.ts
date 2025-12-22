@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useFacilitator } from "./useFacilitator";
-import { PaymentPayload, PaymentRequirements } from "../types/verify";
+import { PaymentPayload, PaymentRequirements, SettleError, VerifyError } from "../types/verify";
 
 describe("useFacilitator", () => {
   const mockPaymentPayload: PaymentPayload = {
@@ -93,7 +93,7 @@ describe("useFacilitator", () => {
       );
     });
 
-    it("should return VerifyResponse when 400 response has isValid field", async () => {
+    it("should throw VerifyError when 400 response has isValid field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
@@ -105,9 +105,16 @@ describe("useFacilitator", () => {
       });
       const { verify } = useFacilitator();
 
-      const result = await verify(mockPaymentPayload, mockPaymentRequirements);
-      expect(result.isValid).toBe(false);
-      expect(result.invalidReason).toBe("invalid_network");
+      await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
+        VerifyError,
+      );
+      try {
+        await verify(mockPaymentPayload, mockPaymentRequirements);
+      } catch (e) {
+        expect(e).toBeInstanceOf(VerifyError);
+        expect((e as VerifyError).invalidReason).toBe("invalid_network");
+        expect((e as VerifyError).statusCode).toBe(400);
+      }
     });
 
     it("should throw generic error when 400 response lacks isValid field", async () => {
@@ -189,7 +196,7 @@ describe("useFacilitator", () => {
       );
     });
 
-    it("should return SettleResponse when 400 response has success field", async () => {
+    it("should throw SettleError when 400 response has success field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
@@ -197,13 +204,21 @@ describe("useFacilitator", () => {
           success: false,
           errorReason: "insufficient_allowance",
           network: "base-sepolia",
+          transaction: "",
         }),
       });
       const { settle } = useFacilitator();
 
-      const result = await settle(mockPaymentPayload, mockPaymentRequirements);
-      expect(result.success).toBe(false);
-      expect(result.errorReason).toBe("insufficient_allowance");
+      await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
+        SettleError,
+      );
+      try {
+        await settle(mockPaymentPayload, mockPaymentRequirements);
+      } catch (e) {
+        expect(e).toBeInstanceOf(SettleError);
+        expect((e as SettleError).errorReason).toBe("insufficient_allowance");
+        expect((e as SettleError).statusCode).toBe(400);
+      }
     });
 
     it("should throw generic error when 400 response lacks success field", async () => {
