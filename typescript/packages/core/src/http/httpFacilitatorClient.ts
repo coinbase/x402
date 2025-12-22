@@ -97,12 +97,13 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Facilitator verify failed (${response.status}): ${errorText}`);
+    const data = await response.json();
+
+    if (typeof data === "object" && data !== null && "isValid" in data) {
+      return data as VerifyResponse;
     }
 
-    return (await response.json()) as VerifyResponse;
+    throw new Error(`Facilitator verify failed (${response.status}): ${JSON.stringify(data)}`);
   }
 
   /**

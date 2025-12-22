@@ -215,16 +215,10 @@ func (c *HTTPFacilitatorClient) verifyHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("facilitator verify failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
+	// Parse response - try to decode as VerifyResponse regardless of status code
 	var verifyResponse x402.VerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&verifyResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode verify response: %w", err)
+		return nil, fmt.Errorf("failed to decode verify response (%d): %w", resp.StatusCode, err)
 	}
 
 	return &verifyResponse, nil

@@ -57,21 +57,13 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
       }),
     });
 
-    if (res.status !== 200) {
-      let errorMessage = `Failed to verify payment: ${res.statusText}`;
-      try {
-        const errorData = await res.json();
-        if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-      } catch {
-        // JSON parsing failed, use default error message
-      }
-      throw new Error(errorMessage);
+    const data = await res.json();
+
+    if (typeof data === "object" && data !== null && "isValid" in data) {
+      return data as VerifyResponse;
     }
 
-    const data = await res.json();
-    return data as VerifyResponse;
+    throw new Error(`Failed to verify payment: ${res.status} ${res.statusText}`);
   }
 
   /**

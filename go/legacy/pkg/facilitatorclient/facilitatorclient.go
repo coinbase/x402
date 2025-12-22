@@ -77,13 +77,9 @@ func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to verify payment: %s", resp.Status)
-	}
-
 	var verifyResp types.VerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&verifyResp); err != nil {
-		return nil, fmt.Errorf("failed to decode verify response: %w", err)
+		return nil, fmt.Errorf("failed to decode verify response (%s): %w", resp.Status, err)
 	}
 
 	return &verifyResp, nil
