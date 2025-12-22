@@ -135,12 +135,13 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Facilitator settle failed (${response.status}): ${errorText}`);
+    const data = await response.json();
+
+    if (typeof data === "object" && data !== null && "success" in data) {
+      return data as SettleResponse;
     }
 
-    return (await response.json()) as SettleResponse;
+    throw new Error(`Facilitator settle failed (${response.status}): ${JSON.stringify(data)}`);
   }
 
   /**
