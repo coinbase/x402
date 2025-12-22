@@ -31,7 +31,7 @@ impl X402Client {
 
         // Handle x402 challenge
         if response.status() == StatusCode::PAYMENT_REQUIRED {
-            if let Some(header) = response.headers().get("PAYMENT_REQUIRED") {
+            if let Some(header) = response.headers().get("PAYMENT-REQUIRED") {
                 let header_str = header.to_str()?;
                 let challenge = PaymentRequired::from_header(header_str)?;
 
