@@ -277,16 +277,10 @@ func (c *HTTPFacilitatorClient) settleHTTP(ctx context.Context, version int, pay
 	}
 	defer resp.Body.Close()
 
-	// Check status
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("facilitator settle failed (%d): %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
+	// Parse response - try to decode as SettleResponse regardless of status code
 	var settleResponse x402.SettleResponse
 	if err := json.NewDecoder(resp.Body).Decode(&settleResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode settle response: %w", err)
+		return nil, fmt.Errorf("failed to decode settle response (%d): %w", resp.StatusCode, err)
 	}
 
 	return &settleResponse, nil
