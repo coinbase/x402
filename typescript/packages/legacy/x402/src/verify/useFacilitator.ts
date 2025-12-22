@@ -10,6 +10,8 @@ import {
   PaymentRequirements,
   SettleResponse,
   VerifyResponse,
+  VerifyError,
+  SettleError,
 } from "../types/verify";
 
 const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
@@ -60,7 +62,11 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     const data = await res.json();
 
     if (typeof data === "object" && data !== null && "isValid" in data) {
-      return data as VerifyResponse;
+      const verifyResponse = data as VerifyResponse;
+      if (res.status !== 200) {
+        throw new VerifyError(res.status, verifyResponse);
+      }
+      return verifyResponse;
     }
 
     throw new Error(`Failed to verify payment: ${res.status} ${res.statusText}`);
@@ -98,7 +104,11 @@ export function useFacilitator(facilitator?: FacilitatorConfig) {
     const data = await res.json();
 
     if (typeof data === "object" && data !== null && "success" in data) {
-      return data as SettleResponse;
+      const settleResponse = data as SettleResponse;
+      if (res.status !== 200) {
+        throw new SettleError(res.status, settleResponse);
+      }
+      return settleResponse;
     }
 
     throw new Error(`Failed to settle payment: ${res.status} ${res.statusText}`);

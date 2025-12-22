@@ -8,6 +8,7 @@ import {
   PaymentPayload,
   PaymentRequired,
   SettleResponse,
+  SettleError,
   Price,
   Network,
   PaymentRequirements,
@@ -481,7 +482,21 @@ export class x402HTTPResourceServer {
         requirements,
       };
     } catch (error) {
-      throw new Error(error instanceof Error ? error.message : "Settlement failed");
+      if (error instanceof SettleError) {
+        return {
+          success: false,
+          errorReason: error.errorReason || error.message,
+          payer: error.payer,
+          network: error.network,
+          transaction: error.transaction,
+        };
+      }
+      return {
+        success: false,
+        errorReason: error instanceof Error ? error.message : "Settlement failed",
+        network: requirements.network as Network,
+        transaction: "",
+      };
     }
   }
 
