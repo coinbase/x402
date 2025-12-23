@@ -12,7 +12,7 @@ import { base58 } from "@scure/base";
 
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: privateKeyToAccount(process.env.EVM_PRIVATE_KEY) });
-registerExactSvmScheme(client, { signer: (await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey))) });
+registerExactSvmScheme(client, { signer: (await createKeyPairSignerFromBytes(base58.decode(process.env.SVM_PRIVATE_KEY))) });
 
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
