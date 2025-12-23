@@ -26,7 +26,7 @@ def test_payment_required_for_protected_route():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -45,7 +45,7 @@ def test_unprotected_route():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -62,7 +62,7 @@ def test_invalid_payment_header():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -89,7 +89,7 @@ def test_path_pattern_matching():
         price="$1.00",
         pay_to_address="0x1",
         path=["/foo", "/bar/*", "regex:^/baz/\\d+$"],
-        network="base-sepolia",
+        network="kairos-testnet",
     )
     with app.test_client() as client:
         assert client.get("/foo").status_code == 402
@@ -116,10 +116,10 @@ def test_multiple_middleware_configs():
 
     middleware = PaymentMiddleware(app)
     middleware.add(
-        price="$1.00", pay_to_address="0x1", path="/a", network="base-sepolia"
+        price="$1.00", pay_to_address="0x1", path="/a", network="kairos-testnet"
     )
     middleware.add(
-        price="$2.00", pay_to_address="0x2", path="/b", network="base-sepolia"
+        price="$2.00", pay_to_address="0x2", path="/b", network="kairos-testnet"
     )
     with app.test_client() as client:
         assert client.get("/a").status_code == 402
@@ -145,7 +145,7 @@ def test_payment_details_in_g():
 
     middleware = PaymentMiddleware(app)
     middleware.add(
-        price="$1.00", pay_to_address="0x1", path="/protected", network="base-sepolia"
+        price="$1.00", pay_to_address="0x1", path="/protected", network="kairos-testnet"
     )
     with app.test_client() as client:
         resp = client.get("/protected")
@@ -160,7 +160,7 @@ def test_browser_request_returns_html():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -190,7 +190,7 @@ def test_api_client_request_returns_json():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -223,7 +223,7 @@ def test_paywall_config_injection():
                 "price": "$2.50",
                 "pay_to_address": "0x123",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
                 "paywall_config": paywall_config,
             }
         ]
@@ -266,7 +266,7 @@ def test_custom_paywall_html():
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
                 "custom_paywall_html": custom_html,
             }
         ]
@@ -289,14 +289,14 @@ def test_custom_paywall_html():
 
 def test_mainnet_vs_testnet_config():
     """Test that mainnet vs testnet is properly configured."""
-    # Test testnet (base-sepolia)
+    # Test testnet (kairos-testnet)
     app_testnet = create_app_with_middleware(
         [
             {
                 "price": "$1.00",
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )
@@ -340,7 +340,7 @@ def test_payment_amount_conversion():
                 "price": "$0.001",  # Small amount
                 "pay_to_address": "0x1",
                 "path": "/protected",
-                "network": "base-sepolia",
+                "network": "kairos-testnet",
             }
         ]
     )

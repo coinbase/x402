@@ -162,12 +162,12 @@ describe("x402Facilitator", () => {
       const facilitator = new x402Facilitator();
       const testFacilitator = new TestFacilitator("exact");
 
-      facilitator.registerV1("base-sepolia" as Network, testFacilitator);
+      facilitator.registerV1("kairos-testnet" as Network, testFacilitator);
 
       const payload = buildPaymentPayload({ x402Version: 1 });
       const requirements = buildPaymentRequirements({
         scheme: "exact",
-        network: "base-sepolia" as Network,
+        network: "kairos-testnet" as Network,
       });
 
       const result = await facilitator.verify(payload, requirements);

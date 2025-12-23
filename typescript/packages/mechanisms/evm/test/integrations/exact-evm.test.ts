@@ -22,7 +22,7 @@ import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitat
 import type { ExactEvmPayloadV2 } from "../../src/types";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 // Load private keys from environment
 const CLIENT_PRIVATE_KEY = process.env.CLIENT_PRIVATE_KEY as `0x${string}`;
@@ -135,13 +135,13 @@ describe("EVM Integration Tests", () => {
 
       // Create separate public and wallet clients for the facilitator
       const publicClient = createPublicClient({
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
 
       const walletClient = createWalletClient({
         account: facilitatorAccount,
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
 
@@ -262,13 +262,13 @@ describe("EVM Integration Tests", () => {
 
       // Create separate public and wallet clients for the facilitator
       const publicClient = createPublicClient({
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
 
       const walletClient = createWalletClient({
         account: facilitatorAccount,
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
 
@@ -391,12 +391,12 @@ describe("EVM Integration Tests", () => {
     beforeEach(async () => {
       const facilitatorAccount = privateKeyToAccount(FACILITATOR_PRIVATE_KEY);
       const publicClient = createPublicClient({
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
       const walletClient = createWalletClient({
         account: facilitatorAccount,
-        chain: baseSepolia,
+        chain: kairos,
         transport: http(),
       });
 

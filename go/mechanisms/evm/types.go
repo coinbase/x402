@@ -159,7 +159,7 @@ func PayloadFromMap(data map[string]interface{}) (*ExactEIP3009Payload, error) {
 // IsValidNetwork checks if the network is supported for EVM
 func IsValidNetwork(network string) bool {
 	switch network {
-	case "eip155:1", "eip155:8453", "eip155:84532", "base", "base-sepolia", "base-mainnet":
+	case "eip155:1", "eip155:8453", "eip155:84532", "base", "kairos-testnet", "base-mainnet":
 		return true
 	default:
 		return false

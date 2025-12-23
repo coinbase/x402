@@ -80,7 +80,7 @@ NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME=x402 Mini App
 
 # x402 Payment Configuration
 RESOURCE_WALLET_ADDRESS=0x0000000000000000000000000000000000000000
-NETWORK=base-sepolia
+NETWORK=kairos-testnet
 
 # CDP Wallet Configuration (required for x402 base mainnet settlements)
 CDP_API_KEY_ID=your_cdp_api_key_id_here
@@ -129,7 +129,7 @@ REDIS_TOKEN=
 1. **CDP API Keys**: Get from [Coinbase Developer Platform](https://portal.cdp.coinbase.com/projects/overview)
 2. **OnchainKit API Key**: Get from [OnchainKit](https://onchainkit.xyz)
 3. **Resource Wallet Address**: Your wallet address to receive payments
-4. **Network**: Use `base-sepolia` for testing, `base` for production
+4. **Network**: Use `kairos-testnet` for testing, `base` for production
 
 ## How It Works
 
@@ -162,7 +162,7 @@ export const middleware = paymentMiddleware(
       },
     },
   },
-  facilitator,
+  facilitator
 );
 ```
 
@@ -225,7 +225,7 @@ The app is wrapped with `MiniKitProvider` in `providers.tsx`, configured with:
   "error": "X-PAYMENT header is required",
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base-sepolia",
+    "network": "kairos-testnet",
     "maxAmountRequired": "10000",
     "resource": "http://localhost:3000/api/protected",
     "description": "Protected route",
@@ -269,7 +269,7 @@ export const middleware = paymentMiddleware(
       },
     },
   },
-  facilitator,
+  facilitator
 );
 
 export const config = {
@@ -281,10 +281,12 @@ export const config = {
 ### Customizing for Your Mini App
 
 1. **Remove the DemoComponents**:
+
    - Delete `components/DemoComponents.tsx`
    - Remove demo-related imports from `page.tsx`
 
 2. **Start building your Frame**:
+
    - Modify `page.tsx` to create your Frame UI
    - Update theme variables in `theme.css`
    - Adjust MiniKit configuration in `providers.tsx`

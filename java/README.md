@@ -100,7 +100,7 @@ registration.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST), true, 
 @Bean
 public FilterRegistration paymentFilter(ServletContext servletContext) {
     FilterRegistration.Dynamic registration = servletContext.addFilter(
-        "paymentFilter", 
+        "paymentFilter",
         new PaymentFilter(payToAddress, priceTable, new HttpFacilitatorClient(facilitatorUrl))
     );
     registration.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST), true, "/*");
@@ -170,28 +170,28 @@ public class PaidJokeApplication implements ServletContextInitializer {
     public static void main(String[] args) {
         SpringApplication.run(PaidJokeApplication.class, args);
     }
-    
+
     @Override
     public void onStartup(ServletContext servletContext) {
         // Set up the payment filter
         String facilitatorUrl = "https://x402.org/facilitator";
         HttpFacilitatorClient facilitator = new HttpFacilitatorClient(facilitatorUrl);
-        
+
         // Define which URLs require payment and their prices
         Map<String, BigInteger> priceTable = Map.of(
             "/api/joke", BigInteger.valueOf(1000)  // 1000 wei for a premium joke
         );
-        
+
         // Create and register the filter
         String payToAddress = "0xYourReceiverAddress";
         PaymentFilter paymentFilter = new PaymentFilter(payToAddress, priceTable, facilitator);
-        
-        FilterRegistration.Dynamic registration = 
+
+        FilterRegistration.Dynamic registration =
             servletContext.addFilter("paymentFilter", paymentFilter);
         registration.addMappingForUrlPatterns(
             EnumSet.of(DispatcherType.REQUEST), true, "/*");
     }
-    
+
     @RestController
     static class JokeController {
         @GetMapping("/api/joke")
@@ -219,14 +219,14 @@ sequenceDiagram
     participant Client
     participant Server
     participant Facilitator
-    
+
     Client->>Server: GET /resource
     Server->>Client: 402 Payment Required
-    
+
     Client->>Server: GET /resource (with X-PAYMENT header)
     Server->>Facilitator: Verify payment
     Facilitator->>Server: Payment verified
-    
+
     Server->>Client: 200 OK + content
     Server->>Facilitator: Settle payment (async)
 ```
@@ -236,6 +236,7 @@ sequenceDiagram
 The PaymentFilter handles different types of errors with appropriate HTTP status codes:
 
 ### Payment Required (402)
+
 When a payment is required but not provided or is invalid, the filter returns a `402 Payment Required` response with a JSON body:
 
 ```json
@@ -244,7 +245,7 @@ When a payment is required but not provided or is invalid, the filter returns a 
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "kairos-testnet",
       "maxAmountRequired": "1000",
       "asset": "USDC",
       "resource": "/api/premium",
@@ -258,6 +259,7 @@ When a payment is required but not provided or is invalid, the filter returns a 
 ```
 
 ### Server Errors (500)
+
 When the facilitator service is unavailable or other unexpected errors occur during payment verification:
 
 ```json
@@ -275,6 +277,7 @@ Or for unexpected internal errors:
 ```
 
 ### Settlement Errors
+
 When payment settlement fails after successful verification, the filter returns a 402 status to prevent users from receiving content without proper payment completion. This matches the behavior of the Go and TypeScript implementations:
 
 ```json

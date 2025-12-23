@@ -50,7 +50,7 @@ export const proxy = paymentProxy(
         {
           scheme: "exact",
           price: "$0.001",
-          network: "eip155:84532", // base-sepolia
+          network: "eip155:84532", // kairos-testnet
           payTo: evmAddress,
         },
         {

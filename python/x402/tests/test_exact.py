@@ -22,7 +22,7 @@ def account():
 def payment_requirements():
     return PaymentRequirements(
         scheme="exact",
-        network="base-sepolia",
+        network="kairos-testnet",
         asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         pay_to="0x0000000000000000000000000000000000000000",
         max_amount_required="10000",

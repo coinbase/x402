@@ -89,7 +89,7 @@ class PaymentMiddleware:
         output_schema: Optional[Any] = None,
         discoverable: Optional[bool] = True,
         facilitator_config: Optional[FacilitatorConfig] = None,
-        network: str = "base-sepolia",
+        network: str = "kairos-testnet",
         resource: Optional[str] = None,
         paywall_config: Optional[PaywallConfig] = None,
         custom_paywall_html: Optional[str] = None,

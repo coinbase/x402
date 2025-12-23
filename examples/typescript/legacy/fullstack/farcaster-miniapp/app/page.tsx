@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  useMiniKit,
-  useAddFrame,
-} from "@coinbase/onchainkit/minikit";
+import { useMiniKit, useAddFrame } from "@coinbase/onchainkit/minikit";
 import {
   Name,
   Identity,
@@ -23,7 +20,7 @@ import { sdk } from "@farcaster/frame-sdk";
 import { wrapFetchWithPayment } from "x402-fetch";
 import { getWalletClient } from "wagmi/actions";
 import { createConfig, http } from "@wagmi/core";
-import { base, baseSepolia } from "@wagmi/core/chains";
+import { base, kairos } from "@wagmi/core/chains";
 import { createClient } from "viem";
 
 export default function App() {
@@ -37,7 +34,7 @@ export default function App() {
   const addFrame = useAddFrame();
 
   const config = createConfig({
-    chains: [base, baseSepolia],
+    chains: [base, kairos],
     client({ chain }) {
       return createClient({ chain, transport: http() });
     },
@@ -51,7 +48,10 @@ export default function App() {
         const isInMiniApp = await sdk.isInMiniApp();
         setIsInMiniApp(isInMiniApp);
       } catch (error) {
-        console.log('Not running in Mini App context or SDK not available:', error);
+        console.log(
+          "Not running in Mini App context or SDK not available:",
+          error
+        );
       }
     };
 
@@ -101,7 +101,7 @@ export default function App() {
       });
 
       if (!response.ok) {
-        console.log(response)
+        console.log(response);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -133,7 +133,11 @@ export default function App() {
       return (
         <div className="flex items-center space-x-1 text-sm font-medium text-green-600 dark:text-green-400">
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+              clipRule="evenodd"
+            />
           </svg>
           <span>Saved</span>
         </div>
@@ -150,9 +154,11 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">x402 Mini App Template</h1>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+                x402 Mini App Template
+              </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {isInMiniApp ? 'Running as Mini App' : 'Running in browser'}
+                {isInMiniApp ? "Running as Mini App" : "Running in browser"}
               </p>
             </div>
 
@@ -187,7 +193,8 @@ export default function App() {
               Welcome to Your Mini App
             </h2>
             <p className="text-gray-600 dark:text-gray-300">
-              This is a clean template with x402, OnchainKit, and Farcaster as a mini app.
+              This is a clean template with x402, OnchainKit, and Farcaster as a
+              mini app.
             </p>
           </div>
 
@@ -198,29 +205,51 @@ export default function App() {
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Wallet Connected:</span>
-                <span className={`font-medium ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                  {isConnected ? 'Yes' : 'No'}
+                <span className="text-gray-600 dark:text-gray-300">
+                  Wallet Connected:
+                </span>
+                <span
+                  className={`font-medium ${
+                    isConnected
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {isConnected ? "Yes" : "No"}
                 </span>
               </div>
               {isConnected && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Address:</span>
+                    <span className="text-gray-600 dark:text-gray-300">
+                      Address:
+                    </span>
                     <span className="font-mono text-sm text-gray-900 dark:text-white">
                       {address?.slice(0, 6)}...{address?.slice(-4)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Chain ID:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{chainId}</span>
+                    <span className="text-gray-600 dark:text-gray-300">
+                      Chain ID:
+                    </span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {chainId}
+                    </span>
                   </div>
                 </>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">Mini App Context:</span>
-                <span className={`font-medium ${isInMiniApp ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                  {isInMiniApp ? 'Yes' : 'No'}
+                <span className="text-gray-600 dark:text-gray-300">
+                  Mini App Context:
+                </span>
+                <span
+                  className={`font-medium ${
+                    isInMiniApp
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  {isInMiniApp ? "Yes" : "No"}
                 </span>
               </div>
             </div>
@@ -237,10 +266,11 @@ export default function App() {
             <button
               onClick={handleProtectedAction}
               disabled={!isConnected || isLoading}
-              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${!isConnected || isLoading
-                ? 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
+              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                !isConnected || isLoading
+                  ? "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center space-x-2">
@@ -248,22 +278,41 @@ export default function App() {
                   <span>Processing...</span>
                 </div>
               ) : (
-                'Call Protected API'
+                "Call Protected API"
               )}
             </button>
             {message && (
-              <div className={`mt-4 p-4 rounded-lg border ${message.startsWith('Error')
-                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
-                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
-                }`}>
+              <div
+                className={`mt-4 p-4 rounded-lg border ${
+                  message.startsWith("Error")
+                    ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+                    : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+                }`}
+              >
                 <div className="flex items-center space-x-2">
-                  {message.startsWith('Error') ? (
-                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  {message.startsWith("Error") ? (
+                    <svg
+                      className="w-4 h-4 flex-shrink-0"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    <svg
+                      className="w-4 h-4 flex-shrink-0"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   )}
                   <span className="font-medium">{message}</span>
@@ -279,9 +328,17 @@ export default function App() {
             </h3>
             <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
               <p>• Connect your wallet using the button in the header</p>
-              <p>• The app will automatically detect if it&apos;s running in a Farcaster Mini App</p>
-              <p>• Use the &quot;Call Protected API&quot; button to test the protected endpoint</p>
-              <p>• Customize this template by adding your own features and logic</p>
+              <p>
+                • The app will automatically detect if it&apos;s running in a
+                Farcaster Mini App
+              </p>
+              <p>
+                • Use the &quot;Call Protected API&quot; button to test the
+                protected endpoint
+              </p>
+              <p>
+                • Customize this template by adding your own features and logic
+              </p>
             </div>
           </div>
         </div>

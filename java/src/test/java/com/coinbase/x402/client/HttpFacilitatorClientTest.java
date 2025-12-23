@@ -73,13 +73,13 @@ class HttpFacilitatorClientTest {
         wm.stubFor(get(urlEqualTo("/supported"))
             .willReturn(aResponse()
                 .withHeader("Content-Type","application/json")
-                .withBody("{\"kinds\":[{\"scheme\":\"exact\",\"network\":\"base-sepolia\"}]}")));
+                .withBody("{\"kinds\":[{\"scheme\":\"exact\",\"network\":\"kairos-testnet\"}]}")));
 
         Set<Kind> kinds = client.supported();
         assertEquals(1, kinds.size());
         Kind k = kinds.iterator().next();
         assertEquals("exact", k.scheme);
-        assertEquals("base-sepolia", k.network);
+        assertEquals("kairos-testnet", k.network);
     }
     
     @Test

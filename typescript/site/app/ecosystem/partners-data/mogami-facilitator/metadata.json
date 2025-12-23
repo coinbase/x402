@@ -6,9 +6,23 @@
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://facilitator.mogami.tech",
-    "networks": ["base", "base-sepolia"],
-    "schemes": ["exact"],
-    "assets": ["EIP-3009", "SPL", "Token-2022"],
-    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+    "networks": [
+      "base",
+      "kairos-testnet"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "EIP-3009",
+      "SPL",
+      "Token-2022"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
   }
 }

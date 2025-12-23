@@ -56,7 +56,7 @@ class TestCreateX402Config:
     def test_create_config_with_payment_requirements(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
+            network="kairos-testnet",
             max_amount_required="1000000",  # 1 USDC in atomic units
             resource="https://example.com/api/data",
             description="API data access",
@@ -98,7 +98,7 @@ class TestCreateX402Config:
     def test_create_config_with_paywall_config(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
+            network="kairos-testnet",
             max_amount_required="1000000",
             resource="https://example.com",
             description="Test",
@@ -144,7 +144,7 @@ class TestInjectPaymentData:
 
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
+            network="kairos-testnet",
             max_amount_required="1000000",
             resource="https://example.com",
             description="Test",
@@ -205,7 +205,7 @@ class TestInjectPaymentData:
 
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
+            network="kairos-testnet",
             max_amount_required="1000000",
             resource="https://example.com",
             description="Test",
@@ -234,7 +234,7 @@ class TestGetPaywallHtml:
     def test_get_paywall_html_integration(self):
         payment_req = PaymentRequirements(
             scheme="exact",
-            network="base-sepolia",
+            network="kairos-testnet",
             max_amount_required="2000000",  # 2 USDC
             resource="https://example.com/api/premium",
             description="Premium API access",

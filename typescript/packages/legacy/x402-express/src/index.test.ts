@@ -32,14 +32,14 @@ vi.mock("x402/shared", async importOriginal => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    getNetworkId: vi.fn().mockReturnValue("base-sepolia"),
+    getNetworkId: vi.fn().mockReturnValue("kairos-testnet"),
     toJsonSafe: vi.fn(x => x),
     computeRoutePatterns: vi.fn().mockImplementation(routes => {
       const normalizedRoutes = Object.fromEntries(
         Object.entries(routes).map(([pattern, value]) => [
           pattern,
           typeof value === "string" || typeof value === "number"
-            ? ({ price: value, network: "base-sepolia" } as RouteConfig)
+            ? ({ price: value, network: "kairos-testnet" } as RouteConfig)
             : (value as RouteConfig),
         ]),
       );
@@ -131,7 +131,7 @@ describe("paymentMiddleware()", () => {
   const routesConfig: RoutesConfig = {
     "/test": {
       price: "$0.001",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       config: middlewareConfig,
     },
   };
@@ -139,7 +139,7 @@ describe("paymentMiddleware()", () => {
   const validPayment: PaymentPayload = {
     scheme: "exact",
     x402Version: 1,
-    network: "base-sepolia",
+    network: "kairos-testnet",
     payload: {
       signature: "0x123",
       authorization: {
@@ -203,7 +203,7 @@ describe("paymentMiddleware()", () => {
           verb: "GET",
           config: {
             price: "$0.001",
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         };
@@ -247,7 +247,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     // Simulate route handler calling res.end()
@@ -284,7 +284,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -317,7 +317,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -343,7 +343,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     // Simulate route handler calling res.end()
@@ -380,7 +380,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -407,7 +407,7 @@ describe("paymentMiddleware()", () => {
       success: false,
       errorReason: "invalid_transaction_state",
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       payer: "0x123",
     });
 
@@ -425,7 +425,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -468,7 +468,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -494,7 +494,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     // Simulate downstream handler setting status 500

@@ -14,7 +14,7 @@ logging.getLogger("flask").setLevel(logging.ERROR)
 load_dotenv()
 
 # Get configuration from environment
-NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
+NETWORK = os.getenv("EVM_NETWORK", "kairos-testnet")
 ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
 FACILITATOR_URL = os.getenv("FACILITATOR_URL")

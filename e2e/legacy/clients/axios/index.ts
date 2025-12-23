@@ -1,7 +1,12 @@
 import axios from "axios";
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { withPaymentInterceptor, decodeXPaymentResponse, createSigner, MultiNetworkSigner } from "x402-axios";
+import {
+  withPaymentInterceptor,
+  decodeXPaymentResponse,
+  createSigner,
+  MultiNetworkSigner,
+} from "x402-axios";
 
 config();
 
@@ -15,7 +20,7 @@ if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
   process.exit(1);
 }
 
-const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
+const evmSigner = await createSigner("kairos-testnet", evmPrivateKey);
 const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
 const account = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
 
@@ -32,14 +37,14 @@ api
     console.log("Response received:", {
       status: response.status,
       headers: response.headers,
-      data: response.data
+      data: response.data,
     });
 
     const result = {
       success: true,
       data: response.data,
       status_code: response.status,
-      payment_response: decodeXPaymentResponse(response.headers["x-payment-response"])
+      payment_response: decodeXPaymentResponse(response.headers["x-payment-response"]),
     };
 
     // Output structured result as JSON for proxy to parse
@@ -50,7 +55,7 @@ api
     const errorResult = {
       success: false,
       error: error.message || String(error),
-      status_code: error.response?.status
+      status_code: error.response?.status,
     };
 
     console.log(JSON.stringify(errorResult));

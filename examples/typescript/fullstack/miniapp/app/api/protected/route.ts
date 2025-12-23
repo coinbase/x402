@@ -63,7 +63,7 @@ export const GET = withX402(
       {
         scheme: "exact",
         price: "$0.01",
-        network: "eip155:84532", // base-sepolia
+        network: "eip155:84532", // kairos-testnet
         payTo: evmAddress,
       },
     ],

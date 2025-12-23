@@ -3,7 +3,7 @@
  */
 import axios from "axios";
 import { withPaymentInterceptor } from "x402-axios";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient } from "viem";
 import { Hex } from "viem";
@@ -12,7 +12,7 @@ import { agent, tool } from "llamaindex";
 import { z } from "zod";
 
 const wallet = createWalletClient({
-  chain: baseSepolia,
+  chain: kairos,
   transport: http(),
   account: privateKeyToAccount(process.env.PRIVATE_KEY as Hex),
 }).extend(publicActions);

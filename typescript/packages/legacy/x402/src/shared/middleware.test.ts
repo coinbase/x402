@@ -22,7 +22,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
     expect(patterns[1]).toEqual({
@@ -30,7 +30,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/other$/i,
       config: {
         price: "$0.02",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
   });
@@ -49,7 +49,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
     expect(patterns[1]).toEqual({
@@ -57,7 +57,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/other$/i,
       config: {
         price: "$0.02",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
   });
@@ -76,7 +76,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/.*?$/i,
       config: {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
     expect(patterns[1]).toEqual({
@@ -84,7 +84,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/users\/.*?$/i,
       config: {
         price: "$0.02",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
   });
@@ -103,7 +103,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/users\/[^\/]+$/i,
       config: {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
     expect(patterns[1]).toEqual({
@@ -111,7 +111,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/posts\/[^\/]+$/i,
       config: {
         price: "$0.02",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       },
     });
   });
@@ -120,7 +120,7 @@ describe("computeRoutePatterns", () => {
     const routes: RoutesConfig = {
       "/api/test": {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: {
           description: "Test route",
           mimeType: "application/json",
@@ -136,7 +136,7 @@ describe("computeRoutePatterns", () => {
       pattern: /^\/api\/test$/i,
       config: {
         price: "$0.01",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: {
           description: "Test route",
           mimeType: "application/json",
@@ -305,7 +305,7 @@ describe("getDefaultAsset", () => {
   });
 
   it("should return Base Sepolia USDC asset details", () => {
-    const result = getDefaultAsset("base-sepolia");
+    const result = getDefaultAsset("kairos-testnet");
 
     expect(result).toEqual({
       address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
@@ -374,7 +374,7 @@ describe("getDefaultAsset", () => {
 
 describe("processPriceToAtomicAmount", () => {
   it("should handle string price in dollars", () => {
-    const result = processPriceToAtomicAmount("$0.01", "base-sepolia");
+    const result = processPriceToAtomicAmount("$0.01", "kairos-testnet");
     expect(result).toEqual({
       maxAmountRequired: "10000",
       asset: {
@@ -389,7 +389,7 @@ describe("processPriceToAtomicAmount", () => {
   });
 
   it("should handle number price in dollars", () => {
-    const result = processPriceToAtomicAmount(0.01, "base-sepolia");
+    const result = processPriceToAtomicAmount(0.01, "kairos-testnet");
     expect(result).toEqual({
       maxAmountRequired: "10000",
       asset: {
@@ -415,7 +415,7 @@ describe("processPriceToAtomicAmount", () => {
         },
       },
     };
-    const result = processPriceToAtomicAmount(tokenAmount, "base-sepolia");
+    const result = processPriceToAtomicAmount(tokenAmount, "kairos-testnet");
     expect(result).toEqual({
       maxAmountRequired: "1000000",
       asset: tokenAmount.asset,
@@ -423,21 +423,21 @@ describe("processPriceToAtomicAmount", () => {
   });
 
   it("should handle invalid price format", () => {
-    const result = processPriceToAtomicAmount("invalid", "base-sepolia");
+    const result = processPriceToAtomicAmount("invalid", "kairos-testnet");
     expect(result).toEqual({
       error: expect.stringContaining("Invalid price"),
     });
   });
 
   it("should handle negative price", () => {
-    const result = processPriceToAtomicAmount("-$0.01", "base-sepolia");
+    const result = processPriceToAtomicAmount("-$0.01", "kairos-testnet");
     expect(result).toEqual({
       error: expect.stringContaining("Invalid price"),
     });
   });
 
   it("should handle zero price", () => {
-    const result = processPriceToAtomicAmount("$0", "base-sepolia");
+    const result = processPriceToAtomicAmount("$0", "kairos-testnet");
     expect(result).toEqual({
       error: expect.stringContaining("Number must be greater than or equal to 0.0001"),
     });

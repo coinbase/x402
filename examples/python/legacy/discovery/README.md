@@ -10,6 +10,7 @@ This example demonstrates how to use the x402 discovery feature to find and list
 ## Setup
 
 1. Install and build all packages from the python examples root:
+
 ```bash
 cd ../../
 uv sync
@@ -17,6 +18,7 @@ cd examples/python/discovery
 ```
 
 2. Start the discovery example:
+
 ```bash
 uv run python main.py
 ```
@@ -24,6 +26,7 @@ uv run python main.py
 ## How It Works
 
 The example demonstrates how to:
+
 1. Use the x402 facilitator to discover available resources
 2. List all x402-protected endpoints in the network
 3. View detailed information about each resource including:
@@ -49,10 +52,10 @@ async def main():
     try:
         # Get the list of resources
         response = await facilitator.list()
-        
+
         print("\nDiscovered X402 Resources:")
         print("========================\n")
-        
+
         # Print each resource in a formatted way
         for index, item in enumerate(response.items, 1):
             print(f"Resource {index}:")
@@ -90,7 +93,7 @@ Resource 1:
   Accepts: [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "kairos-testnet",
       "maxAmountRequired": "1000000",
       "resource": "https://api.example.com/x402/endpoint",
       "description": "Example protected endpoint",

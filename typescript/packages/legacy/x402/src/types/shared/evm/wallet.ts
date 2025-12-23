@@ -11,7 +11,7 @@ import type {
   LocalAccount,
 } from "viem";
 import {
-  baseSepolia,
+  kairos,
   avalancheFuji,
   base,
   sei,
@@ -27,7 +27,7 @@ import {
   story,
   eduChain,
 } from "viem/chains";
-import { skaleBaseSepolia } from "../custom-chains";
+import { skalekairos } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { Hex } from "viem";
 import { eip712WalletActions } from "viem/zksync";
@@ -73,13 +73,13 @@ export function createConnectedClient(
 /**
  * Creates a public client configured for the Base Sepolia testnet
  *
- * @deprecated Use `createConnectedClient("base-sepolia")` instead
+ * @deprecated Use `createConnectedClient("kairos-testnet")` instead
  * @returns A public client instance connected to Base Sepolia
  */
-export function createClientSepolia(): ConnectedClient<Transport, typeof baseSepolia, undefined> {
-  return createConnectedClient("base-sepolia") as ConnectedClient<
+export function createClientSepolia(): ConnectedClient<Transport, typeof kairos, undefined> {
+  return createConnectedClient("kairos-testnet") as ConnectedClient<
     Transport,
-    typeof baseSepolia,
+    typeof kairos,
     undefined
   >;
 }
@@ -128,12 +128,12 @@ export function createSigner(network: string, privateKey: Hex): SignerWallet<Cha
 /**
  * Creates a wallet client configured for the Base Sepolia testnet with a private key
  *
- * @deprecated Use `createSigner("base-sepolia", privateKey)` instead
+ * @deprecated Use `createSigner("kairos-testnet", privateKey)` instead
  * @param privateKey - The private key to use for signing transactions
  * @returns A wallet client instance connected to Base Sepolia with the provided private key
  */
-export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof baseSepolia> {
-  return createSigner("base-sepolia", privateKey) as SignerWallet<typeof baseSepolia>;
+export function createSignerSepolia(privateKey: Hex): SignerWallet<typeof kairos> {
+  return createSigner("kairos-testnet", privateKey) as SignerWallet<typeof kairos>;
 }
 
 /**
@@ -209,8 +209,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return abstractTestnet;
     case "base":
       return base;
-    case "base-sepolia":
-      return baseSepolia;
+    case "kairos-testnet":
+      return kairos;
     case "avalanche":
       return avalanche;
     case "avalanche-fuji":
@@ -233,8 +233,8 @@ export function getChainFromNetwork(network: string | undefined): Chain {
       return iotex;
     case "iotex-testnet":
       return iotexTestnet;
-    case "skale-base-sepolia":
-      return skaleBaseSepolia;
+    case "skale-kairos-testnet":
+      return skalekairos;
     default:
       throw new Error(`Unsupported network: ${network}`);
   }

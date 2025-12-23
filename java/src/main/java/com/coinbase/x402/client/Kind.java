@@ -5,7 +5,7 @@ public class Kind {
     /** Payment scheme identifier (e.g. "exact"). */
     public final String scheme;
     
-    /** Network identifier (e.g. "base-sepolia"). */
+    /** Network identifier (e.g. "kairos-testnet"). */
     public final String network;
 
     /** Default constructor for Jackson deserialization. */

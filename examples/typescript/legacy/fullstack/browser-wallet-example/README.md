@@ -7,6 +7,7 @@ This is a simplified scaffolding project demonstrating [x402 payment protocol](h
 ## What is x402?
 
 x402 is a payments protocol for the internet built on HTTP. It enables:
+
 - **1 line of code** to accept digital dollars
 - **No fees**, 2 second settlement
 - **$0.001 minimum** payments
@@ -16,16 +17,19 @@ Learn more at [x402.org](https://x402.org) or check out the [GitHub repository](
 ## This Template Includes
 
 ✅ **Two Payment Models** ready to customize:
+
 - **24-Hour Session** ($1.00): Time-based access perfect for SaaS
 - **One-Time Access** ($0.10): Single-use payments for actions or content
 
 ✅ **Complete Implementation**:
+
 - Server with x402 payment middleware (Hono)
 - React client with wallet integration (Viem)
 - Session management and validation
 - Clean, modern UI ready to customize
 
 ✅ **Developer Friendly**:
+
 - TypeScript throughout
 - Easy to extend and modify
 - Well-documented code
@@ -42,9 +46,10 @@ pnpm install:all
 ### 2. Configure the Server
 
 Create `.env`:
+
 ```env
 FACILITATOR_URL=https://x402.org/facilitator
-NETWORK=base-sepolia
+NETWORK=kairos-testnet
 ADDRESS=0x_YOUR_WALLET_ADDRESS_HERE
 PORT=3001
 ```
@@ -56,6 +61,7 @@ pnpm dev
 ```
 
 This starts:
+
 - Server on http://localhost:3001
 - Client on http://localhost:5173
 
@@ -74,12 +80,14 @@ This starts:
 ### Session Types
 
 #### 24-Hour Session
+
 - **Price**: $1.00
 - **Duration**: 24 hours from purchase
 - **Usage**: Unlimited during the valid period
 - **Use Case**: Users who need extended access
 
-#### One-Time Access  
+#### One-Time Access
+
 - **Price**: $0.10
 - **Duration**: 5 minutes to use
 - **Usage**: Single use only

@@ -36,12 +36,12 @@ import { useFacilitator } from "x402/verify";
  *
  * @example
  * ```typescript
- * // Simple configuration - All endpoints are protected by $0.01 of USDC on base-sepolia
+ * // Simple configuration - All endpoints are protected by $0.01 of USDC on kairos-testnet
  * app.use(paymentMiddleware(
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: 'base-sepolia'
+ *     network: 'kairos-testnet'
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * ));
@@ -231,7 +231,7 @@ export function paymentMiddleware(
               typeof getPaywallHtml
             >[0]["paymentRequirements"],
             currentUrl,
-            testnet: network === "base-sepolia",
+            testnet: network === "kairos-testnet",
             cdpClientKey: paywall?.cdpClientKey,
             appName: paywall?.appName,
             appLogo: paywall?.appLogo,

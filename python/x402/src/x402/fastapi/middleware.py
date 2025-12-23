@@ -41,7 +41,7 @@ def require_payment(
     output_schema: Optional[Any] = None,
     discoverable: Optional[bool] = True,
     facilitator_config: Optional[FacilitatorConfig] = None,
-    network: str = "base-sepolia",
+    network: str = "kairos-testnet",
     resource: Optional[str] = None,
     paywall_config: Optional[PaywallConfig] = None,
     custom_paywall_html: Optional[str] = None,
@@ -62,7 +62,7 @@ def require_payment(
         discoverable (bool, optional): Whether the route is discoverable. Defaults to True.
         facilitator_config (Optional[Dict[str, Any]], optional): Configuration for the payment facilitator.
             If not provided, defaults to the public x402.org facilitator.
-        network (str, optional): Ethereum network ID. Defaults to "base-sepolia" (Base Sepolia testnet).
+        network (str, optional): Ethereum network ID. Defaults to "kairos-testnet" (Base Sepolia testnet).
         resource (Optional[str], optional): Resource URL. Defaults to None (uses request URL).
         paywall_config (Optional[PaywallConfig], optional): Configuration for paywall UI customization.
             Includes options like app_name, app_logo.

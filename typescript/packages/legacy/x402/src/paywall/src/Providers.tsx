@@ -1,6 +1,6 @@
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import type { ReactNode } from "react";
-import { base, baseSepolia } from "viem/chains";
+import { base, kairos } from "viem/chains";
 
 import { choosePaymentRequirement, isEvmNetwork } from "./paywallUtils";
 import "./window.d.ts";
@@ -24,7 +24,7 @@ export function Providers({ children }: ProvidersProps) {
     return <>{children}</>;
   }
 
-  const chain = selectedRequirement.network === "base-sepolia" ? baseSepolia : base;
+  const chain = selectedRequirement.network === "kairos-testnet" ? kairos : base;
 
   return (
     <OnchainKitProvider

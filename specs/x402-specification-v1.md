@@ -78,7 +78,7 @@ When a resource server requires payment, it responds with a payment required sig
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "kairos-testnet",
       "maxAmountRequired": "10000",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -109,19 +109,19 @@ The `PaymentRequirementsResponse` schema contains the following fields:
 
 Each `PaymentRequirements` object in the `accepts` array contains:
 
-| Field Name          | Type     | Required | Description                                                              |
-| ------------------- | -------- | -------- | ------------------------------------------------------------------------ |
-| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                                |
-| `network`           | `string` | Required | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                            |
-| `asset`             | `string` | Required | Token contract address                                                   |
-| `payTo`             | `string` | Required | Recipient wallet address for the payment                                 |
-| `resource`          | `string` | Required | URL of the protected resource                                            |
-| `description`       | `string` | Required | Human-readable description of the resource                               |
-| `mimeType`          | `string` | Optional | MIME type of the expected response                                       |
-| `outputSchema`      | `object` | Optional | JSON schema describing the response format                               |
-| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                              |
-| `extra`             | `object` | Optional | Scheme-specific additional information                                   |
+| Field Name          | Type     | Required | Description                                                                |
+| ------------------- | -------- | -------- | -------------------------------------------------------------------------- |
+| `scheme`            | `string` | Required | Payment scheme identifier (e.g., "exact")                                  |
+| `network`           | `string` | Required | Blockchain network identifier (e.g., "kairos-testnet", "ethereum-mainnet") |
+| `maxAmountRequired` | `string` | Required | Required payment amount in atomic token units                              |
+| `asset`             | `string` | Required | Token contract address                                                     |
+| `payTo`             | `string` | Required | Recipient wallet address for the payment                                   |
+| `resource`          | `string` | Required | URL of the protected resource                                              |
+| `description`       | `string` | Required | Human-readable description of the resource                                 |
+| `mimeType`          | `string` | Optional | MIME type of the expected response                                         |
+| `outputSchema`      | `object` | Optional | JSON schema describing the response format                                 |
+| `maxTimeoutSeconds` | `number` | Required | Maximum time allowed for payment completion                                |
+| `extra`             | `object` | Optional | Scheme-specific additional information                                     |
 
 **5.2 PaymentPayload Schema**
 
@@ -133,7 +133,7 @@ The client includes payment authorization as JSON in the payment payload field:
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "base-sepolia",
+  "network": "kairos-testnet",
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "authorization": {
@@ -154,12 +154,12 @@ The `PaymentPayload` schema contains the following fields:
 
 **All fields are required.**
 
-| Field Name    | Type     | Description                                                              |
-| ------------- | -------- | ------------------------------------------------------------------------ |
-| `x402Version` | `number` | Protocol version identifier (must be 1)                                  |
-| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                                |
-| `network`     | `string` | Blockchain network identifier (e.g., "base-sepolia", "ethereum-mainnet") |
-| `payload`     | `object` | Payment data object                                                      |
+| Field Name    | Type     | Description                                                                |
+| ------------- | -------- | -------------------------------------------------------------------------- |
+| `x402Version` | `number` | Protocol version identifier (must be 1)                                    |
+| `scheme`      | `string` | Payment scheme identifier (e.g., "exact")                                  |
+| `network`     | `string` | Blockchain network identifier (e.g., "kairos-testnet", "ethereum-mainnet") |
+| `payload`     | `object` | Payment data object                                                        |
 
 The `payload` field contains a `SchemePayload` object with scheme-specific data:
 
@@ -193,7 +193,7 @@ After payment settlement, the server includes transaction details in the payment
 {
   "success": true,
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "base-sepolia",
+  "network": "kairos-testnet",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
 }
 ```
@@ -296,7 +296,7 @@ Example with actual data:
   "paymentPayload": {
     "x402Version": 1,
     "scheme": "exact",
-    "network": "base-sepolia",
+    "network": "kairos-testnet",
     "payload": {
       "signature": "0x...",
       "authorization": {
@@ -311,7 +311,7 @@ Example with actual data:
   },
   "paymentRequirements": {
     "scheme": "exact",
-    "network": "base-sepolia",
+    "network": "kairos-testnet",
     "maxAmountRequired": "10000",
     "resource": "https://api.example.com/premium-data",
     "description": "Access to premium market data",
@@ -359,7 +359,7 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
   "success": true,
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "base-sepolia"
+  "network": "kairos-testnet"
 }
 ```
 
@@ -371,7 +371,7 @@ Executes a verified payment by broadcasting the transaction to the blockchain.
   "errorReason": "insufficient_funds",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
   "transaction": "",
-  "network": "base-sepolia"
+  "network": "kairos-testnet"
 }
 ```
 
@@ -387,7 +387,7 @@ Returns the list of payment schemes and networks supported by the facilitator.
     {
       "x402Version": 1,
       "scheme": "exact",
-      "network": "base-sepolia"
+      "network": "kairos-testnet"
     },
     {
       "x402Version": 1,
@@ -444,7 +444,7 @@ List discoverable x402 resources from the Bazaar.
       "accepts": [
         {
           "scheme": "exact",
-          "network": "base-sepolia",
+          "network": "kairos-testnet",
           "maxAmountRequired": "10000",
           "resource": "https://api.example.com/premium-data",
           "description": "Access to premium market data",
@@ -544,7 +544,7 @@ The protocol supports integration with authentication systems (e.g., Sign-In wit
 
 The following blockchain networks are currently supported by the reference implementation:
 
-- **`base-sepolia`**: Base Sepolia testnet (Chain ID: 84532)
+- **`kairos-testnet`**: Base Sepolia testnet (Chain ID: 84532)
 - **`base`**: Base mainnet (Chain ID: 8453)
 - **`avalanche-fuji`**: Avalanche Fuji testnet (Chain ID: 43113)
 - **`avalanche`**: Avalanche mainnet (Chain ID: 43114)

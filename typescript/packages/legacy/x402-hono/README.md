@@ -17,27 +17,26 @@ import { paymentMiddleware, Network } from "x402-hono";
 const app = new Hono();
 
 // Configure the payment middleware
-app.use(paymentMiddleware(
-  "0xYourAddress",
-  {
+app.use(
+  paymentMiddleware("0xYourAddress", {
     "/protected-route": {
       price: "$0.10",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       config: {
         description: "Access to premium content",
-      }
-    }
-  }
-));
+      },
+    },
+  }),
+);
 
 // Implement your route
-app.get("/protected-route", (c) => {
+app.get("/protected-route", c => {
   return c.json({ message: "This content is behind a paywall" });
 });
 
 serve({
   fetch: app.fetch,
-  port: 3000
+  port: 3000,
 });
 ```
 
@@ -62,8 +61,8 @@ The middleware supports various configuration options:
 type RoutesConfig = Record<string, Price | RouteConfig>;
 
 interface RouteConfig {
-  price: Price;           // Price in USD or token amount
-  network: Network;       // "base" or "base-sepolia"
+  price: Price; // Price in USD or token amount
+  network: Network; // "base" or "kairos-testnet"
   config?: PaymentMiddlewareConfig;
 }
 ```
@@ -72,12 +71,12 @@ interface RouteConfig {
 
 ```typescript
 interface PaymentMiddlewareConfig {
-  description?: string;               // Description of the payment
-  mimeType?: string;                  // MIME type of the resource
-  maxTimeoutSeconds?: number;         // Maximum time for payment (default: 60)
+  description?: string; // Description of the payment
+  mimeType?: string; // MIME type of the resource
+  maxTimeoutSeconds?: number; // Maximum time for payment (default: 60)
   outputSchema?: Record<string, any>; // JSON schema for the response
-  customPaywallHtml?: string;         // Custom HTML for the paywall
-  resource?: string;                  // Resource URL (defaults to request URL)
+  customPaywallHtml?: string; // Custom HTML for the paywall
+  resource?: string; // Resource URL (defaults to request URL)
 }
 ```
 
@@ -85,11 +84,10 @@ interface PaymentMiddlewareConfig {
 
 ```typescript
 type FacilitatorConfig = {
-  url: string;                        // URL of the x402 facilitator service
-  createAuthHeaders?: CreateHeaders;  // Optional function to create authentication headers
+  url: string; // URL of the x402 facilitator service
+  createAuthHeaders?: CreateHeaders; // Optional function to create authentication headers
 };
 ```
-
 
 ### Paywall Configuration
 
@@ -97,10 +95,10 @@ For more on paywall configuration options, refer to the [paywall README](../x402
 
 ```typescript
 type PaywallConfig = {
-  cdpClientKey?: string;              // Your CDP Client API Key
-  appName?: string;                   // Name displayed in the paywall wallet selection modal
-  appLogo?: string;                   // Logo for the paywall wallet selection modal
-  sessionTokenEndpoint?: string;      // API endpoint for Coinbase Onramp session authentication
+  cdpClientKey?: string; // Your CDP Client API Key
+  appName?: string; // Name displayed in the paywall wallet selection modal
+  appLogo?: string; // Logo for the paywall wallet selection modal
+  sessionTokenEndpoint?: string; // API endpoint for Coinbase Onramp session authentication
 };
 ```
 
@@ -131,14 +129,11 @@ app.post("/api/x402/session-token", POST);
 Add `sessionTokenEndpoint` to your middleware configuration. This tells the paywall where to find your session token API:
 
 ```typescript
-app.use(paymentMiddleware(
-  payTo,
-  routes,
-  facilitator,
-  {
+app.use(
+  paymentMiddleware(payTo, routes, facilitator, {
     sessionTokenEndpoint: "path/to/session-token-route",
-  }
-));
+  }),
+);
 ```
 
 **Important**: The `sessionTokenEndpoint` must match the route you created above. You can use any path you prefer - just make sure both the route and configuration use the same path. Without this configuration, the "Get more USDC" button will be hidden.
@@ -168,7 +163,7 @@ CDP_API_KEY_SECRET=your_secret_api_key_secret_here
 
 ### How Onramp Works
 
-Once set up, your x402 paywall will automatically show a "Get more USDC" button when users need to fund their wallets. 
+Once set up, your x402 paywall will automatically show a "Get more USDC" button when users need to fund their wallets.
 
 1. **Generates session token**: Your backend securely creates a session token using CDP's API
 2. **Opens secure onramp**: User is redirected to Coinbase Onramp with the session token
@@ -179,19 +174,20 @@ Once set up, your x402 paywall will automatically show a "Get more USDC" button 
 #### Common Issues
 
 1. **"Missing CDP API credentials"**
-    - Ensure `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` are set
-    - Verify you're using **Secret API Keys**, not Client API Keys
+
+   - Ensure `CDP_API_KEY_ID` and `CDP_API_KEY_SECRET` are set
+   - Verify you're using **Secret API Keys**, not Client API Keys
 
 2. **"Failed to generate session token"**
-    - Check your CDP Secret API key has proper permissions
-    - Verify your project has Onramp enabled
+
+   - Check your CDP Secret API key has proper permissions
+   - Verify your project has Onramp enabled
 
 3. **API route not found**
-    - Ensure you've added the session token route: `app.post("/your-path", POST)`
-    - Check that your route path matches your `sessionTokenEndpoint` configuration
-    - Verify the import: `import { POST } from "x402-hono/session-token"`
-    - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, add `app.post("/api/custom/onramp", POST)`
-
+   - Ensure you've added the session token route: `app.post("/your-path", POST)`
+   - Check that your route path matches your `sessionTokenEndpoint` configuration
+   - Verify the import: `import { POST } from "x402-hono/session-token"`
+   - Example: If you configured `sessionTokenEndpoint: "/api/custom/onramp"`, add `app.post("/api/custom/onramp", POST)`
 
 ## Resources
 

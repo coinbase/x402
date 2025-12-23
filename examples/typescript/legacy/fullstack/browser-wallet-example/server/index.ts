@@ -8,9 +8,10 @@ import { v4 as uuidv4 } from "uuid";
 config();
 
 // Configuration from environment variables
-const facilitatorUrl = process.env.FACILITATOR_URL as Resource || "https://x402.org/facilitator";
+const facilitatorUrl =
+  (process.env.FACILITATOR_URL as Resource) || "https://x402.org/facilitator";
 const payTo = process.env.ADDRESS as `0x${string}`;
-const network = (process.env.NETWORK as Network) || "base-sepolia";
+const network = (process.env.NETWORK as Network) || "kairos-testnet";
 const port = parseInt(process.env.PORT || "3001");
 
 if (!payTo) {
@@ -21,10 +22,13 @@ if (!payTo) {
 const app = new Hono();
 
 // Enable CORS for frontend
-app.use("/*", cors({
-  origin: ["http://localhost:5173", "http://localhost:3000"],
-  credentials: true,
-}));
+app.use(
+  "/*",
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:3000"],
+    credentials: true,
+  })
+);
 
 // Simple in-memory storage for sessions (use Redis/DB in production)
 interface Session {
@@ -55,8 +59,8 @@ app.use(
     },
     {
       url: facilitatorUrl,
-    },
-  ),
+    }
+  )
 );
 
 // Free endpoint - health check
@@ -97,7 +101,7 @@ app.post("/api/pay/session", (c) => {
   const sessionId = uuidv4();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
-  
+
   const session: Session = {
     id: sessionId,
     createdAt: now,
@@ -125,7 +129,7 @@ app.post("/api/pay/session", (c) => {
 app.post("/api/pay/onetime", async (c) => {
   const sessionId = uuidv4();
   const now = new Date();
-  
+
   const session: Session = {
     id: sessionId,
     createdAt: now,
@@ -163,8 +167,8 @@ app.get("/api/session/:sessionId", (c) => {
   const isUsed = session.type === "onetime" && session.used;
 
   if (isExpired || isUsed) {
-    return c.json({ 
-      valid: false, 
+    return c.json({
+      valid: false,
       error: isExpired ? "Session expired" : "One-time access already used",
       session: {
         id: session.id,
@@ -172,7 +176,7 @@ app.get("/api/session/:sessionId", (c) => {
         createdAt: session.createdAt.toISOString(),
         expiresAt: session.expiresAt.toISOString(),
         used: session.used,
-      }
+      },
     });
   }
 
@@ -197,12 +201,12 @@ app.get("/api/session/:sessionId", (c) => {
 // Free endpoint - list active sessions (for demo purposes)
 app.get("/api/sessions", (c) => {
   const activeSessions = Array.from(sessions.values())
-    .filter(session => {
+    .filter((session) => {
       const isExpired = new Date() > session.expiresAt;
       const isUsed = session.type === "onetime" && session.used;
       return !isExpired && !isUsed;
     })
-    .map(session => ({
+    .map((session) => ({
       id: session.id,
       type: session.type,
       createdAt: session.createdAt.toISOString(),
@@ -232,4 +236,4 @@ console.log(`
 serve({
   fetch: app.fetch,
   port,
-}); 
+});

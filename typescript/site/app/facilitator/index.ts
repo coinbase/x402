@@ -10,7 +10,7 @@ import { ExactSvmScheme } from "@x402/svm/exact/facilitator";
 import { ExactSvmSchemeV1 } from "@x402/svm/exact/v1/facilitator";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 /**
  * Initialize and configure the x402 facilitator with EVM and SVM support
@@ -34,7 +34,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
   // Create a Viem client with both wallet and public capabilities
   const viemClient = createWalletClient({
     account: evmAccount,
-    chain: baseSepolia,
+    chain: kairos,
     transport: http(),
   }).extend(publicActions);
 
@@ -91,7 +91,7 @@ async function createFacilitator(): Promise<x402Facilitator> {
   // Create and configure the facilitator
   const facilitator = new x402Facilitator()
     .register("eip155:84532", new ExactEvmScheme(evmSigner))
-    .registerV1("base-sepolia" as Network, new ExactEvmSchemeV1(evmSigner))
+    .registerV1("kairos-testnet" as Network, new ExactEvmSchemeV1(evmSigner))
     .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme(svmSigner))
     .registerV1("solana-devnet" as Network, new ExactSvmSchemeV1(svmSigner));
 

@@ -26,7 +26,7 @@ package main
 
 import (
     "net/http"
-    
+
     x402 "github.com/coinbase/x402/go"
     x402http "github.com/coinbase/x402/go/http"
     evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
@@ -36,17 +36,17 @@ import (
 func main() {
     // 1. Create signer from private key
     signer, _ := evmsigners.NewClientSignerFromPrivateKey("0x...")
-    
+
     // 2. Create x402 client and register schemes
     client := x402.Newx402Client().
         Register("eip155:*", evm.NewExactEvmScheme(signer))
-    
+
     // 3. Wrap HTTP client
     httpClient := x402http.WrapHTTPClientWithPayment(
         http.DefaultClient,
         x402http.Newx402HTTPClient(client),
     )
-    
+
     // 4. Make requests - payments handled automatically
     resp, _ := httpClient.Get("https://api.example.com/data")
     defer resp.Body.Close()
@@ -194,6 +194,7 @@ client.OnPaymentCreationFailure(func(ctx x402.PaymentCreationFailureContext) (*x
 ### Hook Use Cases
 
 **Logging:**
+
 ```go
 client.OnAfterPaymentCreation(func(ctx PaymentCreationResultContext) error {
     log.Printf("Payment created for %s: %s", ctx.Requirements.Network, ctx.Requirements.Scheme)
@@ -202,6 +203,7 @@ client.OnAfterPaymentCreation(func(ctx PaymentCreationResultContext) error {
 ```
 
 **Metrics:**
+
 ```go
 client.OnAfterPaymentCreation(func(ctx PaymentCreationResultContext) error {
     metrics.IncrementCounter("payments.created", map[string]string{
@@ -213,6 +215,7 @@ client.OnAfterPaymentCreation(func(ctx PaymentCreationResultContext) error {
 ```
 
 **Aborting Payments:**
+
 ```go
 client.OnBeforePaymentCreation(func(ctx PaymentCreationContext) (*BeforePaymentCreationResult, error) {
     // Don't pay for resources over a certain price
@@ -288,16 +291,19 @@ wg.Wait()
 ### x402.X402Client
 
 **Constructor:**
+
 ```go
 func Newx402Client() *X402Client
 ```
 
 **Registration Methods:**
+
 ```go
 func (c *X402Client) Register(network Network, scheme SchemeNetworkClient) *X402Client
 ```
 
 **Hook Methods:**
+
 ```go
 func (c *X402Client) OnBeforePaymentCreation(hook BeforePaymentCreationHook) *X402Client
 func (c *X402Client) OnAfterPaymentCreation(hook AfterPaymentCreationHook) *X402Client
@@ -305,6 +311,7 @@ func (c *X402Client) OnPaymentCreationFailure(hook PaymentCreationFailureHook) *
 ```
 
 **Payment Methods:**
+
 ```go
 func (c *X402Client) CreatePaymentPayload(ctx context.Context, requirements PaymentRequirements, resource *ResourceInfo, extensions map[string]interface{}) (PaymentPayload, error)
 
@@ -314,16 +321,19 @@ func (c *X402Client) SelectPaymentRequirements(accepts []PaymentRequirements) (P
 ### x402http.HTTPClient
 
 **Constructor:**
+
 ```go
 func Newx402HTTPClient(client *X402Client) *x402HTTPClient
 ```
 
 **Wrapper:**
+
 ```go
 func WrapHTTPClientWithPayment(client *http.Client, x402Client *x402HTTPClient) *http.Client
 ```
 
 **Convenience Methods:**
+
 ```go
 func (c *x402HTTPClient) GetWithPayment(ctx context.Context, url string) (*http.Response, error)
 func (c *x402HTTPClient) PostWithPayment(ctx context.Context, url string, body io.Reader) (*http.Response, error)
@@ -335,6 +345,7 @@ func (c *x402HTTPClient) DoWithPayment(ctx context.Context, req *http.Request) (
 ### Common Errors
 
 **No Registered Mechanism:**
+
 ```go
 // Error: "no client registered for network eip155:1 and scheme exact"
 // Solution: Register the mechanism
@@ -342,6 +353,7 @@ client.Register("eip155:1", evm.NewExactEvmScheme(signer))
 ```
 
 **Invalid Signer:**
+
 ```go
 // Error: "invalid private key"
 // Solution: Check private key format (0x-prefixed hex for EVM, base58 for SVM)
@@ -352,6 +364,7 @@ if err != nil {
 ```
 
 **Payment Retry Limit:**
+
 ```go
 // Error: "payment retry limit exceeded"
 // Cause: Server rejected payment twice
@@ -366,10 +379,10 @@ Use hooks to implement custom error recovery:
 client.OnPaymentCreationFailure(func(ctx PaymentCreationFailureContext) (*PaymentCreationFailureResult, error) {
     // Log error
     log.Printf("Payment failed: %v", ctx.Error)
-    
+
     // Could implement fallback logic here
     // e.g., try different network, notify user, etc.
-    
+
     return nil, nil // Let it fail
 })
 ```
@@ -445,6 +458,7 @@ Complete examples are available in [`examples/go/clients/`](../../examples/go/cl
 
 **Problem:** Client makes request but doesn't create payment on 402  
 **Check:**
+
 - Is mechanism registered? `client.Register("eip155:*", ...)`
 - Does network match? Ensure server's network has a registered mechanism
 - Are there errors? Add hooks to log payment creation attempts
@@ -465,6 +479,7 @@ client.Register("eip155:*", evm.NewExactEvmScheme(signer))
 
 **Problem:** Server/facilitator rejects payment signature  
 **Check:**
+
 - Correct private key format
 - Signer address matches payment requirements
 - Clock synchronization (for time-based signatures)
@@ -503,6 +518,7 @@ for _, url := range urls {
 ### Payment Caching
 
 Payment payloads are created fresh for each 402 response. They are not cached because:
+
 - Each payment should be unique (nonce, timestamp)
 - Prevents replay attacks
 - Ensures fresh blockchain state
@@ -520,10 +536,10 @@ import (
 
 func TestClientRegistration(t *testing.T) {
     signer, _ := evmsigners.NewClientSignerFromPrivateKey(testKey)
-    
+
     client := x402.Newx402Client().
         Register("eip155:*", evm.NewExactEvmScheme(signer))
-    
+
     // Test client behavior
 }
 ```
@@ -539,18 +555,20 @@ If you're migrating from x402 v1:
 ### Client Changes
 
 **V1:**
+
 ```go
-client.RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(signer))
+client.RegisterV1("kairos-testnet", evmv1.NewExactEvmSchemeV1(signer))
 ```
 
 **V2:**
+
 ```go
 client.Register("eip155:84532", evm.NewExactEvmScheme(signer))
 ```
 
 ### Network Identifiers
 
-**V1:** `"base-sepolia"`, `"ethereum"`, `"solana-devnet"`  
+**V1:** `"kairos-testnet"`, `"ethereum"`, `"solana-devnet"`  
 **V2:** `"eip155:84532"`, `"eip155:1"`, `"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"`
 
 ### Backward Compatibility
@@ -560,7 +578,7 @@ V2 clients can support both protocols:
 ```go
 client.
     Register("eip155:*", evm.NewExactEvmScheme(signer)).      // V2
-    RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(signer)) // V1 fallback
+    RegisterV1("kairos-testnet", evmv1.NewExactEvmSchemeV1(signer)) // V1 fallback
 ```
 
 ## Related Documentation
@@ -571,4 +589,3 @@ client.
 - **[Signers](signers/README.md)** - Signer helpers
 - **[Mechanisms](mechanisms/)** - Payment scheme implementations
 - **[Examples](../../examples/go/clients/)** - Working client examples
-

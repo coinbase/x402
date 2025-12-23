@@ -1,6 +1,6 @@
 # cdp-sdk signer example using Axios
 
-This is an example showcasing using `cdp-sdk`'s server wallets as the signer for our  `x402-axios` client.
+This is an example showcasing using `cdp-sdk`'s server wallets as the signer for our `x402-axios` client.
 
 ## Prerequisites
 
@@ -12,6 +12,7 @@ This is an example showcasing using `cdp-sdk`'s server wallets as the signer for
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -20,11 +21,13 @@ cd clients/axios
 ```
 
 2. Copy `.env-local` to `.env` and add your Ethereum private key (remember it should have USDC on Base Sepolia, which you can provision using the [CDP Faucet](https://portal.cdp.coinbase.com/products/faucet)):
+
 ```bash
 cp .env-local .env
 ```
 
 3. Start the example client (remember you need to be running a server locally or point at an endpoint):
+
 ```bash
 pnpm dev
 ```
@@ -32,6 +35,7 @@ pnpm dev
 ## How It Works
 
 The example demonstrates how to:
+
 1. Create a wallet client using cdp-sdk's server wallets
 2. Create an Axios instance with x402 payment handling
 3. Make a request to a paid endpoint
@@ -45,11 +49,17 @@ import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { withPaymentInterceptor } from "x402-axios";
 import axios from "axios";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 config();
 
-const { RESOURCE_SERVER_URL, CDP_API_KEY_ID, CDP_API_KEY_SECRET, CDP_WALLET_SECRET, ENDPOINT_PATH } = process.env;
+const {
+  RESOURCE_SERVER_URL,
+  CDP_API_KEY_ID,
+  CDP_API_KEY_SECRET,
+  CDP_WALLET_SECRET,
+  ENDPOINT_PATH,
+} = process.env;
 
 // Create a server wallet account
 const client = new CdpClient({
@@ -59,14 +69,14 @@ const client = new CdpClient({
 });
 const serverAccount = await client.evm.getOrCreateAccount({
   name: "x402-axios-example",
-})
+});
 
 // Create Axios instance with payment handling
 const api = withPaymentInterceptor(
   axios.create({
     baseURL: RESOURCE_SERVER_URL,
   }),
-  account
+  account,
 );
 
 // Make request to paid endpoint

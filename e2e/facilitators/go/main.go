@@ -691,7 +691,7 @@ func main() {
 		DeployERC4337WithEIP6492: true,
 	}
 	evmFacilitatorV1Scheme := evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config)
-	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmFacilitatorV1Scheme)
+	facilitator.RegisterV1([]x402.Network{"kairos-testnet"}, evmFacilitatorV1Scheme)
 
 	// Register SVM schemes with network arrays
 	svmFacilitatorScheme := svm.NewExactSvmScheme(svmSigner)

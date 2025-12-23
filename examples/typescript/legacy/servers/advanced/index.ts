@@ -134,7 +134,7 @@ app.get("/delayed-settlement", async (req, res) => {
     createExactPaymentRequirements(
       "$0.001",
       // network: "base" // uncomment for Base mainnet
-      "base-sepolia",
+      "kairos-testnet",
       resource,
       "Access to weather data (async)",
     ),
@@ -180,7 +180,7 @@ app.get("/dynamic-price", async (req, res) => {
     createExactPaymentRequirements(
       price, // Expect dynamic pricing
       // network: "base" // uncomment for Base mainnet
-      "base-sepolia",
+      "kairos-testnet",
       resource,
       "Access to weather data",
     ),
@@ -234,7 +234,7 @@ app.get("/multiple-payment-requirements", async (req, res) => {
         },
       },
       // network: "base" // uncomment for Base mainnet
-      "base-sepolia",
+      "kairos-testnet",
       resource,
     ),
   ];

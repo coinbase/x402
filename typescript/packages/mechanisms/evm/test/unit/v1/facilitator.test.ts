@@ -32,7 +32,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xvalidsignature",
           authorization: {
@@ -48,7 +48,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -71,7 +71,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "wrong",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           authorization: {
             from: "0x1234567890123456789012345678901234567890",
@@ -86,7 +86,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -122,7 +122,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -142,7 +142,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xsig",
           authorization: {
@@ -158,7 +158,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -180,7 +180,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xsig",
           authorization: {
@@ -196,7 +196,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -216,7 +216,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xsig",
           authorization: {
@@ -232,7 +232,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -254,7 +254,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xvalidsignature",
           authorization: {
@@ -270,7 +270,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",
@@ -284,7 +284,7 @@ describe("ExactEvmSchemeV1", () => {
       const result = await facilitator.settle(payload as never, requirements as never);
 
       expect(result.success).toBe(true);
-      expect(result.network).toBe("base-sepolia");
+      expect(result.network).toBe("kairos-testnet");
       expect(result.transaction).toBe("0xtxhash");
       expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
     });
@@ -297,7 +297,7 @@ describe("ExactEvmSchemeV1", () => {
       const payload: PaymentPayloadV1 = {
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: {
           signature: "0xinvalid",
           authorization: {
@@ -313,7 +313,7 @@ describe("ExactEvmSchemeV1", () => {
 
       const requirements: PaymentRequirementsV1 = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
         maxAmountRequired: "100000",
         payTo: "0x9876543210987654321098765432109876543210",

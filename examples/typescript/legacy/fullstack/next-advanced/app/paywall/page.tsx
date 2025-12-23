@@ -99,7 +99,7 @@ function PaymentForm({
 export default function Paywall() {
   const paymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "10000",
     resource: "https://example.com",
     description: "Payment for a service",

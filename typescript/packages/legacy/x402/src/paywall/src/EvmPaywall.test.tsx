@@ -18,7 +18,7 @@ describe("EvmPaywall - Error Response Parsing", () => {
           accepts: [
             {
               scheme: "exact",
-              network: "base-sepolia",
+              network: "kairos-testnet",
               maxAmountRequired: "10000",
             },
           ],
@@ -55,7 +55,7 @@ describe("EvmPaywall - Error Response Parsing", () => {
           accepts: [
             {
               scheme: "exact",
-              network: "base-sepolia",
+              network: "kairos-testnet",
               maxAmountRequired: "10000",
             },
           ],
@@ -265,7 +265,7 @@ describe("EvmPaywall - Error Response Parsing", () => {
     it("should handle network validation error", async () => {
       const response = mockResponse(400, "Bad Request", {
         error:
-          "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+          "This facilitator only supports: kairos-testnet, solana-devnet. Network 'base' is not supported.",
         invalidReason: "invalid_network",
       });
 
@@ -287,7 +287,7 @@ describe("EvmPaywall - Error Response Parsing", () => {
       }
 
       expect(errorMessage).toContain("This facilitator only supports");
-      expect(errorMessage).toContain("base-sepolia");
+      expect(errorMessage).toContain("kairos-testnet");
     });
   });
 });

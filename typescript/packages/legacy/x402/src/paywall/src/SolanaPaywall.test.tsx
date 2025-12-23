@@ -123,7 +123,7 @@ describe("SolanaPaywall - Error Response Parsing", () => {
     it("should handle network validation error", async () => {
       const response = mockResponse(400, "Bad Request", {
         error:
-          "This facilitator only supports: base-sepolia, solana-devnet. Network 'solana' is not supported.",
+          "This facilitator only supports: kairos-testnet, solana-devnet. Network 'solana' is not supported.",
         errorReason: "invalid_network",
       });
 

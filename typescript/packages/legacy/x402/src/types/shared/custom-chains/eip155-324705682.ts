@@ -2,7 +2,7 @@ import { type Chain } from "viem";
 
 // This chain isactive and is waiting for addition to https://github.com/ethereum-lists/chains
 // before it can be added to wevm/viem/chains.
-export const skaleBaseSepolia = {
+export const skalekairos = {
   id: 324705682,
   name: "SKALE Base Sepolia",
   nativeCurrency: {
@@ -12,14 +12,14 @@ export const skaleBaseSepolia = {
   },
   rpcUrls: {
     default: {
-      http: ["https://base-sepolia-testnet.skalenodes.com/v1/jubilant-horrible-ancha"],
+      http: ["https://kairos-testnet-testnet.skalenodes.com/v1/jubilant-horrible-ancha"],
     },
   },
   blockExplorers: {
     default: {
       name: "Blockscout",
-      url: "https://base-sepolia-testnet-explorer.skalenodes.com",
-      apiUrl: "https://base-sepolia-testnet-explorer.skalenodes.com/api",
+      url: "https://kairos-testnet-testnet-explorer.skalenodes.com",
+      apiUrl: "https://kairos-testnet-testnet-explorer.skalenodes.com/api",
     },
   },
 } satisfies Chain;

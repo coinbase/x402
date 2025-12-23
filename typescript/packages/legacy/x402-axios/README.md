@@ -15,14 +15,14 @@ import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { withPaymentInterceptor } from "x402-axios";
 import axios from "axios";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 // Create a wallet client
 const account = privateKeyToAccount("0xYourPrivateKey");
 const client = createWalletClient({
   account,
   transport: http(),
-  chain: baseSepolia,
+  chain: kairos,
 });
 
 // Create an Axios instance with payment handling
@@ -30,7 +30,7 @@ const api = withPaymentInterceptor(
   axios.create({
     baseURL: "https://api.example.com",
   }),
-  client
+  client,
 );
 
 // Make a request that may require payment
@@ -59,6 +59,7 @@ Adds a response interceptor to an Axios instance to handle 402 Payment Required 
 #### Returns
 
 The modified Axios instance with the payment interceptor that will:
+
 1. Intercept 402 responses
 2. Parse the payment requirements
 3. Create a payment header using the provided wallet client

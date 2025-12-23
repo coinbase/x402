@@ -5,10 +5,23 @@
   "websiteUrl": "https://x402.org",
   "category": "Facilitators",
   "facilitator": {
-      "baseUrl": "https://www.x402.org/facilitator",
-      "networks": ["base-sepolia", "solana-devnet"],
-      "schemes": ["exact"],
-      "assets": ["EIP-3009", "SPL"],
-      "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+    "baseUrl": "https://www.x402.org/facilitator",
+    "networks": [
+      "kairos-testnet",
+      "solana-devnet"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "EIP-3009",
+      "SPL"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
   }
 }

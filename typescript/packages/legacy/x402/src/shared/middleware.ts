@@ -26,7 +26,7 @@ export function computeRoutePatterns(routes: RoutesConfig): RoutePattern[] {
     Object.entries(routes).map(([pattern, value]) => [
       pattern,
       typeof value === "string" || typeof value === "number"
-        ? ({ price: value, network: "base-sepolia" } as RouteConfig)
+        ? ({ price: value, network: "kairos-testnet" } as RouteConfig)
         : (value as RouteConfig),
     ]),
   );

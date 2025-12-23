@@ -45,7 +45,7 @@ func NewTestConfig() TestServerConfig {
 		PaymentPayload: &types.PaymentPayload{
 			X402Version: 1,
 			Scheme:      "exact",
-			Network:     "base-sepolia",
+			Network:     "kairos-testnet",
 			Payload: &types.ExactEvmPayload{
 				Signature: "0xvalidSignature",
 				Authorization: &types.ExactEvmPayloadAuthorization{
@@ -63,7 +63,7 @@ func NewTestConfig() TestServerConfig {
 		SettleSuccess:     true,
 		SettleErrorReason: &settleErrorReason,
 		Transaction:       "0xtesthash",
-		Network:           "base-sepolia",
+		Network:           "kairos-testnet",
 		Payer:             &payer,
 		VerifyStatusCode:  http.StatusOK,
 		SettleStatusCode:  http.StatusOK,
@@ -315,7 +315,7 @@ func TestPaymentMiddleware_NetworkSelection(t *testing.T) {
 		testnet bool
 	}{
 		{
-			name:    "base-sepolia",
+			name:    "kairos-testnet",
 			testnet: true,
 		},
 		{
@@ -350,7 +350,7 @@ func TestPaymentMiddleware_NetworkSelection(t *testing.T) {
 
 			expectedNetwork := "base"
 			if tc.testnet {
-				expectedNetwork = "base-sepolia"
+				expectedNetwork = "kairos-testnet"
 			}
 
 			assert.Equal(t, expectedNetwork, requirements["network"])

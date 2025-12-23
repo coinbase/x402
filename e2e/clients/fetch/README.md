@@ -5,6 +5,7 @@ This client demonstrates and tests the `@x402/fetch` package with both EVM and S
 ## What It Tests
 
 ### Core Functionality
+
 - ✅ **V2 Protocol** - Modern x402 protocol with CAIP-2 networks
 - ✅ **V1 Protocol** - Legacy x402 protocol with simple network names
 - ✅ **Multi-chain Support** - Both EVM and SVM in a single client
@@ -12,8 +13,9 @@ This client demonstrates and tests the `@x402/fetch` package with both EVM and S
 - ✅ **Payment Response Decoding** - Extracts settlement information from headers
 
 ### Payment Mechanisms
+
 - ✅ **EVM V2** - `eip155:*` wildcard scheme
-- ✅ **EVM V1** - `base-sepolia` and `base` networks
+- ✅ **EVM V1** - `kairos-testnet` and `base` networks
 - ✅ **SVM V2** - `solana:*` wildcard scheme
 - ✅ **SVM V1** - `solana-devnet` and `solana` networks
 
@@ -33,7 +35,7 @@ import { ExactSvmClientV1 } from "@x402/svm/v1";
 const client = new x402Client()
   .register("eip155:*", new ExactEvmClient(evmAccount))
   .register("solana:*", new ExactSvmClient(svmSigner))
-  .registerV1("base-sepolia", new ExactEvmClientV1(evmAccount))
+  .registerV1("kairos-testnet", new ExactEvmClientV1(evmAccount))
   .registerV1("base", new ExactEvmClientV1(evmAccount))
   .registerV1("solana-devnet", new ExactSvmClientV1(svmSigner))
   .registerV1("solana", new ExactSvmClientV1(svmSigner));
@@ -56,12 +58,14 @@ const response = await fetchWithPayment(url, { method: "GET" });
 ## Test Scenarios
 
 This client is tested against:
+
 - **Servers:** Express (TypeScript), Gin (Go)
 - **Facilitators:** TypeScript, Go
 - **Endpoints:** `/protected` (EVM), `/protected-svm` (SVM)
 - **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
 
 ### Success Criteria
+
 - ✅ Request succeeds with 200 status
 - ✅ Payment response header present
 - ✅ Transaction hash returned

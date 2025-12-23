@@ -35,7 +35,7 @@ vi.mock("x402/shared", async importOriginal => {
         Object.entries(routes).map(([pattern, value]) => [
           pattern,
           typeof value === "string" || typeof value === "number"
-            ? ({ price: value, network: "base-sepolia" } as RouteConfig)
+            ? ({ price: value, network: "kairos-testnet" } as RouteConfig)
             : (value as RouteConfig),
         ]),
       );
@@ -169,7 +169,7 @@ describe("paymentMiddleware()", () => {
             verb: "GET",
             config: {
               price: "$0.001",
-              network: "base-sepolia",
+              network: "kairos-testnet",
               config: middlewareConfig,
             },
           };
@@ -192,7 +192,7 @@ describe("paymentMiddleware()", () => {
       {
         "/protected/*": {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -219,7 +219,7 @@ describe("paymentMiddleware()", () => {
       {
         "GET /protected/*": {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -251,7 +251,7 @@ describe("paymentMiddleware()", () => {
       {
         "/protected/*": {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -266,7 +266,7 @@ describe("paymentMiddleware()", () => {
           verb: "*",
           config: {
             price: 1.0,
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         };
@@ -299,7 +299,7 @@ describe("paymentMiddleware()", () => {
       {
         "GET ": {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -320,7 +320,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -353,7 +353,7 @@ describe("paymentMiddleware()", () => {
     };
     expect(json.accepts[0]).toEqual({
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -396,7 +396,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -405,7 +405,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await middleware(request);
@@ -413,7 +413,7 @@ describe("paymentMiddleware()", () => {
     expect(mockDecodePayment).toHaveBeenCalledWith(validPayment);
     expect(mockVerify).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -442,7 +442,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -462,7 +462,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -491,7 +491,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -499,7 +499,7 @@ describe("paymentMiddleware()", () => {
     // Mock findMatchingPaymentRequirements to return a match for this test
     (findMatchingPaymentRequirements as ReturnType<typeof vi.fn>).mockReturnValueOnce({
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -516,7 +516,7 @@ describe("paymentMiddleware()", () => {
 
     (mockVerify as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error(
-        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+        "This facilitator only supports: kairos-testnet, solana-devnet. Network 'base' is not supported.",
       ),
     );
 
@@ -527,11 +527,11 @@ describe("paymentMiddleware()", () => {
     expect(json).toEqual({
       x402Version: 1,
       error:
-        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+        "This facilitator only supports: kairos-testnet, solana-devnet. Network 'base' is not supported.",
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -560,7 +560,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -569,14 +569,14 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await middleware(request);
 
     expect(mockSettle).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -604,7 +604,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -622,7 +622,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -651,7 +651,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -661,7 +661,7 @@ describe("paymentMiddleware()", () => {
       success: false,
       errorReason: "invalid_transaction_state",
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       payer: "0x123",
     });
 
@@ -675,7 +675,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -699,7 +699,7 @@ describe("paymentMiddleware()", () => {
       {
         "/protected/*": {
           price: "invalid",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -721,7 +721,7 @@ describe("paymentMiddleware()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -755,7 +755,7 @@ describe("paymentMiddleware()", () => {
               },
             },
           },
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
       },
@@ -777,7 +777,7 @@ describe("paymentMiddleware()", () => {
     };
     expect(json.accepts[0]).toEqual({
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -804,7 +804,7 @@ describe("paymentMiddleware()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -813,7 +813,7 @@ describe("paymentMiddleware()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     // Mock NextResponse.next to return a 500 response
@@ -1002,7 +1002,7 @@ describe("paymentMiddleware()", () => {
         {
           "/protected/*": {
             price: 1.0,
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         },
@@ -1041,7 +1041,7 @@ describe("paymentMiddleware()", () => {
         {
           "/protected/*": {
             price: 1.0,
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         },
@@ -1078,7 +1078,7 @@ describe("paymentMiddleware()", () => {
         {
           "/protected/*": {
             price: 1.0,
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         },
@@ -1112,7 +1112,7 @@ describe("paymentMiddleware()", () => {
         {
           "/protected/*": {
             price: 1.0,
-            network: "base-sepolia",
+            network: "kairos-testnet",
             config: middlewareConfig,
           },
         },

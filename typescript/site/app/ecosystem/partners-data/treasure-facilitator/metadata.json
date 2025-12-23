@@ -6,9 +6,21 @@
   "category": "Facilitators",
   "facilitator": {
     "baseUrl": "https://x402.treasure.lol/facilitator",
-    "networks": ["base", "base-sepolia"],
-    "schemes": ["exact"],
-    "assets": ["EIP-3009"],
-    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+    "networks": [
+      "base",
+      "kairos-testnet"
+    ],
+    "schemes": [
+      "exact"
+    ],
+    "assets": [
+      "EIP-3009"
+    ],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
   }
 }

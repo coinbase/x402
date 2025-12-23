@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { base, baseSepolia, avalancheFuji, abstract } from "viem/chains";
-import { skaleBaseSepolia } from "../custom-chains";
+import { base, kairos, avalancheFuji, abstract } from "viem/chains";
+import { skalekairos } from "../custom-chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { createConnectedClient, createSigner } from "./wallet";
 
@@ -71,10 +71,10 @@ describe("createConnectedClient", () => {
     expect(client.transport).toBe("mock-transport");
   });
 
-  it("should create a public client for base-sepolia network", () => {
-    const client = createConnectedClient("base-sepolia");
+  it("should create a public client for kairos-testnet network", () => {
+    const client = createConnectedClient("kairos-testnet");
 
-    expect(client.chain).toEqual(baseSepolia);
+    expect(client.chain).toEqual(kairos);
     expect(client.transport).toBe("mock-transport");
   });
 
@@ -85,10 +85,10 @@ describe("createConnectedClient", () => {
     expect(client.transport).toBe("mock-transport");
   });
 
-  it("should create a public client for skale-base-sepolia network", () => {
-    const client = createConnectedClient("skale-base-sepolia");
+  it("should create a public client for skale-kairos-testnet network", () => {
+    const client = createConnectedClient("skale-kairos-testnet");
 
-    expect(client.chain).toEqual(skaleBaseSepolia);
+    expect(client.chain).toEqual(skalekairos);
     expect(client.transport).toBe("mock-transport");
   });
 
@@ -123,10 +123,10 @@ describe("createSigner", () => {
     expect(privateKeyToAccount).toHaveBeenCalledWith(mockPrivateKey);
   });
 
-  it("should create a wallet client for base-sepolia network with private key", () => {
-    const signer = createSigner("base-sepolia", mockPrivateKey);
+  it("should create a wallet client for kairos-testnet network with private key", () => {
+    const signer = createSigner("kairos-testnet", mockPrivateKey);
 
-    expect(signer.chain).toEqual(baseSepolia);
+    expect(signer.chain).toEqual(kairos);
     expect(signer.transport).toBe("mock-transport");
     expect(signer.account).toBeDefined();
     expect(signer.account.address).toBe("0x1234567890123456789012345678901234567890");
@@ -143,10 +143,10 @@ describe("createSigner", () => {
     expect(privateKeyToAccount).toHaveBeenCalledWith(mockPrivateKey);
   });
 
-  it("should create a wallet client for skale-base-sepolia network with private key", () => {
-    const signer = createSigner("skale-base-sepolia", mockPrivateKey);
+  it("should create a wallet client for skale-kairos-testnet network with private key", () => {
+    const signer = createSigner("skale-kairos-testnet", mockPrivateKey);
 
-    expect(signer.chain).toEqual(skaleBaseSepolia);
+    expect(signer.chain).toEqual(skalekairos);
     expect(signer.transport).toBe("mock-transport");
     expect(signer.account).toBeDefined();
     expect(signer.account.address).toBe("0x1234567890123456789012345678901234567890");

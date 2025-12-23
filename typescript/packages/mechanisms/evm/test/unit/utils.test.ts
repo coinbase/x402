@@ -8,7 +8,7 @@ describe("EVM Utils", () => {
     });
 
     it("should return correct chain ID for Base Sepolia", () => {
-      expect(getEvmChainId("base-sepolia")).toBe(84532);
+      expect(getEvmChainId("kairos-testnet")).toBe(84532);
     });
 
     it("should return correct chain ID for Ethereum mainnet", () => {

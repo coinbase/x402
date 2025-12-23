@@ -26,7 +26,7 @@ public class X402HttpClient {
     private final HttpClient http = HttpClient.newHttpClient();
     private final int    x402Version = 1;
     private final String scheme      = "exact";
-    private final String network     = "base-sepolia";
+    private final String network     = "kairos-testnet";
 
     private final CryptoSigner signer;
 

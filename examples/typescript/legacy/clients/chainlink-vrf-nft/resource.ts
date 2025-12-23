@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import { createWalletClient, http, publicActions, Hex, parseAbiItem, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 // --- Types for Payment Handling ---
 type PaymentDetails = {
@@ -85,7 +85,7 @@ const SCHEME = "exact";
 const resourceServerAccount = privateKeyToAccount(resourceServerPrivateKey as Hex);
 const resourceServerWalletClient = createWalletClient({
   account: resourceServerAccount,
-  chain: baseSepolia,
+  chain: kairos,
   transport: http(providerUrl),
 }).extend(publicActions);
 
@@ -101,7 +101,7 @@ const nftContractAbi = [
 // and the facilitator calls (for its internal validation).
 const paymentDetailsRequired: PaymentDetails = {
   scheme: SCHEME,
-  network: baseSepolia.network, // Use network name string
+  network: kairos.network, // Use network name string
   maxAmountRequired: REQUIRED_USDC_PAYMENT,
   resource: `http://localhost:${PORT}/request-mint`,
   description: "Request to mint a VRF NFT",
@@ -112,7 +112,7 @@ const paymentDetailsRequired: PaymentDetails = {
   outputSchema: {},
   extra: {
     name: "",
-    version: "2"
+    version: "2",
   },
 };
 
@@ -149,7 +149,7 @@ app.post("/request-mint", async c => {
     // Basic validation - check network name now
     if (
       paymentHeader.scheme !== SCHEME ||
-      paymentHeader.network !== baseSepolia.network ||
+      paymentHeader.network !== kairos.network ||
       !paymentHeader.payload?.authorization?.from
     ) {
       throw new Error("Invalid or incomplete payment header content.");

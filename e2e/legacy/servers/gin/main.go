@@ -26,7 +26,7 @@ func main() {
 	// Get configuration from environment
 	network := os.Getenv("EVM_NETWORK")
 	if network == "" {
-		network = "base-sepolia"
+		network = "kairos-testnet"
 	}
 	address := os.Getenv("EVM_PAYEE_ADDRESS")
 	port := os.Getenv("PORT")
@@ -64,7 +64,7 @@ func main() {
 			x402gin.WithFacilitatorConfig(facilitatorConfig),
 			x402gin.WithDescription("Protected endpoint requiring payment"),
 			x402gin.WithResource("http://localhost:"+port+"/protected"),
-			x402gin.WithTestnet(network == "base-sepolia"),
+			x402gin.WithTestnet(network == "kairos-testnet"),
 		),
 		func(c *gin.Context) {
 			if shutdownRequested {

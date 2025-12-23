@@ -8,9 +8,9 @@ This guide walks you through integrating with **x402** to enable payments for yo
 
 Before you begin, ensure you have:
 
-* A crypto wallet to receive funds (any EVM-compatible wallet)
-* [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip installed
-* An existing API or server
+- A crypto wallet to receive funds (any EVM-compatible wallet)
+- [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip installed
+- An existing API or server
 
 **Note:** The Python SDK is currently under development for x402 v2. For immediate v2 support, use TypeScript or Go.
 
@@ -26,6 +26,7 @@ Install the [x402 Express middleware package](https://www.npmjs.com/package/@x40
 ```bash
 npm install @x402/express @x402/core @x402/evm
 ```
+
 {% endtab %}
 
 {% tab title="Next.js" %}
@@ -34,6 +35,7 @@ Install the [x402 Next.js middleware package](https://www.npmjs.com/package/@x40
 ```bash
 npm install @x402/next @x402/core @x402/evm
 ```
+
 {% endtab %}
 
 {% tab title="Hono" %}
@@ -42,6 +44,7 @@ Install the [x402 Hono middleware package](https://www.npmjs.com/package/@x402/h
 ```bash
 npm install @x402/hono @x402/core @x402/evm
 ```
+
 {% endtab %}
 
 {% tab title="Go" %}
@@ -50,6 +53,7 @@ Add the x402 Go module to your project:
 ```bash
 go get github.com/coinbase/x402/go
 ```
+
 {% endtab %}
 
 {% tab title="FastAPI" %}
@@ -77,10 +81,10 @@ pip install x402
 
 Integrate the payment middleware into your application. You will need to provide:
 
-* The Facilitator URL or facilitator client. For testing, use `https://x402.org/facilitator` which works on Base Sepolia and Solana devnet.
-  * For mainnet setup, see [Running on Mainnet](#running-on-mainnet)
-* The routes you want to protect.
-* Your receiving wallet address.
+- The Facilitator URL or facilitator client. For testing, use `https://x402.org/facilitator` which works on Base Sepolia and Solana devnet.
+  - For mainnet setup, see [Running on Mainnet](#running-on-mainnet)
+- The routes you want to protect.
+- Your receiving wallet address.
 
 {% tabs %}
 {% tab title="Express" %}
@@ -99,7 +103,7 @@ const payTo = "0xYourAddress";
 
 // Create facilitator client (testnet)
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://x402.org/facilitator"
+  url: "https://x402.org/facilitator",
 });
 
 // Create resource server and register EVM scheme
@@ -122,8 +126,8 @@ app.use(
         mimeType: "application/json",
       },
     },
-    server,
-  ),
+    server
+  )
 );
 
 // Implement your route
@@ -140,6 +144,7 @@ app.listen(4021, () => {
   console.log(`Server listening at http://localhost:4021`);
 });
 ```
+
 {% endtab %}
 
 {% tab title="Next.js" %}
@@ -154,7 +159,7 @@ import { registerExactEvmScheme } from "@x402/evm/exact/server";
 const payTo = "0xYourAddress";
 
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://x402.org/facilitator"
+  url: "https://x402.org/facilitator",
 });
 
 const server = new x402ResourceServer(facilitatorClient);
@@ -175,13 +180,14 @@ export const middleware = paymentProxy(
       mimeType: "application/json",
     },
   },
-  server,
+  server
 );
 
 export const config = {
   matcher: ["/api/protected/:path*"],
 };
 ```
+
 {% endtab %}
 
 {% tab title="Hono" %}
@@ -198,7 +204,7 @@ const app = new Hono();
 const payTo = "0xYourAddress";
 
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://x402.org/facilitator"
+  url: "https://x402.org/facilitator",
 });
 
 const server = new x402ResourceServer(facilitatorClient);
@@ -220,8 +226,8 @@ app.use(
         mimeType: "application/json",
       },
     },
-    server,
-  ),
+    server
+  )
 );
 
 app.get("/protected-route", (c) => {
@@ -230,6 +236,7 @@ app.get("/protected-route", (c) => {
 
 serve({ fetch: app.fetch, port: 3000 });
 ```
+
 {% endtab %}
 
 {% tab title="Go (Gin)" %}
@@ -295,6 +302,7 @@ func main() {
     r.Run(":4021")
 }
 ```
+
 {% endtab %}
 
 {% tab title="FastAPI" %}
@@ -315,7 +323,7 @@ app.middleware("http")(
         path="/weather",
         price="$0.001",
         pay_to_address="0xYourAddress",
-        network="base-sepolia",  # v1 string identifier
+        network="kairos-testnet",  # v1 string identifier
     )
 )
 
@@ -328,6 +336,7 @@ async def get_weather() -> Dict[str, Any]:
         }
     }
 ```
+
 {% endtab %}
 
 {% tab title="Flask" %}
@@ -349,9 +358,10 @@ payment_middleware.add(
     path="/weather",
     price="$0.001",
     pay_to_address="0xYourAddress",
-    network="base-sepolia",  # v1 string identifier
+    network="kairos-testnet",  # v1 string identifier
 )
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -360,14 +370,14 @@ payment_middleware.add(
 ```typescript
 interface RouteConfig {
   accepts: Array<{
-    scheme: string;           // Payment scheme (e.g., "exact")
-    price: string;            // Price in dollars (e.g., "$0.01")
-    network: string;          // Network in CAIP-2 format (e.g., "eip155:84532")
-    payTo: string;            // Your wallet address
+    scheme: string; // Payment scheme (e.g., "exact")
+    price: string; // Price in dollars (e.g., "$0.01")
+    network: string; // Network in CAIP-2 format (e.g., "eip155:84532")
+    payTo: string; // Your wallet address
   }>;
-  description?: string;       // Description of the resource
-  mimeType?: string;          // MIME type of the response
-  extensions?: object;        // Optional extensions (e.g., Bazaar)
+  description?: string; // Description of the resource
+  mimeType?: string; // MIME type of the response
+  extensions?: object; // Optional extensions (e.g., Bazaar)
 }
 ```
 
@@ -415,8 +425,8 @@ Learn more about the discovery layer in the [Bazaar documentation](../core-conce
 
 ### 5. Error Handling
 
-* If you run into trouble, check out the examples in the [repo](https://github.com/coinbase/x402/tree/main/examples) for more context and full code.
-* Run `npm install` or `go mod tidy` to install dependencies
+- If you run into trouble, check out the examples in the [repo](https://github.com/coinbase/x402/tree/main/examples) for more context and full code.
+- Run `npm install` or `go mod tidy` to install dependencies
 
 ---
 
@@ -430,19 +440,23 @@ For mainnet, use the CDP facilitator:
 
 {% tabs %}
 {% tab title="Node.js" %}
+
 ```typescript
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://api.cdp.coinbase.com/platform/v2/x402"
+  url: "https://api.cdp.coinbase.com/platform/v2/x402",
 });
 ```
+
 {% endtab %}
 
 {% tab title="Go" %}
+
 ```go
 facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
     URL: "https://api.cdp.coinbase.com/platform/v2/x402",
 })
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -452,13 +466,16 @@ Change from testnet to mainnet network identifiers:
 
 {% tabs %}
 {% tab title="Base Mainnet" %}
+
 ```typescript
 // Testnet → Mainnet
 network: "eip155:8453", // Base mainnet (was eip155:84532)
 ```
+
 {% endtab %}
 
 {% tab title="Solana Mainnet" %}
+
 ```typescript
 // Testnet → Mainnet
 network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", // Solana mainnet
@@ -466,9 +483,11 @@ network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", // Solana mainnet
 // For Solana, use a Solana wallet address (base58 format)
 payTo: "YourSolanaWalletAddress",
 ```
+
 {% endtab %}
 
 {% tab title="Multi-Network" %}
+
 ```typescript
 // Support multiple networks on the same endpoint
 {
@@ -491,6 +510,7 @@ payTo: "YourSolanaWalletAddress",
   },
 }
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -500,6 +520,7 @@ For multi-network support, register both EVM and SVM schemes:
 
 {% tabs %}
 {% tab title="Node.js" %}
+
 ```typescript
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 import { registerExactSvmScheme } from "@x402/svm/exact/server";
@@ -508,9 +529,11 @@ const server = new x402ResourceServer(facilitatorClient);
 registerExactEvmScheme(server);
 registerExactSvmScheme(server);
 ```
+
 {% endtab %}
 
 {% tab title="Go" %}
+
 ```go
 import (
     evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
@@ -525,6 +548,7 @@ r.Use(ginmw.X402Payment(ginmw.Config{
     },
 }))
 ```
+
 {% endtab %}
 {% endtabs %}
 
@@ -535,6 +559,7 @@ Make sure your receiving wallet address is a real mainnet address where you want
 ### 5. Test with Real Payments
 
 Before going live:
+
 1. Test with small amounts first
 2. Verify payments are arriving in your wallet
 3. Monitor the facilitator for any issues
@@ -547,12 +572,12 @@ Before going live:
 
 x402 v2 uses [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format for network identifiers:
 
-| Network | CAIP-2 Identifier |
-|---------|-------------------|
-| Base Mainnet | `eip155:8453` |
-| Base Sepolia | `eip155:84532` |
+| Network        | CAIP-2 Identifier                         |
+| -------------- | ----------------------------------------- |
+| Base Mainnet   | `eip155:8453`                             |
+| Base Sepolia   | `eip155:84532`                            |
 | Solana Mainnet | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` |
-| Solana Devnet | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` |
+| Solana Devnet  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` |
 
 See [Network Support](../core-concepts/network-and-token-support.md) for the full list.
 
@@ -560,9 +585,9 @@ See [Network Support](../core-concepts/network-and-token-support.md) for the ful
 
 ### Next Steps
 
-* Looking for something more advanced? Check out the [Advanced Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced)
-* Get started as a [buyer](quickstart-for-buyers.md)
-* Learn about the [Bazaar discovery layer](../core-concepts/bazaar-discovery-layer.md)
+- Looking for something more advanced? Check out the [Advanced Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced)
+- Get started as a [buyer](quickstart-for-buyers.md)
+- Learn about the [Bazaar discovery layer](../core-concepts/bazaar-discovery-layer.md)
 
 For questions or support, join our [Discord](https://discord.gg/invite/cdp).
 
@@ -570,9 +595,9 @@ For questions or support, join our [Discord](https://discord.gg/invite/cdp).
 
 This quickstart covered:
 
-* Installing the x402 SDK and relevant middleware
-* Adding payment middleware to your API and configuring it
-* Testing your integration
-* Deploying to mainnet with CAIP-2 network identifiers
+- Installing the x402 SDK and relevant middleware
+- Adding payment middleware to your API and configuring it
+- Testing your integration
+- Deploying to mainnet with CAIP-2 network identifiers
 
 Your API is now ready to accept crypto payments through x402.

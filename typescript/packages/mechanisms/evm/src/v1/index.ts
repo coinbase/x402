@@ -3,7 +3,7 @@ export { ExactEvmSchemeV1 } from "../exact/v1";
 export const NETWORKS: string[] = [
   "abstract",
   "abstract-testnet",
-  "base-sepolia",
+  "kairos-testnet",
   "base",
   "avalanche-fuji",
   "avalanche",
@@ -15,5 +15,5 @@ export const NETWORKS: string[] = [
   "peaq",
   "story",
   "educhain",
-  "skale-base-sepolia",
+  "skale-kairos-testnet",
 ];

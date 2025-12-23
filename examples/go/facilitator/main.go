@@ -58,7 +58,7 @@ func main() {
 	evmV1Config := &evmv1.ExactEvmSchemeV1Config{
 		DeployERC4337WithEIP6492: true,
 	}
-	facilitator.RegisterV1([]x402.Network{"base-sepolia"}, evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config))
+	facilitator.RegisterV1([]x402.Network{"kairos-testnet"}, evmv1.NewExactEvmSchemeV1(evmSigner, evmV1Config))
 
 	if svmSigner != nil {
 		facilitator.Register([]x402.Network{svmNetwork}, svm.NewExactSvmScheme(svmSigner))

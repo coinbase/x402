@@ -1,20 +1,20 @@
-import { BaseProxy, RunConfig } from '../proxy-base';
-import { ServerProxy } from '../types';
-import { verboseLog, errorLog } from '../logger';
-import { getNetwork } from '../networks/networks';
+import { BaseProxy, RunConfig } from "../proxy-base";
+import { ServerProxy } from "../types";
+import { verboseLog, errorLog } from "../logger";
+import { getNetwork } from "../networks/networks";
 
 /**
  * Translates v2 CAIP-2 network format to v1 simple format for legacy servers
- * 
+ *
  * @param network - Network in CAIP-2 format (e.g., "eip155:84532")
- * @returns Network in v1 format (e.g., "base-sepolia")
+ * @returns Network in v1 format (e.g., "kairos-testnet")
  */
 function translateNetworkForV1(network: string): string {
   const networkMap: Record<string, string> = {
-    'eip155:84532': 'base-sepolia',
-    'eip155:8453': 'base',
-    'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'solana-devnet',
-    'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'solana-mainnet',
+    "eip155:84532": "kairos-testnet",
+    "eip155:8453": "base",
+    "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": "solana-devnet",
+    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "solana-mainnet",
   };
 
   return networkMap[network] || network;
@@ -51,12 +51,12 @@ export interface ServerResult<T> {
 
 export class GenericServerProxy extends BaseProxy implements ServerProxy {
   private port: number = 4021;
-  private healthEndpoint: string = '/health';
-  private closeEndpoint: string = '/close';
+  private healthEndpoint: string = "/health";
+  private closeEndpoint: string = "/close";
 
   constructor(directory: string) {
     // Use different ready logs for different server types
-    const readyLog = directory.includes('next') ? 'Ready' : 'Server listening';
+    const readyLog = directory.includes("next") ? "Ready" : "Server listening";
     super(directory, readyLog);
 
     // Load endpoints from test config
@@ -65,29 +65,35 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
 
   private loadEndpoints(): void {
     try {
-      const { readFileSync, existsSync } = require('fs');
-      const { join } = require('path');
-      const configPath = join(this.directory, 'test.config.json');
+      const { readFileSync, existsSync } = require("fs");
+      const { join } = require("path");
+      const configPath = join(this.directory, "test.config.json");
 
       if (existsSync(configPath)) {
-        const configContent = readFileSync(configPath, 'utf-8');
+        const configContent = readFileSync(configPath, "utf-8");
         const config = JSON.parse(configContent);
 
         // Load health endpoint
-        const healthEndpoint = config.endpoints?.find((endpoint: any) => endpoint.health);
+        const healthEndpoint = config.endpoints?.find(
+          (endpoint: any) => endpoint.health
+        );
         if (healthEndpoint) {
           this.healthEndpoint = healthEndpoint.path;
         }
 
         // Load close endpoint
-        const closeEndpoint = config.endpoints?.find((endpoint: any) => endpoint.close);
+        const closeEndpoint = config.endpoints?.find(
+          (endpoint: any) => endpoint.close
+        );
         if (closeEndpoint) {
           this.closeEndpoint = closeEndpoint.path;
         }
       }
     } catch (error) {
       // Fallback to defaults if config loading fails
-      errorLog(`Failed to load endpoints from config for ${this.directory}, using defaults`);
+      errorLog(
+        `Failed to load endpoints from config for ${this.directory}, using defaults`
+      );
     }
   }
 
@@ -95,7 +101,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
     this.port = config.port;
 
     // Check if this is a v1 (legacy) server based on directory name
-    const isV1Server = this.directory.includes('legacy/');
+    const isV1Server = this.directory.includes("legacy/");
 
     verboseLog(`  📂 Server directory: ${this.directory}, isV1: ${isV1Server}`);
 
@@ -108,10 +114,14 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       const evmNetworkInfo = getNetwork(config.evmNetwork);
       const svmNetworkInfo = getNetwork(config.svmNetwork);
 
-      evmNetwork = evmNetworkInfo?.v1Name || translateNetworkForV1(config.evmNetwork);
-      svmNetwork = svmNetworkInfo?.v1Name || translateNetworkForV1(config.svmNetwork);
+      evmNetwork =
+        evmNetworkInfo?.v1Name || translateNetworkForV1(config.evmNetwork);
+      svmNetwork =
+        svmNetworkInfo?.v1Name || translateNetworkForV1(config.svmNetwork);
 
-      verboseLog(`  🔄 Translating networks for v1 server: ${config.evmNetwork} → ${evmNetwork}, ${config.svmNetwork} → ${svmNetwork}`);
+      verboseLog(
+        `  🔄 Translating networks for v1 server: ${config.evmNetwork} → ${evmNetwork}, ${config.svmNetwork} → ${svmNetwork}`
+      );
     }
 
     const runConfig: RunConfig = {
@@ -122,11 +132,11 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         SVM_NETWORK: svmNetwork,
         SVM_PAYEE_ADDRESS: config.svmPayTo,
         PORT: config.port.toString(),
-        EVM_RPC_URL: getNetwork(config.evmNetwork)?.rpcUrl || '',
+        EVM_RPC_URL: getNetwork(config.evmNetwork)?.rpcUrl || "",
 
         // Use facilitator URL if provided
-        FACILITATOR_URL: config.facilitatorUrl || '',
-      }
+        FACILITATOR_URL: config.facilitatorUrl || "",
+      },
     };
 
     await this.startProcess(runConfig);
@@ -140,7 +150,7 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         return {
           success: false,
           error: `Protected endpoint failed: ${response.status} ${response.statusText}`,
-          statusCode: response.status
+          statusCode: response.status,
         };
       }
 
@@ -148,25 +158,27 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       return {
         success: true,
         data: data as ProtectedResponse,
-        statusCode: response.status
+        statusCode: response.status,
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
 
   async health(): Promise<ServerResult<HealthResponse>> {
     try {
-      const response = await fetch(`http://localhost:${this.port}${this.healthEndpoint}`);
+      const response = await fetch(
+        `http://localhost:${this.port}${this.healthEndpoint}`
+      );
 
       if (!response.ok) {
         return {
           success: false,
           error: `Health check failed: ${response.status} ${response.statusText}`,
-          statusCode: response.status
+          statusCode: response.status,
         };
       }
 
@@ -174,27 +186,30 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       return {
         success: true,
         data: data as HealthResponse,
-        statusCode: response.status
+        statusCode: response.status,
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
 
   async close(): Promise<ServerResult<CloseResponse>> {
     try {
-      const response = await fetch(`http://localhost:${this.port}${this.closeEndpoint}`, {
-        method: 'POST'
-      });
+      const response = await fetch(
+        `http://localhost:${this.port}${this.closeEndpoint}`,
+        {
+          method: "POST",
+        }
+      );
 
       if (!response.ok) {
         return {
           success: false,
           error: `Close failed: ${response.status} ${response.statusText}`,
-          statusCode: response.status
+          statusCode: response.status,
         };
       }
 
@@ -202,12 +217,12 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
       return {
         success: true,
         data: data as CloseResponse,
-        statusCode: response.status
+        statusCode: response.status,
       };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -219,12 +234,12 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
         const closeResult = await this.close();
         if (closeResult.success) {
           // Wait a bit for graceful shutdown
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         } else {
-          verboseLog('Graceful shutdown failed, using force kill');
+          verboseLog("Graceful shutdown failed, using force kill");
         }
       } catch (error) {
-        verboseLog('Graceful shutdown failed, using force kill');
+        verboseLog("Graceful shutdown failed, using force kill");
       }
     }
 
@@ -242,4 +257,4 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
   getUrl(): string {
     return `http://localhost:${this.port}`;
   }
-} 
+}

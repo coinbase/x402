@@ -40,7 +40,7 @@ func TestVerify(t *testing.T) {
 	paymentPayload := &types.PaymentPayload{
 		X402Version: 1,
 		Scheme:      "exact",
-		Network:     "base-sepolia",
+		Network:     "kairos-testnet",
 		Payload: &types.ExactEvmPayload{
 			Signature: "0xvalidSignature",
 			Authorization: &types.ExactEvmPayloadAuthorization{
@@ -55,7 +55,7 @@ func TestVerify(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
-		Network:           "base-sepolia",
+		Network:           "kairos-testnet",
 		MaxAmountRequired: "1000000",
 		Resource:          "https://example.com/resource",
 		Description:       "Test resource",
@@ -88,7 +88,7 @@ func TestSettle(t *testing.T) {
 		resp := types.SettleResponse{
 			Success:     true,
 			Transaction: "0xvalidTransaction",
-			Network:     "base-sepolia",
+			Network:     "kairos-testnet",
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -104,7 +104,7 @@ func TestSettle(t *testing.T) {
 	paymentPayload := &types.PaymentPayload{
 		X402Version: 1,
 		Scheme:      "exact",
-		Network:     "base-sepolia",
+		Network:     "kairos-testnet",
 		Payload: &types.ExactEvmPayload{
 			Signature: "0xvalidSignature",
 			Authorization: &types.ExactEvmPayloadAuthorization{
@@ -119,7 +119,7 @@ func TestSettle(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
-		Network:           "base-sepolia",
+		Network:           "kairos-testnet",
 		MaxAmountRequired: "1000000",
 		Resource:          "https://example.com/resource",
 		Description:       "Test resource",
@@ -140,8 +140,8 @@ func TestSettle(t *testing.T) {
 	if resp.Transaction != "0xvalidTransaction" {
 		t.Errorf("Expected transaction '0xvalidTransaction', got: %s", resp.Transaction)
 	}
-	if resp.Network != "base-sepolia" {
-		t.Errorf("Expected network 'base-sepolia', got: %s", resp.Network)
+	if resp.Network != "kairos-testnet" {
+		t.Errorf("Expected network 'kairos-testnet', got: %s", resp.Network)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestVerifyWithAuthHeaders(t *testing.T) {
 	paymentPayload := &types.PaymentPayload{
 		X402Version: 1,
 		Scheme:      "exact",
-		Network:     "base-sepolia",
+		Network:     "kairos-testnet",
 		Payload: &types.ExactEvmPayload{
 			Signature: "0xvalidSignature",
 			Authorization: &types.ExactEvmPayloadAuthorization{
@@ -227,7 +227,7 @@ func TestVerifyWithAuthHeaders(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
-		Network:           "base-sepolia",
+		Network:           "kairos-testnet",
 		MaxAmountRequired: "1000000",
 		Resource:          "https://example.com/resource",
 		Description:       "Test resource",
@@ -258,7 +258,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 		resp := types.SettleResponse{
 			Success:     true,
 			Transaction: "0xvalidTransaction",
-			Network:     "base-sepolia",
+			Network:     "kairos-testnet",
 		}
 		json.NewEncoder(w).Encode(resp)
 	}))
@@ -283,7 +283,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 	paymentPayload := &types.PaymentPayload{
 		X402Version: 1,
 		Scheme:      "exact",
-		Network:     "base-sepolia",
+		Network:     "kairos-testnet",
 		Payload: &types.ExactEvmPayload{
 			Signature: "0xvalidSignature",
 			Authorization: &types.ExactEvmPayloadAuthorization{
@@ -298,7 +298,7 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{
 		Scheme:            "exact",
-		Network:           "base-sepolia",
+		Network:           "kairos-testnet",
 		MaxAmountRequired: "1000000",
 		Resource:          "https://example.com/resource",
 		Description:       "Test resource",

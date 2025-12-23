@@ -29,7 +29,7 @@ if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
  * - ENDPOINT_PATH: The path of the endpoint to call on the resource server
  */
 async function main(): Promise<void> {
-  const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
+  const evmSigner = await createSigner("kairos-testnet", evmPrivateKey);
   const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
   const signer = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
   const fetchWithPayment = wrapFetchWithPayment(fetch, signer);

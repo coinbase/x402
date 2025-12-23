@@ -80,7 +80,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -94,7 +94,7 @@ class PaymentFilterTest {
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
-        sr.networkId = "base-sepolia";
+        sr.networkId = "kairos-testnet";
         when(fac.settle(eq(header), any())).thenReturn(sr);
 
         filter.doFilter(req, resp, chain);
@@ -114,7 +114,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -142,7 +142,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/other");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -202,7 +202,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -227,7 +227,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -260,7 +260,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -297,7 +297,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         
         // Create the exact EVM payload structure
         ExactSchemePayload exactPayload = new ExactSchemePayload();
@@ -336,7 +336,7 @@ class PaymentFilterTest {
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
-        sr.networkId = "base-sepolia";
+        sr.networkId = "kairos-testnet";
         when(fac.settle(eq(header), any())).thenReturn(sr);
         
         filter.doFilter(req, resp, chain);
@@ -373,7 +373,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         p.payload = Map.of("resource", "/private");
         
         String header = p.toHeader();
@@ -388,7 +388,7 @@ class PaymentFilterTest {
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
-        sr.networkId = "base-sepolia";
+        sr.networkId = "kairos-testnet";
         when(fac.settle(eq(header), any())).thenReturn(sr);
         
         filter.doFilter(req, resp, chain);
@@ -419,7 +419,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         p.payload = Map.of(
             "resource", "/private",
             "authorization", "malformed-string"  // Should be an object, not a string
@@ -437,7 +437,7 @@ class PaymentFilterTest {
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
         sr.txHash = "0xabcdef1234567890";
-        sr.networkId = "base-sepolia";
+        sr.networkId = "kairos-testnet";
         when(fac.settle(eq(header), any())).thenReturn(sr);
         
         filter.doFilter(req, resp, chain);
@@ -468,7 +468,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         p.payload = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);
@@ -496,7 +496,7 @@ class PaymentFilterTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         p.payload = Map.of("resource", "/private");
         String header = p.toHeader();
         when(req.getHeader("X-PAYMENT")).thenReturn(header);

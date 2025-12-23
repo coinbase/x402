@@ -5,7 +5,7 @@ import java.util.Map;
 /** Defines one acceptable way to pay for a resource. */
 public class PaymentRequirements {
     public String scheme;              // e.g. "exact"
-    public String network;             // e.g. "base-sepolia"
+    public String network;             // e.g. "kairos-testnet"
     public String maxAmountRequired;   // uint256 in wei / atomic units
     public String resource;            // URL path the client is paying for
     public String description;

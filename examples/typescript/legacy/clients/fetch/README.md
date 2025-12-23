@@ -12,6 +12,7 @@ This is an example client that demonstrates how to use the `x402-fetch` package 
 ## Setup
 
 1. Install and build all packages from the typescript examples root:
+
 ```bash
 cd ../../
 pnpm install
@@ -20,11 +21,13 @@ cd clients/fetch
 ```
 
 2. Copy `.env-local` to `.env` and add your Ethereum private key:
+
 ```bash
 cp .env-local .env
 ```
 
 3. Start the example client:
+
 ```bash
 pnpm dev
 ```
@@ -32,6 +35,7 @@ pnpm dev
 ## How It Works
 
 The example demonstrates how to:
+
 1. Create a wallet client using viem
 2. Wrap the native fetch function with x402 payment handling
 3. Make a request to a paid endpoint
@@ -44,7 +48,7 @@ import { config } from "dotenv";
 import { createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { wrapFetchWithPayment } from "x402-fetch";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 config();
 
@@ -55,7 +59,7 @@ const account = privateKeyToAccount(PRIVATE_KEY as `0x${string}`);
 const client = createWalletClient({
   account,
   transport: http(),
-  chain: baseSepolia,
+  chain: kairos,
 });
 
 // Wrap fetch with payment handling

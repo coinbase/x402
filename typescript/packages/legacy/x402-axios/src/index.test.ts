@@ -23,14 +23,14 @@ describe("withPaymentInterceptor()", () => {
   const validPaymentRequirements: PaymentRequirements[] = [
     {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000000", // 1 USDC in base units
       resource: "https://api.example.com/resource",
       description: "Test payment",
       mimeType: "application/json",
       payTo: "0x1234567890123456789012345678901234567890",
       maxTimeoutSeconds: 300,
-      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on base-sepolia
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on kairos-testnet
     },
   ];
 
@@ -40,7 +40,7 @@ describe("withPaymentInterceptor()", () => {
       url: "https://api.example.com",
       method: "GET",
       ...(isRetry ? { __is402Retry: true } : {}),
-    }) as InternalAxiosRequestConfig;
+    } as InternalAxiosRequestConfig);
 
   const createAxiosError = (
     status: number,

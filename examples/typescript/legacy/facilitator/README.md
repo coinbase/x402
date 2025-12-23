@@ -67,7 +67,7 @@ Sample Response
   {
     "x402Version": 1,
     "scheme": "exact",
-    "network": "base-sepolia"
+    "network": "kairos-testnet"
     "extra": {}
   },
   {

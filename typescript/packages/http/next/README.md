@@ -20,8 +20,10 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: "https://facilitator.x402.org" });
-const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register("eip155:84532", new ExactEvmScheme());
+const resourceServer = new x402ResourceServer(facilitatorClient).register(
+  "eip155:84532",
+  new ExactEvmScheme(),
+);
 
 export const proxy = paymentProxy(
   {
@@ -219,6 +221,7 @@ export const middleware = paymentProxy(
   paywall,
 );
 ```
+
 ## Migration from x402-next
 
 If you're migrating from the legacy `x402-next` package:
@@ -238,7 +241,7 @@ export const middleware = paymentMiddleware(
   {
     "/protected": {
       price: "$0.01",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       config: { description: "Access to protected content" },
     },
   },
@@ -255,8 +258,10 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 
 const facilitator = new HTTPFacilitatorClient({ url: facilitatorUrl });
-const resourceServer = new x402ResourceServer(facilitator)
-  .register("eip155:84532", new ExactEvmScheme());
+const resourceServer = new x402ResourceServer(facilitator).register(
+  "eip155:84532",
+  new ExactEvmScheme(),
+);
 
 export const middleware = paymentProxy(
   {
@@ -275,4 +280,3 @@ export const middleware = paymentProxy(
 ```
 
 Note: The `payTo` address is now specified within each route configuration rather than as a separate parameter.
-

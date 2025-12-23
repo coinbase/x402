@@ -1,6 +1,11 @@
 import { config } from "dotenv";
 import { Hex } from "viem";
-import { createSigner, decodeXPaymentResponse, MultiNetworkSigner, wrapFetchWithPayment } from "x402-fetch";
+import {
+  createSigner,
+  decodeXPaymentResponse,
+  MultiNetworkSigner,
+  wrapFetchWithPayment,
+} from "x402-fetch";
 
 config();
 
@@ -15,7 +20,7 @@ if (!baseURL || !evmPrivateKey || !svmPrivateKey || !endpointPath) {
   process.exit(1);
 }
 
-const evmSigner = await createSigner("base-sepolia", evmPrivateKey);
+const evmSigner = await createSigner("kairos-testnet", evmPrivateKey);
 const svmSigner = await createSigner("solana-devnet", svmPrivateKey);
 const account = { evm: evmSigner, svm: svmSigner } as MultiNetworkSigner;
 
@@ -32,7 +37,7 @@ fetchWithPayment(url, {
       success: true,
       data: data,
       status_code: response.status,
-      payment_response: decodeXPaymentResponse(paymentResponse!)
+      payment_response: decodeXPaymentResponse(paymentResponse!),
     };
 
     // Output structured result as JSON for proxy to parse
@@ -43,7 +48,7 @@ fetchWithPayment(url, {
     const errorResult = {
       success: false,
       error: error.message || String(error),
-      status_code: error.response?.status
+      status_code: error.response?.status,
     };
 
     console.log(JSON.stringify(errorResult));

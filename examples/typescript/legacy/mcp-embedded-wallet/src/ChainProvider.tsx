@@ -1,8 +1,8 @@
 import { createContext, useContext, ReactNode } from "react";
 import { Chain } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { base, kairos } from "viem/chains";
 
-export type SupportedChainId = "base" | "base-sepolia";
+export type SupportedChainId = "base" | "kairos-testnet";
 
 type ChainContextType = Chain;
 
@@ -19,11 +19,11 @@ interface ChainProviderProps {
  *
  * @param root0 - Component props
  * @param root0.children - Child components that will have access to the chain context
- * @param root0.chain - The selected chain identifier (base or base-sepolia)
+ * @param root0.chain - The selected chain identifier (base or kairos-testnet)
  * @returns {JSX.Element} The provider component with its children
  */
 export function ChainProvider({ children, chain }: ChainProviderProps) {
-  const viemChain: Chain = chain === "base" ? base : baseSepolia;
+  const viemChain: Chain = chain === "base" ? base : kairos;
 
   return <ChainContext.Provider value={viemChain}>{children}</ChainContext.Provider>;
 }

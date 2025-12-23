@@ -180,7 +180,7 @@ export function handleMissingPaymentHeader(
             typeof getPaywallHtml
           >[0]["paymentRequirements"],
           currentUrl: request.url,
-          testnet: network === "base-sepolia",
+          testnet: network === "kairos-testnet",
           cdpClientKey: paywall?.cdpClientKey,
           appLogo: paywall?.appLogo,
           appName: paywall?.appName,

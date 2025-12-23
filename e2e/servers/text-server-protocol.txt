@@ -73,7 +73,7 @@ Multi-protocol server example:
 ## Environment Variables / CLI Arguments
 The following parameters must be configurable:
 - `USE_CDP_FACILITATOR`: Flag to switch facilitators from default
-- `NETWORK`: Network to use (e.g., "base-sepolia", "base")
+- `NETWORK`: Network to use (e.g., "kairos-testnet", "base")
 - `ADDRESS`: Address to receive payments
 - `PORT`: Port to listen on (default: 4021)
 

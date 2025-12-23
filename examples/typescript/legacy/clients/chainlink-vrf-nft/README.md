@@ -56,7 +56,7 @@ This example involves three components running concurrently:
 
    # HTTP RPC endpoint for the blockchain network (e.g., Base Sepolia)
    # Must be accessible by all components
-   PROVIDER_URL=https://base-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
+   PROVIDER_URL=https://kairos-testnet.g.alchemy.com/v2/YOUR_ALCHEMY_KEY
    ```
 
 ## Running the Example

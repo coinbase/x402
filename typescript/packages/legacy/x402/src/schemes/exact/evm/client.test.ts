@@ -20,7 +20,7 @@ vi.mock("./utils/paymentUtils", () => ({
 describe("preparePaymentHeader", () => {
   const mockPaymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "1000000",
     resource: "https://example.com/resource",
     description: "Test resource",
@@ -50,7 +50,7 @@ describe("preparePaymentHeader", () => {
     expect(result).toEqual({
       x402Version: 1,
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       payload: {
         signature: undefined,
         authorization: {
@@ -99,7 +99,7 @@ describe("preparePaymentHeader", () => {
 describe("signPaymentHeader", () => {
   const mockPaymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "1000000",
     resource: "https://example.com/resource",
     description: "Test resource",
@@ -112,7 +112,7 @@ describe("signPaymentHeader", () => {
   const mockUnsignedHeader: UnsignedPaymentPayload = {
     x402Version: 1,
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     payload: {
       signature: undefined,
       authorization: {
@@ -186,7 +186,7 @@ describe("signPaymentHeader", () => {
 describe("createPaymentHeader", () => {
   const mockPaymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "1000000",
     resource: "https://example.com/resource",
     description: "Test resource",
@@ -199,7 +199,7 @@ describe("createPaymentHeader", () => {
   const mockSignedPayment = {
     x402Version: 1,
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     payload: {
       signature:
         "0x1234567890123456789012345678901234567890123456789012345678901234" as `0x${string}`,
@@ -237,7 +237,7 @@ describe("createPaymentHeader", () => {
       expect.objectContaining({
         x402Version: 1,
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         payload: expect.objectContaining({
           signature: mockSignedPayment.payload.signature,
           authorization: expect.objectContaining({

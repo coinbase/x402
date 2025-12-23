@@ -1,5 +1,5 @@
 import axios from "axios";
-import { base, baseSepolia } from "viem/chains";
+import { base, kairos } from "viem/chains";
 import { withPaymentInterceptor } from "x402-axios";
 import { PaymentRequirements } from "x402/types";
 import { budgetStore } from "../stores/budget";
@@ -56,7 +56,7 @@ export async function makeX402Request({
   const evmAccount = user.evmAccounts[0];
   const account = await toViemAccount(evmAccount);
 
-  const chain = import.meta.env.VITE_TESTNET ? baseSepolia : base;
+  const chain = import.meta.env.VITE_TESTNET ? kairos : base;
 
   // Generate correlation ID if not provided
   const finalCorrelationId =
@@ -68,8 +68,8 @@ export async function makeX402Request({
     typeof maxAmountPerRequest === "number"
       ? maxAmountPerRequest
       : storePerRequestMaxAtomic
-        ? Number(storePerRequestMaxAtomic)
-        : undefined;
+      ? Number(storePerRequestMaxAtomic)
+      : undefined;
 
   // Create axios instance with payment tracking interceptors
   const axiosInstance = axios.create({ baseURL });

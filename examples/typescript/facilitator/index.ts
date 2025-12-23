@@ -15,7 +15,7 @@ import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 
 dotenv.config();
 
@@ -35,20 +35,20 @@ if (!process.env.SVM_PRIVATE_KEY) {
 
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(
-  process.env.EVM_PRIVATE_KEY as `0x${string}`,
+  process.env.EVM_PRIVATE_KEY as `0x${string}`
 );
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Initialize the SVM account from private key
 const svmAccount = await createKeyPairSignerFromBytes(
-  base58.decode(process.env.SVM_PRIVATE_KEY as string),
+  base58.decode(process.env.SVM_PRIVATE_KEY as string)
 );
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
   account: evmAccount,
-  chain: baseSepolia,
+  chain: kairos,
   transport: http(),
 }).extend(publicActions);
 
@@ -118,7 +118,7 @@ const facilitator = new x402Facilitator()
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
-  networks: "eip155:84532", // Base Sepolia
+  networks: "eip155:1001", // Base Sepolia
   deployERC4337WithEIP6492: true,
 });
 registerExactSvmScheme(facilitator, {
@@ -154,7 +154,7 @@ app.post("/verify", async (req, res) => {
     // - Extract and catalog discovery info (onAfterVerify)
     const response: VerifyResponse = await facilitator.verify(
       paymentPayload,
-      paymentRequirements,
+      paymentRequirements
     );
 
     res.json(response);
@@ -188,7 +188,7 @@ app.post("/settle", async (req, res) => {
     // - Clean up tracking (onAfterSettle / onSettleFailure)
     const response: SettleResponse = await facilitator.settle(
       paymentPayload as PaymentPayload,
-      paymentRequirements as PaymentRequirements,
+      paymentRequirements as PaymentRequirements
     );
 
     res.json(response);

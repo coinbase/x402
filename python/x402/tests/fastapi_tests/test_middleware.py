@@ -15,7 +15,7 @@ def test_middleware_invalid_payment():
         require_payment(
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
-            network="base-sepolia",
+            network="kairos-testnet",
             description="Test payment",
         )
     )
@@ -38,7 +38,7 @@ def test_app_middleware_path_matching():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/test",
-            network="base-sepolia",
+            network="kairos-testnet",
             description="Test payment",
         )
     )
@@ -66,7 +66,7 @@ def test_middleware_path_list_matching():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path=["/test1", "/test2"],
-            network="base-sepolia",
+            network="kairos-testnet",
             description="Test payment",
         )
     )
@@ -326,7 +326,7 @@ def test_browser_request_returns_html():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
         )
     )
 
@@ -356,7 +356,7 @@ def test_api_client_request_returns_json():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
         )
     )
 
@@ -390,7 +390,7 @@ def test_paywall_config_injection():
             price="$2.50",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
             paywall_config=PaywallConfig(**paywall_config),
         )
     )
@@ -434,7 +434,7 @@ def test_custom_paywall_html():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
             custom_paywall_html=custom_html,
         )
     )
@@ -457,7 +457,7 @@ def test_custom_paywall_html():
 
 def test_mainnet_vs_testnet_config():
     """Test that mainnet vs testnet is properly configured."""
-    # Test testnet (base-sepolia)
+    # Test testnet (kairos-testnet)
     app_testnet = FastAPI()
     app_testnet.get("/protected")(test_endpoint)
     app_testnet.middleware("http")(
@@ -465,7 +465,7 @@ def test_mainnet_vs_testnet_config():
             price="$1.00",
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
         )
     )
 
@@ -511,7 +511,7 @@ def test_payment_amount_conversion():
             price="$0.001",  # Small amount
             pay_to_address="0x1111111111111111111111111111111111111111",
             path="/protected",
-            network="base-sepolia",
+            network="kairos-testnet",
         )
     )
 

@@ -6,7 +6,7 @@ describe("useFacilitator", () => {
   const mockPaymentPayload: PaymentPayload = {
     x402Version: 1,
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     payload: {
       signature: "0x1234567890123456789012345678901234567890123456789012345678901234",
       authorization: {
@@ -22,7 +22,7 @@ describe("useFacilitator", () => {
 
   const mockPaymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "1000000",
     resource: "https://example.com/resource",
     description: "Test resource",
@@ -99,14 +99,14 @@ describe("useFacilitator", () => {
         statusText: "Bad Request",
         json: async () => ({
           error:
-            "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+            "This facilitator only supports: kairos-testnet, solana-devnet. Network 'base' is not supported.",
           invalidReason: "invalid_network",
         }),
       });
       const { verify } = useFacilitator();
 
       await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+        "This facilitator only supports: kairos-testnet, solana-devnet. Network 'base' is not supported.",
       );
     });
 

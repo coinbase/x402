@@ -1,13 +1,7 @@
 "use client";
 
 import { useMiniKit, useAddFrame } from "@coinbase/onchainkit/minikit";
-import {
-  Name,
-  Identity,
-  Address,
-  Avatar,
-  EthBalance,
-} from "@coinbase/onchainkit/identity";
+import { Name, Identity, Address, Avatar, EthBalance } from "@coinbase/onchainkit/identity";
 import {
   ConnectWallet,
   Wallet,
@@ -16,7 +10,7 @@ import {
 } from "@coinbase/onchainkit/wallet";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAccount, useWalletClient, useSwitchChain } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { kairos } from "wagmi/chains";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
@@ -33,7 +27,7 @@ function wagmiToClientSigner(walletClient: WalletClient): ClientEvmSigner {
 
   return {
     address: walletClient.account.address,
-    signTypedData: async (message) => {
+    signTypedData: async message => {
       const signature = await walletClient.signTypedData({
         account: walletClient.account as Account,
         domain: message.domain,
@@ -68,10 +62,7 @@ export default function App() {
         const inMiniApp = await sdk.isInMiniApp();
         setIsInMiniApp(inMiniApp);
       } catch (error) {
-        console.log(
-          "Not running in Mini App context or SDK not available:",
-          error,
-        );
+        console.log("Not running in Mini App context or SDK not available:", error);
       }
     };
     initMiniApp();
@@ -85,8 +76,8 @@ export default function App() {
 
   // Auto-switch to Base Sepolia on connect
   useEffect(() => {
-    if (isConnected && chainId !== baseSepolia.id) {
-      switchChainAsync({ chainId: baseSepolia.id }).catch(console.error);
+    if (isConnected && chainId !== kairos.id) {
+      switchChainAsync({ chainId: kairos.id }).catch(console.error);
     }
   }, [isConnected, chainId, switchChainAsync]);
 
@@ -106,8 +97,8 @@ export default function App() {
 
     try {
       // Ensure we're on Base Sepolia before signing
-      if (chainId !== baseSepolia.id) {
-        await switchChainAsync({ chainId: baseSepolia.id });
+      if (chainId !== kairos.id) {
+        await switchChainAsync({ chainId: kairos.id });
       }
 
       // Create x402 client and register EVM scheme with wagmi signer
@@ -131,9 +122,7 @@ export default function App() {
       setMessage(`Success! Response: ${JSON.stringify(data)}`);
     } catch (error) {
       console.error("Error calling protected API:", error);
-      setMessage(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
+      setMessage(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsLoading(false);
     }
@@ -176,9 +165,7 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-                x402 Mini App
-              </h1>
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">x402 Mini App</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {isInMiniApp ? "Running as Mini App" : "Running in browser"}
               </p>
@@ -215,8 +202,7 @@ export default function App() {
               x402 Payment Protocol Demo
             </h2>
             <p className="text-gray-600 dark:text-gray-300">
-              This Mini App demonstrates the x402 v2 SDK with Farcaster and
-              OnchainKit integration.
+              This Mini App demonstrates the x402 v2 SDK with Farcaster and OnchainKit integration.
             </p>
           </div>
 
@@ -227,11 +213,13 @@ export default function App() {
             </h3>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">
-                  Wallet Connected:
-                </span>
+                <span className="text-gray-600 dark:text-gray-300">Wallet Connected:</span>
                 <span
-                  className={`font-medium ${isConnected ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                  className={`font-medium ${
+                    isConnected
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
                 >
                   {isConnected ? "Yes" : "No"}
                 </span>
@@ -239,29 +227,25 @@ export default function App() {
               {isConnected && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Address:
-                    </span>
+                    <span className="text-gray-600 dark:text-gray-300">Address:</span>
                     <span className="font-mono text-sm text-gray-900 dark:text-white">
                       {address?.slice(0, 6)}...{address?.slice(-4)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">
-                      Chain ID:
-                    </span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {chainId}
-                    </span>
+                    <span className="text-gray-600 dark:text-gray-300">Chain ID:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{chainId}</span>
                   </div>
                 </>
               )}
               <div className="flex items-center justify-between">
-                <span className="text-gray-600 dark:text-gray-300">
-                  Mini App Context:
-                </span>
+                <span className="text-gray-600 dark:text-gray-300">Mini App Context:</span>
                 <span
-                  className={`font-medium ${isInMiniApp ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}
+                  className={`font-medium ${
+                    isInMiniApp
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }`}
                 >
                   {isInMiniApp ? "Yes" : "No"}
                 </span>
@@ -280,10 +264,11 @@ export default function App() {
             <button
               onClick={handleProtectedAction}
               disabled={!isConnected || isLoading}
-              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${!isConnected || isLoading
-                ? "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-                }`}
+              className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+                !isConnected || isLoading
+                  ? "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center space-x-2">
@@ -296,18 +281,15 @@ export default function App() {
             </button>
             {message && (
               <div
-                className={`mt-4 p-4 rounded-lg border ${message.startsWith("Error")
-                  ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
-                  : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
-                  }`}
+                className={`mt-4 p-4 rounded-lg border ${
+                  message.startsWith("Error")
+                    ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+                    : "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300"
+                }`}
               >
                 <div className="flex items-center space-x-2">
                   {message.startsWith("Error") ? (
-                    <svg
-                      className="w-4 h-4 flex-shrink-0"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path
                         fillRule="evenodd"
                         d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -315,11 +297,7 @@ export default function App() {
                       />
                     </svg>
                   ) : (
-                    <svg
-                      className="w-4 h-4 flex-shrink-0"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                       <path
                         fillRule="evenodd"
                         d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
@@ -341,12 +319,10 @@ export default function App() {
             <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
               <p>• Connect your wallet using the button in the header</p>
               <p>
-                • The app will automatically detect if it&apos;s running in a
-                Farcaster Mini App
+                • The app will automatically detect if it&apos;s running in a Farcaster Mini App
               </p>
               <p>
-                • Use the &quot;Call Protected API&quot; button to test the x402
-                protected endpoint
+                • Use the &quot;Call Protected API&quot; button to test the x402 protected endpoint
               </p>
               <p>• Payment of $0.01 USDC is required to access the endpoint</p>
               <p>• Make sure you have USDC on Base Sepolia testnet</p>

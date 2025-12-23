@@ -23,7 +23,7 @@ payment_middleware.add(
     path="/weather",
     price="$0.001",
     pay_to_address=ADDRESS,
-    network="base-sepolia",
+    network="kairos-testnet",
 )
 
 # Apply payment middleware to premium routes
@@ -38,7 +38,7 @@ payment_middleware.add(
         ),
     ),
     pay_to_address=ADDRESS,
-    network="base-sepolia",
+    network="kairos-testnet",
 )
 
 

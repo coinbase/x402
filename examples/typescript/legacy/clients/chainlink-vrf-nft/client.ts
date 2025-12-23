@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { baseSepolia } from "viem/chains";
+import { kairos } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
 import { http, publicActions, createWalletClient, Hex } from "viem";
 import axios from "axios";
@@ -33,7 +33,7 @@ if (!clientPrivateKey || !providerUrl) {
 const clientAccount = privateKeyToAccount(clientPrivateKey as Hex);
 const clientWallet = createWalletClient({
   account: clientAccount,
-  chain: baseSepolia,
+  chain: kairos,
   transport: http(providerUrl),
 }).extend(publicActions);
 

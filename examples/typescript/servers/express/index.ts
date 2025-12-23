@@ -29,9 +29,16 @@ app.use(
         accepts: [
           {
             scheme: "exact",
-            price: "$0.001",
-            network: "eip155:84532",
+            network: "eip155:1001",
             payTo: evmAddress,
+            price: {
+              amount: "1000", // atomic units: 1000 = 0.001 if 6 decimals
+              asset: "0x35AD55adDAdCd1867F8d036Ed24F0431c8Ef86A6",
+              extra: {
+                name: "USD Coin",
+                version: "2",
+              },
+            },
           },
           {
             scheme: "exact",
@@ -45,7 +52,7 @@ app.use(
       },
     },
     new x402ResourceServer(facilitatorClient)
-      .register("eip155:84532", new ExactEvmScheme())
+      .register("eip155:1001", new ExactEvmScheme())
       .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
   ),
 );

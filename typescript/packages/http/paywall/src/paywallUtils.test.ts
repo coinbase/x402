@@ -24,7 +24,7 @@ const baseRequirement: PaymentRequirements = {
   },
 };
 
-const baseSepoliaRequirement: PaymentRequirements = {
+const kairosRequirement: PaymentRequirements = {
   ...baseRequirement,
   network: "eip155:84532",
   description: "Base Sepolia resource",
@@ -69,7 +69,7 @@ describe("paywallUtils", () => {
     });
 
     it("selects base sepolia payment on testnet preference", () => {
-      const selected = choosePaymentRequirement([solanaRequirement, baseSepoliaRequirement], true);
+      const selected = choosePaymentRequirement([solanaRequirement, kairosRequirement], true);
       expect(selected.network).toBe("eip155:84532");
     });
 

@@ -23,7 +23,7 @@ Content-Type: application/json
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia",
+      "network": "kairos-testnet",
       "maxAmountRequired": "10000",
       "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -67,7 +67,7 @@ The base64 payload decodes to:
 {
   "x402Version": 1,
   "scheme": "exact",
-  "network": "base-sepolia",
+  "network": "kairos-testnet",
   "payload": {
     "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
     "authorization": {
@@ -108,7 +108,7 @@ The base64 response header decodes to:
 {
   "success": true,
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "base-sepolia",
+  "network": "kairos-testnet",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
 }
 ```

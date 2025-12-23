@@ -11,12 +11,14 @@ The x402 protocol enables HTTP resources to require payment using the existing `
 ### Phase 1: Discovery & Payment Challenge
 
 #### 1.1 Initial Request (No Payment)
+
 ```http
 GET /protected-resource HTTP/1.1
 Host: api.example.com
 ```
 
 #### 1.2 Server Response (402 Payment Required)
+
 ```http
 HTTP/1.1 402 Payment Required
 Content-Type: application/json
@@ -27,7 +29,7 @@ Content-Type: application/json
   "accepts": [
     {
       "scheme": "exact",
-      "network": "base-sepolia", 
+      "network": "kairos-testnet",
       "maxAmountRequired": "1000000",  // 1 USDC in atomic units (6 decimals)
       "resource": "/protected-resource",
       "description": "Access to premium API endpoint",
@@ -47,6 +49,7 @@ Content-Type: application/json
 ### Phase 2: Payment & Settlement
 
 #### 2.1 Payment Request with X-PAYMENT Header
+
 ```http
 GET /protected-resource HTTP/1.1
 Host: api.example.com
@@ -55,6 +58,7 @@ Access-Control-Expose-Headers: X-PAYMENT-RESPONSE
 ```
 
 #### 2.2 Server Success Response with Settlement
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
@@ -74,17 +78,17 @@ X-PAYMENT-RESPONSE: eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4YWJjZGVmMTIzNDU2
 ```typescript
 // Main payment requirements structure
 interface PaymentRequirements {
-  scheme: "exact";                    // Payment scheme
-  network: Network;                   // Blockchain network
-  maxAmountRequired: string;          // Amount in atomic units
-  resource: string;                   // URL path being paid for
-  description: string;                // Human-readable description
-  mimeType: string;                   // Expected response MIME type  
-  payTo: string;                      // Recipient address
-  maxTimeoutSeconds: number;          // Payment validity window
-  asset: string;                      // Token contract address
+  scheme: "exact"; // Payment scheme
+  network: Network; // Blockchain network
+  maxAmountRequired: string; // Amount in atomic units
+  resource: string; // URL path being paid for
+  description: string; // Human-readable description
+  mimeType: string; // Expected response MIME type
+  payTo: string; // Recipient address
+  maxTimeoutSeconds: number; // Payment validity window
+  asset: string; // Token contract address
   outputSchema?: Record<string, any>; // Optional response schema
-  extra?: Record<string, any>;        // Scheme-specific data (EIP-712 domain)
+  extra?: Record<string, any>; // Scheme-specific data (EIP-712 domain)
 }
 
 // 402 Payment Required Response
@@ -104,33 +108,33 @@ interface PaymentPayload {
 
 // EVM "exact" scheme payload
 interface ExactEvmPayload {
-  signature: string;              // EIP-3009 signature
+  signature: string; // EIP-3009 signature
   authorization: {
-    from: string;                 // Payer address
-    to: string;                   // Recipient address  
-    value: string;                // Amount in atomic units
-    validAfter: string;           // Unix timestamp
-    validBefore: string;          // Unix timestamp
-    nonce: string;                // Unique nonce
+    from: string; // Payer address
+    to: string; // Recipient address
+    value: string; // Amount in atomic units
+    validAfter: string; // Unix timestamp
+    validBefore: string; // Unix timestamp
+    nonce: string; // Unique nonce
   };
 }
 
 // Settlement response in X-PAYMENT-RESPONSE header (base64 encoded)
 interface SettlementResponse {
   success: boolean;
-  transaction: string;            // Transaction hash
+  transaction: string; // Transaction hash
   network: Network;
-  payer: string;                  // Payer address
+  payer: string; // Payer address
 }
 ```
 
 ### Network Types
 
 ```typescript
-type Network = 
-  | "base"           // Base mainnet
-  | "base-sepolia"   // Base testnet
-  | "avalanche" 
+type Network =
+  | "base" // Base mainnet
+  | "kairos-testnet" // Base testnet
+  | "avalanche"
   | "avalanche-fuji"
   | "iotex"
   | "iotex-testnet";
@@ -138,7 +142,7 @@ type Network =
 // Chain ID mappings
 const ChainIdToNetwork: Record<number, Network> = {
   8453: "base",
-  84532: "base-sepolia", 
+  84532: "kairos-testnet",
   43114: "avalanche",
   43113: "avalanche-fuji",
   4689: "iotex",
@@ -151,7 +155,7 @@ const ChainIdToNetwork: Record<number, Network> = {
 ```typescript
 // maxAmountRequired is ALWAYS in atomic units of the specified asset
 // - USDC: 6 decimals, so $1.00 = "1000000"
-// - ETH: 18 decimals, so 1 ETH = "1000000000000000000" 
+// - ETH: 18 decimals, so 1 ETH = "1000000000000000000"
 // - Other tokens: varies by token.decimals
 
 // Example price conversion
@@ -174,42 +178,45 @@ class X402MCPClient {
   async makeRequest(url: string, options?: RequestInit): Promise<Response> {
     // 1. Make initial request
     const response = await fetch(url, options);
-    
+
     // 2. Handle 402 Payment Required
     if (response.status === 402) {
-      const paymentData = await response.json() as PaymentRequiredResponse;
-      
+      const paymentData = (await response.json()) as PaymentRequiredResponse;
+
       // 3. Select payment requirements
       const selectedRequirement = this.selectPaymentRequirement(paymentData.accepts);
-      
+
       // 4. Create payment header
       const paymentHeader = await this.createPaymentHeader(
         paymentData.x402Version,
-        selectedRequirement
+        selectedRequirement,
       );
-      
+
       // 5. Retry with payment
       return fetch(url, {
         ...options,
         headers: {
           ...options?.headers,
-          'X-PAYMENT': paymentHeader,
-          'Access-Control-Expose-Headers': 'X-PAYMENT-RESPONSE'
-        }
+          "X-PAYMENT": paymentHeader,
+          "Access-Control-Expose-Headers": "X-PAYMENT-RESPONSE",
+        },
       });
     }
-    
+
     return response;
   }
-  
+
   private selectPaymentRequirement(accepts: PaymentRequirements[]): PaymentRequirements {
     // Priority: USDC -> Base network -> lowest amount
     return accepts
-      .filter(req => req.asset.includes('USDC') || req.network === 'base')
+      .filter(req => req.asset.includes("USDC") || req.network === "base")
       .sort((a, b) => parseInt(a.maxAmountRequired) - parseInt(b.maxAmountRequired))[0];
   }
-  
-  private async createPaymentHeader(version: number, requirements: PaymentRequirements): Promise<string> {
+
+  private async createPaymentHeader(
+    version: number,
+    requirements: PaymentRequirements,
+  ): Promise<string> {
     // Create EIP-3009 authorization and signature
     const authorization = {
       from: this.walletAddress,
@@ -217,18 +224,18 @@ class X402MCPClient {
       value: requirements.maxAmountRequired,
       validAfter: Math.floor(Date.now() / 1000).toString(),
       validBefore: Math.floor((Date.now() + 60000) / 1000).toString(), // 1 min validity
-      nonce: this.generateNonce()
+      nonce: this.generateNonce(),
     };
-    
+
     const signature = await this.signAuthorization(authorization, requirements.extra);
-    
+
     const payload: PaymentPayload = {
       x402Version: version,
       scheme: "exact",
       network: requirements.network,
-      payload: { signature, authorization }
+      payload: { signature, authorization },
     };
-    
+
     return btoa(JSON.stringify(payload));
   }
 }
@@ -239,54 +246,56 @@ class X402MCPClient {
 ```typescript
 class X402MCPServer {
   async handleRequest(request: Request): Promise<Response> {
-    const paymentHeader = request.headers.get('X-PAYMENT');
-    
+    const paymentHeader = request.headers.get("X-PAYMENT");
+
     if (!paymentHeader) {
       return this.create402Response();
     }
-    
+
     // Decode and verify payment
     const payment = this.decodePaymentHeader(paymentHeader);
     const verification = await this.verifyPayment(payment);
-    
+
     if (!verification.isValid) {
       return this.create402Response(verification.invalidReason);
     }
-    
+
     // Process request
     const response = await this.processRequest(request);
-    
+
     // Settle payment and add response header
     const settlement = await this.settlePayment(payment);
     if (settlement.success) {
-      response.headers.set('X-PAYMENT-RESPONSE', btoa(JSON.stringify(settlement)));
-      response.headers.set('Access-Control-Expose-Headers', 'X-PAYMENT-RESPONSE');
+      response.headers.set("X-PAYMENT-RESPONSE", btoa(JSON.stringify(settlement)));
+      response.headers.set("Access-Control-Expose-Headers", "X-PAYMENT-RESPONSE");
     }
-    
+
     return response;
   }
-  
+
   private create402Response(error = "X-PAYMENT header is required"): Response {
     const paymentRequired: PaymentRequiredResponse = {
       x402Version: 1,
       error,
-      accepts: [{
-        scheme: "exact",
-        network: "base-sepolia",
-        maxAmountRequired: "100000", // $0.10 USDC
-        resource: "/protected-resource",
-        description: "Access to MCP resource",
-        mimeType: "application/json",
-        payTo: this.recipientAddress,
-        maxTimeoutSeconds: 60,
-        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
-        extra: { name: "USDC", version: "2" }
-      }]
+      accepts: [
+        {
+          scheme: "exact",
+          network: "kairos-testnet",
+          maxAmountRequired: "100000", // $0.10 USDC
+          resource: "/protected-resource",
+          description: "Access to MCP resource",
+          mimeType: "application/json",
+          payTo: this.recipientAddress,
+          maxTimeoutSeconds: 60,
+          asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+          extra: { name: "USDC", version: "2" },
+        },
+      ],
     };
-    
+
     return new Response(JSON.stringify(paymentRequired), {
       status: 402,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { "Content-Type": "application/json" },
     });
   }
 }
@@ -298,20 +307,26 @@ You'll also need to integrate with a facilitator service for verification and se
 
 ```typescript
 class FacilitatorClient {
-  async verify(payment: PaymentPayload, requirements: PaymentRequirements): Promise<VerificationResponse> {
+  async verify(
+    payment: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<VerificationResponse> {
     const response = await fetch(`${this.facilitatorUrl}/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements }),
     });
     return response.json();
   }
-  
-  async settle(payment: PaymentPayload, requirements: PaymentRequirements): Promise<SettlementResponse> {
+
+  async settle(
+    payment: PaymentPayload,
+    requirements: PaymentRequirements,
+  ): Promise<SettlementResponse> {
     const response = await fetch(`${this.facilitatorUrl}/settle`, {
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentPayload: payment, paymentRequirements: requirements }),
     });
     return response.json();
   }
@@ -326,7 +341,7 @@ Key error scenarios to handle:
 const ErrorReasons = [
   "insufficient_funds",
   "invalid_exact_evm_payload_authorization_valid_after",
-  "invalid_exact_evm_payload_authorization_valid_before", 
+  "invalid_exact_evm_payload_authorization_valid_before",
   "invalid_exact_evm_payload_authorization_value",
   "invalid_exact_evm_payload_signature",
   "invalid_exact_evm_payload_recipient_mismatch",
@@ -338,7 +353,7 @@ const ErrorReasons = [
   "invalid_x402_version",
   "invalid_transaction_state",
   "unexpected_verify_error",
-  "unexpected_settle_error"
+  "unexpected_settle_error",
 ] as const;
 ```
 
@@ -347,7 +362,7 @@ const ErrorReasons = [
 The x402 protocol provides a standardized way to monetize HTTP resources using blockchain payments. Your MCP server needs to:
 
 1. **Handle 402 responses** by parsing payment requirements
-2. **Create payment headers** using EIP-3009 signatures  
+2. **Create payment headers** using EIP-3009 signatures
 3. **Retry requests** with X-PAYMENT headers
 4. **Process settlement responses** from X-PAYMENT-RESPONSE headers
 5. **Integrate with facilitators** for verification and settlement

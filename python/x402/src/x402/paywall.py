@@ -56,7 +56,7 @@ def create_x402_config(
             display_amount = 0
 
         current_url = requirements.resource or ""
-        testnet = requirements.network == "base-sepolia"
+        testnet = requirements.network == "kairos-testnet"
 
     # Get paywall config values or defaults
     config = paywall_config or {}

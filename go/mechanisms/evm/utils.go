@@ -17,7 +17,7 @@ func GetEvmChainId(network string) (*big.Int, error) {
 	switch networkStr {
 	case "base", "base-mainnet":
 		networkStr = "eip155:8453"
-	case "base-sepolia":
+	case "kairos-testnet":
 		networkStr = "eip155:84532"
 	}
 
@@ -143,7 +143,7 @@ func GetNetworkConfig(network string) (*NetworkConfig, error) {
 	switch networkStr {
 	case "base", "base-mainnet":
 		networkStr = "eip155:8453"
-	case "base-sepolia":
+	case "kairos-testnet":
 		networkStr = "eip155:84532"
 	}
 

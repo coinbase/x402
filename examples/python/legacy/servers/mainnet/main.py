@@ -11,7 +11,7 @@ load_dotenv()
 
 
 # Get configuration from environment
-NETWORK = os.getenv("NETWORK", "base-sepolia")
+NETWORK = os.getenv("NETWORK", "kairos-testnet")
 ADDRESS = os.getenv("ADDRESS")
 CDP_API_KEY_ID = os.getenv("CDP_API_KEY_ID")
 CDP_API_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET")

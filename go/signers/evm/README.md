@@ -31,9 +31,11 @@ func NewClientSignerFromPrivateKey(privateKeyHex string) (evm.ClientEvmSigner, e
 Creates a client signer from a hex-encoded private key.
 
 **Args:**
+
 - `privateKeyHex`: Hex-encoded private key (with or without "0x" prefix)
 
 **Returns:**
+
 - `evm.ClientEvmSigner` implementation
 - Error if key is invalid
 
@@ -57,7 +59,7 @@ The helper implements `evm.ClientEvmSigner`:
 ```go
 type ClientEvmSigner interface {
     Address() string
-    SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField, 
+    SignTypedData(ctx context.Context, domain TypedDataDomain, types map[string][]TypedDataField,
                   primaryType string, message map[string]interface{}) ([]byte, error)
 }
 ```
@@ -65,10 +67,12 @@ type ClientEvmSigner interface {
 ### Methods
 
 **`Address() string`**
+
 - Returns the Ethereum address (checksummed with 0x prefix)
 - Example: `"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"`
 
 **`SignTypedData(...) ([]byte, error)`**
+
 - Signs EIP-712 typed data (used for EIP-3009 authorization)
 - Returns 65-byte signature (r, s, v format)
 - v value is 27 or 28 (Ethereum standard)
@@ -78,13 +82,15 @@ type ClientEvmSigner interface {
 Works with all EVM-compatible networks:
 
 **V2 Networks (CAIP-2 format):**
+
 - `eip155:1` - Ethereum Mainnet
 - `eip155:8453` - Base Mainnet
 - `eip155:84532` - Base Sepolia
 - `eip155:*` - Wildcard for all EVM chains
 
 **V1 Networks (legacy):**
-- `base`, `base-sepolia`, `base-mainnet`
+
+- `base`, `kairos-testnet`, `base-mainnet`
 - `polygon`, `avalanche`, `sei`, etc.
 
 ## What It Eliminates
@@ -109,12 +115,14 @@ Without this helper, users must manually implement:
 ### Private Key Format
 
 Accepts standard Ethereum private key formats:
+
 - 64 hex characters (32 bytes)
 - Optional "0x" prefix
 
 ### Signing Process
 
 Uses industry-standard libraries:
+
 - `github.com/ethereum/go-ethereum` for EIP-712 implementation
 - Follows EIP-712 specification exactly
 - Compatible with all Ethereum wallets and tools
@@ -152,7 +160,7 @@ func TestPayment(t *testing.T) {
     // Use test private key
     testKey := "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     signer, _ := evmsigners.NewClientSignerFromPrivateKey(testKey)
-    
+
     // Test payment flow...
 }
 ```
@@ -167,4 +175,3 @@ func TestPayment(t *testing.T) {
 - [../svm/README.md](../svm/README.md) - SVM client signer
 - [../../mechanisms/evm/README.md](../../mechanisms/evm/README.md) - EVM mechanism documentation
 - [../README.md](../README.md) - Signers package overview
-

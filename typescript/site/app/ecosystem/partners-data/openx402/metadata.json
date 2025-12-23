@@ -8,7 +8,7 @@
     "baseUrl": "https://openx402.ai",
     "networks": [
       "base",
-      "base-sepolia",
+      "kairos-testnet",
       "solana",
       "solana-devnet",
       "avalanche",

@@ -10,7 +10,7 @@ from x402.types import PaywallConfig
 load_dotenv()
 
 # Get configuration from environment
-NETWORK = os.getenv("NETWORK", "base-sepolia")
+NETWORK = os.getenv("NETWORK", "kairos-testnet")
 ADDRESS = os.getenv("ADDRESS")
 CDP_CLIENT_KEY = os.getenv("CDP_CLIENT_KEY")
 

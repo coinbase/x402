@@ -1,9 +1,9 @@
-import { Hono, Context as HonoContext } from 'hono';
-import { serve } from '@hono/node-server';
-import { sign, verify as verifyJwtSignature } from 'hono/jwt';
-import { config } from 'dotenv';
-import { Hex } from 'viem';
-import { SiweMessage, generateNonce } from 'siwe';
+import { Hono, Context as HonoContext } from "hono";
+import { serve } from "@hono/node-server";
+import { sign, verify as verifyJwtSignature } from "hono/jwt";
+import { config } from "dotenv";
+import { Hex } from "viem";
+import { SiweMessage, generateNonce } from "siwe";
 
 import {
   PaymentRequirements,
@@ -12,29 +12,35 @@ import {
   Resource as X402Resource,
   PaymentPayload,
   settleResponseHeader,
-  ERC20TokenAmount
-} from 'x402/types';
-import { useFacilitator } from 'x402/verify';
-import { exact } from 'x402/schemes';
-import { processPriceToAtomicAmount } from 'x402/shared';
+  ERC20TokenAmount,
+} from "x402/types";
+import { useFacilitator } from "x402/verify";
+import { exact } from "x402/schemes";
+import { processPriceToAtomicAmount } from "x402/shared";
 // uncomment to use the CDP Base mainnet facilitator
-//import { facilitator } from "@coinbase/x402"; 
-
+//import { facilitator } from "@coinbase/x402";
 
 // --- Environment Variable Loading ---
 config(); // Load .env or .env-local
 
 // --- Configuration Constants ---
 const JWT_SECRET = process.env.JWT_SECRET as string;
-const DEMO_SERVER_PORT = parseInt(process.env.DEMO_SERVER_PORT || '3000', 10);
+const DEMO_SERVER_PORT = parseInt(process.env.DEMO_SERVER_PORT || "3000", 10);
 const BUSINESS_WALLET_ADDRESS = process.env.BUSINESS_WALLET_ADDRESS as Hex; // Wallet to receive payments
-const FACILITATOR_URL = 'https://x402.org/facilitator'; // x402 Sepolia Facilitator
-const X402_NETWORK = process.env.X402_NETWORK as X402Network; // Network for x402 payments (e.g., 'base-sepolia', 'base')
+const FACILITATOR_URL = "https://x402.org/facilitator"; // x402 Sepolia Facilitator
+const X402_NETWORK = process.env.X402_NETWORK as X402Network; // Network for x402 payments (e.g., 'kairos-testnet', 'base')
 const X402_VERSION = 1; // Standard x402 version
 
 // Validate essential configuration
-if (!JWT_SECRET || !BUSINESS_WALLET_ADDRESS || !FACILITATOR_URL || !X402_NETWORK) {
-  console.error('CRITICAL ERROR: Missing essential server environment variables. Check .env-local or .env file.');
+if (
+  !JWT_SECRET ||
+  !BUSINESS_WALLET_ADDRESS ||
+  !FACILITATOR_URL ||
+  !X402_NETWORK
+) {
+  console.error(
+    "CRITICAL ERROR: Missing essential server environment variables. Check .env-local or .env file."
+  );
   process.exit(1);
 }
 
@@ -43,7 +49,9 @@ const app = new Hono();
 // Initialize x402 facilitator client for payment verification and settlement
 // for mainnet, use the CDP Base mainnet facilitator as follows:
 // const { verify: verifyX402Payment, settle: settleX402Payment } = useFacilitator(facilitator);
-const { verify: verifyX402Payment, settle: settleX402Payment } = useFacilitator({ url: FACILITATOR_URL });
+const { verify: verifyX402Payment, settle: settleX402Payment } = useFacilitator(
+  { url: FACILITATOR_URL }
+);
 
 // --- SIWE Nonce Store (In-Memory for Demo) ---
 // IMPORTANT: For production, use a persistent store (e.g., Redis, DB) with proper TTL management for nonces.
@@ -63,11 +71,14 @@ function createExactPaymentRequirements(
   price: X402Price,
   network: X402Network,
   resource: X402Resource,
-  description = "",
+  description = ""
 ): PaymentRequirements {
   const atomicAmountForAsset = processPriceToAtomicAmount(price, network);
   if ("error" in atomicAmountForAsset) {
-    console.error("[X402Svc] Error processing price to atomic amount:", atomicAmountForAsset.error);
+    console.error(
+      "[X402Svc] Error processing price to atomic amount:",
+      atomicAmountForAsset.error
+    );
     throw new Error(`Failed to process price: ${atomicAmountForAsset.error}`);
   }
   const { maxAmountRequired, asset } = atomicAmountForAsset;
@@ -102,20 +113,25 @@ interface X402HandlingResult {
  */
 async function handleX402PaymentVerification(
   c: HonoContext,
-  paymentRequirements: PaymentRequirements[],
+  paymentRequirements: PaymentRequirements[]
 ): Promise<X402HandlingResult> {
-  const paymentHeader = c.req.header('X-PAYMENT');
+  const paymentHeader = c.req.header("X-PAYMENT");
 
   // If no payment header, issue a 402 challenge with payment requirements
   if (!paymentHeader) {
-    console.log('[X402Svc] No X-PAYMENT header. Responding with 402 challenge.');
+    console.log(
+      "[X402Svc] No X-PAYMENT header. Responding with 402 challenge."
+    );
     return {
       success: false,
-      response: c.json({
-        x402Version: X402_VERSION,
-        error: "X-PAYMENT header is required",
-        accepts: paymentRequirements
-      }, 402)
+      response: c.json(
+        {
+          x402Version: X402_VERSION,
+          error: "X-PAYMENT header is required",
+          accepts: paymentRequirements,
+        },
+        402
+      ),
     };
   }
 
@@ -124,47 +140,68 @@ async function handleX402PaymentVerification(
   try {
     decodedPayment = exact.evm.decodePayment(paymentHeader);
   } catch (error: any) {
-    console.error('[X402Svc] Error decoding X-PAYMENT header:', error.message);
+    console.error("[X402Svc] Error decoding X-PAYMENT header:", error.message);
     return {
       success: false,
-      response: c.json({
-        x402Version: X402_VERSION,
-        error: error.message || "Invalid or malformed X-PAYMENT header",
-        accepts: paymentRequirements
-      }, 402)
+      response: c.json(
+        {
+          x402Version: X402_VERSION,
+          error: error.message || "Invalid or malformed X-PAYMENT header",
+          accepts: paymentRequirements,
+        },
+        402
+      ),
     };
   }
 
   // Verify the decoded payment with the facilitator
   try {
-    const verificationResponse = await verifyX402Payment(decodedPayment, paymentRequirements[0]);
+    const verificationResponse = await verifyX402Payment(
+      decodedPayment,
+      paymentRequirements[0]
+    );
     if (!verificationResponse.isValid) {
-      console.warn('[X402Svc] Payment verification failed by facilitator:', verificationResponse.invalidReason);
+      console.warn(
+        "[X402Svc] Payment verification failed by facilitator:",
+        verificationResponse.invalidReason
+      );
       return {
         success: false,
-        response: c.json({
-          x402Version: X402_VERSION,
-          error: verificationResponse.invalidReason,
-          accepts: paymentRequirements,
-          payer: verificationResponse.payer
-        }, 402)
+        response: c.json(
+          {
+            x402Version: X402_VERSION,
+            error: verificationResponse.invalidReason,
+            accepts: paymentRequirements,
+            payer: verificationResponse.payer,
+          },
+          402
+        ),
       };
     }
-    console.log('[X402Svc] Payment verified successfully by facilitator for payer:', verificationResponse.payer);
+    console.log(
+      "[X402Svc] Payment verified successfully by facilitator for payer:",
+      verificationResponse.payer
+    );
     return {
       success: true,
       decodedPayment: decodedPayment,
-      verifiedPayer: verificationResponse.payer as Hex
+      verifiedPayer: verificationResponse.payer as Hex,
     };
   } catch (error: any) {
-    console.error('[X402Svc] Critical error during facilitator payment verification process:', error.message);
+    console.error(
+      "[X402Svc] Critical error during facilitator payment verification process:",
+      error.message
+    );
     return {
       success: false,
-      response: c.json({
-        x402Version: X402_VERSION,
-        error: error.message || "Facilitator verification process failed",
-        accepts: paymentRequirements
-      }, 500) // Use 500 for server-side errors with facilitator
+      response: c.json(
+        {
+          x402Version: X402_VERSION,
+          error: error.message || "Facilitator verification process failed",
+          accepts: paymentRequirements,
+        },
+        500
+      ), // Use 500 for server-side errors with facilitator
     };
   }
 }
@@ -172,7 +209,7 @@ async function handleX402PaymentVerification(
 // --- SIWE Authentication Endpoints ---
 
 // Endpoint for clients to request a unique nonce for SIWE message construction
-app.get('/auth/nonce', async (c) => {
+app.get("/auth/nonce", async (c) => {
   const nonce = generateNonce(); // Generate a cryptographically secure nonce
   issuedNonces.add(nonce);
   // Schedule nonce removal to prevent store bloat and enforce expiration
@@ -182,21 +219,37 @@ app.get('/auth/nonce', async (c) => {
 });
 
 // Endpoint for clients to submit a signed SIWE message for verification
-app.post('/auth/verify-siwe', async (c) => {
-  const { message, signature } = await c.req.json<{ message: string; signature: Hex }>();
-  if (!message || !signature) return c.json({ error: 'SIWE message and signature are required' }, 400);
+app.post("/auth/verify-siwe", async (c) => {
+  const { message, signature } = await c.req.json<{
+    message: string;
+    signature: Hex;
+  }>();
+  if (!message || !signature)
+    return c.json({ error: "SIWE message and signature are required" }, 400);
 
   try {
     const siweMessage = new SiweMessage(message); // Parse the client-provided EIP-4361 message
 
     // Validate nonce: ensure it was issued by this server and hasn't expired/been used
     if (!issuedNonces.has(siweMessage.nonce)) {
-      console.warn(`[AuthSvc] Attempt to use invalid, expired, or already used SIWE nonce: ${siweMessage.nonce}`);
-      return c.json({ error: 'Invalid, expired, or already used nonce. Please request a new one.' }, 403);
+      console.warn(
+        `[AuthSvc] Attempt to use invalid, expired, or already used SIWE nonce: ${siweMessage.nonce}`
+      );
+      return c.json(
+        {
+          error:
+            "Invalid, expired, or already used nonce. Please request a new one.",
+        },
+        403
+      );
     }
 
     // Verify the SIWE message (checks signature, nonce against message, domain, time constraints, etc.)
-    const { success: verificationSuccess, error: verificationError, data: verifiedSiweMessage } = await siweMessage.verify({
+    const {
+      success: verificationSuccess,
+      error: verificationError,
+      data: verifiedSiweMessage,
+    } = await siweMessage.verify({
       signature,
       nonce: siweMessage.nonce, // Crucial: ensure nonce being verified is the one from the message body
       // domain: 'expected.domain.com', // Optional: verify against expected domain
@@ -204,8 +257,17 @@ app.post('/auth/verify-siwe', async (c) => {
     });
 
     if (!verificationSuccess) {
-      console.warn(`[AuthSvc] SIWE message verification failed for address ${siweMessage.address}:`, verificationError);
-      return c.json({ error: 'SIWE message verification failed.', details: verificationError?.type || 'Unknown SIWE error' }, 401);
+      console.warn(
+        `[AuthSvc] SIWE message verification failed for address ${siweMessage.address}:`,
+        verificationError
+      );
+      return c.json(
+        {
+          error: "SIWE message verification failed.",
+          details: verificationError?.type || "Unknown SIWE error",
+        },
+        401
+      );
     }
 
     // SIWE verification successful, invalidate the nonce immediately to prevent replay attacks
@@ -217,103 +279,172 @@ app.post('/auth/verify-siwe', async (c) => {
     const payload = {
       sub: walletAddress.toLowerCase(), // Subject: user's wallet address
       iat: Math.floor(Date.now() / 1000), // Issued At: current time
-      exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24), // Expiration Time: 24 hours
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24, // Expiration Time: 24 hours
     };
     const token = await sign(payload, JWT_SECRET);
 
-    return c.json({ success: true, message: 'Login successful via SIWE', token });
-
+    return c.json({
+      success: true,
+      message: "Login successful via SIWE",
+      token,
+    });
   } catch (error: any) {
-    console.error('[AuthSvc] Critical error during SIWE verification process:', error);
-    return c.json({ error: 'SIWE verification process failed due to a server error.', details: error.message }, 500);
+    console.error(
+      "[AuthSvc] Critical error during SIWE verification process:",
+      error
+    );
+    return c.json(
+      {
+        error: "SIWE verification process failed due to a server error.",
+        details: error.message,
+      },
+      500
+    );
   }
 });
 
 // --- x402 Gated Demo Endpoint (/demo-weather) with Conditional Pricing ---
-app.get('/demo-weather', async (c: HonoContext) => {
+app.get("/demo-weather", async (c: HonoContext) => {
   // 1. Determine Price Conditionally based on JWT authentication
-  const authHeader = c.req.header('Authorization');
+  const authHeader = c.req.header("Authorization");
   let isAuthenticated = false;
-  let priceString: X402Price = '$0.10'; // Default price for unauthenticated users
+  let priceString: X402Price = "$0.10"; // Default price for unauthenticated users
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     try {
       const payload = await verifyJwtSignature(token, JWT_SECRET); // Verify the JWT
-      if (payload && payload.sub) { // Check for subject (wallet address) in JWT
+      if (payload && payload.sub) {
+        // Check for subject (wallet address) in JWT
         isAuthenticated = true;
-        priceString = '$0.01'; // Discounted price for authenticated users
-        console.log(`[X402Svc] User ${payload.sub} is authenticated via JWT. Applying discounted price: ${priceString}`);
+        priceString = "$0.01"; // Discounted price for authenticated users
+        console.log(
+          `[X402Svc] User ${payload.sub} is authenticated via JWT. Applying discounted price: ${priceString}`
+        );
       }
     } catch (err) {
       // JWT invalid or expired, treat as unauthenticated for pricing
-      console.log('[X402Svc] JWT verification failed for pricing. Applying default price.');
+      console.log(
+        "[X402Svc] JWT verification failed for pricing. Applying default price."
+      );
     }
   }
   if (!isAuthenticated) {
-    console.log(`[X402Svc] User not authenticated via JWT. Applying default price: ${priceString}`);
+    console.log(
+      `[X402Svc] User not authenticated via JWT. Applying default price: ${priceString}`
+    );
   }
 
   // 2. Construct Payment Requirements for the determined price
   const resourceUrl = c.req.url as X402Resource; // The resource being accessed
   let paymentRequirements: PaymentRequirements[];
   try {
-    paymentRequirements = [createExactPaymentRequirements(priceString, X402_NETWORK, resourceUrl, 'Access to premium demo weather forecast')];
+    paymentRequirements = [
+      createExactPaymentRequirements(
+        priceString,
+        X402_NETWORK,
+        resourceUrl,
+        "Access to premium demo weather forecast"
+      ),
+    ];
   } catch (error: any) {
-    console.error('[X402Svc] Error creating payment requirements for /demo-weather:', error.message);
-    return c.json({ error: 'Server error: Could not create payment requirements.' }, 500);
+    console.error(
+      "[X402Svc] Error creating payment requirements for /demo-weather:",
+      error.message
+    );
+    return c.json(
+      { error: "Server error: Could not create payment requirements." },
+      500
+    );
   }
 
   // 3. Handle x402 Payment Flow (Verification/Challenge)
-  const x402Result = await handleX402PaymentVerification(c, paymentRequirements);
+  const x402Result = await handleX402PaymentVerification(
+    c,
+    paymentRequirements
+  );
 
   // If payment verification failed or a challenge was issued, return the 402 response
-  if (!x402Result.success || !x402Result.decodedPayment || !x402Result.verifiedPayer) {
+  if (
+    !x402Result.success ||
+    !x402Result.decodedPayment ||
+    !x402Result.verifiedPayer
+  ) {
     return x402Result.response!;
   }
 
   // 4. Settle Payment (Good practice after successful verification)
   try {
-    const settlement = await settleX402Payment(x402Result.decodedPayment, paymentRequirements[0]);
+    const settlement = await settleX402Payment(
+      x402Result.decodedPayment,
+      paymentRequirements[0]
+    );
     const paymentResponseHeaderVal = settleResponseHeader(settlement);
-    c.header('X-PAYMENT-RESPONSE', paymentResponseHeaderVal); // Send settlement confirmation to client
-    console.log('[X402Svc] /demo-weather: Payment settled. X-PAYMENT-RESPONSE header set.');
+    c.header("X-PAYMENT-RESPONSE", paymentResponseHeaderVal); // Send settlement confirmation to client
+    console.log(
+      "[X402Svc] /demo-weather: Payment settled. X-PAYMENT-RESPONSE header set."
+    );
   } catch (error: any) {
-    console.error('[X402Svc] /demo-weather: Payment settlement failed (after verification). This is a server-side issue:', error.message);
+    console.error(
+      "[X402Svc] /demo-weather: Payment settlement failed (after verification). This is a server-side issue:",
+      error.message
+    );
     // Note: Content is still served as payment was verified. Settlement failure is logged.
   }
 
   // 5. Return Resource (Weather Data)
-  console.log('[DemoSvc] /demo-weather: Access granted. Payment successful.');
+  console.log("[DemoSvc] /demo-weather: Access granted. Payment successful.");
   const weatherReport = {
-    location: 'Demo City',
-    temperature: '72°F',
-    condition: 'Sunny with x402 skies!',
-    message: 'This is a mock weather report. Payment was successful!',
+    location: "Demo City",
+    temperature: "72°F",
+    condition: "Sunny with x402 skies!",
+    message: "This is a mock weather report. Payment was successful!",
     pricePaid: priceString, // Reflect the price that was required for this access
-    payer: x402Result.verifiedPayer // The verified wallet address that paid
+    payer: x402Result.verifiedPayer, // The verified wallet address that paid
   };
   return c.json(weatherReport);
 });
 
 // --- Main Server Start Function ---
 async function main() {
-  serve({
-    fetch: app.fetch,
-    port: DEMO_SERVER_PORT,
-  }, (info) => {
-    console.log(`🚀 SIWE-JWT-x402 Demo Server running on http://localhost:${info.port}`);
-    console.log('----------------------------------------------------------------------');
-    console.log('🔑 JWT Secret:', JWT_SECRET ? 'LOADED' : 'MISSING - Server will fail!');
-    console.log('💼 Business Wallet:', BUSINESS_WALLET_ADDRESS || 'MISSING - Payments will fail!');
-    console.log('🌍 x402 Network:', X402_NETWORK || 'MISSING - Payments will fail!');
-    console.log('----------------------------------------------------------------------');
-    console.log('💡 To test, run the client script in a separate terminal: npm run dev:client');
-    console.log('----------------------------------------------------------------------');
-  });
+  serve(
+    {
+      fetch: app.fetch,
+      port: DEMO_SERVER_PORT,
+    },
+    (info) => {
+      console.log(
+        `🚀 SIWE-JWT-x402 Demo Server running on http://localhost:${info.port}`
+      );
+      console.log(
+        "----------------------------------------------------------------------"
+      );
+      console.log(
+        "🔑 JWT Secret:",
+        JWT_SECRET ? "LOADED" : "MISSING - Server will fail!"
+      );
+      console.log(
+        "💼 Business Wallet:",
+        BUSINESS_WALLET_ADDRESS || "MISSING - Payments will fail!"
+      );
+      console.log(
+        "🌍 x402 Network:",
+        X402_NETWORK || "MISSING - Payments will fail!"
+      );
+      console.log(
+        "----------------------------------------------------------------------"
+      );
+      console.log(
+        "💡 To test, run the client script in a separate terminal: npm run dev:client"
+      );
+      console.log(
+        "----------------------------------------------------------------------"
+      );
+    }
+  );
 }
 
-main().catch(err => {
-  console.error('💥 Failed to start server:', err);
+main().catch((err) => {
+  console.error("💥 Failed to start server:", err);
   process.exit(1);
-}); 
+});

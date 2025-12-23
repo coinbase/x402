@@ -195,7 +195,7 @@ public class PaymentFilter implements Filter {
     private PaymentRequirements buildRequirements(String path) {
         PaymentRequirements pr = new PaymentRequirements();
         pr.scheme            = "exact";
-        pr.network           = "base-sepolia";
+        pr.network           = "kairos-testnet";
         pr.maxAmountRequired = priceTable.get(path).toString();
         pr.asset             = "USDC";               // adjust for your token
         pr.resource          = path;

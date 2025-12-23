@@ -30,7 +30,7 @@ interface DiscoveryItem {
   accepts: Array<{
     scheme: "exact";
     description: string;
-    network: "base-sepolia" | "base";
+    network: "kairos-testnet" | "base";
     maxAmountRequired: string;
     resource: string;
     mimeType: string;

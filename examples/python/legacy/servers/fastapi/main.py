@@ -23,7 +23,7 @@ app.middleware("http")(
         path="/weather",
         price="$0.001",
         pay_to_address=ADDRESS,
-        network="base-sepolia",
+        network="kairos-testnet",
     )
 )
 
@@ -40,7 +40,7 @@ app.middleware("http")(
             ),
         ),
         pay_to_address=ADDRESS,
-        network="base-sepolia",
+        network="kairos-testnet",
     )
 )
 

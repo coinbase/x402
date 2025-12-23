@@ -25,12 +25,12 @@ import {
  *
  * @example
  * ```typescript
- * // Simple configuration - All endpoints are protected by $0.01 of USDC on base-sepolia
+ * // Simple configuration - All endpoints are protected by $0.01 of USDC on kairos-testnet
  * export const middleware = paymentMiddleware(
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: 'base-sepolia'
+ *     network: 'kairos-testnet'
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * );
@@ -184,7 +184,7 @@ export function paymentMiddleware(
  *
  * @example
  * ```typescript
- * // Simple configuration - Protected route with $0.01 USDC on base-sepolia
+ * // Simple configuration - Protected route with $0.01 USDC on kairos-testnet
  * import { NextRequest, NextResponse } from "next/server";
  * import { withX402 } from "x402-next";
  *
@@ -197,7 +197,7 @@ export function paymentMiddleware(
  *   '0x123...', // payTo address
  *   {
  *     price: '$0.01', // USDC amount in dollars
- *     network: 'base-sepolia'
+ *     network: 'kairos-testnet'
  *   },
  *   // Optional facilitator configuration. Defaults to x402.org/facilitator for testnet usage
  * );

@@ -40,7 +40,7 @@ var (
 	// Network chain IDs
 	ChainIDMainnet     = big.NewInt(1)
 	ChainIDBase        = big.NewInt(8453)
-	ChainIDBaseSepolia = big.NewInt(84532)
+	ChainIDkairos = big.NewInt(84532)
 
 	// Network configurations
 	NetworkConfigs = map[string]NetworkConfig{
@@ -113,7 +113,7 @@ var (
 			},
 		},
 		"eip155:84532": {
-			ChainID: ChainIDBaseSepolia,
+			ChainID: ChainIDkairos,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
 				Name:     "USDC",
@@ -129,8 +129,8 @@ var (
 				},
 			},
 		},
-		"base-sepolia": {
-			ChainID: ChainIDBaseSepolia,
+		"kairos-testnet": {
+			ChainID: ChainIDkairos,
 			DefaultAsset: AssetInfo{
 				Address:  "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 				Name:     "USDC",

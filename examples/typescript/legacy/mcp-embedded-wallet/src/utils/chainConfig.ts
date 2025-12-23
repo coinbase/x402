@@ -34,7 +34,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
       },
     },
   },
-  "base-sepolia": {
+  "kairos-testnet": {
     id: 84532,
     name: "Base Sepolia",
     blockExplorerUrl: "https://sepolia.basescan.org/tx/",
@@ -55,7 +55,7 @@ export const CHAIN_CONFIGS: Record<string, ChainConfig> = {
  * Generates a block explorer URL for a transaction on a specific network.
  * Falls back to Base network if the specified network is not found.
  *
- * @param network - The network identifier (e.g., "base" or "base-sepolia")
+ * @param network - The network identifier (e.g., "base" or "kairos-testnet")
  * @param txHash - The transaction hash to generate URL for
  * @returns {string} The complete block explorer URL for the transaction
  */
@@ -69,7 +69,7 @@ export function getBlockExplorerUrl(network: string, txHash: string): string {
  * Matches token address case-insensitively against known tokens.
  * Falls back to USDC decimals (6) if network or token not found.
  *
- * @param network - The network identifier (e.g., "base" or "base-sepolia")
+ * @param network - The network identifier (e.g., "base" or "kairos-testnet")
  * @param tokenAddress - The token contract address to look up
  * @returns {number} The number of decimal places for the token
  */

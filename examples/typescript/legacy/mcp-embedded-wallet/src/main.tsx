@@ -16,7 +16,7 @@ import { makeX402Request } from "./utils/x402Client";
 import "@radix-ui/themes/styles.css";
 import "./main.module.css";
 
-const chain = import.meta.env.VITE_TESTNET ? "base-sepolia" : "base";
+const chain = import.meta.env.VITE_TESTNET ? "kairos-testnet" : "base";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

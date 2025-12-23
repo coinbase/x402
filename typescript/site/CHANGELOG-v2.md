@@ -35,7 +35,7 @@ Increment `x402Version` to `2`.
 
 2. Extensions
 
-**What**:  A new `extensions` property to be added to both `PaymentRequired` and `PaymentPayload`, enabling modular optional functionality beyond core payment mechanics. Extensions follow a standardized structure with `info` and `schema` properties, allowing servers to advertise capabilities and clients or facilitators to respond appropriately.
+**What**: A new `extensions` property to be added to both `PaymentRequired` and `PaymentPayload`, enabling modular optional functionality beyond core payment mechanics. Extensions follow a standardized structure with `info` and `schema` properties, allowing servers to advertise capabilities and clients or facilitators to respond appropriately.
 
 ```git
 +  "extensions": {
@@ -51,6 +51,7 @@ Increment `x402Version` to `2`.
 ```
 
 **PaymentRequired with Extensions:**
+
 ```json
 {
   "x402Version": "2",
@@ -76,13 +77,17 @@ Increment `x402Version` to `2`.
       "info": {
         /* Discovery info per schema */
       },
-      "schema": { /* JSON Schema */ }
+      "schema": {
+        /* JSON Schema */
+      }
     },
     "sign-in-with-x": {
       "info": {
         /* CAIP-122 / Sign-In-With-X info per schema */
       },
-      "schema": { /* JSON Schema */ }
+      "schema": {
+        /* JSON Schema */
+      }
     }
   }
 }
@@ -189,10 +194,13 @@ Increment `x402Version` to `2`.
 **What**: A new `extensions` property to be added to both `PaymentRequired` and `PaymentPayload`, enabling modular optional functionality beyond core payment mechanics. The `PaymentPayload` echo's the `extensions` from the `PaymentRequired`.
 
 **PaymentPayload with Extensions:**
+
 ```json
 {
   "x402Version": 2,
-  "payload": { /* scheme-specific data */ },
+  "payload": {
+    /* scheme-specific data */
+  },
   "accepted": {
     "scheme": "exact",
     "network": "eip155:8453",
@@ -203,12 +211,20 @@ Increment `x402Version` to `2`.
   },
   "extensions": {
     "discovery": {
-      "info": { /* Discovery info per schema */ },
-      "schema": { /* JSON Schema */ }
+      "info": {
+        /* Discovery info per schema */
+      },
+      "schema": {
+        /* JSON Schema */
+      }
     },
     "sign-in-with-x": {
-      "info": { /* CAIP-122 / Sign-In-With-X info per schema */ },
-      "schema": { /* JSON Schema */ }
+      "info": {
+        /* CAIP-122 / Sign-In-With-X info per schema */
+      },
+      "schema": {
+        /* JSON Schema */
+      }
     }
   }
 }
@@ -229,8 +245,6 @@ Increment `x402Version` to `2`.
 | `accepted` | `PaymentRequirements` | Required | The payment required payload fulfills |
 | `extensions` | `object` | Optional | The echoed extensions from PaymentRequired |
 
-
-
 ## Extensions
 
 ### Sign-In-With-X (SIWx)
@@ -238,6 +252,7 @@ Increment `x402Version` to `2`.
 **What**: A new extension implementing the CAIP-122 standard for chain-agnostic wallet-based identity assertions. This extension allows clients to prove control of a wallet that may have previously paid for a resource, enabling servers to grant access without requiring repurchase. The SIWx extension follows the standardized structure with `info` and `schema` properties.
 
 **Why**: The CAIP-122 standard provides a chain-agnostic, interoperable way for blockchain accounts to authenticate with off-chain services. This aligns x402 with emerging identity standards used in WalletConnect v2, SIWS, and multi-chain wallets. It enables:
+
 - Cross-chain authentication (EVM and non-EVM)
 - Smart account verification via EIP-1271/6492
 - Natural interoperability with W3C Verifiable Credentials
@@ -330,14 +345,13 @@ Clients sign the CAIP-122 message and include it in their response:
 
 **Transport Considerations**:
 
-- **HTTP**: 
+- **HTTP**:
   - Server includes SIWx extension in PAYMENT-REQUIRED header (base64-encoded)
   - Client sends signed SIWx message in SIGN-IN-WITH-X header (base64-encoded)
-- **MCP**: 
+- **MCP**:
   - Included in the extensions field of the payment required/payload structures
-- **A2A**: 
+- **A2A**:
   - Included in the extensions field of message payload structures
-
 
 ### Discovery
 
@@ -350,7 +364,7 @@ Clients sign the CAIP-122 message and include it in their response:
       "info": {
         "input": {
           "type": "http",
-          "method": "GET",
+          "method": "GET"
           /* Additional input fields as needed by the API */
         },
         "output": {
@@ -420,7 +434,7 @@ The facilitator's `/supported` endpoint is being updated with three key improvem
 +   "1": [
 +     {
 +       "scheme": "exact",
-+       "network": "base-sepolia"
++       "network": "kairos-testnet"
 +     }
 +   ],
 +   "2": [
@@ -453,6 +467,7 @@ The facilitator's `/supported` endpoint is being updated with three key improvem
 ```
 
 **Why**: Public declaration of facilitator signing addresses enables:
+
 - **Transparency**: Resource servers and clients can verify who they're trusting
 - **Tracking**: On-chain analysis tools can identify facilitator activity across networks
 
@@ -478,7 +493,7 @@ Network patterns follow CAIP-2 with wildcard support (e.g., `eip155:*` matches a
     "1": [
       {
         "scheme": "exact",
-        "network": "base-sepolia"
+        "network": "kairos-testnet"
       },
       {
         "scheme": "exact",
@@ -709,7 +724,7 @@ paymentMiddleware({
       return tier === "premium" ? "$0.10" : "$0.01";
     },
     payTo: "0x209693Bc6afc0C5329bA36FaF03C514EF312287C",
-    network: "base-sepolia"
+    network: "kairos-testnet"
   }
 }
 ```
@@ -747,13 +762,14 @@ paymentMiddleware(payTo, routes, facilitator, {
   beforeSettlement: async ({ requirements, payload, request }) => {},
   afterSettlement: async ({ requirements, payload, request, response }) => {},
   onSettlementFailure: async ({ requirements, payload, request, response }) => {},
-  onVerificationFailure: async ({ requirements, payload, request, response }) => {}
+  onVerificationFailure: async ({ requirements, payload, request, response }) => {},
 });
 ```
 
 **Why**: Current middleware executes business logic after verification but before settlement. If settlement fails (facilitator outage, blockchain reorg, nonce reuse), irreversible side effects may persist without payment.
 
 The hooks system enables:
+
 - **Rollback mechanisms** for failed settlements
 - **Pre-flight validation** (rate limiting, blacklisting)
 - **Conditional settlement** based on risk assessment

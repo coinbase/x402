@@ -13,7 +13,7 @@ npm install @x402/evm
 This package provides three main components for handling x402 payments on EVM-compatible blockchains:
 
 - **Client** - For applications that need to make payments (have wallets/signers)
-- **Facilitator** - For payment processors that verify and execute on-chain transactions  
+- **Facilitator** - For payment processors that verify and execute on-chain transactions
 - **Service** - For resource servers that accept payments and build payment requirements
 
 ## Package Exports
@@ -23,16 +23,19 @@ This package provides three main components for handling x402 payments on EVM-co
 **V2 Protocol Support** - Modern x402 protocol with CAIP-2 network identifiers
 
 **Client:**
+
 - `ExactEvmClient` - V2 client implementation using EIP-3009
 - `toClientEvmSigner(account)` - Converts viem accounts to x402 signers
 - `ClientEvmSigner` - TypeScript type for client signers
 
 **Facilitator:**
+
 - `ExactEvmFacilitator` - V2 facilitator for payment verification and settlement
 - `toFacilitatorEvmSigner(wallet)` - Converts viem wallets to facilitator signers
 - `FacilitatorEvmSigner` - TypeScript type for facilitator signers
 
 **Service:**
+
 - `ExactEvmServer` - V2 service for building payment requirements
 
 ### V1 Package (`@x402/evm/v1`)
@@ -40,21 +43,31 @@ This package provides three main components for handling x402 payments on EVM-co
 **V1 Protocol Support** - Legacy x402 protocol with simple network names
 
 **Exports:**
+
 - `ExactEvmClientV1` - V1 client implementation
-- `ExactEvmFacilitatorV1` - V1 facilitator implementation  
+- `ExactEvmFacilitatorV1` - V1 facilitator implementation
 - `NETWORKS` - Array of all supported V1 network names
 
 **Supported V1 Networks:**
+
 ```typescript
 [
-  "abstract", "abstract-testnet",
-  "base-sepolia", "base",
-  "avalanche-fuji", "avalanche",
-  "iotex", "sei", "sei-testnet",
-  "polygon", "polygon-amoy",
-  "peaq", "story", "educhain",
-  "skale-base-sepolia"
-]
+  "abstract",
+  "abstract-testnet",
+  "kairos-testnet",
+  "base",
+  "avalanche-fuji",
+  "avalanche",
+  "iotex",
+  "sei",
+  "sei-testnet",
+  "polygon",
+  "polygon-amoy",
+  "peaq",
+  "story",
+  "educhain",
+  "skale-kairos-testnet",
+];
 ```
 
 ### Client Builder (`@x402/evm/client`)
@@ -62,16 +75,19 @@ This package provides three main components for handling x402 payments on EVM-co
 **Convenience builder** for creating fully-configured EVM clients
 
 **Exports:**
+
 - `createEvmClient(config)` - Creates x402Client with EVM support
 - `EvmClientConfig` - Configuration interface
 
 **What it does:**
+
 - Automatically registers V2 wildcard scheme (`eip155:*`)
 - Automatically registers all V1 networks from `NETWORKS`
 - Optionally applies payment policies
 - Optionally uses custom payment selector
 
 **Example:**
+
 ```typescript
 import { createEvmClient } from "@x402/evm/client";
 import { toClientEvmSigner } from "@x402/evm";
@@ -87,14 +103,16 @@ const client = createEvmClient({ signer });
 ## Version Differences
 
 ### V2 (Main Package)
+
 - Network format: CAIP-2 (`eip155:8453`)
 - Wildcard support: Yes (`eip155:*`)
 - Payload structure: Partial (core wraps with metadata)
 - Extensions: Full support
 - Validity window: 1 hour (default)
 
-### V1 (V1 Package)  
-- Network format: Simple names (`base-sepolia`)
+### V1 (V1 Package)
+
+- Network format: Simple names (`kairos-testnet`)
 - Wildcard support: No (fixed list)
 - Payload structure: Complete
 - Extensions: Limited
@@ -121,7 +139,7 @@ import { ExactEvmClientV1 } from "@x402/evm/v1";
 
 const client = new x402Client()
   .register("eip155:*", new ExactEvmClient(signer))
-  .registerSchemeV1("base-sepolia", new ExactEvmClientV1(signer))
+  .registerSchemeV1("kairos-testnet", new ExactEvmClientV1(signer))
   .registerSchemeV1("base", new ExactEvmClientV1(signer));
 ```
 
@@ -134,27 +152,28 @@ import { ExactEvmClient } from "@x402/evm";
 const client = x402Client.fromConfig({
   schemes: [
     { network: "eip155:*", client: new ExactEvmClient(signer) },
-    { network: "base-sepolia", client: new ExactEvmClientV1(signer), x402Version: 1 }
+    { network: "kairos-testnet", client: new ExactEvmClientV1(signer), x402Version: 1 },
   ],
-  policies: [myCustomPolicy]
+  policies: [myCustomPolicy],
 });
 ```
 
 ## Supported Networks
 
 **V2 Networks** (via CAIP-2):
+
 - `eip155:1` - Ethereum Mainnet
-- `eip155:8453` - Base Mainnet  
+- `eip155:8453` - Base Mainnet
 - `eip155:84532` - Base Sepolia
 - `eip155:*` - Wildcard (matches all EVM chains)
 - Any `eip155:<chainId>` network
 
-**V1 Networks** (simple names):
-See `NETWORKS` constant in `@x402/evm/v1`
+**V1 Networks** (simple names): See `NETWORKS` constant in `@x402/evm/v1`
 
 ## Asset Support
 
 Supports any ERC-3009 compatible token:
+
 - USDC (primary)
 - EURC
 - Any token implementing `transferWithAuthorization()`

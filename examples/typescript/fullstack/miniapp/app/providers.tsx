@@ -1,20 +1,20 @@
 "use client";
 
-import { baseSepolia } from "wagmi/chains";
+import { kairos } from "wagmi/chains";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <OnchainKitProvider
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
-      chain={baseSepolia}
+      chain={kairos}
       config={{
         appearance: {
-          mode: 'auto', // 'light' | 'dark' | 'auto'
+          mode: "auto", // 'light' | 'dark' | 'auto'
         },
         wallet: {
-          display: 'modal', // 'modal' | 'drawer'
-          preference: 'all', // 'all' | 'smartWalletOnly' | 'eoaOnly'
+          display: "modal", // 'modal' | 'drawer'
+          preference: "all", // 'all' | 'smartWalletOnly' | 'eoaOnly'
         },
       }}
       miniKit={{
@@ -25,4 +25,3 @@ export function Providers({ children }: { children: React.ReactNode }) {
     </OnchainKitProvider>
   );
 }
-

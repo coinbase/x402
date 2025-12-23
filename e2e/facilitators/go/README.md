@@ -17,7 +17,7 @@ facilitator := x402.Newx402Facilitator()
 		if ctx.Result.IsValid {
 			paymentHash := createPaymentHash(ctx.PaymentPayload)
 			verifiedPayments[paymentHash] = ctx.Timestamp.Unix()
-			
+
 			// Catalog discovered resources
 			discovered, _ := bazaar.ExtractDiscoveredResourceFromPaymentPayload(ctx.PayloadBytes, ctx.RequirementsBytes, true)
 			if discovered != nil {
@@ -35,7 +35,7 @@ facilitator := x402.Newx402Facilitator()
 				Reason: "Payment must be verified first",
 			}, nil
 		}
-		
+
 		// Check timeout
 		age := ctx.Timestamp.Unix() - verifiedPayments[paymentHash]
 		if age > 5*60 {
@@ -60,10 +60,10 @@ facilitator := x402.Newx402Facilitator()
 	})
 ```
 
-
 ## What It Tests
 
 ### Core Functionality
+
 - ✅ **V2 Protocol** - Modern x402 facilitator protocol
 - ✅ **V1 Protocol** - Legacy x402 facilitator protocol
 - ✅ **Payment Verification** - Validates payment payloads off-chain
@@ -72,6 +72,7 @@ facilitator := x402.Newx402Facilitator()
 - ✅ **HTTP API** - HTTP server exposing facilitator endpoints
 
 ### Facilitator Endpoints
+
 - ✅ `POST /verify` - Verifies payment payload validity
 - ✅ `POST /settle` - Settles payment on blockchain
 - ✅ `GET /supported` - Returns supported payment kinds
@@ -101,7 +102,7 @@ facilitator.Register("eip155:*", evmFacilitator)
 
 // Register EVM V1 networks
 evmFacilitatorV1 := evmv1.NewExactEvmFacilitatorV1(evmSigner)
-facilitator.RegisterV1("base-sepolia", evmFacilitatorV1)
+facilitator.RegisterV1("kairos-testnet", evmFacilitatorV1)
 
 // Register SVM V2 wildcard
 svmFacilitator := svm.NewExactSvmFacilitator(svmSigner)
@@ -139,17 +140,20 @@ http.ListenAndServe(":4024", nil)
 ## Test Scenarios
 
 This facilitator is tested with:
+
 - **Clients:** TypeScript Fetch, Go HTTP
 - **Servers:** Express (TypeScript), Gin (Go)
 - **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
 - **Protocols:** V1 and V2
 
 ### Verification Flow
+
 1. Receives payment payload + requirements
 2. Validates signatures and authorization structure
 3. Returns verification result without blockchain interaction
 
 ### Settlement Flow
+
 1. Receives payment payload + requirements
 2. Verifies payload validity
 3. Executes transaction on blockchain
@@ -181,6 +185,7 @@ export PORT=4024
 ### POST /verify
 
 **Request:**
+
 ```json
 {
   "x402Version": 2,
@@ -190,6 +195,7 @@ export PORT=4024
 ```
 
 **Response:**
+
 ```json
 {
   "isValid": true,
@@ -202,6 +208,7 @@ export PORT=4024
 ### POST /settle
 
 **Request:**
+
 ```json
 {
   "x402Version": 2,
@@ -211,6 +218,7 @@ export PORT=4024
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -224,6 +232,7 @@ export PORT=4024
 ### GET /supported
 
 **Response:**
+
 ```json
 {
   "kinds": [
@@ -240,18 +249,21 @@ export PORT=4024
 ## Implementation Details
 
 ### EVM Facilitator
+
 - Verifies EIP-712 signatures
 - Calls `transferWithAuthorization()` on USDC contract
 - Uses go-ethereum for blockchain interaction
 - Handles gas estimation and transaction submission
 
 ### SVM Facilitator
+
 - Verifies ed25519 signatures
 - Completes partially-signed SPL Token transactions
 - Adds fee payer signature
 - Submits to Solana RPC
 
 ### Extension Support
+
 - **Bazaar** - Discovery extension for API documentation
 - Registered at facilitator level
 - Included in supported kinds response

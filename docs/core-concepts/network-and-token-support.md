@@ -8,14 +8,15 @@ x402 V2 uses [CAIP-2](https://chainagnostic.org/CAIPs/caip-2) standard network i
 
 ### Network Identifier Reference
 
-| V1 Name | V2 CAIP-2 ID | Chain ID | Description |
-|---------|--------------|----------|-------------|
-| `base-sepolia` | `eip155:84532` | 84532 | Base Sepolia testnet |
-| `base` | `eip155:8453` | 8453 | Base mainnet |
-| `solana-devnet` | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | - | Solana Devnet |
-| `solana` | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | - | Solana Mainnet |
+| V1 Name          | V2 CAIP-2 ID                              | Chain ID | Description          |
+| ---------------- | ----------------------------------------- | -------- | -------------------- |
+| `kairos-testnet` | `eip155:84532`                            | 84532    | Base Sepolia testnet |
+| `base`           | `eip155:8453`                             | 8453     | Base mainnet         |
+| `solana-devnet`  | `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | -        | Solana Devnet        |
+| `solana`         | `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` | -        | Solana Mainnet       |
 
 ### Format Explanation
+
 - **EVM networks**: `eip155:<chainId>` where chainId is the numeric chain identifier
 - **Solana**: `solana:<genesisHash>` where genesisHash is the first 32 bytes of the genesis block hash
 
@@ -29,32 +30,32 @@ Network support in x402 depends on which facilitator you use. Here are the curre
 
 #### x402.org Facilitator
 
-* **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
-* **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
+- **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
+- **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
 
 #### CDP's x402 Facilitator
 
-* **Supports**: `eip155:8453` (Base), `eip155:84532` (Base Sepolia), `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (Solana), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
-* **Notes**: Production-ready for mainnet payments with KYT/OFAC compliance checks. Can also be used for testing on Base Sepolia. Requires CDP API keys. Uses facilitator object instead of facilitator URL.
-* **Requirements**: CDP account and API keys from [cdp.coinbase.com](https://cdp.coinbase.com), see Quickstart for Sellers: Running on Mainnet for more details.
+- **Supports**: `eip155:8453` (Base), `eip155:84532` (Base Sepolia), `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (Solana), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
+- **Notes**: Production-ready for mainnet payments with KYT/OFAC compliance checks. Can also be used for testing on Base Sepolia. Requires CDP API keys. Uses facilitator object instead of facilitator URL.
+- **Requirements**: CDP account and API keys from [cdp.coinbase.com](https://cdp.coinbase.com), see Quickstart for Sellers: Running on Mainnet for more details.
 
 #### x402.rs Facilitator
 
-* **Supports**: `eip155:84532` (Base Sepolia), `eip155:8453` (Base), XDC Mainnet
-* **Notes**: Rust-based facilitator operated by the x402 community.
-* **URL**: https://facilitator.x402.rs
+- **Supports**: `eip155:84532` (Base Sepolia), `eip155:8453` (Base), XDC Mainnet
+- **Notes**: Rust-based facilitator operated by the x402 community.
+- **URL**: https://facilitator.x402.rs
 
 #### PayAI Facilitator
 
-* **Supports**: Solana, Base, Polygon, Avalanche, Sei, Peaq, Iotex and all of their testnets.
-* **Notes**: Production-ready for mainnet payments. Supports all tokens on Solana, supports EIP-3009 tokens on EVM-Based chains.
-* **URL**: https://facilitator.payai.network
+- **Supports**: Solana, Base, Polygon, Avalanche, Sei, Peaq, Iotex and all of their testnets.
+- **Notes**: Production-ready for mainnet payments. Supports all tokens on Solana, supports EIP-3009 tokens on EVM-Based chains.
+- **URL**: https://facilitator.payai.network
 
 #### Self-Hosted Facilitators
 
-* **Supports**: Any EVM network
-* **Notes**: Run your own facilitator for full control and customization. Supports networks like Avalanche, Polygon, Arbitrum, and other EVM-compatible chains.
-* **Setup**: See "Adding Support for New Networks" section below
+- **Supports**: Any EVM network
+- **Notes**: Run your own facilitator for full control and customization. Supports networks like Avalanche, Polygon, Arbitrum, and other EVM-compatible chains.
+- **Setup**: See "Adding Support for New Networks" section below
 
 #### Third-Party Facilitators
 
@@ -64,8 +65,8 @@ Additional facilitators may be available from external providers. Check the [x40
 
 x402 supports tokens on both EVM and Solana networks:
 
-* **EVM**: Any ERC-20 token that implements the EIP-3009 standard
-* **Solana**: Any SPL or token-2022 token
+- **EVM**: Any ERC-20 token that implements the EIP-3009 standard
+- **Solana**: Any SPL or token-2022 token
 
 **Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
 
@@ -73,9 +74,9 @@ x402 supports tokens on both EVM and Solana networks:
 
 Tokens must implement the `transferWithAuthorization` function from the EIP-3009 standard. This enables:
 
-* **Gasless transfers**: The facilitator sponsors gas fees
-* **Signature-based authorization**: Users sign transfer authorizations off-chain
-* **Secure payments**: Transfers are authorized by cryptographic signatures
+- **Gasless transfers**: The facilitator sponsors gas fees
+- **Signature-based authorization**: Users sign transfer authorizations off-chain
+- **Secure payments**: Transfers are authorized by cryptographic signatures
 
 #### Specifying Payment Amounts
 
@@ -116,9 +117,9 @@ On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facili
 
 #### USDC - The Default Token
 
-* **Status**: Supported by default across all networks
-* **Why**: USDC implements EIP-3009 and is widely available
-* **Networks**: Available on `eip155:8453` (Base), `eip155:84532` (Base Sepolia), and all supported networks
+- **Status**: Supported by default across all networks
+- **Why**: USDC implements EIP-3009 and is widely available
+- **Networks**: Available on `eip155:8453` (Base), `eip155:84532` (Base Sepolia), and all supported networks
 
 #### Why EIP-3009?
 
@@ -130,13 +131,13 @@ The EIP-3009 standard is essential for x402 because it enables:
 
 ### Quick Reference
 
-| Facilitator     | Networks Supported (CAIP-2)                      | Production Ready | Requirements    |
-| --------------- | --------------------------------------- | ---------------- | --------------- |
-| x402.org        | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`            | ❌ Testnet only  | None            |
-| CDP Facilitator | `eip155:8453`, `eip155:84532`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | ✅               | CDP API keys    |
-| x402.rs         | `eip155:84532`, `eip155:8453`, xdc                 | ✅               | None            |
-| PayAI Facilitator | solana, solana-devnet, base, base-sepolia, polygon, polygon-amoy, avalanche, avalanche-fuji, sei, sei-testnet, peaq, iotex | ✅ | None |
-| Self-hosted     | Any EVM network (CAIP-2 format)                         | ✅               | Technical setup |
+| Facilitator       | Networks Supported (CAIP-2)                                                                                                  | Production Ready | Requirements    |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------- |
+| x402.org          | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`                                                                    | ❌ Testnet only  | None            |
+| CDP Facilitator   | `eip155:8453`, `eip155:84532`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`          | ✅               | CDP API keys    |
+| x402.rs           | `eip155:84532`, `eip155:8453`, xdc                                                                                           | ✅               | None            |
+| PayAI Facilitator | solana, solana-devnet, base, kairos-testnet, polygon, polygon-amoy, avalanche, avalanche-fuji, sei, sei-testnet, peaq, iotex | ✅               | None            |
+| Self-hosted       | Any EVM network (CAIP-2 format)                                                                                              | ✅               | Technical setup |
 
 **Note**: On EVM networks, facilitators support any EIP-3009 compatible token; on Solana, facilitators support any SPL/Token-2022 token.
 
@@ -150,32 +151,37 @@ In V2, networks are supported through the registration pattern using CAIP-2 iden
 
 {% tabs %}
 {% tab title="TypeScript" %}
+
 ```typescript
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
 const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://your-facilitator.com"  // Facilitator that supports your network
+  url: "https://your-facilitator.com", // Facilitator that supports your network
 });
 
 const server = new x402ResourceServer(facilitatorClient);
-registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
+registerExactEvmScheme(server); // Registers wildcard support for all EVM chains
 
 // Now use any CAIP-2 network identifier in your routes:
 const routes = {
   "GET /api/data": {
-    accepts: [{
-      scheme: "exact",
-      price: "$0.001",
-      network: "eip155:43114",  // Avalanche mainnet
-      payTo: "0xYourAddress",
-    }],
+    accepts: [
+      {
+        scheme: "exact",
+        price: "$0.001",
+        network: "eip155:43114", // Avalanche mainnet
+        payTo: "0xYourAddress",
+      },
+    ],
   },
 };
 ```
+
 {% endtab %}
 
 {% tab title="Go" %}
+
 ```go
 import (
     x402http "github.com/coinbase/x402/go/http"
@@ -191,10 +197,12 @@ schemes := []ginmw.SchemeConfig{
     {Network: x402.Network("eip155:43114"), Server: evm.NewExactEvmScheme()},  // Avalanche
 }
 ```
+
 {% endtab %}
 {% endtabs %}
 
 **Key Points:**
+
 - Use CAIP-2 format: `eip155:<chainId>` for any EVM network
 - The scheme implementation handles the network automatically
 - You only need a facilitator that supports your target network (or run your own)
@@ -215,16 +223,16 @@ Video Guide: [Adding EVM Chains to x402](https://x.com/jaycoolh/status/192085155
 
 The x402 ecosystem is actively expanding network support. Planned additions include:
 
-* Additional L2 networks
-* Additional non-EVM chain support
-* Cross-chain payment capabilities
+- Additional L2 networks
+- Additional non-EVM chain support
+- Cross-chain payment capabilities
 
 ### Getting Help
 
 For help with network integration:
 
-* Join the [x402 Discord community](https://discord.gg/cdp)
-* Check the [x402 GitHub repository](https://github.com/coinbase/x402)
+- Join the [x402 Discord community](https://discord.gg/cdp)
+- Check the [x402 GitHub repository](https://github.com/coinbase/x402)
 
 ### Summary
 
@@ -232,16 +240,16 @@ x402's network support is designed to be extensible while maintaining security a
 
 Key takeaways:
 
-* Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) have the best out-of-the-box support
-* Any EVM network can be supported with a custom facilitator using CAIP-2 format
-* Any EIP-3009 token (with `transferWithAuthorization`) works on any facilitator
-* Use price strings for USDC or TokenAmount for custom tokens
-* Network choice affects gas costs and payment economics
-* V2 uses CAIP-2 network identifiers for unambiguous cross-chain support
+- Base (`eip155:8453`) and Base Sepolia (`eip155:84532`) have the best out-of-the-box support
+- Any EVM network can be supported with a custom facilitator using CAIP-2 format
+- Any EIP-3009 token (with `transferWithAuthorization`) works on any facilitator
+- Use price strings for USDC or TokenAmount for custom tokens
+- Network choice affects gas costs and payment economics
+- V2 uses CAIP-2 network identifiers for unambiguous cross-chain support
 
 Next, explore:
 
-* Quickstart for Sellers — Start accepting payments on supported networks
-* Core Concepts — Learn how x402 works under the hood
-* Facilitator — Understand the role of facilitators
-* MCP Server — Set up AI agents to use x402 payments
+- Quickstart for Sellers — Start accepting payments on supported networks
+- Core Concepts — Learn how x402 works under the hood
+- Facilitator — Understand the role of facilitators
+- MCP Server — Set up AI agents to use x402 payments

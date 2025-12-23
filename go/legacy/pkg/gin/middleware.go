@@ -117,7 +117,7 @@ func PaymentMiddleware(amount *big.Float, address string, opts ...Options) gin.H
 		)
 
 		if options.Testnet {
-			network = "base-sepolia"
+			network = "kairos-testnet"
 			usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 		}
 

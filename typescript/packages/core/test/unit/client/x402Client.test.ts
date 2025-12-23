@@ -94,7 +94,7 @@ describe("x402Client", () => {
       });
 
       const client = x402Client.fromConfig({
-        schemes: [{ network: "base-sepolia" as Network, client: mockClient, x402Version: 1 }],
+        schemes: [{ network: "kairos-testnet" as Network, client: mockClient, x402Version: 1 }],
       });
 
       const paymentRequired = buildPaymentRequired({
@@ -102,7 +102,7 @@ describe("x402Client", () => {
         accepts: [
           buildPaymentRequirements({
             scheme: "v1-scheme",
-            network: "base-sepolia" as Network,
+            network: "kairos-testnet" as Network,
           }),
         ],
       });
@@ -220,7 +220,7 @@ describe("x402Client", () => {
       const client = new x402Client();
       const mockClient = new MockSchemeNetworkClient("exact");
 
-      const result = client.registerV1("base-sepolia", mockClient);
+      const result = client.registerV1("kairos-testnet", mockClient);
 
       expect(result).toBe(client);
     });

@@ -35,7 +35,7 @@ import (
 
 func main() {
     r := gin.Default()
-    
+
     // 1. Configure payment routes
     routes := x402http.RoutesConfig{
         "GET /data": {
@@ -51,12 +51,12 @@ func main() {
             MimeType:    "application/json",
         },
     }
-    
+
     // 2. Create facilitator client
     facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
         URL: "https://x402.org/facilitator",
     })
-    
+
     // 3. Add payment middleware
     r.Use(ginmw.X402Payment(ginmw.Config{
         Routes:      routes,
@@ -65,12 +65,12 @@ func main() {
             {Network: "eip155:84532", Server: evm.NewExactEvmScheme()},
         },
     }))
-    
+
     // 4. Protected endpoint handler
     r.GET("/data", func(c *gin.Context) {
         c.JSON(200, gin.H{"result": "protected data"})
     })
-    
+
     r.Run(":8080")
 }
 ```
@@ -205,9 +205,9 @@ func customPaymentMiddleware(server *x402http.HTTPServer) gin.HandlerFunc {
             Path:    c.Request.URL.Path,
             Method:  c.Request.Method,
         }
-        
+
         result := server.ProcessHTTPRequest(ctx, reqCtx, nil)
-        
+
         switch result.Type {
         case x402http.ResultNoPaymentRequired:
             c.Next()
@@ -347,17 +347,20 @@ routes := x402http.RoutesConfig{
 ### x402.X402ResourceServer
 
 **Constructor:**
+
 ```go
 func Newx402ResourceServer(opts ...ResourceServerOption) *X402ResourceServer
 ```
 
 **Options:**
+
 ```go
 func WithFacilitatorClient(client FacilitatorClient) ResourceServerOption
 func WithSchemeServer(network Network, server SchemeNetworkServer) ResourceServerOption
 ```
 
 **Hook Methods:**
+
 ```go
 func (s *X402ResourceServer) OnBeforeVerify(hook BeforeVerifyHook) *X402ResourceServer
 func (s *X402ResourceServer) OnAfterVerify(hook AfterVerifyHook) *X402ResourceServer
@@ -368,6 +371,7 @@ func (s *X402ResourceServer) OnSettleFailure(hook OnSettleFailureHook) *X402Reso
 ```
 
 **Payment Methods:**
+
 ```go
 func (s *X402ResourceServer) BuildPaymentRequirements(ctx context.Context, config ResourceConfig) ([]PaymentRequirements, error)
 func (s *X402ResourceServer) VerifyPayment(ctx context.Context, payload PaymentPayload, requirements PaymentRequirements) (VerifyResponse, error)
@@ -433,7 +437,7 @@ r.Use(ginmw.X402Payment(ginmw.Config{
     // ... config ...
     SettlementHandler: func(c *gin.Context, resp x402.SettleResponse) {
         log.Printf("Payment settled: tx=%s, payer=%s", resp.Transaction, resp.Payer)
-        
+
         // Store in database, emit metrics, etc.
         db.RecordPayment(resp.Transaction, resp.Payer)
     },
@@ -625,6 +629,7 @@ server.OnAfterSettle(func(ctx SettleResultContext) error {
 ### Use Cases
 
 **Database Logging:**
+
 ```go
 server.OnAfterSettle(func(ctx SettleResultContext) error {
     return db.InsertPayment(Payment{
@@ -638,6 +643,7 @@ server.OnAfterSettle(func(ctx SettleResultContext) error {
 ```
 
 **Metrics:**
+
 ```go
 server.OnAfterVerify(func(ctx VerifyResultContext) error {
     metrics.IncrementCounter("payments.verified")
@@ -646,6 +652,7 @@ server.OnAfterVerify(func(ctx VerifyResultContext) error {
 ```
 
 **Access Control:**
+
 ```go
 server.OnBeforeSettle(func(ctx SettleContext) (*BeforeHookResult, error) {
     if isBlacklisted(ctx.Payload.Payer) {
@@ -666,19 +673,19 @@ server.OnBeforeSettle(func(ctx SettleContext) (*BeforeHookResult, error) {
 func TestProtectedEndpoint(t *testing.T) {
     // Create test server
     r := gin.Default()
-    
+
     // Add mock middleware
     r.Use(mockPaymentMiddleware())
-    
+
     r.GET("/protected", handler)
-    
+
     // Test with valid payment
     req := httptest.NewRequest("GET", "/protected", nil)
     req.Header.Set("PAYMENT-SIGNATURE", validPayment)
-    
+
     w := httptest.NewRecorder()
     r.ServeHTTP(w, req)
-    
+
     if w.Code != 200 {
         t.Errorf("Expected 200, got %d", w.Code)
     }
@@ -705,6 +712,7 @@ See [`test/integration/`](test/integration/) for examples testing against real f
 ### Facilitator Selection
 
 **Testnet:**
+
 ```go
 facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
     URL: "https://x402.org/facilitator", // Testnet
@@ -712,6 +720,7 @@ facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
 ```
 
 **Mainnet:**
+
 ```go
 facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
     URL: "https://facilitator.coinbase.com", // Production
@@ -719,6 +728,7 @@ facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
 ```
 
 **Self-Hosted:**
+
 ```go
 facilitator := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
     URL: "https://your-facilitator.example.com",
@@ -738,16 +748,18 @@ Complete examples are available in [`examples/go/servers/`](../../examples/go/se
 ### Route Configuration
 
 **V1:**
+
 ```go
 routes := x402gin.Routes{
     "GET /data": {
-        Network: "base-sepolia",
+        Network: "kairos-testnet",
         // ...
     },
 }
 ```
 
 **V2:**
+
 ```go
 routes := x402http.RoutesConfig{
     "GET /data": {
@@ -760,11 +772,13 @@ routes := x402http.RoutesConfig{
 ### Import Paths
 
 **V1:**
+
 ```go
 import "github.com/coinbase/x402/go/middleware/gin"
 ```
 
 **V2:**
+
 ```go
 import ginmw "github.com/coinbase/x402/go/http/gin"
 ```
@@ -777,4 +791,3 @@ import ginmw "github.com/coinbase/x402/go/http/gin"
 - **[Mechanisms](mechanisms/)** - Payment scheme implementations
 - **[Extensions](extensions/)** - Protocol extensions
 - **[Examples](../../examples/go/servers/)** - Working server examples
-

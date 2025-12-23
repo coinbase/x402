@@ -2,7 +2,7 @@ import { selectPaymentRequirements } from "../../client";
 import type { PaymentRequirements } from "../../types/verify";
 import { Network, SupportedEVMNetworks, SupportedSVMNetworks } from "../../types/shared";
 
-const EVM_TESTNETS = new Set<Network>(["base-sepolia"]);
+const EVM_TESTNETS = new Set<Network>(["kairos-testnet"]);
 const SVM_TESTNETS = new Set<Network>(["solana-devnet"]);
 
 /**
@@ -28,7 +28,7 @@ export function normalizePaymentRequirements(
  */
 export function getPreferredNetworks(testnet: boolean): Network[] {
   if (testnet) {
-    return ["base-sepolia", "solana-devnet"];
+    return ["kairos-testnet", "solana-devnet"];
   }
   return ["base", "solana"];
 }
@@ -80,7 +80,7 @@ export function getNetworkDisplayName(network: Network): string {
   switch (network) {
     case "base":
       return "Base";
-    case "base-sepolia":
+    case "kairos-testnet":
       return "Base Sepolia";
     case "solana":
       return "Solana";

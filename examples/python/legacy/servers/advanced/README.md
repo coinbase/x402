@@ -24,11 +24,13 @@ cp .env-local .env
 ```
 
 2. Install dependencies:
+
 ```bash
 uv sync
 ```
 
 3. Run the server:
+
 ```bash
 uv run python main.py
 ```
@@ -52,7 +54,7 @@ This advanced implementation provides a structured approach to handling payments
 # USD price (automatically converts to USDC)
 payment_req = create_exact_payment_requirements(
     price="$0.001",
-    network="base-sepolia",
+    network="kairos-testnet",
     resource="https://api.example.com/weather",
     description="Weather data access"
 )
@@ -67,7 +69,7 @@ payment_req = create_exact_payment_requirements(
             eip712=EIP712Domain(name="USDC", version="2"),
         ),
     ),
-    network="base-sepolia",
+    network="kairos-testnet",
     resource="https://api.example.com/weather"
 )
 ```
@@ -88,6 +90,7 @@ async def verify_payment(
 You can test the server using one of the example Python clients:
 
 ### Using the httpx Client
+
 ```bash
 cd ../../clients/httpx
 # Ensure .env is set up
@@ -96,6 +99,7 @@ uv run python main.py
 ```
 
 ### Using the requests Client
+
 ```bash
 cd ../../clients/requests
 # Ensure .env is set up
@@ -108,18 +112,21 @@ uv run python main.py
 The server includes example endpoints that demonstrate different payment scenarios:
 
 ### Delayed Settlement
+
 - `/delayed-settlement` - Demonstrates asynchronous payment processing
 - Returns the weather data immediately without waiting for payment settlement
 - Processes payment asynchronously in the background using `asyncio.create_task()`
 - Useful for scenarios where immediate response is critical and payment settlement can be handled later
 
 ### Dynamic Pricing
+
 - `/dynamic-price` - Shows how to implement variable pricing based on request parameters
 - Accepts a `multiplier` query parameter to adjust the base price
 - Demonstrates how to calculate and validate payments with dynamic amounts
 - Useful for implementing tiered pricing or demand-based pricing models
 
 ### Multiple Payment Requirements
+
 - `/multiple-payment-requirements` - Illustrates how to accept multiple payment options
 - Allows clients to pay using different assets (e.g., USDC or custom tokens)
 - Supports multiple networks (e.g., Base and Base Sepolia)
@@ -128,32 +135,34 @@ The server includes example endpoints that demonstrate different payment scenari
 ## Response Format
 
 ### Payment Required (402)
+
 ```json5
 {
-  "x402Version": 1,
-  "error": "X-PAYMENT header is required",
-  "accepts": [
+  x402Version: 1,
+  error: "X-PAYMENT header is required",
+  accepts: [
     {
-      "scheme": "exact",
-      "network": "base-sepolia",
-      "maxAmountRequired": "1000",
-      "resource": "http://localhost:4021/weather",
-      "description": "Access to weather data",
-      "mimeType": "application/json",
-      "payTo": "0xYourAddress",
-      "maxTimeoutSeconds": 60,
-      "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "outputSchema": null,
-      "extra": {
-        "name": "USD Coin",
-        "version": "2"
-      }
-    }
-  ]
+      scheme: "exact",
+      network: "kairos-testnet",
+      maxAmountRequired: "1000",
+      resource: "http://localhost:4021/weather",
+      description: "Access to weather data",
+      mimeType: "application/json",
+      payTo: "0xYourAddress",
+      maxTimeoutSeconds: 60,
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      outputSchema: null,
+      extra: {
+        name: "USD Coin",
+        version: "2",
+      },
+    },
+  ],
 }
 ```
 
 ### Successful Response
+
 ```json5
 // Body
 {
@@ -179,7 +188,7 @@ async def your_endpoint(request: Request) -> Dict[str, Any]:
     payment_requirements = [
         create_exact_payment_requirements(
             price="$0.001",  # Your price
-            network="base-sepolia",  # Your network
+            network="kairos-testnet",  # Your network
             resource=resource,
             description="Description of your resource"
         )
@@ -201,13 +210,13 @@ async def your_endpoint(request: Request) -> Dict[str, Any]:
             if not x_payment:
                 logger.error("X-PAYMENT header missing in async processing")
                 return
-                
+
             decoded_payment_dict = decode_payment(x_payment)
             decoded_payment = PaymentPayload(**decoded_payment_dict)
-            
+
             settle_response = await facilitator.settle(decoded_payment, payment_requirements[0])
             response_header = settle_response_header(settle_response)
-            
+
             # In a real application, you would store this response header
             # and associate it with the payment for later verification
             logger.info(f"Payment settled: {response_header}")

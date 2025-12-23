@@ -28,8 +28,8 @@ function getChainConfig() {
       usdcAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       usdcName: "USDC",
     },
-    "base-sepolia": {
-      usdcAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "kairos-testnet": {
+      usdcAddress: "0x35ad55addadcd1867f8d036ed24f0431c8ef86a6",
       usdcName: "USDC",
     },
   };

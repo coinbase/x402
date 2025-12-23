@@ -65,7 +65,7 @@ func main() {
 	x402Client := x402.Newx402Client().
 		Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
 		Register("solana:*", svm.NewExactSvmScheme(svmSigner)).
-		RegisterV1("base-sepolia", evmv1.NewExactEvmSchemeV1(evmSigner)).
+		RegisterV1("kairos-testnet", evmv1.NewExactEvmSchemeV1(evmSigner)).
 		RegisterV1("base", evmv1.NewExactEvmSchemeV1(evmSigner)).
 		RegisterV1("solana-devnet", svmv1.NewExactSvmSchemeV1(svmSigner)).
 		RegisterV1("solana", svmv1.NewExactSvmSchemeV1(svmSigner))

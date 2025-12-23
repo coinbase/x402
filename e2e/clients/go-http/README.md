@@ -5,6 +5,7 @@ This client demonstrates and tests the Go x402 HTTP client with both EVM and SVM
 ## What It Tests
 
 ### Core Functionality
+
 - ✅ **V2 Protocol** - Modern x402 protocol with CAIP-2 networks
 - ✅ **V1 Protocol** - Legacy x402 protocol with simple network names
 - ✅ **Multi-chain Support** - Both EVM and SVM in a single client
@@ -13,8 +14,9 @@ This client demonstrates and tests the Go x402 HTTP client with both EVM and SVM
 - ✅ **Payment Response Extraction** - Decodes settlement info from headers
 
 ### Payment Mechanisms
+
 - ✅ **EVM V2** - `eip155:*` wildcard scheme
-- ✅ **EVM V1** - `base-sepolia` and `base` networks
+- ✅ **EVM V1** - `kairos-testnet` and `base` networks
 - ✅ **SVM V2** - `solana:*` wildcard scheme
 - ✅ **SVM V1** - `solana-devnet` and `solana` networks
 
@@ -37,9 +39,9 @@ x402Client := x402.Newx402Client()
 
 // Register EVM support
 x402Client.Register("eip155:*", evm.NewExactEvmClient(evmSigner))
-x402Client.RegisterV1("base-sepolia", evmv1.NewExactEvmClientV1(evmSigner))
+x402Client.RegisterV1("kairos-testnet", evmv1.NewExactEvmClientV1(evmSigner))
 
-// Register SVM support  
+// Register SVM support
 x402Client.Register("solana:*", svm.NewExactSvmClient(svmSigner))
 x402Client.RegisterV1("solana-devnet", svmv1.NewExactSvmClientV1(svmSigner))
 
@@ -65,12 +67,14 @@ resp, err := client.Get(url)
 ## Test Scenarios
 
 This client is tested against:
+
 - **Servers:** Express (TypeScript), Gin (Go)
 - **Facilitators:** TypeScript, Go
 - **Endpoints:** `/protected` (EVM), `/protected-svm` (SVM)
 - **Networks:** Base Sepolia (EVM), Solana Devnet (SVM)
 
 ### Success Criteria
+
 - ✅ Request succeeds with 200 status
 - ✅ Payment response header present
 - ✅ Transaction hash returned
@@ -118,17 +122,20 @@ export SVM_PRIVATE_KEY="..."
 ## Implementation Details
 
 ### EVM Signer
+
 - Derives address from private key
 - Implements EIP-712 typed data signing
 - Uses go-ethereum's crypto package
 - Generates valid Ethereum signatures with recovery ID
 
 ### SVM Signer
+
 - Uses ed25519 keypair
 - Signs Solana transactions
 - Partial signing (client signs, facilitator completes)
 
 ### RPC Resolution
+
 - **Automatic** - SVM clients resolve RPC URLs from network config
 - **No manual config needed** - Defaults to public Solana RPCs
 - **Customizable** - Can override with `ClientConfig` if needed

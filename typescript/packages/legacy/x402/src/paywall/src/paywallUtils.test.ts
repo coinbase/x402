@@ -24,9 +24,9 @@ const baseRequirement: PaymentRequirements = {
   },
 };
 
-const baseSepoliaRequirement: PaymentRequirements = {
+const kairosRequirement: PaymentRequirements = {
   ...baseRequirement,
-  network: "base-sepolia",
+  network: "kairos-testnet",
   description: "Base Sepolia resource",
   asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
 };
@@ -59,8 +59,8 @@ describe("paywallUtils", () => {
   });
 
   it("selects first available payment from preferred networks on testnet", () => {
-    const selected = choosePaymentRequirement([baseSepoliaRequirement, solanaRequirement], true);
-    expect(["base-sepolia", "solana-devnet"]).toContain(selected.network);
+    const selected = choosePaymentRequirement([kairosRequirement, solanaRequirement], true);
+    expect(["kairos-testnet", "solana-devnet"]).toContain(selected.network);
   });
 
   it("falls back to solana when no evm networks exist", () => {

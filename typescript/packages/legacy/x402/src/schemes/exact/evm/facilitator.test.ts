@@ -45,7 +45,7 @@ vi.mock("viem", async importOriginal => {
 describe("facilitator - smart wallet deployment check", () => {
   const mockPaymentRequirements: PaymentRequirements = {
     scheme: "exact",
-    network: "base-sepolia",
+    network: "kairos-testnet",
     maxAmountRequired: "1000000",
     resource: "https://example.com/resource",
     description: "Test resource",
@@ -83,7 +83,7 @@ describe("facilitator - smart wallet deployment check", () => {
     return {
       x402Version: 1,
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       payload: {
         signature: signature as `0x${string}`,
         authorization: {
@@ -185,7 +185,7 @@ describe("facilitator - smart wallet deployment check", () => {
 
       expect(result).toEqual({
         success: false,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         transaction: "",
         errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
         payer: (payload.payload as ExactEvmPayload).authorization.from,
@@ -201,7 +201,7 @@ describe("facilitator - smart wallet deployment check", () => {
 
       expect(result).toEqual({
         success: false,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         transaction: "",
         errorReason: "invalid_exact_evm_payload_undeployed_smart_wallet",
         payer: (payload.payload as ExactEvmPayload).authorization.from,

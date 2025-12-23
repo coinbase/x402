@@ -99,7 +99,7 @@ class FilterIntegrationTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme      = "exact";
-        p.network     = "base-sepolia";
+        p.network     = "kairos-testnet";
         p.payload     = Map.of("resource", "/private");
         String hdr = p.toHeader();
 

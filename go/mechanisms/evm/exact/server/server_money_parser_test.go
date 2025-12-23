@@ -150,8 +150,8 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 		if string(network) == "eip155:84532" {
 			return &x402.AssetAmount{
 				Amount: fmt.Sprintf("%.0f", amount*1e6),
-				Asset:  "0xBaseSepoliaCustomToken",
-				Extra:  map[string]interface{}{"network": "base-sepolia"},
+				Asset:  "0xkairosCustomToken",
+				Extra:  map[string]interface{}{"network": "kairos-testnet"},
 			}, nil
 		}
 		return nil, nil // Skip for other networks
@@ -162,7 +162,7 @@ func TestRegisterMoneyParser_NetworkSpecific(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if result1.Asset != "0xBaseSepoliaCustomToken" {
+	if result1.Asset != "0xkairosCustomToken" {
 		t.Errorf("Expected custom token, got %s", result1.Asset)
 	}
 

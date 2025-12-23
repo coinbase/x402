@@ -209,7 +209,7 @@ async def delayed_settlement(request: Request) -> Dict[str, Any]:
     payment_requirements = [
         create_exact_payment_requirements(
             price="$0.001",
-            network="base-sepolia",
+            network="kairos-testnet",
             resource=resource,
             description="Access to weather data (async)",
         )
@@ -272,7 +272,7 @@ async def dynamic_price(request: Request, response: Response) -> Dict[str, Any]:
     payment_requirements = [
         create_exact_payment_requirements(
             price=f"${dynamic_price_value}",
-            network="base-sepolia",
+            network="kairos-testnet",
             resource=resource,
             description="Access to weather data",
         )
@@ -333,7 +333,7 @@ async def multiple_payment_requirements(
                     eip712=EIP712Domain(name="USDC", version="2"),
                 ),
             ),
-            network="base-sepolia",
+            network="kairos-testnet",
             resource=resource,
             description="Access to weather data (Custom Token)",
         ),

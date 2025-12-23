@@ -13,7 +13,7 @@ class PaymentPayloadTest {
         PaymentPayload p = new PaymentPayload();
         p.x402Version = 1;
         p.scheme  = "exact";
-        p.network = "base-sepolia";
+        p.network = "kairos-testnet";
         p.payload = Map.of(
                 "amount", "123",
                 "resource", "/weather",

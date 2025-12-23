@@ -1,7 +1,13 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { createWalletClient, custom, type WalletClient } from 'viem';
-import { baseSepolia } from 'viem/chains';
-import type { Hex } from 'viem';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+} from "react";
+import { createWalletClient, custom, type WalletClient } from "viem";
+import { kairos } from "viem/chains";
+import type { Hex } from "viem";
 
 interface WalletContextType {
   isConnected: boolean;
@@ -28,25 +34,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkConnection = async () => {
-    if (typeof window.ethereum !== 'undefined') {
+    if (typeof window.ethereum !== "undefined") {
       try {
-        const accounts = await window.ethereum.request({ 
-          method: 'eth_accounts' 
-        }) as string[];
-        
+        const accounts = (await window.ethereum.request({
+          method: "eth_accounts",
+        })) as string[];
+
         if (accounts.length > 0) {
           const client = createWalletClient({
             account: accounts[0] as Hex,
-            chain: baseSepolia,
-            transport: custom(window.ethereum)
+            chain: kairos,
+            transport: custom(window.ethereum),
           });
-          
+
           setWalletClient(client);
           setAddress(accounts[0] as Hex);
           setIsConnected(true);
         }
       } catch (err) {
-        console.error('Failed to check wallet connection:', err);
+        console.error("Failed to check wallet connection:", err);
       }
     }
   };
@@ -56,48 +62,50 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsConnecting(true);
 
     try {
-      if (typeof window.ethereum === 'undefined') {
-        throw new Error('Please install MetaMask or another Ethereum wallet');
+      if (typeof window.ethereum === "undefined") {
+        throw new Error("Please install MetaMask or another Ethereum wallet");
       }
 
       // Request account access
-      const accounts = await window.ethereum.request({ 
-        method: 'eth_requestAccounts' 
-      }) as string[];
-      
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+
       if (accounts.length === 0) {
-        throw new Error('No accounts found');
+        throw new Error("No accounts found");
       }
 
       // Check if on correct network (Base Sepolia)
-      const chainId = await window.ethereum.request({ 
-        method: 'eth_chainId' 
-      }) as string;
-      
-      const baseSepoliaChainIdHex = '0x14a34'; // 84532 in hex
-      
-      if (chainId !== baseSepoliaChainIdHex) {
+      const chainId = (await window.ethereum.request({
+        method: "eth_chainId",
+      })) as string;
+
+      const kairosChainIdHex = "0x14a34"; // 84532 in hex
+
+      if (chainId !== kairosChainIdHex) {
         try {
           await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: baseSepoliaChainIdHex }],
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: kairosChainIdHex }],
           });
         } catch (switchError: any) {
           // This error code indicates that the chain has not been added to browser wallet
           if (switchError.code === 4902) {
             await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: baseSepoliaChainIdHex,
-                chainName: 'Base Sepolia',
-                nativeCurrency: {
-                  name: 'Ethereum',
-                  symbol: 'ETH',
-                  decimals: 18,
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: kairosChainIdHex,
+                  chainName: "Base Sepolia",
+                  nativeCurrency: {
+                    name: "Ethereum",
+                    symbol: "ETH",
+                    decimals: 18,
+                  },
+                  rpcUrls: ["https://sepolia.base.org"],
+                  blockExplorerUrls: ["https://sepolia.basescan.org"],
                 },
-                rpcUrls: ['https://sepolia.base.org'],
-                blockExplorerUrls: ['https://sepolia.basescan.org'],
-              }],
+              ],
             });
           } else {
             throw switchError;
@@ -108,16 +116,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       // Create viem wallet client
       const client = createWalletClient({
         account: accounts[0] as Hex,
-        chain: baseSepolia,
-        transport: custom(window.ethereum)
+        chain: kairos,
+        transport: custom(window.ethereum),
       });
 
       setWalletClient(client);
       setAddress(accounts[0] as Hex);
       setIsConnected(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to connect wallet');
-      console.error('Wallet connection error:', err);
+      setError(err.message || "Failed to connect wallet");
+      console.error("Wallet connection error:", err);
     } finally {
       setIsConnecting(false);
     }
@@ -132,7 +140,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // Listen for account changes
   useEffect(() => {
-    if (typeof window.ethereum !== 'undefined') {
+    if (typeof window.ethereum !== "undefined") {
       const handleAccountsChanged = async (accounts: string[]) => {
         if (accounts.length === 0) {
           disconnectWallet();
@@ -140,10 +148,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           // Re-connect with new account
           const client = createWalletClient({
             account: accounts[0] as Hex,
-            chain: baseSepolia,
-            transport: custom(window.ethereum)
+            chain: kairos,
+            transport: custom(window.ethereum),
           });
-          
+
           setWalletClient(client);
           setAddress(accounts[0] as Hex);
           setIsConnected(true);
@@ -151,16 +159,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       };
 
       const handleChainChanged = () => {
-        
         window.location.reload();
       };
 
-      window.ethereum.on('accountsChanged', handleAccountsChanged);
-      window.ethereum.on('chainChanged', handleChainChanged);
+      window.ethereum.on("accountsChanged", handleAccountsChanged);
+      window.ethereum.on("chainChanged", handleChainChanged);
 
       return () => {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener('chainChanged', handleChainChanged);
+        window.ethereum.removeListener(
+          "accountsChanged",
+          handleAccountsChanged
+        );
+        window.ethereum.removeListener("chainChanged", handleChainChanged);
       };
     }
   }, [address, disconnectWallet]);
@@ -176,16 +186,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
   );
 }
 
 export function useWallet() {
   const context = useContext(WalletContext);
   if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider');
+    throw new Error("useWallet must be used within a WalletProvider");
   }
   return context;
-} 
+}

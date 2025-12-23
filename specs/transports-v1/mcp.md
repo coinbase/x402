@@ -28,7 +28,7 @@ The server indicates payment is required using JSON-RPC's native error format wi
       "accepts": [
         {
           "scheme": "exact",
-          "network": "base-sepolia",
+          "network": "kairos-testnet",
           "maxAmountRequired": "10000",
           "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
           "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
@@ -72,7 +72,7 @@ Clients send payment data using the MCP `_meta` field with key `x402/payment`.
       "x402/payment": {
         "x402Version": 1,
         "scheme": "exact",
-        "network": "base-sepolia",
+        "network": "kairos-testnet",
         "payload": {
           "signature": "0x2d6a7588d6acca505cbf0d9a4a227e0c52c6c34008c8e8986a1283259764173608a2ce6496642e377d6da8dbbf5836e9bd15092f9ecab05ded3d6293af148b571c",
           "authorization": {
@@ -114,7 +114,7 @@ Servers communicate payment settlement results using the `_meta["x402/payment-re
       "x402/payment-response": {
         "success": true,
         "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        "network": "base-sepolia",
+        "network": "kairos-testnet",
         "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
       }
     }
@@ -141,7 +141,7 @@ Servers communicate payment settlement results using the `_meta["x402/payment-re
         "success": false,
         "errorReason": "insufficient_funds",
         "transaction": "",
-        "network": "base-sepolia",
+        "network": "kairos-testnet",
         "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
       }
     }
@@ -153,14 +153,14 @@ Servers communicate payment settlement results using the `_meta["x402/payment-re
 
 MCP transport maps x402 errors to appropriate JSON-RPC mechanisms:
 
-| x402 Error       | JSON-RPC Response | Code   | Description                                                    |
-| ---------------- | ----------------- | ------ | -------------------------------------------------------------- |
+| x402 Error       | JSON-RPC Response | Code   | Description                                                   |
+| ---------------- | ----------------- | ------ | ------------------------------------------------------------- |
 | Payment Required | Error Response    | 402    | Payment required with `PaymentRequirementsResponse` in `data` |
 | Payment Failed   | Error Response    | 402    | Payment settlement failed with failure details in `data`      |
-| Invalid Payment  | Error Response    | -32602 | Malformed payment payload or invalid parameters                |
-| Server Error     | Error Response    | -32603 | Internal server error during payment processing                |
-| Parse Error      | Error Response    | -32700 | Invalid JSON in payment payload                                |
-| Method Error     | Error Response    | -32601 | Unsupported x402 method or capability                          |
+| Invalid Payment  | Error Response    | -32602 | Malformed payment payload or invalid parameters               |
+| Server Error     | Error Response    | -32603 | Internal server error during payment processing               |
+| Parse Error      | Error Response    | -32700 | Invalid JSON in payment payload                               |
+| Method Error     | Error Response    | -32601 | Unsupported x402 method or capability                         |
 
 ### Payment-Related Errors (402)
 

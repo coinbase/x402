@@ -138,7 +138,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -160,7 +160,7 @@ describe("withX402()", () => {
     };
     expect(json.accepts[0]).toEqual({
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -182,7 +182,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -211,7 +211,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -227,7 +227,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -236,7 +236,7 @@ describe("withX402()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await wrappedHandler(request);
@@ -245,7 +245,7 @@ describe("withX402()", () => {
     expect(mockDecodePayment).toHaveBeenCalledWith(validPayment);
     expect(mockVerify).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -269,7 +269,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -285,7 +285,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -306,7 +306,7 @@ describe("withX402()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -330,7 +330,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -346,7 +346,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -355,14 +355,14 @@ describe("withX402()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await wrappedHandler(request);
 
     expect(mockSettle).toHaveBeenCalledWith(decodedPayment, {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -385,7 +385,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -401,7 +401,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -419,7 +419,7 @@ describe("withX402()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -443,7 +443,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -459,7 +459,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -469,7 +469,7 @@ describe("withX402()", () => {
       success: false,
       errorReason: "invalid_transaction_state",
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       payer: "0x123",
     });
 
@@ -484,7 +484,7 @@ describe("withX402()", () => {
       accepts: [
         {
           scheme: "exact",
-          network: "base-sepolia",
+          network: "kairos-testnet",
           maxAmountRequired: "1000000",
           resource: "https://api.example.com/resource",
           description: "Test payment",
@@ -508,7 +508,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: "invalid",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -538,7 +538,7 @@ describe("withX402()", () => {
             },
           },
         },
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -559,7 +559,7 @@ describe("withX402()", () => {
     };
     expect(json.accepts[0]).toMatchObject({
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       maxAmountRequired: "1000000000000000000",
       resource: "https://api.example.com/resource",
       description: "Test payment",
@@ -584,7 +584,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -600,7 +600,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -609,7 +609,7 @@ describe("withX402()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await wrappedHandler(request);
@@ -627,7 +627,7 @@ describe("withX402()", () => {
       payTo,
       {
         price: 1.0,
-        network: "base-sepolia",
+        network: "kairos-testnet",
         config: middlewareConfig,
       },
       facilitatorConfig,
@@ -643,7 +643,7 @@ describe("withX402()", () => {
 
     const decodedPayment = {
       scheme: "exact",
-      network: "base-sepolia",
+      network: "kairos-testnet",
       x402Version: 1,
     };
     mockDecodePayment.mockReturnValue(decodedPayment);
@@ -652,7 +652,7 @@ describe("withX402()", () => {
     (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
       success: true,
       transaction: "0x123",
-      network: "base-sepolia",
+      network: "kairos-testnet",
     });
 
     const response = await wrappedHandler(request);
@@ -794,7 +794,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
         facilitatorConfig,
@@ -832,7 +832,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
         facilitatorConfig,
@@ -868,7 +868,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
         facilitatorConfig,
@@ -901,7 +901,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
         facilitatorConfig,
@@ -945,7 +945,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: middlewareConfig,
         },
         facilitatorConfig,
@@ -961,7 +961,7 @@ describe("withX402()", () => {
 
       const decodedPayment = {
         scheme: "exact",
-        network: "base-sepolia",
+        network: "kairos-testnet",
         x402Version: 1,
       };
       mockDecodePayment.mockReturnValue(decodedPayment);
@@ -970,7 +970,7 @@ describe("withX402()", () => {
       (mockSettle as ReturnType<typeof vi.fn>).mockResolvedValue({
         success: true,
         transaction: "0x123",
-        network: "base-sepolia",
+        network: "kairos-testnet",
       });
 
       const response = await wrappedHandler(request);
@@ -998,7 +998,7 @@ describe("withX402()", () => {
         payTo,
         {
           price: 1.0,
-          network: "base-sepolia",
+          network: "kairos-testnet",
           config: customConfig,
         },
         facilitatorConfig,
