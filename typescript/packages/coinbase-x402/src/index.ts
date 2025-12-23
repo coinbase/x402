@@ -4,7 +4,7 @@ import { FacilitatorConfig } from "@x402/core/http";
 const COINBASE_FACILITATOR_BASE_URL = "https://api.cdp.coinbase.com";
 const COINBASE_FACILITATOR_V2_ROUTE = "/platform/v2/x402";
 
-const X402_SDK_VERSION = "2.0.0";
+const X402_SDK_VERSION = "2.1.0";
 const CDP_SDK_VERSION = "1.29.0";
 
 /**
