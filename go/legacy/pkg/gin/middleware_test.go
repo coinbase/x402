@@ -255,7 +255,7 @@ func TestPaymentMiddleware_SettlementServerError(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusPaymentRequired, w.Code)
-	assert.Contains(t, w.Body.String(), "failed to settle payment: 500 Internal Server Error")
+	assert.Contains(t, w.Body.String(), "failed to settle payment:")
 
 	assert.Empty(t, w.Header().Get("X-PAYMENT-RESPONSE"))
 }

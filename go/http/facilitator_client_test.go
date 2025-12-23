@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -444,6 +445,82 @@ func TestHTTPFacilitatorClientErrorHandling(t *testing.T) {
 	_, err = client.GetSupported(ctx)
 	if err == nil {
 		t.Error("Expected error for getSupported")
+	}
+}
+
+func TestHTTPFacilitatorClient400WithValidResponse(t *testing.T) {
+	ctx := context.Background()
+
+	// Create test server that returns 400 with valid response structures
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+
+		switch r.URL.Path {
+		case "/verify":
+			response := x402.VerifyResponse{
+				IsValid:       false,
+				InvalidReason: "invalid_signature",
+				Payer:         "0xpayer",
+			}
+			json.NewEncoder(w).Encode(response)
+		case "/settle":
+			response := x402.SettleResponse{
+				Success:     false,
+				ErrorReason: "insufficient_allowance",
+				Network:     "eip155:1",
+				Payer:       "0xpayer",
+			}
+			json.NewEncoder(w).Encode(response)
+		}
+	}))
+	defer server.Close()
+
+	client := NewHTTPFacilitatorClient(&FacilitatorConfig{
+		URL: server.URL,
+	})
+
+	requirements := x402.PaymentRequirements{
+		Scheme:  "exact",
+		Network: "eip155:1",
+		Asset:   "USDC",
+		Amount:  "1000000",
+		PayTo:   "0xrecipient",
+	}
+
+	payload := x402.PaymentPayload{
+		X402Version: 2,
+		Accepted:    requirements,
+		Payload:     map[string]interface{}{},
+	}
+
+	payloadBytes, _ := json.Marshal(payload)
+	requirementsBytes, _ := json.Marshal(requirements)
+
+	// Test Verify - should return VerifyError with 400 response
+	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for verify with 400 response")
+	}
+	var verifyErr *x402.VerifyError
+	if !errors.As(err, &verifyErr) {
+		t.Fatalf("Expected VerifyError, got: %T (%v)", err, err)
+	}
+	if verifyErr.Reason != "invalid_signature" {
+		t.Errorf("Expected Reason 'invalid_signature', got %s", verifyErr.Reason)
+	}
+
+	// Test Settle - should return SettleError with 400 response
+	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for settle with 400 response")
+	}
+	var settleErr *x402.SettleError
+	if !errors.As(err, &settleErr) {
+		t.Fatalf("Expected SettleError, got: %T (%v)", err, err)
+	}
+	if settleErr.Reason != "insufficient_allowance" {
+		t.Errorf("Expected Reason 'insufficient_allowance', got %s", settleErr.Reason)
 	}
 }
 
