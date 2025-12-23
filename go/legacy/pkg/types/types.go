@@ -128,9 +128,9 @@ type VerifyError struct {
 
 func (e *VerifyError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("verify failed: %s: %v", e.Reason, e.Err)
+		return fmt.Sprintf("failed to verify payment: %s: %v", e.Reason, e.Err)
 	}
-	return fmt.Sprintf("verify failed: %s", e.Reason)
+	return fmt.Sprintf("failed to verify payment: %s", e.Reason)
 }
 
 func (e *VerifyError) Unwrap() error {
@@ -148,9 +148,9 @@ type SettleError struct {
 
 func (e *SettleError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("settle failed: %s: %v", e.Reason, e.Err)
+		return fmt.Sprintf("failed to settle payment: %s: %v", e.Reason, e.Err)
 	}
-	return fmt.Sprintf("settle failed: %s", e.Reason)
+	return fmt.Sprintf("failed to settle payment: %s", e.Reason)
 }
 
 func (e *SettleError) Unwrap() error {

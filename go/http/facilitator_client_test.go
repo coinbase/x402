@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -496,28 +497,30 @@ func TestHTTPFacilitatorClient400WithValidResponse(t *testing.T) {
 	payloadBytes, _ := json.Marshal(payload)
 	requirementsBytes, _ := json.Marshal(requirements)
 
-	// Test Verify - should return response even with 400 status
-	verifyResp, err := client.Verify(ctx, payloadBytes, requirementsBytes)
-	if err != nil {
-		t.Fatalf("Expected no error for verify with valid response, got: %v", err)
+	// Test Verify - should return VerifyError with 400 response
+	_, err := client.Verify(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for verify with 400 response")
 	}
-	if verifyResp.IsValid {
-		t.Error("Expected IsValid to be false")
+	var verifyErr *x402.VerifyError
+	if !errors.As(err, &verifyErr) {
+		t.Fatalf("Expected VerifyError, got: %T (%v)", err, err)
 	}
-	if verifyResp.InvalidReason != "invalid_signature" {
-		t.Errorf("Expected InvalidReason 'invalid_signature', got %s", verifyResp.InvalidReason)
+	if verifyErr.Reason != "invalid_signature" {
+		t.Errorf("Expected Reason 'invalid_signature', got %s", verifyErr.Reason)
 	}
 
-	// Test Settle - should return response even with 400 status
-	settleResp, err := client.Settle(ctx, payloadBytes, requirementsBytes)
-	if err != nil {
-		t.Fatalf("Expected no error for settle with valid response, got: %v", err)
+	// Test Settle - should return SettleError with 400 response
+	_, err = client.Settle(ctx, payloadBytes, requirementsBytes)
+	if err == nil {
+		t.Fatal("Expected error for settle with 400 response")
 	}
-	if settleResp.Success {
-		t.Error("Expected Success to be false")
+	var settleErr *x402.SettleError
+	if !errors.As(err, &settleErr) {
+		t.Fatalf("Expected SettleError, got: %T (%v)", err, err)
 	}
-	if settleResp.ErrorReason != "insufficient_allowance" {
-		t.Errorf("Expected ErrorReason 'insufficient_allowance', got %s", settleResp.ErrorReason)
+	if settleErr.Reason != "insufficient_allowance" {
+		t.Errorf("Expected Reason 'insufficient_allowance', got %s", settleErr.Reason)
 	}
 }
 

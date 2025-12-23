@@ -347,15 +347,20 @@ func TestVerify400WithInvalidSignature(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{}
 
-	resp, err := client.Verify(paymentPayload, paymentRequirements)
-	if err != nil {
-		t.Fatalf("Expected no error for 400 with valid response, got: %v", err)
+	_, err := client.Verify(paymentPayload, paymentRequirements)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
 	}
-	if resp.IsValid {
-		t.Error("Expected IsValid to be false")
+
+	var verifyErr *types.VerifyError
+	if !errors.As(err, &verifyErr) {
+		t.Fatalf("Expected VerifyError, got: %T", err)
 	}
-	if resp.InvalidReason == nil || *resp.InvalidReason != "invalid_signature" {
-		t.Error("Expected InvalidReason to be 'invalid_signature'")
+	if verifyErr.Reason != "invalid_signature" {
+		t.Errorf("Expected Reason to be 'invalid_signature', got: %s", verifyErr.Reason)
+	}
+	if verifyErr.Payer != "0xpayer" {
+		t.Errorf("Expected Payer to be '0xpayer', got: %s", verifyErr.Payer)
 	}
 }
 
@@ -387,14 +392,22 @@ func TestSettle400WithInsufficientAllowance(t *testing.T) {
 	}
 	paymentRequirements := &types.PaymentRequirements{}
 
-	resp, err := client.Settle(paymentPayload, paymentRequirements)
-	if err != nil {
-		t.Fatalf("Expected no error for 400 with valid response, got: %v", err)
+	_, err := client.Settle(paymentPayload, paymentRequirements)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
 	}
-	if resp.Success {
-		t.Error("Expected Success to be false")
+
+	var settleErr *types.SettleError
+	if !errors.As(err, &settleErr) {
+		t.Fatalf("Expected SettleError, got: %T", err)
 	}
-	if resp.ErrorReason == nil || *resp.ErrorReason != "insufficient_allowance" {
-		t.Error("Expected ErrorReason to be 'insufficient_allowance'")
+	if settleErr.Reason != "insufficient_allowance" {
+		t.Errorf("Expected Reason to be 'insufficient_allowance', got: %s", settleErr.Reason)
+	}
+	if settleErr.Payer != "0xpayer" {
+		t.Errorf("Expected Payer to be '0xpayer', got: %s", settleErr.Payer)
+	}
+	if settleErr.Network != "base-sepolia" {
+		t.Errorf("Expected Network to be 'base-sepolia', got: %s", settleErr.Network)
 	}
 }
