@@ -14,6 +14,9 @@ pub enum X402Error {
     #[error("Facilitator error: {0}")]
     FacilitatorError(#[from] reqwest::Error),
 
+    #[error("Facilitator Rejection: {0}: {1}")]
+    FacilitatorRejection(u16, String),
+
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 

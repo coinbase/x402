@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::types::{PaymentRequirements, PaymentPayload};
+use crate::errors::{X402Error, X402Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyRequest {
@@ -55,10 +56,10 @@ impl Facilitator {
         &self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
-    ) -> Result<VerifyResponse, reqwest::Error> {
+    ) -> X402Result<VerifyResponse> {
         // This is a simplified version of the TypeScript implementation.
         // It assumes the use of Coinbase's facilitator and will be abstracted to a plug-in system in the future.
-        let url = format!("{}/verify", self.url);
+        let url = format!("{}/verify", self.url.trim_end_matches('/'));
         let request = VerifyRequest {
             payment_payload: payload,
             payment_requirements: requirements,
@@ -69,7 +70,13 @@ impl Facilitator {
             .send()
             .await?;
 
-        response.json::<VerifyResponse>().await
+        let response_status = response.status();
+        if !response_status.is_success() {
+            let err_text = response.text().await.unwrap_or_else(|_| String::from("Unknown Error"));
+            return Err(X402Error::FacilitatorRejection(response_status.as_u16(), err_text))
+        }
+
+        Ok(response.json::<VerifyResponse>().await?)
     }
 
     pub async fn settle(
