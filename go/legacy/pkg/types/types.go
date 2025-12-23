@@ -117,3 +117,42 @@ type FacilitatorConfig struct {
 	Timeout           func() time.Duration
 	CreateAuthHeaders func() (map[string]map[string]string, error)
 }
+
+// VerifyError represents an error from the verify endpoint
+type VerifyError struct {
+	Reason  string
+	Payer   string
+	Network string
+	Err     error
+}
+
+func (e *VerifyError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("failed to verify payment: %s: %v", e.Reason, e.Err)
+	}
+	return fmt.Sprintf("failed to verify payment: %s", e.Reason)
+}
+
+func (e *VerifyError) Unwrap() error {
+	return e.Err
+}
+
+// SettleError represents an error from the settle endpoint
+type SettleError struct {
+	Reason      string
+	Payer       string
+	Network     string
+	Transaction string
+	Err         error
+}
+
+func (e *SettleError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("failed to settle payment: %s: %v", e.Reason, e.Err)
+	}
+	return fmt.Sprintf("failed to settle payment: %s", e.Reason)
+}
+
+func (e *SettleError) Unwrap() error {
+	return e.Err
+}

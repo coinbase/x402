@@ -5,6 +5,7 @@ export type {
   SettleResponse,
   SupportedResponse,
 } from "./facilitator";
+export { VerifyError, SettleError } from "./facilitator";
 export type { PaymentRequirements, PaymentPayload, PaymentRequired } from "./payments";
 export type {
   SchemeNetworkClient,

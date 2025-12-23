@@ -1,5 +1,11 @@
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
-import { VerifyResponse, SettleResponse, SupportedResponse } from "../types/facilitator";
+import {
+  VerifyResponse,
+  SettleResponse,
+  SupportedResponse,
+  VerifyError,
+  SettleError,
+} from "../types/facilitator";
 
 const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator";
 
@@ -97,12 +103,17 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Facilitator verify failed (${response.status}): ${errorText}`);
+    const data = await response.json();
+
+    if (typeof data === "object" && data !== null && "isValid" in data) {
+      const verifyResponse = data as VerifyResponse;
+      if (!response.ok) {
+        throw new VerifyError(response.status, verifyResponse);
+      }
+      return verifyResponse;
     }
 
-    return (await response.json()) as VerifyResponse;
+    throw new Error(`Facilitator verify failed (${response.status}): ${JSON.stringify(data)}`);
   }
 
   /**
@@ -135,12 +146,17 @@ export class HTTPFacilitatorClient implements FacilitatorClient {
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => response.statusText);
-      throw new Error(`Facilitator settle failed (${response.status}): ${errorText}`);
+    const data = await response.json();
+
+    if (typeof data === "object" && data !== null && "success" in data) {
+      const settleResponse = data as SettleResponse;
+      if (!response.ok) {
+        throw new SettleError(response.status, settleResponse);
+      }
+      return settleResponse;
     }
 
-    return (await response.json()) as SettleResponse;
+    throw new Error(`Facilitator settle failed (${response.status}): ${JSON.stringify(data)}`);
   }
 
   /**
