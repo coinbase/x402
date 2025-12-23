@@ -5,6 +5,7 @@
 * [GitBook Repo (open for contributions)](https://github.com/coinbase/x402)
 * [Vercel x402 Starter Template](https://vercel.com/templates/ai/x402-ai-starter)
 * [FAQ](faq.md)
+* [Glossary](glossary.md)
 
 ## Getting Started
 
