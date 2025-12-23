@@ -4,8 +4,15 @@ export type {
   SettleRequest,
   SettleResponse,
   SupportedResponse,
+  IntentTrace,
+  Remediation,
 } from "./facilitator";
-export type { PaymentRequirements, PaymentPayload, PaymentRequired } from "./payments";
+export type {
+  PaymentRequirements,
+  PaymentPayload,
+  PaymentRequired,
+  PaymentDecline,
+} from "./payments";
 export type {
   SchemeNetworkClient,
   SchemeNetworkFacilitator,

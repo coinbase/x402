@@ -424,3 +424,51 @@ func decodePaymentResponseHeader(header string) (*x402.SettleResponse, error) {
 
 	return &response, nil
 }
+
+// EncodePaymentDeclineHeader encodes a payment decline as base64
+func EncodePaymentDeclineHeader(decline *x402.PaymentDecline) string {
+	data, err := json.Marshal(decline)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal payment decline: %v", err))
+	}
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+// DecodePaymentDeclineHeader decodes a base64 payment decline header
+func DecodePaymentDeclineHeader(header string) (*x402.PaymentDecline, error) {
+	data, err := base64.StdEncoding.DecodeString(header)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 encoding: %w", err)
+	}
+
+	var decline x402.PaymentDecline
+	if err := json.Unmarshal(data, &decline); err != nil {
+		return nil, fmt.Errorf("invalid payment decline JSON: %w", err)
+	}
+
+	return &decline, nil
+}
+
+// EncodeIntentTraceHeader encodes an intent trace as base64
+func EncodeIntentTraceHeader(trace *x402.IntentTrace) string {
+	data, err := json.Marshal(trace)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal intent trace: %v", err))
+	}
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+// DecodeIntentTraceHeader decodes a base64 intent trace header
+func DecodeIntentTraceHeader(header string) (*x402.IntentTrace, error) {
+	data, err := base64.StdEncoding.DecodeString(header)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base64 encoding: %w", err)
+	}
+
+	var trace x402.IntentTrace
+	if err := json.Unmarshal(data, &trace); err != nil {
+		return nil, fmt.Errorf("invalid intent trace JSON: %w", err)
+	}
+
+	return &trace, nil
+}

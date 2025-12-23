@@ -4,6 +4,7 @@ import com.coinbase.x402.client.FacilitatorClient;
 import com.coinbase.x402.client.SettlementResponse;
 import com.coinbase.x402.client.VerificationResponse;
 import com.coinbase.x402.model.ExactSchemePayload;
+import com.coinbase.x402.model.PaymentDecline;
 import com.coinbase.x402.model.PaymentPayload;
 import com.coinbase.x402.model.PaymentRequirements;
 import com.coinbase.x402.model.PaymentRequiredResponse;
@@ -90,6 +91,27 @@ public class PaymentFilter implements Filter {
         if (!priceTable.containsKey(path)) {
             chain.doFilter(req, res);
             return;
+        }
+
+        /* -------- check for payment decline header first --------------- */
+        String declineHeader = request.getHeader("PAYMENT-DECLINE");
+        if (declineHeader != null && !declineHeader.isEmpty()) {
+            try {
+                // Decode and parse decline header
+                String declineJson = new String(
+                    Base64.getDecoder().decode(declineHeader),
+                    StandardCharsets.UTF_8
+                );
+                PaymentDecline decline = Json.MAPPER.readValue(declineJson, PaymentDecline.class);
+
+                // Return 200 OK acknowledgment for decline
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"acknowledged\":true}");
+                return;
+            } catch (Exception ex) {
+                // Invalid decline header, continue with normal payment flow
+            }
         }
 
         String header = request.getHeader("X-PAYMENT");

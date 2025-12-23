@@ -385,3 +385,180 @@ func (m *mockSchemeClient) CreatePaymentPayload(ctx context.Context, requirement
 		Payload:     map[string]interface{}{"mock": "payload"},
 	}, nil
 }
+
+// Tests for IntentTrace and PaymentDecline encoding/decoding
+func TestEncodeDecodeIntentTrace(t *testing.T) {
+	tests := []struct {
+		name  string
+		trace x402.IntentTrace
+	}{
+		{
+			name: "minimal trace",
+			trace: x402.IntentTrace{
+				ReasonCode: "insufficient_funds",
+			},
+		},
+		{
+			name: "trace with summary",
+			trace: x402.IntentTrace{
+				ReasonCode:   "signature_expired",
+				TraceSummary: "Signature expired at 1234567890",
+			},
+		},
+		{
+			name: "trace with metadata",
+			trace: x402.IntentTrace{
+				ReasonCode: "recipient_mismatch",
+				Metadata: map[string]interface{}{
+					"expected": "0xabc",
+					"provided": "0xdef",
+				},
+			},
+		},
+		{
+			name: "full trace with remediation",
+			trace: x402.IntentTrace{
+				ReasonCode:   "amount_mismatch",
+				TraceSummary: "Amount doesn't match requirements",
+				Metadata: map[string]interface{}{
+					"required": "100",
+					"provided": "50",
+				},
+				Remediation: &x402.Remediation{
+					Action: "retry",
+					Reason: "Submit correct amount",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded, err := EncodeIntentTraceHeader(tt.trace)
+			if err != nil {
+				t.Fatalf("Failed to encode: %v", err)
+			}
+
+			decoded, err := DecodeIntentTraceHeader(encoded)
+			if err != nil {
+				t.Fatalf("Failed to decode: %v", err)
+			}
+
+			if decoded.ReasonCode != tt.trace.ReasonCode {
+				t.Errorf("ReasonCode mismatch: got %s, want %s", decoded.ReasonCode, tt.trace.ReasonCode)
+			}
+			if decoded.TraceSummary != tt.trace.TraceSummary {
+				t.Errorf("TraceSummary mismatch: got %s, want %s", decoded.TraceSummary, tt.trace.TraceSummary)
+			}
+			if tt.trace.Remediation != nil {
+				if decoded.Remediation == nil {
+					t.Error("Expected remediation to be present")
+				} else if decoded.Remediation.Action != tt.trace.Remediation.Action {
+					t.Errorf("Remediation.Action mismatch: got %s, want %s", decoded.Remediation.Action, tt.trace.Remediation.Action)
+				}
+			}
+		})
+	}
+}
+
+func TestEncodeDecodePaymentDecline(t *testing.T) {
+	tests := []struct {
+		name    string
+		decline x402.PaymentDecline
+	}{
+		{
+			name: "minimal decline",
+			decline: x402.PaymentDecline{
+				X402Version: 2,
+				Decline:     true,
+				Resource: &x402.ResourceInfo{
+					Resource: "https://example.com/resource",
+				},
+			},
+		},
+		{
+			name: "decline with intent trace",
+			decline: x402.PaymentDecline{
+				X402Version: 2,
+				Decline:     true,
+				Resource: &x402.ResourceInfo{
+					Resource:    "https://example.com/premium",
+					Description: "Premium content",
+					MimeType:    "application/json",
+				},
+				IntentTrace: &x402.IntentTrace{
+					ReasonCode:   "user_declined",
+					TraceSummary: "Price too high for user budget",
+					Metadata: map[string]interface{}{
+						"requested_price": "10000000",
+					},
+					Remediation: &x402.Remediation{
+						Action: "lower_price",
+						Reason: "Consider offering a lower price tier",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded, err := EncodePaymentDeclineHeader(tt.decline)
+			if err != nil {
+				t.Fatalf("Failed to encode: %v", err)
+			}
+
+			decoded, err := DecodePaymentDeclineHeader(encoded)
+			if err != nil {
+				t.Fatalf("Failed to decode: %v", err)
+			}
+
+			if decoded.X402Version != tt.decline.X402Version {
+				t.Errorf("X402Version mismatch: got %d, want %d", decoded.X402Version, tt.decline.X402Version)
+			}
+			if decoded.Decline != tt.decline.Decline {
+				t.Errorf("Decline mismatch: got %v, want %v", decoded.Decline, tt.decline.Decline)
+			}
+			if decoded.Resource.Resource != tt.decline.Resource.Resource {
+				t.Errorf("Resource.Resource mismatch: got %s, want %s", decoded.Resource.Resource, tt.decline.Resource.Resource)
+			}
+			if tt.decline.IntentTrace != nil {
+				if decoded.IntentTrace == nil {
+					t.Error("Expected IntentTrace to be present")
+				} else if decoded.IntentTrace.ReasonCode != tt.decline.IntentTrace.ReasonCode {
+					t.Errorf("IntentTrace.ReasonCode mismatch: got %s, want %s", decoded.IntentTrace.ReasonCode, tt.decline.IntentTrace.ReasonCode)
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeInvalidIntentTraceHeader(t *testing.T) {
+	// Test invalid base64
+	_, err := DecodeIntentTraceHeader("not-valid-base64!!!")
+	if err == nil {
+		t.Error("Expected error for invalid base64")
+	}
+
+	// Test valid base64 but invalid JSON
+	invalidJSON := base64.StdEncoding.EncodeToString([]byte("not json"))
+	_, err = DecodeIntentTraceHeader(invalidJSON)
+	if err == nil {
+		t.Error("Expected error for invalid JSON")
+	}
+}
+
+func TestDecodeInvalidPaymentDeclineHeader(t *testing.T) {
+	// Test invalid base64
+	_, err := DecodePaymentDeclineHeader("not-valid-base64!!!")
+	if err == nil {
+		t.Error("Expected error for invalid base64")
+	}
+
+	// Test valid base64 but invalid JSON
+	invalidJSON := base64.StdEncoding.EncodeToString([]byte("not json"))
+	_, err = DecodePaymentDeclineHeader(invalidJSON)
+	if err == nil {
+		t.Error("Expected error for invalid JSON")
+	}
+}

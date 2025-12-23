@@ -78,12 +78,47 @@ type (
 	SupportedResponseV1 = types.SupportedResponseV1
 )
 
+// Remediation provides actionable guidance to clients on how to fix a payment failure.
+type Remediation struct {
+	// Suggested action (e.g., "top_up", "retry", "switch_network")
+	Action string `json:"action"`
+	// Why this action would help
+	Reason string `json:"reason,omitempty"`
+	// Action-specific parameters (stored as additional fields)
+	Extra map[string]interface{} `json:"-"`
+}
+
+// IntentTrace provides structured context for payment decisions.
+// Used to communicate why a payment was declined or failed.
+type IntentTrace struct {
+	// Enumerated code identifying the primary reason
+	ReasonCode string `json:"reason_code"`
+	// Human-readable summary (max 500 chars)
+	TraceSummary string `json:"trace_summary,omitempty"`
+	// Flat key-value object for additional context
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	// Suggested action to resolve the issue
+	Remediation *Remediation `json:"remediation,omitempty"`
+}
+
+// PaymentDecline is sent by clients when they choose not to pay.
+// Includes optional intent trace to explain the reason for declining.
+type PaymentDecline struct {
+	X402Version int           `json:"x402Version"`
+	Decline     bool          `json:"decline"`
+	Resource    *ResourceInfo `json:"resource"`
+	// Structured context for why the payment was declined
+	IntentTrace *IntentTrace `json:"intentTrace,omitempty"`
+}
+
 // VerifyResponse contains the verification result
 // If verification fails, an error (typically *VerifyError) is returned and this will be nil
 type VerifyResponse struct {
 	IsValid       bool   `json:"isValid"`
 	InvalidReason string `json:"invalidReason,omitempty"`
 	Payer         string `json:"payer,omitempty"`
+	// Structured context for why verification failed
+	IntentTrace *IntentTrace `json:"intentTrace,omitempty"`
 }
 
 // SettleResponse contains the settlement result
@@ -94,6 +129,8 @@ type SettleResponse struct {
 	Payer       string  `json:"payer,omitempty"`
 	Transaction string  `json:"transaction"`
 	Network     Network `json:"network"`
+	// Structured context for why settlement failed
+	IntentTrace *IntentTrace `json:"intentTrace,omitempty"`
 }
 
 // ResourceConfig defines payment configuration for a protected resource

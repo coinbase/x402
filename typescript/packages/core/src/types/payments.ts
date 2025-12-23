@@ -1,4 +1,5 @@
 import { Network } from "./";
+import { IntentTrace } from "./facilitator";
 
 export interface ResourceInfo {
   url: string;
@@ -30,4 +31,16 @@ export type PaymentPayload = {
   accepted: PaymentRequirements;
   payload: Record<string, unknown>;
   extensions?: Record<string, unknown>;
+};
+
+/**
+ * Payment decline message sent by clients when they choose not to pay.
+ * Includes optional intent trace to explain the reason for declining.
+ */
+export type PaymentDecline = {
+  x402Version: number;
+  decline: true;
+  resource: ResourceInfo;
+  /** Structured context for why the payment was declined */
+  intentTrace?: IntentTrace;
 };
