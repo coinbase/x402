@@ -23,12 +23,12 @@ importers:
       '@coinbase/cdp-sdk':
         specifier: ^1.29.0
         version: 1.36.0(bufferutil@4.0.9)(encoding@0.1.13)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(utf-8-validate@5.0.10)
+      '@x402/core':
+        specifier: ^2.0.0
+        version: 2.0.0
       viem:
         specifier: ^2.21.26
         version: 2.34.0(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76)
-      x402:
-        specifier: workspace:^
-        version: link:../x402
       zod:
         specifier: ^3.24.2
         version: 3.25.76
@@ -5261,6 +5261,9 @@ packages:
 
   '@walletconnect/window-metadata@1.0.1':
     resolution: {integrity: sha512-9koTqyGrM2cqFRW517BPY/iEtUDx2r1+Pwwu5m7sJ7ka79wi3EyqhqcICk/yDmv6jAS1rjKgTKXlEhanYjijcA==}
+
+  '@x402/core@2.0.0':
+    resolution: {integrity: sha512-tgC8Ujj8Bi9zU1318RAOcagffaHRMPupqj0tlmcOm4j/a/iWGoN58SIpqFV98qkZi7z6BpFAsScCyXnmaDvIyQ==}
 
   '@xmldom/xmldom@0.8.11':
     resolution: {integrity: sha512-cQzWCtO6C8TQiYl1ruKNn2U6Ao4o4WBBcbL61yJl84x+j5sOWWFU9X7DpND8XZG3daDppSsigMdfAIl2upQBRw==}
@@ -16065,6 +16068,10 @@ snapshots:
     dependencies:
       '@walletconnect/window-getters': 1.0.1
       tslib: 1.14.1
+
+  '@x402/core@2.0.0':
+    dependencies:
+      zod: 3.25.76
 
   '@xmldom/xmldom@0.8.11': {}
 
