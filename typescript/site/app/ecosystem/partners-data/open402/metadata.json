@@ -1,0 +1,7 @@
+{
+  "name": "Open402",
+  "description": "Credit-based x402 payment gateway enabling seamless access to curated premium x402 services. Users deposit crypto via SimpleSwap (converted to USDC on Base), receive credit, and consume services through API keys with real-time blockchain verification. Features interactive playground, unified blockchain explorer, and 9 curated services including AI, crypto analytics, and market data.",
+  "logoUrl": "/logos/open402.png",
+  "websiteUrl": "https://open402.org",
+  "category": "Infrastructure & Tooling"
+}
