@@ -90,6 +90,7 @@ mod tests {
     use wiremock::matchers::{method, path};
     use crate::types::PaymentRequirements;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+    use serde_json::json;
 
     async fn setup_test_app(facilitator_url: &str) -> Router {
         let facilitator = Arc::new(Facilitator::new(facilitator_url));
@@ -152,7 +153,7 @@ mod tests {
                 asset: None,
                 data: None,
             },
-            signature: "0xabc".to_string(),
+            payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
         };
         let header_val = payload.to_header().unwrap();
@@ -192,7 +193,7 @@ mod tests {
                 asset: None,
                 data: None,
             },
-            signature: "0xabc".to_string(),
+            payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
         };
         let header_val = payload.to_header().unwrap();

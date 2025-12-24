@@ -3,6 +3,7 @@ use axum::middleware::from_fn_with_state;
 use axum::Router;
 use axum::routing::get;
 use reqwest::StatusCode;
+use serde_json::json;
 use tokio::net::TcpListener;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 use wiremock::matchers::{method, path};
@@ -78,7 +79,7 @@ async fn test_x402_axum_flow_with_mock_facilitator() {
                 x402_version: challenge.x402_version,
                 resource: challenge.resource,
                 accepted: challenge.accepts[0].clone(),
-                signature: "mock_sig".to_string(),
+                payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
                 extensions: None,
             })
         }

@@ -30,8 +30,59 @@ pub struct PaymentPayload {
     pub x402_version: u32,
     pub resource: String,
     pub accepted: PaymentRequirements,
-    pub signature: String,
+    pub payload: Value,
     pub extensions: Option<Value>,
+}
+
+// =======================
+// CDP API (platform/v2/x402) DTOs
+// =======================
+// This will move to a default facilitator on abstraction
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CdpVerifyRequestV1 {
+    pub x402_version: u32,
+    pub payment_payload: CdpPaymentPayloadV1,
+    pub payment_requirements: CdpPaymentRequirementsV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CdpPaymentPayloadV1 {
+    pub x402_version: u32,
+    pub scheme: String,
+    pub network: String,
+    pub payload: CdpExactPayloadV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CdpExactPayloadV1 {
+    pub signature: String,
+    pub authorization: CdpAuthorizationV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CdpAuthorizationV1 {
+    pub from: String,
+    pub to: String,
+    pub value: String,
+    pub valid_after: String,
+    pub valid_before: String,
+    pub nonce: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CdpPaymentRequirementsV1 {
+    pub scheme: String,
+    pub network: String,
+    pub max_amount_required: String,
+    pub resource: String,
+    pub pay_to: String,
+    pub asset: String,
 }
 
 
@@ -150,7 +201,7 @@ mod tests {
             x402_version: 1,
             resource: "/api/premium".to_string(),
             accepted,
-            signature: "0xsignature_data_here".to_string(),
+            payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: Some(json!({"metadata": "test"})),
         };
 
@@ -159,7 +210,7 @@ mod tests {
 
         assert_eq!(payload.x402_version, deserialized.x402_version);
         assert_eq!(payload.resource, deserialized.resource);
-        assert_eq!(payload.signature, deserialized.signature);
+        assert_eq!(payload.payload, deserialized.payload);
         assert_eq!(payload.accepted.scheme, deserialized.accepted.scheme);
     }
 
@@ -209,7 +260,7 @@ mod tests {
             x402_version: 1,
             resource: "/resource".to_string(),
             accepted,
-            signature: "sig123".to_string(),
+            payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
         };
 
@@ -219,7 +270,7 @@ mod tests {
         let decoded = PaymentPayload::from_header(&header).unwrap();
         assert_eq!(payload.x402_version, decoded.x402_version);
         assert_eq!(payload.resource, decoded.resource);
-        assert_eq!(payload.signature, decoded.signature);
+        assert_eq!(payload.payload, decoded.payload);
     }
 
     #[test]
