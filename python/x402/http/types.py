@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, Union
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
 
 if TYPE_CHECKING:
     from ..schemas import (
@@ -100,8 +101,8 @@ class HTTPProcessResult:
 
     type: Literal["no-payment-required", "payment-verified", "payment-error"]
     response: HTTPResponseInstructions | None = None
-    payment_payload: "PaymentPayload | None" = None
-    payment_requirements: "PaymentRequirements | None" = None
+    payment_payload: PaymentPayload | None = None
+    payment_requirements: PaymentRequirements | None = None
 
 
 @dataclass
@@ -154,8 +155,8 @@ class PaymentOption:
 
     scheme: str
     pay_to: str | DynamicPayTo
-    price: "Price | DynamicPrice"
-    network: "Network"
+    price: Price | DynamicPrice
+    network: Network
     max_timeout_seconds: int | None = None
     extra: dict[str, Any] | None = None
 

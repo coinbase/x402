@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import Any
 
 from ....schemas import PaymentRequirements
-
 from ..constants import SCHEME_EXACT
 from ..eip712 import build_typed_data_for_signing
 from ..signer import ClientEvmSigner

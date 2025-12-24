@@ -1,11 +1,11 @@
 """Utility functions for the x402 Python SDK."""
 
 import json
-from typing import Any
+from typing import Any, TypeVar
 
 from .base import Network
-from .payments import PaymentPayload, PaymentRequired, PaymentRequirements
-from .v1 import PaymentPayloadV1, PaymentRequiredV1, PaymentRequirementsV1
+from .payments import PaymentPayload, PaymentRequired
+from .v1 import PaymentPayloadV1, PaymentRequiredV1
 
 
 def detect_version(data: bytes | dict[str, Any]) -> int:
@@ -211,8 +211,6 @@ def derive_network_pattern(networks: list[Network]) -> Network:
         return f"{namespaces.pop()}:*"
     return networks[0]
 
-
-from typing import TypeVar
 
 T = TypeVar("T")
 

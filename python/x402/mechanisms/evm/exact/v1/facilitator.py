@@ -7,7 +7,6 @@ from typing import Any
 
 from .....schemas import Network, SettleResponse, VerifyResponse
 from .....schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1
-
 from ...constants import (
     ERR_INSUFFICIENT_AMOUNT,
     ERR_INSUFFICIENT_BALANCE,

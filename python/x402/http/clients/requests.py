@@ -45,7 +45,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
     def __init__(
         self,
-        client: "x402Client | x402HTTPClient",
+        client: x402Client | x402HTTPClient,
         **kwargs: Any,
     ) -> None:
         """Initialize payment adapter.
@@ -141,7 +141,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
 
 def x402_http_adapter(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **kwargs: Any,
 ) -> x402HTTPAdapter:
     """Create an HTTP adapter with 402 payment handling.
@@ -180,7 +180,7 @@ def x402_http_adapter(
 
 def wrapRequestsWithPayment(
     session: requests.Session,
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Wrap a requests Session with automatic 402 payment handling.
@@ -241,7 +241,7 @@ def wrapRequestsWithPaymentFromConfig(
 
 
 def x402_requests(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Create a requests Session with x402 payment handling.

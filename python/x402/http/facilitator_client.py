@@ -118,7 +118,7 @@ class HTTPFacilitatorClient:
         self._http_client = config.http_client
         self._owns_client = config.http_client is None
 
-    def _get_client(self) -> "httpx.Client":
+    def _get_client(self) -> httpx.Client:
         """Get or create HTTP client."""
         if self._http_client is None:
             import httpx
@@ -132,7 +132,7 @@ class HTTPFacilitatorClient:
             self._http_client.close()
             self._http_client = None
 
-    def __enter__(self) -> "HTTPFacilitatorClient":
+    def __enter__(self) -> HTTPFacilitatorClient:
         return self
 
     def __exit__(self, *args: Any) -> None:

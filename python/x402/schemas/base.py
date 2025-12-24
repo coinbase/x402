@@ -2,9 +2,8 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-
 
 # Current protocol version
 X402_VERSION: int = 2

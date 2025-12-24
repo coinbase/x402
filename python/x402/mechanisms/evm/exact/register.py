@@ -6,6 +6,7 @@ from ..constants import V1_NETWORKS
 
 if TYPE_CHECKING:
     from x402 import x402Client, x402Facilitator, x402ResourceServer
+
     from ..signer import ClientEvmSigner, FacilitatorEvmSigner
 
 

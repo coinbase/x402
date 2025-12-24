@@ -10,7 +10,6 @@ from .types import (
     DOMAIN_TYPES,
     ExactEIP3009Authorization,
     TypedDataDomain,
-    TypedDataField,
 )
 
 

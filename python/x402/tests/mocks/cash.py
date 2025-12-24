@@ -9,7 +9,6 @@ import time
 from typing import Any
 
 from x402.facilitator import x402Facilitator
-from x402.server import FacilitatorClient
 from x402.schemas import (
     AssetAmount,
     Network,

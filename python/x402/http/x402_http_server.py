@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import html
-import json
 import re
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from urllib.parse import unquote
 
 from ..schemas import (
@@ -32,8 +30,8 @@ from .types import (
     ProcessSettleResult,
     RouteConfig,
     RouteConfigurationError,
-    RouteValidationError,
     RoutesConfig,
+    RouteValidationError,
 )
 from .utils import (
     decode_payment_signature_header,
@@ -84,7 +82,7 @@ class x402HTTPResourceServer:
 
     def __init__(
         self,
-        server: "x402ResourceServer",
+        server: x402ResourceServer,
         routes: RoutesConfig,
     ) -> None:
         """Create HTTP resource server.
@@ -195,7 +193,7 @@ class x402HTTPResourceServer:
         if errors:
             raise RouteConfigurationError(errors)
 
-    def register_paywall_provider(self, provider: PaywallProvider) -> "x402HTTPResourceServer":
+    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServer:
         """Register custom paywall provider for HTML generation.
 
         Args:

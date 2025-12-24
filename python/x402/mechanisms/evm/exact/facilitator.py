@@ -11,7 +11,6 @@ from ....schemas import (
     SettleResponse,
     VerifyResponse,
 )
-
 from ..constants import (
     AUTHORIZATION_STATE_ABI,
     ERR_INSUFFICIENT_AMOUNT,

@@ -6,7 +6,8 @@ Provides transport wrapper and convenience classes for httpx AsyncClient.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from httpx import AsyncBaseTransport, Request, Response
@@ -52,7 +53,7 @@ class x402AsyncTransport(AsyncBaseTransport):
 
     def __init__(
         self,
-        client: "x402Client | x402HTTPClient",
+        client: x402Client | x402HTTPClient,
         transport: AsyncBaseTransport | None = None,
     ) -> None:
         """Initialize payment transport.
@@ -145,7 +146,7 @@ class x402AsyncTransport(AsyncBaseTransport):
 
 
 def x402_httpx_transport(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     transport: AsyncBaseTransport | None = None,
 ) -> x402AsyncTransport:
     """Create an httpx transport with 402 payment handling.
@@ -177,7 +178,7 @@ def x402_httpx_transport(
 
 # Legacy alias for backwards compatibility (event hooks don't work correctly)
 def x402_httpx_hooks(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
 ) -> dict[str, list[Callable[..., Any]]]:
     """DEPRECATED: Event hooks cannot modify responses in httpx.
 
@@ -204,7 +205,7 @@ def x402_httpx_hooks(
 
 
 def wrapHttpxWithPayment(
-    x402_client: "x402Client | x402HTTPClient",
+    x402_client: x402Client | x402HTTPClient,
     **httpx_kwargs: Any,
 ) -> httpx.AsyncClient:
     """Create an httpx AsyncClient with automatic 402 payment handling.
@@ -284,7 +285,7 @@ class x402HttpxClient(httpx.AsyncClient):
 
     def __init__(
         self,
-        x402_client: "x402Client | x402HTTPClient",
+        x402_client: x402Client | x402HTTPClient,
         **kwargs: Any,
     ) -> None:
         """Initialize payment-enabled httpx client.

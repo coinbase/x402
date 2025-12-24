@@ -5,8 +5,9 @@ Runs as a service, manages scheme mechanisms, handles V1/V2 routing.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from typing_extensions import Self
 

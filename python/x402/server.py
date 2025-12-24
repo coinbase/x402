@@ -6,7 +6,8 @@ via facilitator clients.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from typing_extensions import Self
 
@@ -40,7 +41,7 @@ from .schemas import (
 )
 
 if TYPE_CHECKING:
-    from .schemas.v1 import PaymentRequiredV1
+    pass
 
 # ============================================================================
 # FacilitatorClient Protocol (defined here in server module)

@@ -1,9 +1,8 @@
 """EVM server implementation for the Exact payment scheme (V2)."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from ....schemas import AssetAmount, Network, PaymentRequirements, Price, SupportedKind
-
 from ..constants import SCHEME_EXACT
 from ..utils import (
     get_asset_info,

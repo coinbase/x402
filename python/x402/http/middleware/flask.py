@@ -6,7 +6,8 @@ Provides payment-gated route protection for Flask applications.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING, Any
 
 from flask import Flask, Request, g, request
 
@@ -235,7 +236,7 @@ class PaymentMiddleware:
         self,
         app: Flask,
         routes: RoutesConfig,
-        server: "x402ResourceServer",
+        server: x402ResourceServer,
         paywall_config: PaywallConfig | None = None,
         paywall_provider: PaywallProvider | None = None,
         sync_facilitator_on_start: bool = True,
@@ -403,7 +404,7 @@ class PaymentMiddleware:
 def payment_middleware(
     app: Flask,
     routes: RoutesConfig,
-    server: "x402ResourceServer",
+    server: x402ResourceServer,
     paywall_config: PaywallConfig | None = None,
     paywall_provider: PaywallProvider | None = None,
     sync_facilitator_on_start: bool = True,

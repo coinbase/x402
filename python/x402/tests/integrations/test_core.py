@@ -7,15 +7,12 @@ import pytest
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
 from x402.http import (
-    HTTPAdapter,
     HTTPRequestContext,
-    HTTPResponseInstructions,
-    PaymentOption,
+    decode_payment_required_header,
     x402HTTPClient,
     x402HTTPResourceServer,
-    decode_payment_required_header,
 )
-from x402.schemas import Network, PaymentPayload, PaymentRequirements, Price, ResourceInfo
+from x402.schemas import Price, ResourceInfo
 
 from ..mocks import (
     CashFacilitatorClient,

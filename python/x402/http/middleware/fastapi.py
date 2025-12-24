@@ -5,7 +5,8 @@ Provides payment-gated route protection for FastAPI applications.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Awaitable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 
 from fastapi import Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -129,7 +130,7 @@ class FastAPIAdapter(HTTPAdapter):
 
 def payment_middleware(
     routes: RoutesConfig,
-    server: "x402ResourceServer",
+    server: x402ResourceServer,
     paywall_config: PaywallConfig | None = None,
     paywall_provider: PaywallProvider | None = None,
     sync_facilitator_on_start: bool = True,
@@ -365,7 +366,7 @@ class PaymentMiddlewareASGI(BaseHTTPMiddleware):
         self,
         app: ASGIApp,
         routes: RoutesConfig,
-        server: "x402ResourceServer",
+        server: x402ResourceServer,
         paywall_config: PaywallConfig | None = None,
     ) -> None:
         """Initialize ASGI middleware.

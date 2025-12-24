@@ -19,29 +19,27 @@ from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
+from x402.mechanisms.evm import (
+    SCHEME_EXACT,
+    TX_STATUS_SUCCESS,
+    TransactionReceipt,
+    TypedDataDomain,
+    TypedDataField,
+)
+from x402.mechanisms.evm.exact import (
+    ExactEvmClientScheme,
+    ExactEvmFacilitatorScheme,
+    ExactEvmSchemeConfig,
+    ExactEvmServerScheme,
+)
 from x402.schemas import (
     PaymentPayload,
     PaymentRequirements,
     ResourceConfig,
     ResourceInfo,
     SettleResponse,
-    SupportedKind,
     SupportedResponse,
     VerifyResponse,
-)
-
-from x402.mechanisms.evm import (
-    SCHEME_EXACT,
-    TX_STATUS_SUCCESS,
-    TypedDataDomain,
-    TypedDataField,
-    TransactionReceipt,
-)
-from x402.mechanisms.evm.exact import (
-    ExactEvmClientScheme,
-    ExactEvmServerScheme,
-    ExactEvmFacilitatorScheme,
-    ExactEvmSchemeConfig,
 )
 
 # =============================================================================
