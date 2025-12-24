@@ -1,6 +1,10 @@
 import { createPaymentHeader as createPaymentHeaderExactEVM } from "../schemes/exact/evm/client";
 import { createPaymentHeader as createPaymentHeaderExactSVM } from "../schemes/exact/svm/client";
-import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { createPaymentHeader as createPaymentHeaderExactAptos } from "../schemes/exact/aptos/client";
+import { isEvmSignerWallet, isMultiNetworkSigner, isSvmSignerWallet, isAptosSignerWallet, MultiNetworkSigner, Signer, SupportedEVMNetworks, SupportedSVMNetworks,
+  isAptosNetwork,
+  isMultiNetworkSupportingAptos
+} from "../types/shared";
 import { PaymentRequirements } from "../types/verify";
 import { X402Config } from "../types/config";
 
@@ -44,6 +48,20 @@ export async function createPaymentHeader(
 
       return await createPaymentHeaderExactSVM(
         svmClient,
+        x402Version,
+        paymentRequirements,
+        config,
+      );
+    }
+    // aptos
+    if (isAptosNetwork(paymentRequirements.network)) {
+      const aptosClient = isMultiNetworkSupportingAptos(client) ? client.aptos : client;
+      if (!isAptosSignerWallet(aptosClient)) {
+        throw new Error("Invalid aptos wallet client provided");
+      }
+
+      return await createPaymentHeaderExactAptos(
+        aptosClient,
         x402Version,
         paymentRequirements,
         config,

@@ -1,6 +1,7 @@
 import { verify as verifyExactEvm, settle as settleExactEvm } from "../schemes/exact/evm";
 import { verify as verifyExactSvm, settle as settleExactSvm } from "../schemes/exact/svm";
-import { SupportedEVMNetworks, SupportedSVMNetworks } from "../types/shared";
+import { verify as verifyExactAptos, settle as settleExactAptos } from "../schemes/exact/aptos";
+import { SupportedEVMNetworks, SupportedSVMNetworks, isAptosNetwork } from "../types/shared";
 import { X402Config } from "../types/config";
 import {
   ConnectedClient as EvmConnectedClient,
@@ -16,6 +17,7 @@ import {
 } from "../types/verify";
 import { Chain, Transport, Account } from "viem";
 import { TransactionSigner } from "@solana/kit";
+import { AptosConnectedClient } from "../shared/aptos/wallet";
 
 /**
  * Verifies a payment payload against the required payment details regardless of the scheme
@@ -57,6 +59,16 @@ export async function verify<
         config,
       );
     }
+
+    // aptos
+    if (isAptosNetwork(paymentRequirements.network)) {
+      return await verifyExactAptos(
+        client as AptosConnectedClient,
+        payload,
+        paymentRequirements,
+        config,
+      );
+    }
   }
 
   // unsupported scheme
@@ -73,14 +85,14 @@ export async function verify<
  * Settles a payment payload against the required payment details regardless of the scheme
  * this function wraps all settle functions for each specific scheme
  *
- * @param client - The signer wallet used for blockchain interactions
+ * @param client - The signer wallet (or connected client for Aptos) used for blockchain interactions
  * @param payload - The signed payment payload containing transfer parameters and signature
  * @param paymentRequirements - The payment requirements that the payload must satisfy
  * @param config - Optional configuration for X402 operations (e.g., custom RPC URLs)
  * @returns A SettleResponse indicating if the payment is settled and any settlement reason
  */
 export async function settle<transport extends Transport, chain extends Chain>(
-  client: Signer,
+  client: Signer | ConnectedClient,
   payload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
   config?: X402Config,
@@ -100,6 +112,16 @@ export async function settle<transport extends Transport, chain extends Chain>(
     if (SupportedSVMNetworks.includes(paymentRequirements.network)) {
       return await settleExactSvm(
         client as TransactionSigner,
+        payload,
+        paymentRequirements,
+        config,
+      );
+    }
+
+    // aptos
+    if (isAptosNetwork(paymentRequirements.network)) {
+      return await settleExactAptos(
+        client as AptosConnectedClient,
         payload,
         paymentRequirements,
         config,
