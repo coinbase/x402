@@ -638,16 +638,18 @@ class x402HTTPResourceServer:
 
         payment_data = payment_required.model_dump_json(by_alias=True, exclude_none=True)
 
+        title = f"{html.escape(app_name)} - Payment Required" if app_name else "Payment Required"
+
         return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>Payment Required</title>
+    <title>{title}</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="max-width: 600px; margin: 50px auto; padding: 20px; font-family: system-ui;">
     {app_logo}
-    <h1>Payment Required</h1>
+    <h1>{title}</h1>
     <p><strong>Resource:</strong> {html.escape(resource_desc)}</p>
     <p><strong>Amount:</strong> ${display_amount:.2f} USDC</p>
     <div id="payment-widget" data-requirements='{html.escape(payment_data)}'>

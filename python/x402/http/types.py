@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from ..schemas import (
@@ -174,7 +174,7 @@ class RouteConfig:
     extensions: dict[str, Any] | None = None
 
 
-RoutesConfig = Union[dict[str, RouteConfig], RouteConfig]
+RoutesConfig = dict[str, RouteConfig] | RouteConfig
 
 
 @dataclass

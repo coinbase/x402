@@ -277,6 +277,10 @@ class TestHooks:
         assert received_payload is not None
         assert received_payload.accepted.pay_to == "Test"
 
+        assert payload is not None
+        assert payload.accepted.pay_to == "Test"
+        assert payload == received_payload
+
     def test_server_after_verify_hook(self) -> None:
         """Test that after_verify hook is called on successful verification."""
         hook_called = False

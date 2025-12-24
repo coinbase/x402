@@ -281,7 +281,7 @@ class x402ResourceServer:
                             return kind
 
         # Check if any facilitator supports this network/scheme via wildcard pattern
-        for net, schemes in self._supported_responses.items():
+        for schemes in self._supported_responses.values():
             if scheme in schemes:
                 supported = schemes[scheme]
                 for kind in supported.kinds:
