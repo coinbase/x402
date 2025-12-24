@@ -179,4 +179,3 @@ __all__ = [
     "parse_payment_required",
     "parse_payment_payload",
 ]
-

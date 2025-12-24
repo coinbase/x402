@@ -15,4 +15,3 @@ __all__ = [
     "CashFacilitatorClient",
     "build_cash_payment_requirements",
 ]
-

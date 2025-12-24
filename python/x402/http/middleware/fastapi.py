@@ -200,8 +200,7 @@ def payment_middleware(
             path=request.url.path,
             method=request.method,
             payment_header=(
-                adapter.get_header("payment-signature")
-                or adapter.get_header("x-payment")
+                adapter.get_header("payment-signature") or adapter.get_header("x-payment")
             ),
         )
 
@@ -395,4 +394,3 @@ class PaymentMiddlewareASGI(BaseHTTPMiddleware):
             Response.
         """
         return await self._middleware(request, call_next)
-

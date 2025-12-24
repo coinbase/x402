@@ -208,4 +208,3 @@ class RouteConfigurationError(Exception):
         messages = "\n".join(f"  - {e.message}" for e in errors)
         super().__init__(f"x402 Route Configuration Errors:\n{messages}")
         self.errors = errors
-

@@ -221,8 +221,7 @@ class HTTPFacilitatorClient:
 
         if response.status_code != 200:
             raise ValueError(
-                f"Facilitator get_supported failed ({response.status_code}): "
-                f"{response.text}"
+                f"Facilitator get_supported failed ({response.status_code}): {response.text}"
             )
 
         data = response.json()
@@ -312,10 +311,7 @@ class HTTPFacilitatorClient:
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator verify failed ({response.status_code}): "
-                f"{response.text}"
-            )
+            raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         data = response.json()
         return VerifyResponse.model_validate(data)
@@ -348,10 +344,7 @@ class HTTPFacilitatorClient:
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator settle failed ({response.status_code}): "
-                f"{response.text}"
-            )
+            raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         data = response.json()
         return SettleResponse.model_validate(data)
@@ -365,4 +358,3 @@ class HTTPFacilitatorClient:
                 default=lambda x: str(x) if isinstance(x, int) and x > 2**53 else x,
             )
         )
-

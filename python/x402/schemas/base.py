@@ -48,4 +48,3 @@ class AssetAmount(BaseX402Model):
 # Price can be user-friendly Money or explicit AssetAmount
 Price: TypeAlias = Money | AssetAmount
 """Price can be Money (user-friendly) or AssetAmount (explicit)."""
-

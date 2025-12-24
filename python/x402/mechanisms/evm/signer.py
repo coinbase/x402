@@ -176,4 +176,3 @@ class FacilitatorEvmSigner(Protocol):
             Bytecode (empty if EOA).
         """
         ...
-

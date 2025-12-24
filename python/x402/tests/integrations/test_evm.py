@@ -163,9 +163,7 @@ class RealClientEvmSigner:
         # Build EIP-712 types
         eip712_types = {}
         for type_name, fields in types.items():
-            eip712_types[type_name] = [
-                {"name": f.name, "type": f.type} for f in fields
-            ]
+            eip712_types[type_name] = [{"name": f.name, "type": f.type} for f in fields]
 
         # Handle bytes32 nonce - convert to hex string for eth_account
         msg_copy = message.copy()
@@ -269,9 +267,7 @@ class RealFacilitatorEvmSigner:
             ]
         }
         for type_name, fields in types.items():
-            full_types[type_name] = [
-                {"name": f.name, "type": f.type} for f in fields
-            ]
+            full_types[type_name] = [{"name": f.name, "type": f.type} for f in fields]
 
         # Handle bytes32 nonce
         msg_copy = message.copy()
@@ -303,6 +299,7 @@ class RealFacilitatorEvmSigner:
             if len(code) > 0:
                 # It's a contract, try EIP-1271
                 from eth_account._utils.typed_data import hash_typed_data
+
                 struct_hash = hash_typed_data(typed_data)
                 contract = self._w3.eth.contract(
                     address=Web3.to_checksum_address(address),
@@ -347,12 +344,14 @@ class RealFacilitatorEvmSigner:
         func = getattr(contract.functions, function_name)
 
         # Build transaction
-        tx = func(*args).build_transaction({
-            "from": self._account.address,
-            "nonce": self._w3.eth.get_transaction_count(self._account.address),
-            "gas": 200000,
-            "gasPrice": self._w3.eth.gas_price,
-        })
+        tx = func(*args).build_transaction(
+            {
+                "from": self._account.address,
+                "nonce": self._w3.eth.get_transaction_count(self._account.address),
+                "gas": 200000,
+                "gasPrice": self._w3.eth.gas_price,
+            }
+        )
 
         # Sign and send
         signed_tx = self._account.sign_transaction(tx)
@@ -416,9 +415,7 @@ class RealFacilitatorEvmSigner:
             address=Web3.to_checksum_address(token_address),
             abi=ERC20_ABI,
         )
-        return contract.functions.balanceOf(
-            Web3.to_checksum_address(address)
-        ).call()
+        return contract.functions.balanceOf(Web3.to_checksum_address(address)).call()
 
     def get_chain_id(self) -> int:
         """Get chain ID."""
@@ -700,7 +697,10 @@ class TestEvmIntegrationV2:
 
         verify_response = self.server.verify_payment(payload, higher_accepts[0])
         assert verify_response.is_valid is False
-        assert "amount" in verify_response.invalid_reason.lower() or "value" in verify_response.invalid_reason.lower()
+        assert (
+            "amount" in verify_response.invalid_reason.lower()
+            or "value" in verify_response.invalid_reason.lower()
+        )
 
     def test_facilitator_get_supported(self) -> None:
         """Test that facilitator returns supported kinds."""
@@ -782,10 +782,12 @@ class TestEvmPriceParsing:
 
     def test_custom_money_parser(self) -> None:
         """Test registering custom money parser."""
+
         # Register custom parser for large amounts
         def large_amount_parser(amount: float, network: str):
             if amount > 100:
                 from x402.schemas import AssetAmount
+
                 return AssetAmount(
                     amount=str(int(amount * 1e18)),  # DAI has 18 decimals
                     asset="0x6B175474E89094C44Da98b954EedeAC495271d0F",

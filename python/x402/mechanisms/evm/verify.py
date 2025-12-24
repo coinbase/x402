@@ -155,4 +155,3 @@ def verify_universal_signature(
     # Deployed contract - use EIP-1271
     valid = verify_eip1271_signature(signer, signer_address, hash, sig_data.inner_signature)
     return (valid, sig_data)
-

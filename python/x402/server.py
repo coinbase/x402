@@ -784,4 +784,3 @@ class x402ResourceServer:
                 )
 
         return result
-

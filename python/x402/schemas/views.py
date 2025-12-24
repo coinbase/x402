@@ -88,4 +88,3 @@ class PaymentPayloadView(Protocol):
             V2: accepted.network
         """
         ...
-

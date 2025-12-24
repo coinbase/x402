@@ -104,4 +104,3 @@ class EthAccountSigner:
             message_data=message,
         )
         return bytes(signed.signature)
-

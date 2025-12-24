@@ -175,4 +175,3 @@ __all__ = [
     "verify_eip1271_signature",
     "verify_universal_signature",
 ]
-

@@ -166,9 +166,7 @@ class x402HTTPResourceServer:
             resource=config.get("resource"),
             description=config.get("description"),
             mime_type=config.get("mimeType", config.get("mime_type")),
-            custom_paywall_html=config.get(
-                "customPaywallHtml", config.get("custom_paywall_html")
-            ),
+            custom_paywall_html=config.get("customPaywallHtml", config.get("custom_paywall_html")),
             unpaid_response_body=config.get(
                 "unpaidResponseBody", config.get("unpaid_response_body")
             ),
@@ -197,9 +195,7 @@ class x402HTTPResourceServer:
         if errors:
             raise RouteConfigurationError(errors)
 
-    def register_paywall_provider(
-        self, provider: PaywallProvider
-    ) -> "x402HTTPResourceServer":
+    def register_paywall_provider(self, provider: PaywallProvider) -> "x402HTTPResourceServer":
         """Register custom paywall provider for HTML generation.
 
         Args:
@@ -465,9 +461,7 @@ class x402HTTPResourceServer:
 
         return all_requirements
 
-    def _extract_payment(
-        self, adapter: HTTPAdapter
-    ) -> PaymentPayload | PaymentPayloadV1 | None:
+    def _extract_payment(self, adapter: HTTPAdapter) -> PaymentPayload | PaymentPayloadV1 | None:
         """Extract payment from HTTP headers (V2 only)."""
         # Check V2 header (case-insensitive)
         header = adapter.get_header(PAYMENT_SIGNATURE_HEADER) or adapter.get_header(
@@ -522,9 +516,7 @@ class x402HTTPResourceServer:
             status=402,
             headers={
                 "Content-Type": content_type,
-                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(
-                    payment_required
-                ),
+                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(payment_required),
             },
             body=body,
         )
@@ -568,9 +560,7 @@ class x402HTTPResourceServer:
                     continue
 
                 # Check facilitator support
-                supported_kind = self._server.get_supported_kind(
-                    2, option.network, option.scheme
-                )
+                supported_kind = self._server.get_supported_kind(2, option.network, option.scheme)
                 if not supported_kind:
                     errors.append(
                         RouteValidationError(
@@ -639,9 +629,7 @@ class x402HTTPResourceServer:
         display_amount = self._get_display_amount(payment_required)
         resource_desc = ""
         if payment_required.resource:
-            resource_desc = (
-                payment_required.resource.description or payment_required.resource.url
-            )
+            resource_desc = payment_required.resource.description or payment_required.resource.url
 
         app_logo = ""
         app_name = ""
@@ -683,4 +671,3 @@ class x402HTTPResourceServer:
                 except (ValueError, TypeError):
                     pass
         return 0.0
-

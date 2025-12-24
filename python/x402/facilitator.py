@@ -648,4 +648,3 @@ class x402Facilitator:
                 return scheme_data.facilitator
 
         return None
-

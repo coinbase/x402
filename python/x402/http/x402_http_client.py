@@ -266,4 +266,3 @@ class PaymentRoundTripper:
         self._retry_counts.pop(request_id, None)
 
         return result
-

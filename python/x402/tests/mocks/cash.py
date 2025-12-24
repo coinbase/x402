@@ -360,4 +360,3 @@ def build_cash_payment_requirements(
         max_timeout_seconds=1000,
         extra={},
     )
-

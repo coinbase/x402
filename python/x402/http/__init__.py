@@ -118,4 +118,3 @@ __all__ = [
     "decode_payment_response_header",
     "detect_payment_required_version",
 ]
-

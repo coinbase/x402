@@ -22,4 +22,3 @@ __all__ = [
     "register_exact_evm_server",
     "register_exact_evm_facilitator",
 ]
-

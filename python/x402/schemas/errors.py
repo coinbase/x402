@@ -72,4 +72,3 @@ class PaymentAbortedError(PaymentError):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(f"Payment aborted: {reason}")
-

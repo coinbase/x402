@@ -247,4 +247,3 @@ def build_typed_data_for_signing(
     }
 
     return (domain, AUTHORIZATION_TYPES, "TransferWithAuthorization", message)
-

@@ -313,4 +313,3 @@ class SchemeNetworkFacilitatorV1(Protocol):
 
 # Import for type hints
 from .schemas.v1 import PaymentPayloadV1  # noqa: E402
-

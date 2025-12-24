@@ -124,4 +124,3 @@ def register_exact_evm_facilitator(
     facilitator.register_v1(V1_NETWORKS, v1_scheme)
 
     return facilitator
-

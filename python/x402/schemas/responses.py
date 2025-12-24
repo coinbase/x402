@@ -92,4 +92,3 @@ class SupportedResponse(BaseX402Model):
     kinds: list[SupportedKind]
     extensions: list[str] = Field(default_factory=list)
     signers: dict[str, list[str]] = Field(default_factory=dict)
-

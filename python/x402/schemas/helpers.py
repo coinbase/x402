@@ -96,10 +96,9 @@ def match_payload_to_requirements(
 
     if version == 1:
         # V1: Compare scheme and network
-        return (
-            payload.get("scheme") == requirements.get("scheme")
-            and payload.get("network") == requirements.get("network")
-        )
+        return payload.get("scheme") == requirements.get("scheme") and payload.get(
+            "network"
+        ) == requirements.get("network")
     else:
         # V2: Compare scheme, network, amount, asset, payTo
         accepted = payload.get("accepted", {})
@@ -241,4 +240,3 @@ def find_schemes_by_network(
             return scheme_map
 
     return None
-

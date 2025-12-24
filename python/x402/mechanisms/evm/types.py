@@ -129,4 +129,3 @@ DOMAIN_TYPES: dict[str, list[dict[str, str]]] = {
         {"name": "verifyingContract", "type": "address"},
     ]
 }
-

@@ -109,24 +109,18 @@ class x402HTTPAdapter(HTTPAdapter):
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pass
 
-            payment_required = self._http_client.get_payment_required_response(
-                get_header, body
-            )
+            payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload (sync)
             payment_payload = self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
-            payment_headers = self._http_client.encode_payment_signature_header(
-                payment_payload
-            )
+            payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
 
             # Mark as retry and add payment headers
             self._is_retry = True
             request.headers.update(payment_headers)
-            request.headers["Access-Control-Expose-Headers"] = (
-                "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
-            )
+            request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
 
             # Retry request
             retry_response = super().send(request, **kwargs)
@@ -276,4 +270,3 @@ def x402_requests(
     """
     session = requests.Session()
     return wrapRequestsWithPayment(session, client, **adapter_kwargs)
-

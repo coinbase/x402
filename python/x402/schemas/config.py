@@ -63,4 +63,3 @@ class RouteConfigDict(TypedDict, total=False):
 
 # Single route or dict of path -> route config
 RoutesConfig: TypeAlias = RouteConfigDict | dict[str, RouteConfigDict]
-
