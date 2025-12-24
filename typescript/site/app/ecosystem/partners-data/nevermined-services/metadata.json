@@ -1,0 +1,7 @@
+{
+  "name": "Nevermined",
+  "category": "Services/Endpoints",
+  "logoUrl": "/logos/nevermined.jpg",
+  "description": "APIs for monetizing AI models and services with payment plans. Enables metering, authentication, and payout logic for AI agents.",
+  "websiteUrl": "https://nevermined.ai"
+}
