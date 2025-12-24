@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ..schemas import (
     PaymentPayload,
@@ -35,7 +36,7 @@ class x402HTTPClient:
     and automatic payment handling.
     """
 
-    def __init__(self, client: "x402Client") -> None:
+    def __init__(self, client: x402Client) -> None:
         """Create x402HTTPClient.
 
         Args:
@@ -266,4 +267,3 @@ class PaymentRoundTripper:
         self._retry_counts.pop(request_id, None)
 
         return result
-

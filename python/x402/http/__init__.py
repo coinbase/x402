@@ -33,8 +33,8 @@ from .types import (
     ProcessSettleResult,
     RouteConfig,
     RouteConfigurationError,
-    RouteValidationError,
     RoutesConfig,
+    RouteValidationError,
     UnpaidResponseBody,
     UnpaidResponseResult,
 )
@@ -118,4 +118,3 @@ __all__ = [
     "decode_payment_response_header",
     "detect_payment_required_version",
 ]
-

@@ -30,4 +30,3 @@ class ResourceServerExtension(Protocol):
             Enriched declaration.
         """
         ...
-

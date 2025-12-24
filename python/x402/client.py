@@ -5,7 +5,8 @@ Manages scheme registration, policy-based filtering, and payload creation.
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from typing_extensions import Self
 
@@ -450,18 +451,14 @@ class x402Client:
                 supported.append(req)
 
         if not supported:
-            raise NoMatchingRequirementsError(
-                "No payment requirements match registered schemes"
-            )
+            raise NoMatchingRequirementsError("No payment requirements match registered schemes")
 
         # Apply policies
         filtered: list[RequirementsView] = list(supported)
         for policy in self._policies:
             filtered = policy(2, filtered)
             if not filtered:
-                raise NoMatchingRequirementsError(
-                    "All requirements filtered out by policies"
-                )
+                raise NoMatchingRequirementsError("All requirements filtered out by policies")
 
         # Select final
         return self._selector(2, filtered)  # type: ignore[return-value]
@@ -479,18 +476,14 @@ class x402Client:
                 supported.append(req)
 
         if not supported:
-            raise NoMatchingRequirementsError(
-                "No payment requirements match registered schemes"
-            )
+            raise NoMatchingRequirementsError("No payment requirements match registered schemes")
 
         # Apply policies
         filtered: list[RequirementsView] = list(supported)
         for policy in self._policies:
             filtered = policy(1, filtered)
             if not filtered:
-                raise NoMatchingRequirementsError(
-                    "All requirements filtered out by policies"
-                )
+                raise NoMatchingRequirementsError("All requirements filtered out by policies")
 
         # Select final
         return self._selector(1, filtered)  # type: ignore[return-value]
@@ -518,4 +511,3 @@ class x402Client:
                 result[1].append({"network": network, "scheme": scheme})
 
         return result
-

@@ -41,7 +41,7 @@ class EthAccountSigner:
         account: eth_account LocalAccount instance.
     """
 
-    def __init__(self, account: "LocalAccount") -> None:
+    def __init__(self, account: LocalAccount) -> None:
         """Initialize signer with eth_account LocalAccount.
 
         Args:
@@ -104,4 +104,3 @@ class EthAccountSigner:
             message_data=message,
         )
         return bytes(signed.signature)
-

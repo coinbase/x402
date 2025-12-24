@@ -72,7 +72,6 @@ exclude = [
 "schemas" = "x402/schemas"
 "http" = "x402/http"
 "mechanisms" = "x402/mechanisms"
-"extensions" = "x402/extensions"
 
 [tool.ruff]
 line-length = 100

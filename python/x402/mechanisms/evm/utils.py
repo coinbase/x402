@@ -286,4 +286,3 @@ def parse_money_to_decimal(money: str | float | int) -> float:
     clean = clean.strip()
 
     return float(clean)
-

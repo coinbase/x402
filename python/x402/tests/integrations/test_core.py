@@ -7,15 +7,12 @@ import pytest
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
 from x402.http import (
-    HTTPAdapter,
     HTTPRequestContext,
-    HTTPResponseInstructions,
-    PaymentOption,
+    decode_payment_required_header,
     x402HTTPClient,
     x402HTTPResourceServer,
-    decode_payment_required_header,
 )
-from x402.schemas import Network, PaymentPayload, PaymentRequirements, Price, ResourceInfo
+from x402.schemas import Price, ResourceInfo
 
 from ..mocks import (
     CashFacilitatorClient,
@@ -279,6 +276,10 @@ class TestHooks:
         assert hook_called is True
         assert received_payload is not None
         assert received_payload.accepted.pay_to == "Test"
+
+        assert payload is not None
+        assert payload.accepted.pay_to == "Test"
+        assert payload == received_payload
 
     def test_server_after_verify_hook(self) -> None:
         """Test that after_verify hook is called on successful verification."""

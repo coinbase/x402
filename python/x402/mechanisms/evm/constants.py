@@ -282,4 +282,3 @@ IS_VALID_SIGNATURE_ABI = [
         "type": "function",
     }
 ]
-

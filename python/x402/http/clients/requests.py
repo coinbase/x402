@@ -45,7 +45,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
     def __init__(
         self,
-        client: "x402Client | x402HTTPClient",
+        client: x402Client | x402HTTPClient,
         **kwargs: Any,
     ) -> None:
         """Initialize payment adapter.
@@ -109,24 +109,18 @@ class x402HTTPAdapter(HTTPAdapter):
             except (json.JSONDecodeError, UnicodeDecodeError):
                 pass
 
-            payment_required = self._http_client.get_payment_required_response(
-                get_header, body
-            )
+            payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload (sync)
             payment_payload = self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
-            payment_headers = self._http_client.encode_payment_signature_header(
-                payment_payload
-            )
+            payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
 
             # Mark as retry and add payment headers
             self._is_retry = True
             request.headers.update(payment_headers)
-            request.headers["Access-Control-Expose-Headers"] = (
-                "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
-            )
+            request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
 
             # Retry request
             retry_response = super().send(request, **kwargs)
@@ -147,7 +141,7 @@ class x402HTTPAdapter(HTTPAdapter):
 
 
 def x402_http_adapter(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **kwargs: Any,
 ) -> x402HTTPAdapter:
     """Create an HTTP adapter with 402 payment handling.
@@ -186,7 +180,7 @@ def x402_http_adapter(
 
 def wrapRequestsWithPayment(
     session: requests.Session,
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Wrap a requests Session with automatic 402 payment handling.
@@ -247,7 +241,7 @@ def wrapRequestsWithPaymentFromConfig(
 
 
 def x402_requests(
-    client: "x402Client | x402HTTPClient",
+    client: x402Client | x402HTTPClient,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Create a requests Session with x402 payment handling.
@@ -276,4 +270,3 @@ def x402_requests(
     """
     session = requests.Session()
     return wrapRequestsWithPayment(session, client, **adapter_kwargs)
-

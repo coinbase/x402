@@ -5,7 +5,6 @@ import time
 from typing import Any
 
 from .....schemas.v1 import PaymentRequirementsV1
-
 from ...constants import SCHEME_EXACT
 from ...eip712 import build_typed_data_for_signing
 from ...signer import ClientEvmSigner
@@ -127,9 +126,6 @@ class ExactEvmSchemeV1:
                 TypedDataField(name=f["name"], type=f["type"]) for f in fields
             ]
 
-        sig_bytes = self._signer.sign_typed_data(
-            domain, typed_fields, primary_type, message
-        )
+        sig_bytes = self._signer.sign_typed_data(domain, typed_fields, primary_type, message)
 
         return "0x" + sig_bytes.hex()
-

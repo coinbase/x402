@@ -6,7 +6,8 @@ via facilitator clients.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol
 
 from typing_extensions import Self
 
@@ -40,7 +41,7 @@ from .schemas import (
 )
 
 if TYPE_CHECKING:
-    from .schemas.v1 import PaymentRequiredV1
+    pass
 
 # ============================================================================
 # FacilitatorClient Protocol (defined here in server module)
@@ -280,7 +281,7 @@ class x402ResourceServer:
                             return kind
 
         # Check if any facilitator supports this network/scheme via wildcard pattern
-        for net, schemes in self._supported_responses.items():
+        for schemes in self._supported_responses.values():
             if scheme in schemes:
                 supported = schemes[scheme]
                 for kind in supported.kinds:
@@ -784,4 +785,3 @@ class x402ResourceServer:
                 )
 
         return result
-

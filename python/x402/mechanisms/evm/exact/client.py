@@ -4,7 +4,6 @@ from datetime import timedelta
 from typing import Any
 
 from ....schemas import PaymentRequirements
-
 from ..constants import SCHEME_EXACT
 from ..eip712 import build_typed_data_for_signing
 from ..signer import ClientEvmSigner
@@ -101,7 +100,7 @@ class ExactEvmScheme:
                 extra["name"] = asset_info["name"]
                 extra["version"] = asset_info.get("version", "1")
             except ValueError:
-                raise ValueError("EIP-712 domain parameters (name, version) required in extra")
+                raise ValueError("EIP-712 domain parameters (name, version) required in extra") from None
 
         name = extra["name"]
         version = extra.get("version", "1")
@@ -121,9 +120,6 @@ class ExactEvmScheme:
                 TypedDataField(name=f["name"], type=f["type"]) for f in fields
             ]
 
-        sig_bytes = self._signer.sign_typed_data(
-            domain, typed_fields, primary_type, message
-        )
+        sig_bytes = self._signer.sign_typed_data(domain, typed_fields, primary_type, message)
 
         return "0x" + sig_bytes.hex()
-

@@ -6,7 +6,8 @@ Provides payment-gated route protection for Flask applications.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Callable, Iterator
+from collections.abc import Callable, Iterator
+from typing import TYPE_CHECKING, Any
 
 from flask import Flask, Request, g, request
 
@@ -235,7 +236,7 @@ class PaymentMiddleware:
         self,
         app: Flask,
         routes: RoutesConfig,
-        server: "x402ResourceServer",
+        server: x402ResourceServer,
         paywall_config: PaywallConfig | None = None,
         paywall_provider: PaywallProvider | None = None,
         sync_facilitator_on_start: bool = True,
@@ -285,8 +286,7 @@ class PaymentMiddleware:
                 path=request.path,
                 method=request.method,
                 payment_header=(
-                    adapter.get_header("payment-signature")
-                    or adapter.get_header("x-payment")
+                    adapter.get_header("payment-signature") or adapter.get_header("x-payment")
                 ),
             )
 
@@ -300,9 +300,7 @@ class PaymentMiddleware:
                 self._init_done = True
 
             # Process payment request
-            result = self._http_server.process_http_request(
-                context, self._paywall_config
-            )
+            result = self._http_server.process_http_request(context, self._paywall_config)
 
             if result.type == "no-payment-required":
                 return self._original_wsgi(environ, start_response)
@@ -406,7 +404,7 @@ class PaymentMiddleware:
 def payment_middleware(
     app: Flask,
     routes: RoutesConfig,
-    server: "x402ResourceServer",
+    server: x402ResourceServer,
     paywall_config: PaywallConfig | None = None,
     paywall_provider: PaywallProvider | None = None,
     sync_facilitator_on_start: bool = True,
@@ -463,4 +461,3 @@ def payment_middleware_from_config(
     return PaymentMiddleware(
         app, routes, server, paywall_config, paywall_provider, sync_facilitator_on_start
     )
-

@@ -1,8 +1,7 @@
 """Configuration types for the x402 Python SDK."""
 
-from typing import Any, Callable, TypeAlias, TypedDict
-
-from pydantic import Field
+from collections.abc import Callable
+from typing import Any, TypeAlias, TypedDict
 
 from .base import BaseX402Model, Network, Price
 
@@ -63,4 +62,3 @@ class RouteConfigDict(TypedDict, total=False):
 
 # Single route or dict of path -> route config
 RoutesConfig: TypeAlias = RouteConfigDict | dict[str, RouteConfigDict]
-

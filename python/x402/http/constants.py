@@ -13,4 +13,3 @@ HTTP_STATUS_PAYMENT_REQUIRED = 402
 
 # Default Facilitator URL
 DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
-

@@ -10,7 +10,6 @@ from .types import (
     DOMAIN_TYPES,
     ExactEIP3009Authorization,
     TypedDataDomain,
-    TypedDataField,
 )
 
 
@@ -89,8 +88,6 @@ def _encode_data(
             else:
                 encoded_values.append(bytes.fromhex(str(value).removeprefix("0x")))
         elif field_type == "address":
-            # Normalize address to bytes20
-            addr = str(value).removeprefix("0x").lower()
             encoded_values.append(encode(["address"], [value]))
         elif field_type.startswith("uint") or field_type.startswith("int"):
             encoded_values.append(encode([field_type], [int(value)]))
@@ -247,4 +244,3 @@ def build_typed_data_for_signing(
     }
 
     return (domain, AUTHORIZATION_TYPES, "TransferWithAuthorization", message)
-

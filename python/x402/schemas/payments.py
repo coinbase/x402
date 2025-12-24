@@ -93,4 +93,3 @@ class PaymentPayload(BaseX402Model):
     def get_network(self) -> str:
         """Get the network (V2 uses accepted.network)."""
         return self.accepted.network
-

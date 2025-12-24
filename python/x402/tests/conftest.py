@@ -46,4 +46,3 @@ def _load_dotenv(path: Path) -> None:
                 # Only set if not already in environment
                 if key not in os.environ:
                     os.environ[key] = value
-

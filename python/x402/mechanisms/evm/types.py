@@ -1,6 +1,6 @@
 """EVM-specific payload and data types."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -129,4 +129,3 @@ DOMAIN_TYPES: dict[str, list[dict[str, str]]] = {
         {"name": "verifyingContract", "type": "address"},
     ]
 }
-

@@ -1,11 +1,11 @@
 """Utility functions for the x402 Python SDK."""
 
 import json
-from typing import Any
+from typing import Any, TypeVar
 
 from .base import Network
-from .payments import PaymentPayload, PaymentRequired, PaymentRequirements
-from .v1 import PaymentPayloadV1, PaymentRequiredV1, PaymentRequirementsV1
+from .payments import PaymentPayload, PaymentRequired
+from .v1 import PaymentPayloadV1, PaymentRequiredV1
 
 
 def detect_version(data: bytes | dict[str, Any]) -> int:
@@ -96,10 +96,9 @@ def match_payload_to_requirements(
 
     if version == 1:
         # V1: Compare scheme and network
-        return (
-            payload.get("scheme") == requirements.get("scheme")
-            and payload.get("network") == requirements.get("network")
-        )
+        return payload.get("scheme") == requirements.get("scheme") and payload.get(
+            "network"
+        ) == requirements.get("network")
     else:
         # V2: Compare scheme, network, amount, asset, payTo
         accepted = payload.get("accepted", {})
@@ -213,8 +212,6 @@ def derive_network_pattern(networks: list[Network]) -> Network:
     return networks[0]
 
 
-from typing import TypeVar
-
 T = TypeVar("T")
 
 
@@ -241,4 +238,3 @@ def find_schemes_by_network(
             return scheme_map
 
     return None
-
