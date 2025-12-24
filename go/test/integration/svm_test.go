@@ -48,7 +48,7 @@ func newRealFacilitatorSvmSigner(privateKeyBase58 string, rpcURL string) (*realF
 }
 
 // getRPC is a private helper method to get RPC client for a network
-func (s *realFacilitatorSvmSigner) getRPC(ctx context.Context, network string) (*rpc.Client, error) {
+func (s *realFacilitatorSvmSigner) getRPC(_ context.Context, network string) (*rpc.Client, error) {
 	// Return cached RPC client if exists
 	if client, ok := s.rpcClients[network]; ok {
 		return client, nil

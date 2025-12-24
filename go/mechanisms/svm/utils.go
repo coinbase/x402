@@ -67,24 +67,12 @@ func GetAssetInfo(network string, assetSymbolOrAddress string) (*AssetInfo, erro
 			return &config.DefaultAsset, nil
 		}
 
-		// Check supported assets by address
-		for _, asset := range config.SupportedAssets {
-			if asset.Address == assetSymbolOrAddress {
-				return &asset, nil
-			}
-		}
-
 		// Unknown token - return basic info with default decimals
 		return &AssetInfo{
 			Address:  assetSymbolOrAddress,
 			Symbol:   "UNKNOWN",
 			Decimals: 9, // Solana default decimals
 		}, nil
-	}
-
-	// Look up by symbol
-	if asset, ok := config.SupportedAssets[strings.ToUpper(assetSymbolOrAddress)]; ok {
-		return &asset, nil
 	}
 
 	// Default to the network's default asset

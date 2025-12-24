@@ -2,7 +2,6 @@ package unit_test
 
 import (
 	"context"
-	"math/big"
 	"testing"
 
 	x402 "github.com/coinbase/x402/go"
@@ -36,97 +35,6 @@ func (m *mockClientEvmSigner) SignTypedData(
 	// Set v to 27 (common value for Ethereum signatures)
 	sig[64] = 27
 	return sig, nil
-}
-
-// Mock EVM signer for facilitator
-type mockFacilitatorEvmSigner struct {
-	balances map[string]*big.Int
-	nonces   map[string]bool
-}
-
-func newMockFacilitatorEvmSigner() *mockFacilitatorEvmSigner {
-	return &mockFacilitatorEvmSigner{
-		balances: make(map[string]*big.Int),
-		nonces:   make(map[string]bool),
-	}
-}
-
-func (m *mockFacilitatorEvmSigner) Address() string {
-	return "0xfacilitator1234567890123456789012345678"
-}
-
-func (m *mockFacilitatorEvmSigner) GetCode(ctx context.Context, address string) ([]byte, error) {
-	// Mock: return empty for EOA, non-empty for contracts
-	// For testing, assume all addresses are EOAs (deployed wallets)
-	return []byte{0x60, 0x60}, nil // Mock bytecode
-}
-
-func (m *mockFacilitatorEvmSigner) GetBalance(ctx context.Context, address string, tokenAddress string) (*big.Int, error) {
-	key := address + ":" + tokenAddress
-	if balance, ok := m.balances[key]; ok {
-		return balance, nil
-	}
-	// Default to sufficient balance
-	return big.NewInt(10000000000), nil // 10,000 USDC
-}
-
-func (m *mockFacilitatorEvmSigner) GetChainID(ctx context.Context) (*big.Int, error) {
-	return big.NewInt(8453), nil // Base mainnet
-}
-
-func (m *mockFacilitatorEvmSigner) ReadContract(
-	ctx context.Context,
-	contractAddress string,
-	abi []byte,
-	functionName string,
-	args ...interface{},
-) (interface{}, error) {
-	// Mock authorization state check
-	if functionName == "authorizationState" {
-		// Return false (not used)
-		return false, nil
-	}
-	return nil, nil
-}
-
-func (m *mockFacilitatorEvmSigner) WriteContract(
-	ctx context.Context,
-	contractAddress string,
-	abi []byte,
-	functionName string,
-	args ...interface{},
-) (string, error) {
-	// Return mock transaction hash
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
-}
-
-func (m *mockFacilitatorEvmSigner) SendTransaction(
-	ctx context.Context,
-	to string,
-	data []byte,
-) (string, error) {
-	// Return mock transaction hash
-	return "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", nil
-}
-
-func (m *mockFacilitatorEvmSigner) WaitForTransactionReceipt(ctx context.Context, txHash string) (*evm.TransactionReceipt, error) {
-	return &evm.TransactionReceipt{
-		Status: evm.TxStatusSuccess,
-	}, nil
-}
-
-func (m *mockFacilitatorEvmSigner) VerifyTypedData(
-	ctx context.Context,
-	address string,
-	domain evm.TypedDataDomain,
-	types map[string][]evm.TypedDataField,
-	primaryType string,
-	message map[string]interface{},
-	signature []byte,
-) (bool, error) {
-	// For testing, verify that the address matches one of our mock clients
-	return address == "0x1234567890123456789012345678901234567890" ||
-		address == "0xabcdef1234567890123456789012345678901234", nil
 }
 
 // TestEVMVersionMismatch tests that V1 and V2 don't mix

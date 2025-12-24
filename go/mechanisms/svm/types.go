@@ -62,12 +62,12 @@ type AssetInfo struct {
 }
 
 // NetworkConfig contains network-specific configuration
+// See DEFAULT_ASSET.md for guidelines on adding new chains
 type NetworkConfig struct {
-	Name            string               // Network name
-	CAIP2           string               // CAIP-2 identifier
-	RPCURL          string               // Default RPC URL
-	DefaultAsset    AssetInfo            // Default token (USDC)
-	SupportedAssets map[string]AssetInfo // Symbol -> AssetInfo
+	Name         string    // Network name
+	CAIP2        string    // CAIP-2 identifier
+	RPCURL       string    // Default RPC URL
+	DefaultAsset AssetInfo // Default token (USDC)
 }
 
 // ClientConfig contains optional client configuration

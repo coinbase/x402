@@ -212,23 +212,22 @@ func (s *ExactEvmScheme) EnhancePaymentRequirements(
 	supportedKind types.SupportedKind,
 	extensionKeys []string,
 ) (types.PaymentRequirements, error) {
-	// Get network config
 	networkStr := string(requirements.Network)
-	config, err := evm.GetNetworkConfig(networkStr)
-	if err != nil {
-		return requirements, err
-	}
 
-	// Get asset info
+	// Get asset info - if no asset specified, GetAssetInfo will try to use the default
 	var assetInfo *evm.AssetInfo
+	var err error
 	if requirements.Asset != "" {
 		assetInfo, err = evm.GetAssetInfo(networkStr, requirements.Asset)
 		if err != nil {
 			return requirements, err
 		}
 	} else {
-		// Use default asset if not specified
-		assetInfo = &config.DefaultAsset
+		// Try to get default asset for this network
+		assetInfo, err = evm.GetAssetInfo(networkStr, "")
+		if err != nil {
+			return requirements, fmt.Errorf("no asset specified and %w", err)
+		}
 		requirements.Asset = assetInfo.Address
 	}
 
@@ -289,13 +288,10 @@ func (s *ExactEvmScheme) GetDisplayAmount(amount string, network string, asset s
 	return "$" + formatted + " USDC", nil
 }
 
-// ValidatePaymentRequirements validates that requirements are valid for this scheme
+// ValidatePaymentRequirements validates that requirements are valid for this scheme.
+// All EVM networks are supported - this validates required fields only.
 func (s *ExactEvmScheme) ValidatePaymentRequirements(requirements x402.PaymentRequirements) error {
-	// Check network is supported
 	networkStr := string(requirements.Network)
-	if !evm.IsValidNetwork(networkStr) {
-		return fmt.Errorf("unsupported network: %s", requirements.Network)
-	}
 
 	// Check PayTo is a valid address
 	if !evm.IsValidAddress(requirements.PayTo) {
@@ -314,7 +310,7 @@ func (s *ExactEvmScheme) ValidatePaymentRequirements(requirements x402.PaymentRe
 
 	// Check asset is valid if specified
 	if requirements.Asset != "" && !evm.IsValidAddress(requirements.Asset) {
-		// Try to look it up as a symbol
+		// Try to look it up (only works for networks with default assets)
 		_, err := evm.GetAssetInfo(networkStr, requirements.Asset)
 		if err != nil {
 			return fmt.Errorf("invalid asset: %s", requirements.Asset)
@@ -361,24 +357,4 @@ func (s *ExactEvmScheme) GetSupportedNetworks() []string {
 		networks = append(networks, network)
 	}
 	return networks
-}
-
-// GetSupportedAssets returns the list of supported assets for a network
-func (s *ExactEvmScheme) GetSupportedAssets(network string) ([]string, error) {
-	config, err := evm.GetNetworkConfig(network)
-	if err != nil {
-		return nil, err
-	}
-
-	assets := make([]string, 0, len(config.SupportedAssets))
-	for symbol := range config.SupportedAssets {
-		assets = append(assets, symbol)
-	}
-
-	// Also add the addresses
-	for _, asset := range config.SupportedAssets {
-		assets = append(assets, asset.Address)
-	}
-
-	return assets, nil
 }
