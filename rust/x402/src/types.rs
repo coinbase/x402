@@ -42,6 +42,7 @@ pub struct PaymentPayload {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CdpVerifyRequestV1 {
+    #[serde(rename="x402Version")]
     pub x402_version: u32,
     pub payment_payload: CdpPaymentPayloadV1,
     pub payment_requirements: CdpPaymentRequirementsV1,
@@ -81,7 +82,10 @@ pub struct CdpPaymentRequirementsV1 {
     pub network: String,
     pub max_amount_required: String,
     pub resource: String,
+    pub description: String,
+    pub mime_type: String,
     pub pay_to: String,
+    pub max_timeout_seconds: u64,
     pub asset: String,
 }
 

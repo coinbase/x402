@@ -76,63 +76,34 @@ impl Facilitator {
         // It assumes the use of Coinbase's facilitator and will be abstracted to a plug-in system in the future.
         let url = format!("{}/verify", self.url.trim_end_matches('/'));
 
+        let nested_payload = serde_json::from_value::<CdpExactPayloadV1>(payload.payload)?;
+
         let request = CdpVerifyRequestV1 {
             x402_version: payload.x402_version,
             payment_payload: CdpPaymentPayloadV1 {
                 x402_version: payload.x402_version,
                 scheme: payload.accepted.scheme.clone(),
                 network: payload.accepted.network.clone(),
-                payload: CdpExactPayloadV1 {
-                    signature: payload.payload.get("signature")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0x...")
-                        .to_string(),
-                    authorization: CdpAuthorizationV1 {
-                        from: payload.payload.get("authorization")
-                            .and_then(|a| a.get("from"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("0x...")
-                            .to_string(),
-                        to: payload.payload.get("authorization")
-                            .and_then(|a| a.get("to"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(requirements.pay_to.as_str())
-                            .to_string(),
-                        value: payload.payload.get("authorization")
-                            .and_then(|a| a.get("value"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or(requirements.value.as_str())
-                            .to_string(),
-                        valid_after: payload.payload.get("authorization")
-                            .and_then(|a| a.get("valid_after"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("...")
-                            .to_string(),
-                        valid_before: payload.payload.get("authorization")
-                            .and_then(|a| a.get("valid_before"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("...")
-                            .to_string(),
-                        nonce: payload.payload.get("authorization")
-                            .and_then(|a| a.get("nonce"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("0x...")
-                            .to_string(),
-                    },
+                payload: nested_payload
                 },
-            },
             payment_requirements: CdpPaymentRequirementsV1 {
                 scheme: requirements.scheme.clone(),
                 network: requirements.network.clone(),
                 max_amount_required: requirements.value.clone(),
                 resource: payload.resource.clone(),
+                description: "Test".to_string(),
+                mime_type: "application/json".to_string(),
                 pay_to: requirements.pay_to.clone(),
+                max_timeout_seconds: 10,
                 asset: requirements.asset.clone().unwrap_or_else(|| "0x...".to_string()),
             },
         };
 
 
-        dbg!(&request);
+        use serde_json::to_string_pretty;
+
+        let json = to_string_pretty(&request)?;
+        println!("JSON: {json}");
 
         let response = self.client.post(url)
             .headers(self.headers.clone())
