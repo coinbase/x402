@@ -6,6 +6,21 @@ import {
   SchemeNetworkServer,
   MoneyParser,
 } from "@x402/core/types";
+import { createPublicClient, http, type Chain, type PublicClient } from "viem";
+import { mainnet, base, baseSepolia, sepolia } from "viem/chains";
+
+/**
+ * ERC20 ABI for reading decimals
+ */
+const erc20Abi = [
+  {
+    inputs: [],
+    name: "decimals",
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
 
 /**
  * EVM server implementation for the Exact payment scheme.
@@ -13,6 +28,10 @@ import {
 export class ExactEvmScheme implements SchemeNetworkServer {
   readonly scheme = "exact";
   private moneyParsers: MoneyParser[] = [];
+  // Cache for decimals to avoid repeated RPC calls
+  private decimalsCache: Map<string, number> = new Map();
+  // Cache for public clients per network
+  private publicClients: Map<Network, PublicClient> = new Map();
 
   /**
    * Register a custom money parser in the parser chain.
@@ -74,7 +93,7 @@ export class ExactEvmScheme implements SchemeNetworkServer {
     }
 
     // All custom parsers returned null, use default conversion
-    return this.defaultMoneyConversion(amount, network);
+    return await this.defaultMoneyConversion(amount, network);
   }
 
   /**
@@ -136,10 +155,10 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    * @param network - The network to use
    * @returns The parsed asset amount in USDC
    */
-  private defaultMoneyConversion(amount: number, network: Network): AssetAmount {
-    // Convert decimal amount to token amount (USDC has 6 decimals)
-    const tokenAmount = this.convertToTokenAmount(amount.toString(), network);
-    const assetInfo = this.getDefaultAsset(network);
+  private async defaultMoneyConversion(amount: number, network: Network): Promise<AssetAmount> {
+    const assetInfo = await this.getDefaultAsset(network);
+    // Convert decimal amount to token amount using network-specific decimals
+    const tokenAmount = this.convertToTokenAmount(amount.toString(), assetInfo.decimals);
 
     return {
       amount: tokenAmount,
@@ -155,11 +174,10 @@ export class ExactEvmScheme implements SchemeNetworkServer {
    * Convert decimal amount to token units (e.g., 0.10 -> 100000 for 6-decimal USDC)
    *
    * @param decimalAmount - The decimal amount to convert
-   * @param network - The network to use
+   * @param decimals - The number of decimals for the token
    * @returns The token amount as a string
    */
-  private convertToTokenAmount(decimalAmount: string, network: Network): string {
-    const decimals = this.getAssetDecimals(network);
+  private convertToTokenAmount(decimalAmount: string, decimals: number): string {
     const amount = parseFloat(decimalAmount);
     if (isNaN(amount)) {
       throw new Error(`Invalid amount: ${decimalAmount}`);
@@ -172,12 +190,12 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
-   * Get the default asset info for a network (typically USDC)
+   * Get static asset info (address, name, version) for a network
    *
    * @param network - The network to get asset info for
    * @returns The asset information including address, name, and version
    */
-  private getDefaultAsset(network: Network): { address: string; name: string; version: string } {
+  private getStaticAssetInfo(network: Network): { address: string; name: string; version: string } {
     // Map of network to USDC info including EIP-712 domain parameters
     const usdcInfo: Record<string, { address: string; name: string; version: string }> = {
       "eip155:8453": {
@@ -211,35 +229,181 @@ export class ExactEvmScheme implements SchemeNetworkServer {
   }
 
   /**
+   * Get the chain configuration for a network
+   *
+   * @param network - The network identifier in CAIP-2 format
+   * @returns The viem Chain configuration
+   */
+  private getChainForNetwork(network: Network): Chain | null {
+    const chainId = this.getChainIdFromNetwork(network);
+    const chainMap: Record<number, Chain> = {
+      1: mainnet,
+      8453: base,
+      84532: baseSepolia,
+      11155111: sepolia,
+      // BSC (56) and other EVM chains will work dynamically via viem's chain lookup
+      // but are not explicitly configured here
+    };
+    return chainMap[chainId] || null;
+  }
+
+  /**
+   * Extract chain ID from CAIP-2 network identifier
+   *
+   * @param network - The network identifier (e.g., "eip155:8453")
+   * @returns The numeric chain ID
+   */
+  private getChainIdFromNetwork(network: Network): number {
+    const parts = network.split(":");
+    if (parts.length !== 2 || parts[0] !== "eip155") {
+      throw new Error(`Invalid network format: ${network}. Expected format: eip155:<chainId>`);
+    }
+    const chainId = parseInt(parts[1], 10);
+    if (isNaN(chainId)) {
+      throw new Error(`Invalid chain ID in network: ${network}`);
+    }
+    return chainId;
+  }
+
+  /**
+   * Get or create a public client for a network
+   *
+   * @param network - The network identifier
+   * @returns The public client for the network
+   */
+  private getPublicClient(network: Network): PublicClient | null {
+    // Return cached client if available
+    if (this.publicClients.has(network)) {
+      return this.publicClients.get(network)!;
+    }
+
+    // Get chain configuration
+    const chain = this.getChainForNetwork(network);
+    if (!chain) {
+      return null;
+    }
+
+    // Create public client with default RPC
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(),
+    });
+
+    // Cache the client
+    this.publicClients.set(network, publicClient);
+    return publicClient;
+  }
+
+  /**
+   * Dynamically fetch decimals from ERC20 contract on-chain
+   *
+   * @param network - The network identifier
+   * @param tokenAddress - The token contract address
+   * @returns The number of decimals for the token
+   */
+  private async getAssetDecimals(network: Network, tokenAddress: string): Promise<number> {
+    // Check cache first
+    const cacheKey = `${network}:${tokenAddress.toLowerCase()}`;
+    if (this.decimalsCache.has(cacheKey)) {
+      return this.decimalsCache.get(cacheKey)!;
+    }
+
+    // Try to fetch from chain
+    const publicClient = this.getPublicClient(network);
+    if (publicClient) {
+      try {
+        const decimals = await publicClient.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "decimals",
+        });
+
+        const decimalsNumber = Number(decimals);
+        // Cache the result
+        this.decimalsCache.set(cacheKey, decimalsNumber);
+        return decimalsNumber;
+      } catch (error) {
+        // If RPC call fails, fall back to static config
+        console.warn(
+          `Failed to fetch decimals from chain for ${network}:${tokenAddress}, using fallback`,
+          error,
+        );
+      }
+    }
+
+    // Fallback to static configuration
+    const staticDecimals = this.getStaticDecimals(network);
+    if (staticDecimals !== null) {
+      // Cache the fallback value
+      this.decimalsCache.set(cacheKey, staticDecimals);
+      return staticDecimals;
+    }
+
+    // Last resort: default to 18 (most common for ERC20 tokens)
+    console.warn(`No decimals found for ${network}:${tokenAddress}, defaulting to 18`);
+    return 18;
+  }
+
+  /**
+   * Get static decimals fallback for known networks
+   *
+   * @param network - The network identifier
+   * @returns The static decimals value or null if unknown
+   */
+  private getStaticDecimals(network: Network): number | null {
+    const staticDecimalsMap: Record<string, number> = {
+      "eip155:8453": 6, // Base mainnet USDC
+      "eip155:84532": 6, // Base Sepolia USDC
+      "eip155:1": 6, // Ethereum mainnet USDC
+      "eip155:11155111": 6, // Sepolia USDC
+      // Other EVM chains (like BSC) will be fetched dynamically from the blockchain
+    };
+    return staticDecimalsMap[network] ?? null;
+  }
+
+  /**
+   * Get the default asset info for a network (typically USDC)
+   * Dynamically fetches decimals from the blockchain
+   *
+   * @param network - The network to get asset info for
+   * @returns The asset information including address, name, version, and decimals
+   */
+  private async getDefaultAsset(network: Network): Promise<{
+    address: string;
+    name: string;
+    version: string;
+    decimals: number;
+  }> {
+    const assetInfo = this.getStaticAssetInfo(network);
+
+    // Dynamically fetch decimals from chain
+    const decimals = await this.getAssetDecimals(network, assetInfo.address);
+
+    return {
+      ...assetInfo,
+      decimals, // Fetched from blockchain
+    };
+  }
+
+  /**
    * Get asset info for a given symbol on a network
    *
    * @param symbol - The asset symbol
    * @param network - The network to use
    * @returns The asset information including address, name, and version
    */
-  private getAssetInfo(
+  private async getAssetInfo(
     symbol: string,
     network: Network,
-  ): { address: string; name: string; version: string } {
+  ): Promise<{ address: string; name: string; version: string; decimals: number }> {
     const upperSymbol = symbol.toUpperCase();
 
     // For now, only support USDC
     if (upperSymbol === "USDC" || upperSymbol === "USD") {
-      return this.getDefaultAsset(network);
+      return await this.getDefaultAsset(network);
     }
 
     // Could extend to support other tokens
     throw new Error(`Unsupported asset: ${symbol} on network ${network}`);
-  }
-
-  /**
-   * Get the number of decimals for the asset
-   *
-   * @param _ - The network to use (unused)
-   * @returns The number of decimals for the asset
-   */
-  private getAssetDecimals(_: Network): number {
-    // USDC has 6 decimals on all EVM chains
-    return 6;
   }
 }
