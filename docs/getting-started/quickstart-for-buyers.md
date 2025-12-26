@@ -1,0 +1,373 @@
+# Quickstart for Buyers
+
+This guide walks you through how to use **x402** to interact with services that require payment. By the end of this guide, you will be able to programmatically discover payment requirements, complete a payment, and access a paid resource.
+
+### Prerequisites
+
+Before you begin, ensure you have:
+
+* A crypto wallet with USDC (any EVM-compatible wallet)
+* [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip
+* A service that requires payment via x402
+
+**Note**\
+We have pre-configured [examples available in our repo](https://github.com/coinbase/x402/tree/main/examples), including examples for fetch, Axios, Go, and MCP.
+
+### 1. Install Dependencies
+
+{% tabs %}
+{% tab title="Node.js" %}
+Install the x402 client packages:
+
+```bash
+# For fetch-based clients
+npm install @x402/fetch @x402/evm
+
+# For axios-based clients
+npm install @x402/axios @x402/evm
+
+# For Solana support, also add:
+npm install @x402/svm
+```
+{% endtab %}
+
+{% tab title="Go" %}
+Add the x402 Go module to your project:
+
+```bash
+go get github.com/coinbase/x402/go
+```
+{% endtab %}
+
+{% tab title="Python" %}
+Install the [x402 package](https://pypi.org/project/x402/)
+
+```bash
+pip install x402
+```
+
+**Note:** Python SDK currently uses v1 patterns. For v2 support, use TypeScript or Go.
+{% endtab %}
+{% endtabs %}
+
+### 2. Create a Wallet Signer
+
+{% tabs %}
+{% tab title="Node.js (viem)" %}
+Install the required package:
+
+```bash
+npm install viem
+```
+
+Then instantiate the wallet signer:
+
+```typescript
+import { privateKeyToAccount } from "viem/accounts";
+
+// Create a signer from private key (use environment variable)
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+```
+{% endtab %}
+
+{% tab title="Go" %}
+```go
+import (
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
+
+// Load private key from environment
+evmSigner, err := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+if err != nil {
+    log.Fatal(err)
+}
+```
+{% endtab %}
+
+{% tab title="Python (eth-account)" %}
+Install the required package:
+
+```bash
+pip install eth_account
+```
+
+Then instantiate the wallet account:
+
+```python
+from eth_account import Account
+
+account = Account.from_key(os.getenv("PRIVATE_KEY"))
+```
+{% endtab %}
+{% endtabs %}
+
+#### Solana (SVM)
+
+Use [SolanaKit](https://www.solanakit.com/) to instantiate a signer:
+
+```typescript
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+
+// 64-byte base58 secret key (private + public)
+const svmSigner = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SOLANA_PRIVATE_KEY!)
+);
+```
+
+### 3. Make Paid Requests Automatically
+
+{% tabs %}
+{% tab title="Fetch" %}
+**@x402/fetch** extends the native `fetch` API to handle 402 responses and payment headers for you. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/fetch)
+
+```typescript
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client, x402HTTPClient } from "@x402/core/client";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+
+// Create x402 client and register EVM scheme
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
+
+// Wrap fetch with payment handling
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+// Make request - payment is handled automatically
+const response = await fetchWithPayment("https://api.example.com/paid-endpoint", {
+  method: "GET",
+});
+
+const data = await response.json();
+console.log("Response:", data);
+
+// Get payment receipt from response headers
+if (response.ok) {
+  const httpClient = new x402HTTPClient(client);
+  const paymentResponse = httpClient.getPaymentSettleResponse(
+    (name) => response.headers.get(name)
+  );
+  console.log("Payment settled:", paymentResponse);
+}
+```
+{% endtab %}
+
+{% tab title="Axios" %}
+**@x402/axios** adds a payment interceptor to Axios, so your requests are retried with payment headers automatically. [Full example here](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/axios)
+
+```typescript
+import { x402Client, wrapAxiosWithPayment, x402HTTPClient } from "@x402/axios";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import axios from "axios";
+
+// Create signer
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+
+// Create x402 client and register EVM scheme
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
+
+// Create an Axios instance with payment handling
+const api = wrapAxiosWithPayment(
+  axios.create({ baseURL: "https://api.example.com" }),
+  client,
+);
+
+// Make request - payment is handled automatically
+const response = await api.get("/paid-endpoint");
+console.log("Response:", response.data);
+
+// Get payment receipt
+const httpClient = new x402HTTPClient(client);
+const paymentResponse = httpClient.getPaymentSettleResponse(
+  (name) => response.headers[name.toLowerCase()]
+);
+console.log("Payment settled:", paymentResponse);
+```
+{% endtab %}
+
+{% tab title="Go" %}
+[Full example here](https://github.com/coinbase/x402/tree/main/examples/go/clients/http)
+
+```go
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+    "os"
+    "time"
+
+    x402 "github.com/coinbase/x402/go"
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+)
+
+func main() {
+    url := "http://localhost:4021/weather"
+
+    // Create EVM signer
+    evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+
+    // Create x402 client and register EVM scheme
+    x402Client := x402.Newx402Client().
+        Register("eip155:*", evm.NewExactEvmScheme(evmSigner))
+
+    // Wrap HTTP client with payment handling
+    httpClient := x402http.WrapHTTPClientWithPayment(
+        http.DefaultClient,
+        x402http.Newx402HTTPClient(x402Client),
+    )
+
+    // Make request - payment is handled automatically
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+    resp, err := httpClient.Do(req)
+    if err != nil {
+        fmt.Printf("Request failed: %v\n", err)
+        return
+    }
+    defer resp.Body.Close()
+
+    // Read response
+    var data map[string]interface{}
+    json.NewDecoder(resp.Body).Decode(&data)
+    fmt.Printf("Response: %+v\n", data)
+
+    // Check payment response header
+    paymentHeader := resp.Header.Get("PAYMENT-RESPONSE")
+    if paymentHeader != "" {
+        fmt.Println("Payment settled successfully!")
+    }
+}
+```
+{% endtab %}
+
+{% tab title="Python" %}
+**Note:** Python SDK currently uses v1 patterns.
+
+You can use either `httpx` or `Requests` to automatically handle 402 Payment Required responses.
+
+[Full HTTPX example](https://github.com/coinbase/x402/tree/main/examples/python/clients/httpx) | [Full Requests example](https://github.com/coinbase/x402/tree/main/examples/python/clients/requests)
+
+```python
+from x402.clients.httpx import x402HttpxClient
+from eth_account import Account
+
+# Create wallet account
+account = Account.from_key(os.getenv("PRIVATE_KEY"))
+
+# Create client and make request
+async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
+    response = await client.get("/protected-endpoint")
+    print(await response.aread())
+```
+{% endtab %}
+{% endtabs %}
+
+### Multi-Network Client Setup
+
+You can register multiple payment schemes to handle different networks:
+
+```typescript
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { x402Client } from "@x402/core/client";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { registerExactSvmScheme } from "@x402/svm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+import { createKeyPairSignerFromBytes } from "@solana/kit";
+import { base58 } from "@scure/base";
+
+// Create signers
+const evmSigner = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const svmSigner = await createKeyPairSignerFromBytes(
+  base58.decode(process.env.SOLANA_PRIVATE_KEY!)
+);
+
+// Create client with multiple schemes
+const client = new x402Client();
+registerExactEvmScheme(client, { signer: evmSigner });
+registerExactSvmScheme(client, { signer: svmSigner });
+
+const fetchWithPayment = wrapFetchWithPayment(fetch, client);
+
+// Now handles both EVM and Solana networks automatically!
+```
+
+### 4. Discover Available Services (Optional)
+
+Instead of hardcoding endpoints, you can use the x402 Bazaar to dynamically discover available services. This is especially powerful for building autonomous agents.
+
+```typescript
+// Fetch available services from the Bazaar API
+const response = await fetch(
+  "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources"
+);
+const services = await response.json();
+
+// Filter services by criteria
+const affordableServices = services.items.filter((item) =>
+  item.accepts.some((req) => Number(req.amount) < 100000) // Under $0.10
+);
+
+console.log("Available services:", affordableServices);
+```
+
+Learn more about service discovery in the [Bazaar documentation](../core-concepts/bazaar-discovery-layer.md).
+
+### 5. Error Handling
+
+Clients will throw errors if:
+
+* No scheme is registered for the required network
+* The request configuration is missing
+* A payment has already been attempted for the request
+* There is an error creating the payment header
+
+Common error handling:
+
+```typescript
+try {
+  const response = await fetchWithPayment(url, { method: "GET" });
+  // Handle success
+} catch (error) {
+  if (error.message.includes("No scheme registered")) {
+    console.error("Network not supported - register the appropriate scheme");
+  } else if (error.message.includes("Payment already attempted")) {
+    console.error("Payment failed on retry");
+  } else {
+    console.error("Request failed:", error);
+  }
+}
+```
+
+### Summary
+
+* Install x402 client packages (`@x402/fetch` or `@x402/axios`) and mechanism packages (`@x402/evm`, `@x402/svm`)
+* Create a wallet signer
+* Create an `x402Client` and register payment schemes
+* Use the provided wrapper/interceptor to make paid API requests
+* (Optional) Use the x402 Bazaar to discover services dynamically
+* Payment flows are handled automatically for you
+
+***
+
+**References:**
+
+* [@x402/fetch on npm](https://www.npmjs.com/package/@x402/fetch)
+* [@x402/axios on npm](https://www.npmjs.com/package/@x402/axios)
+* [@x402/evm on npm](https://www.npmjs.com/package/@x402/evm)
+* [x402 Go module](https://github.com/coinbase/x402/tree/main/go)
+* [x402 Bazaar documentation](../core-concepts/bazaar-discovery-layer.md) - Discover available services
+
+For questions or support, join our [Discord](https://discord.gg/invite/cdp).
