@@ -7,7 +7,7 @@
  * Supports both v2 (extensions in PaymentRequired) and v1 (outputSchema in PaymentRequirements).
  */
 
-import Ajv from "ajv/dist/2020";
+import Ajv from "ajv/dist/2020.js";
 import type { PaymentPayload, PaymentRequirements, PaymentRequirementsV1 } from "@x402/core/types";
 import type { DiscoveryExtension, DiscoveryInfo } from "./types";
 import { BAZAAR } from "./types";
