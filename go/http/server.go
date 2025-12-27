@@ -473,27 +473,15 @@ func (s *x402HTTPResourceServer) extractPaymentV2(adapter HTTPAdapter) (*types.P
 		return nil, nil // No payment header
 	}
 
-	// Decode base64 header
-	jsonBytes, err := decodeBase64Header(header)
+	// Validate and decode payment header with comprehensive validation
+	payload, err := ValidateAndDecodePaymentHeader(header)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode payment header: %w", err)
-	}
-
-	// Detect version
-	version, err := types.DetectVersion(jsonBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect version: %w", err)
+		return nil, err
 	}
 
 	// V2 server only accepts V2 payments
-	if version != 2 {
-		return nil, fmt.Errorf("only V2 payments supported, got V%d", version)
-	}
-
-	// Unmarshal to V2 payload
-	payload, err := types.ToPaymentPayload(jsonBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal V2 payload: %w", err)
+	if payload.X402Version != 2 {
+		return nil, fmt.Errorf("only V2 payments supported, got V%d", payload.X402Version)
 	}
 
 	return payload, nil
