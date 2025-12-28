@@ -14,6 +14,11 @@ import {
 } from "@solana/kit";
 import { Network } from "../../types/shared";
 
+export const SolanaNetwork = {
+  Devnet: "solana-devnet",
+  Mainnet: "solana",
+} as const;
+
 /**
  * Default public RPC endpoint for Solana devnet
  */
@@ -69,10 +74,9 @@ export function getRpcClient(
   network: Network,
   url?: string,
 ): RpcDevnet<SolanaRpcApiDevnet> | RpcMainnet<SolanaRpcApiMainnet> {
-  // TODO: should the networks be replaced with enum references?
-  if (network === "solana-devnet") {
+  if (network === SolanaNetwork.Devnet) {
     return createDevnetRpcClient(url);
-  } else if (network === "solana") {
+  } else if (network === SolanaNetwork.Mainnet) {
     return createMainnetRpcClient(url);
   } else {
     throw new Error("Invalid network");
@@ -93,7 +97,6 @@ export function getRpcSubscriptions(
   SolanaRpcSubscriptionsApi,
   RpcSubscriptionsTransportFromClusterUrl<ClusterUrl>
 > {
-  // TODO: should the networks be replaced with enum references?
   if (network === "solana-devnet") {
     return createSolanaRpcSubscriptions(devnet(url ? httpToWs(url) : DEVNET_WS_URL));
   } else if (network === "solana") {
