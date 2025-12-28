@@ -82,6 +82,7 @@ describe("@x402/svm", () => {
 
   describe("convertToTokenAmount", () => {
     it("should convert decimal amounts to token units (6 decimals)", () => {
+      expect(convertToTokenAmount("4.02", 6)).toBe("4020000");
       expect(convertToTokenAmount("0.10", 6)).toBe("100000");
       expect(convertToTokenAmount("1.00", 6)).toBe("1000000");
       expect(convertToTokenAmount("0.01", 6)).toBe("10000");
@@ -111,8 +112,8 @@ describe("@x402/svm", () => {
 
     describe("parsePrice", () => {
       it("should parse dollar string prices", async () => {
-        const result = await server.parsePrice("$0.10", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
-        expect(result.amount).toBe("100000"); // 0.10 USDC = 100000 smallest units
+        const result = await server.parsePrice("$0.1", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+        expect(result.amount).toBe("100000"); // 4.02 USDC = 4020000 smallest units
         expect(result.asset).toBe(USDC_MAINNET_ADDRESS);
       });
 
@@ -176,6 +177,11 @@ describe("@x402/svm", () => {
               "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             ),
         ).rejects.toThrow("Asset address must be specified");
+      });
+
+      it("should avoid floating-point rounding error", async () => {
+        const result = await server.parsePrice("$4.02", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
+        expect(result.amount).toBe("4020000"); // 4.02 USDC
       });
     });
 
