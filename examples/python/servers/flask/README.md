@@ -61,6 +61,31 @@ uv run python main.py
 
 Server runs at http://localhost:4021
 
+## Testing with Client
+
+Run the test client to verify payment flow:
+
+```bash
+# Set PRIVATE_KEY in .env (wallet with Base Sepolia USDC)
+# If you don't have USDC, get it from the faucet:
+# https://portal.cdp.coinbase.com/products/faucet
+uv run python test_client.py
+```
+
+Expected output:
+```
+Wallet address: 0x...
+
+--- Testing /health (no payment) ---
+Status: 200
+
+--- Testing /weather (requires payment) ---
+Status: 200
+
+--- Testing /premium/content (requires payment) ---
+Status: 200
+```
+
 ## Example Endpoints
 
 | Endpoint | Payment | Price |
