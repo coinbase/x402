@@ -211,4 +211,3 @@ class PaymentCreationFailureContext(PaymentCreationContext):
     def __post_init__(self) -> None:
         if self.error is None:
             raise ValueError("error is required for PaymentCreationFailureContext")
-

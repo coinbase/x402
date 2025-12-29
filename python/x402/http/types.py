@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol, Union
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from ..schemas import (
@@ -100,8 +101,8 @@ class HTTPProcessResult:
 
     type: Literal["no-payment-required", "payment-verified", "payment-error"]
     response: HTTPResponseInstructions | None = None
-    payment_payload: "PaymentPayload | None" = None
-    payment_requirements: "PaymentRequirements | None" = None
+    payment_payload: PaymentPayload | None = None
+    payment_requirements: PaymentRequirements | None = None
 
 
 @dataclass
@@ -154,8 +155,8 @@ class PaymentOption:
 
     scheme: str
     pay_to: str | DynamicPayTo
-    price: "Price | DynamicPrice"
-    network: "Network"
+    price: Price | DynamicPrice
+    network: Network
     max_timeout_seconds: int | None = None
     extra: dict[str, Any] | None = None
 
@@ -173,7 +174,7 @@ class RouteConfig:
     extensions: dict[str, Any] | None = None
 
 
-RoutesConfig = Union[dict[str, RouteConfig], RouteConfig]
+RoutesConfig = dict[str, RouteConfig] | RouteConfig
 
 
 @dataclass
@@ -208,4 +209,3 @@ class RouteConfigurationError(Exception):
         messages = "\n".join(f"  - {e.message}" for e in errors)
         super().__init__(f"x402 Route Configuration Errors:\n{messages}")
         self.errors = errors
-

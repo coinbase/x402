@@ -2,9 +2,8 @@
 
 from typing import Any, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-
 
 # Current protocol version
 X402_VERSION: int = 2
@@ -48,4 +47,3 @@ class AssetAmount(BaseX402Model):
 # Price can be user-friendly Money or explicit AssetAmount
 Price: TypeAlias = Money | AssetAmount
 """Price can be Money (user-friendly) or AssetAmount (explicit)."""
-
