@@ -23,6 +23,7 @@ classifiers = [
 dependencies = [
     "x402",
     "flask>=3.0.0",
+    "httpx>=0.28.0",
     "python-dotenv>=1.2.1",
 ]
 

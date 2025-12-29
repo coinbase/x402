@@ -2201,6 +2201,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "flask" },
+    { name = "httpx" },
     { name = "python-dotenv" },
     { name = "x402" },
 ]
@@ -2216,6 +2217,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "flask", specifier = ">=3.0.0" },
+    { name = "httpx", specifier = ">=0.28.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
     { name = "x402", editable = "../../../../python/x402" },
 ]
