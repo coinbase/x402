@@ -136,9 +136,7 @@ export class ExactSvmSchemeV1 implements SchemeNetworkFacilitator {
       };
     }
 
-    const compiled = getCompiledTransactionMessageDecoder().decode(
-      transaction.messageBytes,
-    );
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 

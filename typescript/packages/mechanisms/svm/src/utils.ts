@@ -92,9 +92,7 @@ export function decodeTransactionFromPayload(svmPayload: ExactSvmPayloadV1): Tra
  * @returns The token payer address as a base58 string
  */
 export function getTokenPayerFromTransaction(transaction: Transaction): string {
-  const compiled = getCompiledTransactionMessageDecoder().decode(
-    transaction.messageBytes,
-  );
+  const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
   const staticAccounts = compiled.staticAccounts ?? [];
   const instructions = compiled.instructions ?? [];
 
