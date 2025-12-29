@@ -1,0 +1,7 @@
+{
+  "name": "ClearWallet",
+  "description": "Agent-optimized API for real-time OFAC sanctions screening of cryptocurrency addresses. Sub-second response times, supports Ethereum and Base chains, with Redis caching and automated daily OFAC data updates.",
+  "logoUrl": "/logos/clearwallet.svg",
+  "websiteUrl": "https://x402-git-main-iolloyd-dev.vercel.app",
+  "category": "Services/Endpoints"
+}
