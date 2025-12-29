@@ -96,4 +96,3 @@ def has_deployment_info(sig_data: ERC6492SignatureData) -> bool:
     """
     zero_factory = bytes(20)
     return sig_data.factory != zero_factory and len(sig_data.factory_calldata) > 0
-

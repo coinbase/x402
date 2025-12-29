@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import html
-import json
 import re
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 from urllib.parse import unquote
 
 from ..schemas import (
@@ -32,8 +30,8 @@ from .types import (
     ProcessSettleResult,
     RouteConfig,
     RouteConfigurationError,
-    RouteValidationError,
     RoutesConfig,
+    RouteValidationError,
 )
 from .utils import (
     decode_payment_signature_header,
@@ -84,7 +82,7 @@ class x402HTTPResourceServer:
 
     def __init__(
         self,
-        server: "x402ResourceServer",
+        server: x402ResourceServer,
         routes: RoutesConfig,
     ) -> None:
         """Create HTTP resource server.
@@ -166,9 +164,7 @@ class x402HTTPResourceServer:
             resource=config.get("resource"),
             description=config.get("description"),
             mime_type=config.get("mimeType", config.get("mime_type")),
-            custom_paywall_html=config.get(
-                "customPaywallHtml", config.get("custom_paywall_html")
-            ),
+            custom_paywall_html=config.get("customPaywallHtml", config.get("custom_paywall_html")),
             unpaid_response_body=config.get(
                 "unpaidResponseBody", config.get("unpaid_response_body")
             ),
@@ -197,9 +193,7 @@ class x402HTTPResourceServer:
         if errors:
             raise RouteConfigurationError(errors)
 
-    def register_paywall_provider(
-        self, provider: PaywallProvider
-    ) -> "x402HTTPResourceServer":
+    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServer:
         """Register custom paywall provider for HTML generation.
 
         Args:
@@ -465,9 +459,7 @@ class x402HTTPResourceServer:
 
         return all_requirements
 
-    def _extract_payment(
-        self, adapter: HTTPAdapter
-    ) -> PaymentPayload | PaymentPayloadV1 | None:
+    def _extract_payment(self, adapter: HTTPAdapter) -> PaymentPayload | PaymentPayloadV1 | None:
         """Extract payment from HTTP headers (V2 only)."""
         # Check V2 header (case-insensitive)
         header = adapter.get_header(PAYMENT_SIGNATURE_HEADER) or adapter.get_header(
@@ -522,9 +514,7 @@ class x402HTTPResourceServer:
             status=402,
             headers={
                 "Content-Type": content_type,
-                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(
-                    payment_required
-                ),
+                PAYMENT_REQUIRED_HEADER: encode_payment_required_header(payment_required),
             },
             body=body,
         )
@@ -568,9 +558,7 @@ class x402HTTPResourceServer:
                     continue
 
                 # Check facilitator support
-                supported_kind = self._server.get_supported_kind(
-                    2, option.network, option.scheme
-                )
+                supported_kind = self._server.get_supported_kind(2, option.network, option.scheme)
                 if not supported_kind:
                     errors.append(
                         RouteValidationError(
@@ -639,9 +627,7 @@ class x402HTTPResourceServer:
         display_amount = self._get_display_amount(payment_required)
         resource_desc = ""
         if payment_required.resource:
-            resource_desc = (
-                payment_required.resource.description or payment_required.resource.url
-            )
+            resource_desc = payment_required.resource.description or payment_required.resource.url
 
         app_logo = ""
         app_name = ""
@@ -652,16 +638,18 @@ class x402HTTPResourceServer:
 
         payment_data = payment_required.model_dump_json(by_alias=True, exclude_none=True)
 
+        title = f"{html.escape(app_name)} - Payment Required" if app_name else "Payment Required"
+
         return f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>Payment Required</title>
+    <title>{title}</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="max-width: 600px; margin: 50px auto; padding: 20px; font-family: system-ui;">
     {app_logo}
-    <h1>Payment Required</h1>
+    <h1>{title}</h1>
     <p><strong>Resource:</strong> {html.escape(resource_desc)}</p>
     <p><strong>Amount:</strong> ${display_amount:.2f} USDC</p>
     <div id="payment-widget" data-requirements='{html.escape(payment_data)}'>
@@ -683,4 +671,3 @@ class x402HTTPResourceServer:
                 except (ValueError, TypeError):
                     pass
         return 0.0
-

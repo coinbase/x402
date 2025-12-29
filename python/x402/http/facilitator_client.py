@@ -118,7 +118,7 @@ class HTTPFacilitatorClient:
         self._http_client = config.http_client
         self._owns_client = config.http_client is None
 
-    def _get_client(self) -> "httpx.Client":
+    def _get_client(self) -> httpx.Client:
         """Get or create HTTP client."""
         if self._http_client is None:
             import httpx
@@ -132,7 +132,7 @@ class HTTPFacilitatorClient:
             self._http_client.close()
             self._http_client = None
 
-    def __enter__(self) -> "HTTPFacilitatorClient":
+    def __enter__(self) -> HTTPFacilitatorClient:
         return self
 
     def __exit__(self, *args: Any) -> None:
@@ -221,8 +221,7 @@ class HTTPFacilitatorClient:
 
         if response.status_code != 200:
             raise ValueError(
-                f"Facilitator get_supported failed ({response.status_code}): "
-                f"{response.text}"
+                f"Facilitator get_supported failed ({response.status_code}): {response.text}"
             )
 
         data = response.json()
@@ -312,10 +311,7 @@ class HTTPFacilitatorClient:
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator verify failed ({response.status_code}): "
-                f"{response.text}"
-            )
+            raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
 
         data = response.json()
         return VerifyResponse.model_validate(data)
@@ -348,10 +344,7 @@ class HTTPFacilitatorClient:
         )
 
         if response.status_code != 200:
-            raise ValueError(
-                f"Facilitator settle failed ({response.status_code}): "
-                f"{response.text}"
-            )
+            raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
 
         data = response.json()
         return SettleResponse.model_validate(data)
@@ -365,4 +358,3 @@ class HTTPFacilitatorClient:
                 default=lambda x: str(x) if isinstance(x, int) and x > 2**53 else x,
             )
         )
-
