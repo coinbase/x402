@@ -21,8 +21,6 @@ vi.mock("@x402/core/client", () => {
   };
 });
 
-type RequestInitWithRetry = RequestInit & { __is402Retry?: boolean };
-
 describe("wrapFetchWithPayment()", () => {
   let mockFetch: ReturnType<typeof vi.fn>;
   let mockClient: x402Client;
@@ -103,7 +101,10 @@ describe("wrapFetchWithPayment()", () => {
     const result = await wrappedFetch("https://api.example.com", { method: "GET" });
 
     expect(result).toBe(successResponse);
-    expect(mockFetch).toHaveBeenCalledWith("https://api.example.com", { method: "GET" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const request = mockFetch.mock.calls[0][0] as Request;
+    expect(request.url).toBe("https://api.example.com/");
+    expect(request.method).toBe("GET");
   });
 
   it("should handle 402 errors and retry with payment header", async () => {
@@ -119,7 +120,7 @@ describe("wrapFetchWithPayment()", () => {
     const result = await wrappedFetch("https://api.example.com", {
       method: "GET",
       headers: { "Content-Type": "application/json" },
-    } as RequestInitWithRetry);
+    });
 
     expect(result).toBe(successResponse);
     expect(MockX402HTTPClient.prototype.getPaymentRequiredResponse).toHaveBeenCalled();
@@ -129,25 +130,35 @@ describe("wrapFetchWithPayment()", () => {
     );
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
-    // Verify the retry request has correct headers
+    // Verify the retry request is a Request object with correct headers
     const retryCall = mockFetch.mock.calls[1];
-    const retryHeaders = retryCall[1].headers as Headers;
-    expect(retryHeaders.get("Content-Type")).toBe("application/json");
-    expect(retryHeaders.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
-    expect(retryHeaders.get("Access-Control-Expose-Headers")).toBe(
+    const retryRequest = retryCall[0] as Request;
+    expect(retryRequest.headers.get("Content-Type")).toBe("application/json");
+    expect(retryRequest.headers.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
+    expect(retryRequest.headers.get("Access-Control-Expose-Headers")).toBe(
       "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
     );
-    expect(retryCall[1].__is402Retry).toBe(true);
   });
 
-  it("should not retry if already retried", async () => {
+  it("should not retry if already retried (PAYMENT-SIGNATURE header present)", async () => {
     mockFetch.mockResolvedValue(createResponse(402, validPaymentRequired));
 
     await expect(
       wrappedFetch("https://api.example.com", {
         method: "GET",
-        __is402Retry: true,
-      } as RequestInitWithRetry),
+        headers: { "PAYMENT-SIGNATURE": "already-present" },
+      }),
+    ).rejects.toThrow("Payment already attempted");
+  });
+
+  it("should not retry if already retried (X-PAYMENT header present)", async () => {
+    mockFetch.mockResolvedValue(createResponse(402, validPaymentRequired));
+
+    await expect(
+      wrappedFetch("https://api.example.com", {
+        method: "GET",
+        headers: { "X-PAYMENT": "already-present" },
+      }),
     ).rejects.toThrow("Payment already attempted");
   });
 
@@ -249,8 +260,8 @@ describe("wrapFetchWithPayment()", () => {
 
     // Verify v1 payment header was set correctly
     const retryCall = mockFetch.mock.calls[1];
-    const retryHeaders = retryCall[1].headers as Headers;
-    expect(retryHeaders.get("X-PAYMENT")).toBe("v1-payment-header");
+    const retryRequest = retryCall[0] as Request;
+    expect(retryRequest.headers.get("X-PAYMENT")).toBe("v1-payment-header");
   });
 
   it("should propagate retry errors", async () => {
@@ -273,8 +284,8 @@ describe("wrapFetchWithPayment()", () => {
     await wrappedFetch("https://api.example.com", { method: "GET" });
 
     const retryCall = mockFetch.mock.calls[1];
-    const retryHeaders = retryCall[1].headers as Headers;
-    expect(retryHeaders.get("Access-Control-Expose-Headers")).toBe(
+    const retryRequest = retryCall[0] as Request;
+    expect(retryRequest.headers.get("Access-Control-Expose-Headers")).toBe(
       "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
     );
   });
@@ -300,18 +311,18 @@ describe("wrapFetchWithPayment()", () => {
 
     // Verify the retry request includes all original headers plus payment headers
     const retryCall = mockFetch.mock.calls[1];
-    const retryHeaders = retryCall[1].headers as Headers;
+    const retryRequest = retryCall[0] as Request;
 
     // Check payment headers were added
-    expect(retryHeaders.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
-    expect(retryHeaders.get("Access-Control-Expose-Headers")).toBe(
+    expect(retryRequest.headers.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
+    expect(retryRequest.headers.get("Access-Control-Expose-Headers")).toBe(
       "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
     );
 
     // Check original headers were preserved (this would fail before the fix)
-    expect(retryHeaders.get("Content-Type")).toBe("application/json");
-    expect(retryHeaders.get("Accept")).toBe("application/json, text/event-stream");
-    expect(retryHeaders.get("Custom-Header")).toBe("custom-value");
+    expect(retryRequest.headers.get("Content-Type")).toBe("application/json");
+    expect(retryRequest.headers.get("Accept")).toBe("application/json, text/event-stream");
+    expect(retryRequest.headers.get("Custom-Header")).toBe("custom-value");
   });
 
   it("should handle empty response body gracefully", async () => {
@@ -364,6 +375,52 @@ describe("wrapFetchWithPayment()", () => {
     const result = await wrappedWithHttpClient("https://api.example.com", { method: "GET" });
 
     expect(result).toBe(successResponse);
+  });
+
+  it("should preserve request body on retry (fixes body consumption bug)", async () => {
+    const successResponse = createResponse(200, { data: "success" });
+
+    mockFetch
+      .mockResolvedValueOnce(createResponse(402, validPaymentRequired))
+      .mockResolvedValueOnce(successResponse);
+
+    const bodyContent = JSON.stringify({ test: "data" });
+
+    await wrappedFetch("https://api.example.com", {
+      method: "POST",
+      body: bodyContent,
+      headers: { "Content-Type": "application/json" },
+    });
+
+    // Verify the retry request has the body preserved
+    const retryCall = mockFetch.mock.calls[1];
+    const retryRequest = retryCall[0] as Request;
+    expect(retryRequest.method).toBe("POST");
+    const retryBody = await retryRequest.text();
+    expect(retryBody).toBe(bodyContent);
+  });
+
+  it("should preserve headers from Request object input", async () => {
+    const successResponse = createResponse(200, { data: "success" });
+
+    mockFetch
+      .mockResolvedValueOnce(createResponse(402, validPaymentRequired))
+      .mockResolvedValueOnce(successResponse);
+
+    // Pass a Request object with custom headers (not init)
+    const request = new Request("https://api.example.com", {
+      method: "GET",
+      headers: { "Custom-Header": "custom-value", Authorization: "Bearer token" },
+    });
+
+    await wrappedFetch(request);
+
+    // Verify the retry request has all headers preserved
+    const retryCall = mockFetch.mock.calls[1];
+    const retryRequest = retryCall[0] as Request;
+    expect(retryRequest.headers.get("Custom-Header")).toBe("custom-value");
+    expect(retryRequest.headers.get("Authorization")).toBe("Bearer token");
+    expect(retryRequest.headers.get("PAYMENT-SIGNATURE")).toBe("encoded-payment-header");
   });
 });
 
