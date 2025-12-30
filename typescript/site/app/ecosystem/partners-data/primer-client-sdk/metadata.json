@@ -1,0 +1,7 @@
+{
+  "name": "Primer Client SDK",
+  "description": "x402Fetch wrapper for making payments to x402-enabled APIs. Full ERC-20 support.",
+  "logoUrl": "/logos/primer.png",
+  "websiteUrl": "https://github.com/Primer-Systems/x402",
+  "category": "Client-Side Integrations"
+}

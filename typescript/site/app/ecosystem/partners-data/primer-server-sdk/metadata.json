@@ -1,0 +1,7 @@
+{
+  "name": "Primer Server SDK",
+  "description": "Express middleware and CLI tools for accepting x402 payments. Full ERC-20 support.",
+  "logoUrl": "/logos/primer.png",
+  "websiteUrl": "https://github.com/Primer-Systems/x402",
+  "category": "Infrastructure & Tooling"
+}
