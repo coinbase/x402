@@ -14,13 +14,25 @@ dependencies = [
     "eth-account>=0.13.7",
     "eth-typing>=4.0.0",
     "eth-utils>=3.0.0",
-    "fastapi[standard]>=0.115.12",
-    "flask>=3.0.0",
     "pydantic>=2.10.3",
     "pydantic-settings>=2.2.1",
     "python-dotenv>=1.0.1",
     "web3>=6.0.0",
 ]
+
+[project.optional-dependencies]
+# Server frameworks - install one based on your stack
+flask = ["flask>=3.0.0"]
+fastapi = ["fastapi[standard]>=0.115.12"]
+
+# HTTP clients - install one based on your preference
+httpx = ["httpx>=0.28.0"]
+requests = ["requests>=2.31.0"]
+
+# Convenience bundles
+servers = ["x402[flask,fastapi]"]
+clients = ["x402[httpx,requests]"]
+all = ["x402[flask,fastapi,httpx,requests]"]
 
 [project.scripts]
 
@@ -34,6 +46,11 @@ dev = [
     "pytest>=8.3.5",
     "pytest-asyncio>=1.0.0",
     "ruff>=0.11.9",
+    # Include all optional deps for testing
+    "flask>=3.0.0",
+    "fastapi[standard]>=0.115.12",
+    "httpx>=0.28.0",
+    "requests>=2.31.0",
 ]
 
 [tool.pytest.ini_options]

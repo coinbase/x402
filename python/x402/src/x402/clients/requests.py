@@ -1,7 +1,14 @@
 from typing import Optional
-import requests
 import json
-from requests.adapters import HTTPAdapter
+
+try:
+    import requests
+    from requests.adapters import HTTPAdapter
+except ImportError as e:
+    raise ImportError(
+        "requests client requires the requests package. Install with: pip install x402[requests]"
+    ) from e
+
 from eth_account import Account
 from x402.clients.base import (
     x402Client,

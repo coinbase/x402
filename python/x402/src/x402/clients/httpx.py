@@ -1,5 +1,12 @@
 from typing import Optional, Dict, List
-from httpx import Request, Response, AsyncClient
+
+try:
+    from httpx import Request, Response, AsyncClient
+except ImportError as e:
+    raise ImportError(
+        "httpx client requires the httpx package. Install with: pip install x402[httpx]"
+    ) from e
+
 from eth_account import Account
 from x402.clients.base import (
     x402Client,

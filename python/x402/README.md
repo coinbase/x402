@@ -4,8 +4,22 @@ Python package for the x402 payments protocol.
 
 ## Installation
 
+Install the core package with your preferred framework/client:
+
 ```bash
-pip install x402
+# Server frameworks (pick one based on your stack)
+pip install x402[fastapi]    # FastAPI middleware
+pip install x402[flask]      # Flask middleware
+
+# HTTP clients (pick one based on your preference)
+pip install x402[httpx]      # Async httpx client
+pip install x402[requests]   # Sync requests client
+
+# Or install multiple extras
+pip install x402[fastapi,httpx]
+
+# Install everything (for development)
+pip install x402[all]
 ```
 
 ## Overview
@@ -16,6 +30,8 @@ The x402 package provides the core building blocks for implementing the x402 Pay
 - Flask middleware for accepting payments
 - httpx client for paying resources
 - requests client for paying resources
+
+Each integration is an optional dependency - install only what you need to keep your environment lean.
 
 ## FastAPI Integration
 

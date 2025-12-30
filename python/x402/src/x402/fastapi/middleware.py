@@ -3,8 +3,14 @@ import json
 import logging
 from typing import Any, Callable, Optional, get_args, cast
 
-from fastapi import Request
-from fastapi.responses import JSONResponse, HTMLResponse
+try:
+    from fastapi import Request
+    from fastapi.responses import JSONResponse, HTMLResponse
+except ImportError as e:
+    raise ImportError(
+        "FastAPI middleware requires the fastapi package. Install with: pip install x402[fastapi]"
+    ) from e
+
 from pydantic import validate_call
 
 from x402.common import (

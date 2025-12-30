@@ -1,7 +1,13 @@
 import base64
 import json
 from typing import Any, Dict, Optional, Union, get_args, cast
-from flask import Flask, request, g
+
+try:
+    from flask import Flask, request, g
+except ImportError as e:
+    raise ImportError(
+        "Flask middleware requires the flask package. Install with: pip install x402[flask]"
+    ) from e
 from x402.path import path_is_match
 from x402.types import (
     Price,
