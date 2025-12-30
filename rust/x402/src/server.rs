@@ -1,146 +1,180 @@
-use reqwest::header::HeaderMap;
-use serde::{Deserialize, Serialize};
-use crate::types::{PaymentRequirements, PaymentPayload, CdpVerifyRequestV1, CdpPaymentPayloadV1, CdpExactPayloadV1, CdpAuthorizationV1, CdpPaymentRequirementsV1};
+use std::collections::HashMap;
+use std::sync::Arc;
 use crate::errors::{X402Error, X402Result};
+use crate::types::{Network, PaymentRequirements, Price};
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyRequest {
-    #[serde(rename = "x402Version")]
-    pub x402_version: u32,
-    #[serde(rename = "paymentPayload")]
-    pub payment_payload: PaymentPayload,
-    #[serde(rename = "paymentRequirements")]
-    pub payment_requirements: PaymentRequirements,
+
+pub struct ResourceConfig {
+    scheme: String,
+    pay_to: String,
+    price: Price,
+    network: Network,
+    max_timeout_in_seconds: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyResponse {
-    #[serde(rename = "isValid")]
-    pub is_valid: bool,
-    #[serde(rename = "invalidReason")]
-    pub invalid_reason: Option<String>,
-    pub payer: Option<String>,
-}
-
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SettleRequest {
-    #[serde(rename = "x402Version")]
-    pub x402_version: u32,
-    #[serde(rename = "paymentPayload")]
-    pub payment_payload: PaymentPayload,
-    #[serde(rename = "paymentRequirements")]
-    pub payment_requirements: PaymentRequirements,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SettleResponse {
-    pub success: bool,
-    #[serde(rename = "errorReason")]
-    pub error_reason: Option<String>,
-    pub payer: Option<String>,
-    pub transaction: String,
-    pub network: String,
-}
-
-
-pub struct Facilitator {
-    pub url: String,
-    client: reqwest::Client,
-    headers: HeaderMap,
-}
-
-impl Facilitator {
-    pub fn new(url: &str) -> Self {
-        Facilitator {
-            url: url.to_string(),
-            client: reqwest::Client::new(),
-            headers: HeaderMap::new(),
+impl ResourceConfig {
+    pub fn new(scheme: &str, pay_to: &str, price: Price, network: Network, max_timeout_in_seconds: Option<u64>) -> Self {
+        Self {
+            scheme: scheme.to_string(),
+            pay_to: pay_to.to_string(),
+            price,
+            network,
+            max_timeout_in_seconds: max_timeout_in_seconds.unwrap_or(300).into(), // Defaults to 5 min
         }
     }
+}
 
-    pub fn with_headers(url: &str, headers: reqwest::header::HeaderMap) -> Self {
-        Facilitator {
-            url: url.to_string(),
-            client: reqwest::Client::new(),
-            headers,
-        }
-    }
+pub struct ResourceInfo {
+    url: String,
+    description: String,
+    mime_type: String,
+}
 
-    pub async fn verify(
+pub trait SchemeNetworkServer: Send + Sync {
+    /// The name of the scheme the server implements. (e.g.) "exact").
+    fn scheme(&self) -> &str;
+
+    /// Build PaymentRequirements for this particular (scheme, network) from a generic ResourceConfig
+    fn build_requirements(
         &self,
-        payload: PaymentPayload,
-        requirements: PaymentRequirements,
-    ) -> X402Result<VerifyResponse> {
-        // This is a simplified version of the TypeScript implementation.
-        // It assumes the use of Coinbase's facilitator and will be abstracted to a plug-in system in the future.
-        let url = format!("{}/verify", self.url.trim_end_matches('/'));
+        resource_config: &ResourceConfig
+    ) -> X402Result<PaymentRequirements>;
+}
 
-        let nested_payload = serde_json::from_value::<CdpExactPayloadV1>(payload.payload)?;
+pub trait ResourceServer {
 
-        let request = CdpVerifyRequestV1 {
-            x402_version: payload.x402_version,
-            payment_payload: CdpPaymentPayloadV1 {
-                x402_version: payload.x402_version,
-                scheme: payload.accepted.scheme.clone(),
-                network: payload.accepted.network.clone(),
-                payload: nested_payload
-                },
-            payment_requirements: CdpPaymentRequirementsV1 {
-                scheme: requirements.scheme.clone(),
-                network: requirements.network.clone(),
-                max_amount_required: requirements.value.clone(),
-                resource: payload.resource.clone(),
-                description: "Test".to_string(),
-                mime_type: "application/json".to_string(),
-                pay_to: requirements.pay_to.clone(),
-                max_timeout_seconds: 10,
-                asset: requirements.asset.clone().unwrap_or_else(|| "0x...".to_string()),
-            },
-        };
+    /// Register a scheme/network server implementation.
+    fn register_scheme(&mut self, network: Network, server: Arc<dyn SchemeNetworkServer>) -> &mut Self;
 
+    /// Check if a scheme is registered for a given network.
+    fn has_registered_scheme(&self, network: &Network, scheme: &str) -> bool;
 
-        use serde_json::to_string_pretty;
+    /// Build one or more PaymentRequirements for a given resource.
+    /// NOTE: For now this assumes a single scheme per ResourceConfig.
+    fn build_payment_requirements(&self, resource_config: &ResourceConfig) -> X402Result<Vec<PaymentRequirements>>;
 
-        let json = to_string_pretty(&request)?;
-        println!("JSON: {json}");
+}
 
-        let response = self.client.post(url)
-            .headers(self.headers.clone())
-            .json(&request)
-            .send()
-            .await?;
+pub struct InMemoryResourceServer {
+    servers: HashMap<Network, HashMap<String, Arc<dyn SchemeNetworkServer>>>,
+}
 
-        let response_status = response.status();
-        if !response_status.is_success() {
-            let err_text = response.text().await.unwrap_or_else(|_| String::from("Unknown Error"));
-            return Err(X402Error::FacilitatorRejection(response_status.as_u16(), err_text))
+impl InMemoryResourceServer {
+    pub fn new() -> Self {
+        Self {servers: HashMap::new()}
+    }
+
+    fn get_server(&self, network: &Network, scheme: &str) -> Option<Arc<dyn SchemeNetworkServer>> {
+        self.servers
+            .get(&network)
+            .and_then(|by_scheme| by_scheme.get(scheme).cloned())
+    }
+}
+
+impl ResourceServer for InMemoryResourceServer {
+    fn register_scheme(&mut self, network: Network, server: Arc<dyn SchemeNetworkServer>) -> &mut Self {
+        let schema_name = server.scheme().to_owned();
+        self.servers
+            .entry(network)
+            .or_insert_with(HashMap::new)
+            .entry(schema_name)
+            .or_insert(server);
+
+        self
+    }
+
+    fn has_registered_scheme(&self, network: &Network, scheme: &str) -> bool {
+        self.get_server(network, scheme).is_some()
+    }
+
+    fn build_payment_requirements(&self, resource_config: &ResourceConfig) -> X402Result<Vec<PaymentRequirements>> {
+        let scheme = &resource_config.scheme;
+        let network = &resource_config.network;
+
+        let server = self
+        .get_server(network, scheme)
+            .ok_or_else(|| X402Error::ConfigError(format!("Scheme '{}' not registered for network '{:?}'", scheme, network)))?;
+        let req = server.build_requirements(resource_config)?;
+        Ok(vec![req])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A simple test scheme that just echoes the price
+    struct TestSchemeServer;
+
+    impl SchemeNetworkServer for TestSchemeServer {
+        fn scheme(&self) -> &str {
+            "test-scheme"
         }
 
-        Ok(response.json::<VerifyResponse>().await?)
+        fn build_requirements(&self, resource_config: &ResourceConfig) -> X402Result<PaymentRequirements> {
+
+            let (amount, asset) = resource_config.price.to_asset_amount();
+
+            Ok(PaymentRequirements {
+                scheme: self.scheme().to_owned(),
+                network: resource_config.network.to_string(),
+                pay_to: resource_config.pay_to.clone(),
+                amount,
+                asset,
+                data: None
+            })
+        }
     }
 
-    pub async fn settle(
-        &self,
-        payload: PaymentPayload,
-        requirements: PaymentRequirements,
-    ) -> Result<SettleResponse, reqwest::Error> {
-        // This is a simplified version of the TypeScript implementation.
-        // It assumes the use of Coinbase's facilitator and will be abstracted to a plug-in system in the future.
-        let url = format!("{}/settle", self.url);
+    #[test]
+    fn build_payment_requirements_happy_path() {
+        let network = Network::new("eip155".to_string(), "84532".to_string());
+        let price:Price = "1000".into();
 
-        let request = VerifyRequest {
-            x402_version: payload.x402_version,
-            payment_payload: payload,
-            payment_requirements: requirements
-        };
+        let config = ResourceConfig::new(
+            "test-scheme",
+            "recipient-123",
+            price,
+            network.clone(),
+            Some(300),
+        );
 
-        let response = self.client.post(url)
-            .headers(self.headers.clone())
-            .json(&request)
-            .send()
-            .await?;
+        let mut server = InMemoryResourceServer::new();
+        server.register_scheme(network.clone(), Arc::new(TestSchemeServer));
 
-        response.json::<SettleResponse>().await
+        assert!(server.has_registered_scheme(&network, "test-scheme"));
+
+        let reqs = server.build_payment_requirements(&config).unwrap();
+        assert_eq!(reqs.len(), 1);
+
+        let req = &reqs[0];
+        assert_eq!(req.scheme, "test-scheme");
+        assert_eq!(req.network, network.to_string());
+        assert_eq!(req.amount, "1000");
     }
+
+    #[test]
+    fn build_payment_requirements_errors_if_not_registered() {
+        let network = Network::new("eip155".to_string(), "84532".to_string());
+        let price:Price = "1000".into();
+
+        let config = ResourceConfig::new(
+            "unregistered-scheme",
+            "recipient-123",
+            price,
+            network.clone(),
+            None,
+        );
+
+        let server = InMemoryResourceServer::new();
+
+        let err = server.build_payment_requirements(&config).unwrap_err();
+        match err {
+            X402Error::ConfigError(msg) => {
+                assert!(msg.contains("Scheme 'unregistered-scheme' not registered"));
+            }
+            other => panic!("expected ConfigError, got {other:?}"),
+        }
+    }
+
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -9,7 +10,7 @@ pub struct PaymentRequirements {
     pub network: String,
     #[serde(rename="payTo")]
     pub pay_to: String,
-    pub value: String,
+    pub amount: String,
     pub asset: Option<String>,
     pub data: Option<Value>,
 }
@@ -28,10 +29,169 @@ pub struct PaymentRequired {
 pub struct PaymentPayload {
     #[serde(rename="x402Version")]
     pub x402_version: u32,
-    pub resource: String,
+    pub resource: Resource,
     pub accepted: PaymentRequirements,
     pub payload: Value,
     pub extensions: Option<Value>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Resource {
+    pub url: String,
+    pub description: String,
+    #[serde(rename="mimeType")]
+    pub mime_type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyRequest {
+    pub payment_payload: PaymentPayload,
+    pub payment_requirements: PaymentRequirements,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettleRequest {
+    pub payment_payload: PaymentPayload,
+    pub payment_requirements: PaymentRequirements,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerifyResponse {
+    #[serde(rename = "isValid")]
+    pub is_valid: bool,
+    #[serde(rename = "invalidReason")]
+    pub invalid_reason: Option<String>,
+    pub payer: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SettleResponse {
+    pub success: bool,
+    #[serde(rename = "errorReason")]
+    pub error_reason: Option<String>,
+    pub payer: Option<String>,
+    pub transaction: String,
+    pub network: String,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Money {
+    Number(f64),
+    Text(String)
+}
+
+impl Money {
+    pub fn to_string(&self) -> String {
+        match self {
+            Money::Number(n) => n.to_string(),
+            Money::Text(s) => s.clone(),
+        }
+    }
+
+    pub fn to_amount_asset(&self) -> (String, Option<String>) {
+        match self {
+            Money::Number(n) => (n.to_string(), None),
+            Money::Text(s) => (s.clone(), None),
+        }
+    }
+
+    pub fn from_str(s: &str) -> X402Result<Money> {
+        if let Ok(n) = s.parse::<f64>() {
+            return Ok(Money::Number(n));
+        }
+        Ok(Money::Text(s.to_string()))
+    }
+}
+
+// Convenience conversions so callers don't need to construct Money manually.
+impl From<f64> for Money {
+    fn from(n: f64) -> Self {
+        Money::Number(n)
+    }
+}
+
+impl From<String> for Money {
+    fn from(s: String) -> Self {
+        // We reuse from_str so "1000" becomes Number(1000.0), "abc" becomes Text("abc")
+        Money::from_str(&s).expect("Money::from_str should not fail")
+    }
+}
+
+impl From<&str> for Money {
+    fn from(s: &str) -> Self {
+        Money::from_str(s).expect("Money::from_str should not fail")
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetAmount {
+    asset: String,
+    amount: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extra: Option<HashMap<String, Value>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Price {
+    Money(Money),
+    AssetAmount(AssetAmount),
+}
+
+impl Price {
+    pub fn to_asset_amount(&self) -> (String, Option<String>) {
+        match self {
+            Price::AssetAmount(aa) => (aa.amount.clone(), Some(aa.asset.clone())),
+            Price::Money(m) => m.to_amount_asset(),
+        }
+    }
+    /// Helper method to create money from something that converts into Money
+    pub fn money<M: Into<Money>>(&self, m:M) -> Self {
+        Price::Money(m.into())
+    }
+}
+
+impl From<Money> for Price {
+    fn from(m: Money) -> Self {
+        Price::Money(m)
+    }
+}
+
+impl From<f64> for Price {
+    fn from(n: f64) -> Self {
+        Price::Money(Money::Number(n))
+    }
+}
+
+impl From<String> for Price {
+    fn from(s: String) -> Self {
+        Price::Money(Money::from(s))
+    }
+}
+
+impl From<&str> for Price {
+    fn from(s: &str) -> Self {
+        Price::Money(Money::from(s))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+pub struct Network {
+    namespace: String,
+    reference: String,
+}
+
+impl Network {
+    pub fn new(namespace: String, reference: String) -> Network {
+        Network { namespace, reference }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{}:{}", self.namespace, self.reference)
+    }
 }
 
 // =======================
@@ -87,6 +247,8 @@ pub struct CdpPaymentRequirementsV1 {
     pub pay_to: String,
     pub max_timeout_seconds: u64,
     pub asset: String,
+    pub output_schema: Option<Value>,
+    pub extra: Option<Value>
 }
 
 
@@ -119,7 +281,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
-            value: "1000000".to_string(),
+            amount: "1000000".to_string(),
             asset: Some("USDC".to_string()),
             data: Some(json!({"key": "value"})),
         };
@@ -130,7 +292,7 @@ mod tests {
         assert_eq!(req.scheme, deserialized.scheme);
         assert_eq!(req.network, deserialized.network);
         assert_eq!(req.pay_to, deserialized.pay_to);
-        assert_eq!(req.value, deserialized.value);
+        assert_eq!(req.amount, deserialized.amount);
         assert_eq!(req.asset, deserialized.asset);
     }
 
@@ -140,7 +302,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
-            value: "1000000".to_string(),
+            amount: "1000000".to_string(),
             asset: Some("USDC".to_string()),
             data: None,
         };
@@ -168,7 +330,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "solana".to_string(),
             pay_to: "So11111111111111111111111111111111111111112".to_string(),
-            value: "500000".to_string(),
+            amount: "500000".to_string(),
             asset: None,
             data: None,
         };
@@ -196,14 +358,18 @@ mod tests {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0xabcdef1234567890".to_string(),
-            value: "2000000".to_string(),
+            amount: "2000000".to_string(),
             asset: Some("DAI".to_string()),
             data: Some(json!({"nonce": 123})),
         };
 
         let payload = PaymentPayload {
             x402_version: 1,
-            resource: "/api/premium".to_string(),
+            resource: Resource {
+                url: "/api/premium".to_string(),
+                description: "Test".to_string(),
+                mime_type: "text/plain".to_string(),
+            },
             accepted,
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: Some(json!({"metadata": "test"})),
@@ -213,7 +379,7 @@ mod tests {
         let deserialized: PaymentPayload = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(payload.x402_version, deserialized.x402_version);
-        assert_eq!(payload.resource, deserialized.resource);
+        assert_eq!(payload.resource.url, deserialized.resource.url);
         assert_eq!(payload.payload, deserialized.payload);
         assert_eq!(payload.accepted.scheme, deserialized.accepted.scheme);
     }
@@ -224,7 +390,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
-            value: "1000".to_string(),
+            amount: "1000".to_string(),
             asset: None,
             data: None,
         };
@@ -255,14 +421,18 @@ mod tests {
             scheme: "exact".to_string(),
             network: "solana".to_string(),
             pay_to: "0xtest".to_string(),
-            value: "5000".to_string(),
+            amount: "5000".to_string(),
             asset: None,
             data: None,
         };
 
         let payload = PaymentPayload {
             x402_version: 1,
-            resource: "/resource".to_string(),
+            resource: Resource {
+                url: "/api/premium".to_string(),
+                description: "Test".to_string(),
+                mime_type: "text/plain".to_string(),
+            },
             accepted,
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
@@ -273,7 +443,7 @@ mod tests {
 
         let decoded = PaymentPayload::from_header(&header).unwrap();
         assert_eq!(payload.x402_version, decoded.x402_version);
-        assert_eq!(payload.resource, decoded.resource);
+        assert_eq!(payload.resource.url, decoded.resource.url);
         assert_eq!(payload.payload, decoded.payload);
     }
 
@@ -283,7 +453,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
-            value: "1000".to_string(),
+            amount: "1000".to_string(),
             asset: None,
             data: Some(json!({"test": "value+with/special=chars"})),
         };

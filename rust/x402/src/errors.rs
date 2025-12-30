@@ -11,6 +11,9 @@ pub enum X402Error {
     #[error("Verification failed: {0}")]
     VerificationFailed(String),
 
+    #[error("Config error: {0}")]
+    ConfigError(String),
+
     #[error("Facilitator error: {0}")]
     FacilitatorError(#[from] reqwest::Error),
 
