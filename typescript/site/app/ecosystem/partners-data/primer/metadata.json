@@ -1,6 +1,6 @@
 {
   "name": "Primer Facilitator",
-  "description": "Full ERC-20 support. Agents: activated.",
+  "description": "Full ERC-20 support, not just EIP-3009. Built on Base. Primer offers solutions for agentic identity, payments and reputation. Agents: activated.",
   "logoUrl": "/logos/primer.png",
   "websiteUrl": "https://primer.systems",
   "category": "Facilitators",
