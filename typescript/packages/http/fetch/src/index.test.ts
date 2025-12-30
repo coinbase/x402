@@ -150,12 +150,13 @@ describe("wrapFetchWithPayment()", () => {
     ).rejects.toThrow("Payment already attempted");
   });
 
-  it("should reject if missing fetch request config", async () => {
-    mockFetch.mockResolvedValue(createResponse(402, validPaymentRequired));
+  it("should allow optional fetch request config", async () => {
+    const successResponse = createResponse(200, { data: "success" });
 
-    await expect(wrappedFetch("https://api.example.com")).rejects.toThrow(
-      "Missing fetch request configuration",
-    );
+    mockFetch.mockResolvedValueOnce(createResponse(402, validPaymentRequired));
+    mockFetch.mockResolvedValueOnce(successResponse);
+
+    await expect(wrappedFetch("https://api.example.com")).resolves.toBe(successResponse);
   });
 
   it("should reject with descriptive error if payment requirements parsing fails", async () => {

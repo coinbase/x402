@@ -87,13 +87,8 @@ export function wrapFetchWithPayment(
     // Encode payment header
     const paymentHeaders = httpClient.encodePaymentSignatureHeader(paymentPayload);
 
-    // Ensure we have request init
-    if (!init) {
-      throw new Error("Missing fetch request configuration");
-    }
-
     // Check if this is already a retry to prevent infinite loops
-    if ((init as { __is402Retry?: boolean }).__is402Retry) {
+    if (init && (init as { __is402Retry?: boolean }).__is402Retry) {
       throw new Error("Payment already attempted");
     }
 
@@ -101,7 +96,7 @@ export function wrapFetchWithPayment(
     const newInit = {
       ...init,
       headers: {
-        ...(init.headers || {}),
+        ...(init?.headers || {}),
         ...paymentHeaders,
         "Access-Control-Expose-Headers": "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE",
       },
