@@ -64,7 +64,7 @@ uv sync --all-extras --dev
 
 ```bash
 cd python/x402
-pip install -e ".[dev]"
+pip install -e . --group dev
 ```
 
 ## Development Workflow
@@ -75,7 +75,7 @@ From the `python/x402/` directory:
 
 | Command | Description |
 |---------|-------------|
-| `uv sync --dev` | Install/update dependencies |
+| `uv sync` | Install/update dependencies |
 | `uv run pytest` | Run tests |
 | `uvx ruff check` | Lint code |
 | `uvx ruff check --fix` | Lint and fix |
@@ -113,7 +113,7 @@ class x402YourClient(BaseX402Client):
     # Implement payment handling hooks
 ```
 
-2. Export from `src/x402/clients/__init__.py`
+2. Add friendly `ImportError` wrapper at the top of your module (see `src/x402/clients/httpx.py` for example)
 
 3. Add tests in `tests/clients/test_your_client.py`
 
@@ -137,13 +137,11 @@ src/x402/your_framework/
    - Call facilitator to verify and settle payments
    - Add `X-PAYMENT-RESPONSE` header on success
 
-4. Add the dependency to `pyproject.toml`:
+4. Add the dependency to `pyproject.toml` as an optional extra:
 
 ```toml
-dependencies = [
-    # ... existing deps
-    "your-framework>=1.0.0",
-]
+[project.optional-dependencies]
+your-framework = ["your-framework>=1.0.0"]
 ```
 
 5. Add tests in `tests/your_framework_tests/`
