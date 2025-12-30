@@ -86,9 +86,11 @@ export const Base64EncodedRegex = /^[A-Za-z0-9+/]*={0,2}$/;
  */
 export function safeBase64Encode(data: string): string {
   if (typeof globalThis !== "undefined" && typeof globalThis.btoa === "function") {
-    return globalThis.btoa(data);
+    const bytes = new TextEncoder().encode(data);
+    const binaryString = Array.from(bytes, byte => String.fromCharCode(byte)).join("");
+    return globalThis.btoa(binaryString);
   }
-  return Buffer.from(data).toString("base64");
+  return Buffer.from(data, "utf8").toString("base64");
 }
 
 /**
@@ -99,7 +101,13 @@ export function safeBase64Encode(data: string): string {
  */
 export function safeBase64Decode(data: string): string {
   if (typeof globalThis !== "undefined" && typeof globalThis.atob === "function") {
-    return globalThis.atob(data);
+    const binaryString = globalThis.atob(data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const decoder = new TextDecoder("utf-8");
+    return decoder.decode(bytes);
   }
   return Buffer.from(data, "base64").toString("utf-8");
 }

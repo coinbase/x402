@@ -292,6 +292,11 @@ describe("Utils", () => {
   });
 
   describe("Base64 encoding", () => {
+    const unicodeOriginal =
+      "USD₮0 🤖 中文 ありがとう नमस्ते Привет مرحبا بالعالم שלום Γειά σου สวัสดี";
+    const unicodeEncoded =
+      "VVNE4oKuMCDwn6SWIOS4reaWhyDjgYLjgorjgYzjgajjgYYg4KSo4KSu4KS44KWN4KSk4KWHINCf0YDQuNCy0LXRgiDZhdix2K3YqNinINio2KfZhNi52KfZhNmFINep15zXldedIM6TzrXOuc6sIM+Dzr/PhSDguKrguKfguLHguKrguJTguLU=";
+
     describe("safeBase64Encode", () => {
       it("should encode simple strings", () => {
         const encoded = safeBase64Encode("hello");
@@ -299,8 +304,8 @@ describe("Utils", () => {
       });
 
       it("should encode strings with special characters", () => {
-        const encoded = safeBase64Encode("hello world!");
-        expect(encoded).toBe("aGVsbG8gd29ybGQh");
+        const encoded = safeBase64Encode("test data 123!@#");
+        expect(encoded).toBe("dGVzdCBkYXRhIDEyMyFAIw==");
       });
 
       it("should encode empty string", () => {
@@ -311,8 +316,8 @@ describe("Utils", () => {
       it("should encode unicode characters", () => {
         // Note: btoa doesn't handle unicode directly, need to encode first
         // This test verifies the function exists and works with ASCII
-        const encoded = safeBase64Encode("Hello World");
-        expect(encoded).toMatch(/^[A-Za-z0-9+/]*={0,2}$/);
+        const encoded = safeBase64Encode(unicodeOriginal);
+        expect(encoded).toBe(unicodeEncoded);
       });
     });
 
@@ -328,6 +333,11 @@ describe("Utils", () => {
         const decoded = safeBase64Decode(encoded);
 
         expect(decoded).toBe(original);
+      });
+
+      it("should decode unicode characters", () => {
+        const decoded = safeBase64Decode(unicodeEncoded);
+        expect(decoded).toBe(unicodeOriginal);
       });
 
       it("should decode empty string", () => {
