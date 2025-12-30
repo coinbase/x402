@@ -5,3 +5,4 @@ pub mod errors;
 pub mod frameworks;
 pub mod schemes;
 pub mod auth;
+pub mod facilitator;
