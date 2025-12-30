@@ -29,6 +29,7 @@
   "description": "x402 Payment Protocol SVM Implementation",
   "devDependencies": {
     "@eslint/js": "^9.24.0",
+    "@scure/base": "^1.2.6",
     "@types/node": "^22.13.4",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
     "@typescript-eslint/parser": "^8.29.1",
@@ -46,13 +47,10 @@
   },
   "dependencies": {
     "@x402/core": "workspace:*",
-    "@scure/base": "^1.2.6",
-    "@solana-program/compute-budget": "^0.8.0",
-    "@solana-program/token": "^0.5.1",
-    "@solana-program/token-2022": "^0.4.2",
-    "@solana/kit": "^2.1.1",
-    "@solana/transaction-confirmation": "^2.1.1",
-    "zod": "^3.24.2"
+    "@solana-program/compute-budget": "^0.11.0",
+    "@solana-program/token": "^0.9.0",
+    "@solana-program/token-2022": "^0.6.1",
+    "@solana/kit": "^5.1.0"
   },
   "exports": {
     ".": {
