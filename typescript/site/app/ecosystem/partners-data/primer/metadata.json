@@ -1,0 +1,14 @@
+{
+  "name": "Primer Facilitator",
+  "description": "Full ERC-20 support. Agents: activated.",
+  "logoUrl": "/logos/primer.png",
+  "websiteUrl": "https://primer.systems",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://x402.primer.systems",
+    "networks": ["base"],
+    "schemes": ["exact"],
+    "assets": ["ERC-20", "EIP-3009"],
+    "supports": { "verify": true, "settle": true, "supported": true, "list": false }
+  }
+}
