@@ -47,7 +47,7 @@ where
         scheme: requirement.scheme.clone(),
         network: requirement.network.clone(),
         payTo: requirement.pay_to.clone(),
-        value: requirement.value.clone(),
+        value: requirement.amount.clone(),
         asset: requirement.asset.clone().unwrap_or_default(),
     };
 
@@ -114,7 +114,7 @@ mod tests {
             scheme: "exact".to_string(),
             network: "ethereum".to_string(),
             pay_to: "0x1234567890123456789012345678901234567890".to_string(),
-            value: "1000000000000000000".to_string(),
+            amount: "1000000000000000000".to_string(),
             asset: Some("ETH".to_string()),
             data: None,
         };
