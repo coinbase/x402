@@ -1,7 +1,7 @@
 {
   "name": "Bino",
-  "description": "DePIN AI agent powered by IoTeX and QuickSilver. Uses x402 to both receive payments for IoTeX ecosystem queries and pay other agents for their services.",
+  "description": "The autonomous AI agent framework. Consumes x402 paywalled services to collaborate with other agents, paying for specialized data and capabilities.",
   "logoUrl": "/logos/bino.png",
-  "websiteUrl": "https://x.com/Bino_AI",
+  "websiteUrl": "https://github.com/iotexproject/binoSwarm/tree/main/packages/plugin-swarm",
   "category": "Client-Side Integrations"
 }
