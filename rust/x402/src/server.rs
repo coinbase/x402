@@ -4,12 +4,13 @@ use crate::errors::{X402Error, X402Result};
 use crate::types::{Network, PaymentRequirements, Price};
 
 
+#[derive(Debug, Clone)]
 pub struct ResourceConfig {
-    scheme: String,
-    pay_to: String,
-    price: Price,
-    network: Network,
-    max_timeout_in_seconds: Option<u64>,
+    pub scheme: String,
+    pub pay_to: String,
+    pub price: Price,
+    pub network: Network,
+    pub max_timeout_in_seconds: Option<u64>,
 }
 
 impl ResourceConfig {

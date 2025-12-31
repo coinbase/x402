@@ -3,6 +3,7 @@ mod http;
 
 pub use facilitator::FacilitatorClient;
 pub use http::HttpFacilitator;
+pub use http::HttpFacilitator as Facilitator;
 
 
 // Optional helper for a default HTTP facilitator wrapped in Arc<dyn FacilitatorClient>
