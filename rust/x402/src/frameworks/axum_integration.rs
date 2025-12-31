@@ -178,7 +178,7 @@ pub async fn x402_middleware(
         None => {
             //  No signature provided: Return 402 with the required payment info
             let payment_required = PaymentRequired {
-                x402_version: 1,
+                x402_version: 2,
                 resource: route.resource_url.clone(),
                 accepts,
                 description: route.description.clone(),
@@ -233,6 +233,7 @@ mod tests {
                 amount,
                 asset,
                 data: None,
+                extra: None,
             })
         }
     }
@@ -298,6 +299,7 @@ mod tests {
                 amount: "100".to_string(),
                 asset: None,
                 data: None,
+                extra: None,
             },
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
@@ -360,6 +362,7 @@ mod tests {
                 amount: "100".to_string(),
                 asset: None,
                 data: None,
+                extra: None,
             },
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
@@ -404,6 +407,7 @@ mod tests {
                 amount: "100".to_string(),
                 asset: None,
                 data: None,
+                extra: None,
             },
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,

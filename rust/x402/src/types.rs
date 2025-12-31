@@ -13,6 +13,8 @@ pub struct PaymentRequirements {
     pub amount: String,
     pub asset: Option<String>,
     pub data: Option<Value>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub extra: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -132,6 +134,12 @@ pub struct AssetAmount {
     amount: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     extra: Option<HashMap<String, Value>>,
+}
+
+impl AssetAmount {
+    pub fn new(asset: String, amount: String, extra: Option<HashMap<String, Value>>) -> Self {
+        AssetAmount { asset, amount, extra }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -284,6 +292,7 @@ mod tests {
             amount: "1000000".to_string(),
             asset: Some("USDC".to_string()),
             data: Some(json!({"key": "value"})),
+            extra: None,
         };
 
         let json_str = serde_json::to_string(&req).unwrap();
@@ -305,6 +314,7 @@ mod tests {
             amount: "1000000".to_string(),
             asset: Some("USDC".to_string()),
             data: None,
+            extra: None,
         };
 
         let required = PaymentRequired {
@@ -333,6 +343,7 @@ mod tests {
             amount: "500000".to_string(),
             asset: None,
             data: None,
+            extra: None,
         };
 
         let required = PaymentRequired {
@@ -361,6 +372,7 @@ mod tests {
             amount: "2000000".to_string(),
             asset: Some("DAI".to_string()),
             data: Some(json!({"nonce": 123})),
+            extra: None,
         };
 
         let payload = PaymentPayload {
@@ -393,6 +405,7 @@ mod tests {
             amount: "1000".to_string(),
             asset: None,
             data: None,
+            extra: None,
         };
 
         let required = PaymentRequired {
@@ -424,6 +437,7 @@ mod tests {
             amount: "5000".to_string(),
             asset: None,
             data: None,
+            extra: None,
         };
 
         let payload = PaymentPayload {
@@ -456,6 +470,7 @@ mod tests {
             amount: "1000".to_string(),
             asset: None,
             data: Some(json!({"test": "value+with/special=chars"})),
+            extra: None,
         };
 
         let required = PaymentRequired {

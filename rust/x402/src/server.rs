@@ -122,7 +122,8 @@ mod tests {
                 pay_to: resource_config.pay_to.clone(),
                 amount,
                 asset,
-                data: None
+                data: None,
+                extra: None
             })
         }
     }
