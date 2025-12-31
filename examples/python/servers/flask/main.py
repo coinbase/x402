@@ -13,7 +13,7 @@ from x402.server import x402ResourceServer
 load_dotenv()
 
 # Config
-ADDRESS = os.getenv("ADDRESS")
+ADDRESS = os.getenv("EVM_ADDRESS")
 NETWORK: Network = "eip155:84532"  # Base Sepolia
 FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://www.x402.org/facilitator")
 
