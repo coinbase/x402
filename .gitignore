@@ -9,3 +9,4 @@ __pycache__/
 **/.DS_Store
 e2e/facilitators/external-proxies/*
 !e2e/facilitators/external-proxies/README.md
+typescript/package-lock.json

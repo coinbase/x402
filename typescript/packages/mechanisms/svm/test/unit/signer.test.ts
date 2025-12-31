@@ -157,5 +157,52 @@ describe("SVM Signer Converters", () => {
       expect(facilitator).toBeDefined();
       expect(facilitator.simulateTransaction).toBeDefined();
     });
+
+    it("should handle BigInt values in simulation error responses", async () => {
+      const mockSigner = {
+        address: "FacilitatorAddress1111111111111111111" as never,
+        signTransactions: vi.fn() as never,
+        signMessages: vi.fn().mockResolvedValue([{}]) as never,
+      };
+
+      // Mock RPC that returns a simulation error with BigInt values (like lamports)
+      const mockRpc = {
+        getBalance: vi.fn(),
+        getSlot: vi.fn(),
+        simulateTransaction: vi.fn().mockReturnValue({
+          send: vi.fn().mockResolvedValue({
+            value: {
+              err: {
+                InstructionError: [
+                  0,
+                  {
+                    Custom: 1,
+                    // Simulate BigInt values that Solana RPC might return
+                    lamports: BigInt("1000000000"),
+                    requiredLamports: BigInt("2000000000"),
+                  },
+                ],
+              },
+            },
+          }),
+        }),
+      } as never;
+
+      const facilitator = toFacilitatorSvmSigner(mockSigner as never, mockRpc);
+
+      // Should throw an error with properly serialized BigInt values (not crash)
+      await expect(
+        facilitator.simulateTransaction("dummyTransaction", SOLANA_DEVNET_CAIP2),
+      ).rejects.toThrow("Simulation failed:");
+
+      // Verify the error message contains the serialized BigInt values as strings
+      try {
+        await facilitator.simulateTransaction("dummyTransaction", SOLANA_DEVNET_CAIP2);
+      } catch (error) {
+        expect((error as Error).message).toContain("1000000000");
+        expect((error as Error).message).toContain("2000000000");
+        expect((error as Error).message).not.toContain("BigInt");
+      }
+    });
   });
 });

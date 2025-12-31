@@ -375,7 +375,11 @@ export function toFacilitatorSvmSigner(
         .send();
 
       if (result.value.err) {
-        throw new Error(`Simulation failed: ${JSON.stringify(result.value.err)}`);
+        // Use replacer to handle BigInt values from Solana RPC responses
+        const errorStr = JSON.stringify(result.value.err, (_, v) =>
+          typeof v === "bigint" ? v.toString() : v,
+        );
+        throw new Error(`Simulation failed: ${errorStr}`);
       }
     },
 

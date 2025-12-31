@@ -319,3 +319,95 @@ func TestSettleWithAuthHeaders(t *testing.T) {
 		t.Errorf("Expected auth header '%s', got: '%s'", expectedAuthHeader, capturedAuthHeader)
 	}
 }
+
+func TestVerify400WithInvalidSignature(t *testing.T) {
+	invalidReason := "invalid_signature"
+	payer := "0xpayer"
+
+	// Create test server that returns 400 with invalid signature
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		resp := types.VerifyResponse{
+			IsValid:       false,
+			InvalidReason: &invalidReason,
+			Payer:         &payer,
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	config := &types.FacilitatorConfig{URL: server.URL}
+	client := facilitatorclient.NewFacilitatorClient(config)
+
+	paymentPayload := &types.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+	paymentRequirements := &types.PaymentRequirements{}
+
+	_, err := client.Verify(paymentPayload, paymentRequirements)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+
+	var verifyErr *types.VerifyError
+	if !errors.As(err, &verifyErr) {
+		t.Fatalf("Expected VerifyError, got: %T", err)
+	}
+	if verifyErr.Reason != "invalid_signature" {
+		t.Errorf("Expected Reason to be 'invalid_signature', got: %s", verifyErr.Reason)
+	}
+	if verifyErr.Payer != "0xpayer" {
+		t.Errorf("Expected Payer to be '0xpayer', got: %s", verifyErr.Payer)
+	}
+}
+
+func TestSettle400WithInsufficientAllowance(t *testing.T) {
+	errorReason := "insufficient_allowance"
+	payer := "0xpayer"
+
+	// Create test server that returns 400 with insufficient allowance
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		resp := types.SettleResponse{
+			Success:     false,
+			ErrorReason: &errorReason,
+			Network:     "base-sepolia",
+			Payer:       &payer,
+		}
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	config := &types.FacilitatorConfig{URL: server.URL}
+	client := facilitatorclient.NewFacilitatorClient(config)
+
+	paymentPayload := &types.PaymentPayload{
+		X402Version: 1,
+		Scheme:      "exact",
+		Network:     "base-sepolia",
+	}
+	paymentRequirements := &types.PaymentRequirements{}
+
+	_, err := client.Settle(paymentPayload, paymentRequirements)
+	if err == nil {
+		t.Fatal("Expected error for 400 response")
+	}
+
+	var settleErr *types.SettleError
+	if !errors.As(err, &settleErr) {
+		t.Fatalf("Expected SettleError, got: %T", err)
+	}
+	if settleErr.Reason != "insufficient_allowance" {
+		t.Errorf("Expected Reason to be 'insufficient_allowance', got: %s", settleErr.Reason)
+	}
+	if settleErr.Payer != "0xpayer" {
+		t.Errorf("Expected Payer to be '0xpayer', got: %s", settleErr.Payer)
+	}
+	if settleErr.Network != "base-sepolia" {
+		t.Errorf("Expected Network to be 'base-sepolia', got: %s", settleErr.Network)
+	}
+}
