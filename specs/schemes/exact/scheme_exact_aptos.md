@@ -10,20 +10,22 @@ The `exact` scheme on Aptos transfers a specific amount of a fungible asset (suc
 
 ## Protocol Sequencing
 
-The following sequence outlines the flow of the `exact` scheme on Aptos:
+The protocol flow for `exact` on Aptos is client-driven. When the facilitator supports sponsorship, it sets `extra.sponsored` to `true` in the payment requirements. This signals to the client that sponsored (gasless) transactions are available.
 
-1. Client makes a request to a `resource server` and receives a `402 Payment Required` response.
-2. If the server/facilitator supports sponsorship and the client wants to make use of sponsorship, it can make a request to the provided sponsorship service (gas station) to construct a sponsored transaction.
-3. Client constructs and signs a transaction to be used as payment, transferring the fungible asset to the resource server's address.
+1. Client makes a request to a `resource server` and receives a `402 Payment Required` response. The `extra.sponsored` field indicates sponsorship is available.
+2. Client constructs a fee payer transaction to transfer the fungible asset to the resource server's address. The client can set the fee payer address to `0x0` as a placeholder.
+3. Client signs the transaction.
 4. Client serializes the signed transaction using BCS (Binary Canonical Serialization) and encodes it as Base64.
-5. Client resends the request to the `resource server` including the payment in the `X-PAYMENT` header.
+5. Client resends the request to the `resource server` including the payment in the `PAYMENT-SIGNATURE` header.
 6. `resource server` passes the payment payload to the `facilitator` for verification.
 7. `facilitator` validates the transaction structure, signature, and payment details.
 8. `resource server` does the work to fulfill the request.
 9. `resource server` requests settlement from the `facilitator`.
-10. If sponsorship was used, the `facilitator` provides its signature as the fee payer before submission.
-11. `facilitator` submits the transaction to the `Aptos` network for execution and reports back to the `resource server` the result of the transaction.
-12. `resource server` returns the response to the client.
+10. `facilitator` ensures the transaction is sponsored (fee payer signature added) and submitted to the `Aptos` network. See [Aptos Sponsored Transactions](https://aptos.dev/build/guides/sponsored-transactions) for details.
+11. `facilitator` reports back to the `resource server` the result of the transaction.
+12. `resource server` returns the response to the client with the `PAYMENT-RESPONSE` header.
+
+**Security Note:** The sponsorship mechanism does not give the fee payer possession or ability to alter the client's transaction. The client's signature covers the entire transaction payload (recipient, amount, asset). The fee payer can only add its own signature - any attempt to modify the transaction would invalidate the client's signature and cause the transaction to fail.
 
 ## Network Format
 
@@ -45,7 +47,7 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
   "payTo": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
   "maxTimeoutSeconds": 60,
   "extra": {
-    "gasStation": "https://facilitator.example.com/gas-station"
+    "sponsored": true
   }
 }
 ```
@@ -54,15 +56,27 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 
 - `scheme`: Always `"exact"` for this scheme
 - `network`: CAIP-2 network identifier - `aptos:1` (mainnet) or `aptos:2` (testnet)
-- `amount`: The exact amount to transfer in atomic units (e.g., `"1000000"` = 1 APT)
+- `amount`: The exact amount to transfer in atomic units (e.g., `"100000000"` = 1 APT, since APT has 8 decimals)
 - `asset`: The metadata address of the fungible asset (e.g., USDC on Aptos mainnet: `0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b`)
 - `payTo`: The recipient address (32-byte hex string with `0x` prefix)
 - `maxTimeoutSeconds`: Maximum time in seconds before the payment expires
-- `extra.gasStation`: (Optional) URL of the gas station endpoint for sponsored transactions
+- `extra.sponsored`: (Optional) Boolean indicating whether the facilitator will sponsor gas fees. When `true`, the client can construct a fee payer transaction without including gas payment. When absent or `false`, the client must pay their own gas fees.
 
-## `X-PAYMENT` Header Payload
+## PaymentPayload `payload` Field
 
-The client constructs the payment payload and includes it in the `X-PAYMENT` header. The payload structure follows x402 v2 format:
+The `payload` field of the `PaymentPayload` must contain the following fields:
+
+- `transaction`: Base64 encoded BCS-serialized signed Aptos transaction
+
+Example `payload`:
+
+```json
+{
+  "transaction": "AQDy8fLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vIC..."
+}
+```
+
+Full `PaymentPayload` object:
 
 ```json
 {
@@ -78,23 +92,16 @@ The client constructs the payment payload and includes it in the `X-PAYMENT` hea
     "amount": "1000000",
     "asset": "0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b",
     "payTo": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-    "maxTimeoutSeconds": 60
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "sponsored": true
+    }
   },
   "payload": {
     "transaction": "AQDy8fLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vLy8vIC..."
   }
 }
 ```
-
-### Field Descriptions
-
-- `x402Version`: Always `2` for this specification
-- `resource`: Information about the protected resource being accessed
-  - `url`: The protected resource URL
-  - `description`: Human-readable description of the resource
-  - `mimeType`: Expected MIME type of the resource response
-- `accepted`: The `PaymentRequirements` that the client is fulfilling with this payment
-- `payload.transaction`: Base64 encoded BCS-serialized signed Aptos transaction (includes the signature embedded within the transaction structure)
 
 ## Verification
 
@@ -114,52 +121,74 @@ Steps to verify a payment for the `exact` scheme:
 
 ## Settlement
 
-Settlement is performed via the facilitator submitting the transaction to the Aptos network for execution.
+Settlement is performed by sponsoring and submitting the transaction:
 
-### For Non-Sponsored Transactions:
+1. Facilitator receives the client-signed transaction.
+2. Fee payer address is set on the transaction.
+3. Fee payer signs the transaction.
+4. Fully-signed transaction is submitted to the Aptos network.
+5. Transaction hash is returned to the resource server.
 
-- The facilitator submits the fully-signed transaction directly to the network.
+The facilitator may act as the fee payer directly, or delegate to a gas station service. See the [Sponsored Transactions](#sponsored-transactions) appendix for implementation options.
 
-### For Sponsored Transactions:
-
-1. The facilitator adds its signature as the fee payer sponsor (the facilitator must be the designated sponsor in the transaction).
-2. The facilitator submits the fee payer transaction with the client as the sender and the facilitator as the sponsor to the network.
+Aptos supports [fee payer transactions](https://aptos.dev/build/guides/sponsored-transactions) where a sponsor pays gas fees on behalf of the sender. This is a native Aptos feature that maintains transaction integrity.
 
 The settlement response includes the transaction hash which can be used to track the transaction on-chain.
 
-## `X-PAYMENT-RESPONSE` Header Payload
+## `PAYMENT-RESPONSE` Header Payload
 
-The `X-PAYMENT-RESPONSE` header is base64 encoded and returned to the client from the resource server.
+The `PAYMENT-RESPONSE` header is base64 encoded and returned to the client from the resource server.
 
-Once decoded, the `X-PAYMENT-RESPONSE` is a JSON string with the following properties:
+Once decoded, the `PAYMENT-RESPONSE` is a JSON string following the standard `SettlementResponse` schema:
 
 ```json
 {
   "success": true,
   "transaction": "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
   "network": "aptos:1",
-  "version": "12345678"
+  "payer": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 }
 ```
 
-- `transaction`: The transaction hash
-- `version`: The transaction version number (ledger version)
+### Field Descriptions
+
+- `success`: Boolean indicating whether the payment settlement was successful
+- `transaction`: The transaction hash (64 hex characters with `0x` prefix)
+- `network`: The CAIP-2 network identifier
+- `payer`: The address of the payer's wallet
+
+For Aptos-specific information like the ledger version, clients can query the transaction details using the transaction hash via the [Aptos REST API](https://aptos.dev/build/apis).
 
 ## Appendix
 
 ### Sponsored Transactions
 
-Aptos supports sponsored (gasless) transactions via an interactive transaction construction protocol with a gas station. If a facilitator supports sponsoring of transactions, it should communicate this to the client by providing a URL via the `paymentRequirements.extra.gasStation` field.
+When `extra.sponsored` is `true`, the facilitator will pay gas fees on behalf of the client using Aptos's native [fee payer mechanism](https://aptos.dev/build/guides/sponsored-transactions).
 
-#### Sponsored Transaction Flow:
+Facilitators can implement sponsorship in two ways:
 
-1. Client makes request and gets 402 response from the service.
-2. Client constructs a transaction payload to transfer the fungible asset to the resource server.
-3. Client sends the transaction payload to the gas station at `paymentRequirements.extra.gasStation`.
-4. Gas station constructs a fee payer transaction and returns it to the client.
-5. Client signs the transaction as the primary sender.
-6. Client sends the signed transaction along with its request, with `sponsored: true` in the payload.
-7. When the facilitator goes to settle the transaction, it recognizes it as the sponsor and provides its own signature as the fee payer before broadcasting to the network for execution.
+**Direct Fee Payer:**
+The facilitator maintains a wallet and signs transactions as the fee payer directly at settlement time. This is the simplest approach.
+
+**Gas Station Service:**
+The facilitator operates (or integrates with) a gas station service that handles fee payment. This approach enables additional features:
+
+- Rate limiting per account or globally
+- Function allowlists to restrict which operations can be sponsored
+- Budget controls and usage tracking
+- Abuse prevention policies
+
+Both approaches are transparent to the client - they simply see `sponsored: true` and construct their transaction accordingly.
+
+### Non-Sponsored Transactions
+
+If `extra.sponsored` is absent or `false`, the client must pay their own gas fees:
+
+1. Client constructs a regular transaction including gas payment from their own account.
+2. Client fully signs the transaction.
+3. At settlement, the facilitator submits the fully-signed transaction directly to the Aptos network.
+
+This mode may be useful for facilitators that do not wish to sponsor transactions or for testing purposes.
 
 ### Transaction Structure
 
@@ -231,7 +260,6 @@ Example: `0x0000000000000000000000000000000000000000000000000000000000000001` (6
 ## Recommendation
 
 - Use the spec defined above and only support payments of specific amounts.
-- Support both non-sponsored (client pays gas) and sponsored (facilitator pays gas) transaction modes.
-- For sponsored transactions, implement the gas station protocol to enable gasless payments for clients.
+- Implement sponsored transactions to enable gasless payments for clients (recommended).
 - Leverage the Aptos TypeScript SDK for transaction construction, serialization, and simulation.
 - Future versions could explore deferred settlement patterns or usage-based payments if Aptos introduces new primitives that enable such flows.
