@@ -40,14 +40,14 @@ export function decodePaymentSignatureHeader(paymentSignatureHeader: string): Pa
   let decoded: string;
   try {
     decoded = safeBase64Decode(paymentSignatureHeader);
-  } catch (error) {
+  } catch {
     throw new Error("Invalid payment header format: base64 decoding failed");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(decoded);
-  } catch (error) {
+  } catch {
     throw new Error("Invalid payment header format: not valid JSON");
   }
 
@@ -69,7 +69,11 @@ export function decodePaymentSignatureHeader(paymentSignatureHeader: string): Pa
   if (!("resource" in payload)) {
     throw new Error("Missing required field: resource");
   }
-  if (typeof payload.resource !== "object" || payload.resource === null || Array.isArray(payload.resource)) {
+  if (
+    typeof payload.resource !== "object" ||
+    payload.resource === null ||
+    Array.isArray(payload.resource)
+  ) {
     throw new Error("Invalid field type: resource must be an object");
   }
 
@@ -97,14 +101,22 @@ export function decodePaymentSignatureHeader(paymentSignatureHeader: string): Pa
   if (!("accepted" in payload)) {
     throw new Error("Missing required field: accepted");
   }
-  if (typeof payload.accepted !== "object" || payload.accepted === null || Array.isArray(payload.accepted)) {
+  if (
+    typeof payload.accepted !== "object" ||
+    payload.accepted === null ||
+    Array.isArray(payload.accepted)
+  ) {
     throw new Error("Invalid field type: accepted must be an object");
   }
 
   if (!("payload" in payload)) {
     throw new Error("Missing required field: payload");
   }
-  if (typeof payload.payload !== "object" || payload.payload === null || Array.isArray(payload.payload)) {
+  if (
+    typeof payload.payload !== "object" ||
+    payload.payload === null ||
+    Array.isArray(payload.payload)
+  ) {
     throw new Error("Invalid field type: payload must be an object");
   }
 

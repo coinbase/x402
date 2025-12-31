@@ -13,7 +13,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
 
     it("should reject invalid base64 characters", () => {
       expect(() => decodePaymentSignatureHeader("invalid@#$%")).toThrow(
-        "Invalid payment header format: not valid base64"
+        "Invalid payment header format: not valid base64",
       );
     });
   });
@@ -22,28 +22,28 @@ describe("decodePaymentSignatureHeader - Validation", () => {
     it("should reject non-JSON content", () => {
       const invalidJson = Buffer.from("not json at all").toString("base64");
       expect(() => decodePaymentSignatureHeader(invalidJson)).toThrow(
-        "Invalid payment header format: not valid JSON"
+        "Invalid payment header format: not valid JSON",
       );
     });
 
     it("should reject malformed JSON", () => {
       const malformedJson = Buffer.from("{invalid json}").toString("base64");
       expect(() => decodePaymentSignatureHeader(malformedJson)).toThrow(
-        "Invalid payment header format: not valid JSON"
+        "Invalid payment header format: not valid JSON",
       );
     });
 
     it("should reject JSON array instead of object", () => {
       const jsonArray = Buffer.from("[]").toString("base64");
       expect(() => decodePaymentSignatureHeader(jsonArray)).toThrow(
-        "Invalid payment header format: must be a JSON object"
+        "Invalid payment header format: must be a JSON object",
       );
     });
 
     it("should reject JSON primitive", () => {
       const jsonString = Buffer.from('"string"').toString("base64");
       expect(() => decodePaymentSignatureHeader(jsonString)).toThrow(
-        "Invalid payment header format: must be a JSON object"
+        "Invalid payment header format: must be a JSON object",
       );
     });
   });
@@ -57,7 +57,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Missing required field: x402Version"
+        "Missing required field: x402Version",
       );
     });
 
@@ -68,7 +68,9 @@ describe("decodePaymentSignatureHeader - Validation", () => {
         payload: {},
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
-      expect(() => decodePaymentSignatureHeader(encoded)).toThrow("Missing required field: resource");
+      expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
+        "Missing required field: resource",
+      );
     });
 
     it("should reject missing resource.url", () => {
@@ -80,7 +82,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Missing required field: resource.url"
+        "Missing required field: resource.url",
       );
     });
 
@@ -93,7 +95,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Missing required field: resource.description"
+        "Missing required field: resource.description",
       );
     });
 
@@ -106,7 +108,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Missing required field: resource.mimeType"
+        "Missing required field: resource.mimeType",
       );
     });
 
@@ -117,7 +119,9 @@ describe("decodePaymentSignatureHeader - Validation", () => {
         payload: {},
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
-      expect(() => decodePaymentSignatureHeader(encoded)).toThrow("Missing required field: accepted");
+      expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
+        "Missing required field: accepted",
+      );
     });
 
     it("should reject missing payload", () => {
@@ -127,7 +131,9 @@ describe("decodePaymentSignatureHeader - Validation", () => {
         accepted: {},
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
-      expect(() => decodePaymentSignatureHeader(encoded)).toThrow("Missing required field: payload");
+      expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
+        "Missing required field: payload",
+      );
     });
   });
 
@@ -141,7 +147,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Invalid field type: x402Version must be a number"
+        "Invalid field type: x402Version must be a number",
       );
     });
 
@@ -154,7 +160,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Invalid field type: resource must be an object"
+        "Invalid field type: resource must be an object",
       );
     });
 
@@ -167,7 +173,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Invalid field type: resource.url must be a string"
+        "Invalid field type: resource.url must be a string",
       );
     });
 
@@ -180,7 +186,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Invalid field type: accepted must be an object"
+        "Invalid field type: accepted must be an object",
       );
     });
 
@@ -193,7 +199,7 @@ describe("decodePaymentSignatureHeader - Validation", () => {
       };
       const encoded = Buffer.from(JSON.stringify(payload)).toString("base64");
       expect(() => decodePaymentSignatureHeader(encoded)).toThrow(
-        "Invalid field type: payload must be an object"
+        "Invalid field type: payload must be an object",
       );
     });
   });
