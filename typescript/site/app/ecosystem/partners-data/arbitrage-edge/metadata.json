@@ -1,8 +1,0 @@
-{
-  "name": "ArbitrageEdge",
-  "description": "Real-time sports betting arbitrage API that finds guaranteed profit opportunities across 20+ bookmakers. AI agents can pay with USDC on Base to access live arbitrage data across Soccer, NBA, Tennis, NFL, and MLB. Features automatic odds scraping every 5 minutes, arbitrage calculator with 2-way and 3-way betting support, and smart filtering by sport, profit percentage, and stake amounts.",
-  "logoUrl": "/logos/arbitrage-edge.png",
-  "websiteUrl": "https://arbitrageedge-production.up.railway.app",
-  "category": "Services/Endpoints"
-}
-```
