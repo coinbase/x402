@@ -39,7 +39,9 @@ routes = {
                 price="$0.01",
                 network=NETWORK,
             )
-        ]
+        ],
+        mime_type="application/json",
+        description="Weather report",
     ),
     "GET /premium/*": RouteConfig(
         accepts=[
@@ -53,7 +55,9 @@ routes = {
                 ),
                 network=NETWORK,
             )
-        ]
+        ],
+        mime_type="application/json",
+        description="Premium content",
     ),
 }
 payment_middleware(app, routes=routes, server=server)

@@ -55,7 +55,9 @@ routes = {
                 price="$0.01",
                 network=NETWORK,
             )
-        ]
+        ],
+        mime_type="application/json",
+        description="Weather report",
     ),
     # a second way to pay for the premium content, it's an AssetAmount object
     "GET /premium/*": RouteConfig(
@@ -70,7 +72,9 @@ routes = {
                 ),
                 network=NETWORK,
             )
-        ]
+        ],
+        mime_type="application/json",
+        description="Premium content",
     ),
 }
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
