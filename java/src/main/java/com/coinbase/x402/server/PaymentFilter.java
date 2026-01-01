@@ -146,6 +146,11 @@ public class PaymentFilter implements Filter {
         chain.doFilter(req, res);
 
         /* -------- settlement (return errors to user) ------------- */
+        // Don't settle if response failed (4xx/5xx status codes)
+        if (response.getStatus() >= 400) {
+            return;
+        }
+
         try {
             SettlementResponse sr = facilitator.settle(header, buildRequirements(path));
             if (sr == null || !sr.success) {

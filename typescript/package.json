@@ -15,7 +15,9 @@
     "format": "turbo run format",
     "lint:check": "turbo run lint:check",
     "format:check": "turbo run format:check",
-    "test": "turbo run test"
+    "test": "turbo run test",
+    "test:integration": "pnpm --filter @x402/core --filter @x402/evm --filter @x402/svm test:integration",
+    "test:all": "pnpm test && pnpm test:integration"
   },
   "keywords": [],
   "author": "",
