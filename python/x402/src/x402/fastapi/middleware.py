@@ -24,17 +24,26 @@ from x402.types import (
     PaywallConfig,
     SupportedNetworks,
     HTTPInputSchema,
+    PriceOrHook,
+    StringOrHook,
 )
 
 logger = logging.getLogger(__name__)
 
 
+async def _resolve_value(value: Any, request: Request) -> Any:
+    """Resolve a value that could be a static value or an async hook."""
+    if callable(value):
+        return await value(request)
+    return value
+
+
 @validate_call
 def require_payment(
-    price: Price,
+    price: PriceOrHook,
     pay_to_address: str,
     path: str | list[str] = "*",
-    description: str = "",
+    description: StringOrHook = "",
     mime_type: str = "",
     max_deadline_seconds: int = 60,
     input_schema: Optional[HTTPInputSchema] = None,
@@ -42,7 +51,7 @@ def require_payment(
     discoverable: Optional[bool] = True,
     facilitator_config: Optional[FacilitatorConfig] = None,
     network: str = "base-sepolia",
-    resource: Optional[str] = None,
+    resource: Optional[StringOrHook] = None,
     paywall_config: Optional[PaywallConfig] = None,
     custom_paywall_html: Optional[str] = None,
 ):
@@ -79,12 +88,12 @@ def require_payment(
             f"Unsupported network: {network}. Must be one of: {supported_networks}"
         )
 
-    try:
-        max_amount_required, asset_address, eip712_domain = (
+    # Fail-fast for static price if it's not a hook
+    if not callable(price):
+        try:
             process_price_to_atomic_amount(price, network)
-        )
-    except Exception as e:
-        raise ValueError(f"Invalid price: {price}. Error: {e}")
+        except Exception as e:
+            raise ValueError(f"Invalid static price: {price}. Error: {e}")
 
     facilitator = FacilitatorClient(facilitator_config)
 
@@ -93,8 +102,25 @@ def require_payment(
         if not path_is_match(path, request.url.path):
             return await call_next(request)
 
-        # Get resource URL if not explicitly provided
-        resource_url = resource or str(request.url)
+        # Resolve dynamic values
+        try:
+            current_price = await _resolve_value(price, request)
+            current_description = await _resolve_value(description, request)
+            current_resource = await _resolve_value(resource, request) or str(
+                request.url
+            )
+
+            max_amount_required, asset_address, eip712_domain = (
+                process_price_to_atomic_amount(current_price, network)
+            )
+        except Exception as e:
+            logger.error(f"Failed to resolve payment requirements: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error": "Internal server error resolving payment requirements"
+                },
+            )
 
         # Construct payment details
         payment_requirements = [
@@ -103,8 +129,8 @@ def require_payment(
                 network=cast(SupportedNetworks, network),
                 asset=asset_address,
                 max_amount_required=max_amount_required,
-                resource=resource_url,
-                description=description,
+                resource=current_resource,
+                description=current_description,
                 mime_type=mime_type,
                 pay_to=pay_to_address,
                 max_timeout_seconds=max_deadline_seconds,

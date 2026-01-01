@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional, Union, Dict, Literal, List
+from typing import Any, Optional, Union, Dict, Literal, List, Callable, Awaitable
 from typing_extensions import (
     TypedDict,
 )  # use `typing_extensions.TypedDict` instead of `typing.TypedDict` on Python < 3.12
@@ -91,6 +91,12 @@ class EIP712Domain(BaseModel):
 # Price can be either Money (USD string) or TokenAmount
 Money = Union[str, int]  # e.g., "$0.01", 0.01, "0.001"
 Price = Union[Money, TokenAmount]
+
+# Dynamic Hook types for middleware
+PriceHook = Callable[[Any], Awaitable[Price]]
+StringHook = Callable[[Any], Awaitable[str]]
+PriceOrHook = Union[Price, PriceHook]
+StringOrHook = Union[str, StringHook]
 
 
 class PaymentRequirements(BaseModel):

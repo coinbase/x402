@@ -4,13 +4,13 @@ from x402.fastapi.middleware import require_payment
 from x402.types import PaywallConfig
 
 
-async def test_endpoint():
+async def mock_endpoint():
     return {"message": "success"}
 
 
 def test_middleware_invalid_payment():
     app_with_middleware = FastAPI()
-    app_with_middleware.get("/test")(test_endpoint)
+    app_with_middleware.get("/test")(mock_endpoint)
     app_with_middleware.middleware("http")(
         require_payment(
             price="$1.00",
@@ -30,8 +30,8 @@ def test_middleware_invalid_payment():
 
 def test_app_middleware_path_matching():
     app_with_middleware = FastAPI()
-    app_with_middleware.get("/test")(test_endpoint)
-    app_with_middleware.get("/unprotected")(test_endpoint)
+    app_with_middleware.get("/test")(mock_endpoint)
+    app_with_middleware.get("/unprotected")(mock_endpoint)
 
     app_with_middleware.middleware("http")(
         require_payment(
@@ -57,9 +57,9 @@ def test_app_middleware_path_matching():
 
 def test_middleware_path_list_matching():
     app_with_middleware = FastAPI()
-    app_with_middleware.get("/test1")(test_endpoint)
-    app_with_middleware.get("/test2")(test_endpoint)
-    app_with_middleware.get("/unprotected")(test_endpoint)
+    app_with_middleware.get("/test1")(mock_endpoint)
+    app_with_middleware.get("/test2")(mock_endpoint)
+    app_with_middleware.get("/unprotected")(mock_endpoint)
 
     app_with_middleware.middleware("http")(
         require_payment(
@@ -320,7 +320,7 @@ def test_abusive_url_paths():
 def test_browser_request_returns_html():
     """Test that browser requests return HTML paywall instead of JSON."""
     app = FastAPI()
-    app.get("/protected")(test_endpoint)
+    app.get("/protected")(mock_endpoint)
     app.middleware("http")(
         require_payment(
             price="$1.00",
@@ -350,7 +350,7 @@ def test_browser_request_returns_html():
 def test_api_client_request_returns_json():
     """Test that API client requests return JSON response."""
     app = FastAPI()
-    app.get("/protected")(test_endpoint)
+    app.get("/protected")(mock_endpoint)
     app.middleware("http")(
         require_payment(
             price="$1.00",
@@ -386,7 +386,7 @@ def test_paywall_config_injection():
     }
 
     app = FastAPI()
-    app.get("/protected")(test_endpoint)
+    app.get("/protected")(mock_endpoint)
     app.middleware("http")(
         require_payment(
             price="$2.50",
@@ -431,7 +431,7 @@ def test_custom_paywall_html():
     """
 
     app = FastAPI()
-    app.get("/protected")(test_endpoint)
+    app.get("/protected")(mock_endpoint)
     app.middleware("http")(
         require_payment(
             price="$1.00",
@@ -462,7 +462,7 @@ def test_mainnet_vs_testnet_config():
     """Test that mainnet vs testnet is properly configured."""
     # Test testnet (base-sepolia)
     app_testnet = FastAPI()
-    app_testnet.get("/protected")(test_endpoint)
+    app_testnet.get("/protected")(mock_endpoint)
     app_testnet.middleware("http")(
         require_payment(
             price="$1.00",
@@ -474,7 +474,7 @@ def test_mainnet_vs_testnet_config():
 
     # Test mainnet (base)
     app_mainnet = FastAPI()
-    app_mainnet.get("/protected")(test_endpoint)
+    app_mainnet.get("/protected")(mock_endpoint)
     app_mainnet.middleware("http")(
         require_payment(
             price="$1.00",
@@ -508,7 +508,7 @@ def test_mainnet_vs_testnet_config():
 def test_payment_amount_conversion():
     """Test that payment amounts are properly converted to display values."""
     app = FastAPI()
-    app.get("/protected")(test_endpoint)
+    app.get("/protected")(mock_endpoint)
     app.middleware("http")(
         require_payment(
             price="$0.001",  # Small amount
