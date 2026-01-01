@@ -9,6 +9,7 @@ from typing_extensions import (
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
+from starlette.requests import Request
 
 from x402.networks import SupportedNetworks
 
@@ -93,8 +94,8 @@ Money = Union[str, int]  # e.g., "$0.01", 0.01, "0.001"
 Price = Union[Money, TokenAmount]
 
 # Dynamic Hook types for middleware
-PriceHook = Callable[[Any], Awaitable[Price]]
-StringHook = Callable[[Any], Awaitable[str]]
+PriceHook = Callable[[Request], Awaitable[Price]]
+StringHook = Callable[[Request], Awaitable[str]]
 PriceOrHook = Union[Price, PriceHook]
 StringOrHook = Union[str, StringHook]
 
