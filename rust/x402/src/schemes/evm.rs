@@ -111,6 +111,7 @@ where
 mod tests {
     use super::*;
     use alloy::signers::local::PrivateKeySigner;
+    use alloy::sol_types::SolStruct;
 
     #[test]
     fn test_create_exact_eip3009_domain() {
@@ -193,6 +194,57 @@ mod tests {
         assert_eq!(signature_hex.len(), 132);
         
         assert_eq!(auth.value, U256::from_str(&requirement.amount).unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_eip712_signature_recovers_expected_address() {
+        // This test proves:
+        // 1. The TransferWithAuthorization struct is correct
+        // 2. The Eip712Domain derived from PaymentRequirements is correct
+        // 3. The signature is a valid ECDSA signature over (domain, auth)
+        // 4. The recovered address matches the expected address
+        
+        let signer = PrivateKeySigner::random();
+        let expected_address: Address = signer.address();
+        let wallet_address_str = expected_address.to_string();
+        let chain_id = 84532u64;
+
+        let mut extra = serde_json::Map::new();
+        extra.insert("name".to_string(), serde_json::Value::String("x402".to_string()));
+        extra.insert("version".to_string(), serde_json::Value::String("1".to_string()));
+
+        let requirement = PaymentRequirements {
+            scheme: "exact".to_string(),
+            network: "eip155:84532".to_string(),
+            pay_to: "0x1234567890123456789012345678901234567890".to_string(),
+            amount: "1000".to_string(),
+            asset: Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_string()),
+            data: None,
+            extra: Some(serde_json::Value::Object(extra)),
+        };
+
+        let (signature_hex, auth) = sign_transfer_with_authorization(
+            &signer,
+            &wallet_address_str,
+            &requirement,
+            chain_id,
+        )
+            .await
+            .expect("sign_transfer_with_authorization failed");
+
+        let domain = create_exact_eip3009_domain(&requirement, chain_id);
+
+        // sol!-generated helper: compute EIP-712 digest for this struct + domain
+        let digest: B256 = auth.eip712_signing_hash(&domain);
+
+        let sig_bytes = hex::decode(signature_hex.trim_start_matches("0x")).unwrap();
+        let signature = Signature::try_from(sig_bytes.as_slice()).unwrap();
+
+        let recovered = signature
+            .recover_address_from_prehash(&digest)
+            .expect("recover_address failed");
+
+        assert_eq!(recovered, expected_address, "Recovered address mismatch");
     }
 }
 
