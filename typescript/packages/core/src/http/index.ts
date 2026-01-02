@@ -1,5 +1,5 @@
 import { SettleResponse } from "../types";
-import { PaymentPayload, PaymentRequired, PaymentRequirements } from "../types/payments";
+import { PaymentPayload, PaymentRequired } from "../types/payments";
 import { Base64EncodedRegex, safeBase64Decode, safeBase64Encode } from "../utils";
 
 // HTTP Methods that typically use query parameters
@@ -60,9 +60,7 @@ export function decodePaymentRequiredHeader(paymentRequiredHeader: string): Paym
  * @param paymentResponse - The payment response to encode
  * @returns Base64 encoded string representation of the payment response
  */
-export function encodePaymentResponseHeader(
-  paymentResponse: SettleResponse & { requirements: PaymentRequirements },
-): string {
+export function encodePaymentResponseHeader(paymentResponse: SettleResponse): string {
   return safeBase64Encode(JSON.stringify(paymentResponse));
 }
 
