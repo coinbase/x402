@@ -6,6 +6,7 @@ use alloy::signers::{Signature, Signer};
 use crate::types::PaymentRequirements;
 use crate::errors::X402Result;
 use alloy::sol;
+use rand::RngCore;
 
 // EIP-712 structure for the Exact scheme
 sol! {
@@ -80,9 +81,10 @@ where
     let valid_after = U256::from(now.saturating_sub(600)); // 10 minutes before
     let valid_before = U256::from(now + 600); // 10 minutes after (or use your max_timeout)
 
-    // 4. Nonce (for tests you can use a fixed nonce; in real code use random)
-    let nonce_bytes: [u8; 32] = [1u8; 32];
-    let nonce = B256::from(nonce_bytes);
+    // 4. Nonce
+    let mut bytes = [0u8; 32];
+    rand::rng().fill_bytes(&mut bytes);
+    let nonce = B256::from(bytes);
 
     let auth = TransferWithAuthorization {
         from,
@@ -203,7 +205,7 @@ mod tests {
         // 2. The Eip712Domain derived from PaymentRequirements is correct
         // 3. The signature is a valid ECDSA signature over (domain, auth)
         // 4. The recovered address matches the expected address
-        
+
         let signer = PrivateKeySigner::random();
         let expected_address: Address = signer.address();
         let wallet_address_str = expected_address.to_string();
