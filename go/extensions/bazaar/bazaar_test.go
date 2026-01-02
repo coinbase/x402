@@ -799,14 +799,18 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			},
 		})
 
-		var paymentRequired map[string]interface{}
-		json.Unmarshal(paymentRequiredJSON, &paymentRequired)
+	var paymentRequired map[string]interface{}
+	if err := json.Unmarshal(paymentRequiredJSON, &paymentRequired); err != nil {
+		t.Fatalf("Failed to unmarshal payment required: %v", err)
+	}
 
-		// 3. Facilitator receives and validates
-		bazaarExtRaw := paymentRequired["extensions"].(map[string]interface{})[bazaar.BAZAAR]
-		bazaarExtJSON, _ := json.Marshal(bazaarExtRaw)
-		var bazaarExt bazaar.DiscoveryExtension
-		json.Unmarshal(bazaarExtJSON, &bazaarExt)
+	// 3. Facilitator receives and validates
+	bazaarExtRaw := paymentRequired["extensions"].(map[string]interface{})[bazaar.BAZAAR]
+	bazaarExtJSON, _ := json.Marshal(bazaarExtRaw)
+	var bazaarExt bazaar.DiscoveryExtension
+	if err := json.Unmarshal(bazaarExtJSON, &bazaarExt); err != nil {
+		t.Fatalf("Failed to unmarshal bazaar extension: %v", err)
+	}
 
 		validation := bazaar.ValidateDiscoveryExtension(bazaarExt)
 		assert.True(t, validation.Valid)

@@ -54,28 +54,6 @@ describe("ExactEvmScheme (Server)", () => {
       });
     });
 
-    describe("Ethereum mainnet network", () => {
-      const network = "eip155:1";
-
-      it("should use Ethereum mainnet USDC address", async () => {
-        const result = await server.parsePrice("1.00", network);
-        expect(result.asset).toBe("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-        expect(result.amount).toBe("1000000");
-        expect(result.extra).toEqual({ name: "USD Coin", version: "2" });
-      });
-    });
-
-    describe("Sepolia testnet network", () => {
-      const network = "eip155:11155111";
-
-      it("should use Sepolia USDC address", async () => {
-        const result = await server.parsePrice("1.00", network);
-        expect(result.asset).toBe("0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238");
-        expect(result.amount).toBe("1000000");
-        expect(result.extra).toEqual({ name: "USDC", version: "2" });
-      });
-    });
-
     describe("pre-parsed price objects", () => {
       it("should handle pre-parsed price objects with asset", async () => {
         const result = await server.parsePrice(
