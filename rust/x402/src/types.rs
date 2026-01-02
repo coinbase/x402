@@ -73,7 +73,7 @@ pub struct SettleResponse {
     #[serde(rename = "errorReason")]
     pub error_reason: Option<String>,
     pub payer: Option<String>,
-    pub transaction: String,
+    pub transaction: Option<String>,
     pub network: String,
 }
 
