@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { INTRO_STORAGE_KEY } from "../lib/introMedia";
 
 interface IntroContextValue {
   shouldShowIntro: boolean;
@@ -8,8 +9,6 @@ interface IntroContextValue {
 }
 
 const IntroContext = createContext<IntroContextValue | undefined>(undefined);
-
-const INTRO_STORAGE_KEY = "x402-intro-completed";
 
 interface IntroProviderProps {
   children: ReactNode;
@@ -26,10 +25,10 @@ export function IntroProvider({ children }: IntroProviderProps) {
     setShouldShowIntro(!hasSeenIntro);
   }, []);
 
-  const markIntroComplete = () => {
+  const markIntroComplete = useCallback((): void => {
     sessionStorage.setItem(INTRO_STORAGE_KEY, "true");
     setShouldShowIntro(false);
-  };
+  }, []);
 
   // Don't render intro during SSR
   if (!mounted) {
