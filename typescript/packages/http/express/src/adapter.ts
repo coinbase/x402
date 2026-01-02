@@ -47,7 +47,7 @@ export class ExpressAdapter implements HTTPAdapter {
    * @returns The full request URL
    */
   getUrl(): string {
-    return `${this.req.protocol}://${this.req.headers.host}${this.req.path}`;
+    return `${this.req.protocol}://${this.req.headers.host}${this.req.originalUrl}`;
   }
 
   /**
