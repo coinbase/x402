@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, DM_Mono, Inconsolata, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import { IntroProvider } from "./contexts/IntroContext";
+import { IntroAnimation } from "./components/IntroAnimation";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -64,10 +66,13 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
       <body className="antialiased bg-background text-foreground font-sans">
-        <a href="#main-content" className="skip-to-content">
-          Skip to main content
-        </a>
-        <main id="main-content">{children}</main>
+        <IntroProvider>
+          <IntroAnimation />
+          <a href="#main-content" className="skip-to-content">
+            Skip to main content
+          </a>
+          <main id="main-content">{children}</main>
+        </IntroProvider>
       </body>
     </html>
   );
