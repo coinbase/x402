@@ -2,19 +2,17 @@
 
 ## Summary
 
-The `exact` scheme on Aptos transfers a specific amount of a fungible asset (such as APT or stablecoins like USDC) from the payer to the resource server using the Aptos fungible asset transfer function (`0x1::primary_fungible_store::transfer`). The approach requires the payer to construct a complete signed transaction ensuring that the facilitator cannot alter the transaction or redirect funds to any address other than the one specified by the resource server in paymentRequirements.
+The `exact` scheme on Aptos transfers a specific amount of a stablecoin (such as USDC) from the payer to the resource server using Aptos's fungible asset framework. The approach requires the payer to construct a complete signed transaction ensuring that the facilitator cannot alter the transaction or redirect funds to any address other than the one specified by the resource server in paymentRequirements.
 
 **Version Support:** This specification supports x402 v2 protocol only.
-
-**Current Implementation:** Uses the standard Aptos account transfer function for simplicity.
 
 ## Protocol Sequencing
 
 The protocol flow for `exact` on Aptos is client-driven. When the facilitator supports sponsorship, it sets `extra.sponsored` to `true` in the payment requirements. This signals to the client that sponsored (gasless) transactions are available.
 
 1. Client makes a request to a `resource server` and receives a `402 Payment Required` response. The `extra.sponsored` field indicates sponsorship is available.
-2. Client constructs a fee payer transaction to transfer the fungible asset to the resource server's address. The client can set the fee payer address to `0x0` as a placeholder.
-3. Client signs the transaction.
+2. Client constructs a fee payer transaction to transfer the fungible asset to the resource server's address. The fee payer address field should be set to `0x0` as a placeholder—this field will be populated by the facilitator during settlement.
+3. Client signs the transaction (the client's signature covers the transaction payload but not the fee payer address, allowing the facilitator to fill it in later).
 4. Client serializes the signed transaction using BCS (Binary Canonical Serialization) and encodes it as Base64.
 5. Client resends the request to the `resource server` including the payment in the `PAYMENT-SIGNATURE` header.
 6. `resource server` passes the payment payload to the `facilitator` for verification.
@@ -56,7 +54,7 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 
 - `scheme`: Always `"exact"` for this scheme
 - `network`: CAIP-2 network identifier - `aptos:1` (mainnet) or `aptos:2` (testnet)
-- `amount`: The exact amount to transfer in atomic units (e.g., `"100000000"` = 1 APT, since APT has 8 decimals)
+- `amount`: The exact amount to transfer in atomic units (e.g., `"1000000"` = 1 USDC, since USDC has 6 decimals)
 - `asset`: The metadata address of the fungible asset (e.g., USDC on Aptos mainnet: `0xbae207659db88bea0cbead6da0ed00aac12edcdda169e591cd41c94180b46f3b`)
 - `payTo`: The recipient address (32-byte hex string with `0x` prefix)
 - `maxTimeoutSeconds`: Maximum time in seconds before the payment expires
@@ -112,7 +110,7 @@ Steps to verify a payment for the `exact` scheme:
 3. Verify the network matches the agreed upon chain (CAIP-2 format: `aptos:1` or `aptos:2`).
 4. Deserialize the BCS-encoded transaction and verify the signature is valid.
 5. Verify the transaction sender has sufficient balance of the `asset` to cover the required amount.
-6. Verify the transaction contains a fungible asset transfer operation (`0x1::primary_fungible_store::transfer`).
+6. Verify the transaction contains a fungible asset transfer operation (e.g., `0x1::primary_fungible_store::transfer` or `0x1::fungible_asset::transfer`).
 7. Verify the transfer is for the correct asset (matching `requirements.asset`).
 8. Verify the transfer amount matches `requirements.amount`.
 9. Verify the transfer recipient matches `requirements.payTo`.
@@ -123,10 +121,10 @@ Steps to verify a payment for the `exact` scheme:
 
 Settlement is performed by sponsoring and submitting the transaction:
 
-1. Facilitator receives the client-signed transaction.
-2. Fee payer address is set on the transaction.
-3. Fee payer signs the transaction.
-4. Fully-signed transaction is submitted to the Aptos network.
+1. Facilitator receives the client-signed transaction (deserialized from Base64/BCS).
+2. Facilitator populates the fee payer address field in the transaction. In Aptos fee payer transactions, this field is separate from the signed payload—the client's signature remains valid because it covers only the transaction payload (sender, recipient, amount, asset), not the fee payer field.
+3. Facilitator signs the transaction as the fee payer (this is an additional signature appended to the transaction, not a replacement).
+4. The fully-signed transaction (with both client signature and fee payer signature) is submitted to the Aptos network.
 5. Transaction hash is returned to the resource server.
 
 The facilitator may act as the fee payer directly, or delegate to a gas station service. See the [Sponsored Transactions](#sponsored-transactions) appendix for implementation options.
@@ -164,6 +162,8 @@ For Aptos-specific information like the ledger version, clients can query the tr
 ### Sponsored Transactions
 
 When `extra.sponsored` is `true`, the facilitator will pay gas fees on behalf of the client using Aptos's native [fee payer mechanism](https://aptos.dev/build/guides/sponsored-transactions).
+
+**Fee Payer Placeholder:** When constructing a sponsored transaction, the client sets the fee payer address field to `0x0` as a placeholder. The facilitator replaces this with its actual fee payer address during settlement. The client's signature remains valid because it covers only the transaction payload, not the fee payer address.
 
 Facilitators can implement sponsorship in two ways:
 
@@ -206,22 +206,35 @@ For sponsored transactions, an additional **Fee Payer** field is included, desig
 
 ### Fungible Asset Transfer
 
-The payment transaction uses the Aptos Fungible Asset framework, specifically the `primary_fungible_store::transfer` function:
+The payment transaction transfers a fungible asset using Aptos's fungible asset framework. Two common approaches:
+
+**Option 1: `0x1::primary_fungible_store::transfer`** (recommended)
+
+```move
+public entry fun transfer<T: key>(
+    sender: &signer,
+    metadata: Object<T>,
+    recipient: address,
+    amount: u64,
+)
+```
+
+Auto-creates primary stores if they don't exist. Simpler and safer for general use.
+
+**Option 2: `0x1::fungible_asset::transfer`**
 
 ```move
 public entry fun transfer<T: key>(
     sender: &signer,
     from: Object<T>,
-    to: address,
+    to: Object<T>,
     amount: u64,
 )
 ```
 
-Where:
+Lower-level transfer between existing stores. More gas efficient when stores already exist.
 
-- `from`: The fungible asset metadata object (e.g., USDC metadata address)
-- `to`: The resource server's address
-- `amount`: The exact amount specified in `paymentRequirements.amount`
+**Key difference:** `primary_fungible_store::transfer` takes addresses and handles store lookup/creation automatically. `fungible_asset::transfer` takes store objects directly—the caller must resolve store addresses beforehand.
 
 ### Signature Schemes
 
