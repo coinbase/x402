@@ -157,9 +157,28 @@ pub async fn x402_middleware(
                     let response = next.run(req).await;
 
                     if response.status().is_success() {
-                        let _ = config.facilitator.settle(payload, accepted_requirement).await;
+                        match config
+                            .facilitator
+                            .settle(payload, accepted_requirement)
+                            .await
+                        {
+                            Ok(settle_response) => {
+                                if settle_response.success {
+                                    response
+                                } else {
+                                    let err_msg = format!("Failed to settle payment: {}", settle_response.error_reason.unwrap_or("Unknown Reason".to_owned()));
+                                    (StatusCode::NOT_ACCEPTABLE, err_msg).into_response()
+                                }
+                            },
+                            Err(e) => {
+                                dbg!("Failed to settle payment: {:?}", e);
+                                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to settle payment")
+                                    .into_response()
+                            }
+                        }
+                    } else {
+                        response
                     }
-                    response
                 }
                 Ok(verify_result) => {
                     let reason = verify_result.invalid_reason.unwrap_or_else(|| "Unknown verification error".to_string());
