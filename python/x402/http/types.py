@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
 
 if TYPE_CHECKING:
     from ..schemas import (
@@ -134,8 +134,9 @@ class PaywallConfig:
 
 
 # Dynamic function types
-DynamicPayTo = Callable[["HTTPRequestContext"], str]
-DynamicPrice = Callable[["HTTPRequestContext"], "Price"]
+DynamicPayTo = Callable[["HTTPRequestContext"], Awaitable[str]]
+DynamicPrice = Callable[["HTTPRequestContext"], Awaitable["Price"]]
+DynamicString = Callable[["HTTPRequestContext"], Awaitable[str]]
 
 
 @dataclass
@@ -154,8 +155,8 @@ class PaymentOption:
     """A payment option for a route."""
 
     scheme: str
-    pay_to: str | DynamicPayTo
-    price: Price | DynamicPrice
+    pay_to: Union[str, DynamicPayTo]
+    price: Union[Price, DynamicPrice]
     network: Network
     max_timeout_seconds: int | None = None
     extra: dict[str, Any] | None = None
@@ -166,8 +167,8 @@ class RouteConfig:
     """Configuration for a payment-protected route."""
 
     accepts: PaymentOption | list[PaymentOption]
-    resource: str | None = None
-    description: str | None = None
+    resource: Union[str, DynamicString, None] = None
+    description: Union[str, DynamicString, None] = None
     mime_type: str | None = None
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None

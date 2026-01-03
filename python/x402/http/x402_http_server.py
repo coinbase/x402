@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from typing import TYPE_CHECKING, Any, Protocol
@@ -209,7 +210,7 @@ class x402HTTPResourceServer:
     # Request Processing
     # =========================================================================
 
-    def process_http_request(
+    async def process_http_request(
         self,
         context: HTTPRequestContext,
         paywall_config: PaywallConfig | None = None,
@@ -236,18 +237,45 @@ class x402HTTPResourceServer:
         # Extract payment from headers
         payment_payload = self._extract_payment(context.adapter)
 
-        # Build resource info
-        resource_info = ResourceInfo(
-            url=route_config.resource or context.adapter.get_url(),
-            description=route_config.description or "",
-            mime_type=route_config.mime_type or "",
-        )
+        # Resolve dynamic values for the route
+        try:
+            resolved_resource = await self._resolve_value(
+                route_config.resource, context, field_name="resource"
+            ) or context.adapter.get_url()
+            resolved_description = await self._resolve_value(
+                route_config.description, context, field_name="description"
+            ) or ""
 
-        # Build requirements from payment options
-        requirements = self._build_payment_requirements_from_options(
-            route_config.accepts,
-            context,
-        )
+            # Build resource info
+            resource_info = ResourceInfo(
+                url=resolved_resource,
+                description=resolved_description,
+                mime_type=route_config.mime_type or "",
+            )
+
+            # Build requirements from payment options
+            requirements = await self._build_payment_requirements_from_options(
+                route_config.accepts,
+                context,
+            )
+        except asyncio.TimeoutError:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=HTTPResponseInstructions(
+                    status=500,
+                    headers={},
+                    body={"error": "Hook execution timed out"},
+                ),
+            )
+        except Exception as e:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=HTTPResponseInstructions(
+                    status=500,
+                    headers={},
+                    body={"error": f"Hook execution failed: {str(e)}"},
+                ),
+            )
 
         # Enrich extensions if present
         extensions = route_config.extensions
@@ -415,7 +443,7 @@ class x402HTTPResourceServer:
 
         return None
 
-    def _build_payment_requirements_from_options(
+    async def _build_payment_requirements_from_options(
         self,
         options: PaymentOption | list[PaymentOption],
         context: HTTPRequestContext,
@@ -431,17 +459,9 @@ class x402HTTPResourceServer:
         all_requirements = []
 
         for option in options:
-            # Resolve dynamic payTo
-            if callable(option.pay_to):
-                pay_to = option.pay_to(context)
-            else:
-                pay_to = option.pay_to
-
-            # Resolve dynamic price
-            if callable(option.price):
-                price = option.price(context)
-            else:
-                price = option.price
+            # Resolve dynamic values for the option
+            pay_to = await self._resolve_value(option.pay_to, context, field_name="pay_to")
+            price = await self._resolve_value(option.price, context, field_name="price")
 
             # Build requirements using server
             from ..server import ResourceConfig
@@ -458,6 +478,18 @@ class x402HTTPResourceServer:
             all_requirements.extend(requirements)
 
         return all_requirements
+
+    async def _resolve_value(
+        self,
+        value: Any,
+        context: HTTPRequestContext,
+        timeout: float = 5.0,
+        field_name: str = "value",
+    ) -> Any:
+        """Resolve a value that could be a static value or an async hook."""
+        if callable(value):
+            return await asyncio.wait_for(value(context), timeout=timeout)
+        return value
 
     def _extract_payment(self, adapter: HTTPAdapter) -> PaymentPayload | PaymentPayloadV1 | None:
         """Extract payment from HTTP headers (V2 only)."""
