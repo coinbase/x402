@@ -20,7 +20,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "httpx>=0.28.1",
     "pydantic>=2.0.0",
     "typing_extensions>=4.0.0",
     # EVM dependencies (like legacy package)
@@ -31,6 +30,20 @@ dependencies = [
     "web3>=6.0.0",
 ]
 
+[project.optional-dependencies]
+# HTTP clients - install one based on your preference
+httpx = ["httpx>=0.28.1"]
+requests = ["requests>=2.31.0"]
+
+# Server frameworks - install one based on your stack
+flask = ["flask>=3.0.0"]
+fastapi = ["fastapi[standard]>=0.115.0", "starlette>=0.27.0"]
+
+# Convenience bundles
+clients = ["x402[httpx,requests]"]
+servers = ["x402[flask,fastapi]"]
+all = ["x402[httpx,requests,flask,fastapi]"]
+
 [dependency-groups]
 dev = [
     "pytest>=7.0.0",
@@ -38,6 +51,12 @@ dev = [
     "mypy>=1.0.0",
     "ruff>=0.1.0",
     "black>=23.0.0",
+    # Include all optional deps for testing
+    "httpx>=0.28.1",
+    "requests>=2.31.0",
+    "flask>=3.0.0",
+    "fastapi[standard]>=0.115.0",
+    "starlette>=0.27.0",
 ]
 
 [project.urls]

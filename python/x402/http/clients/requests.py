@@ -9,8 +9,13 @@ import copy
 import json
 from typing import TYPE_CHECKING, Any
 
-import requests
-from requests.adapters import HTTPAdapter
+try:
+    import requests
+    from requests.adapters import HTTPAdapter
+except ImportError as e:
+    raise ImportError(
+        "requests client requires the requests package. Install with: uv add x402[requests]"
+    ) from e
 
 if TYPE_CHECKING:
     from ...client import x402Client

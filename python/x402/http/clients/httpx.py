@@ -9,8 +9,13 @@ import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import httpx
-from httpx import AsyncBaseTransport, Request, Response
+try:
+    import httpx
+    from httpx import AsyncBaseTransport, Request, Response
+except ImportError as e:
+    raise ImportError(
+        "httpx client requires the httpx package. Install with: uv add x402[httpx]"
+    ) from e
 
 if TYPE_CHECKING:
     from ...client import x402Client

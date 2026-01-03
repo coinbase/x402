@@ -8,10 +8,15 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from fastapi import Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
+try:
+    from fastapi import Request, Response
+    from fastapi.responses import HTMLResponse, JSONResponse
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.types import ASGIApp
+except ImportError as e:
+    raise ImportError(
+        "FastAPI middleware requires fastapi and starlette. Install with: uv add x402[fastapi]"
+    ) from e
 
 from ..types import (
     HTTPAdapter,
