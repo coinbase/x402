@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -134,8 +134,9 @@ class PaywallConfig:
 
 
 # Dynamic function types
-DynamicPayTo = Callable[["HTTPRequestContext"], str]
-DynamicPrice = Callable[["HTTPRequestContext"], "Price"]
+DynamicPayTo = Callable[["HTTPRequestContext"], Awaitable[str] | str]
+DynamicPrice = Callable[["HTTPRequestContext"], Awaitable["Price"] | "Price"]
+DynamicString = Callable[["HTTPRequestContext"], Awaitable[str] | str]
 
 
 @dataclass
@@ -166,12 +167,13 @@ class RouteConfig:
     """Configuration for a payment-protected route."""
 
     accepts: PaymentOption | list[PaymentOption]
-    resource: str | None = None
-    description: str | None = None
+    resource: str | DynamicString | None = None
+    description: str | DynamicString | None = None
     mime_type: str | None = None
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None
     extensions: dict[str, Any] | None = None
+    hook_timeout_seconds: float = 5.0
 
 
 RoutesConfig = dict[str, RouteConfig] | RouteConfig

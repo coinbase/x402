@@ -5,6 +5,7 @@ Provides payment-gated route protection for Flask applications.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
@@ -300,7 +301,24 @@ class PaymentMiddleware:
                 self._init_done = True
 
             # Process payment request
-            result = self._http_server.process_http_request(context, self._paywall_config)
+            try:
+                # Try to get existing event loop
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Loop is already running, cannot nest - use asyncio.run()
+                    result = asyncio.run(
+                        self._http_server.process_http_request(context, self._paywall_config)
+                    )
+                else:
+                    # Loop exists but not running - use it
+                    result = loop.run_until_complete(
+                        self._http_server.process_http_request(context, self._paywall_config)
+                    )
+            except RuntimeError:
+                # No event loop exists - create one with asyncio.run()
+                result = asyncio.run(
+                    self._http_server.process_http_request(context, self._paywall_config)
+                )
 
             if result.type == "no-payment-required":
                 return self._original_wsgi(environ, start_response)
