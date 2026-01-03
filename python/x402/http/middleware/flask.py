@@ -302,12 +302,23 @@ class PaymentMiddleware:
 
             # Process payment request
             try:
-                loop = asyncio.new_event_loop()
-                result = loop.run_until_complete(
+                # Try to get existing event loop
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Loop is already running, cannot nest - use asyncio.run()
+                    result = asyncio.run(
+                        self._http_server.process_http_request(context, self._paywall_config)
+                    )
+                else:
+                    # Loop exists but not running - use it
+                    result = loop.run_until_complete(
+                        self._http_server.process_http_request(context, self._paywall_config)
+                    )
+            except RuntimeError:
+                # No event loop exists - create one with asyncio.run()
+                result = asyncio.run(
                     self._http_server.process_http_request(context, self._paywall_config)
                 )
-            finally:
-                loop.close()
 
             if result.type == "no-payment-required":
                 return self._original_wsgi(environ, start_response)

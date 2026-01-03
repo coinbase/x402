@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
     from ..schemas import (
@@ -134,9 +134,9 @@ class PaywallConfig:
 
 
 # Dynamic function types
-DynamicPayTo = Callable[["HTTPRequestContext"], Awaitable[str]]
-DynamicPrice = Callable[["HTTPRequestContext"], Awaitable["Price"]]
-DynamicString = Callable[["HTTPRequestContext"], Awaitable[str]]
+DynamicPayTo = Callable[["HTTPRequestContext"], Awaitable[str] | str]
+DynamicPrice = Callable[["HTTPRequestContext"], Awaitable["Price"] | "Price"]
+DynamicString = Callable[["HTTPRequestContext"], Awaitable[str] | str]
 
 
 @dataclass
@@ -155,8 +155,8 @@ class PaymentOption:
     """A payment option for a route."""
 
     scheme: str
-    pay_to: Union[str, DynamicPayTo]
-    price: Union[Price, DynamicPrice]
+    pay_to: str | DynamicPayTo
+    price: Price | DynamicPrice
     network: Network
     max_timeout_seconds: int | None = None
     extra: dict[str, Any] | None = None
@@ -167,12 +167,13 @@ class RouteConfig:
     """Configuration for a payment-protected route."""
 
     accepts: PaymentOption | list[PaymentOption]
-    resource: Union[str, DynamicString, None] = None
-    description: Union[str, DynamicString, None] = None
+    resource: str | DynamicString | None = None
+    description: str | DynamicString | None = None
     mime_type: str | None = None
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None
     extensions: dict[str, Any] | None = None
+    hook_timeout_seconds: float = 5.0
 
 
 RoutesConfig = dict[str, RouteConfig] | RouteConfig

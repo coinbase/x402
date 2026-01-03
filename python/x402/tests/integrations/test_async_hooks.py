@@ -143,3 +143,127 @@ class TestAsyncHooks:
         assert result.type == "payment-error"
         assert result.response.status == 500
         assert "timed out" in result.response.body["error"].lower()
+
+    def test_sync_hook_backward_compatibility(self):
+        """Test that synchronous hooks still work (backward compatibility)."""
+
+        def sync_price(context):  # Non-async function
+            return "$3.00"
+
+        def sync_pay_to(context):  # Non-async function
+            return "sync-merchant@example.com"
+
+        routes = {
+            "GET /sync": {
+                "accepts": {
+                    "scheme": "cash",
+                    "network": "x402:cash",
+                    "payTo": sync_pay_to,
+                    "price": sync_price,
+                }
+            }
+        }
+        http_server = x402HTTPResourceServer(self.resource_server, routes)
+        context = HTTPRequestContext(
+            adapter=MockHTTPAdapter(path="/sync"), path="/sync", method="GET"
+        )
+
+        result = asyncio.run(http_server.process_http_request(context))
+        assert result.type == "payment-error"
+        payment_required = decode_payment_required_header(
+            result.response.headers["PAYMENT-REQUIRED"]
+        )
+        assert payment_required.accepts[0].amount == "3.00"
+        assert payment_required.accepts[0].payTo == "sync-merchant@example.com"
+
+    def test_mixed_sync_async_hooks(self):
+        """Test mixing sync and async hooks in the same route."""
+
+        async def async_price(context):
+            await asyncio.sleep(0.05)
+            return "$2.50"
+
+        def sync_pay_to(context):  # Synchronous function
+            return "mixed@example.com"
+
+        routes = {
+            "GET /mixed": {
+                "accepts": {
+                    "scheme": "cash",
+                    "network": "x402:cash",
+                    "payTo": sync_pay_to,
+                    "price": async_price,
+                }
+            }
+        }
+        http_server = x402HTTPResourceServer(self.resource_server, routes)
+        context = HTTPRequestContext(
+            adapter=MockHTTPAdapter(path="/mixed"), path="/mixed", method="GET"
+        )
+
+        result = asyncio.run(http_server.process_http_request(context))
+        assert result.type == "payment-error"
+        payment_required = decode_payment_required_header(
+            result.response.headers["PAYMENT-REQUIRED"]
+        )
+        assert payment_required.accepts[0].amount == "2.50"
+
+    def test_hook_raises_exception(self):
+        """Test that hooks raising exceptions are handled gracefully."""
+
+        async def failing_hook(context):
+            raise ValueError("Intentional error for testing")
+
+        routes = {
+            "GET /error": {
+                "accepts": {
+                    "scheme": "cash",
+                    "network": "x402:cash",
+                    "payTo": "m@e.com",
+                    "price": failing_hook,
+                },
+            }
+        }
+        http_server = x402HTTPResourceServer(self.resource_server, routes)
+        context = HTTPRequestContext(
+            adapter=MockHTTPAdapter(path="/error"), path="/error", method="GET"
+        )
+
+        result = asyncio.run(http_server.process_http_request(context))
+        assert result.type == "payment-error"
+        assert result.response.status == 500
+        # Ensure error message is sanitized
+        assert "Failed to process request" in result.response.body["error"]
+        # Ensure internal error details are not exposed
+        assert "Intentional error" not in result.response.body["error"]
+
+    def test_custom_timeout_configuration(self):
+        """Test that custom timeout can be configured per route."""
+
+        async def slow_hook(context):
+            await asyncio.sleep(0.5)  # 0.5 seconds
+            return "$1.00"
+
+        routes = {
+            "GET /custom-timeout": {
+                "accepts": {
+                    "scheme": "cash",
+                    "network": "x402:cash",
+                    "payTo": "m@e.com",
+                    "price": slow_hook,
+                },
+                "hook_timeout_seconds": 0.2,  # 0.2 second timeout
+            }
+        }
+        http_server = x402HTTPResourceServer(self.resource_server, routes)
+        context = HTTPRequestContext(
+            adapter=MockHTTPAdapter(path="/custom-timeout"),
+            path="/custom-timeout",
+            method="GET"
+        )
+
+        result = asyncio.run(http_server.process_http_request(context))
+        # Hook takes 0.5s but timeout is 0.2s -> should timeout
+        assert result.type == "payment-error"
+        assert result.response.status == 500
+        assert "timed out" in result.response.body["error"].lower()
