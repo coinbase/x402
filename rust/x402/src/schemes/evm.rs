@@ -59,6 +59,7 @@ pub async fn sign_transfer_with_authorization<S>(
     wallet_address: &str,
     requirement: &PaymentRequirements,
     chain_id: u64,
+    valid_for: Option<u64> // Time in seconds
 ) -> X402Result<(String, TransferWithAuthorization)>
 where
     S: Signer<Signature> + Send + Sync,
@@ -78,8 +79,8 @@ where
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_secs();
-    let valid_after = U256::from(now.saturating_sub(600)); // 10 minutes before
-    let valid_before = U256::from(now + 600); // 10 minutes after (or use your max_timeout)
+    let valid_after = U256::from(now.saturating_sub(60)); // 1 minute before
+    let valid_before = U256::from(now + valid_for.unwrap_or(300)) ; // 5 minutes after (or valid_for)
 
     // 4. Nonce
     let mut bytes = [0u8; 32];
@@ -187,7 +188,7 @@ mod tests {
             extra: Some(serde_json::Value::Object(extra)),
         };
 
-        let result = sign_transfer_with_authorization(&signer, &wallet_address, &requirement, chain_id).await;
+        let result = sign_transfer_with_authorization(&signer, &wallet_address, &requirement, chain_id, Some(600)).await;
 
         assert!(result.is_ok());
         let (signature_hex, auth) = result.unwrap();
@@ -230,6 +231,7 @@ mod tests {
             &wallet_address_str,
             &requirement,
             chain_id,
+            None,
         )
             .await
             .expect("sign_transfer_with_authorization failed");
