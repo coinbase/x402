@@ -117,12 +117,6 @@ impl FacilitatorClient for HttpFacilitator {
             payment_payload: payload,
             payment_requirements: requirements,
         };
-
-        // For some temp debugging
-        use serde_json::to_string_pretty;
-        let json = to_string_pretty(&request)?;
-        println!("JSON: {json}");
-
         self.post_json(self.verify_url(), &request).await
     }
 
@@ -135,7 +129,6 @@ impl FacilitatorClient for HttpFacilitator {
             payment_payload: payload,
             payment_requirements: requirements,
         };
-
         self.post_json(self.settle_url(), &request).await
     }
 }
