@@ -35,8 +35,8 @@ impl SchemeNetworkServer for TestSchemeServer {
     ) -> X402Result<PaymentRequirements> {
         let (amount, asset) = resource_config.price.to_asset_amount();
         let extra = Some(json!({
-            "name": "x402",
-            "version": "1"
+            "name": "USDC",
+            "version": "2"
         }));
         Ok(PaymentRequirements {
             scheme: self.scheme().to_owned(),
@@ -146,6 +146,7 @@ async fn test_x402_axum_facilitator_integration() {
             &wallet_address.to_string(),
             &accepted,
             chain_id,
+            None
         ).await.expect("sign_transfer_with_authorization failed");
 
         let authorization_json = json!({
@@ -194,9 +195,9 @@ async fn test_x402_axum_facilitator_integration() {
             .unwrap();
         let body_str = String::from_utf8_lossy(&body_bytes);
 
-        println!("Response Status (With Fake PAYMENT-SIGNATURE): {}", status);
+        println!("Response Status: {}", status);
         println!(
-            "Response Body (With Fake PAYMENT-SIGNATURE): {}",
+            "Response Body: {}",
             body_str
         );
 
