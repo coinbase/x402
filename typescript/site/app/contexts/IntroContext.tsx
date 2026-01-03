@@ -10,6 +10,12 @@ interface IntroContextValue {
 
 const IntroContext = createContext<IntroContextValue | undefined>(undefined);
 
+/** Stable fallback for when useIntro is called outside IntroProvider */
+const FALLBACK_INTRO_CONTEXT: IntroContextValue = {
+  shouldShowIntro: false,
+  markIntroComplete: (): void => {},
+};
+
 interface IntroProviderProps {
   children: ReactNode;
 }
@@ -44,11 +50,5 @@ export function IntroProvider({ children }: IntroProviderProps) {
 
 export function useIntro(): IntroContextValue {
   const context = useContext(IntroContext);
-  if (context === undefined) {
-    return {
-      shouldShowIntro: false,
-      markIntroComplete: () => {},
-    };
-  }
-  return context;
+  return context ?? FALLBACK_INTRO_CONTEXT;
 }

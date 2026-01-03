@@ -12,6 +12,7 @@ const FADE_OUT_DURATION = 0.5; // 500ms fade out
 export function IntroAnimation(): React.ReactElement | null {
   const { shouldShowIntro, markIntroComplete } = useIntro();
   const prefersReducedMotion = useReducedMotion();
+  // TODO: this is unused and is left here in case programmatically controlling the video is useful
   const videoRef = useRef<HTMLVideoElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isVisible, setIsVisible] = useState<boolean>(true);
@@ -29,10 +30,6 @@ export function IntroAnimation(): React.ReactElement | null {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    handleComplete();
-  }, [handleComplete]);
-
-  const handleVideoEnd = useCallback((): void => {
     handleComplete();
   }, [handleComplete]);
 
@@ -98,7 +95,7 @@ export function IntroAnimation(): React.ReactElement | null {
             muted
             playsInline
             preload="auto"
-            onEnded={handleVideoEnd}
+            onEnded={handleComplete}
             onError={handleVideoError}
             className="w-full h-full object-contain"
           >
