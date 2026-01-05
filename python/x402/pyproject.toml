@@ -28,7 +28,6 @@ dependencies = [
     "eth-utils>=4.0.0",
     "eth-account>=0.12.0",
     "web3>=6.0.0",
-    # SVM (Solana) dependencies
     "solders>=0.27.0",
     "solana>=0.36.0",
 ]
