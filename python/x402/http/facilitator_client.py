@@ -123,7 +123,7 @@ class HTTPFacilitatorClient:
         if self._http_client is None:
             import httpx
 
-            self._http_client = httpx.Client(timeout=self._timeout)
+            self._http_client = httpx.Client(timeout=self._timeout, follow_redirects=True)
         return self._http_client
 
     def close(self) -> None:
