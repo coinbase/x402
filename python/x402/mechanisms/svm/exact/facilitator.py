@@ -322,6 +322,7 @@ class ExactSvmScheme:
                 transaction="",
             )
 
+        signature = ""
         try:
             # Extract feePayer from requirements (already validated in verify)
             extra = requirements.extra or {}
@@ -345,11 +346,11 @@ class ExactSvmScheme:
                 payer=verify_result.payer,
             )
 
-        except Exception:
+        except Exception as e:
             return SettleResponse(
                 success=False,
-                error_reason=ERR_TRANSACTION_FAILED,
-                transaction="",
+                error_reason=f"{ERR_TRANSACTION_FAILED}: {e}",
+                transaction=signature,
                 network=network,
                 payer=verify_result.payer or "",
             )

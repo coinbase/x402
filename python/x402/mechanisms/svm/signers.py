@@ -185,11 +185,18 @@ class FacilitatorKeypairSigner:
         tx_bytes = base64.b64decode(tx_base64)
         tx = VersionedTransaction.from_bytes(tx_bytes)
 
-        # Sign with fee payer
-        tx.sign([keypair])
+        # For VersionedTransaction with MessageV0, prepend 0x80 version byte before signing
+        message = tx.message
+        msg_bytes_with_version = bytes([0x80]) + bytes(message)
+        facilitator_signature = keypair.sign_message(msg_bytes_with_version)
+
+        # Fee payer is always at index 0, client signature at index 1
+        signatures = list(tx.signatures)
+        signatures[0] = facilitator_signature
+        signed_tx = VersionedTransaction.populate(message, signatures)
 
         # Re-encode
-        return base64.b64encode(bytes(tx)).decode("utf-8")
+        return base64.b64encode(bytes(signed_tx)).decode("utf-8")
 
     def simulate_transaction(self, tx_base64: str, network: str) -> None:
         """Simulate a transaction.
@@ -207,8 +214,8 @@ class FacilitatorKeypairSigner:
         tx_bytes = base64.b64decode(tx_base64)
         tx = VersionedTransaction.from_bytes(tx_bytes)
 
-        # Simulate
-        result = client.simulate_transaction(tx, commitment=Confirmed)
+        # Simulate with explicit signature verification
+        result = client.simulate_transaction(tx, sig_verify=True, commitment=Confirmed)
 
         if result.value.err:
             raise RuntimeError(f"Simulation failed: {result.value.err}")
@@ -253,6 +260,8 @@ class FacilitatorKeypairSigner:
         Raises:
             RuntimeError: If confirmation fails or times out.
         """
+        from solders.transaction_status import TransactionConfirmationStatus
+
         client = self._get_client(network)
         sig = Signature.from_string(signature)
 
@@ -262,7 +271,11 @@ class FacilitatorKeypairSigner:
 
             if result.value and result.value[0]:
                 status = result.value[0]
-                if status.confirmation_status in ["confirmed", "finalized"]:
+                # confirmation_status is an enum, compare properly
+                if status.confirmation_status in [
+                    TransactionConfirmationStatus.Confirmed,
+                    TransactionConfirmationStatus.Finalized,
+                ]:
                     return
                 if status.err:
                     raise RuntimeError(f"Transaction failed: {status.err}")
