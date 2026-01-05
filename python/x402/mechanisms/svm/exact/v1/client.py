@@ -121,6 +121,7 @@ class ExactSvmSchemeV1:
             raise ValueError(f"Unknown token program: {mint_owner}")
 
         # Parse mint data to get decimals
+        # SPL Token Mint layout: decimals is at byte 44
         mint_data = mint_info.value.data
         decimals = mint_data[44]
 
@@ -134,6 +135,7 @@ class ExactSvmSchemeV1:
         compute_budget_program = Pubkey.from_string(COMPUTE_BUDGET_PROGRAM_ADDRESS)
 
         # 1. SetComputeUnitLimit instruction
+        # Data: [2 (discriminator), u32 units (little-endian)]
         set_cu_limit_data = bytes([2]) + DEFAULT_COMPUTE_UNIT_LIMIT.to_bytes(4, "little")
         set_cu_limit_ix = Instruction(
             program_id=compute_budget_program,
@@ -142,6 +144,7 @@ class ExactSvmSchemeV1:
         )
 
         # 2. SetComputeUnitPrice instruction
+        # Data: [3 (discriminator), u64 microLamports (little-endian)]
         set_cu_price_data = bytes([3]) + DEFAULT_COMPUTE_UNIT_PRICE_MICROLAMPORTS.to_bytes(
             8, "little"
         )
@@ -152,6 +155,7 @@ class ExactSvmSchemeV1:
         )
 
         # 3. TransferChecked instruction - V1 uses maxAmountRequired
+        # Data: [12 (discriminator), u64 amount (little-endian), u8 decimals]
         amount = int(requirements.max_amount_required)
         transfer_data = bytes([12]) + amount.to_bytes(8, "little") + bytes([decimals])
         transfer_ix = Instruction(

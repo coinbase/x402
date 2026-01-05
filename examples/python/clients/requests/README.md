@@ -1,13 +1,13 @@
 # x402 requests Client Example
 
-This example demonstrates how to use the x402 v2 SDK with requests (sync) to make requests to 402-protected endpoints.
+This example demonstrates how to use the x402 v2 SDK with requests (sync) to make requests to 402-protected endpoints with support for both EVM (Ethereum) and SVM (Solana) payments.
 
 ## Setup
 
-1. Copy `.env-example` to `.env` and add your private key:
+1. Copy `.env-local` to `.env` and add your private keys:
 
 ```bash
-cp .env-example .env
+cp .env-local .env
 ```
 
 2. Install dependencies:
@@ -28,15 +28,16 @@ uv run python main.py
 
 The example demonstrates the complete x402 payment flow:
 
-1. **Initialize account** - Create an eth_account from your private key
-2. **Create x402 client** - Set up the payment client
-3. **Register EVM scheme** - Enable EVM-based payments using `register_exact_evm_client`
-4. **Make request** - The `x402_requests` session automatically handles 402 responses:
+1. **Create x402 client** - Set up the payment client
+2. **Register payment schemes** - Enable EVM and/or SVM payments:
+   - `register_exact_evm_client` for Ethereum-based payments
+   - `register_exact_svm_client` for Solana-based payments
+3. **Make request** - The `x402_requests` session automatically handles 402 responses:
    - Intercepts 402 Payment Required responses
    - Creates and signs payment payload
    - Retries request with payment header
    - Returns successful response
-5. **Extract payment response** - Decode the settlement confirmation from response headers
+4. **Extract payment response** - Decode the settlement confirmation from response headers
 
 ## Code Overview
 
@@ -46,11 +47,19 @@ from x402.http.clients.requests import x402_requests
 from x402.http.x402_http_client import x402HTTPClient
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 from x402.mechanisms.evm.signers import EthAccountSigner
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact.register import register_exact_svm_client
 
 # Setup
-account = Account.from_key(private_key)
 client = x402Client()
+
+# Register EVM (Ethereum) payments
+account = Account.from_key(evm_private_key)
 register_exact_evm_client(client, EthAccountSigner(account))
+
+# Register SVM (Solana) payments
+svm_signer = KeypairSigner.from_base58(svm_private_key)
+register_exact_svm_client(client, svm_signer)
 
 # Make request - payment handling is automatic
 with x402_requests(client) as session:
@@ -68,9 +77,12 @@ with x402_requests(client) as session:
 
 | Variable | Description |
 |----------|-------------|
-| `PRIVATE_KEY` | Your EVM private key (with or without 0x prefix) |
+| `EVM_PRIVATE_KEY` | Your EVM private key (with or without 0x prefix) |
+| `SVM_PRIVATE_KEY` | Your Solana private key (base58 encoded) |
 | `RESOURCE_SERVER_URL` | Base URL of the x402-protected server |
 | `ENDPOINT_PATH` | Path to the protected endpoint |
+
+**Note:** At least one of `EVM_PRIVATE_KEY` or `SVM_PRIVATE_KEY` must be provided.
 
 ## Learn More
 

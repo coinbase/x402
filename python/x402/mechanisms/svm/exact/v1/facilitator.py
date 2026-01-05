@@ -155,7 +155,7 @@ class ExactSvmSchemeV1:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_LIMIT, payer=""
             )
-        if cu_limit_data[0] != 2:
+        if cu_limit_data[0] != 2:  # SetComputeUnitLimit discriminator
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_LIMIT, payer=""
             )
@@ -169,12 +169,12 @@ class ExactSvmSchemeV1:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_PRICE, payer=""
             )
-        if cu_price_data[0] != 3:
+        if cu_price_data[0] != 3:  # SetComputeUnitPrice discriminator
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_INVALID_COMPUTE_PRICE, payer=""
             )
 
-        # Check compute price not too high
+        # Parse microLamports (u64, little-endian) and check against max
         micro_lamports = int.from_bytes(cu_price_data[1:9], "little")
         if micro_lamports > MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS:
             return VerifyResponse(
@@ -207,11 +207,13 @@ class ExactSvmSchemeV1:
         transfer_accounts = list(transfer_ix.accounts)
         transfer_data = bytes(transfer_ix.data)
 
+        # TransferChecked data: [12 (discriminator), u64 amount, u8 decimals]
         if len(transfer_data) < 10 or transfer_data[0] != 12:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer
             )
 
+        # TransferChecked accounts: [source, mint, destination, owner]
         if len(transfer_accounts) < 4:
             return VerifyResponse(
                 is_valid=False, invalid_reason=ERR_NO_TRANSFER_INSTRUCTION, payer=payer

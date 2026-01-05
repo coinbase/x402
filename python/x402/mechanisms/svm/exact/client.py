@@ -118,8 +118,14 @@ class ExactSvmScheme:
             raise ValueError(f"Unknown token program: {mint_owner}")
 
         # Parse mint data to get decimals
-        # Mint layout: first 36 bytes are: mintAuthorityOption(4) + mintAuthority(32)
-        # Then decimals at byte 44: freezeAuthorityOption(4) + freezeAuthority(32) + supply(8) + decimals(1)
+        # SPL Token Mint layout:
+        #   0-3:   mintAuthorityOption (4 bytes)
+        #   4-35:  mintAuthority (32 bytes)
+        #   36-43: supply (8 bytes, u64)
+        #   44:    decimals (1 byte, u8)
+        #   45:    isInitialized (1 byte)
+        #   46-49: freezeAuthorityOption (4 bytes)
+        #   50-81: freezeAuthority (32 bytes)
         mint_data = mint_info.value.data
         decimals = mint_data[44]
 
