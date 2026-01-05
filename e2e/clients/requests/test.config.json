@@ -3,7 +3,8 @@
   "type": "client",
   "language": "python",
   "protocolFamilies": [
-    "evm"
+    "evm",
+    "svm"
   ],
   "x402Versions": [
     2
@@ -11,10 +12,12 @@
   "description": "Python requests client with x402 v2 HTTP adapter",
   "environment": {
     "required": [
-      "EVM_PRIVATE_KEY",
       "RESOURCE_SERVER_URL",
       "ENDPOINT_PATH"
     ],
-    "optional": []
+    "optional": [
+      "EVM_PRIVATE_KEY",
+      "SVM_PRIVATE_KEY"
+    ]
   }
 }

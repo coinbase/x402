@@ -20,6 +20,13 @@
       "protocolFamily": "evm"
     },
     {
+      "path": "/protected-svm",
+      "method": "GET",
+      "description": "Protected endpoint requiring SVM (Solana) payment",
+      "requiresPayment": true,
+      "protocolFamily": "svm"
+    },
+    {
       "path": "/health",
       "method": "GET",
       "description": "Health check endpoint",
@@ -34,11 +41,11 @@
   ],
   "environment": {
     "required": [
-      "EVM_PAYEE_ADDRESS"
+      "EVM_PAYEE_ADDRESS",
+      "SVM_PAYEE_ADDRESS"
     ],
     "optional": [
       "PORT",
-      "EVM_NETWORK",
       "FACILITATOR_URL"
     ]
   }
