@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { X402Logo } from "./Logo";
+import { AnimatedLogo } from "./AnimatedLogo";
 
 function CloseIcon() {
   return (
@@ -20,8 +21,14 @@ function CloseIcon() {
   );
 }
 
-export function NavBar() {
+interface NavBarProps {
+  /** When true, plays the Lottie logo animation on first session visit */
+  animateLogo?: boolean;
+}
+
+export function NavBar({ animateLogo = false }: NavBarProps): React.ReactElement {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const LogoComponent = animateLogo ? AnimatedLogo : X402Logo;
 
   return (
     <nav className="w-full bg-white" role="navigation" aria-label="Main navigation">
@@ -74,7 +81,7 @@ export function NavBar() {
           {/* Center logo (home link) */}
           <div className="flex flex-1 lg:flex-none justify-center">
             <Link href="/" aria-label="x402 home" className="inline-flex items-center">
-              <X402Logo className="h-7 w-auto" />
+              <LogoComponent className="h-9.25 w-auto" />
             </Link>
           </div>
 

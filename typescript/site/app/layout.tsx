@@ -2,9 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter, DM_Mono, Inconsolata, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import { IntroProvider } from "./contexts/IntroContext";
-import { IntroAnimation } from "./components/IntroAnimation";
-import { VideoPreloader } from "./components/VideoPreloader";
-import { INTRO_VIDEO } from "./lib/introMedia";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -62,13 +59,6 @@ export default function RootLayout({
       className={`${inter.variable} ${dmMono.variable} ${instrumentSerif.variable} ${inconsolata.variable}`}
     >
       <head>
-        {/* Preload intro video for immediate playback on first visit */}
-        <link
-          rel="preload"
-          as="video"
-          href={INTRO_VIDEO.src}
-          type={INTRO_VIDEO.type}
-        />
         <link rel="icon" type="image/svg+xml" href="/images/icons/x_group8.svg" />
         <link rel="apple-touch-icon" href="/images/icons/x_group8.png" />
         <meta name="apple-mobile-web-app-title" content="x402" />
@@ -76,8 +66,6 @@ export default function RootLayout({
       </head>
       <body className="antialiased bg-background text-foreground font-sans">
         <IntroProvider>
-          <VideoPreloader src={INTRO_VIDEO.src} type={INTRO_VIDEO.type} />
-          <IntroAnimation />
           <a href="#main-content" className="skip-to-content">
             Skip to main content
           </a>
