@@ -295,8 +295,7 @@ func TestPaymentRoundTripperNoRetryOn200(t *testing.T) {
 	x402Client := Newx402HTTPClient(x402.Newx402Client())
 	httpClient := WrapHTTPClientWithPayment(http.DefaultClient, x402Client)
 
-	req, _ := http.NewRequestWithContext(context.Background(), "GET", server.URL, nil)
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Get(server.URL)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -310,7 +309,7 @@ func TestPaymentRoundTripperNoRetryOn200(t *testing.T) {
 func TestDoWithPayment(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("Success"))
+		w.Write([]byte("Success"))
 	}))
 	defer server.Close()
 
