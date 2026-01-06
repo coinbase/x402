@@ -5,7 +5,7 @@
  * Currently supports EVM (eip191). Extensible for other schemes.
  */
 
-import { SiweMessage } from "siwe";
+import { SiweMessage, type VerifyParams, type VerifyOpts } from "siwe";
 import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions } from "./types";
 
 /**
@@ -63,17 +63,17 @@ export async function verifySIWxSignature(
     });
 
     // Verify signature
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const verifyOptions: any = {
+    const verifyParams: VerifyParams = {
       signature: payload.signature,
     };
 
     // Add provider for smart wallet verification if enabled
-    if (options.checkSmartWallet && options.provider) {
-      verifyOptions.provider = options.provider;
-    }
+    const verifyOpts: VerifyOpts | undefined =
+      options.checkSmartWallet && options.provider
+        ? { provider: options.provider }
+        : undefined;
 
-    const result = await siweMessage.verify(verifyOptions);
+    const result = await siweMessage.verify(verifyParams, verifyOpts);
 
     if (!result.success) {
       // SiweError type - extract error details

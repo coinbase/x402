@@ -18,13 +18,6 @@ export interface SIWxSigner {
 }
 
 /**
- * Sign options (currently unused, reserved for future schemes)
- */
-export interface SignOptions {
-  // Future: signatureScheme for EIP-712, etc.
-}
-
-/**
  * Sign SIWX message with wallet.
  *
  * Compatible with:
@@ -33,7 +26,6 @@ export interface SignOptions {
  *
  * @param message - CAIP-122 message string to sign
  * @param signer - Wallet or account that can sign messages
- * @param _options - Reserved for future use
  * @returns Signature string
  *
  * @example
@@ -49,7 +41,6 @@ export interface SignOptions {
 export async function signSIWxMessage(
   message: string,
   signer: SIWxSigner,
-  _options: SignOptions = {},
 ): Promise<string> {
   // Check if signer has an account property (WalletClient pattern)
   if (signer.account) {
