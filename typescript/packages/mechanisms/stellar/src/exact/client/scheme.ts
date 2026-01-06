@@ -115,7 +115,11 @@ export class ExactStellarScheme implements SchemeNetworkClient {
    * @throws Error if validation fails
    */
   private validateCreateAndSignPaymentInput(paymentRequirements: PaymentRequirements): void {
-    const { scheme, network, payTo, asset } = paymentRequirements;
+    const { scheme, network, payTo, asset, amount } = paymentRequirements;
+    if (typeof amount !== "string" || !Number.isInteger(Number(amount)) || Number(amount) <= 0) {
+      throw new Error(`Invalid amount: ${amount}. Amount must be a positive integer.`);
+    }
+
     if (scheme !== "exact") {
       throw new Error(`Unsupported scheme: ${scheme}`);
     }

@@ -1,6 +1,6 @@
 # @x402/stellar
 
-Stellar implementation of the x402 payment protocol using the **Exact** payment scheme with Soroban token transfers.
+Stellar implementation of the x402 payment protocol using the **Exact** payment scheme with [Soroban token](https://stellar.org/protocol/sep-41) transfers.
 
 ## Installation
 
@@ -29,7 +29,7 @@ This package provides three main components for handling x402 payments on Stella
 
 **Client:**
 - `ExactStellarScheme` - Client implementation using Soroban token transfers
-- `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key
+- `createEd25519Signer(privateKey, network)` - Creates a Stellar signer from private key that implements `SignAuthEntry` and `SignTransaction` according to [SEP-43](https://stellar.org/protocol/sep-0043)
 - `ClientStellarSigner` - TypeScript type for client signers
 
 **Facilitator:**
@@ -65,14 +65,14 @@ This package provides three main components for handling x402 payments on Stella
 
 **V2 Networks** (via [CAIP-28](https://namespaces.chainagnostic.org/stellar/caip2)):
 - `stellar:pubnet` - Mainnet (requires custom RPC URL)
-- `stellar:testnet` - Testnet (default: https://soroban-testnet.stellar.org)
+- `stellar:testnet` - Testnet (default: [https://soroban-testnet.stellar.org](https://soroban-testnet.stellar.org))
 - `stellar:*` - Wildcard (matches all Stellar networks)
 
 ## Asset Support
 
 Supports Soroban tokens implementing [SEP-41](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md):
-- USDC (primary, 7 decimals)
 - Any Soroban token contract with `transfer` function
+- Default asset is USDC (primary, 7 decimals)
 
 ## Usage Patterns
 

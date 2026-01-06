@@ -227,6 +227,25 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
         );
       }
 
+      // Step 9: Check auth entry expiration ledgers (same logic as settle)
+      const latestLedger = await server.getLatestLedger();
+      const currentLedger = latestLedger.sequence;
+      const maxLedger = currentLedger + this.maxLedgerOffset;
+
+      // Check expiration ledgers for address-based auth entries (exact same logic as settle)
+      for (const auth of invokeOp?.auth ?? []) {
+        const expirationLedger = auth.credentials()?.address()?.signatureExpirationLedger();
+        if (expirationLedger && expirationLedger > maxLedger) {
+          console.error(
+            `Expiration ledger ${expirationLedger} is too far, maxLedger is ${maxLedger}`,
+          );
+          return invalidVerifyResponse(
+            "invalid_exact_stellar_signature_expiration_too_far",
+            fromAddress,
+          );
+        }
+      }
+
       return validVerifyResponse(fromAddress);
     } catch (error) {
       console.error("Unexpected verification error:", error);
@@ -311,16 +330,6 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
           }),
         )
         .build();
-
-      // Check for authEntries expiration ledger
-      const latestLedger = await server.getLatestLedger();
-      const currentLedger = latestLedger.sequence;
-      const maxLedger = currentLedger + this.maxLedgerOffset;
-      invokeOp?.auth?.forEach(auth => {
-        if (auth.credentials()?.address()?.signatureExpirationLedger() > maxLedger) {
-          return invalidVerifyResponse("invalid_exact_stellar_payload_expired_signature", payer);
-        }
-      });
 
       // Step 5: Sign transaction with facilitator's key
       const { signedTxXdr, error: signError } = await this.signer.signTransaction(
@@ -419,8 +428,10 @@ export class ExactStellarScheme implements SchemeNetworkFacilitator {
 
         // Transaction still pending, wait and retry
         await new Promise(resolve => setTimeout(resolve, delayMs));
-      } catch {
-        // Continue polling on error
+      } catch (error: unknown) {
+        if (error instanceof Error && !error.message.includes("NOT_FOUND")) {
+          console.warn(`Poll attempt ${i} failed:`, error);
+        }
         await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }

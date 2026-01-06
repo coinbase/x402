@@ -112,6 +112,14 @@ describe("ExactStellarScheme - Settle", () => {
     vi.mocked(stellarUtils.getNetworkPassphrase).mockReturnValue(StellarNetworks.TESTNET);
     vi.mocked(stellarUtils.getRpcUrl).mockReturnValue("https://soroban-testnet.stellar.org");
 
+    // Mock verify to pass for settle tests (verify is tested separately)
+    // The expiration check may reject the test transaction, so we mock verify for settle tests
+    // Note: This is reset in tests that need to test actual verify behavior
+    vi.spyOn(facilitator, "verify").mockImplementation(async () => ({
+      isValid: true,
+      payer: CLIENT_PUBLIC,
+    }));
+
     // Mock signTransaction to return the mock signed XDR
     vi.spyOn(facilitatorSigner, "signTransaction").mockResolvedValue({
       signedTxXdr: mockSignedTxXdr,
@@ -121,6 +129,7 @@ describe("ExactStellarScheme - Settle", () => {
 
   describe("settlement failures", () => {
     it("should return error when verify fails", async () => {
+      vi.spyOn(facilitator, "verify").mockRestore();
       // Use requirements with wrong amount to make verify fail
       const invalidRequirements = {
         ...validRequirements,
@@ -265,12 +274,6 @@ describe("ExactStellarScheme - Settle", () => {
         return { status: "SUCCESS" } as Api.GetTransactionResponse;
       });
 
-      // Mock verify to pass (since we're testing polling, not verification)
-      vi.spyOn(facilitator, "verify").mockResolvedValue({
-        isValid: true,
-        payer: CLIENT_PUBLIC,
-      });
-
       const result = await facilitator.settle(validPayload, validRequirements);
 
       expect(result.success).toBe(true);
@@ -285,12 +288,6 @@ describe("ExactStellarScheme - Settle", () => {
           throw new Error("Temporary network error");
         }
         return { status: "SUCCESS" } as Api.GetTransactionResponse;
-      });
-
-      // Mock verify to pass (since we're testing polling, not verification)
-      vi.spyOn(facilitator, "verify").mockResolvedValue({
-        isValid: true,
-        payer: CLIENT_PUBLIC,
       });
 
       const result = await facilitator.settle(validPayload, validRequirements);

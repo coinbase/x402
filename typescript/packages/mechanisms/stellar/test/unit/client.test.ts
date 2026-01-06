@@ -91,6 +91,11 @@ describe("ExactStellarScheme", () => {
       ["unsupported network", { network: "base-sepolia" as never }, "Unsupported Stellar network"],
       ["invalid payTo", { payTo: "invalid-address" }, "Invalid Stellar destination address"],
       ["invalid asset", { asset: "invalid-asset" }, "Invalid Stellar asset address"],
+      ["invalid amount (negative)", { amount: "-100" }, "Invalid amount"],
+      ["invalid amount (zero)", { amount: "0" }, "Invalid amount"],
+      ["invalid amount (non-integer)", { amount: "100.5" }, "Invalid amount"],
+      ["invalid amount (empty string)", { amount: "" }, "Invalid amount"],
+      ["invalid amount (non-numeric)", { amount: "abc" }, "Invalid amount"],
     ])("should throw for %s", async (_, overrides, expectedError) => {
       const client = new ExactStellarScheme(mockSigner);
       if ("network" in overrides && overrides.network) {
