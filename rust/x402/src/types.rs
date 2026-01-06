@@ -202,6 +202,16 @@ impl Network {
     }
 }
 
+/// Defaults to eip155:84532 (base-sepolia)
+impl Default for Network {
+    fn default() -> Self {
+        Network {
+            namespace: String::from("eip155"),
+            reference: String::from("84532"),
+        }
+    }
+}
+
 // =======================
 // CDP API (platform/v2/x402) DTOs
 // =======================
