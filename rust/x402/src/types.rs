@@ -187,16 +187,17 @@ impl From<&str> for Price {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+#[serde(untagged)]
 pub enum Network {
     CAIPNetwork(CAIPNetwork),
-    String
+    String(String),
 }
 
 impl Network {
     pub fn to_string(&self) -> String {
         match self {
             Network::CAIPNetwork(caip_network) => caip_network.to_string(),
-            Network::String => Self::String.to_string(),
+            Network::String(string_val) => string_val.to_owned(),
         }
     }
 }
@@ -210,6 +211,18 @@ impl Default for Network {
 impl From<CAIPNetwork> for Network {
     fn from(caip_network: CAIPNetwork) -> Self {
         Network::CAIPNetwork(caip_network)
+    }
+}
+
+impl From<String> for Network {
+    fn from(s: String) -> Self {
+        Network::String(s)
+    }
+}
+
+impl From<&str> for Network {
+    fn from(s: &str) -> Self {
+        Network::String(s.to_string())
     }
 }
 
@@ -536,6 +549,71 @@ mod tests {
         let invalid_json_base64 = URL_SAFE_NO_PAD.encode("not valid json");
         let result = PaymentRequired::from_header(&invalid_json_base64);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_caip_network_to_string() {
+        let caip = CAIPNetwork::new("eip155".to_string(), "1".to_string());
+        assert_eq!(caip.to_string(), "eip155:1");
+    }
+
+    #[test]
+    fn test_caip_network_default() {
+        let caip = CAIPNetwork::default();
+        assert_eq!(caip.to_string(), "eip155:84532");
+    }
+
+    #[test]
+    fn test_network_to_string() {
+        let n1 = Network::String("solana:mainnet".to_string());
+        assert_eq!(n1.to_string(), "solana:mainnet");
+
+        let n2 = Network::CAIPNetwork(CAIPNetwork::new("eip155".to_string(), "1".to_string()));
+        assert_eq!(n2.to_string(), "eip155:1");
+    }
+
+    #[test]
+    fn test_network_default() {
+        let n = Network::default();
+        assert_eq!(n.to_string(), "eip155:84532");
+    }
+
+    #[test]
+    fn test_network_conversions() {
+        let caip = CAIPNetwork::new("eip155".to_string(), "1".to_string());
+        let n: Network = caip.into();
+        assert_eq!(n.to_string(), "eip155:1");
+
+        let n2: Network = Network::from("solana:mainnet");
+        assert_eq!(n2.to_string(), "solana:mainnet");
+    }
+
+    #[test]
+    fn test_network_serialization() {
+        let n = Network::from("solana:mainnet");
+        let json = serde_json::to_string(&n).unwrap();
+        // Network is now untagged, so it should serialize as a plain string
+        assert_eq!(json, "\"solana:mainnet\"");
+
+        let n2: Network = serde_json::from_str(&json).unwrap();
+        match n2 {
+            Network::String(s) => assert_eq!(s, "solana:mainnet"),
+            _ => panic!("Expected Network::String"),
+        }
+
+        let n3 = Network::CAIPNetwork(CAIPNetwork::new("eip155".to_string(), "1".to_string()));
+        let json2 = serde_json::to_string(&n3).unwrap();
+        // CAIPNetwork is a struct, so it serializes as an object
+        assert_eq!(json2, "{\"namespace\":\"eip155\",\"reference\":\"1\"}");
+
+        let n4: Network = serde_json::from_str(&json2).unwrap();
+        match n4 {
+            Network::CAIPNetwork(caip) => {
+                assert_eq!(caip.namespace, "eip155");
+                assert_eq!(caip.reference, "1");
+            }
+            _ => panic!("Expected Network::CAIPNetwork"),
+        }
     }
 }
 
