@@ -70,16 +70,22 @@ impl HttpFacilitator {
         }
     }
 
+    fn join_url(base: &str, path: &str) -> String {
+        let base = base.trim_end_matches('/');
+        let path = path.trim_start_matches('/');
+        format!("{}/{}", base, path)
+    }
+
     pub fn new(base_url: &str) -> Self {
         Self::builder(base_url).build()
     }
 
     fn verify_url(&self) -> String {
-        format!("{}/{}", self.base_url.trim_end_matches('/'), self.verify_path)
+        Self::join_url(&self.base_url, &self.verify_path)
     }
 
     fn settle_url(&self) -> String {
-        format!("{}/{}", self.base_url.trim_end_matches('/'), self.settle_path)
+        Self::join_url(&self.base_url, &self.settle_path)
     }
 
     /// Generalized post-method to reuse common route logic across 'verify' and 'settle'
