@@ -21,7 +21,7 @@ NetworkConfigs = map[string]NetworkConfig{
             Address:  "0xYOUR_STABLECOIN_ADDRESS",
             Name:     "Token Name",  // Must match EIP-712 domain name
             Version:  "1",           // Must match EIP-712 domain version
-            Decimals: 6,             // Token decimals (typically 6 for USDC)
+            Decimals: 6,             // Token decimals (e.g. 6 for USDC)
         },
     },
 }

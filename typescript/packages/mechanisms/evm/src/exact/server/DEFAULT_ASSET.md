@@ -8,20 +8,21 @@ When a server uses `price: "$0.10"` syntax (USD string pricing), x402 needs to k
 
 ## Adding a New Chain
 
-To add support for a new EVM chain, add an entry to the `usdcInfo` map in `getDefaultAsset()`:
-
+To add support for a new EVM chain, add an entry to the `stablecoins` map in `getDefaultAsset()`:
 ```typescript
-const usdcInfo: Record<string, { address: string; name: string; version: string }> = {
+const stablecoins: Record<string, { address: string; name: string; version: string; decimals: number }> = {
   "eip155:8453": {
     address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     name: "USD Coin",
     version: "2",
+    decimals: 6
   }, // Base mainnet USDC
   // Add your chain here:
   "eip155:YOUR_CHAIN_ID": {
     address: "0xYOUR_STABLECOIN_ADDRESS",
     name: "Token Name",      // Must match EIP-712 domain name
     version: "1",            // Must match EIP-712 domain version
+    decimals: 6,             // Token decimals (typically 6 for USDC)
   },
 };
 ```
@@ -33,6 +34,7 @@ const usdcInfo: Record<string, { address: string; name: string; version: string 
 | `address` | Contract address of the stablecoin |
 | `name` | EIP-712 domain name (must match the token's domain separator) |
 | `version` | EIP-712 domain version (must match the token's domain separator) |
+| `decimals` | Token decimal places (typically 6 for USDC) |
 
 ## Current Limitation
 

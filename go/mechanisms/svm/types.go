@@ -67,7 +67,7 @@ type NetworkConfig struct {
 	Name         string    // Network name
 	CAIP2        string    // CAIP-2 identifier
 	RPCURL       string    // Default RPC URL
-	DefaultAsset AssetInfo // Default token (USDC)
+	DefaultAsset AssetInfo // Default stablecoin
 }
 
 // ClientConfig contains optional client configuration
