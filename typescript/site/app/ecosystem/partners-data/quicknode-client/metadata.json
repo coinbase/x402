@@ -1,7 +1,0 @@
-{
-  "name": "QuickNode",
-  "category": "Client-Side Integrations",
-  "logoUrl": "/logos/quicknode.png",
-  "description": "A Ruby gem for generating signed X-Payment headers and links to access x402 paywalled APIs.",
-  "websiteUrl": "https://github.com/quiknode-labs/x402-payments"
-}
