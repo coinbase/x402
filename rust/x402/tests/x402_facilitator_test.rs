@@ -14,41 +14,13 @@ use tower::ServiceExt;
 use x402::errors::X402Result;
 use x402::facilitator::default_http_facilitator;
 use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
-use x402::server::{ResourceConfig, SchemeNetworkServer};
+use x402::server::{ResourceConfig, SchemeNetworkServer, SchemeServer};
 use x402::types::{AssetAmount, Network, PaymentRequirements, Price, X402Header};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use serde_json::json;
 use x402::schemes::evm::sign_transfer_with_authorization;
 use x402::types::{PaymentPayload, PaymentRequired, Resource};
-
-struct TestSchemeServer;
-
-impl SchemeNetworkServer for TestSchemeServer {
-    fn scheme(&self) -> &str {
-        "exact"
-    }
-
-    fn build_requirements(
-        &self,
-        resource_config: &ResourceConfig,
-    ) -> X402Result<PaymentRequirements> {
-        let (amount, asset) = resource_config.price.to_asset_amount();
-        let extra = Some(json!({
-            "name": "USDC",
-            "version": "2"
-        }));
-        Ok(PaymentRequirements {
-            scheme: self.scheme().to_owned(),
-            network: resource_config.network.to_string(),
-            pay_to: resource_config.pay_to.clone(),
-            amount,
-            asset,
-            data: None,
-            extra,
-        })
-    }
-}
 
 #[tokio::test]
 async fn test_x402_axum_facilitator_integration() {
@@ -63,22 +35,20 @@ async fn test_x402_axum_facilitator_integration() {
     let facilitator_url = "https://x402.org/facilitator";
     let facilitator = default_http_facilitator(facilitator_url);
 
-    // Match supported kinds: x402Version: 2, scheme: "exact", network: "eip155:84532"
-    let network = Network::new("eip155".to_string(), "84532".to_string());
     let to_address = "0xB013a7f5F82bEA73c682fe6BFFB23715bb58e656".to_lowercase();
     let usdc_address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_lowercase();
+    let price = Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None));
 
-    let resource_config = ResourceConfig::new(
-        "exact",
+    let scheme_server = SchemeServer::new_default();
+    let resource_config = scheme_server.build_resource_config(
         &to_address,
-        Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None)),
-        network.clone(),
+        price,
         None,
     );
 
     let mut builder = X402ConfigBuilder::new(facilitator);
     builder
-        .register_scheme(network, Arc::new(TestSchemeServer))
+        .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
             resource_config,
             "/api/premium".to_string(),

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use serde_json::{json, Value};
 use crate::errors::{X402Error, X402Result};
 use crate::types::{Network, PaymentRequirements, Price};
 
@@ -41,6 +42,80 @@ pub trait SchemeNetworkServer: Send + Sync {
         resource_config: &ResourceConfig
     ) -> X402Result<PaymentRequirements>;
 }
+
+pub struct SchemeServer {
+    scheme: String,
+    extra: Option<Value>,
+    network: Network,
+}
+
+impl SchemeServer {
+    pub fn new(
+        scheme: Option<&str>,
+        extra: Option<Value>,
+        network: Network,
+    ) -> SchemeServer {
+        SchemeServer {
+            scheme: scheme.unwrap_or("exact").to_string(),
+            extra,
+            network: network.into(),
+        }
+    }
+
+    pub fn new_default() -> Arc<SchemeServer> {
+        Arc::new(SchemeServer::default())
+    }
+
+    pub fn network(&self) -> Network {self.network.clone()}
+
+    pub fn build_resource_config(
+        &self,
+        amount: &str,
+        price: Price,
+        timeout_in_seconds: Option<u64>,
+    ) -> ResourceConfig {
+        ResourceConfig::new(
+            self.scheme(),
+            amount,
+            price,
+            self.network(),
+            timeout_in_seconds
+        )
+    }
+}
+
+impl Default for SchemeServer {
+    /// Defaults to USDC on base-sepolia
+    fn default() -> Self {
+        SchemeServer {
+            scheme: "exact".to_string(),
+            extra: Some(json!({
+            "name": "USDC",
+            "version": "2"
+        })),
+            network: Network::default(),
+        }
+    }
+}
+
+impl SchemeNetworkServer for SchemeServer {
+    fn scheme(&self) -> &str { &self.scheme }
+
+    fn build_requirements(&self, resource_config: &ResourceConfig) -> X402Result<PaymentRequirements> {
+        let (amount, asset) = resource_config.price.to_asset_amount();
+        Ok(PaymentRequirements {
+            scheme: self.scheme().to_owned(),
+            network: resource_config.network.to_string(),
+            pay_to: resource_config.pay_to.clone(),
+            amount,
+            asset,
+            data: None,
+            extra: self.extra.clone(),
+        })
+    }
+}
+
+
 
 pub trait ResourceServer {
 
