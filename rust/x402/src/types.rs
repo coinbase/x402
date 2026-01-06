@@ -187,14 +187,41 @@ impl From<&str> for Price {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
-pub struct Network {
+pub enum Network {
+    CAIPNetwork(CAIPNetwork),
+    String
+}
+
+impl Network {
+    pub fn to_string(&self) -> String {
+        match self {
+            Network::CAIPNetwork(caip_network) => caip_network.to_string(),
+            Network::String => Self::String.to_string(),
+        }
+    }
+}
+
+impl Default for Network {
+    fn default() -> Self {
+        Network::CAIPNetwork(CAIPNetwork::default())
+    }
+}
+
+impl From<CAIPNetwork> for Network {
+    fn from(caip_network: CAIPNetwork) -> Self {
+        Network::CAIPNetwork(caip_network)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
+pub struct CAIPNetwork {
     namespace: String,
     reference: String,
 }
 
-impl Network {
-    pub fn new(namespace: String, reference: String) -> Network {
-        Network { namespace, reference }
+impl CAIPNetwork {
+    pub fn new(namespace: String, reference: String) -> CAIPNetwork {
+        CAIPNetwork { namespace, reference }
     }
 
     pub fn to_string(&self) -> String {
@@ -203,9 +230,9 @@ impl Network {
 }
 
 /// Defaults to eip155:84532 (base-sepolia)
-impl Default for Network {
+impl Default for CAIPNetwork {
     fn default() -> Self {
-        Network {
+        CAIPNetwork {
             namespace: String::from("eip155"),
             reference: String::from("84532"),
         }

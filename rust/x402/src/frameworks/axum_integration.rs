@@ -224,14 +224,15 @@ mod tests {
     use axum::{routing::get, Router};
     use tower::ServiceExt; // for oneshot
     use wiremock::{Mock, MockServer, ResponseTemplate};
-    use wiremock::matchers::method;
-    use crate::types::{PaymentRequirements, Resource, VerifyResponse};
+    use wiremock::matchers::{method, path};
+    use crate::types::{PaymentRequirements, Resource, SettleResponse, VerifyResponse};
     use serde_json::json;
     use crate::facilitator::HttpFacilitator;
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
+    use crate::types::{ CAIPNetwork };
 
     struct MockSchemeServer;
 
@@ -260,7 +261,7 @@ mod tests {
     async fn setup_test_app(facilitator_url: &str) -> Router {
         let facilitator: Arc<dyn FacilitatorClient> = Arc::new(HttpFacilitator::new(facilitator_url));
 
-        let network = Network::new("ethereum".to_string(), "1".to_string());
+        let network = Network::from(CAIPNetwork::new("ethereum".to_string(), "1".to_string()));
         let resource_config = ResourceConfig::new(
             "exact",
             "0x123",
@@ -297,7 +298,23 @@ mod tests {
         };
 
         Mock::given(method("POST"))
+            .and(path("/verify"))
             .respond_with(ResponseTemplate::new(200).set_body_json(mock_verify_response))
+            .mount(&mock_server)
+            .await;
+
+        // Mock a 200 OK from the facilitator /settle
+        let mock_settle_response = SettleResponse {
+            success: true,
+            error_reason: None,
+            payer: Some("0xabc".to_string()),
+            transaction: Some("0xdeadbeef".to_string()),
+            network: "ethereum:1".to_string(),
+        };
+
+        Mock::given(method("POST"))
+            .and(path("/settle"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_settle_response))
             .mount(&mock_server)
             .await;
 

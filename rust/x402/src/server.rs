@@ -177,6 +177,7 @@ impl ResourceServer for InMemoryResourceServer {
 
 #[cfg(test)]
 mod tests {
+    use crate::types::CAIPNetwork;
     use super::*;
 
     /// A simple test scheme that just echoes the price
@@ -205,7 +206,8 @@ mod tests {
 
     #[test]
     fn build_payment_requirements_happy_path() {
-        let network = Network::new("eip155".to_string(), "84532".to_string());
+        let caip_network = CAIPNetwork::new("eip155".to_string(), "84532".to_string());
+        let network = Network::from(caip_network);
         let price:Price = "1000".into();
 
         let config = ResourceConfig::new(
@@ -232,14 +234,14 @@ mod tests {
 
     #[test]
     fn build_payment_requirements_errors_if_not_registered() {
-        let network = Network::new("eip155".to_string(), "84532".to_string());
+        let network = CAIPNetwork::new("eip155".to_string(), "84532".to_string());
         let price:Price = "1000".into();
 
         let config = ResourceConfig::new(
             "unregistered-scheme",
             "recipient-123",
             price,
-            network.clone(),
+            network.into(),
             None,
         );
 

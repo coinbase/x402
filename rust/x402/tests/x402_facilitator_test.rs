@@ -1,25 +1,23 @@
-use std::env;
-use std::str::FromStr;
+use alloy::signers::local::PrivateKeySigner;
 use axum::{
     body::Body,
     http::Request,
     routing::get,
     Router,
 };
-use reqwest::Client;
-use serde_json::Value;
-use std::sync::Arc;
-use alloy::signers::local::PrivateKeySigner;
-use tower::ServiceExt;
-use x402::errors::X402Result;
-use x402::facilitator::default_http_facilitator;
-use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
-use x402::server::{ResourceConfig, SchemeNetworkServer, SchemeServer};
-use x402::types::{AssetAmount, Network, PaymentRequirements, Price, X402Header};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use reqwest::Client;
 use serde_json::json;
+use serde_json::Value;
+use std::env;
+use std::str::FromStr;
+use tower::ServiceExt;
+use x402::facilitator::default_http_facilitator;
+use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
 use x402::schemes::evm::sign_transfer_with_authorization;
+use x402::server::SchemeServer;
+use x402::types::{AssetAmount, Price, X402Header};
 use x402::types::{PaymentPayload, PaymentRequired, Resource};
 
 #[tokio::test]
@@ -182,6 +180,11 @@ async fn test_x402_axum_facilitator_integration() {
         //    - Middleware should surface a verification failure error from the facilitator
         assert_eq!(status, axum::http::StatusCode::OK);
     }
+}
+
+#[tokio::test]
+async fn test_x402_v1_axum_facilitator_integration() {
+ todo!()
 }
 
 #[tokio::test]
