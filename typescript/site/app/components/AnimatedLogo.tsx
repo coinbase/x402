@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import Lottie from "lottie-react";
 import { useIntro } from "../contexts/IntroContext";
 import { X402Logo } from "./Logo";
-import animationData from "../../lottie_animations/CB_Dev_X402_02_v005.json";
+import animationData from "../data/lottie/CB_Dev_X402_02_v005.json";
 
 interface AnimatedLogoProps {
   className?: string;
