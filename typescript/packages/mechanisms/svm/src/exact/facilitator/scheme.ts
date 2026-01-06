@@ -16,7 +16,6 @@ import {
   decompileTransactionMessage,
   getCompiledTransactionMessageDecoder,
   type Address,
-  type CompiledTransactionMessage,
 } from "@solana/kit";
 import type {
   PaymentPayload,
@@ -134,9 +133,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
       };
     }
 
-    const compiled = getCompiledTransactionMessageDecoder().decode(
-      transaction.messageBytes,
-    ) as CompiledTransactionMessage;
+    const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
     const decompiled = decompileTransactionMessage(compiled);
     const instructions = decompiled.instructions ?? [];
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useFacilitator } from "./useFacilitator";
-import { PaymentPayload, PaymentRequirements } from "../types/verify";
+import { PaymentPayload, PaymentRequirements, SettleError, VerifyError } from "../types/verify";
 
 describe("useFacilitator", () => {
   const mockPaymentPayload: PaymentPayload = {
@@ -37,7 +37,7 @@ describe("useFacilitator", () => {
     global.fetch = vi.fn().mockResolvedValue({
       status: 200,
       statusText: "OK",
-      json: async () => ({}),
+      json: async () => ({ isValid: true, success: true }),
     });
   });
 
@@ -93,37 +93,44 @@ describe("useFacilitator", () => {
       );
     });
 
-    it("should throw error with detailed message from JSON response", async () => {
+    it("should throw VerifyError when 400 response has isValid field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
         json: async () => ({
-          error:
-            "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+          isValid: false,
           invalidReason: "invalid_network",
+          payer: "0x1234",
         }),
       });
       const { verify } = useFacilitator();
 
       await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "This facilitator only supports: base-sepolia, solana-devnet. Network 'base' is not supported.",
+        VerifyError,
       );
+      try {
+        await verify(mockPaymentPayload, mockPaymentRequirements);
+      } catch (e) {
+        expect(e).toBeInstanceOf(VerifyError);
+        expect((e as VerifyError).invalidReason).toBe("invalid_network");
+        expect((e as VerifyError).statusCode).toBe(400);
+      }
     });
 
-    it("should fall back to statusText when JSON has no error field", async () => {
+    it("should throw generic error when 400 response lacks isValid field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
-        json: async () => ({}),
+        json: async () => ({ error: "some error" }),
       });
       const { verify } = useFacilitator();
 
       await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to verify payment: Bad Request",
+        "Failed to verify payment: 400 Bad Request",
       );
     });
 
-    it("should fall back to statusText when JSON parsing fails", async () => {
+    it("should throw when JSON parsing fails", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 500,
         statusText: "Internal Server Error",
@@ -133,9 +140,7 @@ describe("useFacilitator", () => {
       });
       const { verify } = useFacilitator();
 
-      await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to verify payment: Internal Server Error",
-      );
+      await expect(verify(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow();
     });
   });
 
@@ -191,26 +196,36 @@ describe("useFacilitator", () => {
       );
     });
 
-    it("should throw error with detailed message from JSON response", async () => {
+    it("should throw SettleError when 400 response has success field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
         json: async () => ({
-          error: "Settlement failed: Insufficient allowance",
+          success: false,
+          errorReason: "insufficient_allowance",
+          network: "base-sepolia",
+          transaction: "",
         }),
       });
       const { settle } = useFacilitator();
 
       await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Settlement failed: Insufficient allowance",
+        SettleError,
       );
+      try {
+        await settle(mockPaymentPayload, mockPaymentRequirements);
+      } catch (e) {
+        expect(e).toBeInstanceOf(SettleError);
+        expect((e as SettleError).errorReason).toBe("insufficient_allowance");
+        expect((e as SettleError).statusCode).toBe(400);
+      }
     });
 
-    it("should fall back to statusText when JSON has no error field", async () => {
+    it("should throw generic error when 400 response lacks success field", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 400,
         statusText: "Bad Request",
-        json: async () => ({}),
+        json: async () => ({ error: "some error" }),
       });
       const { settle } = useFacilitator();
 
@@ -219,7 +234,7 @@ describe("useFacilitator", () => {
       );
     });
 
-    it("should fall back to statusText when JSON parsing fails", async () => {
+    it("should throw when JSON parsing fails", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         status: 500,
         statusText: "Internal Server Error",
@@ -229,9 +244,7 @@ describe("useFacilitator", () => {
       });
       const { settle } = useFacilitator();
 
-      await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow(
-        "Failed to settle payment: 500 Internal Server Error",
-      );
+      await expect(settle(mockPaymentPayload, mockPaymentRequirements)).rejects.toThrow();
     });
   });
 

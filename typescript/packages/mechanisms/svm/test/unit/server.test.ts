@@ -43,6 +43,11 @@ describe("ExactSvmScheme", () => {
         const result = await server.parsePrice("1", network);
         expect(result.amount).toBe("1000000"); // 1 USDC
       });
+
+      it("should avoid floating-point rounding error", async () => {
+        const result = await server.parsePrice("$4.02", network);
+        expect(result.amount).toBe("4020000"); // 4.02 USDC
+      });
     });
 
     describe("Solana Devnet network", () => {

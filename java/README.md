@@ -84,7 +84,7 @@ Map<String, BigInteger> priceTable = Map.of(
 );
 
 // 2. Create a facilitator client
-String facilitatorUrl = "https://x402.org/faciliator";
+String facilitatorUrl = "https://x402.org/facilitator";
 HttpFacilitatorClient facilitator = new HttpFacilitatorClient(facilitatorUrl);
 
 // 3. Create and register the filter

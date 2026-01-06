@@ -21,7 +21,7 @@ const (
 	MaxComputeUnitPriceMicrolamports = 5_000_000
 
 	// DefaultComputeUnitLimit is the default compute unit limit for transactions
-	DefaultComputeUnitLimit uint32 = 6500
+	DefaultComputeUnitLimit uint32 = 8000
 
 	// DefaultCommitment is the default commitment level for transactions
 	DefaultCommitment = rpc.CommitmentConfirmed
