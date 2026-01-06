@@ -4,8 +4,22 @@ Python implementation of the x402 payment protocol.
 
 ## Installation
 
+Install the core package with your preferred framework/client:
+
 ```bash
-pip install x402
+# HTTP clients (pick one)
+uv add x402[httpx]      # Async httpx client
+uv add x402[requests]   # Sync requests client
+
+# Server frameworks (pick one)
+uv add x402[fastapi]    # FastAPI middleware
+uv add x402[flask]      # Flask middleware
+
+# Multiple extras
+uv add x402[fastapi,httpx]
+
+# Everything
+uv add x402[all]
 ```
 
 ## Quick Start
