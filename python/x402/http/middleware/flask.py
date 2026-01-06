@@ -9,7 +9,12 @@ import json
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING, Any
 
-from flask import Flask, Request, g, request
+try:
+    from flask import Flask, Request, g, request
+except ImportError as e:
+    raise ImportError(
+        "Flask middleware requires the flask package. Install with: uv add x402[flask]"
+    ) from e
 
 from ..types import (
     HTTPAdapter,
