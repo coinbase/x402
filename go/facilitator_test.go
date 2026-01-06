@@ -324,16 +324,15 @@ func TestFacilitatorVerifySchemeMismatch(t *testing.T) {
 
 	// With new architecture, routing happens by requirements.Scheme
 	// Mechanism validates and returns IsValid=false (not necessarily an error)
-	switch {
-	case err != nil:
+	if err != nil {
 		// Error is acceptable for scheme mismatch
 		var paymentErr *PaymentError
 		if errors.As(err, &paymentErr) && paymentErr.Code != ErrCodeSchemeMismatch {
 			t.Fatalf("Expected SchemeMismatch error, got: %s", paymentErr.Code)
 		}
-	case response.IsValid:
+	} else if response.IsValid {
 		t.Fatal("Expected invalid response for scheme mismatch")
-	case response.InvalidReason != "scheme_mismatch":
+	} else if response.InvalidReason != "scheme_mismatch" {
 		t.Fatalf("Expected scheme_mismatch reason, got: %s", response.InvalidReason)
 	}
 }
@@ -382,16 +381,15 @@ func TestFacilitatorVerifyNetworkMismatch(t *testing.T) {
 	response, err := facilitator.Verify(ctx, payloadBytes, requirementsBytes)
 
 	// With new architecture, mechanism validates and returns IsValid=false
-	switch {
-	case err != nil:
+	if err != nil {
 		// Error is acceptable for network mismatch
 		var paymentErr *PaymentError
 		if errors.As(err, &paymentErr) && paymentErr.Code != ErrCodeNetworkMismatch {
 			t.Fatalf("Expected NetworkMismatch error, got: %s", paymentErr.Code)
 		}
-	case response.IsValid:
+	} else if response.IsValid {
 		t.Fatal("Expected invalid response for network mismatch")
-	case response.InvalidReason != "network_mismatch":
+	} else if response.InvalidReason != "network_mismatch" {
 		t.Fatalf("Expected network_mismatch reason, got: %s", response.InvalidReason)
 	}
 }
