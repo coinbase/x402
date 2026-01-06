@@ -89,11 +89,10 @@ export { declareSIWxExtension } from "./declare";
 export { parseSIWxHeader } from "./parse";
 export { validateSIWxMessage } from "./validate";
 export { verifySIWxSignature } from "./verify";
-export { siwxResourceServerExtension } from "./server";
 export { buildSIWxSchema } from "./schema";
 
 // Client exports
 export { createSIWxMessage } from "./message";
-export { signSIWxMessage, type SIWxSigner, type SignOptions } from "./sign";
+export { signSIWxMessage, type SIWxSigner } from "./sign";
 export { createSIWxPayload } from "./client";
 export { encodeSIWxHeader, encodeSIWxHeaderRaw } from "./encode";
