@@ -81,9 +81,10 @@ type (
 // VerifyResponse contains the verification result
 // If verification fails, an error (typically *VerifyError) is returned and this will be nil
 type VerifyResponse struct {
-	IsValid       bool   `json:"isValid"`
-	InvalidReason string `json:"invalidReason,omitempty"`
-	Payer         string `json:"payer,omitempty"`
+	IsValid         bool   `json:"isValid"`
+	InvalidReason   string `json:"invalidReason,omitempty"`
+	Payer           string `json:"payer,omitempty"`
+	TransactionHash string `json:"transactionHash,omitempty"`
 }
 
 // SettleResponse contains the settlement result
