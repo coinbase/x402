@@ -21,16 +21,15 @@ This proposal excludes sidechains / parallel networks.
 
 x402 v2 requires network identifiers to use CAIP-2 format `namespace:reference`.
 
-This document proposes:
+This document uses the community-adopted CAIP-2 identifiers for XRPL:
 - XRPL mainnet: `xrpl:0`
 - XRPL testnet: `xrpl:1`
 - XRPL devnet: `xrpl:2`
 
-This is a proposal value. x402 maintainers may prefer a different CAIP-2 reference convention for XRPL.
-
 References:
 - x402 v2 CAIP-2 usage: https://github.com/coinbase/x402/blob/main/specs/x402-specification-v2.md
 - CAIP-2 definition: https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md
+- XRPL CAIP-2 namespace: https://github.com/ChainAgnostic/namespaces/blob/main/xrpl/caip2.md
 
 ## Asset identifier
 
@@ -77,17 +76,6 @@ Purpose:
 Reference:
 - InvoiceID field: https://xrpl.org/payment.html#payment-fields
 
-#### `requireDestinationAccount` (optional; recommended default `true`)
-
-- Type: boolean
-- If `true`, verification MUST ensure `Destination` is already funded.
-
-Purpose:
-- Prevents payments being interpreted as account creation.
-
-Reference:
-- Payment can create accounts: https://xrpl.org/payment.html#creating-accounts
-
 ### Example `PaymentRequirements`
 
 ```json
@@ -100,8 +88,7 @@ Reference:
   "maxTimeoutSeconds": 60,
   "extra": {
     "destinationTag": 12345,
-    "invoiceId": "5F6E0F5E2E2A0F0E5A1B7E1E5A2F6D0B7A7C1D9E6B0A1F2E3D4C5B6A7C8D9E0F",
-    "requireDestinationAccount": true
+    "invoiceId": "5F6E0F5E2E2A0F0E5A1B7E1E5A2F6D0B7A7C1D9E6B0A1F2E3D4C5B6A7C8D9E0F"
   }
 }
 ```
@@ -177,7 +164,10 @@ Steps to verify a payment for the `exact` scheme on XRPL:
    - The verifier MUST reject transactions that do not have a finite lifetime.
    - Implementations MAY enforce this by requiring `LastLedgerSequence`.
 10. Verify the transaction signature(s) are valid and determine the payer account.
-11. If `requireDestinationAccount` is `true`, verify the destination account exists and is funded.
+11. **Verify the destination account exists and is funded:**
+    - The verifier MUST confirm that `Destination` corresponds to an existing, funded account on the XRPL network.
+    - This prevents unintended account creation via payment.
+    - Verification SHOULD be performed against current ledger state or a recent validated ledger.
 
 Reference:
 - Common fields including signatures: https://xrpl.org/transaction-common-fields.html
@@ -206,3 +196,17 @@ This proposal intentionally excludes:
 - Sidechains / parallel networks.
 
 The primary reason is to preserve exactness guarantees and keep verification rules deterministic and reviewable.
+
+### Rationale for requiring destination account existence
+
+The specification mandates that destination accounts must already exist for several reasons:
+
+1. **Prevents unintended account creation**: XRPL payments can create accounts if the amount meets the base reserve requirement (currently 10 XRP). This could lead to unexpected behavior where small micropayments fail or larger payments unintentionally create accounts.
+
+2. **Simplifies verification logic**: Eliminating conditional checks reduces implementation complexity and potential security vulnerabilities from branching paths.
+
+3. **Aligns with server responsibility**: Resource servers accepting payments should maintain funded accounts as part of their operational infrastructure.
+
+4. **Avoids reserve-related edge cases**: Without this requirement, payments below the reserve amount would fail for non-existent accounts, creating confusing error scenarios.
+
+5. **Improves determinism**: Verification behavior is consistent regardless of payment amount, making the system more predictable and easier to audit.
