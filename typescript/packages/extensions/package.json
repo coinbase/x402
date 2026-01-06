@@ -45,6 +45,7 @@
   "dependencies": {
     "@x402/core": "workspace:^",
     "ajv": "^8.17.1",
+    "siwe": "^2.3.2",
     "zod": "^3.24.2"
   },
   "exports": {
