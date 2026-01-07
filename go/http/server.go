@@ -641,102 +641,42 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 	// Calculate display amount (assuming USDC with 6 decimals)
 	displayAmount := s.getDisplayAmount(paymentRequired)
 
-	resourceDesc := ""
-	if paymentRequired.Resource != nil {
-		if paymentRequired.Resource.Description != "" {
-			resourceDesc = paymentRequired.Resource.Description
-		} else if paymentRequired.Resource.URL != "" {
-			resourceDesc = paymentRequired.Resource.URL
-		}
-	}
-
-	appLogo := ""
 	appName := ""
+	appLogo := ""
 	cdpClientKey := ""
 	testnet := false
 
 	if config != nil {
-		if config.AppLogo != "" {
-			appLogo = fmt.Sprintf(`<img src="%s" alt="%s" style="max-width: 200px; margin-bottom: 20px;">`,
-				html.EscapeString(config.AppLogo),
-				html.EscapeString(config.AppName))
-		}
 		appName = config.AppName
+		appLogo = config.AppLogo
 		cdpClientKey = config.CDPClientKey
 		testnet = config.Testnet
 	}
 
 	requirementsJSON, _ := json.Marshal(paymentRequired)
 
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>Payment Required</title>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<style>
-		body { 
-			font-family: system-ui, -apple-system, sans-serif;
-			margin: 0;
-			padding: 0;
-			background: #f5f5f5;
-		}
-		.container { 
-			max-width: 600px; 
-			margin: 50px auto; 
-			padding: 20px;
-			background: white;
-			border-radius: 8px;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-		}
-		.logo { margin-bottom: 20px; }
-		h1 { color: #333; }
-		.info { margin: 20px 0; }
-		.info p { margin: 10px 0; }
-		.amount { 
-			font-size: 24px; 
-			font-weight: bold; 
-			color: #0066cc;
-			margin: 20px 0;
-		}
-		#payment-widget {
-			margin-top: 30px;
-			padding: 20px;
-			border: 1px dashed #ccc;
-			border-radius: 4px;
-			background: #fafafa;
-			text-align: center;
-			color: #666;
-		}
-	</style>
-</head>
-<body>
-	<div class="container">
-		%s
-		<h1>Payment Required</h1>
-		<div class="info">
-			<p><strong>Resource:</strong> %s</p>
-			<p class="amount">Amount: $%.2f USDC</p>
-		</div>
-		<div id="payment-widget" 
-			data-requirements='%s'
-			data-cdp-client-key="%s"
-			data-app-name="%s"
-			data-testnet="%t">
-			<!-- CDP widget would be injected here -->
-			<p>Loading payment widget...</p>
-		</div>
-	</div>
-</body>
-</html>`,
-		appLogo,
-		html.EscapeString(resourceDesc),
-		displayAmount,
-		html.EscapeString(string(requirementsJSON)),
-		html.EscapeString(cdpClientKey),
+	// Inject configuration into the template
+	configScript := fmt.Sprintf(`<script>
+		window.x402 = {
+			paymentRequired: %s,
+			appName: "%s",
+			appLogo: "%s",
+			amount: %.6f,
+			testnet: %t,
+			cdpClientKey: "%s",
+			displayAmount: %.2f
+		};
+	</script>`,
+		string(requirementsJSON),
 		html.EscapeString(appName),
+		html.EscapeString(appLogo),
+		displayAmount,
 		testnet,
+		html.EscapeString(cdpClientKey),
+		displayAmount,
 	)
+
+	return strings.Replace(EVMPaywallTemplate, "</body>", configScript+"</body>", 1)
 }
 
 // getDisplayAmount extracts display amount from payment requirements
