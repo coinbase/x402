@@ -2,8 +2,13 @@
 
 from typing import Any
 
-from eth_abi import encode
-from eth_utils import keccak
+try:
+    from eth_abi import encode
+    from eth_utils import keccak
+except ImportError as e:
+    raise ImportError(
+        "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
+    ) from e
 
 from .types import (
     AUTHORIZATION_TYPES,

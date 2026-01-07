@@ -6,12 +6,16 @@ libraries like eth_account.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
+
+try:
+    from eth_account.signers.local import LocalAccount
+except ImportError as e:
+    raise ImportError(
+        "EVM signers require eth_account. Install with: pip install x402[evm]"
+    ) from e
 
 from .types import TypedDataDomain, TypedDataField
-
-if TYPE_CHECKING:
-    from eth_account.signers.local import LocalAccount
 
 
 class EthAccountSigner:

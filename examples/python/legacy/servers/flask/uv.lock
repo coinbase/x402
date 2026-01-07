@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 
 [[package]]
@@ -1822,8 +1822,8 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "0.2.1"
-source = { editable = "../../../../python/x402" }
+version = "1.0.0"
+source = { editable = "../../../../../python/legacy" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },
@@ -1872,7 +1872,7 @@ requires-dist = [
     { name = "flask", specifier = ">=3.1.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "uvicorn", specifier = ">=0.27.0" },
-    { name = "x402", editable = "../../../../python/x402" },
+    { name = "x402", editable = "../../../../../python/legacy" },
 ]
 
 [[package]]

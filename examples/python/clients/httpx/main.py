@@ -12,27 +12,30 @@ from x402.http import x402HTTPClient
 from x402.http.clients import x402HttpxClient
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact.register import register_exact_svm_client
 
 # Load environment variables
 load_dotenv()
 
 
-def validate_environment() -> tuple[str, str, str]:
+def validate_environment() -> tuple[str | None, str | None, str, str]:
     """Validate required environment variables.
 
     Returns:
-        Tuple of (private_key, base_url, endpoint_path).
+        Tuple of (evm_private_key, svm_private_key, base_url, endpoint_path).
 
     Raises:
         SystemExit: If required environment variables are missing.
     """
-    private_key = os.getenv("PRIVATE_KEY")
+    evm_private_key = os.getenv("EVM_PRIVATE_KEY")
+    svm_private_key = os.getenv("SVM_PRIVATE_KEY")
     base_url = os.getenv("RESOURCE_SERVER_URL")
     endpoint_path = os.getenv("ENDPOINT_PATH")
 
     missing = []
-    if not private_key:
-        missing.append("PRIVATE_KEY")
+    if not evm_private_key and not svm_private_key:
+        missing.append("EVM_PRIVATE_KEY or SVM_PRIVATE_KEY")
     if not base_url:
         missing.append("RESOURCE_SERVER_URL")
     if not endpoint_path:
@@ -43,21 +46,28 @@ def validate_environment() -> tuple[str, str, str]:
         print("Please copy .env-example to .env and fill in the values.")
         sys.exit(1)
 
-    return private_key, base_url, endpoint_path
+    return evm_private_key, svm_private_key, base_url, endpoint_path
 
 
 async def main() -> None:
     """Main entry point demonstrating httpx with x402 payments."""
     # Validate environment
-    private_key, base_url, endpoint_path = validate_environment()
+    evm_private_key, svm_private_key, base_url, endpoint_path = validate_environment()
 
-    # Create eth_account from private key
-    account = Account.from_key(private_key)
-    print(f"Initialized account: {account.address}")
-
-    # Create x402 client and register EVM payment scheme
+    # Create x402 client
     client = x402Client()
-    register_exact_evm_client(client, EthAccountSigner(account))
+
+    # Register EVM payment scheme if private key provided
+    if evm_private_key:
+        account = Account.from_key(evm_private_key)
+        register_exact_evm_client(client, EthAccountSigner(account))
+        print(f"Initialized EVM account: {account.address}")
+
+    # Register SVM payment scheme if private key provided
+    if svm_private_key:
+        svm_signer = KeypairSigner.from_base58(svm_private_key)
+        register_exact_svm_client(client, svm_signer)
+        print(f"Initialized SVM account: {svm_signer.address}")
 
     # Create HTTP client helper for payment response extraction
     http_client = x402HTTPClient(client)
@@ -80,10 +90,9 @@ async def main() -> None:
                 settle_response = http_client.get_payment_settle_response(
                     lambda name: response.headers.get(name)
                 )
-                print(f"\nPayment settled successfully!")
-                print(f"  Transaction: {settle_response.transaction}")
-                print(f"  Network: {settle_response.network}")
-                print(f"  Payer: {settle_response.payer}")
+                print(
+                    f"\nPayment response: {settle_response.model_dump_json(indent=2)}"
+                )
             except ValueError:
                 print("\nNo payment response header found")
         else:

@@ -13,6 +13,7 @@ from x402 import x402ResourceServer
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient
 from x402.http.middleware.flask import PaymentMiddleware
 from x402.mechanisms.evm.exact import register_exact_evm_server
+from x402.mechanisms.svm.exact import register_exact_svm_server
 
 # Configure logging to reduce verbosity
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -22,22 +23,22 @@ logging.getLogger("flask").setLevel(logging.ERROR)
 load_dotenv()
 
 # Get configuration from environment
-NETWORK = os.getenv("EVM_NETWORK", "base-sepolia")
-ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
+EVM_ADDRESS = os.getenv("EVM_PAYEE_ADDRESS")
+SVM_ADDRESS = os.getenv("SVM_PAYEE_ADDRESS")
 PORT = int(os.getenv("PORT", "4021"))
 FACILITATOR_URL = os.getenv("FACILITATOR_URL")
 
-if not ADDRESS:
+if not EVM_ADDRESS:
     print("Error: Missing required environment variable EVM_PAYEE_ADDRESS")
     sys.exit(1)
 
-# Map network alias to CAIP-2 format
-NETWORK_MAP = {
-    "base-sepolia": "eip155:84532",
-    "base": "eip155:8453",
-    "base-mainnet": "eip155:8453",
-}
-CAIP2_NETWORK = NETWORK_MAP.get(NETWORK, NETWORK)
+if not SVM_ADDRESS:
+    print("Error: Missing required environment variable SVM_PAYEE_ADDRESS")
+    sys.exit(1)
+
+# Network configurations (CAIP-2 format)
+EVM_NETWORK = "eip155:84532"  # Base Sepolia
+SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
 app = Flask(__name__)
 
@@ -53,17 +54,26 @@ else:
 # Create resource server
 server = x402ResourceServer(facilitator)
 
-# Register EVM exact scheme
-register_exact_evm_server(server, CAIP2_NETWORK)
+# Register EVM and SVM exact schemes
+register_exact_evm_server(server, EVM_NETWORK)
+register_exact_svm_server(server, SVM_NETWORK)
 
 # Define routes with payment requirements
 routes = {
     "GET /protected": {
         "accepts": {
             "scheme": "exact",
-            "payTo": ADDRESS,
+            "payTo": EVM_ADDRESS,
             "price": "$0.001",
-            "network": CAIP2_NETWORK,
+            "network": EVM_NETWORK,
+        }
+    },
+    "GET /protected-svm": {
+        "accepts": {
+            "scheme": "exact",
+            "payTo": SVM_ADDRESS,
+            "price": "$0.001",
+            "network": SVM_NETWORK,
         }
     },
 }
@@ -86,6 +96,20 @@ def protected_endpoint():
             "message": "Access granted to protected resource",
             "timestamp": "2024-01-01T00:00:00Z",
             "data": {"resource": "premium_content", "access_level": "paid"},
+        }
+    )
+
+
+@app.route("/protected-svm")
+def protected_svm_endpoint():
+    """Protected endpoint that requires SVM (Solana) payment."""
+    if shutdown_requested:
+        return jsonify({"error": "Server shutting down"}), 503
+
+    return jsonify(
+        {
+            "message": "Access granted to SVM protected resource",
+            "timestamp": "2024-01-01T00:00:00Z",
         }
     )
 
@@ -133,8 +157,10 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
     print(f"Starting Flask server on port {PORT}")
-    print(f"Server address: {ADDRESS}")
-    print(f"Network: {NETWORK} ({CAIP2_NETWORK})")
+    print(f"EVM address: {EVM_ADDRESS}")
+    print(f"SVM address: {SVM_ADDRESS}")
+    print(f"EVM Network: {EVM_NETWORK}")
+    print(f"SVM Network: {SVM_NETWORK}")
     print(f"Using facilitator: {FACILITATOR_URL}")
     print("Server listening on port", PORT)
 

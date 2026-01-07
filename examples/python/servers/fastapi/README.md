@@ -9,15 +9,20 @@ from x402.http import HTTPFacilitatorClient, FacilitatorConfig, PaymentOption
 from x402.http.types import RouteConfig
 from x402.server import x402ResourceServer
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.mechanisms.svm.exact import ExactSvmServerScheme
 
 app = FastAPI()
 
 server = x402ResourceServer(HTTPFacilitatorClient(FacilitatorConfig(url=facilitator_url)))
 server.register("eip155:84532", ExactEvmServerScheme())
+server.register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", ExactSvmServerScheme())
 
 routes = {
     "GET /weather": RouteConfig(
-        accepts=[PaymentOption(scheme="exact", price="$0.01", network="eip155:84532", pay_to=address)]
+        accepts=[
+            PaymentOption(scheme="exact", price="$0.01", network="eip155:84532", pay_to=evm_address),
+            PaymentOption(scheme="exact", price="$0.01", network="solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", pay_to=svm_address),
+        ]
     ),
 }
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
@@ -31,7 +36,8 @@ async def get_weather():
 
 - Python 3.10+
 - uv (install via [docs.astral.sh/uv](https://docs.astral.sh/uv/getting-started/installation/))
-- Valid EVM address for receiving payments
+- Valid EVM address for receiving payments (Base Sepolia)
+- Valid SVM address for receiving payments (Solana Devnet)
 - URL of a facilitator supporting the desired payment network, see [facilitator list](https://www.x402.org/ecosystem?category=facilitators)
 
 ## Setup
@@ -44,7 +50,8 @@ cp .env-local .env
 
 2. Fill required environment variables:
 
-- `ADDRESS` - Ethereum address to receive payments
+- `EVM_ADDRESS` - Ethereum address to receive payments (Base Sepolia)
+- `SVM_ADDRESS` - Solana address to receive payments (Solana Devnet)
 - `FACILITATOR_URL` - Facilitator endpoint URL (optional, defaults to production)
 
 3. Install dependencies:
@@ -127,12 +134,20 @@ content-type: application/json
 routes = {
     "GET /your-endpoint": RouteConfig(
         accepts=[
+            # EVM payment option
             PaymentOption(
                 scheme="exact",
                 price="$0.10",
                 network="eip155:84532",
-                pay_to=ADDRESS,
-            )
+                pay_to=EVM_ADDRESS,
+            ),
+            # SVM payment option
+            PaymentOption(
+                scheme="exact",
+                price="$0.10",
+                network="solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+                pay_to=SVM_ADDRESS,
+            ),
         ]
     ),
 }
@@ -162,5 +177,10 @@ price=AssetAmount(
 
 Network identifiers use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) format:
 
+**EVM Networks:**
 - `eip155:84532` — Base Sepolia
 - `eip155:8453` — Base Mainnet
+
+**SVM Networks:**
+- `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
+- `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
