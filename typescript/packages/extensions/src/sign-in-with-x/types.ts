@@ -129,14 +129,6 @@ export const SIWxPayloadSchema = z.object({
 export type SIWxPayload = z.infer<typeof SIWxPayloadSchema>;
 
 /**
- * Common Solana network CAIP-2 identifiers.
- * Uses genesis hash as the chain reference per CAIP-30.
- */
-export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
-export const SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
-export const SOLANA_TESTNET = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z";
-
-/**
  * Options for declaring SIWX extension on server
  */
 export interface DeclareSIWxOptions {

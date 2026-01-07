@@ -68,7 +68,8 @@
  */
 
 // Constants
-export { SIGN_IN_WITH_X, SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET, SIWxPayloadSchema } from "./types";
+export { SIGN_IN_WITH_X, SIWxPayloadSchema } from "./types";
+export { SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET } from "./solana";
 
 // Types
 export type {
