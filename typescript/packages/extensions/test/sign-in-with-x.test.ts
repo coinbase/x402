@@ -7,7 +7,6 @@ import {
   SIWxPayloadSchema,
   parseSIWxHeader,
   encodeSIWxHeader,
-  encodeSIWxHeaderRaw,
   declareSIWxExtension,
   validateSIWxMessage,
   createSIWxMessage,
@@ -99,14 +98,6 @@ describe("Sign-In-With-X Extension", () => {
       expect(decoded.domain).toBe(validPayload.domain);
       expect(decoded.address).toBe(validPayload.address);
       expect(decoded.signature).toBe(validPayload.signature);
-    });
-  });
-
-  describe("encodeSIWxHeaderRaw", () => {
-    it("should encode payload as raw JSON", () => {
-      const encoded = encodeSIWxHeaderRaw(validPayload);
-      const decoded = JSON.parse(encoded);
-      expect(decoded.domain).toBe(validPayload.domain);
     });
   });
 
