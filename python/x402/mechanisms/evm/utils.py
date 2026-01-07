@@ -5,6 +5,13 @@ import re
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+try:
+    from eth_utils import to_checksum_address
+except ImportError as e:
+    raise ImportError(
+        "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
+    ) from e
+
 from .constants import (
     DEFAULT_VALIDITY_BUFFER,
     DEFAULT_VALIDITY_PERIOD,
@@ -165,8 +172,6 @@ def normalize_address(address: str) -> str:
     # Simple checksum - use keccak256 of lowercase address
     # For full EIP-55, would need keccak256 hash
     # This is a simplified version
-    from eth_utils import to_checksum_address
-
     return to_checksum_address("0x" + addr)
 
 

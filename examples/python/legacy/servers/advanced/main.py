@@ -66,9 +66,6 @@ async def payment_required_handler(request: Request, exc: PaymentRequiredExcepti
     )
 
 
-
-
-
 def create_exact_payment_requirements(
     price: Price,
     network: SupportedNetworks,
@@ -157,9 +154,10 @@ async def verify_payment(
         raise PaymentRequiredException(error_data)
 
     try:
-        selected_payment_requirement = find_matching_payment_requirements(
-            payment_requirements, decoded_payment
-        ) or payment_requirements[0]
+        selected_payment_requirement = (
+            find_matching_payment_requirements(payment_requirements, decoded_payment)
+            or payment_requirements[0]
+        )
         verify_response = await facilitator.verify(
             decoded_payment, selected_payment_requirement
         )
@@ -350,9 +348,10 @@ async def multiple_payment_requirements(
     decoded_payment = PaymentPayload(**decoded_payment_dict)
 
     # Find the matching payment requirement
-    selected_payment_requirement = find_matching_payment_requirements(
-        payment_requirements, decoded_payment
-    ) or payment_requirements[0]
+    selected_payment_requirement = (
+        find_matching_payment_requirements(payment_requirements, decoded_payment)
+        or payment_requirements[0]
+    )
 
     settle_response = await facilitator.settle(
         decoded_payment, selected_payment_requirement

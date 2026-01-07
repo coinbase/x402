@@ -4,10 +4,8 @@ version = "0.1.0"
 description = "Example of using x402 v2 SDK with httpx"
 requires-python = ">=3.10"
 dependencies = [
-    "httpx>=0.24.0",
-    "eth-account>=0.8.0",
     "python-dotenv>=1.0.0",
-    "x402",
+    "x402[httpx,evm,svm]",
 ]
 
 [build-system]

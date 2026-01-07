@@ -100,7 +100,9 @@ class ExactEvmScheme:
                 extra["name"] = asset_info["name"]
                 extra["version"] = asset_info.get("version", "1")
             except ValueError:
-                raise ValueError("EIP-712 domain parameters (name, version) required in extra") from None
+                raise ValueError(
+                    "EIP-712 domain parameters (name, version) required in extra"
+                ) from None
 
         name = extra["name"]
         version = extra.get("version", "1")

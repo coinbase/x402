@@ -9,10 +9,8 @@ authors = [
 requires-python = ">=3.10"
 keywords = ["x402", "payment", "protocol", "http", "402"]
 dependencies = [
-    "x402",
-    "flask>=3.0.0",
-    "httpx>=0.28.0",
     "python-dotenv>=1.2.1",
+    "x402[flask,evm,svm]",
 ]
 
 [dependency-groups]
