@@ -77,29 +77,28 @@ describe("Sign-In-With-X Extension", () => {
       expect(parsed.signature).toBe(validPayload.signature);
     });
 
-    it("should parse raw JSON header (backwards compatibility)", () => {
-      const raw = JSON.stringify(validPayload);
-      const parsed = parseSIWxHeader(raw);
-      expect(parsed.domain).toBe(validPayload.domain);
-      expect(parsed.signature).toBe(validPayload.signature);
+    it("should throw on invalid base64", () => {
+      expect(() => parseSIWxHeader("not-valid-base64!@#")).toThrow("not valid base64");
     });
 
-    it("should throw on invalid JSON", () => {
-      expect(() => parseSIWxHeader("not-valid-json")).toThrow("Invalid SIWX header");
+    it("should throw on invalid JSON in base64", () => {
+      const invalidJson = safeBase64Encode("not valid json");
+      expect(() => parseSIWxHeader(invalidJson)).toThrow("not valid JSON");
     });
 
     it("should throw on missing required fields", () => {
-      const incomplete = JSON.stringify({ domain: "example.com" });
+      const incomplete = safeBase64Encode(JSON.stringify({ domain: "example.com" }));
       expect(() => parseSIWxHeader(incomplete)).toThrow("Invalid SIWX header");
     });
   });
 
   describe("encodeSIWxHeader", () => {
-    it("should encode payload as base64", () => {
+    it("should encode payload as base64 and round-trip correctly", () => {
       const encoded = encodeSIWxHeader(validPayload);
-      expect(() => Buffer.from(encoded, "base64")).not.toThrow();
-      const decoded = JSON.parse(Buffer.from(encoded, "base64").toString("utf-8"));
+      const decoded = parseSIWxHeader(encoded);
       expect(decoded.domain).toBe(validPayload.domain);
+      expect(decoded.address).toBe(validPayload.address);
+      expect(decoded.signature).toBe(validPayload.signature);
     });
   });
 
@@ -252,7 +251,7 @@ describe("Sign-In-With-X Extension", () => {
     });
 
     it("should throw on invalid Base58 characters", () => {
-      expect(() => decodeBase58("invalid0OIl")).toThrow("Invalid Base58 character");
+      expect(() => decodeBase58("invalid0OIl")).toThrow("Unknown letter");
     });
   });
 
