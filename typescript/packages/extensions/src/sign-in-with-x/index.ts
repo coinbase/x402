@@ -70,6 +70,9 @@
 // Extension identifier and schema
 export { SIGN_IN_WITH_X, SIWxPayloadSchema } from "./types";
 
+// Solana network constants
+export { SOLANA_MAINNET, SOLANA_DEVNET, SOLANA_TESTNET } from "./types";
+
 // Types
 export type {
   SIWxExtension,
@@ -96,3 +99,12 @@ export { createSIWxMessage } from "./message";
 export { signSIWxMessage, type SIWxSigner } from "./sign";
 export { createSIWxPayload } from "./client";
 export { encodeSIWxHeader, encodeSIWxHeaderRaw } from "./encode";
+
+// Solana utilities
+export {
+  formatSIWSMessage,
+  verifySolanaSignature,
+  decodeBase58,
+  encodeBase58,
+  extractSolanaNetwork,
+} from "./solana";

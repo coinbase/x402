@@ -118,6 +118,14 @@ export const SIWxPayloadSchema = z.object({
 export type SIWxPayload = z.infer<typeof SIWxPayloadSchema>;
 
 /**
+ * Common Solana network CAIP-2 identifiers.
+ * Uses genesis hash as the chain reference per CAIP-30.
+ */
+export const SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+export const SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+export const SOLANA_TESTNET = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z";
+
+/**
  * Options for declaring SIWX extension on server
  */
 export interface DeclareSIWxOptions {
@@ -127,8 +135,14 @@ export interface DeclareSIWxOptions {
   statement?: string;
   /** CAIP-122 version (default: "1") */
   version?: string;
-  /** CAIP-2 network identifier (e.g., "eip155:8453") */
-  network: string;
+  /**
+   * CAIP-2 network identifier.
+   * - EVM: "eip155:8453" (Base), "eip155:1" (Ethereum mainnet)
+   * - Solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" (mainnet)
+   *
+   * Use SOLANA_MAINNET, SOLANA_DEVNET, or SOLANA_TESTNET constants for Solana.
+   */
+  network: `eip155:${string}` | `solana:${string}` | (string & {});
   /** Optional explicit expiration time */
   expirationTime?: string;
   /** Signature scheme hint */
