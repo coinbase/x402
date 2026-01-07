@@ -13,11 +13,13 @@ import { ExpressAdapter } from "./adapter";
  * @param options.body - Request body.
  * @param options.protocol - Request protocol (default: "https").
  * @param options.host - Request host (default: "example.com").
+ * @param options.originalUrl - Original URL including query string (defaults to path).
  * @returns A mock Express Request.
  */
 function createMockRequest(
   options: {
     path?: string;
+    originalUrl?: string;
     method?: string;
     headers?: Record<string, string>;
     query?: Record<string, string | string[]>;
@@ -27,11 +29,13 @@ function createMockRequest(
   } = {},
 ): Request {
   const headers = options.headers || {};
+  const path = options.path || "/api/test";
 
   const mockRequest = {
     header: vi.fn((name: string) => headers[name]),
     method: options.method || "GET",
-    path: options.path || "/api/test",
+    path,
+    originalUrl: options.originalUrl || path,
     protocol: options.protocol || "https",
     headers: {
       host: options.host || "example.com",
@@ -97,6 +101,17 @@ describe("ExpressAdapter", () => {
       });
       const adapter = new ExpressAdapter(req);
       expect(adapter.getUrl()).toBe("https://example.com/api/test");
+    });
+
+    it("returns the full URL including query parameters", () => {
+      const req = createMockRequest({
+        path: "/api/test",
+        originalUrl: "/api/test?city=NYC&units=metric",
+        protocol: "https",
+        host: "example.com",
+      });
+      const adapter = new ExpressAdapter(req);
+      expect(adapter.getUrl()).toBe("https://example.com/api/test?city=NYC&units=metric");
     });
   });
 

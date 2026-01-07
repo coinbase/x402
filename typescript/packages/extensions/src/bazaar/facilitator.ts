@@ -162,8 +162,12 @@ export function extractDiscoveryInfo(
     return null;
   }
 
+  // Strip query params (?) and hash sections (#) for discovery cataloging
+  const url = new URL(resourceUrl);
+  const normalizedResourceUrl = `${url.origin}${url.pathname}`;
+
   return {
-    resourceUrl,
+    resourceUrl: normalizedResourceUrl,
     method: discoveryInfo.input.method,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,
