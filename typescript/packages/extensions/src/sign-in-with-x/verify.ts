@@ -6,10 +6,9 @@
  * - Solana (solana:*): Uses Ed25519 signature verification via tweetnacl
  */
 
-import { verifyMessage } from "viem";
-import { SiweMessage } from "siwe";
+import { formatSIWEMessage, verifyEVMSignature } from "./evm";
 import { formatSIWSMessage, verifySolanaSignature, decodeBase58 } from "./solana";
-import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions } from "./types";
+import type { SIWxPayload, SIWxVerifyResult } from "./types";
 
 /**
  * Verify SIWX signature cryptographically.
@@ -20,7 +19,6 @@ import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions } from "./types";
  * - `solana:*` → Ed25519 signature verification
  *
  * @param payload - The SIWX payload containing signature
- * @param options - Verification options (primarily for EVM)
  * @returns Verification result with recovered address if valid
  *
  * @example
@@ -37,12 +35,11 @@ import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions } from "./types";
  */
 export async function verifySIWxSignature(
   payload: SIWxPayload,
-  options: SIWxVerifyOptions = {},
 ): Promise<SIWxVerifyResult> {
   try {
     // Route by chain namespace
     if (payload.chainId.startsWith("eip155:")) {
-      return verifyEVMPayload(payload, options);
+      return verifyEVMPayload(payload);
     }
 
     if (payload.chainId.startsWith("solana:")) {
@@ -69,45 +66,27 @@ export async function verifySIWxSignature(
  * - EIP-1271 (deployed smart contract wallets)
  * - EIP-6492 (counterfactual/pre-deploy smart wallets)
  */
-async function verifyEVMPayload(
-  payload: SIWxPayload,
-  _options: SIWxVerifyOptions,
-): Promise<SIWxVerifyResult> {
-  const chainIdMatch = /^eip155:(\d+)$/.exec(payload.chainId);
-  if (!chainIdMatch) {
-    return {
-      valid: false,
-      error: `Invalid EVM chainId format: ${payload.chainId}. Expected eip155:<number>`,
-    };
-  }
-  const numericChainId = parseInt(chainIdMatch[1], 10);
-
+async function verifyEVMPayload(payload: SIWxPayload): Promise<SIWxVerifyResult> {
   // Reconstruct SIWE message for verification
-  const siweMessage = new SiweMessage({
-    domain: payload.domain,
-    address: payload.address,
-    statement: payload.statement,
-    uri: payload.uri,
-    version: payload.version,
-    chainId: numericChainId,
-    nonce: payload.nonce,
-    issuedAt: payload.issuedAt,
-    expirationTime: payload.expirationTime,
-    notBefore: payload.notBefore,
-    requestId: payload.requestId,
-    resources: payload.resources,
-  });
+  const message = formatSIWEMessage(
+    {
+      domain: payload.domain,
+      uri: payload.uri,
+      statement: payload.statement,
+      version: payload.version,
+      chainId: payload.chainId,
+      nonce: payload.nonce,
+      issuedAt: payload.issuedAt,
+      expirationTime: payload.expirationTime,
+      notBefore: payload.notBefore,
+      requestId: payload.requestId,
+      resources: payload.resources,
+    },
+    payload.address,
+  );
 
-  const message = siweMessage.prepareMessage();
-
-  // Use viem's verifyMessage for EIP-6492 smart wallet support
-  // This handles EOA, EIP-1271, and EIP-6492 signatures automatically
   try {
-    const valid = await verifyMessage({
-      address: payload.address as `0x${string}`,
-      message,
-      signature: payload.signature as `0x${string}`,
-    });
+    const valid = await verifyEVMSignature(message, payload.address, payload.signature);
 
     if (!valid) {
       return {

@@ -19,6 +19,11 @@ import {
   encodeBase58,
   extractSolanaNetwork,
   verifySolanaSignature,
+  getEVMAddress,
+  getSolanaAddress,
+  signSolanaMessage,
+  type SolanaSigner,
+  type EVMSigner,
 } from "../src/sign-in-with-x/index";
 import { safeBase64Encode } from "@x402/core/utils";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
@@ -439,6 +444,189 @@ describe("Sign-In-With-X Extension", () => {
       const result = await verifySIWxSignature(payload);
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Invalid signature length");
+    });
+  });
+
+  describe("Solana client-side signing", () => {
+    describe("getSolanaAddress", () => {
+      it("should get address from string publicKey", () => {
+        const signer: SolanaSigner = {
+          signMessage: async () => new Uint8Array(64),
+          publicKey: "BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW",
+        };
+        expect(getSolanaAddress(signer)).toBe("BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW");
+      });
+
+      it("should get address from PublicKey object", () => {
+        const signer: SolanaSigner = {
+          signMessage: async () => new Uint8Array(64),
+          publicKey: { toBase58: () => "BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW" },
+        };
+        expect(getSolanaAddress(signer)).toBe("BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW");
+      });
+    });
+
+    describe("getEVMAddress", () => {
+      it("should get address from account property", () => {
+        const signer: EVMSigner = {
+          signMessage: async () => "0x...",
+          account: { address: "0x1234567890123456789012345678901234567890" },
+        };
+        expect(getEVMAddress(signer)).toBe("0x1234567890123456789012345678901234567890");
+      });
+
+      it("should get address from direct address property", () => {
+        const signer: EVMSigner = {
+          signMessage: async () => "0x...",
+          address: "0xabcdef1234567890123456789012345678901234",
+        };
+        expect(getEVMAddress(signer)).toBe("0xabcdef1234567890123456789012345678901234");
+      });
+
+      it("should throw for signer without address", () => {
+        const signer: EVMSigner = {
+          signMessage: async () => "0x...",
+        };
+        expect(() => getEVMAddress(signer)).toThrow("EVM signer missing address");
+      });
+    });
+
+    describe("signSolanaMessage", () => {
+      it("should sign and return Base58 encoded signature", async () => {
+        const keypair = nacl.sign.keyPair();
+
+        const solanaSigner: SolanaSigner = {
+          signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
+          publicKey: encodeBase58(keypair.publicKey),
+        };
+
+        const message = "Test message for Solana signing";
+        const signature = await signSolanaMessage(message, solanaSigner);
+
+        // Signature should be Base58 encoded
+        const decoded = decodeBase58(signature);
+        expect(decoded.length).toBe(64); // Ed25519 signature
+
+        // Verify the signature works
+        const valid = verifySolanaSignature(message, decoded, keypair.publicKey);
+        expect(valid).toBe(true);
+      });
+    });
+
+    describe("createSIWxPayload with Solana signer", () => {
+      it("should create valid payload with Solana signer", async () => {
+        const keypair = nacl.sign.keyPair();
+        const address = encodeBase58(keypair.publicKey);
+
+        const solanaSigner: SolanaSigner = {
+          signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
+          publicKey: address,
+        };
+
+        const serverInfo = {
+          domain: "api.example.com",
+          uri: "https://api.example.com/data",
+          version: "1",
+          chainId: SOLANA_MAINNET,
+          nonce: "test123456789",
+          issuedAt: new Date().toISOString(),
+        };
+
+        const payload = await createSIWxPayload(serverInfo, solanaSigner);
+
+        expect(payload.address).toBe(address);
+        expect(payload.chainId).toBe(SOLANA_MAINNET);
+
+        // Verify the signature is valid
+        const result = await verifySIWxSignature(payload);
+        expect(result.valid).toBe(true);
+        expect(result.address).toBe(address);
+      });
+
+      it("should roundtrip through encode/parse/verify with Solana", async () => {
+        const keypair = nacl.sign.keyPair();
+        const address = encodeBase58(keypair.publicKey);
+
+        const solanaSigner: SolanaSigner = {
+          signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
+          publicKey: address,
+        };
+
+        const extension = declareSIWxExtension({
+          resourceUri: "https://api.example.com/resource",
+          network: SOLANA_MAINNET,
+          statement: "Sign in to access",
+        });
+
+        const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+        const header = encodeSIWxHeader(payload);
+        const parsed = parseSIWxHeader(header);
+
+        const validation = await validateSIWxMessage(parsed, "https://api.example.com/resource");
+        expect(validation.valid).toBe(true);
+
+        const verification = await verifySIWxSignature(parsed);
+        expect(verification.valid).toBe(true);
+        expect(verification.address).toBe(address);
+      });
+
+      it("should work with PublicKey object style signer", async () => {
+        const keypair = nacl.sign.keyPair();
+        const address = encodeBase58(keypair.publicKey);
+
+        // Mimic @solana/wallet-adapter style
+        const solanaSigner: SolanaSigner = {
+          signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
+          publicKey: { toBase58: () => address },
+        };
+
+        const extension = declareSIWxExtension({
+          resourceUri: "https://api.example.com/resource",
+          network: SOLANA_DEVNET,
+        });
+
+        const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+
+        expect(payload.address).toBe(address);
+        expect(payload.chainId).toBe(SOLANA_DEVNET);
+
+        const verification = await verifySIWxSignature(payload);
+        expect(verification.valid).toBe(true);
+      });
+    });
+
+    describe("signatureScheme behavior", () => {
+      it("verification ignores signatureScheme and uses chainId", async () => {
+        // This test documents that signatureScheme is a hint only
+        const keypair = nacl.sign.keyPair();
+        const address = encodeBase58(keypair.publicKey);
+
+        const serverInfo = {
+          domain: "api.example.com",
+          uri: "https://api.example.com",
+          version: "1",
+          chainId: SOLANA_MAINNET,
+          nonce: "test12345",
+          issuedAt: new Date().toISOString(),
+          signatureScheme: "eip191" as const, // Wrong hint - should be "siws"
+        };
+
+        // Create message and sign
+        const message = formatSIWSMessage(serverInfo, address);
+        const messageBytes = new TextEncoder().encode(message);
+        const signatureBytes = nacl.sign.detached(messageBytes, keypair.secretKey);
+
+        const payload = {
+          ...serverInfo,
+          address,
+          signature: encodeBase58(signatureBytes),
+          signatureScheme: "eip191" as const, // Wrong hint
+        };
+
+        // Verification should still work because it uses chainId, not signatureScheme
+        const result = await verifySIWxSignature(payload);
+        expect(result.valid).toBe(true); // Proves signatureScheme is ignored
+      });
     });
   });
 });

@@ -2,62 +2,56 @@
  * Complete client flow for SIWX extension
  *
  * Combines message construction, signing, and payload creation.
+ * Supports both EVM and Solana wallets.
  */
 
 import type { SIWxExtensionInfo, SIWxPayload } from "./types";
-import type { SIWxSigner } from "./sign";
+import type { SIWxSigner, EVMSigner, SolanaSigner } from "./sign";
+import {
+  getEVMAddress,
+  getSolanaAddress,
+  signEVMMessage,
+  signSolanaMessage,
+} from "./sign";
 import { createSIWxMessage } from "./message";
-import { signSIWxMessage } from "./sign";
 
 /**
  * Create a complete SIWX payload from server extension info.
  *
- * This function:
- * 1. Extracts the wallet address from the signer
- * 2. Constructs the CAIP-122 message
- * 3. Signs the message
- * 4. Returns the complete payload ready for encoding
+ * Routes to EVM or Solana signing based on the chainId prefix:
+ * - `eip155:*` → EVM signing
+ * - `solana:*` → Solana signing
  *
  * @param serverExtension - Server-provided extension info from PaymentRequired
- * @param signer - Wallet or account that can sign messages
+ * @param signer - Wallet that can sign messages (EVMSigner or SolanaSigner)
  * @returns Complete SIWX payload with signature
  *
  * @example
  * ```typescript
- * // Get extension info from 402 response
- * const serverInfo = paymentRequired.extensions['sign-in-with-x'].info;
+ * // EVM wallet
+ * const payload = await createSIWxPayload(serverInfo, evmWallet);
  *
- * // Create signed payload
- * const payload = await createSIWxPayload(serverInfo, wallet);
- *
- * // Encode for header
- * const header = encodeSIWxHeader(payload);
- *
- * // Send authenticated request
- * fetch(url, { headers: { 'SIGN-IN-WITH-X': header } });
+ * // Solana wallet
+ * const payload = await createSIWxPayload(serverInfo, solanaSigner);
  * ```
  */
 export async function createSIWxPayload(
   serverExtension: SIWxExtensionInfo,
   signer: SIWxSigner,
 ): Promise<SIWxPayload> {
-  // Get address from signer
-  let address: string;
-  if (signer.account?.address) {
-    address = signer.account.address;
-  } else if (signer.address) {
-    address = signer.address;
-  } else {
-    throw new Error("Cannot determine signer address: no account or address property found");
-  }
+  const isSolana = serverExtension.chainId.startsWith("solana:");
 
-  // Construct CAIP-122 message
+  // Get address and sign based on chain type
+  const address = isSolana
+    ? getSolanaAddress(signer as SolanaSigner)
+    : getEVMAddress(signer as EVMSigner);
+
   const message = createSIWxMessage(serverExtension, address);
 
-  // Sign message
-  const signature = await signSIWxMessage(message, signer);
+  const signature = isSolana
+    ? await signSolanaMessage(message, signer as SolanaSigner)
+    : await signEVMMessage(message, signer as EVMSigner);
 
-  // Return complete payload
   return {
     domain: serverExtension.domain,
     address,

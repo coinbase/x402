@@ -13,7 +13,15 @@ import { z } from "zod";
 export const SIGN_IN_WITH_X = "sign-in-with-x";
 
 /**
- * Supported signature schemes per CHANGELOG-v2.md line 271
+ * Supported signature schemes per CHANGELOG-v2.md line 271.
+ *
+ * NOTE: This is primarily informational. Actual signature verification
+ * is determined by the chainId prefix, not this field:
+ * - `eip155:*` chains use EVM verification (handles eip191, eip712, eip1271, eip6492 automatically)
+ * - `solana:*` chains use Ed25519 verification (siws)
+ *
+ * The signatureScheme field serves as a hint for clients to select
+ * the appropriate signing UX.
  */
 export type SignatureScheme =
   | "eip191" // personal_sign (default for EVM EOAs)
@@ -50,7 +58,10 @@ export interface SIWxExtensionInfo {
   requestId?: string;
   /** Associated resources */
   resources?: string[];
-  /** Signature scheme hint */
+  /**
+   * Signature scheme hint (informational only).
+   * Verification auto-detects from chainId prefix, not this field.
+   */
   signatureScheme?: SignatureScheme;
 }
 
@@ -145,7 +156,10 @@ export interface DeclareSIWxOptions {
   network: `eip155:${string}` | `solana:${string}` | (string & {});
   /** Optional explicit expiration time */
   expirationTime?: string;
-  /** Signature scheme hint */
+  /**
+   * Signature scheme hint (informational only).
+   * Passed to clients as UX hint but does not affect verification.
+   */
   signatureScheme?: SignatureScheme;
 }
 
@@ -175,14 +189,4 @@ export interface SIWxVerifyResult {
   /** Recovered/verified address (checksummed) */
   address?: string;
   error?: string;
-}
-
-/**
- * Options for signature verification
- */
-export interface SIWxVerifyOptions {
-  /** Web3 provider for EIP-1271/6492 smart wallet verification */
-  provider?: unknown;
-  /** Enable smart wallet verification */
-  checkSmartWallet?: boolean;
 }
