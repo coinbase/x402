@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import { ExactEvmScheme } from "../../src/exact/server/scheme";
 import { MoneyParser } from "@x402/core/types";
 
+// Base mainnet USDC address
+const BASE_MAINNET_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+// Base Sepolia USDC address
+const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
 describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
   describe("Single custom parser", () => {
     it("should use custom parser for Money values", async () => {
@@ -12,7 +17,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
         if (amount > 100) {
           return {
             amount: (amount * 1e18).toString(),
-            asset: "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI on Ethereum
+            asset: "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
             extra: { token: "DAI", tier: "large" },
           };
         }
@@ -22,14 +27,14 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       server.registerMoneyParser(customParser);
 
       // Large amount should use custom parser (DAI)
-      const result1 = await server.parsePrice(150, "eip155:1");
+      const result1 = await server.parsePrice(150, "eip155:8453");
       expect(result1.asset).toBe("0x6B175474E89094C44Da98b954EedeAC495271d0F");
       expect(result1.extra?.token).toBe("DAI");
       expect(result1.amount).toBe((150 * 1e18).toString());
 
       // Small amount should fall back to default (USDC)
-      const result2 = await server.parsePrice(50, "eip155:1");
-      expect(result2.asset).toBe("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"); // Ethereum USDC
+      const result2 = await server.parsePrice(50, "eip155:8453");
+      expect(result2.asset).toBe(BASE_MAINNET_USDC);
       expect(result2.amount).toBe("50000000"); // 50 * 1e6
     });
 
@@ -98,14 +103,14 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
 
         return {
           amount: (amount * 1e6).toString(),
-          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          asset: BASE_MAINNET_USDC,
           extra: { async: true, timestamp: Date.now() },
         };
       });
 
       const result = await server.parsePrice(5, "eip155:8453");
 
-      expect(result.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+      expect(result.asset).toBe(BASE_MAINNET_USDC);
       expect(result.extra?.async).toBe(true);
       expect(result.extra?.timestamp).toBeGreaterThan(0);
     });
@@ -120,7 +125,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       const result = await server.parsePrice(1, "eip155:8453");
 
       // Should use default Base USDC conversion
-      expect(result.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+      expect(result.asset).toBe(BASE_MAINNET_USDC);
       expect(result.amount).toBe("1000000"); // 1 * 1e6
     });
 
@@ -200,7 +205,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       const result = await server.parsePrice(1, "eip155:8453");
 
       // Should use default Base USDC conversion
-      expect(result.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+      expect(result.asset).toBe(BASE_MAINNET_USDC);
       expect(result.amount).toBe("1000000"); // 1 USDC = 1,000,000 smallest units
     });
 
@@ -301,11 +306,11 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
           };
         }
         if (amount > 1000) {
-          // Premium tier: use Ethereum USDC
+          // Premium tier: use custom token
           return {
             amount: (amount * 1e6).toString(),
-            asset: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-            extra: { tier: "premium", token: "USDC-ETH" },
+            asset: "0xPremiumToken",
+            extra: { tier: "premium", token: "PREMIUM" },
           };
         }
         return null; // Standard tier: use default (network-specific USDC)
@@ -318,10 +323,10 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
 
       const premiumResult = await server.parsePrice(5000, "eip155:8453");
       expect(premiumResult.extra?.tier).toBe("premium");
-      expect(premiumResult.extra?.token).toBe("USDC-ETH");
+      expect(premiumResult.extra?.token).toBe("PREMIUM");
 
       const standardResult = await server.parsePrice(500, "eip155:8453");
-      expect(standardResult.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"); // Base USDC (default)
+      expect(standardResult.asset).toBe(BASE_MAINNET_USDC); // Base USDC (default)
       expect(standardResult.amount).toBe("500000000"); // 500 * 1e6
     });
 
@@ -335,7 +340,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
         const usdcAmount = amount * mockExchangeRate;
         return {
           amount: Math.floor(usdcAmount * 1e6).toString(),
-          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          asset: BASE_MAINNET_USDC,
           extra: {
             exchangeRate: mockExchangeRate,
             originalAmount: amount,
@@ -369,7 +374,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
         if (amount >= 1) {
           return {
             amount: (amount * 1e6).toString(),
-            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            asset: BASE_MAINNET_USDC,
             extra: { token: "USDC", category: "standard" },
           };
         }
@@ -389,20 +394,21 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       const server = new ExactEvmScheme();
 
       server.registerMoneyParser(async (amount, network) => {
-        // Use DAI on Ethereum mainnet, USDC elsewhere
-        if (network === "eip155:1") {
+        // Use different tokens based on network
+        if (network === "eip155:84532") {
+          // Base Sepolia: use testnet USDC
           return {
-            amount: (amount * 1e18).toString(),
-            asset: "0x6B175474E89094C44Da98b954EedeAC495271d0F", // DAI
-            extra: { network: "ethereum", token: "DAI" },
+            amount: (amount * 1e6).toString(),
+            asset: BASE_SEPOLIA_USDC,
+            extra: { network: "base-sepolia", token: "USDC-TEST" },
           };
         }
 
-        // Use Base USDC for Base
-        if (network.startsWith("eip155:8453")) {
+        // Base mainnet: use mainnet USDC
+        if (network === "eip155:8453") {
           return {
             amount: (amount * 1e6).toString(),
-            asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            asset: BASE_MAINNET_USDC,
             extra: { network: "base", token: "USDC" },
           };
         }
@@ -410,9 +416,9 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
         return null; // Other networks use default
       });
 
-      const ethResult = await server.parsePrice(10, "eip155:1");
-      expect(ethResult.extra?.network).toBe("ethereum");
-      expect(ethResult.extra?.token).toBe("DAI");
+      const sepoliaResult = await server.parsePrice(10, "eip155:84532");
+      expect(sepoliaResult.extra?.network).toBe("base-sepolia");
+      expect(sepoliaResult.extra?.token).toBe("USDC-TEST");
 
       const baseResult = await server.parsePrice(10, "eip155:8453");
       expect(baseResult.extra?.network).toBe("base");
@@ -420,7 +426,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
     });
   });
 
-  describe("Multiple parsers - chain of responsibility", () => {
+  describe("Multiple parsers - chain priority", () => {
     it("should execute parsers in registration order", async () => {
       const server = new ExactEvmScheme();
       const executionOrder: number[] = [];
@@ -481,7 +487,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       const result = await server.parsePrice(1, "eip155:84532");
 
       // Should use default Base Sepolia USDC
-      expect(result.asset).toBe("0x036CbD53842c5426634e7929541eC2318f3dCF7e");
+      expect(result.asset).toBe(BASE_SEPOLIA_USDC);
       expect(result.amount).toBe("1000000");
     });
 
@@ -516,7 +522,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
           if (amount >= 100 && amount < 1000) {
             return {
               amount: (amount * 1e6).toString(),
-              asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              asset: BASE_MAINNET_USDC,
               extra: { tier: 3, token: "USDC" },
             };
           }
@@ -537,7 +543,7 @@ describe("ExactEvmScheme (Server) - registerMoneyParser", () => {
       expect(tier3.extra?.token).toBe("USDC");
 
       const tier4 = await server.parsePrice(50, "eip155:8453");
-      expect(tier4.asset).toBe("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"); // Default
+      expect(tier4.asset).toBe(BASE_MAINNET_USDC); // Default
     });
   });
 

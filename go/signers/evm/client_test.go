@@ -199,7 +199,7 @@ func TestClientSigner_SignTypedData_WithEIP712DomainInTypes(t *testing.T) {
 }
 
 // testRecovery verifies that a signature can be recovered to the expected address
-func testRecovery(t *testing.T, signature []byte, expectedAddr string, domain x402evm.TypedDataDomain, types map[string][]x402evm.TypedDataField, message map[string]interface{}) {
+func testRecovery(t *testing.T, signature []byte, _ string, _ x402evm.TypedDataDomain, _ map[string][]x402evm.TypedDataField, _ map[string]interface{}) {
 	// This would require implementing the full recovery logic
 	// For now, we just check the signature format
 	// The actual recovery is tested in the mechanisms/evm package
