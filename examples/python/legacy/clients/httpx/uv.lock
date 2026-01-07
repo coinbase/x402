@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 
 [[package]]
@@ -1822,8 +1822,8 @@ wheels = [
 
 [[package]]
 name = "x402"
-version = "0.2.1"
-source = { editable = "../../../../python/x402" }
+version = "1.0.0"
+source = { editable = "../../../../../python/legacy" }
 dependencies = [
     { name = "eth-account" },
     { name = "eth-typing" },
@@ -1870,7 +1870,7 @@ dependencies = [
 requires-dist = [
     { name = "eth-account", specifier = ">=0.8.0" },
     { name = "httpx", specifier = ">=0.24.0" },
-    { name = "x402", editable = "../../../../python/x402" },
+    { name = "x402", editable = "../../../../../python/legacy" },
 ]
 
 [[package]]
