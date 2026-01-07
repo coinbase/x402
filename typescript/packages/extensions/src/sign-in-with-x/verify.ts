@@ -1,18 +1,26 @@
 /**
  * Signature verification for SIWX extension
+ *
+ * Routes to chain-specific verification based on chainId namespace:
+ * - EVM (eip155:*): Uses viem's verifyMessage with EIP-6492 smart wallet support
+ * - Solana (solana:*): Uses Ed25519 signature verification via tweetnacl
  */
 
-import { SiweMessage, type VerifyParams, type VerifyOpts } from "siwe";
+import { verifyMessage } from "viem";
+import { SiweMessage } from "siwe";
+import { formatSIWSMessage, verifySolanaSignature, decodeBase58 } from "./solana";
 import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions } from "./types";
 
 /**
  * Verify SIWX signature cryptographically.
  *
- * Reconstructs the SIWE message from payload fields and verifies
- * the signature matches the claimed address.
+ * Routes to the appropriate chain-specific verification based on the
+ * chainId namespace prefix:
+ * - `eip155:*` → EVM verification with EIP-6492 smart wallet support
+ * - `solana:*` → Ed25519 signature verification
  *
  * @param payload - The SIWX payload containing signature
- * @param options - Verification options
+ * @param options - Verification options (primarily for EVM)
  * @returns Verification result with recovered address if valid
  *
  * @example
@@ -32,59 +40,18 @@ export async function verifySIWxSignature(
   options: SIWxVerifyOptions = {},
 ): Promise<SIWxVerifyResult> {
   try {
-    // Parse CAIP-2 chainId (e.g., "eip155:8453" -> 8453)
-    const chainIdMatch = /^eip155:(\d+)$/.exec(payload.chainId);
-    if (!chainIdMatch) {
-      return {
-        valid: false,
-        error: `Unsupported chainId namespace: ${payload.chainId}. Only eip155:* is supported.`,
-      };
+    // Route by chain namespace
+    if (payload.chainId.startsWith("eip155:")) {
+      return verifyEVMSignature(payload, options);
     }
-    const numericChainId = parseInt(chainIdMatch[1], 10);
 
-    // Reconstruct SIWE message for verification
-    const siweMessage = new SiweMessage({
-      domain: payload.domain,
-      address: payload.address,
-      statement: payload.statement,
-      uri: payload.uri,
-      version: payload.version,
-      chainId: numericChainId,
-      nonce: payload.nonce,
-      issuedAt: payload.issuedAt,
-      expirationTime: payload.expirationTime,
-      notBefore: payload.notBefore,
-      requestId: payload.requestId,
-      resources: payload.resources,
-    });
-
-    // Verify signature
-    const verifyParams: VerifyParams = {
-      signature: payload.signature,
-    };
-
-    // Add provider for smart wallet verification if enabled
-    const verifyOpts: VerifyOpts | undefined =
-      options.checkSmartWallet && options.provider
-        ? { provider: options.provider }
-        : undefined;
-
-    const result = await siweMessage.verify(verifyParams, verifyOpts);
-
-    if (!result.success) {
-      // SiweError type - extract error details
-      const errorMessage = result.error
-        ? String(result.error)
-        : "Signature verification failed";
-      return {
-        valid: false,
-        error: errorMessage,
-      };
+    if (payload.chainId.startsWith("solana:")) {
+      return verifySolanaPayload(payload);
     }
 
     return {
-      valid: true,
-      address: siweMessage.address,
+      valid: false,
+      error: `Unsupported chain namespace: ${payload.chainId}. Supported: eip155:* (EVM), solana:* (Solana)`,
     };
   } catch (error) {
     return {
@@ -92,4 +59,141 @@ export async function verifySIWxSignature(
       error: error instanceof Error ? error.message : "Verification failed",
     };
   }
+}
+
+/**
+ * Verify EVM signature with EIP-6492 smart wallet support.
+ *
+ * Uses viem's verifyMessage which automatically handles:
+ * - EOA signatures (standard ECDSA)
+ * - EIP-1271 (deployed smart contract wallets)
+ * - EIP-6492 (counterfactual/pre-deploy smart wallets)
+ */
+async function verifyEVMSignature(
+  payload: SIWxPayload,
+  _options: SIWxVerifyOptions,
+): Promise<SIWxVerifyResult> {
+  const chainIdMatch = /^eip155:(\d+)$/.exec(payload.chainId);
+  if (!chainIdMatch) {
+    return {
+      valid: false,
+      error: `Invalid EVM chainId format: ${payload.chainId}. Expected eip155:<number>`,
+    };
+  }
+  const numericChainId = parseInt(chainIdMatch[1], 10);
+
+  // Reconstruct SIWE message for verification
+  const siweMessage = new SiweMessage({
+    domain: payload.domain,
+    address: payload.address,
+    statement: payload.statement,
+    uri: payload.uri,
+    version: payload.version,
+    chainId: numericChainId,
+    nonce: payload.nonce,
+    issuedAt: payload.issuedAt,
+    expirationTime: payload.expirationTime,
+    notBefore: payload.notBefore,
+    requestId: payload.requestId,
+    resources: payload.resources,
+  });
+
+  const message = siweMessage.prepareMessage();
+
+  // Use viem's verifyMessage for EIP-6492 smart wallet support
+  // This handles EOA, EIP-1271, and EIP-6492 signatures automatically
+  try {
+    const valid = await verifyMessage({
+      address: payload.address as `0x${string}`,
+      message,
+      signature: payload.signature as `0x${string}`,
+    });
+
+    if (!valid) {
+      return {
+        valid: false,
+        error: "Signature verification failed",
+      };
+    }
+
+    return {
+      valid: true,
+      address: payload.address,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : "Signature verification failed",
+    };
+  }
+}
+
+/**
+ * Verify Solana Ed25519 signature.
+ *
+ * Reconstructs the SIWS message and verifies using tweetnacl.
+ */
+function verifySolanaPayload(payload: SIWxPayload): SIWxVerifyResult {
+  // Reconstruct SIWS message
+  const message = formatSIWSMessage(
+    {
+      domain: payload.domain,
+      uri: payload.uri,
+      statement: payload.statement,
+      version: payload.version,
+      chainId: payload.chainId,
+      nonce: payload.nonce,
+      issuedAt: payload.issuedAt,
+      expirationTime: payload.expirationTime,
+      notBefore: payload.notBefore,
+      requestId: payload.requestId,
+      resources: payload.resources,
+    },
+    payload.address,
+  );
+
+  // Decode Base58 signature and public key
+  let signature: Uint8Array;
+  let publicKey: Uint8Array;
+
+  try {
+    signature = decodeBase58(payload.signature);
+    publicKey = decodeBase58(payload.address);
+  } catch (error) {
+    return {
+      valid: false,
+      error: `Invalid Base58 encoding: ${error instanceof Error ? error.message : "decode failed"}`,
+    };
+  }
+
+  // Validate signature length (Ed25519 signatures are 64 bytes)
+  if (signature.length !== 64) {
+    return {
+      valid: false,
+      error: `Invalid signature length: expected 64 bytes, got ${signature.length}`,
+    };
+  }
+
+  // Validate public key length (Ed25519 public keys are 32 bytes)
+  if (publicKey.length !== 32) {
+    return {
+      valid: false,
+      error: `Invalid public key length: expected 32 bytes, got ${publicKey.length}`,
+    };
+  }
+
+  // Verify Ed25519 signature
+  const valid = verifySolanaSignature(message, signature, publicKey);
+
+  if (!valid) {
+    return {
+      valid: false,
+      error: "Solana signature verification failed",
+    };
+  }
+
+  return {
+    valid: true,
+    address: payload.address,
+  };
 }
