@@ -1,15 +1,18 @@
 /**
  * Message signing for SIWX extension
  *
- * Client-side helper for signing SIWX messages.
+ * Client-side helpers for signing SIWX messages.
+ * Supports both EVM (viem) and Solana wallet adapters.
  */
 
+import { encodeBase58 } from "./solana";
+
 /**
- * Generic signer interface for SIWX message signing.
+ * Signer interface for EVM SIWX message signing.
  * Compatible with viem WalletClient and PrivateKeyAccount.
  */
-export interface SIWxSigner {
-  /** Sign a message and return the signature */
+export interface EVMSigner {
+  /** Sign a message and return hex-encoded signature */
   signMessage: (args: { message: string; account?: unknown }) => Promise<string>;
   /** Account object (for WalletClient) */
   account?: { address: string };
@@ -18,38 +21,59 @@ export interface SIWxSigner {
 }
 
 /**
- * Sign SIWX message with wallet.
- *
- * Compatible with:
- * - viem WalletClient (browser wallets)
- * - viem PrivateKeyAccount (server-side)
- *
- * @param message - CAIP-122 message string to sign
- * @param signer - Wallet or account that can sign messages
- * @returns Signature string
- *
- * @example
- * ```typescript
- * // With WalletClient (browser)
- * const signature = await signSIWxMessage(message, walletClient);
- *
- * // With PrivateKeyAccount (server)
- * const account = privateKeyToAccount('0x...');
- * const signature = await signSIWxMessage(message, account);
- * ```
+ * Signer interface for Solana SIWX message signing.
+ * Compatible with @solana/wallet-adapter and Phantom/Solflare wallet APIs.
  */
-export async function signSIWxMessage(
-  message: string,
-  signer: SIWxSigner,
-): Promise<string> {
-  // Check if signer has an account property (WalletClient pattern)
-  if (signer.account) {
-    return signer.signMessage({
-      message,
-      account: signer.account,
-    });
-  }
+export interface SolanaSigner {
+  /** Sign a message and return raw signature bytes */
+  signMessage: (message: Uint8Array) => Promise<Uint8Array>;
+  /** Solana public key (Base58 encoded string or PublicKey-like object) */
+  publicKey: string | { toBase58: () => string };
+}
 
-  // Direct signMessage (PrivateKeyAccount pattern)
+/**
+ * Union type for SIWX signers - supports both EVM and Solana wallets.
+ */
+export type SIWxSigner = EVMSigner | SolanaSigner;
+
+/**
+ * Get address from an EVM signer.
+ */
+export function getEVMAddress(signer: EVMSigner): string {
+  if (signer.account?.address) {
+    return signer.account.address;
+  }
+  if (signer.address) {
+    return signer.address;
+  }
+  throw new Error("EVM signer missing address");
+}
+
+/**
+ * Get address from a Solana signer.
+ */
+export function getSolanaAddress(signer: SolanaSigner): string {
+  const pk = signer.publicKey;
+  return typeof pk === "string" ? pk : pk.toBase58();
+}
+
+/**
+ * Sign a message with an EVM wallet.
+ * Returns hex-encoded signature.
+ */
+export async function signEVMMessage(message: string, signer: EVMSigner): Promise<string> {
+  if (signer.account) {
+    return signer.signMessage({ message, account: signer.account });
+  }
   return signer.signMessage({ message });
+}
+
+/**
+ * Sign a message with a Solana wallet.
+ * Returns Base58-encoded signature.
+ */
+export async function signSolanaMessage(message: string, signer: SolanaSigner): Promise<string> {
+  const messageBytes = new TextEncoder().encode(message);
+  const signatureBytes = await signer.signMessage(messageBytes);
+  return encodeBase58(signatureBytes);
 }
