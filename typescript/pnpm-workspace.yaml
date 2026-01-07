@@ -4,6 +4,7 @@ packages:
   - packages/http/*
   - packages/mechanisms/*
   - packages/legacy/*
+  - packages/contracts/*
   - examples/facilitator
   - examples/**/*
   - site

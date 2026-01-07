@@ -1,0 +1,119 @@
+{
+  "name": "@x402/evm-contracts",
+  "version": "2.0.0",
+  "description": "Smart contracts and ABIs for x402 EVM payment protocol",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.mjs",
+  "types": "./dist/cjs/index.d.ts",
+  "scripts": {
+    "build": "pnpm build:contracts && pnpm build:abis && pnpm build:ts",
+    "build:contracts": "hardhat compile",
+    "build:abis": "tsx scripts/extract-abis.ts",
+    "build:ts": "tsup",
+    "clean": "rm -rf dist dist-hardhat && hardhat clean",
+    "test": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test",
+    "test:unit": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test test/x402Permit2Proxy.test.ts",
+    "test:fork": "FORK_BASE_SEPOLIA=true TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test test/x402Permit2Proxy.fork.test.ts",
+    "test:coverage": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat coverage",
+    "compute-address": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/compute-address.ts",
+    "mine-vanity": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/mine-vanity-address.ts",
+    "deploy:local": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy-x402-proxy.ts --network localhost",
+    "deploy:base-sepolia": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy-x402-proxy.ts --network base-sepolia",
+    "deploy:sepolia": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy-x402-proxy.ts --network sepolia",
+    "deploy:base": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy-x402-proxy.ts --network base",
+    "verify:base-sepolia": "hardhat verify --network base-sepolia",
+    "node": "hardhat node",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "lint:check": "solhint 'contracts/**/*.sol'",
+    "format": "prettier --write 'contracts/**/*.sol' 'test/**/*.ts' 'scripts/**/*.ts' 'src/**/*.ts'",
+    "format:check": "prettier --check 'contracts/**/*.sol' 'test/**/*.ts' 'scripts/**/*.ts' 'src/**/*.ts'"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.mts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./constants": {
+      "import": {
+        "types": "./dist/esm/constants.d.mts",
+        "default": "./dist/esm/constants.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/constants.d.ts",
+        "default": "./dist/cjs/constants.js"
+      }
+    },
+    "./abis": {
+      "import": {
+        "types": "./dist/esm/abis/index.d.mts",
+        "default": "./dist/esm/abis/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/abis/index.d.ts",
+        "default": "./dist/cjs/abis/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "contracts",
+    "README.md"
+  ],
+  "keywords": [
+    "x402",
+    "payment",
+    "protocol",
+    "evm",
+    "ethereum",
+    "permit2",
+    "smart-contracts"
+  ],
+  "license": "Apache-2.0",
+  "author": "Coinbase Inc.",
+  "repository": "https://github.com/coinbase/x402",
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-ethers": "^3.0.0",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
+    "@openzeppelin/contracts": "^5.1.0",
+    "@swc/core": "^1.15.8",
+    "@swc/helpers": "^0.5.18",
+    "@typechain/ethers-v6": "^0.5.0",
+    "@typechain/hardhat": "^9.0.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@uniswap/permit2-sdk": "^1.4.0",
+    "chai": "^4.4.1",
+    "ethers": "^6.13.0",
+    "hardhat": "^2.22.0",
+    "hardhat-gas-reporter": "^1.0.10",
+    "prettier": "^3.4.2",
+    "prettier-plugin-solidity": "^1.4.1",
+    "solhint": "^5.0.3",
+    "solidity-coverage": "^0.8.5",
+    "ts-node": "^10.9.2",
+    "tsup": "^8.4.0",
+    "tsx": "^4.7.0",
+    "typechain": "^8.3.0",
+    "typescript": "5.3.3",
+    "viem": "^2.43.5"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "viem": {
+      "optional": true
+    }
+  }
+}
