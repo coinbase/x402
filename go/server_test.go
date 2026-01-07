@@ -98,7 +98,9 @@ func TestServerWithOptions(t *testing.T) {
 
 	// After Initialize, facilitatorClients map will be populated
 	ctx := context.Background()
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	// Check schemes were registered
 	if server.schemes["eip155:1"]["exact"] != mockServer {
@@ -220,7 +222,9 @@ func TestServerBuildPaymentRequirements(t *testing.T) {
 	)
 
 	// Initialize to populate supported kinds
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	config := ResourceConfig{
 		Scheme:            "exact",
@@ -344,7 +348,9 @@ func TestServerVerifyPayment(t *testing.T) {
 	}
 
 	server := Newx402ResourceServer(WithFacilitatorClient(mockClient))
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
@@ -391,7 +397,9 @@ func TestServerSettlePayment(t *testing.T) {
 	}
 
 	server := Newx402ResourceServer(WithFacilitatorClient(mockClient))
-	server.Initialize(ctx)
+	if err := server.Initialize(ctx); err != nil {
+		t.Fatalf("Failed to initialize server: %v", err)
+	}
 
 	requirements := types.PaymentRequirements{
 		Scheme:  "exact",
