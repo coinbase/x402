@@ -38,6 +38,9 @@ export type SIWxSigner = EVMSigner | SolanaSigner;
 
 /**
  * Get address from an EVM signer.
+ *
+ * @param signer - EVM wallet signer instance
+ * @returns The wallet address as a hex string
  */
 export function getEVMAddress(signer: EVMSigner): string {
   if (signer.account?.address) {
@@ -51,6 +54,9 @@ export function getEVMAddress(signer: EVMSigner): string {
 
 /**
  * Get address from a Solana signer.
+ *
+ * @param signer - Solana wallet signer instance
+ * @returns The wallet address as a Base58 string
  */
 export function getSolanaAddress(signer: SolanaSigner): string {
   const pk = signer.publicKey;
@@ -60,6 +66,10 @@ export function getSolanaAddress(signer: SolanaSigner): string {
 /**
  * Sign a message with an EVM wallet.
  * Returns hex-encoded signature.
+ *
+ * @param message - The message to sign
+ * @param signer - EVM wallet signer instance
+ * @returns Hex-encoded signature
  */
 export async function signEVMMessage(message: string, signer: EVMSigner): Promise<string> {
   if (signer.account) {
@@ -71,6 +81,10 @@ export async function signEVMMessage(message: string, signer: EVMSigner): Promis
 /**
  * Sign a message with a Solana wallet.
  * Returns Base58-encoded signature.
+ *
+ * @param message - The message to sign
+ * @param signer - Solana wallet signer instance
+ * @returns Base58-encoded signature
  */
 export async function signSolanaMessage(message: string, signer: SolanaSigner): Promise<string> {
   const messageBytes = new TextEncoder().encode(message);

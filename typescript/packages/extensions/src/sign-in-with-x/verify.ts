@@ -63,6 +63,9 @@ export async function verifySIWxSignature(payload: SIWxPayload): Promise<SIWxVer
  * - EOA signatures (standard ECDSA)
  * - EIP-1271 (deployed smart contract wallets)
  * - EIP-6492 (counterfactual/pre-deploy smart wallets)
+ *
+ * @param payload - The SIWX payload containing signature and message data
+ * @returns Verification result with recovered address if valid
  */
 async function verifyEVMPayload(payload: SIWxPayload): Promise<SIWxVerifyResult> {
   // Reconstruct SIWE message for verification
@@ -109,6 +112,9 @@ async function verifyEVMPayload(payload: SIWxPayload): Promise<SIWxVerifyResult>
  * Verify Solana Ed25519 signature.
  *
  * Reconstructs the SIWS message and verifies using tweetnacl.
+ *
+ * @param payload - The SIWX payload containing signature and message data
+ * @returns Verification result with recovered address if valid
  */
 function verifySolanaPayload(payload: SIWxPayload): SIWxVerifyResult {
   // Reconstruct SIWS message
