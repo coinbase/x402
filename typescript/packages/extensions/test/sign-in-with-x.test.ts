@@ -12,8 +12,11 @@ import {
   declareSIWxExtension,
   validateSIWxMessage,
   createSIWxMessage,
+  createSIWxPayload,
+  verifySIWxSignature,
 } from "../src/sign-in-with-x/index";
 import { safeBase64Encode } from "@x402/core/utils";
+import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 
 const validPayload = {
   domain: "api.example.com",
@@ -148,24 +151,24 @@ describe("Sign-In-With-X Extension", () => {
   });
 
   describe("createSIWxMessage", () => {
-    it("should create CAIP-122 format message", () => {
+    it("should create EIP-4361 format message", () => {
       const serverInfo = {
         domain: "api.example.com",
         uri: "https://api.example.com",
         statement: "Sign in to access",
         version: "1",
         chainId: "eip155:8453",
-        nonce: "abc123",
-        issuedAt: "2024-01-01T00:00:00Z",
+        nonce: "abc12345def67890",
+        issuedAt: "2024-01-01T00:00:00.000Z",
         resources: ["https://api.example.com"],
       };
 
       const message = createSIWxMessage(serverInfo, "0x1234567890123456789012345678901234567890");
 
       expect(message).toContain("api.example.com wants you to sign in");
-      expect(message).toContain("eip155:8453");
       expect(message).toContain("0x1234567890123456789012345678901234567890");
-      expect(message).toContain("Nonce: abc123");
+      expect(message).toContain("Nonce: abc12345def67890");
+      expect(message).toContain("Chain ID: 8453");
     });
   });
 
@@ -177,6 +180,44 @@ describe("Sign-In-With-X Extension", () => {
       expect(parsed.domain).toBe(validPayload.domain);
       expect(parsed.address).toBe(validPayload.address);
       expect(parsed.signature).toBe(validPayload.signature);
+    });
+  });
+
+  describe("Integration - full signing and verification", () => {
+    it("should sign and verify a message with a real wallet", async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+        statement: "Sign in to access your content",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      const header = encodeSIWxHeader(payload);
+      const parsed = parseSIWxHeader(header);
+
+      const validation = await validateSIWxMessage(parsed, "https://api.example.com/resource");
+      expect(validation.valid).toBe(true);
+
+      const verification = await verifySIWxSignature(parsed);
+      expect(verification.valid).toBe(true);
+      expect(verification.address?.toLowerCase()).toBe(account.address.toLowerCase());
+    });
+
+    it("should reject tampered signature", async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+      payload.signature = "0x" + "00".repeat(65); // Invalid signature
+
+      const verification = await verifySIWxSignature(payload);
+      expect(verification.valid).toBe(false);
     });
   });
 });
