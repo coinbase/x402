@@ -1,8 +1,5 @@
 /**
  * Signature verification for SIWX extension
- *
- * Cryptographically verifies SIWX signatures.
- * Currently supports EVM (eip191). Extensible for other schemes.
  */
 
 import { SiweMessage, type VerifyParams, type VerifyOpts } from "siwe";
@@ -38,10 +35,9 @@ export async function verifySIWxSignature(
     // Parse CAIP-2 chainId (e.g., "eip155:8453" -> 8453)
     const chainIdMatch = /^eip155:(\d+)$/.exec(payload.chainId);
     if (!chainIdMatch) {
-      // TODO: Add support for solana:*, cosmos:*, etc.
       return {
         valid: false,
-        error: `Unsupported chainId namespace: ${payload.chainId}. Currently only eip155:* is supported.`,
+        error: `Unsupported chainId namespace: ${payload.chainId}. Only eip155:* is supported.`,
       };
     }
     const numericChainId = parseInt(chainIdMatch[1], 10);

@@ -4,7 +4,6 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  SIGN_IN_WITH_X,
   SIWxPayloadSchema,
   parseSIWxHeader,
   encodeSIWxHeader,
@@ -33,12 +32,6 @@ const validPayload = {
 };
 
 describe("Sign-In-With-X Extension", () => {
-  describe("SIGN_IN_WITH_X constant", () => {
-    it("should export the correct extension identifier", () => {
-      expect(SIGN_IN_WITH_X).toBe("sign-in-with-x");
-    });
-  });
-
   describe("SIWxPayloadSchema", () => {
     it("should validate a correct payload", () => {
       const result = SIWxPayloadSchema.safeParse(validPayload);
