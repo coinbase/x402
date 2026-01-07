@@ -109,4 +109,10 @@ export {
 export { formatSIWEMessage, verifyEVMSignature, extractEVMChainId } from "./evm";
 
 // Chain utilities - Solana
-export { formatSIWSMessage, verifySolanaSignature, decodeBase58, encodeBase58, extractSolanaNetwork } from "./solana";
+export {
+  formatSIWSMessage,
+  verifySolanaSignature,
+  decodeBase58,
+  encodeBase58,
+  extractSolanaNetwork,
+} from "./solana";

@@ -117,9 +117,7 @@ export const SIWxPayloadSchema = z.object({
   notBefore: z.string().optional(),
   requestId: z.string().optional(),
   resources: z.array(z.string()).optional(),
-  signatureScheme: z
-    .enum(["eip191", "eip712", "eip1271", "eip6492", "siws", "sep10"])
-    .optional(),
+  signatureScheme: z.enum(["eip191", "eip712", "eip1271", "eip6492", "siws", "sep10"]).optional(),
   signature: z.string(),
 });
 

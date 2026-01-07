@@ -7,12 +7,7 @@
 
 import type { SIWxExtensionInfo, SIWxPayload } from "./types";
 import type { SIWxSigner, EVMSigner, SolanaSigner } from "./sign";
-import {
-  getEVMAddress,
-  getSolanaAddress,
-  signEVMMessage,
-  signSolanaMessage,
-} from "./sign";
+import { getEVMAddress, getSolanaAddress, signEVMMessage, signSolanaMessage } from "./sign";
 import { createSIWxMessage } from "./message";
 
 /**
