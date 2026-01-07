@@ -1,0 +1,7 @@
+{
+    "name": "NonceArt",
+    "description": "NonceArt is a collaborative pixel art canvas where ownership and content lives permanently on Base blockchain. Think Million Dollar Homepage meets NFTs with marketplace functionality, but fully decentralized with no custom smart contract. Gasless thanks to x402 protocol. All data is stored on USDC EIP-3009 nonces.",
+    "logoUrl": "/logos/nonceart.png",
+    "websiteUrl": "https://nonce.art/",
+    "category": "Client-Side Integrations"
+}
