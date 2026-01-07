@@ -3,7 +3,12 @@
 import random
 from typing import Any
 
-from solders.pubkey import Pubkey
+try:
+    from solders.pubkey import Pubkey
+except ImportError as e:
+    raise ImportError(
+        "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
+    ) from e
 
 from .....schemas import Network, SettleResponse, VerifyResponse
 from .....schemas.v1 import PaymentPayloadV1, PaymentRequirementsV1

@@ -3,11 +3,16 @@
 import base64
 import time
 
-from solana.rpc.api import Client as SolanaClient
-from solana.rpc.commitment import Confirmed
-from solders.keypair import Keypair
-from solders.signature import Signature
-from solders.transaction import VersionedTransaction
+try:
+    from solana.rpc.api import Client as SolanaClient
+    from solana.rpc.commitment import Confirmed
+    from solders.keypair import Keypair
+    from solders.signature import Signature
+    from solders.transaction import VersionedTransaction
+except ImportError as e:
+    raise ImportError(
+        "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
+    ) from e
 
 from .constants import NETWORK_CONFIGS
 from .utils import normalize_network

@@ -1,6 +1,11 @@
 """ERC-6492 signature parsing utilities."""
 
-from eth_abi import decode
+try:
+    from eth_abi import decode
+except ImportError as e:
+    raise ImportError(
+        "EVM mechanism requires ethereum packages. Install with: pip install x402[evm]"
+    ) from e
 
 from .constants import ERC6492_MAGIC_VALUE
 from .types import ERC6492SignatureData

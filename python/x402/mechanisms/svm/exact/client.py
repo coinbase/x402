@@ -3,12 +3,17 @@
 import base64
 from typing import Any
 
-from solana.rpc.api import Client as SolanaClient
-from solders.instruction import AccountMeta, Instruction
-from solders.message import MessageV0
-from solders.pubkey import Pubkey
-from solders.signature import Signature
-from solders.transaction import VersionedTransaction
+try:
+    from solana.rpc.api import Client as SolanaClient
+    from solders.instruction import AccountMeta, Instruction
+    from solders.message import MessageV0
+    from solders.pubkey import Pubkey
+    from solders.signature import Signature
+    from solders.transaction import VersionedTransaction
+except ImportError as e:
+    raise ImportError(
+        "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
+    ) from e
 
 from ....schemas import PaymentRequirements
 from ..constants import (

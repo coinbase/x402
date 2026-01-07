@@ -3012,28 +3012,35 @@ name = "x402"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "eth-abi" },
-    { name = "eth-account" },
-    { name = "eth-keys" },
-    { name = "eth-utils" },
     { name = "pydantic" },
-    { name = "solana" },
-    { name = "solders" },
     { name = "typing-extensions" },
-    { name = "web3" },
 ]
 
 [package.optional-dependencies]
 all = [
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-keys" },
+    { name = "eth-utils" },
     { name = "fastapi", extra = ["standard"] },
     { name = "flask" },
     { name = "httpx" },
     { name = "requests" },
+    { name = "solana" },
+    { name = "solders" },
     { name = "starlette" },
+    { name = "web3" },
 ]
 clients = [
     { name = "httpx" },
     { name = "requests" },
+]
+evm = [
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-keys" },
+    { name = "eth-utils" },
+    { name = "web3" },
 ]
 fastapi = [
     { name = "fastapi", extra = ["standard"] },
@@ -3045,6 +3052,15 @@ flask = [
 httpx = [
     { name = "httpx" },
 ]
+mechanisms = [
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-keys" },
+    { name = "eth-utils" },
+    { name = "solana" },
+    { name = "solders" },
+    { name = "web3" },
+]
 requests = [
     { name = "requests" },
 ]
@@ -3053,10 +3069,18 @@ servers = [
     { name = "flask" },
     { name = "starlette" },
 ]
+svm = [
+    { name = "solana" },
+    { name = "solders" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "black" },
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-keys" },
+    { name = "eth-utils" },
     { name = "fastapi", extra = ["standard"] },
     { name = "flask" },
     { name = "httpx" },
@@ -3065,34 +3089,42 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "requests" },
     { name = "ruff" },
+    { name = "solana" },
+    { name = "solders" },
     { name = "starlette" },
+    { name = "web3" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "eth-abi", specifier = ">=5.0.0" },
-    { name = "eth-account", specifier = ">=0.12.0" },
-    { name = "eth-keys", specifier = ">=0.5.0" },
-    { name = "eth-utils", specifier = ">=4.0.0" },
+    { name = "eth-abi", marker = "extra == 'evm'", specifier = ">=5.0.0" },
+    { name = "eth-account", marker = "extra == 'evm'", specifier = ">=0.12.0" },
+    { name = "eth-keys", marker = "extra == 'evm'", specifier = ">=0.5.0" },
+    { name = "eth-utils", marker = "extra == 'evm'", specifier = ">=4.0.0" },
     { name = "fastapi", extras = ["standard"], marker = "extra == 'fastapi'", specifier = ">=0.115.0" },
     { name = "flask", marker = "extra == 'flask'", specifier = ">=3.0.0" },
     { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "requests", marker = "extra == 'requests'", specifier = ">=2.31.0" },
-    { name = "solana", specifier = ">=0.36.0" },
-    { name = "solders", specifier = ">=0.27.0" },
+    { name = "solana", marker = "extra == 'svm'", specifier = ">=0.36.0" },
+    { name = "solders", marker = "extra == 'svm'", specifier = ">=0.27.0" },
     { name = "starlette", marker = "extra == 'fastapi'", specifier = ">=0.27.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
-    { name = "web3", specifier = ">=6.0.0" },
+    { name = "web3", marker = "extra == 'evm'", specifier = ">=6.0.0" },
+    { name = "x402", extras = ["evm", "svm"], marker = "extra == 'mechanisms'" },
     { name = "x402", extras = ["flask", "fastapi"], marker = "extra == 'servers'" },
     { name = "x402", extras = ["httpx", "requests"], marker = "extra == 'clients'" },
-    { name = "x402", extras = ["httpx", "requests", "flask", "fastapi"], marker = "extra == 'all'" },
+    { name = "x402", extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm"], marker = "extra == 'all'" },
 ]
-provides-extras = ["httpx", "requests", "flask", "fastapi", "clients", "servers", "all"]
+provides-extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "clients", "servers", "mechanisms", "all"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = ">=23.0.0" },
+    { name = "eth-abi", specifier = ">=5.0.0" },
+    { name = "eth-account", specifier = ">=0.12.0" },
+    { name = "eth-keys", specifier = ">=0.5.0" },
+    { name = "eth-utils", specifier = ">=4.0.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
     { name = "flask", specifier = ">=3.0.0" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -3101,7 +3133,10 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", specifier = ">=0.1.0" },
+    { name = "solana", specifier = ">=0.36.0" },
+    { name = "solders", specifier = ">=0.27.0" },
     { name = "starlette", specifier = ">=0.27.0" },
+    { name = "web3", specifier = ">=6.0.0" },
 ]
 
 [[package]]

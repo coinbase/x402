@@ -4,8 +4,13 @@ import base64
 import re
 from decimal import Decimal
 
-from solders.pubkey import Pubkey
-from solders.transaction import VersionedTransaction
+try:
+    from solders.pubkey import Pubkey
+    from solders.transaction import VersionedTransaction
+except ImportError as e:
+    raise ImportError(
+        "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
+    ) from e
 
 from .constants import (
     NETWORK_CONFIGS,

@@ -2,8 +2,13 @@
 
 from typing import Protocol
 
-from solders.keypair import Keypair
-from solders.transaction import VersionedTransaction
+try:
+    from solders.keypair import Keypair
+    from solders.transaction import VersionedTransaction
+except ImportError as e:
+    raise ImportError(
+        "SVM mechanism requires solana packages. Install with: pip install x402[svm]"
+    ) from e
 
 
 class ClientSvmSigner(Protocol):

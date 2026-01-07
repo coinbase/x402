@@ -37,12 +37,12 @@ server.register(SVM_NETWORK, ExactSvmServerScheme())
 routes = {
     "GET /weather": RouteConfig(
         accepts=[
-            # PaymentOption(
-            #     scheme="exact",
-            #     pay_to=EVM_ADDRESS,
-            #     price="$0.01",
-            #     network=EVM_NETWORK,
-            # ),
+            PaymentOption(
+                scheme="exact",
+                pay_to=EVM_ADDRESS,
+                price="$0.01",
+                network=EVM_NETWORK,
+            ),
             PaymentOption(
                 scheme="exact",
                 pay_to=SVM_ADDRESS,

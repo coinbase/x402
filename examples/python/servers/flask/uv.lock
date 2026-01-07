@@ -2231,39 +2231,68 @@ name = "x402"
 version = "0.1.0"
 source = { editable = "../../../../python/x402" }
 dependencies = [
+    { name = "pydantic" },
+    { name = "typing-extensions" },
+]
+
+[package.optional-dependencies]
+evm = [
     { name = "eth-abi" },
     { name = "eth-account" },
     { name = "eth-keys" },
     { name = "eth-utils" },
-    { name = "httpx" },
-    { name = "pydantic" },
+    { name = "web3" },
+]
+flask = [
+    { name = "flask" },
+]
+svm = [
     { name = "solana" },
     { name = "solders" },
-    { name = "typing-extensions" },
-    { name = "web3" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "eth-abi", specifier = ">=5.0.0" },
-    { name = "eth-account", specifier = ">=0.12.0" },
-    { name = "eth-keys", specifier = ">=0.5.0" },
-    { name = "eth-utils", specifier = ">=4.0.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "eth-abi", marker = "extra == 'evm'", specifier = ">=5.0.0" },
+    { name = "eth-account", marker = "extra == 'evm'", specifier = ">=0.12.0" },
+    { name = "eth-keys", marker = "extra == 'evm'", specifier = ">=0.5.0" },
+    { name = "eth-utils", marker = "extra == 'evm'", specifier = ">=4.0.0" },
+    { name = "fastapi", extras = ["standard"], marker = "extra == 'fastapi'", specifier = ">=0.115.0" },
+    { name = "flask", marker = "extra == 'flask'", specifier = ">=3.0.0" },
+    { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "solana", specifier = ">=0.36.0" },
-    { name = "solders", specifier = ">=0.27.0" },
+    { name = "requests", marker = "extra == 'requests'", specifier = ">=2.31.0" },
+    { name = "solana", marker = "extra == 'svm'", specifier = ">=0.36.0" },
+    { name = "solders", marker = "extra == 'svm'", specifier = ">=0.27.0" },
+    { name = "starlette", marker = "extra == 'fastapi'", specifier = ">=0.27.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
-    { name = "web3", specifier = ">=6.0.0" },
+    { name = "web3", marker = "extra == 'evm'", specifier = ">=6.0.0" },
+    { name = "x402", extras = ["evm", "svm"], marker = "extra == 'mechanisms'" },
+    { name = "x402", extras = ["flask", "fastapi"], marker = "extra == 'servers'" },
+    { name = "x402", extras = ["httpx", "requests"], marker = "extra == 'clients'" },
+    { name = "x402", extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm"], marker = "extra == 'all'" },
 ]
+provides-extras = ["httpx", "requests", "flask", "fastapi", "evm", "svm", "clients", "servers", "mechanisms", "all"]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = ">=23.0.0" },
+    { name = "eth-abi", specifier = ">=5.0.0" },
+    { name = "eth-account", specifier = ">=0.12.0" },
+    { name = "eth-keys", specifier = ">=0.5.0" },
+    { name = "eth-utils", specifier = ">=4.0.0" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.115.0" },
+    { name = "flask", specifier = ">=3.0.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "mypy", specifier = ">=1.0.0" },
     { name = "pytest", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", specifier = ">=0.1.0" },
+    { name = "solana", specifier = ">=0.36.0" },
+    { name = "solders", specifier = ">=0.27.0" },
+    { name = "starlette", specifier = ">=0.27.0" },
+    { name = "web3", specifier = ">=6.0.0" },
 ]
 
 [[package]]
@@ -2271,10 +2300,8 @@ name = "x402-v2-flask-example"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "flask" },
-    { name = "httpx" },
     { name = "python-dotenv" },
-    { name = "x402" },
+    { name = "x402", extra = ["evm", "flask", "svm"] },
 ]
 
 [package.dev-dependencies]
@@ -2287,10 +2314,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "flask", specifier = ">=3.0.0" },
-    { name = "httpx", specifier = ">=0.28.0" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
-    { name = "x402", editable = "../../../../python/x402" },
+    { name = "x402", extras = ["flask", "evm", "svm"], editable = "../../../../python/x402" },
 ]
 
 [package.metadata.requires-dev]

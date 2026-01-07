@@ -9,10 +9,7 @@ authors = [
 requires-python = ">=3.10"
 keywords = ["x402", "payment", "protocol", "http", "402"]
 dependencies = [
-    "x402",
-    "fastapi>=0.128.0",
-    "httpx>=0.28.0",
-    "pydantic>=2.12.5",
+    "x402[fastapi,evm,svm]",
     "python-dotenv>=1.2.1",
     "uvicorn[standard]>=0.40.0",
 ]
