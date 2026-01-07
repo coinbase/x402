@@ -7,7 +7,7 @@
 
 import { verifyMessage } from "viem";
 import { SiweMessage } from "siwe";
-import type { SIWxExtensionInfo } from "./types";
+import type { SIWxExtensionInfo, EVMMessageVerifier } from "./types";
 
 /**
  * Extract numeric chain ID from CAIP-2 EVM chainId.
@@ -78,31 +78,56 @@ export function formatSIWEMessage(info: SIWxExtensionInfo, address: string): str
 }
 
 /**
- * Verify EVM signature with EIP-6492 smart wallet support.
+ * Verify EVM signature.
  *
- * Uses viem's verifyMessage which automatically handles:
- * - EOA signatures (standard ECDSA via EIP-191)
- * - EIP-1271 (deployed smart contract wallets)
- * - EIP-6492 (counterfactual/pre-deploy smart wallets)
+ * Supports:
+ * - EOA signatures (standard ECDSA via EIP-191) - always available
+ * - EIP-1271 (deployed smart contract wallets) - requires verifier
+ * - EIP-6492 (counterfactual/pre-deploy smart wallets) - requires verifier
  *
  * @param message - The SIWE message that was signed
  * @param address - The claimed signer address
  * @param signature - The signature to verify
+ * @param verifier - Optional message verifier for smart wallet support.
+ *                   Pass publicClient.verifyMessage for EIP-1271/EIP-6492 support.
+ *                   Without this, only EOA signatures are verified.
  * @returns true if signature is valid
  *
  * @example
  * ```typescript
- * const valid = await verifyEVMSignature(message, "0x1234...", "0xsig...");
+ * // EOA-only verification (default, no RPC required)
+ * const valid = await verifyEVMSignature(message, address, signature);
+ *
+ * // Smart wallet verification with viem PublicClient
+ * import { createPublicClient, http } from 'viem';
+ * import { base } from 'viem/chains';
+ *
+ * const publicClient = createPublicClient({ chain: base, transport: http() });
+ * const valid = await verifyEVMSignature(
+ *   message,
+ *   address,
+ *   signature,
+ *   publicClient.verifyMessage
+ * );
  * ```
  */
 export async function verifyEVMSignature(
   message: string,
   address: string,
   signature: string,
+  verifier?: EVMMessageVerifier,
 ): Promise<boolean> {
-  return verifyMessage({
+  const args = {
     address: address as `0x${string}`,
     message,
     signature: signature as `0x${string}`,
-  });
+  };
+
+  if (verifier) {
+    // Use provided verifier (supports EIP-1271/EIP-6492 via RPC)
+    return verifier(args);
+  }
+
+  // Fallback to standalone verifyMessage (EOA only, no RPC)
+  return verifyMessage(args);
 }

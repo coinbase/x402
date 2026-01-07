@@ -2,29 +2,39 @@
  * Signature verification for SIWX extension
  *
  * Routes to chain-specific verification based on chainId namespace:
- * - EVM (eip155:*): Uses viem's verifyMessage with EIP-6492 smart wallet support
- * - Solana (solana:*): Uses Ed25519 signature verification via tweetnacl
+ * - EVM (eip155:*): EOA by default, smart wallet (EIP-1271/EIP-6492) with verifier
+ * - Solana (solana:*): Ed25519 signature verification via tweetnacl
  */
 
 import { formatSIWEMessage, verifyEVMSignature } from "./evm";
 import { formatSIWSMessage, verifySolanaSignature, decodeBase58 } from "./solana";
-import type { SIWxPayload, SIWxVerifyResult } from "./types";
+import type { SIWxPayload, SIWxVerifyResult, SIWxVerifyOptions, EVMMessageVerifier } from "./types";
 
 /**
  * Verify SIWX signature cryptographically.
  *
  * Routes to the appropriate chain-specific verification based on the
  * chainId namespace prefix:
- * - `eip155:*` → EVM verification with EIP-6492 smart wallet support
+ * - `eip155:*` → EVM verification (EOA by default, smart wallet with verifier)
  * - `solana:*` → Ed25519 signature verification
  *
  * @param payload - The SIWX payload containing signature
+ * @param options - Optional verification options
  * @returns Verification result with recovered address if valid
  *
  * @example
  * ```typescript
- * const payload = parseSIWxHeader(header);
+ * // EOA-only verification (default)
  * const result = await verifySIWxSignature(payload);
+ *
+ * // Smart wallet verification
+ * import { createPublicClient, http } from 'viem';
+ * import { base } from 'viem/chains';
+ *
+ * const publicClient = createPublicClient({ chain: base, transport: http() });
+ * const result = await verifySIWxSignature(payload, {
+ *   evmVerifier: publicClient.verifyMessage,
+ * });
  *
  * if (result.valid) {
  *   console.log('Verified wallet:', result.address);
@@ -33,11 +43,14 @@ import type { SIWxPayload, SIWxVerifyResult } from "./types";
  * }
  * ```
  */
-export async function verifySIWxSignature(payload: SIWxPayload): Promise<SIWxVerifyResult> {
+export async function verifySIWxSignature(
+  payload: SIWxPayload,
+  options?: SIWxVerifyOptions,
+): Promise<SIWxVerifyResult> {
   try {
     // Route by chain namespace
     if (payload.chainId.startsWith("eip155:")) {
-      return verifyEVMPayload(payload);
+      return verifyEVMPayload(payload, options?.evmVerifier);
     }
 
     if (payload.chainId.startsWith("solana:")) {
@@ -57,17 +70,16 @@ export async function verifySIWxSignature(payload: SIWxPayload): Promise<SIWxVer
 }
 
 /**
- * Verify EVM signature with EIP-6492 smart wallet support.
- *
- * Uses viem's verifyMessage which automatically handles:
- * - EOA signatures (standard ECDSA)
- * - EIP-1271 (deployed smart contract wallets)
- * - EIP-6492 (counterfactual/pre-deploy smart wallets)
+ * Verify EVM signature with optional smart wallet support.
  *
  * @param payload - The SIWX payload containing signature and message data
+ * @param verifier - Optional message verifier for EIP-1271/EIP-6492 support
  * @returns Verification result with recovered address if valid
  */
-async function verifyEVMPayload(payload: SIWxPayload): Promise<SIWxVerifyResult> {
+async function verifyEVMPayload(
+  payload: SIWxPayload,
+  verifier?: EVMMessageVerifier,
+): Promise<SIWxVerifyResult> {
   // Reconstruct SIWE message for verification
   const message = formatSIWEMessage(
     {
@@ -87,7 +99,7 @@ async function verifyEVMPayload(payload: SIWxPayload): Promise<SIWxVerifyResult>
   );
 
   try {
-    const valid = await verifyEVMSignature(message, payload.address, payload.signature);
+    const valid = await verifyEVMSignature(message, payload.address, payload.signature, verifier);
 
     if (!valid) {
       return {

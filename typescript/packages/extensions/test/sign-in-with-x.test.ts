@@ -2,7 +2,7 @@
  * Tests for Sign-In-With-X Extension
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   SIWxPayloadSchema,
   parseSIWxHeader,
@@ -24,6 +24,7 @@ import {
   signSolanaMessage,
   type SolanaSigner,
   type EVMSigner,
+  type EVMMessageVerifier,
 } from "../src/sign-in-with-x/index";
 import { safeBase64Encode } from "@x402/core/utils";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
@@ -214,6 +215,113 @@ describe("Sign-In-With-X Extension", () => {
 
       const verification = await verifySIWxSignature(payload);
       expect(verification.valid).toBe(false);
+    });
+  });
+
+  describe("Smart wallet verification (evmVerifier option)", () => {
+    it("should use provided verifier for EVM signatures", async () => {
+      const mockVerifier: EVMMessageVerifier = vi.fn().mockResolvedValue(true);
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+
+      const result = await verifySIWxSignature(payload, {
+        evmVerifier: mockVerifier,
+      });
+
+      expect(mockVerifier).toHaveBeenCalledOnce();
+      expect(mockVerifier).toHaveBeenCalledWith({
+        address: expect.any(String),
+        message: expect.any(String),
+        signature: expect.any(String),
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it("should fallback to EOA verification when no verifier provided", async () => {
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+
+      // No verifier - should still work for EOA
+      const result = await verifySIWxSignature(payload);
+      expect(result.valid).toBe(true);
+      expect(result.address?.toLowerCase()).toBe(account.address.toLowerCase());
+    });
+
+    it("should return error when verifier returns false", async () => {
+      const mockVerifier: EVMMessageVerifier = vi.fn().mockResolvedValue(false);
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+
+      const result = await verifySIWxSignature(payload, {
+        evmVerifier: mockVerifier,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Signature verification failed");
+    });
+
+    it("should return error when verifier throws", async () => {
+      const mockVerifier: EVMMessageVerifier = vi.fn().mockRejectedValue(new Error("RPC error"));
+      const account = privateKeyToAccount(generatePrivateKey());
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: "eip155:8453",
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, account);
+
+      const result = await verifySIWxSignature(payload, {
+        evmVerifier: mockVerifier,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("RPC error");
+    });
+
+    it("should not use verifier for Solana signatures", async () => {
+      const mockVerifier: EVMMessageVerifier = vi.fn();
+      const keypair = nacl.sign.keyPair();
+      const address = encodeBase58(keypair.publicKey);
+
+      const solanaSigner: SolanaSigner = {
+        signMessage: async (msg: Uint8Array) => nacl.sign.detached(msg, keypair.secretKey),
+        publicKey: address,
+      };
+
+      const extension = declareSIWxExtension({
+        resourceUri: "https://api.example.com/resource",
+        network: SOLANA_MAINNET,
+      });
+
+      const payload = await createSIWxPayload(extension["sign-in-with-x"].info, solanaSigner);
+
+      const result = await verifySIWxSignature(payload, {
+        evmVerifier: mockVerifier,
+      });
+
+      // Verifier should NOT be called for Solana
+      expect(mockVerifier).not.toHaveBeenCalled();
+      expect(result.valid).toBe(true);
+      expect(result.address).toBe(address);
     });
   });
 

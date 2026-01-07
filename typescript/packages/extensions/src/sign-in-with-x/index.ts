@@ -82,6 +82,8 @@ export type {
   SIWxValidationResult,
   SIWxValidationOptions,
   SIWxVerifyResult,
+  EVMMessageVerifier,
+  SIWxVerifyOptions,
 } from "./types";
 
 // Server

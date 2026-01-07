@@ -180,3 +180,45 @@ export interface SIWxVerifyResult {
   address?: string;
   error?: string;
 }
+
+/**
+ * EVM message verifier function type.
+ * Compatible with viem's publicClient.verifyMessage().
+ *
+ * When provided to verifySIWxSignature, enables:
+ * - EIP-1271 (deployed smart contract wallets)
+ * - EIP-6492 (counterfactual/pre-deploy smart wallets)
+ *
+ * Without a verifier, only EOA signatures (EIP-191) can be verified.
+ *
+ * @example
+ * ```typescript
+ * import { createPublicClient, http } from 'viem';
+ * import { base } from 'viem/chains';
+ *
+ * const publicClient = createPublicClient({ chain: base, transport: http() });
+ * // publicClient.verifyMessage satisfies EVMMessageVerifier
+ * ```
+ */
+export type EVMMessageVerifier = (args: {
+  address: `0x${string}`;
+  message: string;
+  signature: `0x${string}`;
+}) => Promise<boolean>;
+
+/**
+ * Options for SIWX signature verification
+ */
+export interface SIWxVerifyOptions {
+  /**
+   * EVM message verifier for smart wallet support.
+   *
+   * Pass `publicClient.verifyMessage` from viem to enable verification of:
+   * - Smart contract wallets (EIP-1271)
+   * - Counterfactual/undeployed smart wallets (EIP-6492)
+   *
+   * If not provided, only EOA signatures are verified using standalone
+   * ECDSA recovery (no RPC calls required).
+   */
+  evmVerifier?: EVMMessageVerifier;
+}
