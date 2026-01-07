@@ -33,9 +33,7 @@ import type { SIWxPayload, SIWxVerifyResult } from "./types";
  * }
  * ```
  */
-export async function verifySIWxSignature(
-  payload: SIWxPayload,
-): Promise<SIWxVerifyResult> {
+export async function verifySIWxSignature(payload: SIWxPayload): Promise<SIWxVerifyResult> {
   try {
     // Route by chain namespace
     if (payload.chainId.startsWith("eip155:")) {
