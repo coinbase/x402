@@ -151,13 +151,15 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 			t.Fatal("Expected HTML body as string")
 		}
 
-		// Check for key paywall elements
+		// Check for key paywall elements in the new template structure
 		expectedElements := []string{
-			"Payment Required",
-			"Premium Web Content",
-			"0.00 USDC", // $5.00 might be parsed as 0.00 due to price parsing issue
-			"payment-widget",
-			"test-key", // CDP client key
+			"window.x402 =", // Check for injected config
+			"paymentRequired:",
+			"Premium Web Content", // Inside JSON
+			"0.000005",            // Amount in config
+			"test-key",            // CDP client key
+			"Test App",            // App name
+			"/logo.png",           // App logo
 		}
 
 		for _, element := range expectedElements {
