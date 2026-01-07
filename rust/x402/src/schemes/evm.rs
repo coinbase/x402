@@ -7,6 +7,7 @@ use crate::types::PaymentRequirements;
 use crate::errors::X402Result;
 use alloy::sol;
 use rand::RngCore;
+use crate::types::PaymentRequirements::{V1, V2};
 
 // EIP-712 structure for the Exact scheme
 sol! {
@@ -26,37 +27,69 @@ pub fn create_exact_eip3009_domain(
     requirements: &PaymentRequirements,
     chain_id: u64,
 ) -> Eip712Domain {
-    // extra must contain { name, version }
-    let extra = requirements
-        .extra
-        .as_ref()
-        .expect("requirements.extra must be present for EIP-712 domain");
-    let name = extra["name"]
-        .as_str()
-        .expect("extra.name must be a string");
-    let version = extra["version"]
-        .as_str()
-        .expect("extra.version must be a string");
+    match requirements {
+        V1(requirements) => {
+            // extra must contain { name, version }
+            let extra = requirements
+                .extra
+                .as_ref()
+                .expect("requirements.extra must be present for EIP-712 domain");
+            let name = extra["name"]
+                .as_str()
+                .expect("extra.name must be a string");
+            let version = extra["version"]
+                .as_str()
+                .expect("extra.version must be a string");
 
-    let verifying_contract: Address = requirements
-        .asset
-        .as_ref()
-        .expect("asset (token contract) must be present")
-        .parse()
-        .expect("asset must be a valid 0x address");
+            let verifying_contract: Address = requirements
+                .asset
+                .parse()
+                .expect("asset must be a valid 0x address");
 
-    Eip712Domain {
-        name: Some(name.to_string().into()),
-        version: Some(version.to_string().into()),
-        chain_id: Some(U256::from(chain_id)),
-        verifying_contract: Some(verifying_contract),
-        salt: None,
+            Eip712Domain {
+                name: Some(name.to_string().into()),
+                version: Some(version.to_string().into()),
+                chain_id: Some(U256::from(chain_id)),
+                verifying_contract: Some(verifying_contract),
+                salt: None,
+            }
+        }
+        V2(requirements) => {
+            // extra must contain { name, version }
+            let extra = requirements
+                .extra
+                .as_ref()
+                .expect("requirements.extra must be present for EIP-712 domain");
+            let name = extra["name"]
+                .as_str()
+                .expect("extra.name must be a string");
+            let version = extra["version"]
+                .as_str()
+                .expect("extra.version must be a string");
+
+            let verifying_contract: Address = requirements
+                .asset
+                .as_ref()
+                .expect("asset (token contract) must be present")
+                .parse()
+                .expect("asset must be a valid 0x address");
+
+            Eip712Domain {
+                name: Some(name.to_string().into()),
+                version: Some(version.to_string().into()),
+                chain_id: Some(U256::from(chain_id)),
+                verifying_contract: Some(verifying_contract),
+                salt: None,
+            }
+        }
     }
 }
 
-pub async fn sign_transfer_with_authorization<S>(
+async fn sign_transfer<S>(
     signer: &S,
-    wallet_address: &str,
+    from: Address,
+    to: Address,
+    value: U256,
     requirement: &PaymentRequirements,
     chain_id: u64,
     valid_for: Option<u64> // Time in seconds
@@ -64,17 +97,7 @@ pub async fn sign_transfer_with_authorization<S>(
 where
     S: Signer<Signature> + Send + Sync,
 {
-    // 1. Addresses
-    let from: Address = wallet_address.parse()
-        .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid from address: {e}")))?;
-    let to: Address = requirement.pay_to.parse()
-        .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid to address: {e}")))?;
-
-    // 2. Value (atomic units as decimal string)
-    let value = U256::from_str(&requirement.amount)
-        .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid amount: {e}")))?;
-
-    // 3. Time window
+    // Time window
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -82,7 +105,7 @@ where
     let valid_after = U256::from(now.saturating_sub(60)); // 1 minute before
     let valid_before = U256::from(now + valid_for.unwrap_or(300)) ; // 5 minutes after (or valid_for)
 
-    // 4. Nonce
+    //  Nonce
     let mut bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut bytes);
     let nonce = B256::from(bytes);
@@ -110,11 +133,68 @@ where
     Ok((signature_hex, auth))
 }
 
+pub async fn sign_transfer_with_authorization<S>(
+    signer: &S,
+    wallet_address: &str,
+    requirement: &PaymentRequirements,
+    chain_id: u64,
+    valid_for: Option<u64> // Time in seconds
+) -> X402Result<(String, TransferWithAuthorization)>
+where
+    S: Signer<Signature> + Send + Sync,
+{
+    match requirement {
+        V1(req) => {
+            // Addresses
+            let from: Address = wallet_address.parse()
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid from address: {e}")))?;
+            let to: Address = req.pay_to.parse()
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid to address: {e}")))?;
+
+            // Value (atomic units as decimal string)
+            let value = U256::from_str(&req.max_amount_required)
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid amount: {e}")))?;
+
+            sign_transfer(
+                signer,
+                from,
+                to,
+                value,
+                requirement,
+                chain_id,
+                valid_for
+            ).await
+        }
+        V2(req) => {
+            // Addresses
+            let from: Address = wallet_address.parse()
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid from address: {e}")))?;
+            let to: Address = req.pay_to.parse()
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid to address: {e}")))?;
+
+            // Value (atomic units as decimal string)
+            let value = U256::from_str(&req.amount)
+                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid amount: {e}")))?;
+
+            sign_transfer(
+                signer,
+                from,
+                to,
+                value,
+                requirement,
+                chain_id,
+                valid_for
+            ).await
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use alloy::signers::local::PrivateKeySigner;
     use alloy::sol_types::SolStruct;
+    use crate::types::PaymentRequirementsV2;
 
     #[test]
     fn test_create_exact_eip3009_domain() {
@@ -123,7 +203,7 @@ mod tests {
         extra.insert("name".to_string(), serde_json::Value::String("USD Coin".to_string()));
         extra.insert("version".to_string(), serde_json::Value::String("2".to_string()));
 
-        let requirements = PaymentRequirements {
+        let requirements = V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "ethereum".to_string(),
             pay_to: "0x1234567890123456789012345678901234567890".to_string(),
@@ -131,7 +211,7 @@ mod tests {
             asset: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
-        };
+        });
 
         let domain = create_exact_eip3009_domain(&requirements, chain_id);
 
@@ -178,7 +258,7 @@ mod tests {
         extra.insert("name".to_string(), serde_json::Value::String("USD Coin".to_string()));
         extra.insert("version".to_string(), serde_json::Value::String("2".to_string()));
 
-        let requirement = PaymentRequirements {
+        let requirement = V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "ethereum".to_string(),
             pay_to: "0x1234567890123456789012345678901234567890".to_string(),
@@ -186,7 +266,7 @@ mod tests {
             asset: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
-        };
+        });
 
         let result = sign_transfer_with_authorization(&signer, &wallet_address, &requirement, chain_id, Some(600)).await;
 
@@ -195,8 +275,12 @@ mod tests {
         assert!(signature_hex.starts_with("0x"));
         // Signature is 65 bytes -> 130 hex chars + 2 for "0x" = 132
         assert_eq!(signature_hex.len(), 132);
-        
-        assert_eq!(auth.value, U256::from_str(&requirement.amount).unwrap());
+
+        match requirement {
+            V1(_) => {panic!("Expected V2 requirement")}
+            V2(req) => {assert_eq!(auth.value, U256::from_str(&req.amount).unwrap());}
+        }
+
     }
 
     #[tokio::test]
@@ -216,7 +300,7 @@ mod tests {
         extra.insert("name".to_string(), serde_json::Value::String("x402".to_string()));
         extra.insert("version".to_string(), serde_json::Value::String("1".to_string()));
 
-        let requirement = PaymentRequirements {
+        let requirement = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "eip155:84532".to_string(),
             pay_to: "0x1234567890123456789012345678901234567890".to_string(),
@@ -224,7 +308,7 @@ mod tests {
             asset: Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
-        };
+        });
 
         let (signature_hex, auth) = sign_transfer_with_authorization(
             &signer,

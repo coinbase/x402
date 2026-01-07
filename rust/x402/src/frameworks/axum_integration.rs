@@ -7,9 +7,9 @@ use axum::{
     response::IntoResponse,
 };
 
-use crate::types::{PaymentPayload, X402Header, PaymentRequired, Network};
+use crate::types::{PaymentPayload, X402Header, PaymentRequired, Network, PaymentRequirements};
 use std::sync::Arc;
-use crate::errors::{X402Error, X402Result};
+use crate::errors::{X402Error};
 use crate::facilitator::FacilitatorClient;
 use crate::server::{InMemoryResourceServer, ResourceConfig, ResourceServer, SchemeNetworkServer};
 
@@ -127,16 +127,43 @@ pub async fn x402_middleware(
                 }
             };
 
-
-            let client_req = &payload.accepted;
-
             // Ensure the client-chosen requirement matches one of our 'accepts'.
             let matched_req = accepts.iter().find(|server_req| {
-                server_req.scheme == client_req.scheme
-                    && server_req.network == client_req.network
-                    && server_req.pay_to == client_req.pay_to
-                    && server_req.amount == client_req.amount
-                    && server_req.asset == client_req.asset
+                match server_req {
+                    PaymentRequirements::V2(server) => {
+                        match &payload {
+                            PaymentPayload::V2(client_payload) => {
+                                match &client_payload.accepted {
+                                    PaymentRequirements::V2(client_accepted) => {
+                                        server.scheme == client_accepted.scheme
+                                            && server.network == client_accepted.network
+                                            && server.pay_to == client_accepted.pay_to
+                                            && server.amount == client_accepted.amount
+                                            && server.asset == client_accepted.asset
+                                            && path == client_payload.resource.url
+                                    }
+                                    _ => false
+                                }
+                            }
+                            _ => false
+                        }
+                    }
+                    PaymentRequirements::V1(server) => {
+                        match &payload {
+                            PaymentPayload::V1(client) => {
+
+
+                                server.scheme == client.scheme
+                                    && server.network == client.network
+                                    && server.pay_to == client.payload.authorization.to
+                                    && server.max_amount_required == client.payload.authorization.value
+                                    && server.resource == path
+                            }
+                            _ => false
+                        }
+                    }
+                    _ => false
+                }
             });
 
 
@@ -225,13 +252,14 @@ mod tests {
     use tower::ServiceExt; // for oneshot
     use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::{method, path};
-    use crate::types::{PaymentRequirements, Resource, SettleResponse, VerifyResponse};
+    use crate::types::{PaymentPayloadV2, PaymentRequirements, PaymentRequirementsV2, Resource, SettleResponse, VerifyResponse};
     use serde_json::json;
     use crate::facilitator::HttpFacilitator;
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
+    use crate::errors::X402Result;
     use crate::types::{ CAIPNetwork };
 
     struct MockSchemeServer;
@@ -241,12 +269,14 @@ mod tests {
             "exact"
         }
 
+        fn x402_version(&self) -> u32 {2}
+
         fn build_requirements(
             &self,
             resource_config: &ResourceConfig,
         ) -> X402Result<PaymentRequirements> {
             let (amount, asset) = resource_config.price.to_asset_amount();
-            Ok(PaymentRequirements {
+            Ok(PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: self.scheme().to_owned(),
                 network: resource_config.network.to_string(),
                 pay_to: resource_config.pay_to.clone(),
@@ -254,7 +284,7 @@ mod tests {
                 asset,
                 data: None,
                 extra: None,
-            })
+            }))
         }
     }
 
@@ -321,14 +351,14 @@ mod tests {
         let app = setup_test_app(&mock_server.uri()).await;
 
         // Create a fake valid-looking header
-        let payload = PaymentPayload {
+        let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
             resource: Resource {
                 url: "/test".to_string(),
                 description: "Test".to_string(),
                 mime_type: "text/plain".to_string(),
             },
-            accepted: PaymentRequirements {
+            accepted: PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
@@ -336,10 +366,10 @@ mod tests {
                 asset: None,
                 data: None,
                 extra: None,
-            },
+            }),
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
-        };
+        });
         let header_val = payload.to_header().unwrap();
 
         let response = app
@@ -384,14 +414,14 @@ mod tests {
         let app = setup_test_app(&mock_server.uri()).await;
 
         // Create a fake valid-looking header
-        let payload = PaymentPayload {
+        let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
             resource: Resource {
                 url: "/test".to_string(),
                 description: "Test".to_string(),
                 mime_type: "text/plain".to_string(),
             },
-            accepted: PaymentRequirements {
+            accepted: PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
@@ -399,10 +429,10 @@ mod tests {
                 asset: None,
                 data: None,
                 extra: None,
-            },
+            }),
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
-        };
+        });
         let header_val = payload.to_header().unwrap();
 
         let response = app
@@ -429,14 +459,14 @@ mod tests {
         let app = setup_test_app("http://127.0.0.1:1").await;
 
         // Create a fake valid-looking header
-        let payload = PaymentPayload {
+        let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
             resource: Resource {
                 url: "/test".to_string(),
                 description: "Test".to_string(),
                 mime_type: "text/plain".to_string(),
             },
-            accepted: PaymentRequirements {
+            accepted: PaymentRequirements::V2(PaymentRequirementsV2  {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
@@ -444,10 +474,10 @@ mod tests {
                 asset: None,
                 data: None,
                 extra: None,
-            },
+            }),
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
-        };
+        });
         let header_val = payload.to_header().unwrap();
 
         let response = app

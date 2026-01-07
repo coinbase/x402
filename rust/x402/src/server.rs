@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use serde_json::{json, Value};
 use crate::errors::{X402Error, X402Result};
-use crate::types::{Network, PaymentRequirements, Price};
+use crate::types::{PaymentRequirementsV1, Network, PaymentRequirements, PaymentRequirementsV2, Price};
 
 
 #[derive(Debug, Clone)]
@@ -36,6 +36,9 @@ pub trait SchemeNetworkServer: Send + Sync {
     /// The name of the scheme the server implements. (e.g.) "exact").
     fn scheme(&self) -> &str;
 
+    /// x402 version to build relevant PaymentRequirements
+    fn x402_version(&self) -> u32;
+
     /// Build PaymentRequirements for this particular (scheme, network) from a generic ResourceConfig
     fn build_requirements(
         &self,
@@ -44,21 +47,45 @@ pub trait SchemeNetworkServer: Send + Sync {
 }
 
 pub struct SchemeServer {
+    x402_version: u32,
     scheme: String,
     extra: Option<Value>,
     network: Network,
+    v1_resource_info: Option<V1ResourceInfo>,
+}
+
+pub struct V1ResourceInfo {
+    resource: String,
+    description: String,
+    mime_type: String,
+    max_timeout_in_seconds: Option<u64>,
+}
+
+impl V1ResourceInfo {
+    pub fn new(resource: &str, description: &str, mime_type: &str, max_timeout_in_seconds: Option<u64>) -> Self {
+        V1ResourceInfo {
+            resource: resource.to_string(),
+            description: description.to_string(),
+            mime_type: mime_type.to_string(),
+            max_timeout_in_seconds,
+        }
+    }
 }
 
 impl SchemeServer {
     pub fn new(
+        x402_version: u32,
         scheme: Option<&str>,
         extra: Option<Value>,
         network: Network,
+        v1_resource_info: Option<V1ResourceInfo>,
     ) -> SchemeServer {
         SchemeServer {
+            x402_version,
             scheme: scheme.unwrap_or("exact").to_string(),
             extra,
             network: network.into(),
+            v1_resource_info,
         }
     }
 
@@ -88,12 +115,14 @@ impl Default for SchemeServer {
     /// Defaults to USDC on base-sepolia
     fn default() -> Self {
         SchemeServer {
+            x402_version: 2,
             scheme: "exact".to_string(),
             extra: Some(json!({
             "name": "USDC",
             "version": "2"
         })),
             network: Network::default(),
+            v1_resource_info: None,
         }
     }
 }
@@ -101,17 +130,45 @@ impl Default for SchemeServer {
 impl SchemeNetworkServer for SchemeServer {
     fn scheme(&self) -> &str { &self.scheme }
 
+    fn x402_version(&self) -> u32 { self.x402_version }
+
     fn build_requirements(&self, resource_config: &ResourceConfig) -> X402Result<PaymentRequirements> {
+
         let (amount, asset) = resource_config.price.to_asset_amount();
-        Ok(PaymentRequirements {
-            scheme: self.scheme().to_owned(),
-            network: resource_config.network.to_string(),
-            pay_to: resource_config.pay_to.clone(),
-            amount,
-            asset,
-            data: None,
-            extra: self.extra.clone(),
-        })
+        match self.x402_version {
+            1 => {
+                if let Some(v1_resource_info) = &self.v1_resource_info {
+                    return Ok(PaymentRequirements::V1(PaymentRequirementsV1 {
+                        scheme: self.scheme().to_owned(),
+                        network: resource_config.network.to_string(),
+                        max_amount_required: amount,
+                        resource: v1_resource_info.resource.to_owned(),
+                        description: v1_resource_info.description.to_owned(),
+                        mime_type: v1_resource_info.mime_type.to_owned(),
+                        pay_to: resource_config.pay_to.to_string(),
+                        max_timeout_seconds: v1_resource_info.max_timeout_in_seconds.unwrap_or(300).into(),
+                        asset: asset.unwrap_or_default(),
+                        output_schema: None,
+                        extra: self.extra.clone(),
+                    }))
+                }
+                Err(X402Error::ConfigError(String::from("V1 resource_info is required")))?
+
+            }
+            2 => {
+                Ok(PaymentRequirements::V2(PaymentRequirementsV2 {
+                    scheme: self.scheme().to_owned(),
+                    network: resource_config.network.to_string(),
+                    pay_to: resource_config.pay_to.clone(),
+                    amount,
+                    asset,
+                    data: None,
+                    extra: self.extra.clone(),
+                }))
+            }
+            _ => { Err(X402Error::ConfigError(String::from("Invalid x402 version"))) }
+        }
+
     }
 }
 
@@ -188,11 +245,15 @@ mod tests {
             "test-scheme"
         }
 
+        fn x402_version(&self) -> u32 {
+            2
+        }
+
         fn build_requirements(&self, resource_config: &ResourceConfig) -> X402Result<PaymentRequirements> {
 
             let (amount, asset) = resource_config.price.to_asset_amount();
 
-            Ok(PaymentRequirements {
+            Ok(PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: self.scheme().to_owned(),
                 network: resource_config.network.to_string(),
                 pay_to: resource_config.pay_to.clone(),
@@ -200,7 +261,7 @@ mod tests {
                 asset,
                 data: None,
                 extra: None
-            })
+            }))
         }
     }
 
@@ -223,13 +284,20 @@ mod tests {
 
         assert!(server.has_registered_scheme(&network, "test-scheme"));
 
-        let reqs = server.build_payment_requirements(&config).unwrap();
-        assert_eq!(reqs.len(), 1);
+        let requirements = server.build_payment_requirements(&config).unwrap();
+        assert_eq!(requirements.len(), 1);
 
-        let req = &reqs[0];
-        assert_eq!(req.scheme, "test-scheme");
-        assert_eq!(req.network, network.to_string());
-        assert_eq!(req.amount, "1000");
+        let requirement = &requirements[0];
+        dbg!(&requirement);
+        match requirement {
+            PaymentRequirements::V2(req) => {
+                assert_eq!(req.scheme, "test-scheme");
+                assert_eq!(req.network, network.to_string());
+                assert_eq!(req.amount, "1000");
+            }
+            _ => panic!("Expected PaymentRequirements::V2"),
+        }
+
     }
 
     #[test]

@@ -3,7 +3,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use crate::errors::{X402Error, X402Result};
 use crate::facilitator::FacilitatorClient;
-use crate::types::{PaymentPayload, PaymentRequirements, SettleResponse, VerifyRequest, VerifyResponse};
+use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyRequestV2, VerifyResponse};
 
 pub struct HttpFacilitator {
     pub base_url: String,
@@ -119,22 +119,93 @@ impl FacilitatorClient for HttpFacilitator {
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<VerifyResponse> {
-        let request = VerifyRequest {
-            payment_payload: payload,
-            payment_requirements: requirements,
-        };
-        self.post_json(self.verify_url(), &request).await
-    }
+
+                match (payload, requirements) {
+                    (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
+                        let request = VerifyRequestV1 {
+                            x402_version: payload.x402_version,
+                            payment_payload: PaymentPayloadV1 {
+                                x402_version: payload.x402_version,
+                                scheme: payload.scheme.clone(),
+                                network: payload.network.clone(),
+                                payload: payload.payload
+                            },
+                            payment_requirements: PaymentRequirementsV1 {
+                                scheme: payload.scheme,
+                                network: payload.network,
+                                max_amount_required: requirements.max_amount_required,
+                                resource: requirements.resource,
+                                description: requirements.description,
+                                mime_type: requirements.mime_type,
+                                pay_to: requirements.pay_to,
+                                max_timeout_seconds: requirements.max_timeout_seconds,
+                                asset: requirements.asset,
+                                output_schema: requirements.output_schema,
+                                extra: requirements.extra,
+                            },
+                        };
+                        println!("{}",serde_json::to_string_pretty(&request)?);
+                        self.post_json(self.verify_url(), &request).await
+                    },
+                    (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
+                        let request = VerifyRequestV2 {
+                            payment_payload: PaymentPayload::V2(payload),
+                            payment_requirements: PaymentRequirements::V2(requirements),
+                        };
+                        dbg!(&request);
+                        self.post_json(self.verify_url(), &request).await
+                    }
+                    _ => {
+                        Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
+                    }
+                }
+            }
 
     async fn settle(
         &self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<SettleResponse> {
-        let request = VerifyRequest {
-            payment_payload: payload,
-            payment_requirements: requirements,
-        };
-        self.post_json(self.settle_url(), &request).await
+
+        match (payload, requirements) {
+            (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
+                let request = VerifyRequestV1 {
+                    x402_version: payload.x402_version,
+                    payment_payload: PaymentPayloadV1 {
+                        x402_version: payload.x402_version,
+                        scheme: payload.scheme.clone(),
+                        network: payload.network.clone(),
+                        payload: payload.payload
+                    },
+                    payment_requirements: PaymentRequirementsV1 {
+                        scheme: payload.scheme,
+                        network: payload.network,
+                        max_amount_required: requirements.max_amount_required,
+                        resource: requirements.resource,
+                        description: requirements.description,
+                        mime_type: requirements.mime_type,
+                        pay_to: requirements.pay_to,
+                        max_timeout_seconds: requirements.max_timeout_seconds,
+                        asset: requirements.asset,
+                        output_schema: requirements.output_schema,
+                        extra: requirements.extra,
+                    },
+                };
+                self.post_json(self.settle_url(), &request).await
+            },
+            (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
+                let request = VerifyRequestV2 {
+                    payment_payload: PaymentPayload::V2(payload),
+                    payment_requirements: PaymentRequirements::V2(requirements),
+                };
+                self.post_json(self.settle_url(), &request).await
+            }
+            _ => {
+                Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
+            }
+        }
+
+
+
     }
 }

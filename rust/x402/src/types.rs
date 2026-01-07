@@ -5,7 +5,15 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use crate::errors::X402Result;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PaymentRequirements {
+#[serde(untagged)]
+pub enum PaymentRequirements {
+    V1(PaymentRequirementsV1),
+    V2(PaymentRequirementsV2),
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PaymentRequirementsV2 {
     pub scheme: String,
     pub network: String,
     #[serde(rename="payTo")]
@@ -28,7 +36,14 @@ pub struct PaymentRequired {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PaymentPayload {
+#[serde(untagged)]
+pub enum PaymentPayload {
+    V1(PaymentPayloadV1),
+    V2(PaymentPayloadV2),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PaymentPayloadV2 {
     #[serde(rename="x402Version")]
     pub x402_version: u32,
     pub resource: Resource,
@@ -46,7 +61,15 @@ pub struct Resource {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VerifyRequest {
+#[serde(untagged)]
+pub enum VerifyRequest {
+    V1(VerifyRequestV1),
+    V2(VerifyRequestV2),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyRequestV2 {
     pub payment_payload: PaymentPayload,
     pub payment_requirements: PaymentRequirements,
 }
@@ -252,39 +275,33 @@ impl Default for CAIPNetwork {
     }
 }
 
-// =======================
-// CDP API (platform/v2/x402) DTOs
-// =======================
-// This will move to a default facilitator on abstraction
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CdpVerifyRequestV1 {
-    #[serde(rename="x402Version")]
+pub struct VerifyRequestV1 {
     pub x402_version: u32,
-    pub payment_payload: CdpPaymentPayloadV1,
-    pub payment_requirements: CdpPaymentRequirementsV1,
+    pub payment_payload: PaymentPayloadV1,
+    pub payment_requirements: PaymentRequirementsV1,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CdpPaymentPayloadV1 {
+pub struct PaymentPayloadV1 {
     pub x402_version: u32,
     pub scheme: String,
     pub network: String,
-    pub payload: CdpExactPayloadV1,
+    pub payload: PayloadExactV1,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CdpExactPayloadV1 {
+pub struct PayloadExactV1 {
     pub signature: String,
-    pub authorization: CdpAuthorizationV1,
+    pub authorization: AuthorizationV1,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CdpAuthorizationV1 {
+pub struct AuthorizationV1 {
     pub from: String,
     pub to: String,
     pub value: String,
@@ -295,7 +312,7 @@ pub struct CdpAuthorizationV1 {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CdpPaymentRequirementsV1 {
+pub struct PaymentRequirementsV1 {
     pub scheme: String,
     pub network: String,
     pub max_amount_required: String,
@@ -335,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_payment_requirements_serialization() {
-        let req = PaymentRequirements {
+        let req = PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
@@ -346,7 +363,7 @@ mod tests {
         };
 
         let json_str = serde_json::to_string(&req).unwrap();
-        let deserialized: PaymentRequirements = serde_json::from_str(&json_str).unwrap();
+        let deserialized: PaymentRequirementsV2 = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(req.scheme, deserialized.scheme);
         assert_eq!(req.network, deserialized.network);
@@ -357,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_payment_required_full_serialization() {
-        let payment_req = PaymentRequirements {
+        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2  {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
@@ -365,7 +382,7 @@ mod tests {
             asset: Some("USDC".to_string()),
             data: None,
             extra: None,
-        };
+        });
 
         let required = PaymentRequired {
             x402_version: 1,
@@ -386,7 +403,7 @@ mod tests {
 
     #[test]
     fn test_payment_required_minimal_serialization() {
-        let payment_req = PaymentRequirements {
+        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "solana".to_string(),
             pay_to: "So11111111111111111111111111111111111111112".to_string(),
@@ -394,7 +411,7 @@ mod tests {
             asset: None,
             data: None,
             extra: None,
-        };
+        });
 
         let required = PaymentRequired {
             x402_version: 1,
@@ -415,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_payment_payload_serialization() {
-        let accepted = PaymentRequirements {
+        let accepted = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0xabcdef1234567890".to_string(),
@@ -423,9 +440,9 @@ mod tests {
             asset: Some("DAI".to_string()),
             data: Some(json!({"nonce": 123})),
             extra: None,
-        };
+        });
 
-        let payload = PaymentPayload {
+        let payload = PaymentPayloadV2 {
             x402_version: 1,
             resource: Resource {
                 url: "/api/premium".to_string(),
@@ -440,15 +457,34 @@ mod tests {
         let json_str = serde_json::to_string(&payload).unwrap();
         let deserialized: PaymentPayload = serde_json::from_str(&json_str).unwrap();
 
-        assert_eq!(payload.x402_version, deserialized.x402_version);
-        assert_eq!(payload.resource.url, deserialized.resource.url);
-        assert_eq!(payload.payload, deserialized.payload);
-        assert_eq!(payload.accepted.scheme, deserialized.accepted.scheme);
+        match deserialized {
+            PaymentPayload::V2(deserialized_payload) => {
+                assert_eq!(payload.x402_version, deserialized_payload.x402_version);
+                assert_eq!(payload.resource.url, deserialized_payload.resource.url);
+                assert_eq!(payload.payload, deserialized_payload.payload);
+
+                // Compare inner requirement structs via pattern matching
+                match (&payload.accepted, &deserialized_payload.accepted) {
+                    (PaymentRequirements::V2(a), PaymentRequirements::V2(b)) => {
+                        assert_eq!(a.scheme, b.scheme);
+                        assert_eq!(a.network, b.network);
+                        assert_eq!(a.pay_to, b.pay_to);
+                        assert_eq!(a.amount, b.amount);
+                        assert_eq!(a.asset, b.asset);
+                        assert_eq!(a.data, b.data);
+                        assert_eq!(a.extra, b.extra);
+                    }
+                    other => panic!("Expected V2 requirements on both sides, got: {:?}", other),
+                }
+            }
+            _ => panic!("Expected V2 requirements on both sides, got: {:?}", deserialized),
+        }
+
     }
 
     #[test]
     fn test_payment_required_header_encoding() {
-        let payment_req = PaymentRequirements {
+        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
@@ -456,7 +492,7 @@ mod tests {
             asset: None,
             data: None,
             extra: None,
-        };
+        });
 
         let required = PaymentRequired {
             x402_version: 1,
@@ -480,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_payment_payload_header_encoding() {
-        let accepted = PaymentRequirements {
+        let accepted = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "solana".to_string(),
             pay_to: "0xtest".to_string(),
@@ -488,9 +524,9 @@ mod tests {
             asset: None,
             data: None,
             extra: None,
-        };
+        });
 
-        let payload = PaymentPayload {
+        let payload = PaymentPayloadV2 {
             x402_version: 1,
             resource: Resource {
                 url: "/api/premium".to_string(),
@@ -502,18 +538,24 @@ mod tests {
             extensions: None,
         };
 
-        let header = payload.to_header().unwrap();
+        let header = PaymentPayload::V2(payload.clone()).to_header().unwrap();
         assert!(!header.is_empty());
 
         let decoded = PaymentPayload::from_header(&header).unwrap();
-        assert_eq!(payload.x402_version, decoded.x402_version);
-        assert_eq!(payload.resource.url, decoded.resource.url);
-        assert_eq!(payload.payload, decoded.payload);
+        match decoded {
+            PaymentPayload::V2(decoded_payload) => {
+                assert_eq!(payload.x402_version, decoded_payload.x402_version);
+                assert_eq!(payload.resource.url, decoded_payload.resource.url);
+                assert_eq!(payload.payload, decoded_payload.payload);
+            }
+            _ => panic!("Expected V2 payload on both sides, got: {:?}", decoded),
+        }
+
     }
 
     #[test]
     fn test_header_encoding_with_special_characters() {
-        let payment_req = PaymentRequirements {
+        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
@@ -521,7 +563,7 @@ mod tests {
             asset: None,
             data: Some(json!({"test": "value+with/special=chars"})),
             extra: None,
-        };
+        });
 
         let required = PaymentRequired {
             x402_version: 1,
