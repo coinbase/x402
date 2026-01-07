@@ -5,6 +5,7 @@
  * for Solana wallets.
  */
 
+import { base58 } from "@scure/base";
 import nacl from "tweetnacl";
 import type { SIWxExtensionInfo } from "./types";
 
@@ -132,7 +133,6 @@ export function verifySolanaSignature(
  * Decode Base58 string to bytes.
  *
  * Solana uses Base58 encoding (Bitcoin alphabet) for addresses and signatures.
- * This is a minimal implementation to avoid adding bs58 as a dependency.
  *
  * @param encoded - Base58 encoded string
  * @returns Decoded bytes
@@ -145,44 +145,7 @@ export function verifySolanaSignature(
  * ```
  */
 export function decodeBase58(encoded: string): Uint8Array {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-  // Count leading zeros (Base58 '1' = 0x00 byte)
-  let leadingZeros = 0;
-  for (const char of encoded) {
-    if (char === "1") {
-      leadingZeros++;
-    } else {
-      break;
-    }
-  }
-
-  // Decode the rest
-  const bytes: number[] = [];
-  for (const char of encoded) {
-    let carry = ALPHABET.indexOf(char);
-    if (carry < 0) {
-      throw new Error(`Invalid Base58 character: ${char}`);
-    }
-
-    for (let i = 0; i < bytes.length; i++) {
-      carry += bytes[i] * 58;
-      bytes[i] = carry & 0xff;
-      carry >>= 8;
-    }
-
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
-  }
-
-  // Reverse and prepend leading zeros
-  bytes.reverse();
-  const result = new Uint8Array(leadingZeros + bytes.length);
-  result.set(bytes, leadingZeros);
-
-  return result;
+  return base58.decode(encoded);
 }
 
 /**
@@ -192,39 +155,5 @@ export function decodeBase58(encoded: string): Uint8Array {
  * @returns Base58 encoded string
  */
 export function encodeBase58(bytes: Uint8Array): string {
-  const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-  // Count leading zeros
-  let leadingZeros = 0;
-  for (const byte of bytes) {
-    if (byte === 0) {
-      leadingZeros++;
-    } else {
-      break;
-    }
-  }
-
-  // Encode the rest
-  const digits: number[] = [];
-  for (const byte of bytes) {
-    let carry = byte;
-    for (let i = 0; i < digits.length; i++) {
-      carry += digits[i] << 8;
-      digits[i] = carry % 58;
-      carry = Math.floor(carry / 58);
-    }
-
-    while (carry > 0) {
-      digits.push(carry % 58);
-      carry = Math.floor(carry / 58);
-    }
-  }
-
-  // Convert to string with leading '1's for zeros
-  let result = "1".repeat(leadingZeros);
-  for (let i = digits.length - 1; i >= 0; i--) {
-    result += ALPHABET[digits[i]];
-  }
-
-  return result;
+  return base58.encode(bytes);
 }
