@@ -10,9 +10,6 @@ import type { SIWxPayload, SIWxValidationResult, SIWxValidationOptions } from ".
 /** Default maximum age for issuedAt: 5 minutes per spec */
 const DEFAULT_MAX_AGE_MS = 5 * 60 * 1000;
 
-/** Allow 1 minute clock skew for future timestamps */
-const CLOCK_SKEW_MS = 60 * 1000;
-
 /**
  * Validate SIWX message fields.
  *
@@ -85,10 +82,10 @@ export async function validateSIWxMessage(
       error: `Message too old: ${Math.round(age / 1000)}s exceeds ${maxAge / 1000}s limit`,
     };
   }
-  if (age < -CLOCK_SKEW_MS) {
+  if (age < 0) {
     return {
       valid: false,
-      error: "issuedAt is in the future (beyond clock skew tolerance)",
+      error: "issuedAt is in the future",
     };
   }
 

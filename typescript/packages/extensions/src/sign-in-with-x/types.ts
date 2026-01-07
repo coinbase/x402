@@ -25,18 +25,19 @@ export const SIGN_IN_WITH_X = "sign-in-with-x";
  */
 export type SignatureScheme =
   | "eip191" // personal_sign (default for EVM EOAs)
-  | "eip712" // typed data signing
   | "eip1271" // smart contract wallet verification
   | "eip6492" // counterfactual smart wallet verification
-  | "siws" // Sign-In-With-Solana
-  | "sep10"; // Stellar SEP-10
+  | "siws"; // Sign-In-With-Solana
+
+/** Signature algorithm type per CAIP-122 */
+export type SignatureType = "eip191" | "ed25519";
 
 /**
  * Server-declared extension info included in PaymentRequired.extensions
  * Per CHANGELOG-v2.md lines 263-272
  */
 export interface SIWxExtensionInfo {
-  /** Server's domain (derived from resourceUri host) */
+  /** Server's domain */
   domain: string;
   /** Full resource URI */
   uri: string;
@@ -46,6 +47,8 @@ export interface SIWxExtensionInfo {
   version: string;
   /** CAIP-2 chain identifier (e.g., "eip155:8453") */
   chainId: string;
+  /** Signature algorithm type per CAIP-122 */
+  type: SignatureType;
   /** Cryptographic nonce (SDK auto-generates) */
   nonce: string;
   /** ISO 8601 timestamp (SDK auto-generates) */
@@ -58,10 +61,7 @@ export interface SIWxExtensionInfo {
   requestId?: string;
   /** Associated resources */
   resources?: string[];
-  /**
-   * Signature scheme hint (informational only).
-   * Verification auto-detects from chainId prefix, not this field.
-   */
+  /** Signature scheme hint (informational) */
   signatureScheme?: SignatureScheme;
 }
 
@@ -79,6 +79,7 @@ export interface SIWxExtensionSchema {
     uri: { type: "string"; format: "uri" };
     version: { type: "string" };
     chainId: { type: "string" };
+    type: { type: "string" };
     nonce: { type: "string" };
     issuedAt: { type: "string"; format: "date-time" };
     expirationTime?: { type: "string"; format: "date-time" };
@@ -111,13 +112,14 @@ export const SIWxPayloadSchema = z.object({
   uri: z.string(),
   version: z.string(),
   chainId: z.string(),
+  type: z.enum(["eip191", "ed25519"]),
   nonce: z.string(),
   issuedAt: z.string(),
   expirationTime: z.string().optional(),
   notBefore: z.string().optional(),
   requestId: z.string().optional(),
   resources: z.array(z.string()).optional(),
-  signatureScheme: z.enum(["eip191", "eip712", "eip1271", "eip6492", "siws", "sep10"]).optional(),
+  signatureScheme: z.enum(["eip191", "eip1271", "eip6492", "siws"]).optional(),
   signature: z.string(),
 });
 
@@ -130,7 +132,9 @@ export type SIWxPayload = z.infer<typeof SIWxPayloadSchema>;
  * Options for declaring SIWX extension on server
  */
 export interface DeclareSIWxOptions {
-  /** Full resource URI (domain derived from this) */
+  /** Server's domain (must match request origin) */
+  domain: string;
+  /** Full resource URI */
   resourceUri: string;
   /** Human-readable purpose */
   statement?: string;
@@ -140,16 +144,11 @@ export interface DeclareSIWxOptions {
    * CAIP-2 network identifier.
    * - EVM: "eip155:8453" (Base), "eip155:1" (Ethereum mainnet)
    * - Solana: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" (mainnet)
-   *
-   * Use SOLANA_MAINNET, SOLANA_DEVNET, or SOLANA_TESTNET constants for Solana.
    */
   network: `eip155:${string}` | `solana:${string}` | (string & {});
   /** Optional explicit expiration time */
   expirationTime?: string;
-  /**
-   * Signature scheme hint (informational only).
-   * Passed to clients as UX hint but does not affect verification.
-   */
+  /** Signature scheme hint (informational) */
   signatureScheme?: SignatureScheme;
 }
 

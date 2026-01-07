@@ -54,12 +54,14 @@ export async function createSIWxPayload(
     uri: serverExtension.uri,
     version: serverExtension.version,
     chainId: serverExtension.chainId,
+    type: serverExtension.type,
     nonce: serverExtension.nonce,
     issuedAt: serverExtension.issuedAt,
     expirationTime: serverExtension.expirationTime,
     notBefore: serverExtension.notBefore,
     requestId: serverExtension.requestId,
     resources: serverExtension.resources,
+    signatureScheme: serverExtension.signatureScheme,
     signature,
   };
 }

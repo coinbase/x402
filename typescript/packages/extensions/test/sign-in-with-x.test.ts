@@ -17,7 +17,7 @@ import {
   formatSIWSMessage,
   decodeBase58,
   encodeBase58,
-  extractSolanaNetwork,
+  extractSolanaChainReference,
   verifySolanaSignature,
   getEVMAddress,
   getSolanaAddress,
@@ -37,6 +37,7 @@ const validPayload = {
   uri: "https://api.example.com/data",
   version: "1",
   chainId: "eip155:8453",
+  type: "eip191" as const,
   nonce: "abc123def456",
   issuedAt: new Date().toISOString(),
   expirationTime: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -64,6 +65,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: "eip155:8453",
+        type: "eip191" as const,
         nonce: "abc123",
         issuedAt: new Date().toISOString(),
         signature: "0xabcdef",
@@ -110,6 +112,7 @@ describe("Sign-In-With-X Extension", () => {
   describe("declareSIWxExtension", () => {
     it("should create extension with auto-generated fields", () => {
       const result = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/data",
         network: "eip155:8453",
         statement: "Sign in to access",
@@ -120,6 +123,7 @@ describe("Sign-In-With-X Extension", () => {
       expect(extension.info.domain).toBe("api.example.com");
       expect(extension.info.uri).toBe("https://api.example.com/data");
       expect(extension.info.chainId).toBe("eip155:8453");
+      expect(extension.info.type).toBe("eip191");
       expect(extension.info.nonce).toBeDefined();
       expect(extension.info.nonce.length).toBe(32);
       expect(extension.info.issuedAt).toBeDefined();
@@ -155,6 +159,7 @@ describe("Sign-In-With-X Extension", () => {
         statement: "Sign in to access",
         version: "1",
         chainId: "eip155:8453",
+        type: "eip191" as const,
         nonce: "abc12345def67890",
         issuedAt: "2024-01-01T00:00:00.000Z",
         resources: ["https://api.example.com"],
@@ -185,6 +190,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
         statement: "Sign in to access your content",
@@ -206,6 +212,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
       });
@@ -224,6 +231,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
       });
@@ -247,6 +255,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
       });
@@ -264,6 +273,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
       });
@@ -283,6 +293,7 @@ describe("Sign-In-With-X Extension", () => {
       const account = privateKeyToAccount(generatePrivateKey());
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: "eip155:8453",
       });
@@ -308,6 +319,7 @@ describe("Sign-In-With-X Extension", () => {
       };
 
       const extension = declareSIWxExtension({
+        domain: "api.example.com",
         resourceUri: "https://api.example.com/resource",
         network: SOLANA_MAINNET,
       });
@@ -359,17 +371,17 @@ describe("Sign-In-With-X Extension", () => {
     });
   });
 
-  describe("extractSolanaNetwork", () => {
-    it("should extract mainnet", () => {
-      expect(extractSolanaNetwork(SOLANA_MAINNET)).toBe("mainnet");
+  describe("extractSolanaChainReference", () => {
+    it("should extract mainnet reference", () => {
+      expect(extractSolanaChainReference(SOLANA_MAINNET)).toBe("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
     });
 
-    it("should extract devnet", () => {
-      expect(extractSolanaNetwork(SOLANA_DEVNET)).toBe("devnet");
+    it("should extract devnet reference", () => {
+      expect(extractSolanaChainReference(SOLANA_DEVNET)).toBe("EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
     });
 
-    it("should return reference for unknown networks", () => {
-      expect(extractSolanaNetwork("solana:customnetwork123")).toBe("customnetwork123");
+    it("should return reference for custom networks", () => {
+      expect(extractSolanaChainReference("solana:customnetwork123")).toBe("customnetwork123");
     });
   });
 
@@ -381,6 +393,7 @@ describe("Sign-In-With-X Extension", () => {
         statement: "Sign in to access",
         version: "1",
         chainId: SOLANA_MAINNET,
+        type: "ed25519" as const,
         nonce: "abc123",
         issuedAt: "2024-01-01T00:00:00.000Z",
         resources: ["https://api.example.com/data"],
@@ -390,7 +403,7 @@ describe("Sign-In-With-X Extension", () => {
 
       expect(message).toContain("wants you to sign in with your Solana account:");
       expect(message).toContain("BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW");
-      expect(message).toContain("Chain ID: mainnet");
+      expect(message).toContain("Chain ID: 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
       expect(message).toContain("Nonce: abc123");
       expect(message).toContain("Sign in to access");
     });
@@ -401,6 +414,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: SOLANA_DEVNET,
+        type: "ed25519" as const,
         nonce: "xyz789",
         issuedAt: "2024-01-01T00:00:00.000Z",
       };
@@ -408,7 +422,7 @@ describe("Sign-In-With-X Extension", () => {
       const message = formatSIWSMessage(info, "TestAddress123");
 
       expect(message).toContain("wants you to sign in with your Solana account:");
-      expect(message).toContain("Chain ID: devnet");
+      expect(message).toContain("Chain ID: EtWTRABZaYq6iMfeYKouRu166VU2xqa1");
       expect(message).not.toContain("Sign in to access");
     });
   });
@@ -420,6 +434,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: "eip155:1",
+        type: "eip191" as const,
         nonce: "abc12345678",
         issuedAt: "2024-01-01T00:00:00.000Z",
       };
@@ -436,6 +451,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: SOLANA_MAINNET,
+        type: "ed25519" as const,
         nonce: "abc12345678",
         issuedAt: "2024-01-01T00:00:00.000Z",
       };
@@ -443,7 +459,7 @@ describe("Sign-In-With-X Extension", () => {
       const message = createSIWxMessage(info, "BSmWDgE9ex6dZYbiTsJGcwMEgFp8q4aWh92hdErQPeVW");
 
       expect(message).toContain("wants you to sign in with your Solana account:");
-      expect(message).toContain("Chain ID: mainnet");
+      expect(message).toContain("Chain ID: 5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
     });
 
     it("should throw for unsupported chain namespaces", () => {
@@ -452,6 +468,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: "cosmos:cosmoshub-4",
+        type: "eip191" as const,
         nonce: "abc12345678",
         issuedAt: "2024-01-01T00:00:00.000Z",
       };
@@ -499,6 +516,7 @@ describe("Sign-In-With-X Extension", () => {
       const payload = {
         ...validPayload,
         chainId: "cosmos:cosmoshub-4",
+        type: "eip191" as const,
       };
 
       const result = await verifySIWxSignature(payload);
@@ -516,6 +534,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com/data",
         version: "1",
         chainId: SOLANA_MAINNET,
+        type: "ed25519" as const,
         nonce: "test123",
         issuedAt: new Date().toISOString(),
       };
@@ -543,6 +562,7 @@ describe("Sign-In-With-X Extension", () => {
         uri: "https://api.example.com",
         version: "1",
         chainId: SOLANA_MAINNET,
+        type: "ed25519" as const,
         nonce: "test123",
         issuedAt: new Date().toISOString(),
         address: encodeBase58(new Uint8Array(32).fill(1)), // Valid 32-byte key
@@ -636,6 +656,7 @@ describe("Sign-In-With-X Extension", () => {
           uri: "https://api.example.com/data",
           version: "1",
           chainId: SOLANA_MAINNET,
+          type: "ed25519" as const,
           nonce: "test123456789",
           issuedAt: new Date().toISOString(),
         };
@@ -661,6 +682,7 @@ describe("Sign-In-With-X Extension", () => {
         };
 
         const extension = declareSIWxExtension({
+          domain: "api.example.com",
           resourceUri: "https://api.example.com/resource",
           network: SOLANA_MAINNET,
           statement: "Sign in to access",
@@ -689,6 +711,7 @@ describe("Sign-In-With-X Extension", () => {
         };
 
         const extension = declareSIWxExtension({
+          domain: "api.example.com",
           resourceUri: "https://api.example.com/resource",
           network: SOLANA_DEVNET,
         });
@@ -714,6 +737,7 @@ describe("Sign-In-With-X Extension", () => {
           uri: "https://api.example.com",
           version: "1",
           chainId: SOLANA_MAINNET,
+          type: "ed25519" as const,
           nonce: "test12345",
           issuedAt: new Date().toISOString(),
           signatureScheme: "eip191" as const, // Wrong hint - should be "siws"
