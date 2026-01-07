@@ -9,6 +9,8 @@ import type { SIWxExtensionSchema } from "./types";
 /**
  * Build JSON Schema for SIWX extension validation.
  * This schema validates the client proof payload structure.
+ *
+ * @returns JSON Schema for validating SIWX client payloads
  */
 export function buildSIWxSchema(): SIWxExtensionSchema {
   return {

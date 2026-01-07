@@ -64,7 +64,7 @@
  * fetch(url, { headers: { 'SIGN-IN-WITH-X': header } });
  * ```
  *
- * @packageDocumentation
+ * @module sign-in-with-x
  */
 
 // Constants
