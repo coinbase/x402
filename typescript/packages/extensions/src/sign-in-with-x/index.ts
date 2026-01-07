@@ -98,7 +98,7 @@ export { buildSIWxSchema } from "./schema";
 export { createSIWxMessage } from "./message";
 export { signSIWxMessage, type SIWxSigner } from "./sign";
 export { createSIWxPayload } from "./client";
-export { encodeSIWxHeader, encodeSIWxHeaderRaw } from "./encode";
+export { encodeSIWxHeader } from "./encode";
 
 // Solana utilities
 export {

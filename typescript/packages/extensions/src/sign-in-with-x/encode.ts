@@ -29,17 +29,3 @@ import type { SIWxPayload } from "./types";
 export function encodeSIWxHeader(payload: SIWxPayload): string {
   return safeBase64Encode(JSON.stringify(payload));
 }
-
-/**
- * Encode SIWX payload as raw JSON.
- *
- * For environments where base64 encoding is not required.
- * Note: This is NOT spec-compliant but may be useful for debugging
- * or legacy compatibility.
- *
- * @param payload - Complete SIWX payload with signature
- * @returns JSON string (not base64 encoded)
- */
-export function encodeSIWxHeaderRaw(payload: SIWxPayload): string {
-  return JSON.stringify(payload);
-}

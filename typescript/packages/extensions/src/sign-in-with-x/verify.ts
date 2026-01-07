@@ -42,7 +42,7 @@ export async function verifySIWxSignature(
   try {
     // Route by chain namespace
     if (payload.chainId.startsWith("eip155:")) {
-      return verifyEVMSignature(payload, options);
+      return verifyEVMPayload(payload, options);
     }
 
     if (payload.chainId.startsWith("solana:")) {
@@ -69,7 +69,7 @@ export async function verifySIWxSignature(
  * - EIP-1271 (deployed smart contract wallets)
  * - EIP-6492 (counterfactual/pre-deploy smart wallets)
  */
-async function verifyEVMSignature(
+async function verifyEVMPayload(
   payload: SIWxPayload,
   _options: SIWxVerifyOptions,
 ): Promise<SIWxVerifyResult> {
