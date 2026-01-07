@@ -333,6 +333,100 @@ describe("Bazaar Discovery Extension", () => {
       expect(discovered!.resourceUrl).toBe("http://example.com/test");
     });
 
+    it("should strip query params from v2 resourceUrl", () => {
+      const declared = declareDiscoveryExtension({
+        input: { city: "NYC" },
+        inputSchema: {
+          properties: {
+            city: { type: "string" },
+          },
+        },
+      });
+
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://api.example.com/weather?city=NYC&units=metric",
+          description: "Weather API",
+          mimeType: "application/json",
+        },
+        extensions: {
+          [BAZAAR]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/weather");
+    });
+
+    it("should strip hash sections from v2 resourceUrl", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://api.example.com/docs#section-1",
+          description: "Docs",
+          mimeType: "text/html",
+        },
+        extensions: {
+          [BAZAAR]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/docs");
+    });
+
+    it("should strip both query params and hash sections from v2 resourceUrl", () => {
+      const declared = declareDiscoveryExtension({
+        input: {},
+        inputSchema: { properties: {} },
+      });
+
+      const extension = declared.bazaar;
+
+      const paymentPayload = {
+        x402Version: 2,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+        accepted: {} as unknown,
+        resource: {
+          url: "https://api.example.com/page?foo=bar#anchor",
+          description: "Page",
+          mimeType: "text/html",
+        },
+        extensions: {
+          [BAZAAR]: extension,
+        },
+      };
+
+      const discovered = extractDiscoveryInfo(paymentPayload, {} as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/page");
+    });
+
     it("should extract info from v1 PaymentRequirements", () => {
       const v1Requirements = {
         scheme: "exact",
@@ -368,6 +462,75 @@ describe("Bazaar Discovery Extension", () => {
       expect(discovered!.discoveryInfo.input.method).toBe("GET");
       expect(discovered!.resourceUrl).toBe("https://api.example.com/data");
       expect(discovered!.method).toBe("GET");
+    });
+
+    it("should strip query params from v1 resourceUrl", () => {
+      const v1Requirements = {
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        maxAmountRequired: "10000",
+        resource: "https://api.example.com/search?q=test&page=1",
+        description: "Search",
+        mimeType: "application/json",
+        outputSchema: {
+          input: {
+            type: "http",
+            method: "GET",
+            discoverable: true,
+            queryParams: { q: "string", page: "number" },
+          },
+        },
+        payTo: "0x...",
+        maxTimeoutSeconds: 300,
+        asset: "0x...",
+        extra: {},
+      };
+
+      const v1Payload = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+      };
+
+      const discovered = extractDiscoveryInfo(v1Payload as unknown, v1Requirements as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/search");
+    });
+
+    it("should strip hash sections from v1 resourceUrl", () => {
+      const v1Requirements = {
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        maxAmountRequired: "10000",
+        resource: "https://api.example.com/docs#section",
+        description: "Docs",
+        mimeType: "application/json",
+        outputSchema: {
+          input: {
+            type: "http",
+            method: "GET",
+            discoverable: true,
+          },
+        },
+        payTo: "0x...",
+        maxTimeoutSeconds: 300,
+        asset: "0x...",
+        extra: {},
+      };
+
+      const v1Payload = {
+        x402Version: 1,
+        scheme: "exact",
+        network: "eip155:8453" as unknown,
+        payload: {},
+      };
+
+      const discovered = extractDiscoveryInfo(v1Payload as unknown, v1Requirements as unknown);
+
+      expect(discovered).not.toBeNull();
+      expect(discovered!.resourceUrl).toBe("https://api.example.com/docs");
     });
 
     it("should return null when no discovery info is present", () => {
