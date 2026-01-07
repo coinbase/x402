@@ -18,31 +18,19 @@ export const SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 export const SOLANA_TESTNET = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z";
 
 /**
- * Known Solana network genesis hashes mapped to human-readable names.
- * Used for Chain ID display in SIWS messages.
- */
-const SOLANA_NETWORKS: Record<string, string> = {
-  "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": "mainnet",
-  EtWTRABZaYq6iMfeYKouRu166VU2xqa1: "devnet",
-  "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z": "testnet",
-};
-
-/**
- * Extract network name from CAIP-2 Solana chainId.
+ * Extract chain reference from CAIP-2 Solana chainId.
  *
  * @param chainId - CAIP-2 format chain ID (e.g., "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp")
- * @returns Human-readable network name or the reference if unknown
+ * @returns Chain reference (genesis hash)
  *
  * @example
  * ```typescript
- * extractSolanaNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") // "mainnet"
- * extractSolanaNetwork("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") // "devnet"
- * extractSolanaNetwork("solana:custom123") // "custom123"
+ * extractSolanaChainReference("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") // "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
  * ```
  */
-export function extractSolanaNetwork(chainId: string): string {
+export function extractSolanaChainReference(chainId: string): string {
   const [, reference] = chainId.split(":");
-  return SOLANA_NETWORKS[reference] ?? reference;
+  return reference;
 }
 
 /**
@@ -87,7 +75,7 @@ export function formatSIWSMessage(info: SIWxExtensionInfo, address: string): str
   lines.push(
     `URI: ${info.uri}`,
     `Version: ${info.version}`,
-    `Chain ID: ${extractSolanaNetwork(info.chainId)}`,
+    `Chain ID: ${extractSolanaChainReference(info.chainId)}`,
     `Nonce: ${info.nonce}`,
     `Issued At: ${info.issuedAt}`,
   );

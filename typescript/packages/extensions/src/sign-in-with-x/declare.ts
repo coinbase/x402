@@ -5,9 +5,19 @@
  */
 
 import { randomBytes } from "crypto";
-import type { SIWxExtension, SIWxExtensionInfo, DeclareSIWxOptions } from "./types";
+import type { SIWxExtension, SIWxExtensionInfo, DeclareSIWxOptions, SignatureType } from "./types";
 import { SIGN_IN_WITH_X } from "./types";
 import { buildSIWxSchema } from "./schema";
+
+/**
+ * Derive signature type from network.
+ *
+ * @param network - CAIP-2 network identifier
+ * @returns Signature algorithm type
+ */
+function getSignatureType(network: string): SignatureType {
+  return network.startsWith("solana:") ? "ed25519" : "eip191";
+}
 
 /**
  * Create a SIWX extension declaration for PaymentRequired.extensions
@@ -24,6 +34,7 @@ import { buildSIWxSchema } from "./schema";
  * @example
  * ```typescript
  * const extensions = declareSIWxExtension({
+ *   domain: 'api.example.com',
  *   resourceUri: 'https://api.example.com/data',
  *   network: 'eip155:8453',
  *   statement: 'Sign in to access your purchased content',
@@ -39,8 +50,6 @@ import { buildSIWxSchema } from "./schema";
  * ```
  */
 export function declareSIWxExtension(options: DeclareSIWxOptions): Record<string, SIWxExtension> {
-  const url = new URL(options.resourceUri);
-
   // Auto-generate fields per spec
   const nonce = randomBytes(16).toString("hex");
   const issuedAt = new Date().toISOString();
@@ -48,10 +57,11 @@ export function declareSIWxExtension(options: DeclareSIWxOptions): Record<string
     options.expirationTime ?? new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
   const info: SIWxExtensionInfo = {
-    domain: url.host,
+    domain: options.domain,
     uri: options.resourceUri,
     version: options.version ?? "1",
     chainId: options.network,
+    type: getSignatureType(options.network),
     nonce,
     issuedAt,
     expirationTime,

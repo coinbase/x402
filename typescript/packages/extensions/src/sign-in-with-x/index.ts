@@ -18,6 +18,7 @@
  *
  * // 1. Declare auth requirement in PaymentRequired response
  * const extensions = declareSIWxExtension({
+ *   domain: 'api.example.com',
  *   resourceUri: 'https://api.example.com/data',
  *   network: 'eip155:8453',
  *   statement: 'Sign in to access your purchased content',
@@ -79,6 +80,7 @@ export type {
   SIWxPayload,
   DeclareSIWxOptions,
   SignatureScheme,
+  SignatureType,
   SIWxValidationResult,
   SIWxValidationOptions,
   SIWxVerifyResult,
@@ -116,5 +118,5 @@ export {
   verifySolanaSignature,
   decodeBase58,
   encodeBase58,
-  extractSolanaNetwork,
+  extractSolanaChainReference,
 } from "./solana";
