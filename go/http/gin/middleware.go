@@ -46,14 +46,24 @@ func (a *GinAdapter) GetPath() string {
 // GetURL gets the full request URL
 func (a *GinAdapter) GetURL() string {
 	scheme := "http"
-	if a.ctx.Request.TLS != nil {
+	if a.ctx.Request.TLS != nil || a.ctx.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	host := a.ctx.Request.Host
+
+	host := a.ctx.GetHeader("X-Forwarded-Host")
+	if host == "" {
+		host = a.ctx.Request.Host
+	}
 	if host == "" {
 		host = a.ctx.GetHeader("Host")
 	}
-	return fmt.Sprintf("%s://%s%s", scheme, host, a.ctx.Request.URL.Path)
+
+	uri := a.ctx.Request.URL.RequestURI()
+	if prefix := a.ctx.GetHeader("X-Forwarded-Prefix"); prefix != "" {
+		uri = prefix + uri
+	}
+
+	return fmt.Sprintf("%s://%s%s", scheme, host, uri)
 }
 
 // GetAcceptHeader gets the Accept header
