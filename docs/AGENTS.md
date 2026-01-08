@@ -60,3 +60,47 @@
 - Code examples are from actual SDK files and compile
 - Frontmatter present on all pages (title, description)
 - MDX syntax is valid (run `mint dev` to verify)
+
+## Agent Behavior Rules (Automated Workflows)
+
+When triggered by GitHub Actions or other automated workflows:
+
+### DO
+- ONLY update documentation directly related to the specific code changes
+- Focus on the files and commits mentioned in the trigger
+- Update SDK references if API signatures change
+- Update quickstart guides if SDK usage patterns change
+- Update core-concepts if protocol behavior changes
+
+### DO NOT
+- Perform general documentation audits or sync operations
+- Add documentation for ecosystem partners not mentioned in the code change
+- Add documentation for features unrelated to the trigger
+- Create PRs for trivial changes (comment removal, formatting, etc.)
+- Sync ecosystem partner data from `typescript/site/app/ecosystem/` unless explicitly changed
+
+### Code-to-Doc Mapping (for automated updates)
+
+| Code Change | Doc Update Required |
+|-------------|---------------------|
+| `typescript/packages/*/src/*.ts` API changes | SDK reference, quickstart guides |
+| `python/x402/src/*.py` API changes | Python SDK reference |
+| `go/*.go` API changes | Go SDK reference |
+| `java/src/**/*.java` API changes | Java SDK reference |
+| `specs/*.md` protocol changes | core-concepts docs |
+| Comment removal, formatting | NO update needed |
+| Test file changes | NO update needed |
+| Build/CI config changes | NO update needed |
+| Ecosystem partner metadata only | NO update needed (site handles this) |
+
+### When to Skip (No PR)
+
+If the code changes are limited to:
+- Removing or adding code comments
+- Formatting/style changes (prettier, linting)
+- Test files only (`*.test.ts`, `__tests__/`, etc.)
+- CI/build configuration only (`.github/`, `turbo.json`, etc.)
+- Dependency updates without API changes (`package.json`, `go.mod`, etc.)
+- Ecosystem partner metadata (`typescript/site/app/ecosystem/partners-data/`)
+
+Then report "No documentation updates needed" and **do not create a PR**.

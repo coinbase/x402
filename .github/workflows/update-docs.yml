@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths-ignore:
       - 'docs/**'
+      - '**/*.test.ts'
+      - '**/*.test.js'
+      - '**/__tests__/**'
+      - '**/test/**'
+      - '**/tests/**'
 
 jobs:
   update-docs:
@@ -25,17 +30,73 @@ jobs:
               return;
             }
 
-            const url = `https://api.mintlify.com/v1/agent/${projectId}/job`;
+            // Extract commit details from push payload
+            const commits = context.payload.commits || [];
+            const headCommit = context.payload.head_commit;
+            
+            // Build list of changed files (excluding test files)
+            const testFilePattern = /\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|\/test\/|\/tests\//;
+            const changedFiles = commits.flatMap(c => [
+              ...(c.added || []),
+              ...(c.modified || []),
+              ...(c.removed || [])
+            ]).filter(f => !testFilePattern.test(f));
+            const uniqueFiles = [...new Set(changedFiles)];
+            
+            // Skip if no non-test files changed
+            if (uniqueFiles.length === 0) {
+              core.notice('No documentation-relevant files changed. Skipping agent trigger.');
+              return;
+            }
+            
+            // Build commit messages (first line only)
+            const commitMessages = commits
+              .map(c => '- ' + c.message.split('\n')[0])
+              .join('\n');
+            
+            // Compare URL for reference
+            const compareUrl = context.payload.compare || '';
+
+            // Build the system prompt
+            const systemPrompt = [
+              'You are a documentation updater that ONLY updates docs directly related to specific code changes.',
+              '',
+              'CRITICAL RULES:',
+              '- ONLY update documentation that is directly affected by the code changes provided',
+              '- DO NOT perform general documentation audits or sync operations',
+              '- DO NOT add documentation for unrelated features, ecosystem partners, or missing content',
+              '- If the code changes do not require documentation updates, report "No documentation updates needed" and exit without creating a PR',
+              '- Focus on the specific files and commits mentioned, not the entire repository state',
+              '- Read the AGENTS.md file in the docs directory for additional guidance'
+            ].join('\n');
+
+            // Build the user prompt
+            const userPrompt = [
+              'Review these SPECIFIC code changes and update documentation ONLY if directly related:',
+              '',
+              '**Repository:** ' + owner + '/' + repo,
+              '**Compare URL:** ' + compareUrl,
+              '',
+              '**Changed Files (' + uniqueFiles.length + '):**',
+              uniqueFiles.join('\n'),
+              '',
+              '**Commit Messages:**',
+              commitMessages || 'No commit messages',
+              '',
+              'IMPORTANT: Only update documentation that is directly impacted by these specific file changes. Do not add documentation for unrelated features or perform general audits. If these changes do not affect documentation, do NOT create a PR.'
+            ].join('\n');
+
+            const url = 'https://api.mintlify.com/v1/agent/' + projectId + '/job';
             const payload = {
-              branch: `mintlify/docs-update-${Date.now()}`,
+              branch: 'mintlify/docs-update-' + Date.now(),
               messages: [
                 {
                   role: 'system',
-                  content: 'You are an action runner that updates documentation based on code changes. You should never ask questions. If you are not able to access the repository, report the error and exit.'
+                  content: systemPrompt
                 },
                 {
                   role: 'user',
-                  content: `Update the documentation for recent pushes to main:\n\nRepository: ${owner}/${repo}`
+                  content: userPrompt
                 }
               ],
               asDraft: false
@@ -45,14 +106,15 @@ jobs:
               const response = await fetch(url, {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${apiKey}`,
+                  'Authorization': 'Bearer ' + apiKey,
                   'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
               });
 
               if (!response.ok) {
-                throw new Error(`API request failed with status ${response.status}: ${await response.text()}`);
+                const errorText = await response.text();
+                throw new Error('API request failed with status ' + response.status + ': ' + errorText);
               }
 
               const reader = response.body.getReader();
@@ -75,7 +137,7 @@ jobs:
                 console.log(buffer);
               }
 
-              core.notice(`Documentation update job triggered for ${owner}/${repo}`);
+              core.notice('Documentation update job triggered for ' + owner + '/' + repo);
             } catch (error) {
-              core.setFailed(`Failed to create documentation update job: ${error.message}`);
+              core.setFailed('Failed to create documentation update job: ' + error.message);
             }
