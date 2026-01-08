@@ -2,8 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Lottie from "lottie-react";
-import { useIntro } from "../contexts/IntroContext";
-import { X402Logo } from "./Logo";
+import { NavBarLogo } from "./NavBarLogo";
 import animationData from "../data/lottie/CB_Dev_X402_02_v005.json";
 
 interface AnimatedLogoProps {
@@ -13,21 +12,19 @@ interface AnimatedLogoProps {
 const ANIMATION_SIZE = 105;
 
 export function AnimatedLogo({ className }: AnimatedLogoProps): React.ReactElement {
-  const { shouldShowIntro, markIntroComplete } = useIntro();
   const [animationComplete, setAnimationComplete] = useState(false);
 
   const handleComplete = useCallback(() => {
     setAnimationComplete(true);
-    markIntroComplete();
-  }, [markIntroComplete]);
+  }, []);
 
-  if (!shouldShowIntro || animationComplete) {
-    return <X402Logo className={className} />;
+  if (animationComplete) {
+    return <NavBarLogo className={className} />;
   }
 
   return (
     <div className={className} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-      <X402Logo style={{ visibility: "hidden" }} />
+      <NavBarLogo style={{ visibility: "hidden" }} />
       <Lottie
         animationData={animationData}
         loop={false}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { X402Logo } from "./Logo";
+import { NavBarLogo } from "./NavBarLogo";
 import { AnimatedLogo } from "./AnimatedLogo";
 
 function CloseIcon() {
@@ -22,13 +22,13 @@ function CloseIcon() {
 }
 
 interface NavBarProps {
-  /** When true, plays the Lottie logo animation on first session visit */
+  /** When true, plays the Lottie logo animation on page load */
   animateLogo?: boolean;
 }
 
 export function NavBar({ animateLogo = false }: NavBarProps): React.ReactElement {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const LogoComponent = animateLogo ? AnimatedLogo : X402Logo;
+  const LogoComponent = animateLogo ? AnimatedLogo : NavBarLogo;
 
   return (
     <nav className="w-full bg-white" role="navigation" aria-label="Main navigation">
