@@ -4,9 +4,8 @@ version = "0.1.0"
 description = "Python Flask server for x402 e2e tests"
 requires-python = ">=3.10"
 dependencies = [
-    "flask>=3.0.0",
     "python-dotenv>=1.0.0",
-    "x402"
+    "x402[flask,evm,svm,extensions]"
 ]
 
 [build-system]

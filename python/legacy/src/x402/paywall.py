@@ -124,6 +124,4 @@ def get_paywall_html(
         raise ValueError("payment_requirements cannot be empty")
     network = payment_requirements[0].network
     template = get_paywall_template(network)
-    return inject_payment_data(
-        template, error, payment_requirements, paywall_config
-    )
+    return inject_payment_data(template, error, payment_requirements, paywall_config)

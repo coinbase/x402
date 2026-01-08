@@ -19,6 +19,11 @@ from x402.mechanisms.evm.exact import (
     register_exact_evm_server,
 )
 from x402.mechanisms.svm.exact import register_exact_svm_server
+from x402.extensions.bazaar import (
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+    OutputConfig,
+)
 
 # Load environment variables
 load_dotenv()
@@ -59,6 +64,9 @@ server = x402ResourceServer(facilitator)
 register_exact_evm_server(server, EVM_NETWORK)
 register_exact_svm_server(server, SVM_NETWORK)
 
+# Register Bazaar discovery extension
+server.register_extension(bazaar_resource_server_extension)
+
 # Define routes with payment requirements
 routes = {
     "GET /protected": {
@@ -67,7 +75,24 @@ routes = {
             "payTo": EVM_ADDRESS,
             "price": "$0.001",
             "network": EVM_NETWORK,
-        }
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
     },
     "GET /protected-2": {
         "accepts": {
@@ -75,7 +100,24 @@ routes = {
             "payTo": EVM_ADDRESS,
             "price": "$0.001",  # 0.001 USDC
             "network": EVM_NETWORK,
-        }
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to protected resource #2",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
     },
     "GET /protected-svm": {
         "accepts": {
@@ -83,7 +125,24 @@ routes = {
             "payTo": SVM_ADDRESS,
             "price": "$0.001",
             "network": SVM_NETWORK,
-        }
+        },
+        "extensions": {
+            **declare_discovery_extension(
+                output=OutputConfig(
+                    example={
+                        "message": "Access granted to SVM protected resource",
+                        "timestamp": "2024-01-01T00:00:00Z",
+                    },
+                    schema={
+                        "properties": {
+                            "message": {"type": "string"},
+                            "timestamp": {"type": "string"},
+                        },
+                        "required": ["message", "timestamp"],
+                    },
+                )
+            ),
+        },
     },
 }
 

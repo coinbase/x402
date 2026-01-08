@@ -199,7 +199,7 @@ class PaymentMiddleware:
                                 "method": request.method.upper(),
                                 "discoverable": config.get("discoverable", True),
                                 **(
-                                    config["input_schema"].model_dump()
+                                    config["input_schema"].model_dump(exclude_none=True)
                                     if config["input_schema"]
                                     else {}
                                 ),

@@ -3,6 +3,9 @@
   "type": "server",
   "language": "python",
   "x402Version": 2,
+  "extensions": [
+    "bazaar"
+  ],
   "description": "Python Flask server with x402 v2 payment middleware",
   "endpoints": [
     {
