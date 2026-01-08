@@ -15,7 +15,6 @@ from .types import (
     BodyDiscoveryInfo,
     BodyInput,
     BodyType,
-    DiscoveryExtension,
     OutputInfo,
     QueryDiscoveryExtension,
     QueryDiscoveryInfo,
@@ -205,7 +204,7 @@ def declare_discovery_extension(
     input_schema: dict[str, Any] | None = None,
     body_type: BodyType | None = None,
     output: OutputConfig | None = None,
-) -> dict[str, DiscoveryExtension]:
+) -> dict[str, Any]:
     """Create a discovery extension for any HTTP method.
 
     This function helps servers declare how their endpoint should be called,
@@ -268,4 +267,5 @@ def declare_discovery_extension(
             output=output,
         )
 
-    return {BAZAAR: extension}
+    # Convert to dict excluding None values to match TypeScript output
+    return {BAZAAR: extension.model_dump(by_alias=True, exclude_none=True)}

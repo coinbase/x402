@@ -20,12 +20,66 @@ from ..types import (
     HTTPAdapter,
     HTTPRequestContext,
     PaywallConfig,
+    RouteConfig,
     RoutesConfig,
 )
 from ..x402_http_server import PaywallProvider, x402HTTPResourceServer
 
 if TYPE_CHECKING:
     from ...server import x402ResourceServer
+
+
+# ============================================================================
+# Extension Auto-Registration
+# ============================================================================
+
+
+def _check_if_bazaar_needed(routes: RoutesConfig) -> bool:
+    """Check if any routes in the configuration declare bazaar extensions.
+
+    Args:
+        routes: Route configuration.
+
+    Returns:
+        True if any route has extensions.bazaar defined.
+    """
+    # Handle single RouteConfig instance
+    if isinstance(routes, RouteConfig):
+        return bool(routes.extensions and "bazaar" in routes.extensions)
+
+    # Handle dict of routes
+    if isinstance(routes, dict):
+        # Check if it's a single route config dict (has "accepts" key)
+        if "accepts" in routes:
+            extensions = routes.get("extensions", {})
+            return bool(extensions and "bazaar" in extensions)
+
+        # Handle multiple routes
+        for route_config in routes.values():
+            if isinstance(route_config, RouteConfig):
+                if route_config.extensions and "bazaar" in route_config.extensions:
+                    return True
+            elif isinstance(route_config, dict):
+                extensions = route_config.get("extensions", {})
+                if extensions and "bazaar" in extensions:
+                    return True
+
+    return False
+
+
+def _register_bazaar_extension(server: x402ResourceServer) -> None:
+    """Register bazaar extension with server if available.
+
+    Args:
+        server: x402ResourceServer to register extension with.
+    """
+    try:
+        from ...extensions.bazaar import bazaar_resource_server_extension
+
+        server.register_extension(bazaar_resource_server_extension)
+    except ImportError:
+        # Bazaar extension not available, skip silently
+        pass
 
 
 # ============================================================================
@@ -256,6 +310,10 @@ class PaymentMiddleware:
             paywall_provider: Optional custom paywall provider.
             sync_facilitator_on_start: Initialize on first protected request.
         """
+        # Auto-register bazaar extension if routes declare it
+        if _check_if_bazaar_needed(routes):
+            _register_bazaar_extension(server)
+
         self._app = app
         self._http_server = x402HTTPResourceServer(server, routes)
         self._paywall_config = paywall_config

@@ -251,6 +251,8 @@ class x402HTTPResourceServer:
 
         # Enrich extensions if present
         extensions = route_config.extensions
+        if extensions:
+            extensions = self._server.enrich_extensions(extensions, context)
 
         # Create PaymentRequired response
         payment_required = self._server.create_payment_required_response(

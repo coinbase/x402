@@ -6,22 +6,9 @@ discovery extensions with HTTP method information from the request context.
 
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from .types import BAZAAR
-
-
-@runtime_checkable
-class HTTPRequestContext(Protocol):
-    """Protocol for HTTP request context.
-
-    Framework adapters should provide objects implementing this protocol.
-    """
-
-    @property
-    def method(self) -> str:
-        """HTTP method (GET, POST, etc.)."""
-        ...
 
 
 def _is_http_request_context(ctx: Any) -> bool:
@@ -31,9 +18,9 @@ def _is_http_request_context(ctx: Any) -> bool:
         ctx: The context to check.
 
     Returns:
-        True if context implements HTTPRequestContext protocol.
+        True if context has a method attribute.
     """
-    return isinstance(ctx, HTTPRequestContext)
+    return hasattr(ctx, "method") and isinstance(getattr(ctx, "method", None), str)
 
 
 class BazaarResourceServerExtension:

@@ -2,9 +2,7 @@
 
 from x402.extensions.bazaar import (
     BAZAAR,
-    BodyDiscoveryExtension,
     OutputConfig,
-    QueryDiscoveryExtension,
     declare_discovery_extension,
 )
 
@@ -24,8 +22,8 @@ class TestDeclareDiscoveryExtension:
 
         assert BAZAAR in result
         ext = result[BAZAAR]
-        assert isinstance(ext, QueryDiscoveryExtension)
-        assert ext.info.input.query_params == {"city": "San Francisco"}
+        assert isinstance(ext, dict)
+        assert ext["info"]["input"]["queryParams"] == {"city": "San Francisco"}
 
     def test_query_extension_with_output(self) -> None:
         """Test query extension with output example."""
@@ -39,10 +37,10 @@ class TestDeclareDiscoveryExtension:
         )
 
         ext = result[BAZAAR]
-        assert isinstance(ext, QueryDiscoveryExtension)
-        assert ext.info.output is not None
-        assert ext.info.output.type == "json"
-        assert ext.info.output.example == {"results": [], "total": 0}
+        assert isinstance(ext, dict)
+        assert ext["info"]["output"] is not None
+        assert ext["info"]["output"]["type"] == "json"
+        assert ext["info"]["output"]["example"] == {"results": [], "total": 0}
 
     def test_body_extension_json(self) -> None:
         """Test creating a body extension with JSON body type."""
@@ -60,9 +58,9 @@ class TestDeclareDiscoveryExtension:
 
         assert BAZAAR in result
         ext = result[BAZAAR]
-        assert isinstance(ext, BodyDiscoveryExtension)
-        assert ext.info.input.body_type == "json"
-        assert ext.info.input.body == {"name": "John", "age": 30}
+        assert isinstance(ext, dict)
+        assert ext["info"]["input"]["bodyType"] == "json"
+        assert ext["info"]["input"]["body"] == {"name": "John", "age": 30}
 
     def test_body_extension_form_data(self) -> None:
         """Test creating a body extension with form-data type."""
@@ -73,8 +71,8 @@ class TestDeclareDiscoveryExtension:
         )
 
         ext = result[BAZAAR]
-        assert isinstance(ext, BodyDiscoveryExtension)
-        assert ext.info.input.body_type == "form-data"
+        assert isinstance(ext, dict)
+        assert ext["info"]["input"]["bodyType"] == "form-data"
 
     def test_body_extension_text(self) -> None:
         """Test creating a body extension with text type."""
@@ -84,8 +82,8 @@ class TestDeclareDiscoveryExtension:
         )
 
         ext = result[BAZAAR]
-        assert isinstance(ext, BodyDiscoveryExtension)
-        assert ext.info.input.body_type == "text"
+        assert isinstance(ext, dict)
+        assert ext["info"]["input"]["bodyType"] == "text"
 
     def test_extension_has_schema(self) -> None:
         """Test that extensions include JSON schema."""
@@ -95,7 +93,7 @@ class TestDeclareDiscoveryExtension:
         )
 
         ext = result[BAZAAR]
-        schema = ext.schema_
+        schema = ext["schema"]
         assert "$schema" in schema
         assert schema["type"] == "object"
         assert "properties" in schema
@@ -107,8 +105,8 @@ class TestDeclareDiscoveryExtension:
 
         assert BAZAAR in result
         ext = result[BAZAAR]
-        assert isinstance(ext, QueryDiscoveryExtension)
-        assert ext.info.input.type == "http"
+        assert isinstance(ext, dict)
+        assert ext["info"]["input"]["type"] == "http"
 
     def test_output_schema_included(self) -> None:
         """Test that output schema is included when output has example."""
@@ -120,5 +118,5 @@ class TestDeclareDiscoveryExtension:
         )
 
         ext = result[BAZAAR]
-        schema = ext.schema_
+        schema = ext["schema"]
         assert "output" in schema["properties"]

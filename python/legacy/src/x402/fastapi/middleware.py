@@ -116,7 +116,11 @@ def require_payment(
                         "discoverable": discoverable
                         if discoverable is not None
                         else True,
-                        **(input_schema.model_dump() if input_schema else {}),
+                        **(
+                            input_schema.model_dump(exclude_none=True)
+                            if input_schema
+                            else {}
+                        ),
                     },
                     "output": output_schema,
                 },
