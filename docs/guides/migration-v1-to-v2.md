@@ -209,6 +209,6 @@ The facilitator supports both V1 and V2 protocols. During migration, your V2 ser
 
 ## Next Steps
 
-- [Quickstart for Buyers](../getting-started/quickstart-for-buyers.md)
-- [Quickstart for Sellers](../getting-started/quickstart-for-sellers.md)
-- [Network and Token Support](../core-concepts/network-and-token-support.md)
+- [Quickstart for Buyers](/getting-started/quickstart-for-buyers)
+- [Quickstart for Sellers](/getting-started/quickstart-for-sellers)
+- [Network and Token Support](/core-concepts/network-and-token-support)

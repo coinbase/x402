@@ -370,7 +370,7 @@ To verify:
 
 1. Make a request to your endpoint (e.g., `curl http://localhost:4021/weather`).
 2. The server responds with a 402 Payment Required, including payment instructions in the `PAYMENT-REQUIRED` header.
-3. Complete the payment using a compatible client, wallet, or automated agent. This typically involves signing a payment payload, which is handled by the client SDK detailed in the [Quickstart for Buyers](quickstart-for-buyers).
+3. Complete the payment using a compatible client, wallet, or automated agent. This typically involves signing a payment payload, which is handled by the client SDK detailed in the [Quickstart for Buyers](/getting-started/quickstart-for-buyers).
 4. Retry the request, this time including the `PAYMENT-SIGNATURE` header containing the cryptographic proof of payment.
 5. The server verifies the payment via the facilitator and, if valid, returns your actual API response (e.g., `{ "data": "Your paid API response." }`).
 
@@ -548,7 +548,7 @@ See [Network Support](../core-concepts/network-and-token-support) for the full l
 ### Next Steps
 
 * Looking for something more advanced? Check out the [Advanced Example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced)
-* Get started as a [buyer](quickstart-for-buyers)
+* Get started as a [buyer](/getting-started/quickstart-for-buyers)
 * Learn about the [Bazaar discovery layer](../core-concepts/bazaar-discovery-layer)
 
 For questions or support, join our [Discord](https://discord.gg/cdp).
