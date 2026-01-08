@@ -676,7 +676,24 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 		displayAmount,
 	)
 
-	return strings.Replace(EVMPaywallTemplate, "</body>", configScript+"</body>", 1)
+// Select template based on network
+	template := s.selectPaywallTemplate(paymentRequired)
+	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+}
+
+// selectPaywallTemplate chooses the appropriate paywall template based on the network
+// Returns EVM template for eip155:* networks, SVM template for solana:* networks
+func (s *x402HTTPResourceServer) selectPaywallTemplate(paymentRequired x402.PaymentRequired) string {
+	if len(paymentRequired.Accepts) == 0 {
+		return EVMPaywallTemplate // Default to EVM
+	}
+
+	network := paymentRequired.Accepts[0].Network
+	if strings.HasPrefix(network, "solana:") {
+		return SVMPaywallTemplate
+	}
+	return EVMPaywallTemplate
+}```
 }
 
 // getDisplayAmount extracts display amount from payment requirements
