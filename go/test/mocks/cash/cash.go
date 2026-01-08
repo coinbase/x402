@@ -2,6 +2,7 @@ package cash
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -129,7 +130,8 @@ func (f *SchemeNetworkFacilitator) Settle(ctx context.Context, payload types.Pay
 	verifyResponse, err := f.Verify(ctx, payload, requirements)
 	if err != nil {
 		// Convert VerifyError to SettleError
-		if ve, ok := err.(*x402.VerifyError); ok {
+		var ve *x402.VerifyError
+		if errors.As(err, &ve) {
 			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
 		}
 		return nil, x402.NewSettleError("verification_failed", "", network, "", err)

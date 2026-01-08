@@ -89,7 +89,10 @@ class PaymentFilterTest {
         VerificationResponse vr = new VerificationResponse();
         vr.isValid = true;
         when(fac.verify(eq(header), any())).thenReturn(vr);
-        
+
+        // handler returns 200 OK
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_OK);
+
         // settlement succeeds
         SettlementResponse sr = new SettlementResponse();
         sr.success = true;
@@ -103,6 +106,60 @@ class PaymentFilterTest {
         verify(resp, never()).setStatus(HttpServletResponse.SC_PAYMENT_REQUIRED);
         verify(fac).verify(eq(header), any());
         verify(fac).settle(eq(header), any());
+    }
+
+    /* ------------ error response skips settlement ------------------------- */
+    @Test
+    void errorResponseSkipsSettlement() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // handler returns 500 error
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+        // settle should NOT be called for error responses
+        verify(fac, never()).settle(any(), any());
+    }
+
+    /* ------------ 4xx response skips settlement ---------------------------- */
+    @Test
+    void clientErrorResponseSkipsSettlement() throws Exception {
+        when(req.getRequestURI()).thenReturn("/private");
+
+        PaymentPayload p = new PaymentPayload();
+        p.x402Version = 1;
+        p.scheme      = "exact";
+        p.network     = "base-sepolia";
+        p.payload     = Map.of("resource", "/private");
+        String header = p.toHeader();
+        when(req.getHeader("X-PAYMENT")).thenReturn(header);
+
+        VerificationResponse vr = new VerificationResponse();
+        vr.isValid = true;
+        when(fac.verify(eq(header), any())).thenReturn(vr);
+
+        // handler returns 404 error
+        when(resp.getStatus()).thenReturn(HttpServletResponse.SC_NOT_FOUND);
+
+        filter.doFilter(req, resp, chain);
+
+        verify(chain).doFilter(req, resp);
+        // settle should NOT be called for 4xx responses
+        verify(fac, never()).settle(any(), any());
     }
 
     /* ------------ facilitator rejects payment → 402 ------------------- */

@@ -8,6 +8,7 @@ import {
   PaymentPayload,
   PaymentRequired,
   SettleResponse,
+  SettleError,
   Price,
   Network,
   PaymentRequirements,
@@ -477,11 +478,25 @@ export class x402HTTPResourceServer {
       return {
         ...settleResponse,
         success: true,
-        headers: this.createSettlementHeaders(settleResponse, requirements),
+        headers: this.createSettlementHeaders(settleResponse),
         requirements,
       };
     } catch (error) {
-      throw new Error(error instanceof Error ? error.message : "Settlement failed");
+      if (error instanceof SettleError) {
+        return {
+          success: false,
+          errorReason: error.errorReason || error.message,
+          payer: error.payer,
+          network: error.network,
+          transaction: error.transaction,
+        };
+      }
+      return {
+        success: false,
+        errorReason: error instanceof Error ? error.message : "Settlement failed",
+        network: requirements.network as Network,
+        transaction: "",
+      };
     }
   }
 
@@ -676,17 +691,10 @@ export class x402HTTPResourceServer {
    * Create settlement response headers
    *
    * @param settleResponse - Settlement response
-   * @param requirements - Payment requirements that were settled
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(
-    settleResponse: SettleResponse,
-    requirements: PaymentRequirements,
-  ): Record<string, string> {
-    const encoded = encodePaymentResponseHeader({
-      ...settleResponse,
-      requirements,
-    });
+  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
+    const encoded = encodePaymentResponseHeader(settleResponse);
     return { "PAYMENT-RESPONSE": encoded };
   }
 
