@@ -616,15 +616,7 @@ func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.Pay
 
 	// Convert accepts
 	for _, reqV2 := range paymentRequired.Accepts {
-		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements{
-			Scheme:            reqV2.Scheme,
-			Network:           reqV2.Network,
-			Asset:             reqV2.Asset,
-			Amount:            reqV2.Amount,
-			PayTo:             reqV2.PayTo,
-			MaxTimeoutSeconds: reqV2.MaxTimeoutSeconds,
-			Extra:             reqV2.Extra,
-		})
+		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements(reqV2))
 	}
 
 	// Reuse existing HTML generation
