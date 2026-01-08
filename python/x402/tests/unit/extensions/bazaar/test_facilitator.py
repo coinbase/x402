@@ -117,6 +117,144 @@ class TestExtractDiscoveryInfo:
         result = extract_discovery_info(payload, requirements)
         assert result is None
 
+    def test_strip_query_params_from_v2_resource_url(self) -> None:
+        """Test that query params are stripped from v2 resourceUrl."""
+        ext = declare_discovery_extension(
+            input={"city": "NYC"},
+            input_schema={"properties": {"city": {"type": "string"}}},
+        )
+
+        ext_dict = ext[BAZAAR]
+        if hasattr(ext_dict, "model_dump"):
+            ext_dict = ext_dict.model_dump(by_alias=True)
+
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/weather?city=NYC&units=metric"},
+            "extensions": {BAZAAR: ext_dict},
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {})
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/weather"
+
+    def test_strip_hash_sections_from_v2_resource_url(self) -> None:
+        """Test that hash sections are stripped from v2 resourceUrl."""
+        ext = declare_discovery_extension(
+            input={},
+            input_schema={"properties": {}},
+        )
+
+        ext_dict = ext[BAZAAR]
+        if hasattr(ext_dict, "model_dump"):
+            ext_dict = ext_dict.model_dump(by_alias=True)
+
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/docs#section-1"},
+            "extensions": {BAZAAR: ext_dict},
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {})
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/docs"
+
+    def test_strip_query_params_and_hash_from_v2_resource_url(self) -> None:
+        """Test that both query params and hash sections are stripped from v2 resourceUrl."""
+        ext = declare_discovery_extension(
+            input={},
+            input_schema={"properties": {}},
+        )
+
+        ext_dict = ext[BAZAAR]
+        if hasattr(ext_dict, "model_dump"):
+            ext_dict = ext_dict.model_dump(by_alias=True)
+
+        payload = {
+            "x402Version": 2,
+            "resource": {"url": "https://api.example.com/page?foo=bar#anchor"},
+            "extensions": {BAZAAR: ext_dict},
+            "accepted": {},
+        }
+
+        result = extract_discovery_info(payload, {})
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/page"
+
+    def test_strip_query_params_from_v1_resource_url(self) -> None:
+        """Test that query params are stripped from v1 resourceUrl."""
+        v1_requirements = {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "maxAmountRequired": "10000",
+            "resource": "https://api.example.com/search?q=test&page=1",
+            "description": "Search",
+            "mimeType": "application/json",
+            "outputSchema": {
+                "input": {
+                    "type": "http",
+                    "method": "GET",
+                    "discoverable": True,
+                    "queryParams": {"q": "string", "page": "number"},
+                },
+            },
+            "payTo": "0x...",
+            "maxTimeoutSeconds": 300,
+            "asset": "0x...",
+            "extra": {},
+        }
+
+        v1_payload = {
+            "x402Version": 1,
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "payload": {},
+        }
+
+        result = extract_discovery_info(v1_payload, v1_requirements)
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/search"
+
+    def test_strip_hash_sections_from_v1_resource_url(self) -> None:
+        """Test that hash sections are stripped from v1 resourceUrl."""
+        v1_requirements = {
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "maxAmountRequired": "10000",
+            "resource": "https://api.example.com/docs#section",
+            "description": "Docs",
+            "mimeType": "application/json",
+            "outputSchema": {
+                "input": {
+                    "type": "http",
+                    "method": "GET",
+                    "discoverable": True,
+                },
+            },
+            "payTo": "0x...",
+            "maxTimeoutSeconds": 300,
+            "asset": "0x...",
+            "extra": {},
+        }
+
+        v1_payload = {
+            "x402Version": 1,
+            "scheme": "exact",
+            "network": "eip155:8453",
+            "payload": {},
+        }
+
+        result = extract_discovery_info(v1_payload, v1_requirements)
+
+        assert result is not None
+        assert result.resource_url == "https://api.example.com/docs"
+
 
 class TestExtractDiscoveryInfoFromExtension:
     """Tests for extract_discovery_info_from_extension function."""

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlparse, urlunparse
 
 from .types import (
     BAZAAR,
@@ -218,9 +219,12 @@ def extract_discovery_info(
         return None
 
     method = _get_method_from_info(discovery_info)
+    # Strip query params (?) and hash sections (#) for discovery cataloging
+    parsed = urlparse(resource_url)
+    normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
     return DiscoveredResource(
-        resource_url=resource_url,
+        resource_url=normalized_url,
         method=method,
         x402_version=version,
         discovery_info=discovery_info,
