@@ -7,3 +7,7 @@ export { bazaarResourceServerExtension } from "./bazaar/server";
 
 // Sign-in-with-x extension
 export * from "./sign-in-with-x";
+
+// Offer/Receipt extension
+export * from "./offer-receipt";
+export { offerReceiptResourceServerExtension } from "./offer-receipt/server";

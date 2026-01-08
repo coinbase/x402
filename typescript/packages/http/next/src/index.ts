@@ -5,6 +5,7 @@ import {
   RoutesConfig,
   RouteConfig,
   FacilitatorClient,
+  OfferReceiptConfig,
 } from "@x402/core/server";
 import { SchemeNetworkServer, Network } from "@x402/core/types";
 import { NextRequest, NextResponse } from "next/server";
@@ -42,6 +43,7 @@ export interface SchemeRegistration {
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
+ * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns Next.js proxy handler
  *
  * @example
@@ -62,8 +64,15 @@ export function paymentProxy(
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
+  offerReceiptConfig?: OfferReceiptConfig,
 ) {
-  const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
+  const { httpServer, init } = createHttpServer(
+    routes,
+    server,
+    paywall,
+    syncFacilitatorOnStart,
+    offerReceiptConfig,
+  );
 
   // Dynamically register bazaar extension if routes declare it
   let bazaarPromise: Promise<void> | null = null;
@@ -130,6 +139,7 @@ export function paymentProxy(
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
+ * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns Next.js proxy handler
  *
  * @example
@@ -151,6 +161,7 @@ export function paymentProxyFromConfig(
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
+  offerReceiptConfig?: OfferReceiptConfig,
 ) {
   const ResourceServer = new x402ResourceServer(facilitatorClients);
 
@@ -162,7 +173,14 @@ export function paymentProxyFromConfig(
 
   // Use the direct paymentProxy with the configured server
   // Note: paymentProxy handles dynamic bazaar registration
-  return paymentProxy(routes, ResourceServer, paywallConfig, paywall, syncFacilitatorOnStart);
+  return paymentProxy(
+    routes,
+    ResourceServer,
+    paywallConfig,
+    paywall,
+    syncFacilitatorOnStart,
+    offerReceiptConfig,
+  );
 }
 
 /**
@@ -178,6 +196,7 @@ export function paymentProxyFromConfig(
  * @param paywallConfig - Optional configuration for the built-in paywall UI
  * @param paywall - Optional custom paywall provider (overrides default)
  * @param syncFacilitatorOnStart - Whether to sync with the facilitator on startup (defaults to true)
+ * @param offerReceiptConfig - Optional configuration for signing offers and receipts
  * @returns A wrapped Next.js route handler
  *
  * @example
@@ -216,9 +235,16 @@ export function withX402<T = unknown>(
   paywallConfig?: PaywallConfig,
   paywall?: PaywallProvider,
   syncFacilitatorOnStart: boolean = true,
+  offerReceiptConfig?: OfferReceiptConfig,
 ): (request: NextRequest) => Promise<NextResponse<T>> {
   const routes = { "*": routeConfig };
-  const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
+  const { httpServer, init } = createHttpServer(
+    routes,
+    server,
+    paywall,
+    syncFacilitatorOnStart,
+    offerReceiptConfig,
+  );
 
   // Dynamically register bazaar extension if route declares it
   let bazaarPromise: Promise<void> | null = null;
@@ -297,6 +323,8 @@ export type {
 } from "@x402/core/types";
 
 export type { PaywallProvider, PaywallConfig, RouteConfig } from "@x402/core/server";
+
+export type { OfferReceiptSigner, OfferReceiptConfig } from "@x402/core/server";
 
 export { RouteConfigurationError } from "@x402/core/server";
 

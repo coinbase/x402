@@ -12,6 +12,8 @@ import {
   Price,
   Network,
   PaymentRequirements,
+  OfferReceiptConfig,
+  SignedReceipt,
 } from "../types";
 import { x402Version } from "..";
 
@@ -203,6 +205,8 @@ export type ProcessSettleSuccessResponse = SettleResponse & {
   success: true;
   headers: Record<string, string>;
   requirements: PaymentRequirements;
+  /** Signed receipt proving service was delivered (included in PAYMENT-RESPONSE header) */
+  receipt?: SignedReceipt;
 };
 
 export type ProcessSettleFailureResponse = SettleResponse & {
@@ -259,16 +263,23 @@ export class x402HTTPResourceServer {
   private compiledRoutes: CompiledRoute[] = [];
   private routesConfig: RoutesConfig;
   private paywallProvider?: PaywallProvider;
+  private offerReceiptConfig?: OfferReceiptConfig;
 
   /**
    * Creates a new x402HTTPResourceServer instance.
    *
    * @param ResourceServer - The core x402ResourceServer instance to use
    * @param routes - Route configuration for payment-protected endpoints
+   * @param offerReceiptConfig - Optional configuration for signing offers and receipts
    */
-  constructor(ResourceServer: x402ResourceServer, routes: RoutesConfig) {
+  constructor(
+    ResourceServer: x402ResourceServer,
+    routes: RoutesConfig,
+    offerReceiptConfig?: OfferReceiptConfig,
+  ) {
     this.ResourceServer = ResourceServer;
     this.routesConfig = routes;
+    this.offerReceiptConfig = offerReceiptConfig;
 
     // Handle both single route and multiple routes
     const normalizedRoutes =
@@ -359,10 +370,15 @@ export class x402HTTPResourceServer {
 
     // Build requirements from all payment options
     // (this method handles resolving dynamic functions internally)
-    const requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
+    let requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
       paymentOptions,
       context,
     );
+
+    // Sign offers if configured
+    if (this.offerReceiptConfig?.offerSigner) {
+      requirements = await this.signOffers(requirements, resourceInfo.url);
+    }
 
     let extensions = routeConfig.extensions;
     if (extensions) {
@@ -475,12 +491,29 @@ export class x402HTTPResourceServer {
         };
       }
 
-      return {
+      // Sign receipt if configured (do this before creating headers so receipt is included)
+      let receipt: SignedReceipt | undefined;
+      if (this.offerReceiptConfig?.receiptSigner && settleResponse.payer) {
+        const resourceUrl = paymentPayload.resource.url;
+        receipt = await this.offerReceiptConfig.receiptSigner.signReceipt(
+          resourceUrl,
+          settleResponse.payer,
+        );
+      }
+
+      // Build success response with receipt in headers
+      const result: ProcessSettleSuccessResponse = {
         ...settleResponse,
         success: true,
-        headers: this.createSettlementHeaders(settleResponse),
+        headers: this.createSettlementHeaders(settleResponse, requirements, receipt),
         requirements,
       };
+
+      if (receipt) {
+        result.receipt = receipt;
+      }
+
+      return result;
     } catch (error) {
       if (error instanceof SettleError) {
         return {
@@ -509,6 +542,28 @@ export class x402HTTPResourceServer {
   requiresPayment(context: HTTPRequestContext): boolean {
     const routeConfig = this.getRouteConfig(context.path, context.method);
     return routeConfig !== undefined;
+  }
+
+  /**
+   * Sign offers for each payment requirement
+   *
+   * @param requirements - Array of payment requirements
+   * @param resourceUrl - The resource URL being paid for
+   * @returns Requirements with signed offers attached
+   */
+  private async signOffers(
+    requirements: PaymentRequirements[],
+    resourceUrl: string,
+  ): Promise<PaymentRequirements[]> {
+    const signer = this.offerReceiptConfig?.offerSigner;
+    if (!signer) return requirements;
+
+    return Promise.all(
+      requirements.map(async req => {
+        const signedOffer = await signer.signOffer(resourceUrl, req);
+        return { ...req, signedOffer };
+      }),
+    );
   }
 
   /**
@@ -691,10 +746,26 @@ export class x402HTTPResourceServer {
    * Create settlement response headers
    *
    * @param settleResponse - Settlement response
+   * @param requirements - Payment requirements that were settled
+   * @param receipt - Optional signed receipt to include
    * @returns Headers to add to response
    */
-  private createSettlementHeaders(settleResponse: SettleResponse): Record<string, string> {
-    const encoded = encodePaymentResponseHeader(settleResponse);
+  private createSettlementHeaders(
+    settleResponse: SettleResponse,
+    requirements: PaymentRequirements,
+    receipt?: SignedReceipt,
+  ): Record<string, string> {
+    const responsePayload: SettleResponse & {
+      requirements: PaymentRequirements;
+      receipt?: SignedReceipt;
+    } = {
+      ...settleResponse,
+      requirements,
+    };
+    if (receipt) {
+      responsePayload.receipt = receipt;
+    }
+    const encoded = encodePaymentResponseHeader(responsePayload);
     return { "PAYMENT-RESPONSE": encoded };
   }
 

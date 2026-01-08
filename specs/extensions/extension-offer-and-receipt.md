@@ -230,10 +230,19 @@ A receipt is a signed statement returned by the resource server **only on succes
 
 **5.1 Placement**
 
-On success, the response MAY include a `receipt` object:
+On success, the `SettlementResponse` MAY include a `receipt` field:
 
-- **x402 v1**: `receipt`
-- **x402 v2**: `extensions.receipt`
+```json
+{
+  "success": true,
+  "transaction": "0x...",
+  "network": "eip155:84532",
+  "payer": "0x...",
+  "receipt": { ... }
+}
+```
+
+This placement is the same for both x402 v1 and v2.
 
 **5.2 Receipt Payload Fields**
 
@@ -362,16 +371,17 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
 ```json
 {
   "success": true,
-  "extensions": {
-    "receipt": {
-      "format": "eip712",
-      "payload": {
-        "resourceUrl": "https://api.example.com/premium-data",
-        "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-        "issuedAt": 1703123456
-      },
-      "signature": "0x1234567890abcdef..."
-    }
+  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "network": "eip155:8453",
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+  "receipt": {
+    "format": "eip712",
+    "payload": {
+      "resourceUrl": "https://api.example.com/premium-data",
+      "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+      "issuedAt": 1703123456
+    },
+    "signature": "0x1234567890abcdef..."
   }
 }
 ```
@@ -381,6 +391,9 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
 ```json
 {
   "success": true,
+  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "network": "eip155:8453",
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
   "receipt": {
     "format": "eip712",
     "payload": {
