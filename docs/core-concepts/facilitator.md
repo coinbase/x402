@@ -1,11 +1,7 @@
 ---
 title: "Facilitator"
-description: "Learn about the facilitator role in x402 for payment verification and settlement"
+description: "This page explains the role of the **facilitator** in the x402 protocol."
 ---
-
-# Facilitator
-
-This page explains the role of the **facilitator** in the x402 protocol.
 
 The facilitator is an optional but recommended service that simplifies the process of verifying and settling payments between clients (buyers) and servers (sellers).
 

@@ -1,9 +1,9 @@
 ---
 title: "Welcome to x402"
-description: "Get started with x402, the open payment standard for HTTP APIs and AI agents"
+description: >-
+  This guide will help you understand x402, the open payment standard, and help
+  you get started building or integrating services with x402.
 ---
-
-# Welcome to x402
 
 x402 is the open payment standard that enables services to charge for access to their APIs and content directly over HTTP. It is built around the HTTP `402 Payment Required` status code and allows clients to programmatically pay for resources without accounts, sessions, or credential management.
 

@@ -1,11 +1,7 @@
 ---
 title: "Wallet"
-description: "How crypto wallets work as payment mechanisms and identities in x402"
+description: "This page explains the role of the **wallet** in the x402 protocol."
 ---
-
-# Wallet
-
-This page explains the role of the **wallet** in the x402 protocol.
 
 In x402, a wallet is both a payment mechanism and a form of unique identity for buyers and sellers. Wallet addresses are used to send, receive, and verify payments, while also serving as identifiers within the protocol.
 
