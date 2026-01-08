@@ -50,9 +50,9 @@ At a high level, the flow is simple:
 
 For more detail, see:
 
-* Client / Server
-* Facilitator
-* HTTP 402
+* [Client / Server](/core-concepts/client-server)
+* [Facilitator](/core-concepts/facilitator)
+* [HTTP 402](/core-concepts/http-402)
 
 The goal is to make programmatic commerce accessible, permissionless, and developer-friendly.
 
@@ -60,7 +60,7 @@ The goal is to make programmatic commerce accessible, permissionless, and develo
 
 Ready to build? Start here:
 
-* [Quickstart for Sellers](getting-started/quickstart-for-sellers.md)
-* [Quickstart for Buyers](getting-started/quickstart-for-buyers.md)
-* [Explore Core Concepts](core-concepts/http-402.md)
+* [Quickstart for Sellers](/getting-started/quickstart-for-sellers)
+* [Quickstart for Buyers](/getting-started/quickstart-for-buyers)
+* [Explore Core Concepts](/core-concepts/http-402)
 * [Join our community on Discord](https://discord.gg/invite/cdp)

@@ -62,5 +62,5 @@ The facilitator acts as an independent verification and settlement layer within 
 
 Next, explore:
 
-* [Client / Server ](client-server.md)— understand the roles and responsibilities of clients and servers
-* [HTTP 402](http-402.md) — understand how payment requirements are communicated to clients
+* [Client / Server](/core-concepts/client-server) — understand the roles and responsibilities of clients and servers
+* [HTTP 402](/core-concepts/http-402) — understand how payment requirements are communicated to clients

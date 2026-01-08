@@ -309,4 +309,4 @@ The example uses these x402 v2 packages:
 * [See the full example in the repo](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/mcp)
 * Try integrating with your own x402-compatible APIs
 * Extend the MCP server with more tools or custom logic as needed
-* [Learn about building x402 servers](../getting-started/quickstart-for-sellers.md)
+* [Learn about building x402 servers](/getting-started/quickstart-for-sellers)

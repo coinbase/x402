@@ -1,6 +1,5 @@
 ---
 title: "FAQ"
-description: "Frequently asked questions about x402, the open payment standard for HTTP"
 ---
 
 ### General
