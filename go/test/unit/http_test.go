@@ -115,10 +115,9 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 
 		// Configure paywall
 		paywallConfig := &x402http.PaywallConfig{
-			AppName:      "Test App",
-			AppLogo:      "/logo.png",
-			CDPClientKey: "test-key",
-			Testnet:      true,
+			AppName: "Test App",
+			AppLogo: "/logo.png",
+			Testnet: true,
 		}
 
 		// Process browser request without payment
@@ -157,7 +156,6 @@ func TestHTTPBrowserPaywall(t *testing.T) {
 			"paymentRequired:",
 			"Premium Web Content", // Inside JSON
 			"0.000005",            // Amount in config
-			"test-key",            // CDP client key
 			"Test App",            // App name
 			"/logo.png",           // App logo
 		}

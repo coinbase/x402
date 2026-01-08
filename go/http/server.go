@@ -36,12 +36,10 @@ type HTTPAdapter interface {
 
 // PaywallConfig configures the HTML paywall for browser requests
 type PaywallConfig struct {
-	CDPClientKey         string `json:"cdpClientKey,omitempty"`
-	AppName              string `json:"appName,omitempty"`
-	AppLogo              string `json:"appLogo,omitempty"`
-	SessionTokenEndpoint string `json:"sessionTokenEndpoint,omitempty"`
-	CurrentURL           string `json:"currentUrl,omitempty"`
-	Testnet              bool   `json:"testnet,omitempty"`
+	AppName    string `json:"appName,omitempty"`
+	AppLogo    string `json:"appLogo,omitempty"`
+	CurrentURL string `json:"currentUrl,omitempty"`
+	Testnet    bool   `json:"testnet,omitempty"`
 }
 
 // DynamicPayToFunc is a function that resolves payTo address dynamically based on request context
@@ -619,12 +617,13 @@ func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.Pay
 	// Convert accepts
 	for _, reqV2 := range paymentRequired.Accepts {
 		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements{
-			Scheme:  reqV2.Scheme,
-			Network: reqV2.Network,
-			Asset:   reqV2.Asset,
-			Amount:  reqV2.Amount,
-			PayTo:   reqV2.PayTo,
-			Extra:   reqV2.Extra,
+			Scheme:            reqV2.Scheme,
+			Network:           reqV2.Network,
+			Asset:             reqV2.Asset,
+			Amount:            reqV2.Amount,
+			PayTo:             reqV2.PayTo,
+			MaxTimeoutSeconds: reqV2.MaxTimeoutSeconds,
+			Extra:             reqV2.Extra,
 		})
 	}
 
@@ -643,14 +642,19 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 
 	appName := ""
 	appLogo := ""
-	cdpClientKey := ""
 	testnet := false
+	currentURL := ""
 
 	if config != nil {
 		appName = config.AppName
 		appLogo = config.AppLogo
-		cdpClientKey = config.CDPClientKey
 		testnet = config.Testnet
+		currentURL = config.CurrentURL
+	}
+
+	// Use resource URL as currentUrl if not explicitly configured
+	if currentURL == "" && paymentRequired.Resource != nil {
+		currentURL = paymentRequired.Resource.URL
 	}
 
 	requirementsJSON, _ := json.Marshal(paymentRequired)
@@ -663,8 +667,8 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 			appLogo: "%s",
 			amount: %.6f,
 			testnet: %t,
-			cdpClientKey: "%s",
-			displayAmount: %.2f
+			displayAmount: %.2f,
+			currentUrl: "%s"
 		};
 	</script>`,
 		string(requirementsJSON),
@@ -672,11 +676,11 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 		html.EscapeString(appLogo),
 		displayAmount,
 		testnet,
-		html.EscapeString(cdpClientKey),
 		displayAmount,
+		html.EscapeString(currentURL),
 	)
 
-// Select template based on network
+	// Select template based on network
 	template := s.selectPaywallTemplate(paymentRequired)
 	return strings.Replace(template, "</body>", configScript+"</body>", 1)
 }
@@ -693,7 +697,6 @@ func (s *x402HTTPResourceServer) selectPaywallTemplate(paymentRequired x402.Paym
 		return SVMPaywallTemplate
 	}
 	return EVMPaywallTemplate
-}```
 }
 
 // getDisplayAmount extracts display amount from payment requirements
