@@ -18,7 +18,7 @@ use x402::facilitator::default_http_facilitator;
 use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
 use x402::schemes::evm::sign_transfer_with_authorization;
 use x402::server::{SchemeServer, V1ResourceInfo};
-use x402::types::{AssetAmount, AuthorizationV1, PayloadExactV1, PaymentPayloadV1, Network, PaymentPayloadV2, PaymentRequirements, PaymentRequirementsV2, Price, X402Header};
+use x402::types::{AssetAmount, AuthorizationV1, PayloadExactV1, PaymentPayloadV1, Network, PaymentPayloadV2, PaymentRequirements, Price, X402Header, ResourceV2};
 use x402::types::{PaymentPayload, PaymentRequired, Resource};
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn test_x402_v2_axum_facilitator_integration() {
         None,
     );
 
-    let mut builder = X402ConfigBuilder::new(facilitator);
+    let mut builder = X402ConfigBuilder::new("https://api.example.com",facilitator);
     builder
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
@@ -97,14 +97,18 @@ async fn test_x402_v2_axum_facilitator_integration() {
             .expect("at least one accepted requirement")
             .clone();
 
-        let resource = Resource {
-            url: payment_required.resource.clone(),
+        let resource = Resource::V2(ResourceV2 {
+            url: if let Resource::V2(ref res_v2) = payment_required.resource {
+                res_v2.url.clone()
+            } else {
+                panic!("Expected ResourceV2, got V1")
+            },
             description: payment_required
                 .description
                 .clone()
                 .unwrap_or_else(|| "Test Resource".to_string()),
             mime_type: "application/json".to_string(),
-        };
+        });
 
         let chain_id = 84532u64; // from "eip155:84532"
         let (signature_hex, auth) = sign_transfer_with_authorization(
@@ -221,7 +225,7 @@ async fn test_x402_v1_axum_facilitator_integration() {
     );
 
 
-    let mut builder = X402ConfigBuilder::new(facilitator);
+    let mut builder = X402ConfigBuilder::new("https://api.example.com",facilitator);
     builder
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
@@ -271,15 +275,6 @@ async fn test_x402_v1_axum_facilitator_integration() {
             .first()
             .expect("at least one accepted requirement")
             .clone();
-
-        let resource = Resource {
-            url: payment_required.resource.clone(),
-            description: payment_required
-                .description
-                .clone()
-                .unwrap_or_else(|| "Test Resource".to_string()),
-            mime_type: "application/json".to_string(),
-        };
 
         let chain_id = 84532u64; // from "eip155:84532"
         let (signature_hex, auth) = sign_transfer_with_authorization(

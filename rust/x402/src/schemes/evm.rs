@@ -211,6 +211,7 @@ mod tests {
             asset: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
+            max_timeout_seconds: 60,
         });
 
         let domain = create_exact_eip3009_domain(&requirements, chain_id);
@@ -266,6 +267,7 @@ mod tests {
             asset: Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
+            max_timeout_seconds: 60,
         });
 
         let result = sign_transfer_with_authorization(&signer, &wallet_address, &requirement, chain_id, Some(600)).await;
@@ -308,6 +310,7 @@ mod tests {
             asset: Some("0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_string()),
             data: None,
             extra: Some(serde_json::Value::Object(extra)),
+            max_timeout_seconds: 60,
         });
 
         let (signature_hex, auth) = sign_transfer_with_authorization(

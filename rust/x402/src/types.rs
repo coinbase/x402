@@ -13,25 +13,28 @@ pub enum PaymentRequirements {
 
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PaymentRequirementsV2 {
     pub scheme: String,
     pub network: String,
-    #[serde(rename="payTo")]
     pub pay_to: String,
     pub amount: String,
     pub asset: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
     pub data: Option<Value>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub extra: Option<Value>,
+    pub max_timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentRequired {
     #[serde(rename="x402Version")]
     pub x402_version: u32,
-    pub resource: String,
+    pub resource: Resource,
     pub accepts: Vec<PaymentRequirements>,
     pub description: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
     pub extensions: Option<Value>,
 }
 
@@ -49,10 +52,18 @@ pub struct PaymentPayloadV2 {
     pub resource: Resource,
     pub accepted: PaymentRequirements,
     pub payload: Value,
+    #[serde(skip_serializing_if="Option::is_none")]
     pub extensions: Option<Value>,
 }
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Resource {
+#[serde(untagged)]
+pub enum Resource {
+    V1(String),
+    V2(ResourceV2),
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ResourceV2 {
     pub url: String,
     pub description: String,
     #[serde(rename="mimeType")]
@@ -61,15 +72,8 @@ pub struct Resource {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[serde(untagged)]
-pub enum VerifyRequest {
-    V1(VerifyRequestV1),
-    V2(VerifyRequestV2),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VerifyRequestV2 {
+pub struct VerifyRequest {
+    pub x402_version: u32,
     pub payment_payload: PaymentPayload,
     pub payment_requirements: PaymentRequirements,
 }
@@ -322,6 +326,7 @@ pub struct PaymentRequirementsV1 {
     pub pay_to: String,
     pub max_timeout_seconds: u64,
     pub asset: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<Value>,
     pub extra: Option<Value>
 }
@@ -350,6 +355,15 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+
+    fn get_resource_v2() -> Resource {
+        Resource::V2(ResourceV2 {
+            url: "/test".to_string(),
+            description: "Test".to_string(),
+            mime_type: "text/plain".to_string(),
+        })
+    }
+
     #[test]
     fn test_payment_requirements_serialization() {
         let req = PaymentRequirementsV2 {
@@ -357,6 +371,7 @@ mod tests {
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
             amount: "1000000".to_string(),
+            max_timeout_seconds: 60,
             asset: Some("USDC".to_string()),
             data: Some(json!({"key": "value"})),
             extra: None,
@@ -370,6 +385,7 @@ mod tests {
         assert_eq!(req.pay_to, deserialized.pay_to);
         assert_eq!(req.amount, deserialized.amount);
         assert_eq!(req.asset, deserialized.asset);
+        assert_eq!(req.max_timeout_seconds, deserialized.max_timeout_seconds);
     }
 
     #[test]
@@ -379,6 +395,7 @@ mod tests {
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
             amount: "1000000".to_string(),
+            max_timeout_seconds: 60,
             asset: Some("USDC".to_string()),
             data: None,
             extra: None,
@@ -386,7 +403,7 @@ mod tests {
 
         let required = PaymentRequired {
             x402_version: 1,
-            resource: "/api/weather".to_string(),
+            resource: get_resource_v2(),
             accepts: vec![payment_req],
             description: Some("Weather data access".to_string()),
             extensions: Some(json!({"custom": "field"})),
@@ -396,9 +413,15 @@ mod tests {
         let deserialized: PaymentRequired = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(required.x402_version, deserialized.x402_version);
-        assert_eq!(required.resource, deserialized.resource);
         assert_eq!(required.accepts.len(), deserialized.accepts.len());
         assert_eq!(required.description, deserialized.description);
+        match (required.resource, deserialized.resource) {
+            (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                assert_eq!(resource.url, deserialized_resource.url);
+                assert_eq!(resource.description, deserialized_resource.description);
+            }
+            _ => panic!("Unexpected resource type(s)"),
+        }
     }
 
     #[test]
@@ -408,6 +431,7 @@ mod tests {
             network: "solana".to_string(),
             pay_to: "So11111111111111111111111111111111111111112".to_string(),
             amount: "500000".to_string(),
+            max_timeout_seconds: 60,
             asset: None,
             data: None,
             extra: None,
@@ -415,7 +439,7 @@ mod tests {
 
         let required = PaymentRequired {
             x402_version: 1,
-            resource: "/api/data".to_string(),
+            resource: get_resource_v2(),
             accepts: vec![payment_req],
             description: None,
             extensions: None,
@@ -425,9 +449,15 @@ mod tests {
         let deserialized: PaymentRequired = serde_json::from_str(&json_str).unwrap();
 
         assert_eq!(required.x402_version, deserialized.x402_version);
-        assert_eq!(required.resource, deserialized.resource);
         assert!(deserialized.description.is_none());
         assert!(deserialized.extensions.is_none());
+        match (required.resource, deserialized.resource) {
+            (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                assert_eq!(resource.url, deserialized_resource.url);
+                assert_eq!(resource.description, deserialized_resource.description);
+            }
+            _ => panic!("Unexpected resource type(s)"),
+        }
     }
 
     #[test]
@@ -437,6 +467,7 @@ mod tests {
             network: "evm".to_string(),
             pay_to: "0xabcdef1234567890".to_string(),
             amount: "2000000".to_string(),
+            max_timeout_seconds: 60,
             asset: Some("DAI".to_string()),
             data: Some(json!({"nonce": 123})),
             extra: None,
@@ -444,11 +475,7 @@ mod tests {
 
         let payload = PaymentPayloadV2 {
             x402_version: 1,
-            resource: Resource {
-                url: "/api/premium".to_string(),
-                description: "Test".to_string(),
-                mime_type: "text/plain".to_string(),
-            },
+            resource: get_resource_v2(),
             accepted,
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: Some(json!({"metadata": "test"})),
@@ -460,8 +487,13 @@ mod tests {
         match deserialized {
             PaymentPayload::V2(deserialized_payload) => {
                 assert_eq!(payload.x402_version, deserialized_payload.x402_version);
-                assert_eq!(payload.resource.url, deserialized_payload.resource.url);
                 assert_eq!(payload.payload, deserialized_payload.payload);
+                match (payload.resource, deserialized_payload.resource) {
+                    (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                        assert_eq!(resource.url, deserialized_resource.url);
+                    }
+                    _ => panic!("Unexpected resource type(s)"),
+                }
 
                 // Compare inner requirement structs via pattern matching
                 match (&payload.accepted, &deserialized_payload.accepted) {
@@ -489,6 +521,7 @@ mod tests {
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
             amount: "1000".to_string(),
+            max_timeout_seconds: 60,
             asset: None,
             data: None,
             extra: None,
@@ -496,7 +529,7 @@ mod tests {
 
         let required = PaymentRequired {
             x402_version: 1,
-            resource: "/test".to_string(),
+            resource: get_resource_v2(),
             accepts: vec![payment_req],
             description: Some("Test".to_string()),
             extensions: None,
@@ -510,8 +543,14 @@ mod tests {
 
         let decoded = PaymentRequired::from_header(&header).unwrap();
         assert_eq!(required.x402_version, decoded.x402_version);
-        assert_eq!(required.resource, decoded.resource);
         assert_eq!(required.description, decoded.description);
+        match (required.resource, decoded.resource) {
+            (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                assert_eq!(resource.url, deserialized_resource.url);
+                assert_eq!(resource.description, deserialized_resource.description);
+            }
+            _ => panic!("Unexpected resource type(s)"),
+        }
     }
 
     #[test]
@@ -521,6 +560,7 @@ mod tests {
             network: "solana".to_string(),
             pay_to: "0xtest".to_string(),
             amount: "5000".to_string(),
+            max_timeout_seconds: 60,
             asset: None,
             data: None,
             extra: None,
@@ -528,11 +568,7 @@ mod tests {
 
         let payload = PaymentPayloadV2 {
             x402_version: 1,
-            resource: Resource {
-                url: "/api/premium".to_string(),
-                description: "Test".to_string(),
-                mime_type: "text/plain".to_string(),
-            },
+            resource: get_resource_v2(),
             accepted,
             payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
             extensions: None,
@@ -545,8 +581,14 @@ mod tests {
         match decoded {
             PaymentPayload::V2(decoded_payload) => {
                 assert_eq!(payload.x402_version, decoded_payload.x402_version);
-                assert_eq!(payload.resource.url, decoded_payload.resource.url);
                 assert_eq!(payload.payload, decoded_payload.payload);
+                match (payload.resource, decoded_payload.resource) {
+                    (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                        assert_eq!(resource.url, deserialized_resource.url);
+                        assert_eq!(resource.description, deserialized_resource.description);
+                    }
+                    _ => panic!("Unexpected resource type(s)"),
+                }
             }
             _ => panic!("Expected V2 payload on both sides, got: {:?}", decoded),
         }
@@ -560,6 +602,7 @@ mod tests {
             network: "evm".to_string(),
             pay_to: "0x1234".to_string(),
             amount: "1000".to_string(),
+            max_timeout_seconds: 60,
             asset: None,
             data: Some(json!({"test": "value+with/special=chars"})),
             extra: None,
@@ -567,7 +610,7 @@ mod tests {
 
         let required = PaymentRequired {
             x402_version: 1,
-            resource: "/test?param=value".to_string(),
+            resource: get_resource_v2(),
             accepts: vec![payment_req],
             description: Some("Test with special chars: +/=".to_string()),
             extensions: None,
@@ -576,8 +619,14 @@ mod tests {
         let header = required.to_header().unwrap();
         let decoded = PaymentRequired::from_header(&header).unwrap();
 
-        assert_eq!(required.resource, decoded.resource);
         assert_eq!(required.description, decoded.description);
+        match (required.resource, decoded.resource) {
+            (Resource::V2(resource), Resource::V2(deserialized_resource)) => {
+                assert_eq!(resource.url, deserialized_resource.url);
+                assert_eq!(resource.description, deserialized_resource.description);
+            }
+            _ => panic!("Unexpected resource type(s)"),
+        }
     }
 
     #[test]

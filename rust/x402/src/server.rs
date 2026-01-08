@@ -162,6 +162,7 @@ impl SchemeNetworkServer for SchemeServer {
                     pay_to: resource_config.pay_to.clone(),
                     amount,
                     asset,
+                    max_timeout_seconds: resource_config.max_timeout_in_seconds.unwrap_or(300).into(),
                     data: None,
                     extra: self.extra.clone(),
                 }))
@@ -259,6 +260,7 @@ mod tests {
                 pay_to: resource_config.pay_to.clone(),
                 amount,
                 asset,
+                max_timeout_seconds: 60,
                 data: None,
                 extra: None
             }))

@@ -7,7 +7,7 @@ use axum::{
     response::IntoResponse,
 };
 
-use crate::types::{PaymentPayload, X402Header, PaymentRequired, Network, PaymentRequirements};
+use crate::types::{PaymentPayload, X402Header, PaymentRequired, Network, PaymentRequirements, Resource, ResourceV2};
 use std::sync::Arc;
 use crate::errors::{X402Error};
 use crate::facilitator::FacilitatorClient;
@@ -16,31 +16,43 @@ use crate::server::{InMemoryResourceServer, ResourceConfig, ResourceServer, Sche
 
 #[derive(Clone)]
 pub struct RouteMeta {
-    pub resource_url: String,
+    pub base_url: String,
+    pub resource_path: String,
     pub description: Option<String>,
     pub mime_type: Option<String>,
     pub resource_config: ResourceConfig,
+}
+
+impl RouteMeta {
+    pub fn resource_url(&self) -> String {
+        let base = self.base_url.trim_end_matches('/');
+        let path = self.resource_path.trim_start_matches('/');
+        format!("{}/{}", base, path)
+    }
 }
 
 #[derive(Clone)]
 pub struct X402Config {
     pub facilitator: Arc<dyn FacilitatorClient>,
     pub resource_server: Arc<InMemoryResourceServer>,
-    pub routes: Arc<HashMap<String, RouteMeta>>
+    pub routes: Arc<HashMap<String, RouteMeta>>,
+    base_url: String,
 }
 
 pub struct X402ConfigBuilder {
     facilitator: Arc<dyn FacilitatorClient>,
     resource_server: InMemoryResourceServer,
     routes: HashMap<String, RouteMeta>,
+    base_url: String,
 }
 
 impl X402ConfigBuilder {
-    pub fn new(facilitator: Arc<dyn FacilitatorClient>) -> Self {
+    pub fn new(server_base_url: &str, facilitator: Arc<dyn FacilitatorClient>) -> Self {
         Self {
             facilitator,
             resource_server: InMemoryResourceServer::new(),
             routes: HashMap::new(),
+            base_url: server_base_url.to_owned(),
         }
     }
 
@@ -56,17 +68,18 @@ impl X402ConfigBuilder {
     pub fn register_resource(
         &mut self,
         resource_config: ResourceConfig,
-        resource_url: String,
+        resource_path: String,
         description: Option<String>,
         mime_type: Option<String>,
     ) -> &mut Self {
         let meta = RouteMeta {
-            resource_url: resource_url.clone(),
+            base_url: self.base_url.clone(),
+            resource_path: resource_path.clone(),
             description,
             mime_type,
             resource_config,
         };
-        self.routes.insert(resource_url, meta);
+        self.routes.insert(resource_path, meta);
         self
     }
 
@@ -75,6 +88,7 @@ impl X402ConfigBuilder {
             facilitator: self.facilitator,
             resource_server: Arc::new(self.resource_server),
             routes: Arc::new(self.routes),
+            base_url: self.base_url,
         }
     }
 }
@@ -130,6 +144,18 @@ pub async fn x402_middleware(
             // Ensure the client-chosen requirement matches one of our 'accepts'.
             let matched_req = accepts.iter().find(|server_req| {
                 match server_req {
+                    PaymentRequirements::V1(server) => {
+                        match &payload {
+                            PaymentPayload::V1(client) => {
+                                dbg!(&server, &client, &route.resource_url(), &payload);
+                                server.scheme == client.scheme
+                                    && server.network == client.network
+                                    && server.pay_to == client.payload.authorization.to
+                                    && server.max_amount_required == client.payload.authorization.value
+                            }
+                            _ => false
+                        }
+                    }
                     PaymentRequirements::V2(server) => {
                         match &payload {
                             PaymentPayload::V2(client_payload) => {
@@ -140,24 +166,15 @@ pub async fn x402_middleware(
                                             && server.pay_to == client_accepted.pay_to
                                             && server.amount == client_accepted.amount
                                             && server.asset == client_accepted.asset
-                                            && path == client_payload.resource.url
+                                            && match &client_payload.resource {
+                                                Resource::V2(client_resource) => {
+                                                    route.resource_url() == client_resource.url
+                                                }
+                                                _ => false
+                                            }
                                     }
                                     _ => false
                                 }
-                            }
-                            _ => false
-                        }
-                    }
-                    PaymentRequirements::V1(server) => {
-                        match &payload {
-                            PaymentPayload::V1(client) => {
-
-
-                                server.scheme == client.scheme
-                                    && server.network == client.network
-                                    && server.pay_to == client.payload.authorization.to
-                                    && server.max_amount_required == client.payload.authorization.value
-                                    && server.resource == path
                             }
                             _ => false
                         }
@@ -223,9 +240,14 @@ pub async fn x402_middleware(
         }
         None => {
             //  No signature provided: Return 402 with the required payment info
+            // Does this need to change?
             let payment_required = PaymentRequired {
                 x402_version: 2,
-                resource: route.resource_url.clone(),
+                resource: Resource::V2(ResourceV2 {
+                    url: route.resource_url(),
+                    description: route.description.clone().unwrap_or_default(),
+                    mime_type: "application/json".to_string(),
+                }),
                 accepts,
                 description: route.description.clone(),
                 extensions: None,
@@ -284,8 +306,17 @@ mod tests {
                 asset,
                 data: None,
                 extra: None,
+                max_timeout_seconds: resource_config.max_timeout_in_seconds.unwrap_or(60),
             }))
         }
+    }
+
+    fn get_resource_v2() -> Resource {
+        Resource::V2(ResourceV2 {
+            url: "/test".to_string(),
+            description: "Test".to_string(),
+            mime_type: "text/plain".to_string(),
+        })
     }
 
     async fn setup_test_app(facilitator_url: &str) -> Router {
@@ -301,7 +332,7 @@ mod tests {
         );
 
         // Create a config builder
-        let mut builder = X402ConfigBuilder::new(facilitator);
+        let mut builder = X402ConfigBuilder::new("",facilitator);
 
         builder
             // Register a scheme to our config
@@ -353,16 +384,13 @@ mod tests {
         // Create a fake valid-looking header
         let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
-            resource: Resource {
-                url: "/test".to_string(),
-                description: "Test".to_string(),
-                mime_type: "text/plain".to_string(),
-            },
+            resource: get_resource_v2(),
             accepted: PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
                 amount: "100".to_string(),
+                max_timeout_seconds: 60,
                 asset: None,
                 data: None,
                 extra: None,
@@ -416,16 +444,13 @@ mod tests {
         // Create a fake valid-looking header
         let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
-            resource: Resource {
-                url: "/test".to_string(),
-                description: "Test".to_string(),
-                mime_type: "text/plain".to_string(),
-            },
+            resource: get_resource_v2(),
             accepted: PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
                 amount: "100".to_string(),
+                max_timeout_seconds: 60,
                 asset: None,
                 data: None,
                 extra: None,
@@ -461,16 +486,13 @@ mod tests {
         // Create a fake valid-looking header
         let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
-            resource: Resource {
-                url: "/test".to_string(),
-                description: "Test".to_string(),
-                mime_type: "text/plain".to_string(),
-            },
+            resource: get_resource_v2(),
             accepted: PaymentRequirements::V2(PaymentRequirementsV2  {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
                 amount: "100".to_string(),
+                max_timeout_seconds: 60,
                 asset: None,
                 data: None,
                 extra: None,

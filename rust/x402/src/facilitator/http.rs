@@ -3,7 +3,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use crate::errors::{X402Error, X402Result};
 use crate::facilitator::FacilitatorClient;
-use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyRequestV2, VerifyResponse};
+use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse, VerifyRequest};
 
 pub struct HttpFacilitator {
     pub base_url: String,
@@ -119,40 +119,43 @@ impl FacilitatorClient for HttpFacilitator {
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<VerifyResponse> {
-
                 match (payload, requirements) {
                     (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
-                        let request = VerifyRequestV1 {
+                        let payment_payload = PaymentPayloadV1 {
                             x402_version: payload.x402_version,
-                            payment_payload: PaymentPayloadV1 {
-                                x402_version: payload.x402_version,
-                                scheme: payload.scheme.clone(),
-                                network: payload.network.clone(),
-                                payload: payload.payload
-                            },
-                            payment_requirements: PaymentRequirementsV1 {
-                                scheme: payload.scheme,
-                                network: payload.network,
-                                max_amount_required: requirements.max_amount_required,
-                                resource: requirements.resource,
-                                description: requirements.description,
-                                mime_type: requirements.mime_type,
-                                pay_to: requirements.pay_to,
-                                max_timeout_seconds: requirements.max_timeout_seconds,
-                                asset: requirements.asset,
-                                output_schema: requirements.output_schema,
-                                extra: requirements.extra,
-                            },
+                            scheme: payload.scheme.clone(),
+                            network: payload.network.clone(),
+                            payload: payload.payload
+                        };
+                        let payment_requirements = PaymentRequirementsV1 {
+                            scheme: payload.scheme,
+                            network: payload.network,
+                            max_amount_required: requirements.max_amount_required,
+                            resource: requirements.resource,
+                            description: requirements.description,
+                            mime_type: requirements.mime_type,
+                            pay_to: requirements.pay_to,
+                            max_timeout_seconds: requirements.max_timeout_seconds,
+                            asset: requirements.asset,
+                            output_schema: requirements.output_schema,
+                            extra: requirements.extra,
+                        };
+
+                        let request = VerifyRequest {
+                            x402_version: payload.x402_version,
+                            payment_payload: PaymentPayload::V1(payment_payload),
+                            payment_requirements: PaymentRequirements::V1(payment_requirements),
                         };
                         println!("{}",serde_json::to_string_pretty(&request)?);
                         self.post_json(self.verify_url(), &request).await
                     },
                     (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
-                        let request = VerifyRequestV2 {
+                        let request = VerifyRequest {
+                            x402_version: payload.x402_version,
                             payment_payload: PaymentPayload::V2(payload),
                             payment_requirements: PaymentRequirements::V2(requirements),
                         };
-                        dbg!(&request);
+                        println!("{}",serde_json::to_string_pretty(&request)?);
                         self.post_json(self.verify_url(), &request).await
                     }
                     _ => {
@@ -194,7 +197,8 @@ impl FacilitatorClient for HttpFacilitator {
                 self.post_json(self.settle_url(), &request).await
             },
             (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
-                let request = VerifyRequestV2 {
+                let request = VerifyRequest {
+                    x402_version: payload.x402_version,
                     payment_payload: PaymentPayload::V2(payload),
                     payment_requirements: PaymentRequirements::V2(requirements),
                 };
