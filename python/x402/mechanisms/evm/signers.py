@@ -11,9 +11,7 @@ from typing import Any
 try:
     from eth_account.signers.local import LocalAccount
 except ImportError as e:
-    raise ImportError(
-        "EVM signers require eth_account. Install with: pip install x402[evm]"
-    ) from e
+    raise ImportError("EVM signers require eth_account. Install with: pip install x402[evm]") from e
 
 from .types import TypedDataDomain, TypedDataField
 
