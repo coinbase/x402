@@ -1,11 +1,7 @@
 ---
 title: "HTTP 402"
-description: "Understanding the HTTP 402 Payment Required status code and how x402 implements it"
+description: "For decades, HTTP 402 Payment Required has been reserved for future use. x402 unlocks it, and [absolves the internet of its original sin](https://economyofbits.substack.com/p/marc-andreessens-original-sin)."
 ---
-
-# HTTP 402
-
-For decades, HTTP 402 Payment Required has been reserved for future use. x402 unlocks it, and [absolves the internet of its original sin](https://economyofbits.substack.com/p/marc-andreessens-original-sin).
 
 ### What is HTTP 402?
 
