@@ -80,7 +80,7 @@ func (c *FacilitatorClient) Verify(payload *types.PaymentPayload, requirements *
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var verifyResp types.VerifyResponse
@@ -143,7 +143,7 @@ func (c *FacilitatorClient) Settle(payload *types.PaymentPayload, requirements *
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var settleResp types.SettleResponse
