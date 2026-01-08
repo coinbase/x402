@@ -30,30 +30,56 @@ jobs:
               return;
             }
 
-            // Extract commit details from push payload
-            const commits = context.payload.commits || [];
-            const headCommit = context.payload.head_commit;
-            
-            // Build list of changed files (excluding test files)
-            const testFilePattern = /\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|\/test\/|\/tests\//;
-            const changedFiles = commits.flatMap(c => [
-              ...(c.added || []),
-              ...(c.modified || []),
-              ...(c.removed || [])
-            ]).filter(f => !testFilePattern.test(f));
-            const uniqueFiles = [...new Set(changedFiles)];
-            
+            // Get SHAs from push payload
+            const beforeSha = context.payload.before;
+            const afterSha = context.payload.after;
+
+            // Skip initial commits (no previous SHA to compare against)
+            if (/^0+$/.test(beforeSha)) {
+              core.notice('Initial commit detected. Skipping documentation update.');
+              return;
+            }
+
+            // Get changed files using GitHub Compare API (reliable for all merge types)
+            let uniqueFiles = [];
+
+            try {
+              const compareResponse = await github.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: beforeSha,
+                head: afterSha
+              });
+              
+              // Extract filenames, excluding test files
+              const testFilePattern = /\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|\/test\/|\/tests\//;
+              uniqueFiles = (compareResponse.data.files || [])
+                .map(f => f.filename)
+                .filter(f => !testFilePattern.test(f));
+                
+            } catch (error) {
+              core.setFailed('Failed to compare commits: ' + error.message);
+              return;
+            }
+
+            // Log changed files for debugging
+            console.log('Changed files (' + uniqueFiles.length + '):', uniqueFiles.slice(0, 10));
+            if (uniqueFiles.length > 10) {
+              console.log('... and ' + (uniqueFiles.length - 10) + ' more');
+            }
+
             // Skip if no non-test files changed
             if (uniqueFiles.length === 0) {
               core.notice('No documentation-relevant files changed. Skipping agent trigger.');
               return;
             }
-            
-            // Build commit messages (first line only)
-            const commitMessages = commits
-              .map(c => '- ' + c.message.split('\n')[0])
-              .join('\n');
-            
+
+            // Get commit message from head commit
+            const headCommit = context.payload.head_commit;
+            const commitMessage = headCommit 
+              ? '- ' + headCommit.message.split('\n')[0]
+              : '- No commit message available';
+
             // Compare URL for reference
             const compareUrl = context.payload.compare || '';
 
@@ -80,8 +106,8 @@ jobs:
               '**Changed Files (' + uniqueFiles.length + '):**',
               uniqueFiles.join('\n'),
               '',
-              '**Commit Messages:**',
-              commitMessages || 'No commit messages',
+              '**Commit Message:**',
+              commitMessage,
               '',
               'IMPORTANT: Only update documentation that is directly impacted by these specific file changes. Do not add documentation for unrelated features or perform general audits. If these changes do not affect documentation, do NOT create a PR.'
             ].join('\n');
