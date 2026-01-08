@@ -30,6 +30,11 @@
           "anchor": "Discord",
           "icon": "discord",
           "href": "https://discord.gg/cdp"
+        },
+        {
+          "anchor": "Vercel Starter",
+          "icon": "triangle",
+          "href": "https://vercel.com/templates/ai/x402-ai-starter"
         }
       ]
     },
