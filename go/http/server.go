@@ -318,6 +318,9 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 			requirements[i].Extra = make(map[string]interface{})
 		}
 		requirements[i].Extra["resourceUrl"] = resourceInfo.URL
+		if resourceInfo.Description != "" {
+			requirements[i].Extra["description"] = resourceInfo.Description
+		}
 	}
 
 	extensions := routeConfig.Extensions
