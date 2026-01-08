@@ -36,12 +36,10 @@ type HTTPAdapter interface {
 
 // PaywallConfig configures the HTML paywall for browser requests
 type PaywallConfig struct {
-	CDPClientKey         string `json:"cdpClientKey,omitempty"`
-	AppName              string `json:"appName,omitempty"`
-	AppLogo              string `json:"appLogo,omitempty"`
-	SessionTokenEndpoint string `json:"sessionTokenEndpoint,omitempty"`
-	CurrentURL           string `json:"currentUrl,omitempty"`
-	Testnet              bool   `json:"testnet,omitempty"`
+	AppName    string `json:"appName,omitempty"`
+	AppLogo    string `json:"appLogo,omitempty"`
+	CurrentURL string `json:"currentUrl,omitempty"`
+	Testnet    bool   `json:"testnet,omitempty"`
 }
 
 // DynamicPayToFunc is a function that resolves payTo address dynamically based on request context
@@ -618,14 +616,7 @@ func (s *x402HTTPResourceServer) generatePaywallHTMLV2(paymentRequired types.Pay
 
 	// Convert accepts
 	for _, reqV2 := range paymentRequired.Accepts {
-		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements{
-			Scheme:  reqV2.Scheme,
-			Network: reqV2.Network,
-			Asset:   reqV2.Asset,
-			Amount:  reqV2.Amount,
-			PayTo:   reqV2.PayTo,
-			Extra:   reqV2.Extra,
-		})
+		genericRequired.Accepts = append(genericRequired.Accepts, x402.PaymentRequirements(reqV2))
 	}
 
 	// Reuse existing HTML generation
@@ -641,102 +632,63 @@ func (s *x402HTTPResourceServer) generatePaywallHTML(paymentRequired x402.Paymen
 	// Calculate display amount (assuming USDC with 6 decimals)
 	displayAmount := s.getDisplayAmount(paymentRequired)
 
-	resourceDesc := ""
-	if paymentRequired.Resource != nil {
-		if paymentRequired.Resource.Description != "" {
-			resourceDesc = paymentRequired.Resource.Description
-		} else if paymentRequired.Resource.URL != "" {
-			resourceDesc = paymentRequired.Resource.URL
-		}
-	}
-
-	appLogo := ""
 	appName := ""
-	cdpClientKey := ""
+	appLogo := ""
 	testnet := false
+	currentURL := ""
 
 	if config != nil {
-		if config.AppLogo != "" {
-			appLogo = fmt.Sprintf(`<img src="%s" alt="%s" style="max-width: 200px; margin-bottom: 20px;">`,
-				html.EscapeString(config.AppLogo),
-				html.EscapeString(config.AppName))
-		}
 		appName = config.AppName
-		cdpClientKey = config.CDPClientKey
+		appLogo = config.AppLogo
 		testnet = config.Testnet
+		currentURL = config.CurrentURL
+	}
+
+	// Use resource URL as currentUrl if not explicitly configured
+	if currentURL == "" && paymentRequired.Resource != nil {
+		currentURL = paymentRequired.Resource.URL
 	}
 
 	requirementsJSON, _ := json.Marshal(paymentRequired)
 
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head>
-	<title>Payment Required</title>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<style>
-		body { 
-			font-family: system-ui, -apple-system, sans-serif;
-			margin: 0;
-			padding: 0;
-			background: #f5f5f5;
-		}
-		.container { 
-			max-width: 600px; 
-			margin: 50px auto; 
-			padding: 20px;
-			background: white;
-			border-radius: 8px;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-		}
-		.logo { margin-bottom: 20px; }
-		h1 { color: #333; }
-		.info { margin: 20px 0; }
-		.info p { margin: 10px 0; }
-		.amount { 
-			font-size: 24px; 
-			font-weight: bold; 
-			color: #0066cc;
-			margin: 20px 0;
-		}
-		#payment-widget {
-			margin-top: 30px;
-			padding: 20px;
-			border: 1px dashed #ccc;
-			border-radius: 4px;
-			background: #fafafa;
-			text-align: center;
-			color: #666;
-		}
-	</style>
-</head>
-<body>
-	<div class="container">
-		%s
-		<h1>Payment Required</h1>
-		<div class="info">
-			<p><strong>Resource:</strong> %s</p>
-			<p class="amount">Amount: $%.2f USDC</p>
-		</div>
-		<div id="payment-widget" 
-			data-requirements='%s'
-			data-cdp-client-key="%s"
-			data-app-name="%s"
-			data-testnet="%t">
-			<!-- CDP widget would be injected here -->
-			<p>Loading payment widget...</p>
-		</div>
-	</div>
-</body>
-</html>`,
-		appLogo,
-		html.EscapeString(resourceDesc),
-		displayAmount,
-		html.EscapeString(string(requirementsJSON)),
-		html.EscapeString(cdpClientKey),
+	// Inject configuration into the template
+	configScript := fmt.Sprintf(`<script>
+		window.x402 = {
+			paymentRequired: %s,
+			appName: "%s",
+			appLogo: "%s",
+			amount: %.6f,
+			testnet: %t,
+			displayAmount: %.2f,
+			currentUrl: "%s"
+		};
+	</script>`,
+		string(requirementsJSON),
 		html.EscapeString(appName),
+		html.EscapeString(appLogo),
+		displayAmount,
 		testnet,
+		displayAmount,
+		html.EscapeString(currentURL),
 	)
+
+	// Select template based on network
+	template := s.selectPaywallTemplate(paymentRequired)
+	return strings.Replace(template, "</body>", configScript+"</body>", 1)
+}
+
+// selectPaywallTemplate chooses the appropriate paywall template based on the network
+// Returns EVM template for eip155:* networks, SVM template for solana:* networks
+func (s *x402HTTPResourceServer) selectPaywallTemplate(paymentRequired x402.PaymentRequired) string {
+	if len(paymentRequired.Accepts) == 0 {
+		return EVMPaywallTemplate // Default to EVM
+	}
+
+	network := paymentRequired.Accepts[0].Network
+	if strings.HasPrefix(network, "solana:") {
+		return SVMPaywallTemplate
+	}
+	return EVMPaywallTemplate
 }
 
 // getDisplayAmount extracts display amount from payment requirements
