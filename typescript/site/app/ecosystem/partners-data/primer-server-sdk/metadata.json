@@ -1,7 +1,0 @@
-{
-  "name": "Primer Server SDK",
-  "description": "Server middleware for Express, Hono, and Next.js. Full ERC-20 support.",
-  "logoUrl": "/logos/primer.png",
-  "websiteUrl": "https://github.com/Primer-Systems/x402",
-  "category": "Infrastructure & Tooling"
-}
