@@ -1,3 +1,8 @@
+---
+title: "Wallet"
+description: "How crypto wallets work as payment mechanisms and identities in x402"
+---
+
 # Wallet
 
 This page explains the role of the **wallet** in the x402 protocol.

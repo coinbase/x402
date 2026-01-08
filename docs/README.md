@@ -1,7 +1,6 @@
 ---
-description: >-
-  This guide will help you understand x402, the open payment standard, and help
-  you get started building or integrating services with x402.
+title: "Welcome to x402"
+description: "Get started with x402, the open payment standard for HTTP APIs and AI agents"
 ---
 
 # Welcome to x402
