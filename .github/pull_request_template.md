@@ -20,6 +20,7 @@ Please describe the tests you've performed to verify your changes.
 Include relevant code samples, unit test cases, or screenshots if applicable.
 
 For TypeScript: Run `pnpm test` from the `/typescript` directory
+For Python: Run `uv run pytest` from the `python/x402/` directory
 For Go: Run `go test ./...` from the `/go` directory
 -->
 
@@ -31,5 +32,6 @@ For Go: Run `go test ./...` from the `/go` directory
 
 <!--
 For TypeScript: Run `pnpm format && pnpm lint` from `/typescript` and/or `/examples/typescript`
+For Python: Run `uvx ruff format && uvx ruff check` from the `python/x402/` directory
 For Go: Run `go fmt ./...` and `go vet ./...` from the `/go` directory
 --> 
