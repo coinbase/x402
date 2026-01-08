@@ -1,3 +1,8 @@
+---
+title: "Client / Server"
+description: "Understanding the roles of clients (buyers) and servers (sellers) in the x402 protocol"
+---
+
 # Client / Server
 
 This page explains the roles and responsibilities of the **client** and **server** in the x402 protocol.

@@ -1,3 +1,8 @@
+---
+title: "Networks & Token Support"
+description: "Supported blockchain networks and tokens in x402, including Base, Solana, and USDC"
+---
+
 # Network & Token Support
 
 This page explains which blockchain networks and tokens are supported by x402, and how to extend support to additional networks.
@@ -132,11 +137,11 @@ The EIP-3009 standard is essential for x402 because it enables:
 
 | Facilitator     | Networks Supported (CAIP-2)                      | Production Ready | Requirements    |
 | --------------- | --------------------------------------- | ---------------- | --------------- |
-| x402.org        | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`            | ❌ Testnet only  | None            |
-| CDP Facilitator | `eip155:8453`, `eip155:84532`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | ✅               | CDP API keys    |
-| x402.rs         | `eip155:84532`, `eip155:8453`, xdc                 | ✅               | None            |
-| PayAI Facilitator | solana, solana-devnet, base, base-sepolia, polygon, polygon-amoy, avalanche, avalanche-fuji, sei, sei-testnet, peaq, iotex | ✅ | None |
-| Self-hosted     | Any EVM network (CAIP-2 format)                         | ✅               | Technical setup |
+| x402.org        | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`            | Testnet only  | None            |
+| CDP Facilitator | `eip155:8453`, `eip155:84532`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Yes               | CDP API keys    |
+| x402.rs         | `eip155:84532`, `eip155:8453`, xdc                 | Yes               | None            |
+| PayAI Facilitator | solana, solana-devnet, base, base-sepolia, polygon, polygon-amoy, avalanche, avalanche-fuji, sei, sei-testnet, peaq, iotex | Yes | None |
+| Self-hosted     | Any EVM network (CAIP-2 format)                         | Yes               | Technical setup |
 
 **Note**: On EVM networks, facilitators support any EIP-3009 compatible token; on Solana, facilitators support any SPL/Token-2022 token.
 
@@ -148,51 +153,50 @@ x402 V2 uses dynamic network registration - you can support any EVM network with
 
 In V2, networks are supported through the registration pattern using CAIP-2 identifiers. No source code changes are required:
 
-{% tabs %}
-{% tab title="TypeScript" %}
-```typescript
-import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
-import { registerExactEvmScheme } from "@x402/evm/exact/server";
+<Tabs>
+  <Tab title="TypeScript">
+    ```typescript
+    import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
+    import { registerExactEvmScheme } from "@x402/evm/exact/server";
 
-const facilitatorClient = new HTTPFacilitatorClient({
-  url: "https://your-facilitator.com"  // Facilitator that supports your network
-});
+    const facilitatorClient = new HTTPFacilitatorClient({
+      url: "https://your-facilitator.com"  // Facilitator that supports your network
+    });
 
-const server = new x402ResourceServer(facilitatorClient);
-registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
+    const server = new x402ResourceServer(facilitatorClient);
+    registerExactEvmScheme(server);  // Registers wildcard support for all EVM chains
 
-// Now use any CAIP-2 network identifier in your routes:
-const routes = {
-  "GET /api/data": {
-    accepts: [{
-      scheme: "exact",
-      price: "$0.001",
-      network: "eip155:43114",  // Avalanche mainnet
-      payTo: "0xYourAddress",
-    }],
-  },
-};
-```
-{% endtab %}
+    // Now use any CAIP-2 network identifier in your routes:
+    const routes = {
+      "GET /api/data": {
+        accepts: [{
+          scheme: "exact",
+          price: "$0.001",
+          network: "eip155:43114",  // Avalanche mainnet
+          payTo: "0xYourAddress",
+        }],
+      },
+    };
+    ```
+  </Tab>
+  <Tab title="Go">
+    ```go
+    import (
+        x402http "github.com/coinbase/x402/go/http"
+        evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
+    )
 
-{% tab title="Go" %}
-```go
-import (
-    x402http "github.com/coinbase/x402/go/http"
-    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/server"
-)
+    facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
+        URL: "https://your-facilitator.com",
+    })
 
-facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConfig{
-    URL: "https://your-facilitator.com",
-})
-
-// Register EVM scheme - supports any CAIP-2 EVM network
-schemes := []ginmw.SchemeConfig{
-    {Network: x402.Network("eip155:43114"), Server: evm.NewExactEvmScheme()},  // Avalanche
-}
-```
-{% endtab %}
-{% endtabs %}
+    // Register EVM scheme - supports any CAIP-2 EVM network
+    schemes := []ginmw.SchemeConfig{
+        {Network: x402.Network("eip155:43114"), Server: evm.NewExactEvmScheme()},  // Avalanche
+    }
+    ```
+  </Tab>
+</Tabs>
 
 **Key Points:**
 - Use CAIP-2 format: `eip155:<chainId>` for any EVM network

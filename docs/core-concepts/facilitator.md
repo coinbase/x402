@@ -1,3 +1,8 @@
+---
+title: "Facilitator"
+description: "Learn about the facilitator role in x402 for payment verification and settlement"
+---
+
 # Facilitator
 
 This page explains the role of the **facilitator** in the x402 protocol.

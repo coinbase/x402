@@ -1,3 +1,8 @@
+---
+title: "MCP Server with x402"
+description: "Integrate x402 payments with Claude Desktop using Model Context Protocol (MCP)"
+---
+
 # MCP Server with x402
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is a protocol for passing context between LLMs and other AI agents. This page shows how to use the x402 payment protocol with MCP to make paid API requests through an MCP server, and how to connect it to Claude Desktop.

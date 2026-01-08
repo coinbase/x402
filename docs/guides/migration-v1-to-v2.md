@@ -1,3 +1,8 @@
+---
+title: "Migration Guide: V1 to V2"
+description: "Step-by-step guide to migrate from x402 V1 to V2"
+---
+
 # Migration Guide: V1 to V2
 
 This guide helps you migrate from x402 V1 to V2. The V2 protocol introduces standardized identifiers, improved type safety, and a more modular architecture.
