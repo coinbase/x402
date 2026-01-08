@@ -378,8 +378,7 @@ func TestPaymentMiddleware_Returns402HTMLForBrowserRequest(t *testing.T) {
 	}
 
 	paywallConfig := &x402http.PaywallConfig{
-		AppName:      "Test App",
-		CDPClientKey: "test-key",
+		AppName: "Test App",
 	}
 
 	router := createTestRouter()
@@ -417,9 +416,6 @@ func TestPaymentMiddleware_Returns402HTMLForBrowserRequest(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(body), []byte("Test App")) {
 		t.Error("Expected app name in HTML body")
-	}
-	if !bytes.Contains([]byte(body), []byte("test-key")) {
-		t.Error("Expected CDP client key in HTML body")
 	}
 }
 
