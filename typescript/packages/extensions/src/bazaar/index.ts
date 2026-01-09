@@ -95,6 +95,7 @@ export {
   extractDiscoveryInfoFromExtension,
   validateAndExtract,
   type ValidationResult,
+  type DiscoveredResource,
 } from "./facilitator";
 
 // Export v1 functions (v1 data is transformed to v2 DiscoveryInfo format)
