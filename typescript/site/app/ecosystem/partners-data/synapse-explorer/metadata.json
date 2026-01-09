@@ -1,0 +1,7 @@
+{
+  "name": "Synapse x402 Explorer",
+  "category": "Services/Endpoints",
+  "logoUrl": "/synapse_logo.jpg",
+  "description": "Real-time indexing, usage tracking, and revenue analytics for x402-enabled services on Solana. Monitor payments, customer activity, and performance across featured API providers and Synapse RPC endpoints. High-throughput RPC access is monetized via x402 with automated on-chain payments, instant USDC settlement, and programmatic service provisioning",
+  "websiteUrl": "https://explorer.oobeprotocol.ai"
+}
