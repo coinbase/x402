@@ -9,7 +9,7 @@ import {
   type DiscoveryExtension,
   type QueryDiscoveryExtension,
   type BodyDiscoveryExtension,
-  type DeclareDiscoveryExtensionConfig,
+  type DeclareDiscoveryExtensionInput,
   type DeclareQueryDiscoveryExtensionConfig,
   type DeclareBodyDiscoveryExtensionConfig,
 } from "./types";
@@ -103,7 +103,7 @@ function createQueryDiscoveryExtension({
  * @param root0.method - HTTP method (POST, PUT, PATCH)
  * @param root0.input - Request body specification
  * @param root0.inputSchema - JSON schema for request body
- * @param root0.bodyType - Content type of body (json, form, multipart)
+ * @param root0.bodyType - Content type of body (json, form-data, text) - required for body methods
  * @param root0.output - Output specification with example
  * @returns BodyDiscoveryExtension with info and schema
  */
@@ -111,7 +111,7 @@ function createBodyDiscoveryExtension({
   method,
   input = {},
   inputSchema = { properties: {} },
-  bodyType = "json",
+  bodyType,
   output,
 }: DeclareBodyDiscoveryExtensionConfig): BodyDiscoveryExtension {
   return {
@@ -228,7 +228,7 @@ function createBodyDiscoveryExtension({
  * ```
  */
 export function declareDiscoveryExtension(
-  config: Omit<DeclareDiscoveryExtensionConfig, "method">,
+  config: DeclareDiscoveryExtensionInput,
 ): Record<string, DiscoveryExtension> {
   const bodyType = (config as DeclareBodyDiscoveryExtensionConfig).bodyType;
   const isBodyMethod = bodyType !== undefined;
