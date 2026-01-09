@@ -31,11 +31,14 @@ export class CashSchemeNetworkClient implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param requirements - The payment requirements
+   * @param _context - Optional context for extension support (not used in cash scheme)
    * @returns Promise resolving to the payment payload
    */
   createPaymentPayload(
     x402Version: number,
     requirements: PaymentRequirements,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _context?: import("../../../../src/types/mechanisms").PaymentCreationContext,
   ): Promise<PaymentPayload> {
     return Promise.resolve({
       x402Version: 2,

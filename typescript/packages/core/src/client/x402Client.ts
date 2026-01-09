@@ -1,23 +1,43 @@
 import { x402Version } from "..";
-import { SchemeNetworkClient } from "../types/mechanisms";
+import {
+  SchemeNetworkClient,
+  PaymentCreationContext as MechanismPaymentCreationContext,
+} from "../types/mechanisms";
 import { PaymentPayload, PaymentRequirements } from "../types/payments";
 import { Network, PaymentRequired } from "../types";
 import { findByNetworkAndScheme, findSchemesByNetwork } from "../utils";
 
 /**
+ * Facilitator supported information for extension support.
+ * Passed to createPaymentPayload to enable mechanisms to create extension data.
+ */
+export interface FacilitatorSupported {
+  /**
+   * Extensions supported by the facilitator (e.g., ["eip2612GasSponsoring", "bazaar"])
+   */
+  extensions: string[];
+
+  /**
+   * Signer addresses by CAIP family (e.g., { "eip155:*": ["0x..."] })
+   */
+  signers?: Record<string, string[]>;
+}
+
+/**
  * Client Hook Context Interfaces
  */
 
-export interface PaymentCreationContext {
+export interface PaymentCreationHookContext {
   paymentRequired: PaymentRequired;
   selectedRequirements: PaymentRequirements;
+  facilitatorSupported?: FacilitatorSupported;
 }
 
-export interface PaymentCreatedContext extends PaymentCreationContext {
+export interface PaymentCreatedContext extends PaymentCreationHookContext {
   paymentPayload: PaymentPayload;
 }
 
-export interface PaymentCreationFailureContext extends PaymentCreationContext {
+export interface PaymentCreationFailureContext extends PaymentCreationHookContext {
   error: Error;
 }
 
@@ -26,7 +46,7 @@ export interface PaymentCreationFailureContext extends PaymentCreationContext {
  */
 
 export type BeforePaymentCreationHook = (
-  context: PaymentCreationContext,
+  context: PaymentCreationHookContext,
 ) => Promise<void | { abort: true; reason: string }>;
 
 export type AfterPaymentCreationHook = (context: PaymentCreatedContext) => Promise<void>;
@@ -226,11 +246,28 @@ export class x402Client {
    * Automatically extracts x402Version, resource, and extensions from the PaymentRequired
    * response and constructs a complete PaymentPayload with the accepted requirements.
    *
+   * Optionally accepts facilitator supported info to enable mechanisms to create
+   * extension data (e.g., gas sponsoring signatures).
+   *
    * @param paymentRequired - The PaymentRequired response from the server
+   * @param facilitatorSupported - Optional facilitator supported info for extension support
    * @returns Promise resolving to the complete payment payload
+   *
+   * @example
+   * ```typescript
+   * // Basic usage (no extension support)
+   * const payload = await client.createPaymentPayload(paymentRequired);
+   *
+   * // With facilitator support for extensions
+   * const payload = await client.createPaymentPayload(paymentRequired, {
+   *   extensions: ["eip2612GasSponsoring", "bazaar"],
+   *   signers: { "eip155:*": ["0x..."] }
+   * });
+   * ```
    */
   async createPaymentPayload(
     paymentRequired: PaymentRequired,
+    facilitatorSupported?: FacilitatorSupported,
   ): Promise<PaymentPayload> {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(paymentRequired.x402Version);
     if (!clientSchemesByNetwork) {
@@ -239,14 +276,15 @@ export class x402Client {
 
     const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);
 
-    const context: PaymentCreationContext = {
+    const hookContext: PaymentCreationHookContext = {
       paymentRequired,
       selectedRequirements: requirements,
+      facilitatorSupported,
     };
 
     // Execute beforePaymentCreation hooks
     for (const hook of this.beforePaymentCreationHooks) {
-      const result = await hook(context);
+      const result = await hook(hookContext);
       if (result && "abort" in result && result.abort) {
         throw new Error(`Payment creation aborted: ${result.reason}`);
       }
@@ -258,15 +296,49 @@ export class x402Client {
         throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
       }
 
-      const partialPayload = await schemeNetworkClient.createPaymentPayload(paymentRequired.x402Version, requirements);
+      // Build mechanism context for extension support
+      const mechanismContext: MechanismPaymentCreationContext = {
+        paymentRequired,
+        facilitatorSupported,
+      };
+
+      const partialPayload = await schemeNetworkClient.createPaymentPayload(
+        paymentRequired.x402Version,
+        requirements,
+        mechanismContext,
+      );
 
       let paymentPayload: PaymentPayload;
       if (partialPayload.x402Version == 1) {
         paymentPayload = partialPayload as PaymentPayload;
       } else {
+        // Merge declared extensions from server with mechanism-generated extensions
+        const mergedExtensions: Record<string, unknown> = {};
+
+        // Add declared extensions from PaymentRequired (these are "claimed back")
+        if (paymentRequired.extensions) {
+          for (const [key, value] of Object.entries(paymentRequired.extensions)) {
+            mergedExtensions[key] = value;
+          }
+        }
+
+        // Merge mechanism-generated extensions (e.g., gas sponsoring info)
+        if (partialPayload.extensions) {
+          for (const [key, value] of Object.entries(partialPayload.extensions)) {
+            // Mechanism extensions contain actual client data (like signatures)
+            // Merge with declared extension if both exist
+            const existing = mergedExtensions[key];
+            if (existing && typeof existing === "object" && typeof value === "object") {
+              mergedExtensions[key] = { ...existing, ...value };
+            } else {
+              mergedExtensions[key] = value;
+            }
+          }
+        }
+
         paymentPayload = {
           ...partialPayload,
-          extensions: paymentRequired.extensions,
+          extensions: Object.keys(mergedExtensions).length > 0 ? mergedExtensions : undefined,
           resource: paymentRequired.resource,
           accepted: requirements,
         };
@@ -274,7 +346,7 @@ export class x402Client {
 
       // Execute afterPaymentCreation hooks
       const createdContext: PaymentCreatedContext = {
-        ...context,
+        ...hookContext,
         paymentPayload,
       };
 
@@ -285,7 +357,7 @@ export class x402Client {
       return paymentPayload;
     } catch (error) {
       const failureContext: PaymentCreationFailureContext = {
-        ...context,
+        ...hookContext,
         error: error as Error,
       };
 

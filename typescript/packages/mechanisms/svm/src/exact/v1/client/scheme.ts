@@ -22,9 +22,10 @@ import {
 } from "@solana/kit";
 import type {
   Network,
-  PaymentPayload,
   PaymentRequirements,
   SchemeNetworkClient,
+  PaymentPayloadResult,
+  PaymentCreationContext,
 } from "@x402/core/types";
 import type { PaymentRequirementsV1 } from "@x402/core/types/v1";
 import {
@@ -58,14 +59,14 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
+   * @param _context - Optional context for extension support (not used in V1)
    * @returns Promise resolving to a payment payload
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-  ): Promise<
-    Pick<PaymentPayload, "x402Version" | "payload"> & { scheme: string; network: Network }
-  > {
+    _context?: PaymentCreationContext,
+  ): Promise<PaymentPayloadResult & { scheme: string; network: Network }> {
     const selectedV1 = paymentRequirements as unknown as PaymentRequirementsV1;
     const rpc = createRpcClient(selectedV1.network, this.config?.rpcUrl);
 

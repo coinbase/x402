@@ -1,4 +1,9 @@
-import { PaymentPayload, PaymentRequirements, SchemeNetworkClient } from "@x402/core/types";
+import {
+  PaymentRequirements,
+  SchemeNetworkClient,
+  PaymentPayloadResult,
+  PaymentCreationContext,
+} from "@x402/core/types";
 import { getAddress } from "viem";
 import { authorizationTypes } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
@@ -24,12 +29,14 @@ export class ExactEvmScheme implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
-   * @returns Promise resolving to a payment payload
+   * @param _context - Optional context for extension support (not yet implemented)
+   * @returns Promise resolving to a payment payload result
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-  ): Promise<Pick<PaymentPayload, "x402Version" | "payload">> {
+    _context?: PaymentCreationContext,
+  ): Promise<PaymentPayloadResult> {
     const nonce = createNonce();
     const now = Math.floor(Date.now() / 1000);
 
