@@ -24,6 +24,10 @@ interface ExtensionDeclaration {
       [key: string]: unknown;
       input?: {
         [key: string]: unknown;
+        properties?: {
+          [key: string]: unknown;
+          method?: Record<string, unknown>;
+        };
         required?: string[];
       };
     };
@@ -41,6 +45,16 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
     const extension = declaration as ExtensionDeclaration;
     const method = transportContext.method;
 
+    // Get existing input properties and update the method enum to just the actual method
+    const existingInputProps = extension.schema?.properties?.input?.properties || {};
+    const updatedInputProps = {
+      ...existingInputProps,
+      method: {
+        type: "string",
+        enum: [method],
+      },
+    };
+
     return {
       ...extension,
       info: {
@@ -56,6 +70,7 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
           ...(extension.schema?.properties || {}),
           input: {
             ...(extension.schema?.properties?.input || {}),
+            properties: updatedInputProps,
             required: [
               ...(extension.schema?.properties?.input?.required || []),
               ...(!(extension.schema?.properties?.input?.required || []).includes("method")
