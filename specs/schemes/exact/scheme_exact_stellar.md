@@ -144,7 +144,7 @@ Settlement is performed via the facilitator rebuilding and signing the transacti
 1. Parse the client's signed transaction XDR.
 2. Extract all operations and authorization entries.
 3. Rebuild a new transaction with:
-   - **Source Account**: Facilitator's Stellar address (spends sequence number and pays fees)
+   - **Source Account**: Facilitator's Stellar address (spends [sequence number] and pays fees)
    - **Operations**: Copied from the client's transaction
    - **Auth Entries**: Copied from the client's transaction
 
@@ -176,7 +176,7 @@ Key concepts for understanding Stellar transaction composition and authorization
 
 ### Transaction Hierarchy
 
-Per the transaction hierarchy below, the client builds and signs the contract invocation (innermost component) and sends it to the resource server. During settlement, the facilitator attaches the signed invocation to a transaction for Stellar network submission, handling fees and sequence numbers.
+Per the transaction hierarchy below, the client builds and signs the contract invocation (innermost component) and sends it to the resource server. During settlement, the facilitator attaches the signed invocation to a transaction for Stellar network submission, handling fees and [sequence numbers][sequence number].
 
 ![Stellar Transaction Hierarchy](../../../static/stellar-transaction-hierarchy.png)
 
@@ -186,10 +186,10 @@ FeeBumpTransactions are optional but recommended for higher throughput and lower
 
 Clients can authorize invocations via:
 1. **Auth entry signing** ([reference][auth-entry-signing]): Authorizes only the invocation.
-   - Higher throughput (no sequence number spent by client)
+   - Higher throughput (no [sequence number] spent by client)
    - Supports both C-accounts and G-accounts
    - Requires fee sponsorship
-2. **Full transaction signing**: Signs the entire transaction, spending sequence number.
+2. **Full transaction signing**: Signs the entire transaction, spending [sequence number].
    - Simpler approach
    - No fee sponsorship needed
    - Lower throughput (one tx/ledger per client)
@@ -198,5 +198,5 @@ Clients can authorize invocations via:
 The x402 protocol uses approach #1 for broader wallet support (C-accounts and G-accounts). Approach #2 may be added later for non-sponsored flows.
 
 [SEP-41]: https://stellar.org/protocol/sep-41
-[SEP-43]: https://stellar.org/protocol/sep-43
 [auth-entry-signing]: https://developers.stellar.org/docs/build/guides/freighter/sign-auth-entries
+[sequence number]: https://developers.stellar.org/docs/learn/glossary#sequence-number
