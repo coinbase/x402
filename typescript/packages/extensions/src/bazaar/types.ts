@@ -170,7 +170,7 @@ export interface DeclareBodyDiscoveryExtensionConfig {
   method?: BodyMethods;
   input?: Record<string, unknown>;
   inputSchema?: Record<string, unknown>;
-  bodyType?: "json" | "form-data" | "text";
+  bodyType: "json" | "form-data" | "text";
   output?: {
     example?: unknown;
     schema?: Record<string, unknown>;
@@ -180,6 +180,26 @@ export interface DeclareBodyDiscoveryExtensionConfig {
 export type DeclareDiscoveryExtensionConfig =
   | DeclareQueryDiscoveryExtensionConfig
   | DeclareBodyDiscoveryExtensionConfig;
+
+/**
+ * Distributive Omit - properly distributes Omit over union types.
+ *
+ * Standard `Omit<A | B, K>` collapses to common properties only,
+ * losing discriminant properties like `bodyType`.
+ *
+ * This type uses conditional type distribution to preserve the union:
+ * `DistributiveOmit<A | B, K>` = `Omit<A, K> | Omit<B, K>`
+ */
+export type DistributiveOmit<T, K extends keyof T> = T extends T ? Omit<T, K> : never;
+
+/**
+ * Config type for declareDiscoveryExtension function.
+ * Uses DistributiveOmit to preserve bodyType discriminant in the union.
+ */
+export type DeclareDiscoveryExtensionInput = DistributiveOmit<
+  DeclareDiscoveryExtensionConfig,
+  "method"
+>;
 
 export const isQueryExtensionConfig = (
   config: DeclareDiscoveryExtensionConfig,

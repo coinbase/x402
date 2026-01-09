@@ -24,6 +24,10 @@ interface ExtensionDeclaration {
       [key: string]: unknown;
       input?: {
         [key: string]: unknown;
+        properties?: {
+          [key: string]: unknown;
+          method?: Record<string, unknown>;
+        };
         required?: string[];
       };
     };
@@ -41,6 +45,18 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
     const extension = declaration as ExtensionDeclaration;
     const method = transportContext.method;
 
+    // At declaration time, the schema uses a broad enum (["GET", "HEAD", "DELETE"] or ["POST", "PUT", "PATCH"])
+    // because the method isn't known until the HTTP context is available.
+    // Here we narrow it to the actual method for precise schema validation.
+    const existingInputProps = extension.schema?.properties?.input?.properties || {};
+    const updatedInputProps = {
+      ...existingInputProps,
+      method: {
+        type: "string",
+        enum: [method],
+      },
+    };
+
     return {
       ...extension,
       info: {
@@ -56,6 +72,7 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
           ...(extension.schema?.properties || {}),
           input: {
             ...(extension.schema?.properties?.input || {}),
+            properties: updatedInputProps,
             required: [
               ...(extension.schema?.properties?.input?.required || []),
               ...(!(extension.schema?.properties?.input?.required || []).includes("method")
