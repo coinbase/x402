@@ -1258,6 +1258,26 @@ func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
 	})
 }
 
+// extractMethodEnum is a test helper that extracts the method enum from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["properties"]["method"]["enum"]
+func extractMethodEnum(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	inputPropsProps := inputProps["properties"].(map[string]interface{})
+	methodProp := inputPropsProps["method"].(map[string]interface{})
+	return methodProp["enum"].([]string)
+}
+
+// extractRequiredFields is a test helper that extracts the required array from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["required"]
+func extractRequiredFields(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	return inputProps["required"].([]string)
+}
+
 func TestBazaarResourceServerExtension(t *testing.T) {
 	// NOTE: Go's API is different from TypeScript.
 	// In Go, DeclareDiscoveryExtension takes the method as a parameter,
@@ -1294,11 +1314,9 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
 	})
 
-	t.Run("DeclareDiscoveryExtension should create schema with narrow method enum (Go-specific behavior)", func(t *testing.T) {
-		// Unlike TypeScript, Go's DeclareDiscoveryExtension takes the method as a parameter.
+	t.Run("should create schema with narrow method enum for POST", func(t *testing.T) {
+		// Go-specific: Unlike TypeScript, Go's DeclareDiscoveryExtension takes the method as a parameter.
 		// This means the schema is already narrow at creation time.
-		// This is the correct and expected Go behavior.
-
 		extension, err := bazaar.DeclareDiscoveryExtension(
 			bazaar.MethodPOST,
 			map[string]interface{}{"data": "test"},
@@ -1313,11 +1331,7 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		require.NoError(t, err)
 
 		// Schema should already have just ["POST"] at creation time
-		schemaProps := extension.Schema["properties"].(map[string]interface{})
-		inputProps := schemaProps["input"].(map[string]interface{})
-		inputPropsProps := inputProps["properties"].(map[string]interface{})
-		methodProp := inputPropsProps["method"].(map[string]interface{})
-		methodEnum := methodProp["enum"].([]string)
+		methodEnum := extractMethodEnum(t, extension.Schema)
 		assert.Equal(t, []string{"POST"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
 
 		// EnrichDeclaration should preserve the narrow enum
@@ -1331,15 +1345,11 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		require.True(t, ok)
 
 		// After enrichment, the schema should still have just POST
-		enrichedSchemaProps := enrichedExt.Schema["properties"].(map[string]interface{})
-		enrichedInputProps := enrichedSchemaProps["input"].(map[string]interface{})
-		enrichedInputPropsProps := enrichedInputProps["properties"].(map[string]interface{})
-		enrichedMethodProp := enrichedInputPropsProps["method"].(map[string]interface{})
-		enrichedMethodEnum := enrichedMethodProp["enum"].([]string)
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
 		assert.Equal(t, []string{"POST"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
 	})
 
-	t.Run("DeclareDiscoveryExtension should create narrow enum for GET requests", func(t *testing.T) {
+	t.Run("should create schema with narrow method enum for GET", func(t *testing.T) {
 		extension, err := bazaar.DeclareDiscoveryExtension(
 			bazaar.MethodGET,
 			map[string]interface{}{"query": "search term"},
@@ -1354,11 +1364,7 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		require.NoError(t, err)
 
 		// Schema should already have just ["GET"] at creation time
-		schemaProps := extension.Schema["properties"].(map[string]interface{})
-		inputProps := schemaProps["input"].(map[string]interface{})
-		inputPropsProps := inputProps["properties"].(map[string]interface{})
-		methodProp := inputPropsProps["method"].(map[string]interface{})
-		methodEnum := methodProp["enum"].([]string)
+		methodEnum := extractMethodEnum(t, extension.Schema)
 		assert.Equal(t, []string{"GET"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
 
 		httpContext := x402http.HTTPRequestContext{
@@ -1371,11 +1377,7 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		require.True(t, ok)
 
 		// After enrichment, should still be just GET
-		enrichedSchemaProps := enrichedExt.Schema["properties"].(map[string]interface{})
-		enrichedInputProps := enrichedSchemaProps["input"].(map[string]interface{})
-		enrichedInputPropsProps := enrichedInputProps["properties"].(map[string]interface{})
-		enrichedMethodProp := enrichedInputPropsProps["method"].(map[string]interface{})
-		enrichedMethodEnum := enrichedMethodProp["enum"].([]string)
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
 		assert.Equal(t, []string{"GET"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
 	})
 
@@ -1402,9 +1404,7 @@ func TestBazaarResourceServerExtension(t *testing.T) {
 		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
 		require.True(t, ok)
 
-		schemaProps := enrichedExt.Schema["properties"].(map[string]interface{})
-		inputProps := schemaProps["input"].(map[string]interface{})
-		required := inputProps["required"].([]string)
+		required := extractRequiredFields(t, enrichedExt.Schema)
 
 		hasMethod := false
 		for _, r := range required {

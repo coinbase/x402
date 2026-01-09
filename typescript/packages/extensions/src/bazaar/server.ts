@@ -45,7 +45,9 @@ export const bazaarResourceServerExtension: ResourceServerExtension = {
     const extension = declaration as ExtensionDeclaration;
     const method = transportContext.method;
 
-    // Get existing input properties and update the method enum to just the actual method
+    // At declaration time, the schema uses a broad enum (["GET", "HEAD", "DELETE"] or ["POST", "PUT", "PATCH"])
+    // because the method isn't known until the HTTP context is available.
+    // Here we narrow it to the actual method for precise schema validation.
     const existingInputProps = extension.schema?.properties?.input?.properties || {};
     const updatedInputProps = {
       ...existingInputProps,
