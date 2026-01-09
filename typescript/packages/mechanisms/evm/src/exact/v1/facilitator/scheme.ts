@@ -12,6 +12,7 @@ import { authorizationTypes, eip3009ABI } from "../../../constants";
 import { FacilitatorEvmSigner } from "../../../signer";
 import { ExactEvmPayloadV1 } from "../../../types";
 import { getEvmChainId } from "../../../utils";
+import { EvmNetworkV1 } from "../../../v1";
 
 export interface ExactEvmSchemeV1Config {
   /**
@@ -93,7 +94,16 @@ export class ExactEvmSchemeV1 implements SchemeNetworkFacilitator {
     }
 
     // Get chain configuration
-    const chainId = getEvmChainId(payloadV1.network);
+    let chainId: number;
+    try {
+      chainId = getEvmChainId(payloadV1.network as EvmNetworkV1);
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: `invalid_network`,
+        payer: exactEvmPayload.authorization.from,
+      };
+    }
 
     if (!requirements.extra?.name || !requirements.extra?.version) {
       return {
