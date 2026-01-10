@@ -3,7 +3,6 @@ import {
   getTransactionDecoder,
   getCompiledTransactionMessageDecoder,
   type Transaction,
-  type CompiledTransactionMessage,
   createSolanaRpc,
   devnet,
   testnet,
@@ -93,9 +92,7 @@ export function decodeTransactionFromPayload(svmPayload: ExactSvmPayloadV1): Tra
  * @returns The token payer address as a base58 string
  */
 export function getTokenPayerFromTransaction(transaction: Transaction): string {
-  const compiled = getCompiledTransactionMessageDecoder().decode(
-    transaction.messageBytes,
-  ) as CompiledTransactionMessage;
+  const compiled = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes);
   const staticAccounts = compiled.staticAccounts ?? [];
   const instructions = compiled.instructions ?? [];
 
@@ -189,6 +186,8 @@ export function convertToTokenAmount(decimalAmount: string, decimals: number): s
     throw new Error(`Invalid amount: ${decimalAmount}`);
   }
   // Convert to smallest unit (e.g., for USDC with 6 decimals: 0.10 * 10^6 = 100000)
-  const tokenAmount = Math.floor(amount * Math.pow(10, decimals));
-  return tokenAmount.toString();
+  const [intPart, decPart = ""] = String(amount).split(".");
+  const paddedDec = decPart.padEnd(decimals, "0").slice(0, decimals);
+  const tokenAmount = (intPart + paddedDec).replace(/^0+/, "") || "0";
+  return tokenAmount;
 }
