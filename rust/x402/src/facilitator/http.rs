@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use http::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -11,6 +12,7 @@ pub struct HttpFacilitator {
     settle_path: String,
     client: reqwest::Client,
     headers: HeaderMap,
+    request_hook: Option<Arc<dyn RequestHook>>,
 }
 
 /// Builder for HttpFacilitator
@@ -20,6 +22,17 @@ pub struct HttpFacilitatorBuilder {
     settle_path: Option<String>,
     headers: HeaderMap,
     client: Option<reqwest::Client>,
+    request_hook: Option<Arc<dyn RequestHook>>,
+}
+
+#[async_trait::async_trait]
+pub trait RequestHook: Send + Sync {
+    async fn on_request(
+        &self,
+        method: http::Method,
+        url: &reqwest::Url,
+        builder: reqwest::RequestBuilder,
+    ) -> reqwest::RequestBuilder;
 }
 
 impl HttpFacilitatorBuilder {
@@ -47,6 +60,11 @@ impl HttpFacilitatorBuilder {
         self
     }
 
+    pub fn with_request_hook(mut self, request_hook: Arc<dyn RequestHook>) -> Self {
+        self.request_hook = Some(request_hook);
+        self
+    }
+
     pub fn build(self) -> HttpFacilitator {
         HttpFacilitator {
             base_url: self.base_url,
@@ -54,6 +72,7 @@ impl HttpFacilitatorBuilder {
             settle_path: self.settle_path.unwrap_or_else(|| "/settle".to_string()),
             client: self.client.unwrap_or_else(reqwest::Client::new),
             headers: self.headers,
+            request_hook: self.request_hook,
         }
     }
 }
@@ -67,6 +86,7 @@ impl HttpFacilitator {
             settle_path: Some("/settle".to_string()),
             headers: HeaderMap::new(),
             client: None,
+            request_hook: None,
         }
     }
 
@@ -94,16 +114,29 @@ impl HttpFacilitator {
         Req: Serialize + ?Sized,
         Res: DeserializeOwned,
     {
-        let response = self.client
-            .post(url)
+        let method = http::Method::POST;
+        let full_url = reqwest::Url::parse(&url)
+            .map_err(|e| X402Error::ConfigError(format!("Invalid facilitator URL: {e}")))?;
+
+        let mut builder = self.client
+            .post(full_url.clone())
             .headers(self.headers.clone())
-            .json(req)
-            .send()
-            .await?;
+            .json(req);
+
+        if let Some(hook) = &self.request_hook {
+            builder = hook
+                .on_request(method.clone(), &full_url, builder)
+                .await;
+        }
+
+        let response = builder.send().await?;
 
         let status = response.status();
         if !status.is_success() {
-            let err_text = response.text().await.unwrap_or_else(|e| format!("Unknown Error: {}", e));
+            let err_text = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("Unknown Error: {}", e));
             return Err(X402Error::FacilitatorRejection(status.as_u16(), err_text));
         }
 
@@ -208,8 +241,5 @@ impl FacilitatorClient for HttpFacilitator {
                 Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
             }
         }
-
-
-
     }
 }
