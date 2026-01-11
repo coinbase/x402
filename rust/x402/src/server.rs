@@ -91,13 +91,13 @@ impl SchemeServer {
 
     pub fn build_resource_config(
         &self,
-        amount: &str,
+        pay_to: &str,
         price: Price,
         timeout_in_seconds: Option<u64>,
     ) -> ResourceConfig {
         ResourceConfig::new(
             self.scheme(),
-            amount,
+            pay_to,
             price,
             self.network(),
             timeout_in_seconds
