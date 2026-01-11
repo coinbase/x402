@@ -1,37 +1,34 @@
 use alloy::signers::local::PrivateKeySigner;
 use axum::body::Body;
-use axum::http::HeaderMap;
 use axum::routing::get;
 use axum::Router;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use http::header::ACCEPT;
 use http::Request;
-use reqwest::header::{HeaderValue, AUTHORIZATION, CONTENT_TYPE};
-use reqwest::Client;
-use serde_json::{json, Value};
+use serde_json::json;
 use std::env;
 use std::str::FromStr;
 use std::sync::Arc;
 use tower::ServiceExt;
 use x402::auth::WalletAuth;
-use x402::errors::X402Result;
-use x402::facilitator::{default_http_facilitator, Facilitator};
 use x402::facilitator::cdprequest_hook::CoinbaseRequestHook;
+use x402::facilitator::{Facilitator, FacilitatorClient};
 use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
 use x402::schemes::evm::sign_transfer_with_authorization;
-use x402::server::{ResourceConfig, SchemeNetworkServer, SchemeServer, V1ResourceInfo};
-use x402::types::{AssetAmount, CAIPNetwork, AuthorizationV1, PayloadExactV1, PaymentPayloadV1, Network, PaymentPayload, PaymentRequired, PaymentRequirements, Price, Resource, X402Header, PaymentPayloadV2};
+use x402::server::{SchemeServer, V1ResourceInfo};
+use x402::types::{AssetAmount, AuthorizationV1, Network, PayloadExactV1, PaymentPayload, PaymentPayloadV1, PaymentPayloadV2, PaymentRequired, PaymentRequirements, Price, X402Header};
 
 fn get_cdp_request_hook() -> Arc<CoinbaseRequestHook> {
     let api_key = env::var("CDP_API_KEY_ID").expect("CDP_API_KEY_ID must be set");
     let api_secret = env::var("CDP_API_SECRET").expect("CDP_API_SECRET must be set");
-    let app_name = env::var("APP_NAME").unwrap_or(String::from("x402-rust"));
-    let source_version = env::var("CARGO_PKG_VERSION").unwrap_or(String::from("0.1.0"));
+    let app_name = env::var("APP_NAME").unwrap_or(String::from("my-app"));
+    // let source_version = env::var("CARGO_PKG_VERSION").unwrap_or(String::from("1.0.0"));
+    let source_version = String::from("1.0.0");
 
     let wallet_auth = WalletAuth::builder()
         .api_key_id(api_key)
         .api_key_secret(api_secret)
+        .debug(true)
         .source(app_name)
         .source_version(source_version)
         .build()
@@ -123,7 +120,6 @@ async fn test_coinbase_facilitator_integration_v1() {
     assert_eq!(response.status(), axum::http::StatusCode::PAYMENT_REQUIRED);
 
     if let Some(header) = response.headers().get("PAYMENT-REQUIRED") {
-        println!("PAYMENT-REQUIRED Header (raw): {:?}", header);
 
         // Decode PAYMENT-REQUIRED into PaymentRequired
         let header_str = header.to_str().expect("header to be valid UTF-8");
@@ -131,10 +127,8 @@ async fn test_coinbase_facilitator_integration_v1() {
             .decode(header_str)
             .expect("base64url decode PAYMENT-REQUIRED");
         let json_str = String::from_utf8(decoded).expect("PAYMENT-REQUIRED to be valid UTF-8");
-        let mut payment_required: PaymentRequired =
+        let payment_required: PaymentRequired =
             serde_json::from_str(&json_str).expect("decode PaymentRequired JSON");
-
-        println!("Decoded PAYMENT-REQUIRED: {}", json_str);
 
         // 2. Build a PaymentPayload that matches the server's `accepts`
         let accepted = payment_required
@@ -193,27 +187,17 @@ async fn test_coinbase_facilitator_integration_v1() {
             .unwrap();
 
         let status = response_with_sig.status();
-        let body_bytes = axum::body::to_bytes(response_with_sig.into_body(), 1024 * 1024)
-            .await
-            .unwrap();
-        let body_str = String::from_utf8_lossy(&body_bytes);
-
-        println!("Response Status: {}", status);
-        println!(
-            "Response Body: {}",
-            body_str
-        );
 
         // 5. Assertions:
         //    - We should not see 402 here (that would mean we never left the Axum middleware)
         assert_ne!(
             status,
-            axum::http::StatusCode::PAYMENT_REQUIRED,
+            http::StatusCode::PAYMENT_REQUIRED,
             "Second request should not fail at the Axum middleware with 402"
         );
 
-        //    - Middleware should surface a verification failure error from the facilitator
-        assert_eq!(status, axum::http::StatusCode::OK);
+        //    - Middleware should surface a settle success from the facilitator
+        assert_eq!(status, http::StatusCode::OK);
     }
 }
 
@@ -278,23 +262,18 @@ async fn test_coinbase_facilitator_integration_v2() {
         .await
         .unwrap();
 
-    dbg!(&response);
     println!("Response Status (Missing Header): {}", response.status());
-    assert_eq!(response.status(), axum::http::StatusCode::PAYMENT_REQUIRED);
+    assert_eq!(response.status(), http::StatusCode::PAYMENT_REQUIRED);
 
     if let Some(header) = response.headers().get("PAYMENT-REQUIRED") {
-        println!("PAYMENT-REQUIRED Header (raw): {:?}", header);
-
         // Decode PAYMENT-REQUIRED into PaymentRequired
         let header_str = header.to_str().expect("header to be valid UTF-8");
         let decoded = URL_SAFE_NO_PAD
             .decode(header_str)
             .expect("base64url decode PAYMENT-REQUIRED");
         let json_str = String::from_utf8(decoded).expect("PAYMENT-REQUIRED to be valid UTF-8");
-        let mut payment_required: PaymentRequired =
+        let payment_required: PaymentRequired =
             serde_json::from_str(&json_str).expect("decode PaymentRequired JSON");
-
-        println!("Decoded PAYMENT-REQUIRED: {}", json_str);
 
         // 2. Build a PaymentPayload that matches the server's `accepts`
         let accepted: PaymentRequirements = payment_required
@@ -358,42 +337,31 @@ async fn test_coinbase_facilitator_integration_v2() {
             .unwrap();
 
         let status = response_with_sig.status();
-        let body_bytes = axum::body::to_bytes(response_with_sig.into_body(), 1024)
-            .await
-            .unwrap();
-        let body_str = String::from_utf8_lossy(&body_bytes);
-
-        println!("Response Status: {}", status);
-        println!(
-            "Response Body: {}",
-            body_str
-        );
 
         // 5. Assertions:
         //    - We should not see 402 here (that would mean we never left the Axum middleware)
         assert_ne!(
             status,
-            axum::http::StatusCode::PAYMENT_REQUIRED,
+            http::StatusCode::PAYMENT_REQUIRED,
             "Second request should not fail at the Axum middleware with 402"
         );
 
-        //    - Middleware should get a successful response
-        assert_eq!(status, axum::http::StatusCode::OK);
+        //    - Middleware should surface a settle success from the facilitator
+        assert_eq!(status, http::StatusCode::OK);
     }
 
 }
-// #[tokio::test]
-// async fn test_facilitator_supported() {
-//     let cdp_hook = get_cdp_request_hook();
-//     let url = "https://api.cdp.coinbase.com/platform/v2/x402/supported";
-//     let client = Client::new();
-//
-//     let req = client.get(url)
-//         .headers(headers);
-//     // dbg!(&req);
-//
-//         let res = req.send().await.unwrap();
-//     // dbg!(&res.text().await.unwrap());
-//     dbg!(&res.json::<Value>().await.unwrap());
-// }
+#[tokio::test]
+async fn test_facilitator_supported() {
+    let cdp_hook = get_cdp_request_hook();
+
+    let facilitator_url = "https://api.cdp.coinbase.com/platform/v2/x402";
+    let facilitator_builder = Facilitator::builder(facilitator_url)
+        .with_request_hook(cdp_hook)
+        .build();
+    let facilitator = Arc::new(facilitator_builder);
+    let response = facilitator.supported().await;
+    assert!(response.is_ok());
+    println!("{:#?}", &response.unwrap());
+}
 

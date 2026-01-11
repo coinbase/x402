@@ -104,6 +104,20 @@ pub struct SettleResponse {
     pub network: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SupportedResponse {
+    kinds: Vec<SupportedKind>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SupportedKind {
+    x402_version: u32,
+    scheme: String,
+    network: Network,
+    extra: Option<Value>,
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]

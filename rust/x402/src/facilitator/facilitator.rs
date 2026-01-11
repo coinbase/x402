@@ -1,5 +1,5 @@
 use crate::errors::X402Result;
-use crate::types::{PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse};
+use crate::types::{PaymentPayload, PaymentRequirements, SettleResponse, SupportedResponse, VerifyResponse};
 
 #[async_trait::async_trait]
 pub trait FacilitatorClient: Send + Sync {
@@ -15,4 +15,6 @@ pub trait FacilitatorClient: Send + Sync {
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<SettleResponse>;
+
+    async fn supported(&self) -> X402Result<SupportedResponse>;
 }

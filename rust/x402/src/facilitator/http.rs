@@ -4,12 +4,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use crate::errors::{X402Error, X402Result};
 use crate::facilitator::FacilitatorClient;
-use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse, VerifyRequest};
+use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse, VerifyRequest, SupportedResponse};
 
 pub struct HttpFacilitator {
     pub base_url: String,
     verify_path: String,
     settle_path: String,
+    supported_path: String,
     client: reqwest::Client,
     headers: HeaderMap,
     request_hook: Option<Arc<dyn RequestHook>>,
@@ -20,6 +21,7 @@ pub struct HttpFacilitatorBuilder {
     base_url: String,
     verify_path: Option<String>,
     settle_path: Option<String>,
+    supported_path: Option<String>,
     headers: HeaderMap,
     client: Option<reqwest::Client>,
     request_hook: Option<Arc<dyn RequestHook>>,
@@ -36,15 +38,21 @@ pub trait RequestHook: Send + Sync {
 }
 
 impl HttpFacilitatorBuilder {
-    /// Override the verify endpoint path (e.g. "/v1/x402/verify").
+    /// Override the verify endpoint path (e.g. "/verify").
     pub fn with_verify_path(mut self, path: impl Into<String>) -> Self {
         self.verify_path = Some(path.into());
         self
     }
 
-    /// Override the settle endpoint path (e.g. "/v1/x402/settle").
+    /// Override the settle endpoint path (e.g. "/settle").
     pub fn with_settle_path(mut self, path: impl Into<String>) -> Self {
         self.settle_path = Some(path.into());
+        self
+    }
+
+    /// Override the supported endpoint path (e.g. "/supported").
+    pub fn with_supported_path(mut self, path: impl Into<String>) -> Self {
+        self.supported_path = Some(path.into());
         self
     }
 
@@ -70,6 +78,7 @@ impl HttpFacilitatorBuilder {
             base_url: self.base_url,
             verify_path: self.verify_path.unwrap_or_else(|| "/verify".to_string()),
             settle_path: self.settle_path.unwrap_or_else(|| "/settle".to_string()),
+            supported_path: self.supported_path.unwrap_or_else(|| "/supported".to_string()),
             client: self.client.unwrap_or_else(reqwest::Client::new),
             headers: self.headers,
             request_hook: self.request_hook,
@@ -84,6 +93,7 @@ impl HttpFacilitator {
             base_url: base_url.into(),
             verify_path: Some("/verify".to_string()),
             settle_path: Some("/settle".to_string()),
+            supported_path: Some("/supported".to_string()),
             headers: HeaderMap::new(),
             client: None,
             request_hook: None,
@@ -106,6 +116,10 @@ impl HttpFacilitator {
 
     fn settle_url(&self) -> String {
         Self::join_url(&self.base_url, &self.settle_path)
+    }
+
+    fn supported_url(&self) -> String {
+        Self::join_url(&self.base_url, &self.supported_path)
     }
 
     /// Generalized post-method to reuse common route logic across 'verify' and 'settle'
@@ -179,7 +193,6 @@ impl FacilitatorClient for HttpFacilitator {
                             payment_payload: PaymentPayload::V1(payment_payload),
                             payment_requirements: PaymentRequirements::V1(payment_requirements),
                         };
-                        println!("{}",serde_json::to_string_pretty(&request)?);
                         self.post_json(self.verify_url(), &request).await
                     },
                     (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
@@ -188,7 +201,6 @@ impl FacilitatorClient for HttpFacilitator {
                             payment_payload: PaymentPayload::V2(payload),
                             payment_requirements: PaymentRequirements::V2(requirements),
                         };
-                        println!("{}",serde_json::to_string_pretty(&request)?);
                         self.post_json(self.verify_url(), &request).await
                     }
                     _ => {
@@ -241,5 +253,34 @@ impl FacilitatorClient for HttpFacilitator {
                 Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
             }
         }
+    }
+
+    async fn supported(&self) -> X402Result<SupportedResponse> {
+        let method = http::Method::GET;
+        let full_url = reqwest::Url::parse(self.supported_url().as_str())
+            .map_err(|e| X402Error::ConfigError(format!("Invalid facilitator URL: {e}")))?;
+
+        let mut builder = self.client
+            .get(full_url.clone())
+            .headers(self.headers.clone());
+
+        if let Some(hook) = &self.request_hook {
+            builder = hook
+                .on_request(method.clone(), &full_url, builder)
+                .await;
+        }
+
+
+        let response = builder.send().await?;
+        let status = response.status();
+        if !status.is_success() {
+            let err_text = response
+                .text()
+                .await
+                .unwrap_or_else(|e| format!("Unknown Error: {}", e));
+            return Err(X402Error::FacilitatorRejection(status.as_u16(), err_text));
+        }
+
+        Ok(response.json::<SupportedResponse>().await?)
     }
 }
