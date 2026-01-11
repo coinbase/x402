@@ -1,6 +1,6 @@
-use std::env;
 use crate::auth::WalletAuth;
 use crate::facilitator::http::RequestHook;
+use http::header::{ACCEPT, AUTHORIZATION};
 
 pub struct CoinbaseRequestHook {
     pub wallet_auth: WalletAuth,
@@ -19,7 +19,6 @@ impl RequestHook for CoinbaseRequestHook {
         let host = url.host_str().unwrap_or("api.cdp.coinbase.com");
         let path = url.path();
 
-
         let jwt = self.wallet_auth.generate_jwt(
             method_str,
             host,
@@ -28,7 +27,7 @@ impl RequestHook for CoinbaseRequestHook {
         ).expect("Generating JWT failed");
 
         builder
-            .header("Authorization", format!("Bearer {}", jwt))
-            .header("Content-Type", "application/json")
+            .header(AUTHORIZATION, format!("Bearer {}", jwt))
+            .header(ACCEPT, "application/json")
     }
 }

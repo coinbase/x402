@@ -36,7 +36,6 @@ pub struct X402Config {
     pub facilitator: Arc<dyn FacilitatorClient>,
     pub resource_server: Arc<InMemoryResourceServer>,
     pub routes: Arc<HashMap<String, RouteMeta>>,
-    base_url: String,
 }
 
 pub struct X402ConfigBuilder {
@@ -88,7 +87,6 @@ impl X402ConfigBuilder {
             facilitator: self.facilitator,
             resource_server: Arc::new(self.resource_server),
             routes: Arc::new(self.routes),
-            base_url: self.base_url,
         }
     }
 }
@@ -147,7 +145,6 @@ pub async fn x402_middleware(
                     PaymentRequirements::V1(server) => {
                         match &payload {
                             PaymentPayload::V1(client) => {
-                                dbg!(&server, &client, &route.resource_url(), &payload);
                                 server.scheme == client.scheme
                                     && server.network == client.network
                                     && server.pay_to == client.payload.authorization.to
@@ -179,7 +176,6 @@ pub async fn x402_middleware(
                             _ => false
                         }
                     }
-                    _ => false
                 }
             });
 

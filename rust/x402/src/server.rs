@@ -26,12 +26,6 @@ impl ResourceConfig {
     }
 }
 
-pub struct ResourceInfo {
-    url: String,
-    description: String,
-    mime_type: String,
-}
-
 pub trait SchemeNetworkServer: Send + Sync {
     /// The name of the scheme the server implements. (e.g.) "exact").
     fn scheme(&self) -> &str;
