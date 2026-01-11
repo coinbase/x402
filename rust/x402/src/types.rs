@@ -178,8 +178,8 @@ pub struct AssetAmount {
 }
 
 impl AssetAmount {
-    pub fn new(asset: String, amount: String, extra: Option<HashMap<String, Value>>) -> Self {
-        AssetAmount { asset, amount, extra }
+    pub fn new(asset: &str, amount: &str, extra: Option<HashMap<String, Value>>) -> Self {
+        AssetAmount { asset: asset.to_string(), amount: amount.to_string(), extra }
     }
 }
 
@@ -274,8 +274,8 @@ pub struct CAIPNetwork {
 }
 
 impl CAIPNetwork {
-    pub fn new(namespace: String, reference: String) -> CAIPNetwork {
-        CAIPNetwork { namespace, reference }
+    pub fn new(namespace: &str, reference: &str) -> CAIPNetwork {
+        CAIPNetwork { namespace: namespace.to_string(), reference: reference.to_string() }
     }
 
     pub fn to_string(&self) -> String {
@@ -658,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_caip_network_to_string() {
-        let caip = CAIPNetwork::new("eip155".to_string(), "1".to_string());
+        let caip = CAIPNetwork::new("eip155", "1");
         assert_eq!(caip.to_string(), "eip155:1");
     }
 
@@ -673,7 +673,7 @@ mod tests {
         let n1 = Network::String("solana:mainnet".to_string());
         assert_eq!(n1.to_string(), "solana:mainnet");
 
-        let n2 = Network::CAIPNetwork(CAIPNetwork::new("eip155".to_string(), "1".to_string()));
+        let n2 = Network::CAIPNetwork(CAIPNetwork::new("eip155", "1"));
         assert_eq!(n2.to_string(), "eip155:1");
     }
 
@@ -685,7 +685,7 @@ mod tests {
 
     #[test]
     fn test_network_conversions() {
-        let caip = CAIPNetwork::new("eip155".to_string(), "1".to_string());
+        let caip = CAIPNetwork::new("eip155", "1");
         let n: Network = caip.into();
         assert_eq!(n.to_string(), "eip155:1");
 
@@ -706,7 +706,7 @@ mod tests {
             _ => panic!("Expected Network::String"),
         }
 
-        let n3 = Network::CAIPNetwork(CAIPNetwork::new("eip155".to_string(), "1".to_string()));
+        let n3 = Network::CAIPNetwork(CAIPNetwork::new("eip155", "1"));
         let json2 = serde_json::to_string(&n3).unwrap();
         // CAIPNetwork is a struct, so it serializes as an object
         assert_eq!(json2, "{\"namespace\":\"eip155\",\"reference\":\"1\"}");

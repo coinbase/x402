@@ -67,18 +67,18 @@ impl X402ConfigBuilder {
     pub fn register_resource(
         &mut self,
         resource_config: ResourceConfig,
-        resource_path: String,
-        description: Option<String>,
-        mime_type: Option<String>,
+        resource_path: &str,
+        description: Option<&str>,
+        mime_type: Option<&str>,
     ) -> &mut Self {
         let meta = RouteMeta {
             base_url: self.base_url.clone(),
-            resource_path: resource_path.clone(),
-            description,
-            mime_type,
+            resource_path: resource_path.to_owned(),
+            description: description.map(|s| s.to_owned()),
+            mime_type: mime_type.map(|s| s.to_owned()),
             resource_config,
         };
-        self.routes.insert(resource_path, meta);
+        self.routes.insert(resource_path.to_owned(), meta);
         self
     }
 
@@ -318,7 +318,7 @@ mod tests {
     async fn setup_test_app(facilitator_url: &str) -> Router {
         let facilitator: Arc<dyn FacilitatorClient> = Arc::new(HttpFacilitator::new(facilitator_url));
 
-        let network = Network::from(CAIPNetwork::new("ethereum".to_string(), "1".to_string()));
+        let network = Network::from(CAIPNetwork::new("ethereum", "1"));
         let resource_config = ResourceConfig::new(
             "exact",
             "0x123",
@@ -334,7 +334,7 @@ mod tests {
             // Register a scheme to our config
             .register_scheme(network, Arc::new(MockSchemeServer))
             // register a resource (a route)
-            .register_resource(resource_config, "/test".to_string(), None, None);
+            .register_resource(resource_config, "/test", None, None);
         // finalize the config
         let config = builder.build();
 

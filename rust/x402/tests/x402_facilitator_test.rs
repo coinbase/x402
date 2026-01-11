@@ -36,7 +36,7 @@ async fn test_x402_v2_axum_facilitator_integration() {
 
     let to_address = "0xB013a7f5F82bEA73c682fe6BFFB23715bb58e656".to_lowercase();
     let usdc_address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_lowercase();
-    let price = Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None));
+    let price = Price::AssetAmount(AssetAmount::new(&usdc_address, "1000", None));
 
     let scheme_server = SchemeServer::new_default();
     let resource_config = scheme_server.build_resource_config(
@@ -50,8 +50,8 @@ async fn test_x402_v2_axum_facilitator_integration() {
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
             resource_config,
-            "/api/premium".to_string(),
-            Some("Test Resource".to_string()),
+            "/api/premium",
+            Some("Test Resource"),
             None,
         );
 
@@ -203,7 +203,7 @@ async fn test_x402_v1_axum_facilitator_integration() {
 
     let to_address = "0xB013a7f5F82bEA73c682fe6BFFB23715bb58e656".to_lowercase();
     let usdc_address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_lowercase();
-    let price = Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None));
+    let price = Price::AssetAmount(AssetAmount::new(&usdc_address, "1000", None));
     let protected_route = "/api/premium";
 
     let v1_resource_info = V1ResourceInfo::new(protected_route, "Premium Access", "application/json", None);
@@ -230,8 +230,8 @@ async fn test_x402_v1_axum_facilitator_integration() {
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
             resource_config,
-            protected_route.to_string(),
-            Some("Test".to_string()),
+            protected_route,
+            Some("Test"),
             None,
         );
     let config = builder.build();
