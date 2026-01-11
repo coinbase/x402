@@ -73,7 +73,7 @@ importers:
   ../../typescript/packages/extensions:
     dependencies:
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       ajv:
         specifier: ^8.17.1
@@ -493,7 +493,7 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -527,10 +527,10 @@ importers:
         specifier: ^8.29.1
         version: 8.40.0(eslint@9.33.0(jiti@2.6.1))(typescript@5.9.2)
       '@x402/evm':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../mechanisms/evm
       '@x402/svm':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../mechanisms/svm
       buffer:
         specifier: ^6.0.3
@@ -1022,7 +1022,7 @@ importers:
   ../../typescript/packages/mechanisms/evm:
     dependencies:
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
       viem:
         specifier: ^2.39.3
@@ -1092,7 +1092,7 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.2)(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
       '@x402/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../core
     devDependencies:
       '@eslint/js':

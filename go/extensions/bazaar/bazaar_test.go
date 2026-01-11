@@ -7,6 +7,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	v1 "github.com/coinbase/x402/go/extensions/v1"
+	x402http "github.com/coinbase/x402/go/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1254,5 +1255,189 @@ func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "GET", info.Method)
+	})
+}
+
+// extractMethodEnum is a test helper that extracts the method enum from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["properties"]["method"]["enum"]
+func extractMethodEnum(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	inputPropsProps := inputProps["properties"].(map[string]interface{})
+	methodProp := inputPropsProps["method"].(map[string]interface{})
+	return methodProp["enum"].([]string)
+}
+
+// extractRequiredFields is a test helper that extracts the required array from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["required"]
+func extractRequiredFields(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	return inputProps["required"].([]string)
+}
+
+func TestBazaarResourceServerExtension(t *testing.T) {
+	// NOTE: Go's API is different from TypeScript.
+	// In Go, DeclareDiscoveryExtension takes the method as a parameter,
+	// so the schema is already narrow at creation time.
+	// In TypeScript, the method is inferred at runtime from the route key,
+	// so declareDiscoveryExtension creates a broad enum and enrichDeclaration narrows it.
+
+	t.Run("should enrich declaration with method from HTTP context", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"prompt": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"prompt": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// Method should be set in info.input
+		bodyInput, ok := enrichedExt.Info.Input.(bazaar.BodyInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
+	})
+
+	t.Run("should create schema with narrow method enum for POST", func(t *testing.T) {
+		// Go-specific: Unlike TypeScript, Go's DeclareDiscoveryExtension takes the method as a parameter.
+		// This means the schema is already narrow at creation time.
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"data": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"data": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Schema should already have just ["POST"] at creation time
+		methodEnum := extractMethodEnum(t, extension.Schema)
+		assert.Equal(t, []string{"POST"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
+
+		// EnrichDeclaration should preserve the narrow enum
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// After enrichment, the schema should still have just POST
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
+		assert.Equal(t, []string{"POST"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
+	})
+
+	t.Run("should create schema with narrow method enum for GET", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"query": "search term"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Schema should already have just ["GET"] at creation time
+		methodEnum := extractMethodEnum(t, extension.Schema)
+		assert.Equal(t, []string{"GET"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "GET",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// After enrichment, should still be just GET
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
+		assert.Equal(t, []string{"GET"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
+	})
+
+	t.Run("should add method to required array if not already present", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"prompt": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"prompt": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		required := extractRequiredFields(t, enrichedExt.Schema)
+
+		hasMethod := false
+		for _, r := range required {
+			if r == "method" {
+				hasMethod = true
+				break
+			}
+		}
+		assert.True(t, hasMethod, "method should be in required array")
+	})
+
+	t.Run("should return unchanged declaration for non-HTTP context", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"data": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"data": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Non-HTTP context
+		nonHTTPContext := "not an http context"
+
+		result := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, nonHTTPContext)
+
+		// Should return unchanged
+		resultExt, ok := result.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, extension.Info, resultExt.Info)
 	})
 }
