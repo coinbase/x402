@@ -5,6 +5,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use crate::errors::X402Result;
 use crate::schemes::evm::network_to_chain_id;
 
+/// Supported payment requirement versions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PaymentRequirements {
@@ -13,38 +14,56 @@ pub enum PaymentRequirements {
 }
 
 
+/// Version 2 of payment requirements.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaymentRequirementsV2 {
+    /// Payment scheme (e.g., "exact").
     pub scheme: String,
+    /// Network identifier.
     pub network: String,
+    /// Recipient address.
     pub pay_to: String,
+    /// Amount to pay.
     pub amount: String,
+    /// Optional asset identifier.
     pub asset: Option<String>,
+    /// Optional data payload.
     #[serde(skip_serializing_if="Option::is_none")]
     pub data: Option<Value>,
+    /// Optional extra information.
     #[serde(skip_serializing_if="Option::is_none")]
     pub extra: Option<Value>,
+    /// Maximum time allowed for payment.
     pub max_timeout_seconds: u64,
 }
 
+
 impl PaymentRequirementsV2 {
+    /// Converts network string to numeric chain ID if applicable.
     pub fn u64_network(&self) -> X402Result<u64> {
         network_to_chain_id(self.network.as_str())
     }
 }
 
+/// Represents a 402 Payment Required response.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentRequired {
+    /// X402 protocol version.
     #[serde(rename="x402Version")]
     pub x402_version: u32,
+    /// The resource being paid for.
     pub resource: Resource,
+    /// List of accepted payment methods.
     pub accepts: Vec<PaymentRequirements>,
+    /// Optional human-readable description.
     pub description: Option<String>,
+    /// Optional extensions.
     #[serde(skip_serializing_if="Option::is_none")]
     pub extensions: Option<Value>,
 }
 
+/// Supported payment payload versions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PaymentPayload {
@@ -52,31 +71,44 @@ pub enum PaymentPayload {
     V2(PaymentPayloadV2),
 }
 
+/// Version 2 of the payment payload.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentPayloadV2 {
+    /// X402 protocol version.
     #[serde(rename="x402Version")]
     pub x402_version: u32,
+    /// The resource being paid for.
     pub resource: Resource,
+    /// The payment requirement that was met.
     pub accepted: PaymentRequirements,
+    /// The actual payment proof/payload.
     pub payload: Value,
+    /// Optional extensions.
     #[serde(skip_serializing_if="Option::is_none")]
     pub extensions: Option<Value>,
 }
 
+/// Represents a resource (URL or structured object).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Resource {
     V1(String),
     V2(ResourceV2),
 }
+
+/// Structured resource information.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResourceV2 {
+    /// URL of the resource.
     pub url: String,
+    /// Human-readable description.
     pub description: String,
+    /// MIME type of the resource.
     #[serde(rename="mimeType")]
     pub mime_type: String,
 }
 
+/// Request to verify a payment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifyRequest {
@@ -85,6 +117,7 @@ pub struct VerifyRequest {
     pub payment_requirements: PaymentRequirements,
 }
 
+/// Request to settle a payment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettleRequest {
@@ -92,30 +125,42 @@ pub struct SettleRequest {
     pub payment_requirements: PaymentRequirements,
 }
 
+/// Response from a payment verification.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyResponse {
+    /// Whether the payment is valid.
     #[serde(rename = "isValid")]
     pub is_valid: bool,
+    /// Reason for invalidity, if any.
     #[serde(rename = "invalidReason")]
     pub invalid_reason: Option<String>,
+    /// Identifier of the payer.
     pub payer: Option<String>,
 }
 
+/// Response from a payment settlement.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SettleResponse {
+    /// Whether the settlement was successful.
     pub success: bool,
+    /// Error reason, if any.
     #[serde(rename = "errorReason")]
     pub error_reason: Option<String>,
+    /// Identifier of the payer.
     pub payer: Option<String>,
+    /// Transaction identifier.
     pub transaction: Option<String>,
+    /// Network identifier.
     pub network: String,
 }
 
+/// Response listing supported payment methods.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SupportedResponse {
     kinds: Vec<SupportedKind>,
 }
 
+/// A specific supported payment kind.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupportedKind {
@@ -126,6 +171,7 @@ pub struct SupportedKind {
 }
 
 
+/// Represents an amount of money as either a number or string.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Money {
@@ -134,6 +180,7 @@ pub enum Money {
 }
 
 impl Money {
+    /// Converts money to a string representation.
     pub fn to_string(&self) -> String {
         match self {
             Money::Number(n) => n.to_string(),
@@ -141,6 +188,7 @@ impl Money {
         }
     }
 
+    /// Splits money into amount string and optional asset.
     pub fn to_amount_asset(&self) -> (String, Option<String>) {
         match self {
             Money::Number(n) => (n.to_string(), None),
@@ -148,6 +196,7 @@ impl Money {
         }
     }
 
+    /// Parses money from a string.
     pub fn from_str(s: &str) -> X402Result<Money> {
         if let Ok(n) = s.parse::<f64>() {
             return Ok(Money::Number(n));
@@ -176,6 +225,7 @@ impl From<&str> for Money {
     }
 }
 
+/// Represents an amount of a specific asset.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssetAmount {
     asset: String,
@@ -185,11 +235,13 @@ pub struct AssetAmount {
 }
 
 impl AssetAmount {
+    /// Creates a new AssetAmount.
     pub fn new(asset: &str, amount: &str, extra: Option<HashMap<String, Value>>) -> Self {
         AssetAmount { asset: asset.to_string(), amount: amount.to_string(), extra }
     }
 }
 
+/// Represents a price as either Money or AssetAmount.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Price {
@@ -198,6 +250,7 @@ pub enum Price {
 }
 
 impl Price {
+    /// Converts price to amount string and optional asset string.
     pub fn to_asset_amount(&self) -> (String, Option<String>) {
         match self {
             Price::AssetAmount(aa) => (aa.amount.clone(), Some(aa.asset.clone())),
@@ -234,6 +287,7 @@ impl From<&str> for Price {
     }
 }
 
+/// Represents a network, either via CAIP identifier or plain string.
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 #[serde(untagged)]
 pub enum Network {
@@ -242,6 +296,7 @@ pub enum Network {
 }
 
 impl Network {
+    /// Converts network to its string representation.
     pub fn to_string(&self) -> String {
         match self {
             Network::CAIPNetwork(caip_network) => caip_network.to_string(),
@@ -274,6 +329,7 @@ impl From<&str> for Network {
     }
 }
 
+/// CAIP-compliant network identifier (namespace:reference).
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
 pub struct CAIPNetwork {
     namespace: String,
@@ -281,10 +337,12 @@ pub struct CAIPNetwork {
 }
 
 impl CAIPNetwork {
+    /// Creates a new CAIPNetwork.
     pub fn new(namespace: &str, reference: &str) -> CAIPNetwork {
         CAIPNetwork { namespace: namespace.to_string(), reference: reference.to_string() }
     }
 
+    /// Returns the "namespace:reference" string.
     pub fn to_string(&self) -> String {
         format!("{}:{}", self.namespace, self.reference)
     }
@@ -300,6 +358,7 @@ impl Default for CAIPNetwork {
     }
 }
 
+/// Version 1 request to verify a payment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifyRequestV1 {
@@ -308,6 +367,7 @@ pub struct VerifyRequestV1 {
     pub payment_requirements: PaymentRequirementsV1,
 }
 
+/// Version 1 payment payload.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaymentPayloadV1 {
@@ -317,6 +377,7 @@ pub struct PaymentPayloadV1 {
     pub payload: PayloadExactV1,
 }
 
+/// Exact payment payload for V1.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PayloadExactV1 {
@@ -324,6 +385,7 @@ pub struct PayloadExactV1 {
     pub authorization: AuthorizationV1,
 }
 
+/// V1 payment authorization details.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuthorizationV1 {
@@ -335,6 +397,7 @@ pub struct AuthorizationV1 {
     pub nonce: String,
 }
 
+/// Version 1 payment requirements.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaymentRequirementsV1 {
@@ -353,6 +416,7 @@ pub struct PaymentRequirementsV1 {
 }
 
 impl PaymentRequirementsV1 {
+    /// Converts network string to numeric chain ID if applicable.
     pub fn u64_network(&self) -> X402Result<u64> {
         network_to_chain_id(self.network.as_str())
     }
@@ -361,11 +425,13 @@ impl PaymentRequirementsV1 {
 
 /// Helper trait to handle the Base64 encoding/decoding for headers
 pub trait X402Header: Serialize + for<'de> Deserialize<'de> {
+    /// Encodes the object as a URL-safe Base64 JSON string.
     fn to_header(&self) -> X402Result<String> {
         let json = serde_json::to_string(self)?;
         Ok(URL_SAFE_NO_PAD.encode(json))
     }
 
+    /// Decodes the object from a URL-safe Base64 JSON string.
     fn from_header(header: &str) -> X402Result<Self> {
         let decoded = URL_SAFE_NO_PAD.decode(header)?;
         let header: Self = serde_json::from_str(&String::from_utf8(decoded)?)?;
