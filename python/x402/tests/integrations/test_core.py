@@ -4,6 +4,7 @@ These tests verify the full payment flow using a mock "cash" scheme.
 """
 
 import asyncio
+
 import pytest
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
