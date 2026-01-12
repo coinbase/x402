@@ -1,0 +1,7 @@
+{
+  "name": "Nous API",
+  "description": "A pay-per-request AI inference API powered by Nous Research's own open-source models. Enable x402 micropayments for LLM completions.",
+  "logoUrl": "/logos/nous-api.png",
+  "websiteUrl": "https://portal.nousresearch.com/api-docs",
+  "category": "Services/Endpoints"
+}
