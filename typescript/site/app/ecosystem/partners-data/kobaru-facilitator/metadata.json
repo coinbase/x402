@@ -1,0 +1,19 @@
+{
+  "name": "Kobaru",
+  "description": "A brief description of your facilitator service and supported networks",
+  "logoUrl": "/logos/kobaru.png",
+  "websiteUrl": "https://www.kobaru.io",
+  "category": "Facilitators",
+  "facilitator": {
+    "baseUrl": "https://gateway.kobaru.io",
+    "networks": ["solana", "solana-devnet"],
+    "schemes": ["exact"],
+    "assets": ["SPL"],
+    "supports": {
+      "verify": true,
+      "settle": true,
+      "supported": true,
+      "list": false
+    }
+  }
+}
