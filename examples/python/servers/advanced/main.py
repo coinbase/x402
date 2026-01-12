@@ -5,11 +5,11 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
-from x402.http.middleware.fastapi import PaymentMiddlewareASGI, payment_middleware  # noqa: F401
-from x402.http.types import RouteConfig
+from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+from x402.http.types import RouteConfig, HTTPRequestContext
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
-from x402.schemas import AssetAmount, Network
+from x402.schemas import Network
 from x402.server import x402ResourceServer
 from x402.extensions.bazaar import declare_discovery_extension, bazaar_resource_server_extension, OutputConfig
 
@@ -40,6 +40,20 @@ WEATHER_DATA = {
     },
 }
 
+# Dynamic price function
+def get_dynamic_price(context: HTTPRequestContext) -> str:
+    """
+    Get dynamic price based on tier
+
+    Args:
+        context: HTTPRequestContext containing adapter and request info
+
+    Returns:
+        Price string
+    """
+    tier = context.adapter.get_query_param("tier") or "standard"
+    return "$0.005" if tier == "premium" else "$0.001"
+
 
 # Response schemas
 class WeatherReport(BaseModel):
@@ -58,7 +72,6 @@ class PremiumContentResponse(BaseModel):
 # App
 app = FastAPI()
 
-
 # x402 Middleware
 facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
 server = x402ResourceServer(facilitator)
@@ -72,7 +85,6 @@ server.on_verify_failure(on_verify_failure_hook)
 server.on_before_settle(before_settle_hook)
 server.on_after_settle(after_settle_hook)
 server.on_settle_failure(on_settle_failure_hook)
-
 
 # Register extensions
 server.register_extension(bazaar_resource_server_extension)
@@ -123,6 +135,50 @@ routes = {
             )
         },
     ),
+    "GET /weather-dynamic": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to=EVM_ADDRESS,
+                price=lambda context: get_dynamic_price(context),
+                network=EVM_NETWORK,
+            ),
+            PaymentOption(
+                scheme="exact",
+                pay_to=SVM_ADDRESS,
+                price=lambda context: get_dynamic_price(context),
+                network=SVM_NETWORK,
+            ),
+        ],
+        mime_type="application/json",
+        description="Weather report",
+        extensions={
+            **declare_discovery_extension(
+                input = {
+                    "city": "San Francisco",
+                },
+                input_schema = {
+                    "properties": {
+                        "city": {"type": "string"},
+                    },
+                    "required": ["city"],
+                },
+                output=OutputConfig(
+                    example = {
+                        "weather": "sunny",
+                        "temperature": 70,
+                    },
+                    schema = {
+                        "properties": {
+                            "weather": {"type": "string"},
+                            "temperature": {"type": "number"},
+                        },
+                        "required": ["weather", "temperature"],
+                    },
+                )
+            )
+        },
+    )
 }
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 
@@ -134,7 +190,15 @@ async def health_check() -> dict[str, str]:
 
 @app.get("/weather")
 async def get_weather(city: str) -> WeatherResponse:
+    """
+    Get weather report for a given city
 
+    Args:
+        city: City name
+
+    Returns:
+        WeatherResponse
+    """
     weather_report = WeatherReport(
         weather=WEATHER_DATA[city]["weather"], 
         temperature=WEATHER_DATA[city]["temperature"])
@@ -142,9 +206,26 @@ async def get_weather(city: str) -> WeatherResponse:
     return WeatherResponse(report=weather_report)
 
 
-@app.get("/premium/content")
-async def get_premium_content() -> PremiumContentResponse:
-    return PremiumContentResponse(content="This is premium content")
+@app.get("/weather-dynamic")
+async def get_weather_dynamic(city: str, tier: str) -> WeatherResponse:
+    """
+    Get weather report for a given city and tier, the price is dynamic based on the tier
+
+    Args:
+        city: City name
+        tier: Tier name
+
+    Returns:
+        WeatherResponse
+    """
+    weather_data = WEATHER_DATA.get(city, {"weather": "sunny", "temperature": 70})
+    return WeatherResponse(
+        report=WeatherReport(
+            weather=weather_data["weather"],
+            temperature=weather_data["temperature"]
+        )
+    )
+
 
 
 if __name__ == "__main__":
