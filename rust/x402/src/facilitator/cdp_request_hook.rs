@@ -1,9 +1,35 @@
+use std::sync::Arc;
 use crate::auth::WalletAuth;
 use crate::facilitator::http::RequestHook;
 use http::header::{ACCEPT, AUTHORIZATION};
+use crate::errors::{X402Error, X402Result};
 
 pub struct CoinbaseRequestHook {
     pub wallet_auth: WalletAuth,
+}
+
+impl CoinbaseRequestHook {
+    pub fn new(
+        api_key_id: &str,
+        api_secret: &str,
+        app_name: Option<&str>,
+        source_version: Option<&str>,
+        debug: Option<bool>,
+    ) -> X402Result<Arc<Self>> {
+        // Build the wallet auth for the hook to build a JWT against
+        let wallet_auth_result = WalletAuth::builder()
+            .api_key_id(api_key_id.to_owned())
+            .api_key_secret(api_secret.to_owned())
+            .debug(debug.unwrap_or(false))
+            .source(app_name.unwrap_or_else(|| "my-app").to_string())
+            .source_version(source_version.unwrap_or_else(|| "1.0.0").to_string())
+            .build();
+        match wallet_auth_result {
+            Ok(auth) => Ok(Arc::new(CoinbaseRequestHook { wallet_auth: auth })),
+            Err(e) =>
+            Err(X402Error::CdpError(e)),
+        }
+    }
 }
 
 #[async_trait::async_trait]

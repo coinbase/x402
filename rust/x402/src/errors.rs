@@ -1,3 +1,4 @@
+use cdp_sdk::error::CdpError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -30,8 +31,11 @@ pub enum X402Error {
     Utf8Error(#[from] std::string::FromUtf8Error),
 
     #[error("Internal error: {0}")]
-    Internal(String)
+    Internal(String),
+
+    #[error("CDP error: {0}")]
+    CdpError(#[from] CdpError),
 }
 
 /// x402 specific Result type for x402 operations. Returns a result with a x402 error
-pub type X402Result<T> = std::result::Result<T, X402Error>;
+pub type X402Result<T> = Result<T, X402Error>;

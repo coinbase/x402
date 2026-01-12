@@ -14,7 +14,7 @@ cdp-sdk = { git = "https://github.com/coinbase/cdp-sdk"}
 
 # Optional Dependecies
 axum = { version = "^0.8.8", optional = true }
-alloy = { version = "0.1.4", optional = true, features = ["signers", "signer-local", "sol-types", "eip712"] }
+alloy = { version = "^1.0.10", optional = true, features = ["signers", "signer-local", "sol-types", "eip712"] }
 hex = "0.4.3"
 tower = "0.5.2"
 bon = "3.8.1"

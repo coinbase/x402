@@ -1,6 +1,6 @@
 mod facilitator;
 mod http;
-pub mod cdprequest_hook;
+pub mod cdp_request_hook;
 
 pub use facilitator::FacilitatorClient;
 pub use http::HttpFacilitator;

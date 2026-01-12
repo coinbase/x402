@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tower::ServiceExt;
 use x402::auth::WalletAuth;
-use x402::facilitator::cdprequest_hook::CoinbaseRequestHook;
+use x402::facilitator::cdp_request_hook::CoinbaseRequestHook;
 use x402::facilitator::{Facilitator, FacilitatorClient};
 use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
 use x402::schemes::evm::sign_transfer_with_authorization;
@@ -50,7 +50,7 @@ async fn test_coinbase_facilitator_integration_v1() {
 
 
     let usdc_address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913".to_lowercase();
-    let price = Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None));
+    let price = Price::AssetAmount(AssetAmount::new(&usdc_address, "1000", None));
     let api_base = "https://api.example.com";
     let protected_route = "/api/premium";
     let resource_v1_route = format!("{}{}", api_base, protected_route);
@@ -93,8 +93,8 @@ async fn test_coinbase_facilitator_integration_v1() {
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
             resource_config,
-            protected_route.to_string(),
-            Some("Test Resource".to_string()),
+            protected_route,
+            Some("Test Resource"),
             None,
         );
 
@@ -225,7 +225,7 @@ async fn test_coinbase_facilitator_integration_v2() {
 
     let to_address = "0xB013a7f5F82bEA73c682fe6BFFB23715bb58e656".to_lowercase();
     let usdc_address = "0x036CbD53842c5426634e7929541eC2318f3dCF7e".to_lowercase();
-    let price = Price::AssetAmount(AssetAmount::new(usdc_address, "1000".to_string(), None));
+    let price = Price::AssetAmount(AssetAmount::new(&usdc_address, "1000", None));
 
     let scheme_server = SchemeServer::new_default();
     let resource_config = scheme_server.build_resource_config(
@@ -239,8 +239,8 @@ async fn test_coinbase_facilitator_integration_v2() {
         .register_scheme(scheme_server.network(), scheme_server)
         .register_resource(
             resource_config,
-            "/api/premium".to_string(),
-            Some("Test Resource".to_string()),
+            "/api/premium",
+            Some("Test Resource"),
             None,
         );
 

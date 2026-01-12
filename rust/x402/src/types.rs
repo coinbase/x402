@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use crate::errors::X402Result;
+use crate::schemes::evm::network_to_chain_id;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -25,6 +26,12 @@ pub struct PaymentRequirementsV2 {
     #[serde(skip_serializing_if="Option::is_none")]
     pub extra: Option<Value>,
     pub max_timeout_seconds: u64,
+}
+
+impl PaymentRequirementsV2 {
+    pub fn u64_network(&self) -> X402Result<u64> {
+        network_to_chain_id(self.network.as_str())
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -343,6 +350,12 @@ pub struct PaymentRequirementsV1 {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<Value>,
     pub extra: Option<Value>
+}
+
+impl PaymentRequirementsV1 {
+    pub fn u64_network(&self) -> X402Result<u64> {
+        network_to_chain_id(self.network.as_str())
+    }
 }
 
 

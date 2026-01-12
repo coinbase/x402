@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use alloy::sol_types::Eip712Domain;
 use alloy::signers::{Signature, Signer};
 use crate::types::PaymentRequirements;
-use crate::errors::X402Result;
+use crate::errors::{X402Error, X402Result};
 use alloy::sol;
 use rand::RngCore;
 use crate::types::PaymentRequirements::{V1, V2};
@@ -168,13 +168,13 @@ where
         V2(req) => {
             // Addresses
             let from: Address = wallet_address.parse()
-                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid from address: {e}")))?;
+                .map_err(|e| X402Error::Internal(format!("Invalid from address: {e}")))?;
             let to: Address = req.pay_to.parse()
-                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid to address: {e}")))?;
+                .map_err(|e| X402Error::Internal(format!("Invalid to address: {e}")))?;
 
             // Value (atomic units as decimal string)
             let value = U256::from_str(&req.amount)
-                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid amount: {e}")))?;
+                .map_err(|e| X402Error::Internal(format!("Invalid amount: {e}")))?;
 
             sign_transfer(
                 signer,
@@ -186,6 +186,25 @@ where
                 valid_for
             ).await
         }
+    }
+}
+
+/// Helper util to convert chains string literals to their u64 counterparts.
+pub fn network_to_chain_id(network: &str) -> X402Result<u64> {
+    // CAIP-2
+    if let Some(stripped) = network.strip_prefix("eip155:") {
+        let chain_id = stripped
+            .parse::<u64>()
+            .map_err(|e| X402Error::ConfigError(format!("invalid eip155 network '{}': {}", network, e)))?;
+        return Ok(chain_id);
+    }
+    // Legacy human-readable alias
+    match network {
+        "base-sepolia" => Ok(84532),
+        "base" => Ok(8453),
+        "avalanche-fuji" => Ok(43113),
+        "avalanche" => Ok(43114),
+        other => Err(X402Error::ConfigError(format!("unsupported network '{}', try using CAIP-2 naming convention", other))),
     }
 }
 
