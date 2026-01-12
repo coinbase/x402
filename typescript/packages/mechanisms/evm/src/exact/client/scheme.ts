@@ -33,19 +33,19 @@ export class ExactEvmScheme implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
-   * @param _context - Optional context for extension support (not yet implemented)
+   * @param context - Optional context for extension support
    * @returns Promise resolving to a payment payload result
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-    _context?: PaymentCreationContext,
+    context?: PaymentCreationContext,
   ): Promise<PaymentPayloadResult> {
     const assetTransferMethod =
       (paymentRequirements.extra?.assetTransferMethod as AssetTransferMethod) ?? "eip3009";
 
     if (assetTransferMethod === "permit2") {
-      return createPermit2Payload(this.signer, x402Version, paymentRequirements);
+      return createPermit2Payload(this.signer, x402Version, paymentRequirements, context);
     }
 
     return createEIP3009Payload(this.signer, x402Version, paymentRequirements);

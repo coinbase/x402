@@ -8,7 +8,7 @@ import {
 import { getAddress, Hex, isAddressEqual, parseErc6492Signature, parseSignature } from "viem";
 import { authorizationTypes, eip3009ABI } from "../../constants";
 import { FacilitatorEvmSigner } from "../../signer";
-import { ExactEvmPayloadV2 } from "../../types";
+import { ExactEIP3009Payload, ExactEvmPayloadV2, isEIP3009Payload } from "../../types";
 
 export interface ExactEvmSchemeConfig {
   /**
@@ -76,7 +76,21 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<VerifyResponse> {
-    const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload as ExactEvmPayloadV2;
+
+    // Currently only EIP-3009 payloads are supported by the facilitator
+    // Permit2 support will be added in a future release
+    if (!isEIP3009Payload(rawPayload)) {
+      const payer =
+        "permit2Authorization" in rawPayload ? rawPayload.permit2Authorization.from : "unknown";
+      return {
+        isValid: false,
+        invalidReason: "unsupported_payload_type",
+        payer,
+      };
+    }
+
+    const exactEvmPayload: ExactEIP3009Payload = rawPayload;
 
     // Verify scheme matches
     if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
@@ -268,7 +282,22 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     payload: PaymentPayload,
     requirements: PaymentRequirements,
   ): Promise<SettleResponse> {
-    const exactEvmPayload = payload.payload as ExactEvmPayloadV2;
+    const rawPayload = payload.payload as ExactEvmPayloadV2;
+
+    // Currently only EIP-3009 payloads are supported by the facilitator
+    if (!isEIP3009Payload(rawPayload)) {
+      const payer =
+        "permit2Authorization" in rawPayload ? rawPayload.permit2Authorization.from : "unknown";
+      return {
+        success: false,
+        network: payload.accepted.network,
+        transaction: "",
+        errorReason: "unsupported_payload_type",
+        payer,
+      };
+    }
+
+    const exactEvmPayload: ExactEIP3009Payload = rawPayload;
 
     // Re-verify before settling
     const valid = await this.verify(payload, requirements);
