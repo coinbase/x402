@@ -2,8 +2,7 @@
 """Advanced x402 client examples - main entry point.
 
 This module provides a CLI to run different advanced examples demonstrating
-various x402 client features including hooks, custom selectors, builder patterns,
-error recovery, and custom HTTP transports.
+various x402 client features including hooks, custom selectors, and builder patterns.
 
 Usage:
     python index.py [example_name]
@@ -12,8 +11,6 @@ Examples:
     python index.py hooks              # Payment lifecycle hooks
     python index.py preferred_network  # Custom network selection
     python index.py builder_pattern    # Network-specific registration
-    python index.py error_recovery     # Error classification and recovery
-    python index.py custom_transport   # Custom httpx transport
     python index.py all                # Run all examples
 """
 
@@ -32,8 +29,6 @@ EXAMPLES = {
     "hooks": "Payment lifecycle hooks - before, after, failure callbacks",
     "preferred_network": "Custom network preference selector",
     "builder_pattern": "Network-specific registration with builder pattern",
-    "error_recovery": "Error classification and recovery strategies",
-    "custom_transport": "Custom httpx transport with retry/timing",
 }
 
 
@@ -76,24 +71,10 @@ async def run_builder_pattern_example(private_key: str, url: str) -> None:
     await run_builder_pattern_example(private_key, url)
 
 
-async def run_error_recovery_example(private_key: str, url: str) -> None:
-    """Run the error recovery example."""
-    from error_recovery import run_error_recovery_example
-    await run_error_recovery_example(private_key, url)
-
-
-async def run_custom_transport_example(private_key: str, url: str) -> None:
-    """Run the custom transport example."""
-    from custom_transport import run_custom_transport_example
-    await run_custom_transport_example(private_key, url)
-
-
 EXAMPLE_RUNNERS = {
     "hooks": run_hooks_example,
     "preferred_network": run_preferred_network_example,
     "builder_pattern": run_builder_pattern_example,
-    "error_recovery": run_error_recovery_example,
-    "custom_transport": run_custom_transport_example,
 }
 
 
@@ -139,8 +120,6 @@ Available examples:
   hooks              Payment lifecycle hooks (before, after, failure)
   preferred_network  Custom network preference selector
   builder_pattern    Network-specific registration with builder pattern
-  error_recovery     Error classification and recovery strategies
-  custom_transport   Custom httpx transport with retry/timing
   all                Run all examples sequentially
 """,
     )
