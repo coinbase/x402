@@ -5,21 +5,49 @@ use crate::schemes::evm::sign_transfer_with_authorization;
 use crate::types::{AuthorizationV1, PayloadExactV1, PaymentPayload, PaymentPayloadV1, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header};
 use alloy::signers::Signer;
 
+/// A client for handling X402 payment-required HTTP requests.
+///
+/// It wraps a `reqwest::Client` and provides methods to automatically handle
+/// 402 Payment Required challenges by using a challenge handler or a signer.
 pub struct X402Client {
+    /// The underlying HTTP client.
     pub client: Client,
 }
 
 impl X402Client {
+    /// Creates a new `X402Client` with a default `reqwest::Client`.
     pub fn new() -> Self {
         Self {
             client: Client::new()
         }
     }
 
+    /// Creates a new `X402Client` using the provided `reqwest::Client`.
     pub fn with_client(client: Client) -> Self {
         Self { client }
     }
 
+    /// Executes an HTTP request and handles potential X402 challenges.
+    ///
+    /// If the server responds with 402 Payment Required, this method calls the
+    /// `challenge_handler` to solve the challenge and then retries the request.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use x402::client::X402Client;
+    /// # use x402::types::PaymentPayload;
+    /// # async fn doc() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = X402Client::new();
+    /// let res = client.execute(
+    ///     || client.client.get("https://api.example.com/premium"),
+    ///     |challenge| async move {
+    ///         // Solve the challenge and return PaymentPayload
+    ///         # todo!()
+    ///     }
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn execute<B, H, FutH> (
         &self,
         mut build_req: B,
@@ -54,9 +82,28 @@ impl X402Client {
         Ok(response)
     }
 
-    pub async fn execute_with_evm_exact_v2<B, S>(
+    /// Executes an HTTP request and handles EVM-based X402 challenges automatically.
+    ///
+    /// This is a convenience method that uses a `Signer` to solve challenges
+    /// for EVM-compatible networks. It supports both V1 and V2 protocol versions.
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use x402::client::X402Client;
+    /// # use alloy::signers::local::PrivateKeySigner;
+    /// # async fn doc() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = X402Client::new();
+    /// let signer = PrivateKeySigner::random();
+    /// let res = client.execute_with_evm_exact(
+    ///     || client.client.get("https://api.example.com/premium"),
+    ///     signer
+    /// ).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn execute_with_evm_exact<B, S>(
         &self,
-        mut build_req: B,
+        build_req: B,
         signer: S,
     ) -> X402Result<Response>
     where
@@ -73,6 +120,7 @@ impl X402Client {
     }
 }
 
+/// Helper function to build a `PaymentPayload` for EVM exact payment requirements.
 pub async fn evm_exact_build_payload<S>(
     signer: &S,
     challenge: &PaymentRequired,
