@@ -13,6 +13,8 @@ from x402.schemas import AssetAmount, Network
 from x402.server import x402ResourceServer
 from x402.extensions.bazaar import declare_discovery_extension, bazaar_resource_server_extension, OutputConfig
 
+from hooks import before_verify_hook, after_verify_hook, on_verify_failure_hook, before_settle_hook, after_settle_hook, on_settle_failure_hook
+
 load_dotenv()
 
 # Config
@@ -44,6 +46,7 @@ class WeatherReport(BaseModel):
     weather: str
     temperature: int
 
+
 class WeatherResponse(BaseModel):
     report: WeatherReport
 
@@ -62,6 +65,16 @@ server = x402ResourceServer(facilitator)
 server.register(EVM_NETWORK, ExactEvmServerScheme())
 server.register(SVM_NETWORK, ExactSvmServerScheme())
 
+# Register hooks
+server.on_before_verify(before_verify_hook)
+server.on_after_verify(after_verify_hook)
+server.on_verify_failure(on_verify_failure_hook)
+server.on_before_settle(before_settle_hook)
+server.on_after_settle(after_settle_hook)
+server.on_settle_failure(on_settle_failure_hook)
+
+
+# Register extensions
 server.register_extension(bazaar_resource_server_extension)
 
 routes = {
