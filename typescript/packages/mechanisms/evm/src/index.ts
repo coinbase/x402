@@ -10,10 +10,29 @@
 export { ExactEvmScheme } from "./exact";
 export { toClientEvmSigner, toFacilitatorEvmSigner } from "./signer";
 export type { ClientEvmSigner, FacilitatorEvmSigner } from "./signer";
+
+// Export types
+export type {
+  AssetTransferMethod,
+  ExactEIP3009Payload,
+  ExactPermit2Payload,
+  Permit2Authorization,
+  Permit2Witness,
+  EIP2612PermitParams,
+  ExactEvmPayloadV1,
+  ExactEvmPayloadV2,
+} from "./types";
+export { isPermit2Payload, isEIP3009Payload } from "./types";
+
+// Export constants
 export {
-  x402ExactPermit2ProxyAddress,
-  x402UptoPermit2ProxyAddress,
+  authorizationTypes,
+  permit2WitnessTypes,
+  eip2612PermitTypes,
+  eip3009ABI,
   x402ExactPermit2ProxyABI,
   x402UptoPermit2ProxyABI,
+  x402ExactPermit2ProxyAddress,
+  x402UptoPermit2ProxyAddress,
   PERMIT2_ADDRESS,
 } from "./constants";
