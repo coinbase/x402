@@ -67,7 +67,7 @@ where
     ///     || client.client.get("https://api.example.com/premium"),
     ///     |challenge| async move {
     ///         // Solve the challenge and return PaymentPayload
-    ///         # todo!()
+    ///         // See examples/buyers for reference
     ///     }
     /// ).await?;
     /// # Ok(())
