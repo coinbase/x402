@@ -3,6 +3,8 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
+import { x402Permit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
+import { ExactPermit2Payload } from "../../../src/types";
 
 describe("ExactEvmScheme (Facilitator)", () => {
   let facilitator: ExactEvmScheme;
@@ -305,6 +307,265 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       // Signature validation handles checksummed addresses
       expect(result).toBeDefined();
+    });
+  });
+
+  describe("Permit2 verification", () => {
+    const createPermit2Payload = (overrides?: Partial<ExactPermit2Payload>): ExactPermit2Payload => {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        signature: "0xmocksignature",
+        permit2Authorization: {
+          from: "0x1234567890123456789012345678901234567890",
+          permitted: {
+            token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            amount: "1000000",
+          },
+          spender: x402Permit2ProxyAddress,
+          nonce: "12345678901234567890",
+          deadline: String(now + 600),
+          witness: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+            validAfter: String(now - 600),
+            validBefore: String(now + 600),
+            extra: "0x",
+          },
+        },
+        ...overrides,
+      };
+    };
+
+    const createPermit2PaymentPayload = (
+      requirements: PaymentRequirements,
+      payloadOverrides?: Partial<ExactPermit2Payload>,
+    ): PaymentPayload => ({
+      x402Version: 2,
+      payload: createPermit2Payload(payloadOverrides),
+      accepted: requirements,
+      resource: { url: "", description: "", mimeType: "" },
+    });
+
+    it("should verify valid Permit2 payload", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(true);
+      expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
+    });
+
+    it("should call verifyTypedData with Permit2 domain", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      await facilitator.verify(fullPayload, requirements);
+
+      expect(mockFacilitatorSigner.verifyTypedData).toHaveBeenCalled();
+      const callArgs = (mockFacilitatorSigner.verifyTypedData as any).mock.calls[0][0];
+      expect(callArgs.domain.name).toBe("Permit2");
+      expect(callArgs.domain.verifyingContract).toBe(PERMIT2_ADDRESS);
+      expect(callArgs.domain.chainId).toBe(84532);
+    });
+
+    it("should reject if spender is not x402Permit2Proxy", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload = createPermit2Payload();
+      permit2Payload.permit2Authorization.spender = "0x0000000000000000000000000000000000000001";
+
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: permit2Payload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_spender");
+    });
+
+    it("should reject if witness.to doesn't match payTo", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload = createPermit2Payload();
+      permit2Payload.permit2Authorization.witness.to = "0x0000000000000000000000000000000000000001";
+
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: permit2Payload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_witness_recipient");
+    });
+
+    it("should reject if token doesn't match asset", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload = createPermit2Payload();
+      permit2Payload.permit2Authorization.permitted.token =
+        "0x0000000000000000000000000000000000000001";
+
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: permit2Payload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_token");
+    });
+
+    it("should reject if permitted amount is insufficient", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "2000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload = createPermit2Payload();
+      permit2Payload.permit2Authorization.permitted.amount = "1000000";
+
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: permit2Payload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_amount");
+    });
+
+    it("should reject if deadline has passed", async () => {
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const permit2Payload = createPermit2Payload();
+      permit2Payload.permit2Authorization.deadline = "0";
+
+      const fullPayload: PaymentPayload = {
+        x402Version: 2,
+        payload: permit2Payload,
+        accepted: requirements,
+        resource: { url: "", description: "", mimeType: "" },
+      };
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_deadline");
+    });
+
+    it("should reject if signature is invalid", async () => {
+      mockFacilitatorSigner.verifyTypedData = vi.fn().mockResolvedValue(false);
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("invalid_permit2_signature");
+    });
+
+    it("should reject if balance is insufficient", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(500000n);
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.verify(fullPayload, requirements);
+
+      expect(result.isValid).toBe(false);
+      expect(result.invalidReason).toBe("insufficient_funds");
     });
   });
 });
