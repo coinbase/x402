@@ -54,7 +54,3 @@ result = facilitator.verify(payload, requirements)
 
 See [x402.org](https://x402.org) for full documentation.
 
-## License
-
-MIT
-
