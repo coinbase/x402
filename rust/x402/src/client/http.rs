@@ -1,30 +1,55 @@
-use reqwest::{Client, RequestBuilder, Response, StatusCode};
+use alloy::signers::Signer;
+use http::StatusCode;
+use reqwest::{Client, RequestBuilder, Response};
 use serde_json::json;
+use crate::client::client::X402Client;
 use crate::errors::{X402Error, X402Result};
 use crate::schemes::evm::sign_transfer_with_authorization;
 use crate::types::{AuthorizationV1, PayloadExactV1, PaymentPayload, PaymentPayloadV1, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header};
-use alloy::signers::Signer;
 
 /// A client for handling X402 payment-required HTTP requests.
 ///
 /// It wraps a `reqwest::Client` and provides methods to automatically handle
 /// 402 Payment Required challenges by using a challenge handler or a signer.
-pub struct X402Client {
+pub struct X402HttpClient<C> {
     /// The underlying HTTP client.
     pub client: Client,
+    pub core: C,
 }
 
-impl X402Client {
+impl<C> X402HttpClient<C>
+where
+    C: X402Client,
+{
+    pub async fn create_payment_payload(
+        &self,
+        required: &PaymentRequired,
+    ) -> X402Result<PaymentPayload> {
+        self.core.create_payment_payload(required).await
+    }
+
+    // plus your execute(...) helper that:
+    // - detects 402
+    // - decodes PaymentRequired
+    // - calls self.core.create_payment_payload(...)
+    // - retries with PAYMENT-SIGNATURE header
+}
+
+impl<C> X402HttpClient<C>
+where
+    C: X402Client,
+{
     /// Creates a new `X402Client` with a default `reqwest::Client`.
-    pub fn new() -> Self {
+    pub fn new(core: C) -> Self {
         Self {
-            client: Client::new()
+            client: Client::new(),
+            core,
         }
     }
 
     /// Creates a new `X402Client` using the provided `reqwest::Client`.
-    pub fn with_client(client: Client) -> Self {
-        Self { client }
+    pub fn with_client(client: Client, core: C) -> Self {
+        Self { client, core }
     }
 
     /// Executes an HTTP request and handles potential X402 challenges.
