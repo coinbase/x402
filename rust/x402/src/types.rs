@@ -157,17 +157,17 @@ pub struct SettleResponse {
 /// Response listing supported payment methods.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SupportedResponse {
-    kinds: Vec<SupportedKind>,
+    pub kinds: Vec<SupportedKind>,
 }
 
 /// A specific supported payment kind.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupportedKind {
-    x402_version: u32,
-    scheme: String,
-    network: Network,
-    extra: Option<Value>,
+    pub x402_version: u32,
+    pub scheme: String,
+    pub network: Network,
+    pub extra: Option<Value>,
 }
 
 
