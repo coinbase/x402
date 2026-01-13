@@ -5,7 +5,7 @@
   "websiteUrl": "https://0xmeta.ai",
   "category": "Facilitators",
   "facilitator": {
-    "baseUrl": "https://0xmeta.ai",
+    "baseUrl": "https://facilitator.0xmeta.ai/v1",
     "networks": [
       "base",
       "base-sepolia"
