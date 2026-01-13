@@ -1,16 +1,17 @@
 from x402.server import (
-  VerifyContext,
-  VerifyResultContext,
-  VerifyFailureContext,
-  SettleContext,
-  SettleResultContext,
-  SettleFailureContext,
-  AbortResult,
-  RecoveredVerifyResult,
-  RecoveredSettleResult,
-  SettleResponse,
-  VerifyResponse,
+    AbortResult,
+    RecoveredSettleResult,
+    RecoveredVerifyResult,
+    SettleContext,
+    SettleFailureContext,
+    SettleResponse,
+    SettleResultContext,
+    VerifyContext,
+    VerifyFailureContext,
+    VerifyResponse,
+    VerifyResultContext,
 )
+
 
 def before_verify_hook(context: VerifyContext) -> None | AbortResult:
     """
@@ -44,7 +45,7 @@ def on_verify_failure_hook(context: VerifyFailureContext) -> None | RecoveredVer
     """
     On verify failure hook is called when verification fails
 
-    Args: 
+    Args:
         context: VerifyFailureContext
 
     Returns:

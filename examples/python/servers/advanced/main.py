@@ -4,16 +4,26 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from hooks import (
+    after_settle_hook,
+    after_verify_hook,
+    before_settle_hook,
+    before_verify_hook,
+    on_settle_failure_hook,
+    on_verify_failure_hook,
+)
+from x402.extensions.bazaar import (
+    OutputConfig,
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+)
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
-from x402.http.types import RouteConfig, HTTPRequestContext
+from x402.http.types import HTTPRequestContext, RouteConfig
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
 from x402.schemas import AssetAmount, Network
 from x402.server import x402ResourceServer
-from x402.extensions.bazaar import declare_discovery_extension, bazaar_resource_server_extension, OutputConfig
-
-from hooks import before_verify_hook, after_verify_hook, on_verify_failure_hook, before_settle_hook, after_settle_hook, on_settle_failure_hook
 
 load_dotenv()
 
@@ -268,7 +278,7 @@ async def get_weather(city: str) -> WeatherResponse:
         WeatherResponse
     """
     weather_report = WeatherReport(
-        weather=WEATHER_DATA[city]["weather"], 
+        weather=WEATHER_DATA[city]["weather"],
         temperature=WEATHER_DATA[city]["temperature"])
 
     return WeatherResponse(report=weather_report)
