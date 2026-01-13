@@ -9,7 +9,7 @@ from x402.http.middleware.fastapi import PaymentMiddlewareASGI
 from x402.http.types import RouteConfig, HTTPRequestContext
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
-from x402.schemas import Network
+from x402.schemas import AssetAmount, Network
 from x402.server import x402ResourceServer
 from x402.extensions.bazaar import declare_discovery_extension, bazaar_resource_server_extension, OutputConfig
 
@@ -39,6 +39,57 @@ WEATHER_DATA = {
         "temperature": 55,
     },
 }
+
+# Address lookup for dynamic pay-to
+ADDRESS_LOOKUP: dict[str, str] = {
+    "US": EVM_ADDRESS,
+    "UK": EVM_ADDRESS,
+    "CA": EVM_ADDRESS,
+    "AU": EVM_ADDRESS,
+    "NZ": EVM_ADDRESS,
+    "IE": EVM_ADDRESS,
+    "FR": EVM_ADDRESS,
+}
+
+
+# Dynamic pay-to function
+def get_dynamic_pay_to(context: HTTPRequestContext) -> str:
+    """
+    Get dynamic pay-to address based on country
+
+    Args:
+        context: HTTPRequestContext containing adapter and request info
+
+    Returns:
+        Pay-to address string
+    """
+    country = context.adapter.get_query_param("country") or "US"
+    return ADDRESS_LOOKUP.get(country, EVM_ADDRESS)
+
+
+# Custom money parser for alternative tokens
+def custom_money_parser(amount: float, network: str) -> AssetAmount | None:
+    """
+    Custom money parser for Gnosis Chain (xDai) using Wrapped XDAI.
+
+    NOTE: Wrapped XDAI is not an EIP-3009 compliant token, and would fail
+    the current ExactEvm implementation. This example is for demonstration purposes.
+
+    Args:
+        amount: Decimal amount (e.g., 1.50 for $1.50)
+        network: Network identifier
+
+    Returns:
+        AssetAmount if network matches, None otherwise
+    """
+    if network == "eip155:100":  # Gnosis Chain
+        return AssetAmount(
+            amount=str(int(amount * 1e18)),
+            asset="0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",  # WXDAI
+            extra={"token": "Wrapped XDAI"},
+        )
+    return None
+
 
 # Dynamic price function
 def get_dynamic_price(context: HTTPRequestContext) -> str:
@@ -75,7 +126,11 @@ app = FastAPI()
 # x402 Middleware
 facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
 server = x402ResourceServer(facilitator)
-server.register(EVM_NETWORK, ExactEvmServerScheme())
+
+# Register EVM scheme with custom money parser
+evm_scheme = ExactEvmServerScheme()
+evm_scheme.register_money_parser(custom_money_parser)
+server.register(EVM_NETWORK, evm_scheme)
 server.register(SVM_NETWORK, ExactSvmServerScheme())
 
 # Register hooks
@@ -151,7 +206,7 @@ routes = {
             ),
         ],
         mime_type="application/json",
-        description="Weather report",
+        description="Weather report with dynamic pricing",
         extensions={
             **declare_discovery_extension(
                 input = {
@@ -178,7 +233,20 @@ routes = {
                 )
             )
         },
-    )
+    ),
+    # Dynamic pay-to: route payments to different addresses based on country
+    "GET /weather-pay-to": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to=lambda context: get_dynamic_pay_to(context),
+                price="$0.001",
+                network=EVM_NETWORK,
+            ),
+        ],
+        mime_type="application/json",
+        description="Weather report with dynamic pay-to address",
+    ),
 }
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 
@@ -207,13 +275,13 @@ async def get_weather(city: str) -> WeatherResponse:
 
 
 @app.get("/weather-dynamic")
-async def get_weather_dynamic(city: str, tier: str) -> WeatherResponse:
+async def get_weather_dynamic(city: str, tier: str = "standard") -> WeatherResponse:
     """
     Get weather report for a given city and tier, the price is dynamic based on the tier
 
     Args:
         city: City name
-        tier: Tier name
+        tier: Tier name (standard or premium)
 
     Returns:
         WeatherResponse
@@ -226,6 +294,29 @@ async def get_weather_dynamic(city: str, tier: str) -> WeatherResponse:
         )
     )
 
+
+@app.get("/weather-pay-to")
+async def get_weather_pay_to(city: str, country: str = "US") -> WeatherResponse:
+    """
+    Get weather report with dynamic pay-to address based on country.
+
+    The pay-to address is dynamically determined based on the country parameter,
+    allowing payments to be routed to different addresses.
+
+    Args:
+        city: City name
+        country: Country code (US, UK, CA, AU, NZ, IE, FR)
+
+    Returns:
+        WeatherResponse
+    """
+    weather_data = WEATHER_DATA.get(city, {"weather": "sunny", "temperature": 70})
+    return WeatherResponse(
+        report=WeatherReport(
+            weather=weather_data["weather"],
+            temperature=weather_data["temperature"]
+        )
+    )
 
 
 if __name__ == "__main__":
