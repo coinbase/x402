@@ -1,37 +1,40 @@
-
+use std::sync::Arc;
 use alloy::signers::local::PrivateKeySigner;
+use axum::response::IntoResponse;
+use axum::Router;
+use axum::routing::{get, post};
+use http::{Request, StatusCode};
+use reqwest::Client;
+use serde_json::{json, Value};
 use tokio::task;
 use x402::client::evm::exact::EvmExactClient;
 use x402::client::X402Client;
 
 mod common;
-use common::build_test_app; // your helper that returns axum::Router
+use common::build_test_app;
+use x402::client::http::X402HttpClient;
+use x402::errors::X402Error;
+use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
+use x402::server::SchemeServer;
+use x402::types::{AssetAmount, PaymentPayload, PaymentPayloadV2, PaymentRequired, PaymentRequirements, Price, Resource, ResourceV2, X402Header};
+use crate::common::{build_and_serve_test_app, MockFacilitator};
+// your helper that returns axum::Router
 
 #[tokio::test]
 async fn test_x402_client_against_axum_server_happy_path() {
-    // 1. Build the Axum app.
-    let app = build_test_app();
+    // Build and serve app
+    let addr = build_and_serve_test_app().await;
 
-    // 2. Bind to an ephemeral port on localhost.
-    let std_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = std_listener.local_addr().unwrap();
-    let listener = tokio::net::TcpListener::from(std_listener);
-
-    // 3. Spawn the server in the background.
-    task::spawn(async move {
-        axum::serve(listener, app).await.expect("axum::serve failed");
-    });
-
-    // 4. Create a test signer.
+    // Create a test signer.
     let signer = PrivateKeySigner::random();
 
-    // 5. Build the EVM/x402 clients
+    // Build the EVM/x402 clients
     let evm_client = EvmExactClient::new(signer.clone());
     let x402_client = X402Client::new(evm_client);
 
     let url = format!("http://{}/api/premium", addr);
 
-    // 6. Use the *real* high-level client API to exercise the whole flow:
+    //  Use the *real* high-level client API to exercise the whole flow:
     //    - initial request
     //    - 402 + PAYMENT-REQUIRED
     //    - sign & build PAYMENT-SIGNATURE
@@ -49,4 +52,80 @@ async fn test_x402_client_against_axum_server_happy_path() {
     dbg!(&status, &text);
 
     assert!(status.is_success());
+}
+
+#[tokio::test]
+async fn test_single_call_against_server_returns_402_response() {
+    let addr = build_and_serve_test_app().await;
+
+    let url = format!("http://{}/api/premium", addr);
+    let client = Client::new();
+    let request = client.post(url);
+
+    let response = request.send().await.unwrap();
+    assert_eq!(response.status(), 402);
+}
+
+#[tokio::test]
+async fn test_invalid_payment_signature_malformed() {
+    let addr = build_and_serve_test_app().await;
+    let client = Client::new();
+    let bad_signature_header = "not-base64-or-json";
+
+    let res = client
+        .post(format!("{addr}/api/premium"))
+        .header("PAYMENT-SIGNATURE", bad_signature_header)
+        .send()
+        .await
+        .expect("second request failed");
+
+    let err_reason = res.text().await.expect("failed to read response text");
+    assert!(
+        err_reason.contains("Invalid payment header format"),
+        "Expected error message to contain 'Invalid payment header format', but got: {err_reason}"
+    );
+}
+
+#[tokio::test]
+async fn test_invalid_payment_signature_bad_payload() {
+    let addr = build_and_serve_test_app().await;
+    let client = Client::new();
+    let call_for_info =  client
+        .post(format!("{addr}/api/premium"))
+        .send()
+        .await
+        .expect("request failed");
+
+    let status = call_for_info.status();
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
+    let req_header = call_for_info.headers().get("PAYMENT-REQUIRED").unwrap().to_str().unwrap();
+    let info = PaymentRequired::from_header(req_header).unwrap();
+
+    let accepted: PaymentRequirements = info
+        .accepts
+        .first()
+        .cloned()
+        .expect("expected at least one accepted requirement");
+
+    let bad_payload: PaymentPayloadV2 = PaymentPayloadV2 {
+        x402_version: info.x402_version,
+        resource: info.resource.clone(),
+        accepted,
+        payload: json!({ "this": "is-not-a-valid-payload" }),
+        extensions: None,
+    };
+
+    let wrapped_payload_header = PaymentPayload::V2(bad_payload);
+    let payload_header = wrapped_payload_header.to_header().unwrap();
+
+    let res = client
+        .post(format!("{addr}/api/premium"))
+        .header("PAYMENT-SIGNATURE", payload_header)
+        .send()
+        .await
+        .expect("second request failed");
+
+    assert_eq!(res.status(), 400);
+    let res_text = res.text().await.expect("failed to read response body");
+    assert!(res_text.contains("missing or invalid signature"));
 }
