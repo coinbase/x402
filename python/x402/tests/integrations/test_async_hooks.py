@@ -89,10 +89,10 @@ class TestAsyncHooks:
         assert payment_required.accepts[0].amount == "5.00"
 
     def test_hook_timeout_handling(self):
-        """Test that slow hooks are timed out properly."""
+        """Test that slow hooks are timed out properly when timeout is configured."""
 
         async def infinite_loop_hook(context):
-            await asyncio.sleep(10)  # Longer than 5s default timeout
+            await asyncio.sleep(10)  # Longer than configured timeout
             return "$1.00"
 
         routes = {
@@ -103,6 +103,7 @@ class TestAsyncHooks:
                     "payTo": "m@e.com",
                     "price": infinite_loop_hook,
                 },
+                "hook_timeout_seconds": 0.5,  # Explicit timeout (opt-in)
             }
         }
         http_server = x402HTTPResourceServer(self.resource_server, routes)

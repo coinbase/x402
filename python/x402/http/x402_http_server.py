@@ -174,7 +174,7 @@ class _x402HTTPServerBase:
                 "unpaidResponseBody", config.get("unpaid_response_body")
             ),
             extensions=config.get("extensions"),
-            hook_timeout_seconds=config.get("hook_timeout_seconds", 5.0),
+            hook_timeout_seconds=config.get("hook_timeout_seconds"),
         )
 
     # =========================================================================
@@ -770,7 +770,7 @@ class x402HTTPResourceServer(_x402HTTPServerBase):
         self,
         options: PaymentOption | list[PaymentOption],
         context: HTTPRequestContext,
-        timeout: float,
+        timeout: float | None,
     ) -> list[PaymentRequirements]:
         """Build payment requirements from payment options.
 
@@ -811,7 +811,7 @@ class x402HTTPResourceServer(_x402HTTPServerBase):
         self,
         value: Any,
         context: HTTPRequestContext,
-        timeout: float,
+        timeout: float | None,
         field_name: str = "value",
     ) -> Any:
         """Resolve a value that could be a static value or an async/sync hook."""

@@ -133,14 +133,10 @@ class PaywallConfig:
     testnet: bool = False
 
 
-# Dynamic function types for async server (supports both sync and async callbacks)
+# Dynamic function types (supports both sync and async callbacks)
 # Keep Awaitable support for Price and PayTo to achieve parity with TS
 DynamicPayTo = Callable[[HTTPRequestContext], "str | Awaitable[str]"]
 DynamicPrice = Callable[[HTTPRequestContext], "Price | Awaitable[Price]"]
-
-# Dynamic function types for sync server (sync callbacks only)
-SyncDynamicPayTo = Callable[[HTTPRequestContext], str]
-SyncDynamicPrice = Callable[[HTTPRequestContext], "Price"]
 
 
 @dataclass
@@ -177,7 +173,7 @@ class RouteConfig:
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None
     extensions: dict[str, Any] | None = None
-    hook_timeout_seconds: float = 5.0
+    hook_timeout_seconds: float | None = None
 
 
 RoutesConfig = dict[str, RouteConfig] | RouteConfig
