@@ -174,6 +174,7 @@ routes = {
         mime_type="application/json",
         description="Weather report",
         extensions={
+            # add a bazaar discovery extension.
             **declare_discovery_extension(
                 input = {
                     "city": "San Francisco",
@@ -218,6 +219,7 @@ routes = {
         mime_type="application/json",
         description="Weather report with dynamic pricing",
         extensions={
+            # add a bazaar discovery extension.
             **declare_discovery_extension(
                 input = {
                     "city": "San Francisco",
