@@ -10,19 +10,14 @@ These must be funded accounts on Base Sepolia with USDC.
 """
 
 import os
-from typing import Any
 
 import pytest
 from eth_account import Account
-from eth_account.messages import encode_typed_data
 from web3 import Web3
-from web3.middleware import ExtraDataToPOAMiddleware
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
 from x402.mechanisms.evm import (
     SCHEME_EXACT,
-    TX_STATUS_SUCCESS,
-    TransactionReceipt,
     TypedDataDomain,
     TypedDataField,
 )
@@ -32,6 +27,7 @@ from x402.mechanisms.evm.exact import (
     ExactEvmSchemeConfig,
     ExactEvmServerScheme,
 )
+from x402.mechanisms.evm.signers import EthAccountSigner, FacilitatorWeb3Signer
 from x402.schemas import (
     PaymentPayload,
     PaymentRequirements,
@@ -102,333 +98,6 @@ ERC20_ABI = [
         "type": "function",
     },
 ]
-
-EIP1271_ABI = [
-    {
-        "inputs": [
-            {"name": "_hash", "type": "bytes32"},
-            {"name": "_signature", "type": "bytes"},
-        ],
-        "name": "isValidSignature",
-        "outputs": [{"name": "", "type": "bytes4"}],
-        "stateMutability": "view",
-        "type": "function",
-    },
-]
-
-
-# =============================================================================
-# Real Blockchain Signers
-# =============================================================================
-
-
-class RealClientEvmSigner:
-    """Real client signer using eth_account for signing EIP-712 typed data."""
-
-    def __init__(self, private_key: str):
-        """Create signer from private key.
-
-        Args:
-            private_key: Hex private key with or without 0x prefix.
-        """
-        if not private_key.startswith("0x"):
-            private_key = "0x" + private_key
-        self._account = Account.from_key(private_key)
-
-    @property
-    def address(self) -> str:
-        """Get checksummed address."""
-        return self._account.address
-
-    def sign_typed_data(
-        self,
-        domain: TypedDataDomain,
-        types: dict[str, list[TypedDataField]],
-        primary_type: str,
-        message: dict[str, Any],
-    ) -> bytes:
-        """Sign EIP-712 typed data.
-
-        Args:
-            domain: EIP-712 domain.
-            types: Type definitions.
-            primary_type: Primary type name.
-            message: Message data.
-
-        Returns:
-            65-byte signature.
-        """
-        # Build EIP-712 types
-        eip712_types = {}
-        for type_name, fields in types.items():
-            eip712_types[type_name] = [{"name": f.name, "type": f.type} for f in fields]
-
-        # Handle bytes32 nonce - convert to hex string for eth_account
-        msg_copy = message.copy()
-        if "nonce" in msg_copy and isinstance(msg_copy["nonce"], bytes):
-            msg_copy["nonce"] = "0x" + msg_copy["nonce"].hex()
-
-        domain_dict = {
-            "name": domain.name,
-            "version": domain.version,
-            "chainId": domain.chain_id,
-            "verifyingContract": domain.verifying_contract,
-        }
-
-        signed = self._account.sign_typed_data(
-            domain_data=domain_dict,
-            message_types=eip712_types,
-            message_data=msg_copy,
-        )
-
-        return signed.signature
-
-
-class RealFacilitatorEvmSigner:
-    """Real facilitator signer using web3.py for blockchain interactions."""
-
-    def __init__(self, private_key: str, rpc_url: str = RPC_URL):
-        """Create signer from private key.
-
-        Args:
-            private_key: Hex private key with or without 0x prefix.
-            rpc_url: Ethereum RPC URL.
-        """
-        if not private_key.startswith("0x"):
-            private_key = "0x" + private_key
-        self._account = Account.from_key(private_key)
-        self._w3 = Web3(Web3.HTTPProvider(rpc_url))
-        # Add PoA middleware for testnets
-        self._w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-
-    def get_addresses(self) -> list[str]:
-        """Get facilitator addresses."""
-        return [self._account.address]
-
-    def read_contract(
-        self,
-        address: str,
-        abi: list[dict[str, Any]],
-        function_name: str,
-        *args: Any,
-    ) -> Any:
-        """Read from a smart contract.
-
-        Args:
-            address: Contract address.
-            abi: Contract ABI.
-            function_name: Function to call.
-            *args: Function arguments.
-
-        Returns:
-            Function return value.
-        """
-        contract = self._w3.eth.contract(
-            address=Web3.to_checksum_address(address),
-            abi=abi,
-        )
-        func = getattr(contract.functions, function_name)
-        return func(*args).call()
-
-    def verify_typed_data(
-        self,
-        address: str,
-        domain: TypedDataDomain,
-        types: dict[str, list[TypedDataField]],
-        primary_type: str,
-        message: dict[str, Any],
-        signature: bytes,
-    ) -> bool:
-        """Verify an EIP-712 signature.
-
-        For EOAs, recovers the address from the signature.
-        For smart contracts, calls isValidSignature (EIP-1271).
-
-        Args:
-            address: Expected signer address.
-            domain: EIP-712 domain.
-            types: Type definitions.
-            primary_type: Primary type name.
-            message: Message data.
-            signature: Signature bytes.
-
-        Returns:
-            True if signature is valid.
-        """
-        # Build full types including EIP712Domain
-        full_types = {
-            "EIP712Domain": [
-                {"name": "name", "type": "string"},
-                {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
-                {"name": "verifyingContract", "type": "address"},
-            ]
-        }
-        for type_name, fields in types.items():
-            full_types[type_name] = [{"name": f.name, "type": f.type} for f in fields]
-
-        # Handle bytes32 nonce
-        msg_copy = message.copy()
-        if "nonce" in msg_copy and isinstance(msg_copy["nonce"], bytes):
-            msg_copy["nonce"] = "0x" + msg_copy["nonce"].hex()
-
-        try:
-            typed_data = {
-                "types": full_types,
-                "primaryType": primary_type,
-                "domain": {
-                    "name": domain.name,
-                    "version": domain.version,
-                    "chainId": domain.chain_id,
-                    "verifyingContract": domain.verifying_contract,
-                },
-                "message": msg_copy,
-            }
-            recovered = Account.recover_message(
-                encode_typed_data(full_message=typed_data),
-                signature=signature,
-            )
-
-            if recovered.lower() == address.lower():
-                return True
-
-            # If EOA verification failed, try EIP-1271 for smart contract wallets
-            code = self._w3.eth.get_code(Web3.to_checksum_address(address))
-            if len(code) > 0:
-                # It's a contract, try EIP-1271
-                from eth_account._utils.typed_data import hash_typed_data
-
-                struct_hash = hash_typed_data(typed_data)
-                contract = self._w3.eth.contract(
-                    address=Web3.to_checksum_address(address),
-                    abi=EIP1271_ABI,
-                )
-                try:
-                    result = contract.functions.isValidSignature(
-                        struct_hash,
-                        signature,
-                    ).call()
-                    return result == b"\x16\x26\xba\x7e"  # EIP-1271 magic value
-                except Exception:
-                    return False
-
-            return False
-        except Exception as e:
-            print(f"Signature verification error: {e}")
-            return False
-
-    def write_contract(
-        self,
-        address: str,
-        abi: list[dict[str, Any]],
-        function_name: str,
-        *args: Any,
-    ) -> str:
-        """Write to a smart contract.
-
-        Args:
-            address: Contract address.
-            abi: Contract ABI.
-            function_name: Function to call.
-            *args: Function arguments.
-
-        Returns:
-            Transaction hash.
-        """
-        contract = self._w3.eth.contract(
-            address=Web3.to_checksum_address(address),
-            abi=abi,
-        )
-        func = getattr(contract.functions, function_name)
-
-        # Build transaction
-        tx = func(*args).build_transaction(
-            {
-                "from": self._account.address,
-                "nonce": self._w3.eth.get_transaction_count(self._account.address),
-                "gas": 200000,
-                "gasPrice": self._w3.eth.gas_price,
-            }
-        )
-
-        # Sign and send
-        signed_tx = self._account.sign_transaction(tx)
-        tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-        return tx_hash.hex()
-
-    def send_transaction(self, to: str, data: bytes) -> str:
-        """Send a raw transaction.
-
-        Args:
-            to: Recipient address.
-            data: Transaction data.
-
-        Returns:
-            Transaction hash.
-        """
-        tx = {
-            "from": self._account.address,
-            "to": Web3.to_checksum_address(to),
-            "data": data,
-            "nonce": self._w3.eth.get_transaction_count(self._account.address),
-            "gas": 200000,
-            "gasPrice": self._w3.eth.gas_price,
-        }
-
-        signed_tx = self._account.sign_transaction(tx)
-        tx_hash = self._w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-
-        return tx_hash.hex()
-
-    def wait_for_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
-        """Wait for a transaction receipt.
-
-        Args:
-            tx_hash: Transaction hash.
-
-        Returns:
-            Transaction receipt.
-        """
-        if not tx_hash.startswith("0x"):
-            tx_hash = "0x" + tx_hash
-        receipt = self._w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
-        return TransactionReceipt(
-            status=TX_STATUS_SUCCESS if receipt["status"] == 1 else 0,
-            block_number=receipt["blockNumber"],
-            tx_hash=tx_hash,
-        )
-
-    def get_balance(self, address: str, token_address: str) -> int:
-        """Get ERC20 token balance.
-
-        Args:
-            address: Account address.
-            token_address: Token contract address.
-
-        Returns:
-            Token balance.
-        """
-        contract = self._w3.eth.contract(
-            address=Web3.to_checksum_address(token_address),
-            abi=ERC20_ABI,
-        )
-        return contract.functions.balanceOf(Web3.to_checksum_address(address)).call()
-
-    def get_chain_id(self) -> int:
-        """Get chain ID."""
-        return self._w3.eth.chain_id
-
-    def get_code(self, address: str) -> bytes:
-        """Get contract code at address.
-
-        Args:
-            address: Contract address.
-
-        Returns:
-            Contract bytecode (empty for EOA).
-        """
-        return self._w3.eth.get_code(Web3.to_checksum_address(address))
 
 
 # =============================================================================
@@ -515,21 +184,26 @@ class TestEvmIntegrationV2:
     """Integration tests for EVM V2 payment flow with REAL blockchain transactions."""
 
     def setup_method(self) -> None:
-        """Set up test fixtures with real blockchain clients."""
-        # Create real signers
-        self.client_signer = RealClientEvmSigner(CLIENT_PRIVATE_KEY)
-        self.facilitator_signer = RealFacilitatorEvmSigner(FACILITATOR_PRIVATE_KEY)
+        """Set up test fixtures with real blockchain clients using library signers."""
+        # Create signers using the library implementations
+        client_account = Account.from_key(CLIENT_PRIVATE_KEY)
+        self.client_signer = EthAccountSigner(client_account)
+        self.facilitator_signer = FacilitatorWeb3Signer(
+            private_key=FACILITATOR_PRIVATE_KEY,
+            rpc_url=RPC_URL,
+        )
 
-        # Store client address for assertions
+        # Store addresses for assertions
         self.client_address = self.client_signer.address
+        self.facilitator_address = self.facilitator_signer.address
 
-        # Create client with EVM scheme
+        # Create client with EVM scheme using EthAccountSigner
         self.client = x402Client().register(
             "eip155:84532",
             ExactEvmClientScheme(self.client_signer),
         )
 
-        # Create facilitator with EVM scheme
+        # Create facilitator with EVM scheme using FacilitatorWeb3Signer
         self.facilitator = x402Facilitator().register(
             ["eip155:84532"],
             ExactEvmFacilitatorScheme(
@@ -560,7 +234,7 @@ class TestEvmIntegrationV2:
         WARNING: This will spend real testnet USDC!
         """
         # Use facilitator address as recipient for testing
-        recipient = self.facilitator_signer.get_addresses()[0]
+        recipient = self.facilitator_address
 
         # Server - builds PaymentRequired response
         accepts = [
@@ -678,7 +352,7 @@ class TestEvmIntegrationV2:
         """Test that insufficient amount fails verification."""
         accepts = [
             build_evm_payment_requirements(
-                self.facilitator_signer.get_addresses()[0],
+                self.facilitator_address,
                 "1000",  # Client pays 1000
             )
         ]
@@ -688,7 +362,7 @@ class TestEvmIntegrationV2:
         # Try to verify against higher amount
         higher_accepts = [
             build_evm_payment_requirements(
-                self.facilitator_signer.get_addresses()[0],
+                self.facilitator_address,
                 "2000",  # Require 2000
             )
         ]
@@ -722,7 +396,10 @@ class TestEvmPriceParsing:
 
     def setup_method(self) -> None:
         """Set up test fixtures."""
-        self.facilitator_signer = RealFacilitatorEvmSigner(FACILITATOR_PRIVATE_KEY)
+        self.facilitator_signer = FacilitatorWeb3Signer(
+            private_key=FACILITATOR_PRIVATE_KEY,
+            rpc_url=RPC_URL,
+        )
         self.facilitator = x402Facilitator().register(
             ["eip155:84532"],
             ExactEvmFacilitatorScheme(self.facilitator_signer),
@@ -817,3 +494,178 @@ class TestEvmPriceParsing:
         small_req = self.server.build_payment_requirements(config2)
 
         assert small_req[0].asset == USDC_ADDRESS
+
+
+class TestEvmSignersIntegration:
+    """Integration tests for specific EthAccountSigner and FacilitatorWeb3Signer methods.
+
+    These tests verify the signer interface methods work correctly.
+    The full payment flow is already tested in TestEvmIntegrationV2.
+    """
+
+    def setup_method(self) -> None:
+        """Set up test fixtures with library signers."""
+        # Create signers using the library implementations
+        client_account = Account.from_key(CLIENT_PRIVATE_KEY)
+        self.client_signer = EthAccountSigner(client_account)
+        self.facilitator_signer = FacilitatorWeb3Signer(
+            private_key=FACILITATOR_PRIVATE_KEY,
+            rpc_url=RPC_URL,
+        )
+
+        # Store addresses for assertions
+        self.client_address = self.client_signer.address
+        self.facilitator_address = self.facilitator_signer.address
+
+    def test_eth_account_signer_address(self) -> None:
+        """Test that EthAccountSigner returns correct address."""
+        account = Account.from_key(CLIENT_PRIVATE_KEY)
+        expected_address = account.address
+
+        assert self.client_signer.address == expected_address
+        assert self.client_signer.address.startswith("0x")
+
+    def test_facilitator_web3_signer_address(self) -> None:
+        """Test that FacilitatorWeb3Signer returns correct address."""
+        account = Account.from_key(FACILITATOR_PRIVATE_KEY)
+        expected_address = account.address
+
+        assert self.facilitator_signer.address == expected_address
+        assert self.facilitator_address.startswith("0x")
+
+    def test_facilitator_web3_signer_get_addresses(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_addresses returns correct list."""
+        addresses = self.facilitator_signer.get_addresses()
+
+        assert len(addresses) == 1
+        assert addresses[0] == self.facilitator_address
+
+    def test_facilitator_web3_signer_get_chain_id(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_chain_id returns correct chain."""
+        chain_id = self.facilitator_signer.get_chain_id()
+
+        # Base Sepolia chain ID
+        assert chain_id == 84532
+
+    def test_facilitator_web3_signer_get_balance(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_balance works for ERC20 tokens."""
+        balance = self.facilitator_signer.get_balance(
+            self.facilitator_address,
+            USDC_ADDRESS,
+        )
+
+        # Should return an integer (balance might be 0 or more)
+        assert isinstance(balance, int)
+        assert balance >= 0
+
+    def test_facilitator_web3_signer_get_native_balance(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_balance works for native token."""
+        balance = self.facilitator_signer.get_balance(
+            self.facilitator_address,
+            "0x0000000000000000000000000000000000000000",
+        )
+
+        # Should return an integer
+        assert isinstance(balance, int)
+        assert balance >= 0
+
+    def test_facilitator_web3_signer_get_code_eoa(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_code returns empty for EOA."""
+        code = self.facilitator_signer.get_code(self.facilitator_address)
+
+        # EOA should have no code
+        assert code == b""
+
+    def test_facilitator_web3_signer_get_code_contract(self) -> None:
+        """Test that FacilitatorWeb3Signer.get_code returns bytecode for contract."""
+        code = self.facilitator_signer.get_code(USDC_ADDRESS)
+
+        # USDC contract should have code
+        assert len(code) > 0
+
+    def test_facilitator_web3_signer_read_contract(self) -> None:
+        """Test that FacilitatorWeb3Signer.read_contract works."""
+        balance = self.facilitator_signer.read_contract(
+            USDC_ADDRESS,
+            ERC20_ABI,
+            "balanceOf",
+            Web3.to_checksum_address(self.facilitator_address),
+        )
+
+        assert isinstance(balance, int)
+        assert balance >= 0
+
+    def test_eth_account_signer_sign_typed_data(self) -> None:
+        """Test that EthAccountSigner.sign_typed_data produces valid signatures."""
+
+        # Create a simple typed data message
+        domain = TypedDataDomain(
+            name="Test",
+            version="1",
+            chain_id=84532,
+            verifying_contract="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        )
+        types = {
+            "Message": [
+                TypedDataField(name="content", type="string"),
+            ]
+        }
+        message = {"content": "Hello, world!"}
+
+        # Sign the message
+        signature = self.client_signer.sign_typed_data(
+            domain=domain,
+            types=types,
+            primary_type="Message",
+            message=message,
+        )
+
+        # Verify signature format
+        assert isinstance(signature, bytes)
+        assert len(signature) == 65  # r (32) + s (32) + v (1)
+
+        # Verify with FacilitatorWeb3Signer
+        is_valid = self.facilitator_signer.verify_typed_data(
+            address=self.client_address,
+            domain=domain,
+            types=types,
+            primary_type="Message",
+            message=message,
+            signature=signature,
+        )
+        assert is_valid is True
+
+    def test_facilitator_web3_signer_verify_typed_data_invalid_signer(self) -> None:
+        """Test that verify_typed_data returns False for wrong signer."""
+
+        domain = TypedDataDomain(
+            name="Test",
+            version="1",
+            chain_id=84532,
+            verifying_contract="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        )
+        types = {
+            "Message": [
+                TypedDataField(name="content", type="string"),
+            ]
+        }
+        message = {"content": "Hello, world!"}
+
+        # Sign with client
+        signature = self.client_signer.sign_typed_data(
+            domain=domain,
+            types=types,
+            primary_type="Message",
+            message=message,
+        )
+
+        # Verify against wrong address should fail
+        is_valid = self.facilitator_signer.verify_typed_data(
+            address=self.facilitator_address,  # Wrong address!
+            domain=domain,
+            types=types,
+            primary_type="Message",
+            message=message,
+            signature=signature,
+        )
+        assert is_valid is False

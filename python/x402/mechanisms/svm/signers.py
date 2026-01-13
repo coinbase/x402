@@ -6,6 +6,7 @@ import time
 try:
     from solana.rpc.api import Client as SolanaClient
     from solana.rpc.commitment import Confirmed
+    from solana.rpc.types import TxOpts
     from solders.keypair import Keypair
     from solders.signature import Signature
     from solders.transaction import VersionedTransaction
@@ -240,12 +241,13 @@ class FacilitatorKeypairSigner:
         """
         client = self._get_client(network)
 
-        # Decode transaction
+        # Decode transaction from base64
         tx_bytes = base64.b64decode(tx_base64)
-        tx = VersionedTransaction.from_bytes(tx_bytes)
 
-        # Send
-        result = client.send_transaction(tx)
+        # Use send_raw_transaction with skip_preflight option
+        # This bypasses preflight checks since transaction was already simulated during verify()
+        tx_opts = TxOpts(skip_preflight=True, preflight_commitment=Confirmed)
+        result = client.send_raw_transaction(tx_bytes, opts=tx_opts)
 
         return str(result.value)
 

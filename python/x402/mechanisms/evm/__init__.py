@@ -56,7 +56,7 @@ from .erc6492 import (
 from .signer import ClientEvmSigner, FacilitatorEvmSigner
 
 # Signer implementations
-from .signers import EthAccountSigner
+from .signers import EthAccountSigner, FacilitatorWeb3Signer
 
 # Types
 from .types import (
@@ -145,6 +145,7 @@ __all__ = [
     "FacilitatorEvmSigner",
     # Signer implementations
     "EthAccountSigner",
+    "FacilitatorWeb3Signer",
     # Utilities
     "get_evm_chain_id",
     "get_network_config",
