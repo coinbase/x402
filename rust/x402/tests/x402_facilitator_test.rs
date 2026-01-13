@@ -22,6 +22,7 @@ use x402::types::{AssetAmount, AuthorizationV1, PayloadExactV1, PaymentPayloadV1
 use x402::types::{PaymentPayload, PaymentRequired, Resource};
 
 #[tokio::test]
+#[ignore = "Requires PRIVATE_KEY, and network access"]
 async fn test_x402_v2_axum_facilitator_integration() {
 
     let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY environment variable must be set");

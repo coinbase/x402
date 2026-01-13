@@ -202,6 +202,7 @@ async fn test_coinbase_facilitator_integration_v1() {
 }
 
 #[tokio::test]
+#[ignore = "Requires CDP_API_KEY_ID, CDP_API_SECRET, PRIVATE_KEY, and network access"]
 async fn test_coinbase_facilitator_integration_v2() {
     let private_key = env::var("PRIVATE_KEY").expect("PRIVATE_KEY environment variable must be set");
     let signer = PrivateKeySigner::from_str(&private_key)
