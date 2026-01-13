@@ -12,9 +12,12 @@ import {
   permit2WitnessTypes,
   PERMIT2_ADDRESS,
   x402Permit2ProxyAddress,
+  x402Permit2ProxyABI,
 } from "../../constants";
+import { EIP2612_GAS_SPONSORING_EXTENSION } from "../client/permit2";
 import { FacilitatorEvmSigner } from "../../signer";
 import {
+  EIP2612PermitParams,
   ExactEIP3009Payload,
   ExactEvmPayloadV2,
   ExactPermit2Payload,
@@ -451,17 +454,8 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
   ): Promise<SettleResponse> {
     const rawPayload = payload.payload as ExactEvmPayloadV2;
 
-    // Currently only EIP-3009 payloads are supported by the facilitator
-    if (!isEIP3009Payload(rawPayload)) {
-      const payer =
-        "permit2Authorization" in rawPayload ? rawPayload.permit2Authorization.from : "unknown";
-      return {
-        success: false,
-        network: payload.accepted.network,
-        transaction: "",
-        errorReason: "unsupported_payload_type",
-        payer,
-      };
+    if (isPermit2Payload(rawPayload)) {
+      return this.settlePermit2(payload, requirements, rawPayload);
     }
 
     const exactEvmPayload: ExactEIP3009Payload = rawPayload;
@@ -591,6 +585,114 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         transaction: "",
         network: payload.accepted.network,
         payer: exactEvmPayload.authorization.from,
+      };
+    }
+  }
+
+  private async settlePermit2(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    permit2Payload: ExactPermit2Payload,
+  ): Promise<SettleResponse> {
+    const payer = permit2Payload.permit2Authorization.from;
+
+    const valid = await this.verifyPermit2(payload, requirements, permit2Payload);
+    if (!valid.isValid) {
+      return {
+        success: false,
+        network: payload.accepted.network,
+        transaction: "",
+        errorReason: valid.invalidReason ?? "invalid_payload",
+        payer,
+      };
+    }
+
+    try {
+      const permit = {
+        permitted: {
+          token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+          amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+        },
+        nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+        deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+      };
+
+      const witness = {
+        to: getAddress(permit2Payload.permit2Authorization.witness.to),
+        validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+        validBefore: BigInt(permit2Payload.permit2Authorization.witness.validBefore),
+        extra: permit2Payload.permit2Authorization.witness.extra,
+      };
+
+      const eip2612Extension = payload.extensions?.[EIP2612_GAS_SPONSORING_EXTENSION] as
+        | { permit: EIP2612PermitParams }
+        | undefined;
+
+      let tx: Hex;
+
+      if (eip2612Extension) {
+        const permit2612 = {
+          value: BigInt(eip2612Extension.permit.value),
+          deadline: BigInt(eip2612Extension.permit.deadline),
+          r: eip2612Extension.permit.r,
+          s: eip2612Extension.permit.s,
+          v: eip2612Extension.permit.v,
+        };
+
+        tx = await this.signer.writeContract({
+          address: x402Permit2ProxyAddress,
+          abi: x402Permit2ProxyABI,
+          functionName: "settleWith2612",
+          args: [
+            permit2612,
+            permit,
+            BigInt(requirements.amount),
+            getAddress(payer),
+            witness,
+            permit2Payload.signature,
+          ],
+        });
+      } else {
+        tx = await this.signer.writeContract({
+          address: x402Permit2ProxyAddress,
+          abi: x402Permit2ProxyABI,
+          functionName: "settle",
+          args: [
+            permit,
+            BigInt(requirements.amount),
+            getAddress(payer),
+            witness,
+            permit2Payload.signature,
+          ],
+        });
+      }
+
+      const receipt = await this.signer.waitForTransactionReceipt({ hash: tx });
+
+      if (receipt.status !== "success") {
+        return {
+          success: false,
+          errorReason: "invalid_transaction_state",
+          transaction: tx,
+          network: payload.accepted.network,
+          payer,
+        };
+      }
+
+      return {
+        success: true,
+        transaction: tx,
+        network: payload.accepted.network,
+        payer,
+      };
+    } catch (error) {
+      console.error("Failed to settle Permit2 transaction:", error);
+      return {
+        success: false,
+        errorReason: "transaction_failed",
+        transaction: "",
+        network: payload.accepted.network,
+        payer,
       };
     }
   }
