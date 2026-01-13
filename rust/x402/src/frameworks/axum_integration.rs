@@ -222,7 +222,10 @@ pub async fn x402_middleware(
                 }
                 Ok(verify_result) => {
                     let reason = verify_result.invalid_reason.unwrap_or_else(|| "Unknown verification error".to_string());
-                    (StatusCode::UNAUTHORIZED, format!("Payment verification failed: {}", reason)).into_response()
+                    if reason.to_ascii_lowercase().contains("unauthorized") {
+                        return (StatusCode::UNAUTHORIZED, format!("Payment verification failed: {}", reason)).into_response()
+                    }
+                    (StatusCode::BAD_REQUEST, format!("Payment verification failed: {}", reason)).into_response()
                 }
                 Err(X402Error::FacilitatorRejection(code, msg)) => {
                     // Facilitator explicitly said 'No'
