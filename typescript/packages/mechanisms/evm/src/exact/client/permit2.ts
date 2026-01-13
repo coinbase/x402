@@ -3,7 +3,7 @@ import {
   PaymentPayloadResult,
   PaymentCreationContext,
 } from "@x402/core/types";
-import { getAddress } from "viem";
+import { encodeFunctionData, getAddress } from "viem";
 import {
   permit2WitnessTypes,
   PERMIT2_ADDRESS,
@@ -13,6 +13,9 @@ import {
 import { ClientEvmSigner } from "../../signer";
 import { EIP2612PermitParams, ExactPermit2Payload } from "../../types";
 import { createPermit2Nonce } from "../../utils";
+
+/** Maximum uint256 value for unlimited approval. */
+const MAX_UINT256 = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 /**
  * Extension name for EIP-2612 gas sponsoring
@@ -105,6 +108,9 @@ export async function createPermit2Payload(
 
 /**
  * Check if the facilitator supports EIP-2612 gas sponsoring extension.
+ *
+ * @param context - The payment creation context
+ * @returns True if the facilitator supports the extension
  */
 function supportsEIP2612GasSponsoring(context: PaymentCreationContext): boolean {
   return (
@@ -132,7 +138,7 @@ async function createEIP2612PermitExtension(
   const chainId = parseInt(requirements.network.split(":")[1]);
 
   // Approve Permit2 for max uint256 (standard for permits)
-  const value = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+  const value = MAX_UINT256;
 
   const domain = {
     name,
@@ -216,4 +222,111 @@ async function signPermit2Authorization(
     primaryType: "PermitWitnessTransferFrom",
     message,
   });
+}
+
+/**
+ * ERC20 approve ABI for encoding approval transactions.
+ */
+const erc20ApproveAbi = [
+  {
+    type: "function",
+    name: "approve",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+/**
+ * ERC20 allowance ABI for checking approval status.
+ */
+export const erc20AllowanceAbi = [
+  {
+    type: "function",
+    name: "allowance",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+  },
+] as const;
+
+/**
+ * Creates transaction data to approve Permit2 to spend tokens.
+ * The user sends this transaction (paying gas) before using Permit2 flow.
+ *
+ * @param tokenAddress - The ERC20 token contract address
+ * @returns Transaction data to send for approval
+ *
+ * @example
+ * ```typescript
+ * const tx = createPermit2ApprovalTx("0x...");
+ * await walletClient.sendTransaction({
+ *   to: tx.to,
+ *   data: tx.data,
+ * });
+ * ```
+ */
+export function createPermit2ApprovalTx(tokenAddress: `0x${string}`): {
+  to: `0x${string}`;
+  data: `0x${string}`;
+} {
+  const data = encodeFunctionData({
+    abi: erc20ApproveAbi,
+    functionName: "approve",
+    args: [PERMIT2_ADDRESS, MAX_UINT256],
+  });
+
+  return {
+    to: getAddress(tokenAddress),
+    data,
+  };
+}
+
+/**
+ * Parameters for checking Permit2 allowance.
+ * Application provides these to check if approval is needed.
+ */
+export interface Permit2AllowanceParams {
+  tokenAddress: `0x${string}`;
+  ownerAddress: `0x${string}`;
+  requiredAmount: bigint;
+}
+
+/**
+ * Checks if the user has sufficient Permit2 allowance.
+ * Returns the allowance check parameters for use with a public client.
+ *
+ * @param params - The allowance check parameters
+ * @returns Contract read parameters for checking allowance
+ *
+ * @example
+ * ```typescript
+ * const readParams = getPermit2AllowanceReadParams({
+ *   tokenAddress: "0x...",
+ *   ownerAddress: "0x...",
+ *   requiredAmount: BigInt("1000000"),
+ * });
+ *
+ * const allowance = await publicClient.readContract(readParams);
+ * const needsApproval = allowance < params.requiredAmount;
+ * ```
+ */
+export function getPermit2AllowanceReadParams(params: Permit2AllowanceParams): {
+  address: `0x${string}`;
+  abi: typeof erc20AllowanceAbi;
+  functionName: "allowance";
+  args: [`0x${string}`, `0x${string}`];
+} {
+  return {
+    address: getAddress(params.tokenAddress),
+    abi: erc20AllowanceAbi,
+    functionName: "allowance",
+    args: [getAddress(params.ownerAddress), PERMIT2_ADDRESS],
+  };
 }
