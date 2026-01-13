@@ -9,6 +9,11 @@
   "version": "0.0.2",
   "description": "x402 Payment Protocol Monorepo",
   "main": "index.js",
+  "pnpm": {
+    "overrides": {
+      "cssstyle": "5.3.6"
+    }
+  },
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
