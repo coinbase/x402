@@ -1,91 +1,52 @@
-use std::sync::Arc;
-use axum::middleware::from_fn_with_state;
-use axum::Router;
-use axum::routing::get;
-use reqwest::StatusCode;
-use serde_json::json;
-use tokio::net::TcpListener;
-use wiremock::{Mock, MockServer, ResponseTemplate};
-use wiremock::matchers::{method, path};
+
+use alloy::signers::local::PrivateKeySigner;
+use tokio::task;
+use x402::client::evm::exact::EvmExactClient;
 use x402::client::X402Client;
-use x402::frameworks::axum_integration::{x402_middleware, X402Config};
-use x402::server::{Facilitator, VerifyResponse};
-use x402::types::{PaymentPayload, PaymentRequired, PaymentRequirements};
+
+mod common;
+use common::build_test_app; // your helper that returns axum::Router
 
 #[tokio::test]
-async fn test_x402_axum_flow_with_mock_facilitator() {
-    let mock_server = MockServer::start().await;
+async fn test_x402_client_against_axum_server_happy_path() {
+    // 1. Build the Axum app.
+    let app = build_test_app();
 
-    Mock::given(method("POST"))
-        .and(path("/verify"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            VerifyResponse {
-                is_valid: true,
-                invalid_reason: None,
-                payer: Some("0x123".to_string()),
-            }
-        ))
-        .mount(&mock_server)
-        .await;
+    // 2. Bind to an ephemeral port on localhost.
+    let std_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = std_listener.local_addr().unwrap();
+    let listener = tokio::net::TcpListener::from(std_listener);
 
-    let facilitator = Arc::new(Facilitator::new(&mock_server.uri()));
-
-    let payment_requirements = PaymentRequired {
-        x402_version: 0,
-        resource: "/protected".to_string(),
-        accepts: vec![
-            PaymentRequirements {
-                scheme: "exact".to_string(),
-                network: "ethereum".to_string(),
-                pay_to: "0x123".to_string(),
-                value: "1000".to_string(),
-                asset: None,
-                data: None,
-            }
-        ],
-        description: None,
-        extensions: None,
-    };
-
-    let config = X402Config {
-        facilitator,
-        requirements: payment_requirements,
-    };
-
-    // Axum server
-
-    let app = Router::new()
-        .route("/protected", get(|| async { "Successfully completed!" }))
-        .layer(from_fn_with_state(config, x402_middleware));
-
-    let listener = TcpListener::bind("127.0.0.1:3000").await.unwrap();
-    let adr = listener.local_addr().unwrap();
-
-    println!("Listening on {}", adr);
-
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.unwrap();
+    // 3. Spawn the server in the background.
+    task::spawn(async move {
+        axum::serve(listener, app).await.expect("axum::serve failed");
     });
 
-    // Use x402 to make the client request
-    let x402_client = X402Client::new();
-    let url = format!("http://{}/protected", adr);
+    // 4. Create a test signer.
+    let signer = PrivateKeySigner::random();
 
-    // Simulate the client receiving a 402 and signing it.
-    let res = x402_client.execute(
-        || x402_client.client.get(&url),
-        |challenge| async move {
-            Ok(PaymentPayload {
-                x402_version: challenge.x402_version,
-                resource: challenge.resource,
-                accepted: challenge.accepts[0].clone(),
-                payload: json!({"signature": "<SIG_PLACEHOLDER>"}),
-                extensions: None,
-            })
-        }
-    ).await.unwrap();
+    // 5. Build the EVM/x402 clients
+    let evm_client = EvmExactClient::new(signer.clone());
+    let x402_client = X402Client::new(evm_client);
 
-    dbg!(&res);
-    assert_eq!(res.status(), StatusCode::OK);
-    assert_eq!(res.text().await.unwrap(), "Successfully completed!");
+    let url = format!("http://{}/api/premium", addr);
+
+    // 6. Use the *real* high-level client API to exercise the whole flow:
+    //    - initial request
+    //    - 402 + PAYMENT-REQUIRED
+    //    - sign & build PAYMENT-SIGNATURE
+    //    - retry with payment
+    let res = x402_client
+        .execute_with_evm_exact(
+            || x402_client.client.post(&url),
+            signer,
+        )
+        .await
+        .expect("x402 client flow should succeed");
+
+    let status = res.status();
+    let text = res.text().await.expect("read response body");
+    dbg!(&status, &text);
+
+    assert!(status.is_success());
 }
