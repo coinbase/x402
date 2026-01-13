@@ -568,4 +568,200 @@ describe("ExactEvmScheme (Facilitator)", () => {
       expect(result.invalidReason).toBe("insufficient_funds");
     });
   });
+
+  describe("Permit2 settlement", () => {
+    const createPermit2Payload = (): ExactPermit2Payload => {
+      const now = Math.floor(Date.now() / 1000);
+      return {
+        signature: "0xmocksignature",
+        permit2Authorization: {
+          from: "0x1234567890123456789012345678901234567890",
+          permitted: {
+            token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            amount: "1000000",
+          },
+          spender: x402Permit2ProxyAddress,
+          nonce: "12345678901234567890",
+          deadline: String(now + 600),
+          witness: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+            validAfter: String(now - 600),
+            validBefore: String(now + 600),
+            extra: "0x",
+          },
+        },
+      };
+    };
+
+    const createPermit2PaymentPayload = (
+      requirements: PaymentRequirements,
+      extensions?: Record<string, unknown>,
+    ): PaymentPayload => ({
+      x402Version: 2,
+      payload: createPermit2Payload(),
+      accepted: requirements,
+      resource: { url: "", description: "", mimeType: "" },
+      extensions,
+    });
+
+    it("should settle valid Permit2 payload", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xtxhash123");
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockResolvedValue({ status: "success" });
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.settle(fullPayload, requirements);
+
+      expect(result.success).toBe(true);
+      expect(result.transaction).toBe("0xtxhash123");
+      expect(result.payer).toBe("0x1234567890123456789012345678901234567890");
+    });
+
+    it("should call x402Permit2Proxy.settle for standard flow", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xtxhash");
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockResolvedValue({ status: "success" });
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      await facilitator.settle(fullPayload, requirements);
+
+      expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
+      const callArgs = (mockFacilitatorSigner.writeContract as any).mock.calls[0][0];
+      expect(callArgs.address.toLowerCase()).toBe(x402Permit2ProxyAddress.toLowerCase());
+      expect(callArgs.functionName).toBe("settle");
+    });
+
+    it("should call x402Permit2Proxy.settleWith2612 when eip2612GasSponsoring extension present", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xtxhash");
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockResolvedValue({ status: "success" });
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const eip2612Extension = {
+        permit: {
+          value: "1000000000000000000",
+          deadline: String(Math.floor(Date.now() / 1000) + 600),
+          v: 27,
+          r: "0x1234567890123456789012345678901234567890123456789012345678901234",
+          s: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements, {
+        eip2612GasSponsoring: eip2612Extension,
+      });
+
+      await facilitator.settle(fullPayload, requirements);
+
+      expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
+      const callArgs = (mockFacilitatorSigner.writeContract as any).mock.calls[0][0];
+      expect(callArgs.address.toLowerCase()).toBe(x402Permit2ProxyAddress.toLowerCase());
+      expect(callArgs.functionName).toBe("settleWith2612");
+    });
+
+    it("should return error when verification fails", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(0n);
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.settle(fullPayload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("insufficient_funds");
+    });
+
+    it("should return error when transaction fails", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+      mockFacilitatorSigner.writeContract = vi.fn().mockRejectedValue(new Error("tx failed"));
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.settle(fullPayload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("transaction_failed");
+    });
+
+    it("should return error when transaction reverts", async () => {
+      mockFacilitatorSigner.readContract = vi.fn().mockResolvedValue(10000000n);
+      mockFacilitatorSigner.writeContract = vi.fn().mockResolvedValue("0xtxhash");
+      mockFacilitatorSigner.waitForTransactionReceipt = vi
+        .fn()
+        .mockResolvedValue({ status: "reverted" });
+
+      const requirements: PaymentRequirements = {
+        scheme: "exact",
+        network: "eip155:84532",
+        amount: "1000000",
+        asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        payTo: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        maxTimeoutSeconds: 300,
+        extra: { assetTransferMethod: "permit2" },
+      };
+
+      const fullPayload = createPermit2PaymentPayload(requirements);
+
+      const result = await facilitator.settle(fullPayload, requirements);
+
+      expect(result.success).toBe(false);
+      expect(result.errorReason).toBe("invalid_transaction_state");
+    });
+  });
 });
