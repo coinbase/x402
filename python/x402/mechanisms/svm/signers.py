@@ -6,6 +6,7 @@ import time
 try:
     from solana.rpc.api import Client as SolanaClient
     from solana.rpc.commitment import Confirmed
+    from solana.rpc.types import TxOpts
     from solders.keypair import Keypair
     from solders.signature import Signature
     from solders.transaction import VersionedTransaction
@@ -238,83 +239,17 @@ class FacilitatorKeypairSigner:
         Raises:
             RuntimeError: If send fails.
         """
-        import json
-        import urllib.request
-        import urllib.parse
-
         client = self._get_client(network)
 
-        # Get the RPC URL from the client
-        rpc_url = client._provider.endpoint_uri if hasattr(client, "_provider") and hasattr(client._provider, "endpoint_uri") else None
-        if not rpc_url:
-            # Fallback: try to get URL from client's endpoint
-            if hasattr(client, "endpoint"):
-                rpc_url = client.endpoint
-            else:
-                # Use network config as fallback
-                caip2_network = normalize_network(network)
-                config = NETWORK_CONFIGS.get(caip2_network)
-                if config:
-                    rpc_url = config["rpc_url"]
-                else:
-                    raise RuntimeError(f"Could not determine RPC URL for network: {network}")
+        # Decode transaction from base64
+        tx_bytes = base64.b64decode(tx_base64)
 
-        # Make direct HTTP RPC call with skipPreflight option
-        # This bypasses the solana-py library which may not properly support skip_preflight
-        rpc_payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "sendTransaction",
-            "params": [
-                tx_base64,
-                {
-                    "encoding": "base64",
-                    "skipPreflight": True,
-                },
-            ],
-        }
+        # Use send_raw_transaction with skip_preflight option
+        # This bypasses preflight checks since we've already simulated the transaction
+        tx_opts = TxOpts(skip_preflight=True, preflight_commitment=Confirmed)
+        result = client.send_raw_transaction(tx_bytes, opts=tx_opts)
 
-        try:
-            # Make HTTP POST request to RPC endpoint
-            req_data = json.dumps(rpc_payload).encode("utf-8")
-            req = urllib.request.Request(
-                rpc_url,
-                data=req_data,
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, timeout=30) as response:
-                response_data = json.loads(response.read().decode("utf-8"))
-
-            if "result" in response_data:
-                return str(response_data["result"])
-            elif "error" in response_data:
-                error_data = response_data["error"]
-                error_msg = str(error_data).lower()
-                if "blockhash" in error_msg and ("not found" in error_msg or "expired" in error_msg or "stale" in error_msg):
-                    raise RuntimeError(
-                        f"Transaction failed due to stale blockhash. "
-                        f"RPC error: {error_data}"
-                    )
-                raise RuntimeError(f"RPC error: {error_data}")
-            else:
-                raise RuntimeError(f"Unexpected RPC response: {response_data}")
-        except urllib.error.HTTPError as e:
-            raise RuntimeError(f"HTTP error sending transaction: {e}") from e
-        except urllib.error.URLError as e:
-            raise RuntimeError(f"URL error sending transaction: {e}") from e
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"Failed to parse RPC response: {e}") from e
-        except Exception as e:
-            # Fallback: Try using the library's send_transaction method
-            # This is a last resort if direct RPC call fails
-            try:
-                tx_bytes = base64.b64decode(tx_base64)
-                tx = VersionedTransaction.from_bytes(tx_bytes)
-                result = client.send_transaction(tx, skip_preflight=True)
-                return str(result.value)
-            except Exception:
-                # Re-raise the original error
-                raise RuntimeError(f"Failed to send transaction: {e}") from e
+        return str(result.value)
 
     def confirm_transaction(
         self,
