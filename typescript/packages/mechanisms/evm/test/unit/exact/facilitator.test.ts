@@ -22,10 +22,11 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
     // Create mock facilitator signer
     mockFacilitatorSigner = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      getAddresses: vi.fn().mockReturnValue(["0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"]),
       readContract: vi.fn().mockResolvedValue(0n), // Mock nonce state
       verifyTypedData: vi.fn().mockResolvedValue(true), // Mock signature verification
       writeContract: vi.fn().mockResolvedValue("0xtxhash"),
+      sendTransaction: vi.fn().mockResolvedValue("0xtxhash"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
       getCode: vi.fn().mockResolvedValue("0x"),
     };
@@ -311,7 +312,9 @@ describe("ExactEvmScheme (Facilitator)", () => {
   });
 
   describe("Permit2 verification", () => {
-    const createPermit2Payload = (overrides?: Partial<ExactPermit2Payload>): ExactPermit2Payload => {
+    const createPermit2Payload = (
+      overrides?: Partial<ExactPermit2Payload>,
+    ): ExactPermit2Payload => {
       const now = Math.floor(Date.now() / 1000);
       return {
         signature: "0xmocksignature",

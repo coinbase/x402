@@ -21,7 +21,12 @@ import { ExactEvmScheme as ExactEvmServer } from "../../src/exact/server/scheme"
 import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitator/scheme";
 import type { ExactEvmPayloadV2, ExactPermit2Payload } from "../../src/types";
 import { isPermit2Payload } from "../../src/types";
-import { x402Permit2ProxyAddress } from "../../src/constants";
+import { x402Permit2ProxyAddress, PERMIT2_ADDRESS } from "../../src/constants";
+import {
+  createPermit2ApprovalTx,
+  getPermit2AllowanceReadParams,
+  erc20AllowanceAbi,
+} from "../../src/exact/client/permit2";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -248,6 +253,36 @@ describe("EVM Integration Tests", () => {
     });
 
     it("server should successfully verify and settle a Permit2 payment from a client", async () => {
+      const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http(),
+      });
+      const clientWallet = createWalletClient({
+        account: clientAccount,
+        chain: baseSepolia,
+        transport: http(),
+      });
+
+      const usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+      const allowanceParams = getPermit2AllowanceReadParams({
+        tokenAddress: usdcAddress,
+        ownerAddress: clientAddress,
+      });
+
+      const currentAllowance = (await publicClient.readContract(allowanceParams)) as bigint;
+
+      if (currentAllowance < BigInt("1000")) {
+        console.log("📝 Approving Permit2 to spend USDC...");
+        const approvalTx = createPermit2ApprovalTx(usdcAddress);
+        const txHash = await clientWallet.sendTransaction({
+          to: approvalTx.to,
+          data: approvalTx.data,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        console.log("✅ Permit2 approval complete:", txHash);
+      }
+
       const accepts = [
         buildPermit2PaymentRequirements(
           "0x9876543210987654321098765432109876543210",
