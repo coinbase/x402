@@ -54,6 +54,8 @@ class DiscoveredResource:
     method: str
     x402_version: int
     discovery_info: DiscoveryInfo
+    description: str | None = None
+    mime_type: str | None = None
 
 
 @dataclass
@@ -223,11 +225,28 @@ def extract_discovery_info(
     parsed = urlparse(resource_url)
     normalized_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
 
+    # Extract description and mime_type from resource info (V2) or requirements (V1)
+    description: str | None = None
+    mime_type: str | None = None
+
+    if version == 2:
+        # V2: description and mime_type are in PaymentPayload.resource
+        resource = payload_dict.get("resource", {})
+        if isinstance(resource, dict):
+            description = resource.get("description") or None
+            mime_type = resource.get("mimeType") or resource.get("mime_type") or None
+    else:
+        # V1: description and mime_type are in PaymentRequirements
+        description = requirements_dict.get("description") or None
+        mime_type = requirements_dict.get("mimeType") or requirements_dict.get("mime_type") or None
+
     return DiscoveredResource(
         resource_url=normalized_url,
         method=method,
         x402_version=version,
         discovery_info=discovery_info,
+        description=description,
+        mime_type=mime_type,
     )
 
 

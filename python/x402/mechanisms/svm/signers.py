@@ -245,7 +245,7 @@ class FacilitatorKeypairSigner:
         tx_bytes = base64.b64decode(tx_base64)
 
         # Use send_raw_transaction with skip_preflight option
-        # This bypasses preflight checks since we've already simulated the transaction
+        # This bypasses preflight checks since transaction was already simulated during verify()
         tx_opts = TxOpts(skip_preflight=True, preflight_commitment=Confirmed)
         result = client.send_raw_transaction(tx_bytes, opts=tx_opts)
 
