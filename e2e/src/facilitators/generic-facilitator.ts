@@ -1,5 +1,6 @@
 import { BaseProxy, RunConfig } from '../proxy-base';
 import { verboseLog, errorLog } from '../logger';
+import type { NetworkSet } from '../networks/networks';
 
 export interface VerifyRequest {
   x402Version: number;
@@ -52,8 +53,7 @@ export interface FacilitatorConfig {
   port: number;
   evmPrivateKey?: string;
   svmPrivateKey?: string;
-  evmNetwork?: string;
-  svmNetwork?: string;
+  networks: NetworkSet;
 }
 
 export interface FacilitatorProxy {
@@ -112,9 +112,12 @@ export class GenericFacilitatorProxy extends BaseProxy implements FacilitatorPro
       PORT: config.port.toString(),
       EVM_PRIVATE_KEY: config.evmPrivateKey || '',
       SVM_PRIVATE_KEY: config.svmPrivateKey || '',
-      EVM_NETWORK: config.evmNetwork || 'eip155:84532',
-      SVM_NETWORK: config.svmNetwork || 'solana:devnet',
-      EVM_RPC_URL: process.env.BASE_SEPOLIA_RPC_URL || process.env.EVM_RPC_URL || '',
+
+      // Network configs from NetworkSet
+      EVM_NETWORK: config.networks.evm.caip2,
+      EVM_RPC_URL: config.networks.evm.rpcUrl,
+      SVM_NETWORK: config.networks.svm.caip2,
+      SVM_RPC_URL: config.networks.svm.rpcUrl,
     };
 
     // Pass through any additional environment variables required by the facilitator

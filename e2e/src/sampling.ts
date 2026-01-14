@@ -52,7 +52,7 @@ export class CoverageTracker {
    *   true if scenario provides new coverage, false if all components already covered
    */
   isNewCoverage(scenario: TestScenario): boolean {
-    const version = scenario.server.config.x402Version;
+    const version = scenario.server.config.x402Version ?? 1;
     const protocolFamily = scenario.protocolFamily;
 
     const clientKey = this.getCoverageKey(
@@ -99,7 +99,7 @@ export class CoverageTracker {
    *   scenario: Test scenario to mark as covered
    */
   markCovered(scenario: TestScenario): void {
-    const version = scenario.server.config.x402Version;
+    const version = scenario.server.config.x402Version ?? 1;
     const protocolFamily = scenario.protocolFamily;
 
     const clientKey = this.getCoverageKey(
