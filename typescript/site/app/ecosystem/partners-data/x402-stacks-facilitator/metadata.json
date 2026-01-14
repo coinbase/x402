@@ -6,7 +6,7 @@
   "websiteUrl": "https://github.com/tony1908/x402-stacks-facilitator",
   "facilitator": {
     "baseUrl": "https://facilitator.stacksx402.com",
-    "networks": ["stacks-mainnet"],
+    "networks": ["stacks-mainnet", "stacks-testnet"],
     "schemes": ["exact"],
     "assets": ["STX", "sBTC", "USDCx"],
     "supports": { "verify": true, "settle": true, "supported": true, "list": false }

@@ -1,0 +1,8 @@
+{
+  "name": "x402 Biwas",
+  "category": "Endpoints",
+  "logoUrl": "/logos/x402Stacks.svg",
+  "description": "x402-enabled API endpoints on Stacks with analytics and health monitoring.",
+  "websiteUrl": "https://x402.biwas.xyz",
+  "githubUrl": "https://github.com/biwasxyz/x402"
+}

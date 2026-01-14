@@ -1,0 +1,10 @@
+{
+  "name": "AIBTC Sponsor Relay",
+  "category": "Infrastructure & Tooling",
+  "logoUrl": "/logos/x402Stacks.svg",
+  "description": "Sponsored transaction relay for gasless x402 payments on Stacks. Accepts transactions with sponsored=true and fee=0, re-signs as sponsor to pay fees, then forwards to the facilitator.",
+  "websiteUrl": "https://x402-relay.aibtc.com",
+  "githubUrl": "https://github.com/aibtcdev/x402-sponsor-relay",
+  "networks": ["stacks-mainnet", "stacks-testnet"],
+  "testnetUrl": "https://x402-relay.aibtc.dev"
+}
