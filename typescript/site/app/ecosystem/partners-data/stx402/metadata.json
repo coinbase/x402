@@ -3,5 +3,6 @@
   "category": "Infrastructure & Tooling",
   "logoUrl": "/logos/stx402.svg",
   "description": "Reference implementation of x402-stacks on Cloudflare. Discover x402-enabled endpoints on Stacks, register your own services, and explore working examples of STX, sBTC, and USDCx payments.",
-  "websiteUrl": "https://stx402.com"
+  "websiteUrl": "https://stx402.com",
+  "githubUrl": "https://github.com/whoabuddy/stx402"
 }

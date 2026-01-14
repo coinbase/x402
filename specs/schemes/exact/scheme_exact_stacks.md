@@ -244,7 +244,17 @@ Stacks transactions are anchored in Bitcoin blocks. Facilitators should wait for
 |-------|------|-------------|
 | STX | Native | microSTX (1 STX = 1,000,000 microSTX) |
 | sBTC | SIP-010 | satoshis (1 sBTC = 100,000,000 sats) |
-| USDCx | SIP-010 | smallest unit (typically 6 decimals) |
+| USDCx | SIP-010 | micro-USDCx (1 USDCx = 1,000,000 micro-USDCx) |
+
+### Token Contract Addresses
+
+| Token | Network | Contract Identifier |
+|-------|---------|---------------------|
+| STX | mainnet/testnet | Native (no contract) |
+| sBTC | mainnet | `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token` |
+| sBTC | testnet | `ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token::sbtc-token` |
+| USDCx | mainnet | `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx::USDCx` |
+| USDCx | testnet | Not yet deployed (aeUSDC from Allbridge available as alternative) |
 
 ## Reference Implementation
 

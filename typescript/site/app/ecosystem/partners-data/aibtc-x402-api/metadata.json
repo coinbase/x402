@@ -1,0 +1,10 @@
+{
+  "name": "AIBTC x402 API",
+  "category": "Endpoints",
+  "logoUrl": "/logos/x402Stacks.svg",
+  "description": "x402-enabled API endpoints on Stacks with documentation and dashboard. Supports STX, sBTC, and USDCx payments on both testnet and mainnet.",
+  "websiteUrl": "https://x402.aibtc.com",
+  "githubUrl": "https://github.com/aibtcdev/x402-api",
+  "networks": ["stacks-mainnet", "stacks-testnet"],
+  "testnetUrl": "https://x402.aibtc.dev"
+}
