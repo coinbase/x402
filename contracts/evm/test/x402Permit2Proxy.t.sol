@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {x402Permit2Proxy} from "../src/x402Permit2Proxy.sol";
-import {ISignatureTransfer} from "../src/interfaces/IPermit2.sol";
+import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockERC20Permit} from "./mocks/MockERC20Permit.sol";
@@ -101,12 +101,12 @@ contract X402Permit2ProxyTest is Test {
 
     function test_WitnessTypeStringIsCorrect() public view {
         string memory expected =
-            "Witness witness)TokenPermissions(address token,uint256 amount)Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)";
+            "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)";
         assertEq(proxy.WITNESS_TYPE_STRING(), expected);
     }
 
     function test_WitnessTypehashIsCorrect() public view {
-        bytes32 expected = keccak256("Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)");
+        bytes32 expected = keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
         assertEq(proxy.WITNESS_TYPEHASH(), expected);
     }
 
@@ -307,7 +307,7 @@ contract X402Permit2ProxyTest is Test {
 
         bytes32 expectedWitnessHash = keccak256(
             abi.encode(
-                proxy.WITNESS_TYPEHASH(), keccak256(witness.extra), witness.to, witness.validAfter, witness.validBefore
+                proxy.WITNESS_TYPEHASH(), witness.to, witness.validAfter, witness.validBefore, keccak256(witness.extra)
             )
         );
 

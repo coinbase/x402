@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {x402Permit2Proxy} from "../src/x402Permit2Proxy.sol";
-import {ISignatureTransfer} from "../src/interfaces/IPermit2.sol";
+import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 
 /**
  * @title DeployX402Proxy

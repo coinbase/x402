@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {x402Permit2Proxy} from "../../src/x402Permit2Proxy.sol";
-import {ISignatureTransfer} from "../../src/interfaces/IPermit2.sol";
+import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
@@ -174,14 +174,14 @@ contract X402InvariantsTest is Test {
 
     /// @notice WITNESS_TYPEHASH should be constant
     function invariant_witnessTypehashConstant() public view {
-        bytes32 expected = keccak256("Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)");
+        bytes32 expected = keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
         assertEq(proxy.WITNESS_TYPEHASH(), expected, "WITNESS_TYPEHASH should be constant");
     }
 
     /// @notice WITNESS_TYPE_STRING should be constant
     function invariant_witnessTypeStringConstant() public view {
         string memory expected =
-            "Witness witness)TokenPermissions(address token,uint256 amount)Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)";
+            "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)";
         assertEq(
             keccak256(bytes(proxy.WITNESS_TYPE_STRING())),
             keccak256(bytes(expected)),

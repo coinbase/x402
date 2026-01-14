@@ -112,7 +112,7 @@ forge script script/MineVanity.s.sol
 src/
 ├── x402Permit2Proxy.sol      # Main proxy contract
 └── interfaces/
-    └── IPermit2.sol          # Permit2 interface
+    └── ISignatureTransfer.sol # Permit2 SignatureTransfer interface
 
 test/
 ├── x402Permit2Proxy.t.sol    # Unit tests

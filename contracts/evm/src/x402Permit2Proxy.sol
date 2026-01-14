@@ -2,20 +2,17 @@
 pragma solidity ^0.8.20;
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {ISignatureTransfer} from "./interfaces/IPermit2.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+
+import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 
 /**
  * @title x402Permit2Proxy
  * @notice Trustless proxy for x402 payments using Permit2
+ *
  * @dev This contract acts as the authorized spender in Permit2 signatures.
  *      It uses the "witness" pattern to cryptographically bind the payment destination,
  *      preventing facilitators from redirecting funds.
- *
- * Security Properties:
- * - Immutable: No upgrade mechanism
- * - No custody: Never holds tokens
- * - Destination locked: Witness pattern enforces payTo address
- * - Reentrancy protected: Uses OpenZeppelin's ReentrancyGuard
  *
  * @author x402 Protocol
  */
@@ -27,11 +24,11 @@ contract x402Permit2Proxy is ReentrancyGuard {
     /// @dev Must match the exact format expected by Permit2
     /// Types must be in ALPHABETICAL order after the primary type (TokenPermissions < Witness)
     string public constant WITNESS_TYPE_STRING =
-        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)";
+        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)";
 
     /// @notice EIP-712 typehash for witness struct
     bytes32 public constant WITNESS_TYPEHASH =
-        keccak256("Witness(bytes extra,address to,uint256 validAfter,uint256 validBefore)");
+        keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
 
     /// @notice Emitted when a payment is successfully settled
     /// @param from The payer's address
@@ -151,7 +148,6 @@ contract x402Permit2Proxy is ReentrancyGuard {
         } catch {
             // Permit2 settlement will fail if approval doesn't exist
         }
-
         _settleInternal(permit, amount, owner, witness, signature);
     }
 
@@ -188,7 +184,7 @@ contract x402Permit2Proxy is ReentrancyGuard {
 
         // Reconstruct witness hash to enforce integrity
         bytes32 witnessHash = keccak256(
-            abi.encode(WITNESS_TYPEHASH, keccak256(witness.extra), witness.to, witness.validAfter, witness.validBefore)
+            abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter, witness.validBefore, keccak256(witness.extra))
         );
 
         // Execute transfer via Permit2
@@ -197,30 +193,4 @@ contract x402Permit2Proxy is ReentrancyGuard {
         // Emit event for observability
         emit X402PermitTransfer(owner, transferDetails.to, transferDetails.requestedAmount, permit.permitted.token);
     }
-}
-
-/**
- * @notice Minimal interface for EIP-2612 compliant tokens
- * @dev Used for the settleWith2612 function
- */
-interface IERC20Permit {
-    /**
-     * @notice Sets approval via signature
-     * @param owner Token owner's address
-     * @param spender Address to be approved
-     * @param value Amount to approve
-     * @param deadline Signature expiration timestamp
-     * @param v ECDSA signature parameter
-     * @param r ECDSA signature parameter
-     * @param s ECDSA signature parameter
-     */
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
 }
