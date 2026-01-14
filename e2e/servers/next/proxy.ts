@@ -6,8 +6,8 @@ import { bazaarResourceServerExtension, declareDiscoveryExtension } from "@x402/
 
 export const EVM_PAYEE_ADDRESS = process.env.EVM_PAYEE_ADDRESS as `0x${string}`;
 export const SVM_PAYEE_ADDRESS = process.env.SVM_PAYEE_ADDRESS as string;
-export const EVM_NETWORK = "eip155:84532" as const;
-export const SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1" as `${string}:${string}`;
+export const EVM_NETWORK = (process.env.EVM_NETWORK || "eip155:84532") as `${string}:${string}`;
+export const SVM_NETWORK = (process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1") as `${string}:${string}`;
 const facilitatorUrl = process.env.FACILITATOR_URL;
 
 if (!facilitatorUrl) {

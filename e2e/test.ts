@@ -1,21 +1,14 @@
 import { config } from 'dotenv';
 import { TestDiscovery } from './src/discovery';
-import { ClientConfig, ScenarioResult } from './src/types';
+import { ClientConfig, ScenarioResult, ServerConfig } from './src/types';
 import { config as loggerConfig, log, verboseLog, errorLog, close as closeLogger } from './src/logger';
 import { handleDiscoveryValidation, shouldRunDiscoveryValidation } from './extensions/bazaar';
 import { parseArgs, printHelp } from './src/cli/args';
 import { runInteractiveMode } from './src/cli/interactive';
 import { filterScenarios, TestFilters, shouldShowExtensionOutput } from './src/cli/filters';
 import { minimizeScenarios } from './src/sampling';
-
-export interface ServerConfig {
-  port: number;
-  evmPayTo: string;
-  svmPayTo: string;
-  evmNetwork: string;
-  svmNetwork: string;
-  facilitatorUrl?: string;
-}
+import { getNetworkSet, NetworkMode, NetworkSet, getNetworkModeDescription } from './src/networks/networks';
+import { FacilitatorConfig } from './src/facilitators/generic-facilitator';
 
 // Load environment variables
 config();
@@ -24,7 +17,7 @@ config();
 const parsedArgs = parseArgs();
 
 interface Facilitator {
-  start: (config: { port: number; evmPrivateKey: string; svmPrivateKey: string; evmNetwork: string; svmNetwork: string; }) => Promise<void>;
+  start: (config: FacilitatorConfig) => Promise<void>;
   health: () => Promise<{ success: boolean }>;
   getUrl: () => string;
   stop: () => Promise<void>;
@@ -37,23 +30,22 @@ class FacilitatorManager {
   private readyPromise: Promise<string | null>;
   private url: string | null = null;
 
-  constructor(facilitator: Facilitator, port: number, evmNetwork: string, svmNetwork: string) {
+  constructor(facilitator: Facilitator, port: number, networks: NetworkSet) {
     this.facilitator = facilitator;
     this.port = port;
 
     // Start facilitator and health checks asynchronously
-    this.readyPromise = this.startAndWaitForHealth(evmNetwork, svmNetwork);
+    this.readyPromise = this.startAndWaitForHealth(networks);
   }
 
-  private async startAndWaitForHealth(evmNetwork: string, svmNetwork: string): Promise<string | null> {
+  private async startAndWaitForHealth(networks: NetworkSet): Promise<string | null> {
     verboseLog(`  🏛️ Starting facilitator on port ${this.port}...`);
 
     await this.facilitator.start({
       port: this.port,
       evmPrivateKey: process.env.FACILITATOR_EVM_PRIVATE_KEY,
       svmPrivateKey: process.env.FACILITATOR_SVM_PRIVATE_KEY,
-      evmNetwork,
-      svmNetwork,
+      networks,
     });
 
     // Wait for facilitator to be healthy
@@ -269,6 +261,7 @@ async function runTest() {
 
   let filters: TestFilters;
   let selectedExtensions: string[] | undefined;
+  let networkMode: NetworkMode;
 
   // Interactive or programmatic mode
   if (parsedArgs.mode === 'interactive') {
@@ -277,7 +270,8 @@ async function runTest() {
       allServers,
       allFacilitators,
       allScenarios,
-      parsedArgs.minimize
+      parsedArgs.minimize,
+      parsedArgs.networkMode  // Pass preselected network mode (may be undefined)
     );
 
     if (!selections) {
@@ -287,12 +281,16 @@ async function runTest() {
 
     filters = selections;
     selectedExtensions = selections.extensions;
+    networkMode = selections.networkMode;
   } else {
     log('\n🤖 Programmatic Mode');
     log('===================\n');
 
     filters = parsedArgs.filters;
     selectedExtensions = parsedArgs.filters.extensions;
+    
+    // In programmatic mode, network mode defaults to testnet if not specified
+    networkMode = parsedArgs.networkMode || 'testnet';
 
     // Print active filters
     const filterEntries = Object.entries(filters).filter(([_, v]) => v && (Array.isArray(v) ? v.length > 0 : true));
@@ -306,6 +304,18 @@ async function runTest() {
       log('');
     }
   }
+
+  // Get network configuration based on selected mode
+  const networks = getNetworkSet(networkMode);
+  
+  log(`\n🌐 Network Mode: ${networkMode.toUpperCase()}`);
+  log(`   EVM: ${networks.evm.name} (${networks.evm.caip2})`);
+  log(`   SVM: ${networks.svm.name} (${networks.svm.caip2})`);
+  
+  if (networkMode === 'mainnet') {
+    log('\n⚠️  WARNING: Running on MAINNET - real funds will be used!');
+  }
+  log('');
 
   // Apply filters to scenarios
   let filteredScenarios = filterScenarios(allScenarios, filters);
@@ -350,7 +360,7 @@ async function runTest() {
   const missingEnvVars: { facilitatorName: string; missingVars: string[] }[] = [];
   
   // Environment variables managed by the test framework (don't require user to set)
-  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK']);
+  const systemManagedVars = new Set(['PORT', 'EVM_PRIVATE_KEY', 'SVM_PRIVATE_KEY', 'EVM_NETWORK', 'SVM_NETWORK', 'EVM_RPC_URL', 'SVM_RPC_URL']);
   
   for (const [facilitatorName, facilitator] of uniqueFacilitators) {
     const requiredVars = facilitator.config.environment?.required || [];
@@ -419,8 +429,7 @@ async function runTest() {
     const manager = new FacilitatorManager(
       facilitator.proxy,
       port,
-      'eip155:84532',
-      'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'
+      networks
     );
     facilitatorManagers.set(facilitatorName, manager);
   }
@@ -517,8 +526,7 @@ async function runTest() {
       port,
       evmPayTo: serverEvmAddress,
       svmPayTo: serverSvmAddress,
-      evmNetwork: 'eip155:84532',
-      svmNetwork: 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+      networks,
       facilitatorUrl,
     };
 
@@ -647,6 +655,7 @@ async function runTest() {
   log('');
   log('📊 Test Summary');
   log('==============');
+  log(`🌐 Network: ${networkMode} (${getNetworkModeDescription(networkMode)})`);
   log(`✅ Passed: ${passed}`);
   log(`❌ Failed: ${failed}`);
   log(`📈 Total: ${passed + failed}`);
@@ -665,9 +674,14 @@ async function runTest() {
     log('✅ PASSED TESTS:');
     log('');
     passedTests.forEach(test => {
-      const txInfo = test.transaction ? ` | Tx: ${test.transaction.substring(0, 10)}...` : '';
       log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
-      log(`      Facilitator: ${test.facilitator} | Network: ${test.network || 'N/A'}${txInfo}`);
+      log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
+      if (test.transaction) {
+        log(`      Tx: ${test.transaction}`);
+      }
     });
     log('');
   }
@@ -678,6 +692,9 @@ async function runTest() {
     failedTests.forEach(test => {
       log(`  #${test.testNumber.toString().padStart(2, ' ')}: ${test.client} → ${test.server} → ${test.endpoint}`);
       log(`      Facilitator: ${test.facilitator}`);
+      if (test.network) {
+        log(`      Network: ${test.network}`);
+      }
       log(`      Error: ${test.error || 'Unknown error'}`);
     });
     log('');
