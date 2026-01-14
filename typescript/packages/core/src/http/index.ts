@@ -63,9 +63,7 @@ export function decodePaymentRequiredHeader(paymentRequiredHeader: string): Paym
  * @param paymentResponse - The payment response to encode
  * @returns Base64 encoded string representation of the payment response
  */
-export function encodePaymentResponseHeader(
-  paymentResponse: SettleResponse & { requirements: PaymentRequirements },
-): string {
+export function encodePaymentResponseHeader(paymentResponse: SettleResponse): string {
   return safeBase64Encode(JSON.stringify(paymentResponse));
 }
 
