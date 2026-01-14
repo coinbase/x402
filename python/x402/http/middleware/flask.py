@@ -1,6 +1,7 @@
 """Flask middleware for x402 payment handling.
 
 Provides payment-gated route protection for Flask applications.
+Uses x402HTTPResourceServerSync for synchronous request processing without asyncio overhead.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from ..types import (
     RouteConfig,
     RoutesConfig,
 )
-from ..x402_http_server import PaywallProvider, x402HTTPResourceServer
+from ..x402_http_server import PaywallProvider, x402HTTPResourceServerSync
 
 if TYPE_CHECKING:
     from ...server import x402ResourceServer
@@ -315,7 +316,7 @@ class PaymentMiddleware:
             _register_bazaar_extension(server)
 
         self._app = app
-        self._http_server = x402HTTPResourceServer(server, routes)
+        self._http_server = x402HTTPResourceServerSync(server, routes)
         self._paywall_config = paywall_config
         self._sync_on_start = sync_facilitator_on_start
         self._init_done = False
@@ -362,7 +363,7 @@ class PaymentMiddleware:
                 self._http_server.initialize()
                 self._init_done = True
 
-            # Process payment request
+            # Process payment request synchronously (no asyncio overhead)
             result = self._http_server.process_http_request(context, self._paywall_config)
 
             if result.type == "no-payment-required":

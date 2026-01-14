@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -133,9 +133,10 @@ class PaywallConfig:
     testnet: bool = False
 
 
-# Dynamic function types
-DynamicPayTo = Callable[["HTTPRequestContext"], str]
-DynamicPrice = Callable[["HTTPRequestContext"], "Price"]
+# Dynamic function types (supports both sync and async callbacks)
+# Keep Awaitable support for Price and PayTo to achieve parity with TS
+DynamicPayTo = Callable[[HTTPRequestContext], "str | Awaitable[str]"]
+DynamicPrice = Callable[[HTTPRequestContext], "Price | Awaitable[Price]"]
 
 
 @dataclass
@@ -146,7 +147,7 @@ class UnpaidResponseResult:
     body: Any
 
 
-UnpaidResponseBody = Callable[["HTTPRequestContext"], UnpaidResponseResult]
+UnpaidResponseBody = Callable[[HTTPRequestContext], UnpaidResponseResult]
 
 
 @dataclass
@@ -172,6 +173,7 @@ class RouteConfig:
     custom_paywall_html: str | None = None
     unpaid_response_body: UnpaidResponseBody | None = None
     extensions: dict[str, Any] | None = None
+    hook_timeout_seconds: float | None = None
 
 
 RoutesConfig = dict[str, RouteConfig] | RouteConfig
