@@ -625,7 +625,79 @@ class x402HTTPResourceServer:
         if self._paywall_provider:
             return self._paywall_provider.generate_html(payment_required, config)
 
-        # Fallback: Basic HTML
+        # Auto-select template based on network
+        template = self._select_paywall_template(payment_required)
+        if template:
+            return self._inject_paywall_config(template, payment_required, config)
+
+        # Fallback: Basic HTML (only if templates not available)
+        return self._generate_fallback_html(payment_required, config)
+
+    def _select_paywall_template(self, payment_required: PaymentRequired) -> str | None:
+        """Select appropriate paywall template based on network.
+
+        Returns EVM template for eip155:* networks, SVM template for solana:* networks.
+        """
+        # Determine network from first requirement
+        network = ""
+        if payment_required.accepts:
+            first = payment_required.accepts[0]
+            network = getattr(first, "network", "")
+
+        # Try to load appropriate template
+        try:
+            if network.startswith("solana:"):
+                from .paywall.svm_paywall_template import SVM_PAYWALL_TEMPLATE
+
+                return SVM_PAYWALL_TEMPLATE
+            else:
+                from .paywall.evm_paywall_template import EVM_PAYWALL_TEMPLATE
+
+                return EVM_PAYWALL_TEMPLATE
+        except ImportError:
+            return None
+
+    def _inject_paywall_config(
+        self,
+        template: str,
+        payment_required: PaymentRequired,
+        config: PaywallConfig | None,
+    ) -> str:
+        """Inject configuration into paywall template (like Go)."""
+        import json
+
+        display_amount = self._get_display_amount(payment_required)
+        app_name = config.app_name if config and config.app_name else ""
+        app_logo = config.app_logo if config and config.app_logo else ""
+        testnet = config.testnet if config else True
+        current_url = config.current_url if config and config.current_url else ""
+
+        # Use resource URL as currentUrl if not explicitly configured
+        if not current_url and payment_required.resource:
+            current_url = payment_required.resource.url or ""
+
+        payment_data = payment_required.model_dump(by_alias=True, exclude_none=True)
+
+        config_script = f"""<script>
+    window.x402 = {{
+        paymentRequired: {json.dumps(payment_data)},
+        appName: "{html.escape(app_name)}",
+        appLogo: "{html.escape(app_logo)}",
+        amount: {display_amount},
+        testnet: {str(testnet).lower()},
+        displayAmount: {display_amount:.2f},
+        currentUrl: "{html.escape(current_url)}"
+    }};
+</script>"""
+
+        return template.replace("</body>", config_script + "</body>")
+
+    def _generate_fallback_html(
+        self,
+        payment_required: PaymentRequired,
+        config: PaywallConfig | None,
+    ) -> str:
+        """Generate fallback HTML when templates not available."""
         display_amount = self._get_display_amount(payment_required)
         resource_desc = ""
         if payment_required.resource:
