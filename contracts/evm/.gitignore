@@ -2,9 +2,6 @@
 out/
 cache/
 
-# Dependencies
-lib/
-
 # Environment
 .env
 .env.local
