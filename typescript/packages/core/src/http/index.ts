@@ -1,5 +1,5 @@
 import { SettleResponse } from "../types";
-import { PaymentPayload, PaymentRequired, PaymentRequirements } from "../types/payments";
+import { PaymentPayload, PaymentRequired, PaymentRequirements, validatePaymentRequired } from "../types/payments";
 import { Base64EncodedRegex, safeBase64Decode, safeBase64Encode } from "../utils";
 
 // HTTP Methods that typically use query parameters
@@ -36,8 +36,11 @@ export function decodePaymentSignatureHeader(paymentSignatureHeader: string): Pa
  *
  * @param paymentRequired - The payment required object to encode
  * @returns Base64 encoded string representation of the payment required object
+ * @throws Error if validation fails
  */
 export function encodePaymentRequiredHeader(paymentRequired: PaymentRequired): string {
+  // Validate the payment required object before encoding
+  validatePaymentRequired(paymentRequired);
   return safeBase64Encode(JSON.stringify(paymentRequired));
 }
 
