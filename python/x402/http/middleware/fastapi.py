@@ -431,6 +431,7 @@ class PaymentMiddlewareASGI(BaseHTTPMiddleware):
         routes: RoutesConfig,
         server: x402ResourceServer,
         paywall_config: PaywallConfig | None = None,
+        paywall_provider: PaywallProvider | None = None,
     ) -> None:
         """Initialize ASGI middleware.
 
@@ -439,9 +440,10 @@ class PaymentMiddlewareASGI(BaseHTTPMiddleware):
             routes: Route configuration.
             server: x402ResourceServer instance.
             paywall_config: Optional paywall config.
+            paywall_provider: Optional custom paywall provider.
         """
         super().__init__(app)
-        self._middleware = payment_middleware(routes, server, paywall_config)
+        self._middleware = payment_middleware(routes, server, paywall_config, paywall_provider)
 
     async def dispatch(
         self,
