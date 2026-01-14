@@ -1,8 +1,8 @@
 {
   "name": "STX402",
-  "category": "Infrastructure & Tooling",
+  "category": "Services/Endpoints",
   "logoUrl": "/logos/stx402.svg",
-  "description": "Reference implementation of x402-stacks on Cloudflare. Discover x402-enabled endpoints on Stacks, register your own services, and explore working examples of STX, sBTC, and USDCx payments.",
+  "description": "x402-powered registry on Stacks. Discover endpoints, register services, and explore working examples with STX, sBTC, and USDCx payments.",
   "websiteUrl": "https://stx402.com",
   "githubUrl": "https://github.com/whoabuddy/stx402"
 }
