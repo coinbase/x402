@@ -59,13 +59,13 @@ export class ExactSvmSchemeV1 implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
-   * @param _context - Optional context for extension support (not used in V1)
+   * @param _ - Optional context for extension support (not used in V1)
    * @returns Promise resolving to a payment payload
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-    _context?: PaymentCreationContext,
+    _?: PaymentCreationContext,
   ): Promise<PaymentPayloadResult & { scheme: string; network: Network }> {
     const selectedV1 = paymentRequirements as unknown as PaymentRequirementsV1;
     const rpc = createRpcClient(selectedV1.network, this.config?.rpcUrl);

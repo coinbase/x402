@@ -46,17 +46,18 @@ export function validateEIP2612GasSponsoringSchema(info: unknown): ValidationRes
       return { valid: true };
     }
 
-    const errors =
-      validate.errors?.map(err => {
-        const path = err.instancePath || "(root)";
-        return `${path}: ${err.message}`;
-      }) || ["Unknown validation error"];
+    const errors = validate.errors?.map(err => {
+      const path = err.instancePath || "(root)";
+      return `${path}: ${err.message}`;
+    }) || ["Unknown validation error"];
 
     return { valid: false, errors };
   } catch (error) {
     return {
       valid: false,
-      errors: [`Schema validation failed: ${error instanceof Error ? error.message : String(error)}`],
+      errors: [
+        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}`,
+      ],
     };
   }
 }

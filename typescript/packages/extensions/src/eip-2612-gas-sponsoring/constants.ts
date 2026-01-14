@@ -11,6 +11,7 @@ export const EIP2612_GAS_SPONSORING = "eip2612GasSponsoring";
 /**
  * Canonical Permit2 address (same on all EVM chains).
  * The spender in EIP-2612 permits must be this address.
+ *
  * @see https://docs.uniswap.org/contracts/v4/deployments
  */
 export const CANONICAL_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";

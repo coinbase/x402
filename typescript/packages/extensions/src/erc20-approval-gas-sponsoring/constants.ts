@@ -11,6 +11,7 @@ export const ERC20_APPROVAL_GAS_SPONSORING = "erc20ApprovalGasSponsoring";
 /**
  * Canonical Permit2 address (same on all EVM chains).
  * The spender in approval transactions must be this address.
+ *
  * @see https://docs.uniswap.org/contracts/v4/deployments
  */
 export const CANONICAL_PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";

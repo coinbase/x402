@@ -29,13 +29,13 @@ export class ExactEvmScheme implements SchemeNetworkClient {
    *
    * @param x402Version - The x402 protocol version
    * @param paymentRequirements - The payment requirements
-   * @param _context - Optional context for extension support (not yet implemented)
+   * @param _ - Optional context for extension support (not yet implemented)
    * @returns Promise resolving to a payment payload result
    */
   async createPaymentPayload(
     x402Version: number,
     paymentRequirements: PaymentRequirements,
-    _context?: PaymentCreationContext,
+    _?: PaymentCreationContext,
   ): Promise<PaymentPayloadResult> {
     const nonce = createNonce();
     const now = Math.floor(Date.now() / 1000);

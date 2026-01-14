@@ -37,7 +37,7 @@ export class CashSchemeNetworkClient implements SchemeNetworkClient {
   createPaymentPayload(
     x402Version: number,
     requirements: PaymentRequirements,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     _context?: import("../../../../src/types/mechanisms").PaymentCreationContext,
   ): Promise<PaymentPayload> {
     return Promise.resolve({

@@ -74,329 +74,329 @@ export const x402Permit2ProxyAddress = "0x4020a3Ba709ffF52b52fD0B49B2565C2e0f0F5
 /**
  * Canonical Permit2 contract address
  * Same address on all EVM chains via CREATE2 deployment
+ *
  * @see https://github.com/Uniswap/permit2
  */
-export const PERMIT2_ADDRESS =
-  "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
+export const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
 
 /**
  * x402Permit2Proxy ABI
  */
 export const x402Permit2ProxyABI = [
   {
-    "type": "constructor",
-    "inputs": [
+    type: "constructor",
+    inputs: [
       {
-        "name": "_permit2",
-        "type": "address",
-        "internalType": "address"
-      }
+        name: "_permit2",
+        type: "address",
+        internalType: "address",
+      },
     ],
-    "stateMutability": "nonpayable"
+    stateMutability: "nonpayable",
   },
   {
-    "type": "function",
-    "name": "PERMIT2",
-    "inputs": [],
-    "outputs": [
+    type: "function",
+    name: "PERMIT2",
+    inputs: [],
+    outputs: [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "contract ISignatureTransfer"
-      }
+        name: "",
+        type: "address",
+        internalType: "contract ISignatureTransfer",
+      },
     ],
-    "stateMutability": "view"
+    stateMutability: "view",
   },
   {
-    "type": "function",
-    "name": "WITNESS_TYPEHASH",
-    "inputs": [],
-    "outputs": [
+    type: "function",
+    name: "WITNESS_TYPEHASH",
+    inputs: [],
+    outputs: [
       {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
+        name: "",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
     ],
-    "stateMutability": "view"
+    stateMutability: "view",
   },
   {
-    "type": "function",
-    "name": "WITNESS_TYPE_STRING",
-    "inputs": [],
-    "outputs": [
+    type: "function",
+    name: "WITNESS_TYPE_STRING",
+    inputs: [],
+    outputs: [
       {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
+        name: "",
+        type: "string",
+        internalType: "string",
+      },
     ],
-    "stateMutability": "view"
+    stateMutability: "view",
   },
   {
-    "type": "function",
-    "name": "settle",
-    "inputs": [
+    type: "function",
+    name: "settle",
+    inputs: [
       {
-        "name": "permit",
-        "type": "tuple",
-        "internalType": "struct ISignatureTransfer.PermitTransferFrom",
-        "components": [
+        name: "permit",
+        type: "tuple",
+        internalType: "struct ISignatureTransfer.PermitTransferFrom",
+        components: [
           {
-            "name": "permitted",
-            "type": "tuple",
-            "internalType": "struct ISignatureTransfer.TokenPermissions",
-            "components": [
+            name: "permitted",
+            type: "tuple",
+            internalType: "struct ISignatureTransfer.TokenPermissions",
+            components: [
               {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
+                name: "token",
+                type: "address",
+                internalType: "address",
               },
               {
-                "name": "amount",
-                "type": "uint256",
-                "internalType": "uint256"
-              }
-            ]
+                name: "amount",
+                type: "uint256",
+                internalType: "uint256",
+              },
+            ],
           },
           {
-            "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "nonce",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "deadline",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
+            name: "deadline",
+            type: "uint256",
+            internalType: "uint256",
+          },
+        ],
       },
       {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
       },
       {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
+        name: "owner",
+        type: "address",
+        internalType: "address",
       },
       {
-        "name": "witness",
-        "type": "tuple",
-        "internalType": "struct x402Permit2Proxy.Witness",
-        "components": [
+        name: "witness",
+        type: "tuple",
+        internalType: "struct x402Permit2Proxy.Witness",
+        components: [
           {
-            "name": "to",
-            "type": "address",
-            "internalType": "address"
+            name: "to",
+            type: "address",
+            internalType: "address",
           },
           {
-            "name": "validAfter",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "validAfter",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "validBefore",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "validBefore",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "extra",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
+            name: "extra",
+            type: "bytes",
+            internalType: "bytes",
+          },
+        ],
       },
       {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
+        name: "signature",
+        type: "bytes",
+        internalType: "bytes",
+      },
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
-    "type": "function",
-    "name": "settleWith2612",
-    "inputs": [
+    type: "function",
+    name: "settleWith2612",
+    inputs: [
       {
-        "name": "permit2612",
-        "type": "tuple",
-        "internalType": "struct x402Permit2Proxy.EIP2612Permit",
-        "components": [
+        name: "permit2612",
+        type: "tuple",
+        internalType: "struct x402Permit2Proxy.EIP2612Permit",
+        components: [
           {
-            "name": "value",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "value",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "deadline",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "deadline",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "r",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            name: "r",
+            type: "bytes32",
+            internalType: "bytes32",
           },
           {
-            "name": "s",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            name: "s",
+            type: "bytes32",
+            internalType: "bytes32",
           },
           {
-            "name": "v",
-            "type": "uint8",
-            "internalType": "uint8"
-          }
-        ]
+            name: "v",
+            type: "uint8",
+            internalType: "uint8",
+          },
+        ],
       },
       {
-        "name": "permit",
-        "type": "tuple",
-        "internalType": "struct ISignatureTransfer.PermitTransferFrom",
-        "components": [
+        name: "permit",
+        type: "tuple",
+        internalType: "struct ISignatureTransfer.PermitTransferFrom",
+        components: [
           {
-            "name": "permitted",
-            "type": "tuple",
-            "internalType": "struct ISignatureTransfer.TokenPermissions",
-            "components": [
+            name: "permitted",
+            type: "tuple",
+            internalType: "struct ISignatureTransfer.TokenPermissions",
+            components: [
               {
-                "name": "token",
-                "type": "address",
-                "internalType": "address"
+                name: "token",
+                type: "address",
+                internalType: "address",
               },
               {
-                "name": "amount",
-                "type": "uint256",
-                "internalType": "uint256"
-              }
-            ]
+                name: "amount",
+                type: "uint256",
+                internalType: "uint256",
+              },
+            ],
           },
           {
-            "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "nonce",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "deadline",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
+            name: "deadline",
+            type: "uint256",
+            internalType: "uint256",
+          },
+        ],
       },
       {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
+        name: "amount",
+        type: "uint256",
+        internalType: "uint256",
       },
       {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
+        name: "owner",
+        type: "address",
+        internalType: "address",
       },
       {
-        "name": "witness",
-        "type": "tuple",
-        "internalType": "struct x402Permit2Proxy.Witness",
-        "components": [
+        name: "witness",
+        type: "tuple",
+        internalType: "struct x402Permit2Proxy.Witness",
+        components: [
           {
-            "name": "to",
-            "type": "address",
-            "internalType": "address"
+            name: "to",
+            type: "address",
+            internalType: "address",
           },
           {
-            "name": "validAfter",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "validAfter",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "validBefore",
-            "type": "uint256",
-            "internalType": "uint256"
+            name: "validBefore",
+            type: "uint256",
+            internalType: "uint256",
           },
           {
-            "name": "extra",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
+            name: "extra",
+            type: "bytes",
+            internalType: "bytes",
+          },
+        ],
       },
       {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
+        name: "signature",
+        type: "bytes",
+        internalType: "bytes",
+      },
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    outputs: [],
+    stateMutability: "nonpayable",
   },
   {
-    "type": "event",
-    "name": "X402PermitTransfer",
-    "inputs": [
+    type: "event",
+    name: "X402PermitTransfer",
+    inputs: [
       {
-        "name": "from",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        name: "from",
+        type: "address",
+        indexed: true,
+        internalType: "address",
       },
       {
-        "name": "to",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        name: "to",
+        type: "address",
+        indexed: true,
+        internalType: "address",
       },
       {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
       },
       {
-        "name": "asset",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
+        name: "asset",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
     ],
-    "anonymous": false
+    anonymous: false,
   },
   {
-    "type": "error",
-    "name": "AmountExceedsPermitted",
-    "inputs": []
+    type: "error",
+    name: "AmountExceedsPermitted",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "InvalidDestination",
-    "inputs": []
+    type: "error",
+    name: "InvalidDestination",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "InvalidOwner",
-    "inputs": []
+    type: "error",
+    name: "InvalidOwner",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "InvalidPermit2Address",
-    "inputs": []
+    type: "error",
+    name: "InvalidPermit2Address",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "PaymentExpired",
-    "inputs": []
+    type: "error",
+    name: "PaymentExpired",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "PaymentTooEarly",
-    "inputs": []
+    type: "error",
+    name: "PaymentTooEarly",
+    inputs: [],
   },
   {
-    "type": "error",
-    "name": "ReentrancyGuardReentrantCall",
-    "inputs": []
-  }
+    type: "error",
+    name: "ReentrancyGuardReentrantCall",
+    inputs: [],
+  },
 ] as const;
