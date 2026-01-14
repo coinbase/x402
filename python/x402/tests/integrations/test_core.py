@@ -3,6 +3,8 @@
 These tests verify the full payment flow using a mock "cash" scheme.
 """
 
+import asyncio
+
 import pytest
 
 from x402 import x402Client, x402Facilitator, x402ResourceServer
@@ -367,11 +369,11 @@ class TestHTTPIntegration:
     def setup_method(self) -> None:
         """Set up test fixtures."""
         # Create facilitator
-        facilitator = x402Facilitator().register(
+        self.facilitator = x402Facilitator().register(
             ["x402:cash"],
             CashSchemeNetworkFacilitator(),
         )
-        facilitator_client = CashFacilitatorClient(facilitator)
+        facilitator_client = CashFacilitatorClient(self.facilitator)
 
         # Create core client and wrap with HTTP client
         payment_client = x402Client().register(
@@ -414,7 +416,7 @@ class TestHTTPIntegration:
         )
 
         # Should return 402
-        result = self.http_server.process_http_request(context)
+        result = asyncio.run(self.http_server.process_http_request(context))
         assert result.type == "payment-error"
         assert result.response is not None
         assert result.response.status == 402
@@ -428,7 +430,9 @@ class TestHTTPIntegration:
             result.response.body,
         )
         payment_payload = self.http_client.create_payment_payload(payment_required)
-        request_headers = self.http_client.encode_payment_signature_header(payment_payload)
+        request_headers = self.http_client.encode_payment_signature_header(
+            payment_payload
+        )
 
         # Retry with payment
         mock_adapter_with_payment = MockHTTPAdapter(
@@ -442,7 +446,9 @@ class TestHTTPIntegration:
             method="GET",
         )
 
-        result2 = self.http_server.process_http_request(context_with_payment)
+        result2 = asyncio.run(
+            self.http_server.process_http_request(context_with_payment)
+        )
         assert result2.type == "payment-verified"
         assert result2.payment_payload is not None
         assert result2.payment_requirements is not None
@@ -467,7 +473,7 @@ class TestHTTPIntegration:
             method="GET",
         )
 
-        result = self.http_server.process_http_request(context)
+        result = asyncio.run(self.http_server.process_http_request(context))
         assert result.type == "no-payment-required"
 
 
@@ -476,11 +482,11 @@ class TestDynamicPricing:
 
     def setup_method(self) -> None:
         """Set up test fixtures."""
-        facilitator = x402Facilitator().register(
+        self.facilitator = x402Facilitator().register(
             ["x402:cash"],
             CashSchemeNetworkFacilitator(),
         )
-        facilitator_client = CashFacilitatorClient(facilitator)
+        facilitator_client = CashFacilitatorClient(self.facilitator)
 
         resource_server = x402ResourceServer(facilitator_client)
         resource_server.register("x402:cash", CashSchemeNetworkServer())
@@ -490,7 +496,7 @@ class TestDynamicPricing:
     def test_dynamic_price_from_query_params(self) -> None:
         """Test that price can be dynamically computed from query params."""
 
-        def dynamic_price(context: HTTPRequestContext) -> Price:
+        async def dynamic_price(context: HTTPRequestContext) -> Price:
             tier = context.adapter.get_query_param("tier")
             if tier == "premium":
                 return "$0.01"
@@ -523,7 +529,7 @@ class TestDynamicPricing:
             path="/api/data",
             method="GET",
         )
-        result = http_server.process_http_request(premium_context)
+        result = asyncio.run(http_server.process_http_request(premium_context))
         assert result.type == "payment-error"
         payment_required = decode_payment_required_header(
             result.response.headers["PAYMENT-REQUIRED"]
@@ -541,7 +547,7 @@ class TestDynamicPricing:
             path="/api/data",
             method="GET",
         )
-        result2 = http_server.process_http_request(business_context)
+        result2 = asyncio.run(http_server.process_http_request(business_context))
         payment_required2 = decode_payment_required_header(
             result2.response.headers["PAYMENT-REQUIRED"]
         )
@@ -557,7 +563,7 @@ class TestDynamicPricing:
             path="/api/data",
             method="GET",
         )
-        result3 = http_server.process_http_request(default_context)
+        result3 = asyncio.run(http_server.process_http_request(default_context))
         payment_required3 = decode_payment_required_header(
             result3.response.headers["PAYMENT-REQUIRED"]
         )
@@ -566,7 +572,7 @@ class TestDynamicPricing:
     def test_dynamic_pay_to_from_headers(self) -> None:
         """Test that payTo can be dynamically computed from headers."""
 
-        def dynamic_pay_to(context: HTTPRequestContext) -> str:
+        async def dynamic_pay_to(context: HTTPRequestContext) -> str:
             region = context.adapter.get_header("x-region")
             addresses = {
                 "us": "merchant-us@example.com",
@@ -600,7 +606,7 @@ class TestDynamicPricing:
             path="/api/process",
             method="POST",
         )
-        result = http_server.process_http_request(us_context)
+        result = asyncio.run(http_server.process_http_request(us_context))
         payment_required = decode_payment_required_header(
             result.response.headers["PAYMENT-REQUIRED"]
         )
@@ -617,7 +623,7 @@ class TestDynamicPricing:
             path="/api/process",
             method="POST",
         )
-        result2 = http_server.process_http_request(eu_context)
+        result2 = asyncio.run(http_server.process_http_request(eu_context))
         payment_required2 = decode_payment_required_header(
             result2.response.headers["PAYMENT-REQUIRED"]
         )
@@ -626,7 +632,7 @@ class TestDynamicPricing:
     def test_combined_dynamic_pricing_and_pay_to(self) -> None:
         """Test that both price and payTo can be dynamic."""
 
-        def dynamic_pay_to(context: HTTPRequestContext) -> str:
+        async def dynamic_pay_to(context: HTTPRequestContext) -> str:
             source = context.adapter.get_query_param("source")
             if source == "blockchain":
                 return "blockchain-provider@example.com"
@@ -634,7 +640,7 @@ class TestDynamicPricing:
                 return "market-data-provider@example.com"
             return "default-provider@example.com"
 
-        def dynamic_price(context: HTTPRequestContext) -> Price:
+        async def dynamic_price(context: HTTPRequestContext) -> Price:
             subscription = context.adapter.get_header("x-subscription")
             range_param = context.adapter.get_query_param("range") or "1d"
 
@@ -678,7 +684,7 @@ class TestDynamicPricing:
             path="/api/premium-data",
             method="GET",
         )
-        result = http_server.process_http_request(context)
+        result = asyncio.run(http_server.process_http_request(context))
         payment_required = decode_payment_required_header(
             result.response.headers["PAYMENT-REQUIRED"]
         )
@@ -698,7 +704,7 @@ class TestDynamicPricing:
             path="/api/premium-data",
             method="GET",
         )
-        result2 = http_server.process_http_request(free_context)
+        result2 = asyncio.run(http_server.process_http_request(free_context))
         payment_required2 = decode_payment_required_header(
             result2.response.headers["PAYMENT-REQUIRED"]
         )

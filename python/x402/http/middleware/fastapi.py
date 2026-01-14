@@ -278,7 +278,7 @@ def payment_middleware(
             init_done = True
 
         # Process payment request
-        result = http_server.process_http_request(context, paywall_config)
+        result = await http_server.process_http_request(context, paywall_config)
 
         if result.type == "no-payment-required":
             return await call_next(request)

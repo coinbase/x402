@@ -1,7 +1,12 @@
-"""HTTP-enhanced resource server for x402 protocol."""
+"""HTTP-enhanced resource server for x402 protocol.
+
+Provides both async (x402HTTPResourceServer) and sync (x402HTTPResourceServerSync)
+implementations for framework-specific middleware integration.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from typing import TYPE_CHECKING, Any, Protocol
@@ -69,15 +74,15 @@ class PaywallProvider(Protocol):
 
 
 # ============================================================================
-# x402HTTPResourceServer
+# Base HTTP Server (Shared Logic)
 # ============================================================================
 
 
-class x402HTTPResourceServer:
-    """HTTP-enhanced x402 resource server.
+class _x402HTTPServerBase:
+    """Base class with shared logic for x402 HTTP servers.
 
-    Provides framework-agnostic HTTP protocol handling for payment-protected
-    resources. Use with framework-specific middleware (FastAPI, Flask, etc.)
+    Contains route matching, payment extraction, paywall generation,
+    and settlement processing. Subclasses implement sync/async request processing.
     """
 
     def __init__(
@@ -169,6 +174,7 @@ class x402HTTPResourceServer:
                 "unpaidResponseBody", config.get("unpaid_response_body")
             ),
             extensions=config.get("extensions"),
+            hook_timeout_seconds=config.get("hook_timeout_seconds"),
         )
 
     # =========================================================================
@@ -193,7 +199,7 @@ class x402HTTPResourceServer:
         if errors:
             raise RouteConfigurationError(errors)
 
-    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServer:
+    def register_paywall_provider(self, provider: PaywallProvider) -> _x402HTTPServerBase:
         """Register custom paywall provider for HTML generation.
 
         Args:
@@ -206,143 +212,8 @@ class x402HTTPResourceServer:
         return self
 
     # =========================================================================
-    # Request Processing
+    # Route Matching
     # =========================================================================
-
-    def process_http_request(
-        self,
-        context: HTTPRequestContext,
-        paywall_config: PaywallConfig | None = None,
-    ) -> HTTPProcessResult:
-        """Process HTTP request and return result.
-
-        Main entry point for framework middleware.
-
-        Args:
-            context: HTTP request context.
-            paywall_config: Optional paywall configuration.
-
-        Returns:
-            HTTPProcessResult indicating:
-            - no-payment-required: Route doesn't require payment
-            - payment-verified: Payment valid, proceed with request
-            - payment-error: Return 402 response
-        """
-        # Find matching route
-        route_config = self._get_route_config(context.path, context.method)
-        if route_config is None:
-            return HTTPProcessResult(type=RESULT_NO_PAYMENT_REQUIRED)
-
-        # Extract payment from headers
-        payment_payload = self._extract_payment(context.adapter)
-
-        # Build resource info
-        resource_info = ResourceInfo(
-            url=route_config.resource or context.adapter.get_url(),
-            description=route_config.description or "",
-            mime_type=route_config.mime_type or "",
-        )
-
-        # Build requirements from payment options
-        requirements = self._build_payment_requirements_from_options(
-            route_config.accepts,
-            context,
-        )
-
-        # Enrich extensions if present
-        extensions = route_config.extensions
-        if extensions:
-            extensions = self._server.enrich_extensions(extensions, context)
-
-        # Create PaymentRequired response
-        payment_required = self._server.create_payment_required_response(
-            requirements,
-            resource_info,
-            None if payment_payload else "Payment required",
-            extensions,
-        )
-
-        # No payment provided
-        if payment_payload is None:
-            unpaid_body = None
-            if route_config.unpaid_response_body:
-                unpaid_body = route_config.unpaid_response_body(context)
-
-            return HTTPProcessResult(
-                type=RESULT_PAYMENT_ERROR,
-                response=self._create_http_response(
-                    payment_required,
-                    is_web_browser=self._is_web_browser(context.adapter),
-                    paywall_config=paywall_config,
-                    custom_html=route_config.custom_paywall_html,
-                    unpaid_response=unpaid_body,
-                ),
-            )
-
-        # Find matching requirements
-        matching_reqs = self._server.find_matching_requirements(
-            payment_required.accepts,
-            payment_payload,
-        )
-
-        if matching_reqs is None:
-            return HTTPProcessResult(
-                type=RESULT_PAYMENT_ERROR,
-                response=self._create_http_response(
-                    self._server.create_payment_required_response(
-                        requirements,
-                        resource_info,
-                        "No matching payment requirements",
-                        extensions,
-                    ),
-                    is_web_browser=False,
-                    paywall_config=paywall_config,
-                ),
-            )
-
-        # Verify payment
-        try:
-            verify_result = self._server.verify_payment(
-                payment_payload,
-                matching_reqs,
-            )
-
-            if not verify_result.is_valid:
-                return HTTPProcessResult(
-                    type=RESULT_PAYMENT_ERROR,
-                    response=self._create_http_response(
-                        self._server.create_payment_required_response(
-                            requirements,
-                            resource_info,
-                            verify_result.invalid_reason,
-                            extensions,
-                        ),
-                        is_web_browser=False,
-                        paywall_config=paywall_config,
-                    ),
-                )
-
-            # Payment valid
-            return HTTPProcessResult(
-                type=RESULT_PAYMENT_VERIFIED,
-                payment_payload=payment_payload,
-                payment_requirements=matching_reqs,
-            )
-
-        except Exception as e:
-            return HTTPProcessResult(
-                type=RESULT_PAYMENT_ERROR,
-                response=self._create_http_response(
-                    self._server.create_payment_required_response(
-                        requirements,
-                        resource_info,
-                        str(e),
-                        extensions,
-                    ),
-                    is_web_browser=False,
-                    paywall_config=paywall_config,
-                ),
-            )
 
     def requires_payment(self, context: HTTPRequestContext) -> bool:
         """Check if a request requires payment.
@@ -354,6 +225,18 @@ class x402HTTPResourceServer:
             True if route requires payment.
         """
         return self._get_route_config(context.path, context.method) is not None
+
+    def _get_route_config(self, path: str, method: str) -> RouteConfig | None:
+        """Find matching route configuration."""
+        normalized_path = self._normalize_path(path)
+        upper_method = method.upper()
+
+        for route in self._compiled_routes:
+            if route.regex.match(normalized_path):
+                if route.verb == "*" or route.verb == upper_method:
+                    return route.config
+
+        return None
 
     # =========================================================================
     # Settlement
@@ -404,62 +287,6 @@ class x402HTTPResourceServer:
     # =========================================================================
     # Internal Methods
     # =========================================================================
-
-    def _get_route_config(self, path: str, method: str) -> RouteConfig | None:
-        """Find matching route configuration."""
-        normalized_path = self._normalize_path(path)
-        upper_method = method.upper()
-
-        for route in self._compiled_routes:
-            if route.regex.match(normalized_path):
-                if route.verb == "*" or route.verb == upper_method:
-                    return route.config
-
-        return None
-
-    def _build_payment_requirements_from_options(
-        self,
-        options: PaymentOption | list[PaymentOption],
-        context: HTTPRequestContext,
-    ) -> list[PaymentRequirements]:
-        """Build payment requirements from payment options.
-
-        Resolves dynamic payTo/price functions.
-        """
-        # Ensure options is a list
-        if isinstance(options, PaymentOption):
-            options = [options]
-
-        all_requirements = []
-
-        for option in options:
-            # Resolve dynamic payTo
-            if callable(option.pay_to):
-                pay_to = option.pay_to(context)
-            else:
-                pay_to = option.pay_to
-
-            # Resolve dynamic price
-            if callable(option.price):
-                price = option.price(context)
-            else:
-                price = option.price
-
-            # Build requirements using server
-            from ..server import ResourceConfig
-
-            config = ResourceConfig(
-                scheme=option.scheme,
-                pay_to=pay_to,
-                price=price,
-                network=option.network,
-                max_timeout_seconds=option.max_timeout_seconds,
-            )
-
-            requirements = self._server.build_payment_requirements(config)
-            all_requirements.extend(requirements)
-
-        return all_requirements
 
     def _extract_payment(self, adapter: HTTPAdapter) -> PaymentPayload | PaymentPayloadV1 | None:
         """Extract payment from HTTP headers (V2 only)."""
@@ -745,3 +572,496 @@ class x402HTTPResourceServer:
                 except (ValueError, TypeError):
                     pass
         return 0.0
+
+
+# ============================================================================
+# Async HTTP Resource Server (for FastAPI, Starlette, etc.)
+# ============================================================================
+
+
+class x402HTTPResourceServer(_x402HTTPServerBase):
+    """Async HTTP resource server for x402 payment handling.
+
+    Use this with async frameworks like FastAPI or Starlette.
+    Supports both sync and async callbacks for dynamic price/payTo.
+
+    Example:
+        ```python
+        from x402.http import x402HTTPResourceServer
+
+        http_server = x402HTTPResourceServer(resource_server, routes)
+
+        # In FastAPI middleware:
+        result = await http_server.process_http_request(context)
+        ```
+    """
+
+    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServer:
+        """Register custom paywall provider for HTML generation.
+
+        Args:
+            provider: PaywallProvider instance.
+
+        Returns:
+            Self for chaining.
+        """
+        self._paywall_provider = provider
+        return self
+
+    async def process_http_request(
+        self,
+        context: HTTPRequestContext,
+        paywall_config: PaywallConfig | None = None,
+    ) -> HTTPProcessResult:
+        """Process HTTP request asynchronously.
+
+        Main entry point for async framework middleware.
+
+        Args:
+            context: HTTP request context.
+            paywall_config: Optional paywall configuration.
+
+        Returns:
+            HTTPProcessResult indicating:
+            - no-payment-required: Route doesn't require payment
+            - payment-verified: Payment valid, proceed with request
+            - payment-error: Return 402 response
+        """
+        # Find matching route
+        route_config = self._get_route_config(context.path, context.method)
+        if route_config is None:
+            return HTTPProcessResult(type=RESULT_NO_PAYMENT_REQUIRED)
+
+        # Extract payment from headers
+        payment_payload = self._extract_payment(context.adapter)
+
+        # Get timeout from route config
+        timeout = route_config.hook_timeout_seconds
+
+        # Build resource info (Static metadata as per maintainer feedback)
+        resource_info = ResourceInfo(
+            url=route_config.resource or context.adapter.get_url(),
+            description=route_config.description or "",
+            mime_type=route_config.mime_type or "",
+        )
+
+        try:
+            # Build requirements from payment options (Resolves dynamic price/pay_to)
+            requirements = await self._build_payment_requirements_from_options(
+                route_config.accepts,
+                context,
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=HTTPResponseInstructions(
+                    status=500,
+                    headers={},
+                    body={"error": "Hook execution timed out"},
+                ),
+            )
+        except Exception:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=HTTPResponseInstructions(
+                    status=500,
+                    headers={},
+                    body={"error": "Failed to process request"},
+                ),
+            )
+
+        # Enrich extensions if present
+        extensions = route_config.extensions
+        if extensions:
+            extensions = self._server.enrich_extensions(extensions, context)
+
+        # Create PaymentRequired response
+        payment_required = self._server.create_payment_required_response(
+            requirements,
+            resource_info,
+            None if payment_payload else "Payment required",
+            extensions,
+        )
+
+        # No payment provided
+        if payment_payload is None:
+            unpaid_body = None
+            if route_config.unpaid_response_body:
+                unpaid_body = route_config.unpaid_response_body(context)
+
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    payment_required,
+                    is_web_browser=self._is_web_browser(context.adapter),
+                    paywall_config=paywall_config,
+                    custom_html=route_config.custom_paywall_html,
+                    unpaid_response=unpaid_body,
+                ),
+            )
+
+        # Find matching requirements
+        matching_reqs = self._server.find_matching_requirements(
+            payment_required.accepts,
+            payment_payload,
+        )
+
+        if matching_reqs is None:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    self._server.create_payment_required_response(
+                        requirements,
+                        resource_info,
+                        "No matching payment requirements",
+                        extensions,
+                    ),
+                    is_web_browser=False,
+                    paywall_config=paywall_config,
+                ),
+            )
+
+        # Verify payment
+        try:
+            verify_result = self._server.verify_payment(
+                payment_payload,
+                matching_reqs,
+            )
+
+            if not verify_result.is_valid:
+                return HTTPProcessResult(
+                    type=RESULT_PAYMENT_ERROR,
+                    response=self._create_http_response(
+                        self._server.create_payment_required_response(
+                            requirements,
+                            resource_info,
+                            verify_result.invalid_reason,
+                            extensions,
+                        ),
+                        is_web_browser=False,
+                        paywall_config=paywall_config,
+                    ),
+                )
+
+            # Payment valid
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_VERIFIED,
+                payment_payload=payment_payload,
+                payment_requirements=matching_reqs,
+            )
+
+        except Exception as e:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    self._server.create_payment_required_response(
+                        requirements,
+                        resource_info,
+                        str(e),
+                        extensions,
+                    ),
+                    is_web_browser=False,
+                    paywall_config=paywall_config,
+                ),
+            )
+
+    async def _build_payment_requirements_from_options(
+        self,
+        options: PaymentOption | list[PaymentOption],
+        context: HTTPRequestContext,
+        timeout: float | None,
+    ) -> list[PaymentRequirements]:
+        """Build payment requirements from payment options.
+
+        Resolves dynamic payTo/price functions (supports async and sync).
+        """
+        # Ensure options is a list
+        if isinstance(options, PaymentOption):
+            options = [options]
+
+        all_requirements = []
+
+        for option in options:
+            # Resolve dynamic values for the option
+            pay_to = await self._resolve_value(
+                option.pay_to, context, timeout=timeout, field_name="pay_to"
+            )
+            price = await self._resolve_value(
+                option.price, context, timeout=timeout, field_name="price"
+            )
+
+            # Build requirements using server
+            from ..server import ResourceConfig
+
+            config = ResourceConfig(
+                scheme=option.scheme,
+                pay_to=pay_to,
+                price=price,
+                network=option.network,
+                max_timeout_seconds=option.max_timeout_seconds,
+            )
+
+            requirements = self._server.build_payment_requirements(config)
+            all_requirements.extend(requirements)
+
+        return all_requirements
+
+    async def _resolve_value(
+        self,
+        value: Any,
+        context: HTTPRequestContext,
+        timeout: float | None,
+        field_name: str = "value",
+    ) -> Any:
+        """Resolve a value that could be a static value or an async/sync hook."""
+        if callable(value):
+            result = value(context)
+            # Check if the result is a coroutine or future (async)
+            if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+                return await asyncio.wait_for(result, timeout=timeout)
+            # Synchronous function - return result directly
+            return result
+        return value
+
+
+# ============================================================================
+# Sync HTTP Resource Server (for Flask, Django, etc.)
+# ============================================================================
+
+
+class x402HTTPResourceServerSync(_x402HTTPServerBase):
+    """Sync HTTP resource server for x402 payment handling.
+
+    Use this with sync frameworks like Flask or Django.
+    Only supports sync callbacks for dynamic price/payTo.
+
+    Example:
+        ```python
+        from x402.http import x402HTTPResourceServerSync
+
+        http_server = x402HTTPResourceServerSync(resource_server, routes)
+
+        # In Flask middleware:
+        result = http_server.process_http_request(context)
+        ```
+    """
+
+    def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServerSync:
+        """Register custom paywall provider for HTML generation.
+
+        Args:
+            provider: PaywallProvider instance.
+
+        Returns:
+            Self for chaining.
+        """
+        self._paywall_provider = provider
+        return self
+
+    def process_http_request(
+        self,
+        context: HTTPRequestContext,
+        paywall_config: PaywallConfig | None = None,
+    ) -> HTTPProcessResult:
+        """Process HTTP request synchronously.
+
+        Main entry point for sync framework middleware.
+
+        Args:
+            context: HTTP request context.
+            paywall_config: Optional paywall configuration.
+
+        Returns:
+            HTTPProcessResult indicating:
+            - no-payment-required: Route doesn't require payment
+            - payment-verified: Payment valid, proceed with request
+            - payment-error: Return 402 response
+        """
+        # Find matching route
+        route_config = self._get_route_config(context.path, context.method)
+        if route_config is None:
+            return HTTPProcessResult(type=RESULT_NO_PAYMENT_REQUIRED)
+
+        # Extract payment from headers
+        payment_payload = self._extract_payment(context.adapter)
+
+        # Build resource info (Static metadata as per maintainer feedback)
+        resource_info = ResourceInfo(
+            url=route_config.resource or context.adapter.get_url(),
+            description=route_config.description or "",
+            mime_type=route_config.mime_type or "",
+        )
+
+        try:
+            # Build requirements from payment options (Resolves dynamic price/pay_to)
+            requirements = self._build_payment_requirements_from_options_sync(
+                route_config.accepts,
+                context,
+            )
+        except Exception:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=HTTPResponseInstructions(
+                    status=500,
+                    headers={},
+                    body={"error": "Failed to process request"},
+                ),
+            )
+
+        # Enrich extensions if present
+        extensions = route_config.extensions
+        if extensions:
+            extensions = self._server.enrich_extensions(extensions, context)
+
+        # Create PaymentRequired response
+        payment_required = self._server.create_payment_required_response(
+            requirements,
+            resource_info,
+            None if payment_payload else "Payment required",
+            extensions,
+        )
+
+        # No payment provided
+        if payment_payload is None:
+            unpaid_body = None
+            if route_config.unpaid_response_body:
+                unpaid_body = route_config.unpaid_response_body(context)
+
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    payment_required,
+                    is_web_browser=self._is_web_browser(context.adapter),
+                    paywall_config=paywall_config,
+                    custom_html=route_config.custom_paywall_html,
+                    unpaid_response=unpaid_body,
+                ),
+            )
+
+        # Find matching requirements
+        matching_reqs = self._server.find_matching_requirements(
+            payment_required.accepts,
+            payment_payload,
+        )
+
+        if matching_reqs is None:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    self._server.create_payment_required_response(
+                        requirements,
+                        resource_info,
+                        "No matching payment requirements",
+                        extensions,
+                    ),
+                    is_web_browser=False,
+                    paywall_config=paywall_config,
+                ),
+            )
+
+        # Verify payment
+        try:
+            verify_result = self._server.verify_payment(
+                payment_payload,
+                matching_reqs,
+            )
+
+            if not verify_result.is_valid:
+                return HTTPProcessResult(
+                    type=RESULT_PAYMENT_ERROR,
+                    response=self._create_http_response(
+                        self._server.create_payment_required_response(
+                            requirements,
+                            resource_info,
+                            verify_result.invalid_reason,
+                            extensions,
+                        ),
+                        is_web_browser=False,
+                        paywall_config=paywall_config,
+                    ),
+                )
+
+            # Payment valid
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_VERIFIED,
+                payment_payload=payment_payload,
+                payment_requirements=matching_reqs,
+            )
+
+        except Exception as e:
+            return HTTPProcessResult(
+                type=RESULT_PAYMENT_ERROR,
+                response=self._create_http_response(
+                    self._server.create_payment_required_response(
+                        requirements,
+                        resource_info,
+                        str(e),
+                        extensions,
+                    ),
+                    is_web_browser=False,
+                    paywall_config=paywall_config,
+                ),
+            )
+
+    def _build_payment_requirements_from_options_sync(
+        self,
+        options: PaymentOption | list[PaymentOption],
+        context: HTTPRequestContext,
+    ) -> list[PaymentRequirements]:
+        """Build payment requirements from payment options.
+
+        Resolves dynamic payTo/price functions (sync only).
+        """
+        # Ensure options is a list
+        if isinstance(options, PaymentOption):
+            options = [options]
+
+        all_requirements = []
+
+        for option in options:
+            # Resolve dynamic values for the option (sync only)
+            pay_to = self._resolve_value_sync(option.pay_to, context)
+            price = self._resolve_value_sync(option.price, context)
+
+            # Build requirements using server
+            from ..server import ResourceConfig
+
+            config = ResourceConfig(
+                scheme=option.scheme,
+                pay_to=pay_to,
+                price=price,
+                network=option.network,
+                max_timeout_seconds=option.max_timeout_seconds,
+            )
+
+            requirements = self._server.build_payment_requirements(config)
+            all_requirements.extend(requirements)
+
+        return all_requirements
+
+    def _resolve_value_sync(
+        self,
+        value: Any,
+        context: HTTPRequestContext,
+    ) -> Any:
+        """Resolve a value that could be a static value or a sync hook.
+
+        Note: Async callbacks are NOT supported in sync server.
+        If an async callback is passed, it will raise an error.
+        """
+        if callable(value):
+            result = value(context)
+            # Check if the result is a coroutine (async) - not supported
+            if asyncio.iscoroutine(result):
+                # Close the coroutine to avoid warning
+                result.close()
+                raise TypeError(
+                    "Async callbacks are not supported in x402HTTPResourceServerSync. "
+                    "Use x402HTTPResourceServer for async callback support, or provide "
+                    "a synchronous callback function."
+                )
+            return result
+        return value
+
+
