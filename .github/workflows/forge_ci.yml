@@ -1,0 +1,44 @@
+name: Forge CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'contracts/evm/**'
+
+env:
+  FOUNDRY_PROFILE: ci
+
+jobs:
+  forge-checks:
+    name: Forge Build, Test & Format
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts/evm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Show Forge version
+        run: forge --version
+
+      - name: Run Forge build
+        run: forge build --sizes
+        id: build
+
+      - name: Run Forge tests
+        run: forge test -vvv
+        id: test
+
+      - name: Check formatting
+        run: forge fmt --check
+        id: fmt
+
