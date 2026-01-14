@@ -1,8 +1,8 @@
 {
   "name": "x402 Biwas",
   "category": "Endpoints",
-  "logoUrl": "/logos/x402Stacks.svg",
-  "description": "x402-enabled API endpoints on Stacks with analytics and health monitoring.",
+  "logoUrl": "/logos/biwas.jpg",
+  "description": "AI-powered analytics endpoints on Stacks including DeFi portfolio analysis, market intelligence, wallet classification, and smart contract auditing. Supports STX payments.",
   "websiteUrl": "https://x402.biwas.xyz",
   "githubUrl": "https://github.com/biwasxyz/x402"
 }
