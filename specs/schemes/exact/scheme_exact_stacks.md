@@ -259,4 +259,4 @@ Stacks transactions are anchored in Bitcoin blocks. Facilitators should wait for
 ## Reference Implementation
 
 - Client/Server SDK: [x402Stacks](https://github.com/tony1908/x402Stacks) (x402-stacks on npm)
-- Registry: [STX402](https://stx402.com)
+- Registry: [x402StacksScan](https://scan.stacksx402.com)
