@@ -20,7 +20,8 @@ contract X402Permit2ProxyTest is Test {
     uint256 constant MINT_AMOUNT = 10_000e6;
     uint256 constant TRANSFER_AMOUNT = 100e6;
 
-    event X402PermitTransfer(address indexed from, address indexed to, uint256 amount, address indexed asset);
+    event Settled();
+    event SettledWith2612();
 
     function setUp() public {
         vm.warp(1_000_000);
@@ -134,11 +135,11 @@ contract X402Permit2ProxyTest is Test {
         assertEq(token.balanceOf(recipient) - balanceBefore, TRANSFER_AMOUNT);
     }
 
-    function test_settle_emitsEvent() public {
+    function test_settle_emitsSettled() public {
         uint256 t = block.timestamp;
 
-        vm.expectEmit(true, true, true, true);
-        emit X402PermitTransfer(payer, recipient, TRANSFER_AMOUNT, address(token));
+        vm.expectEmit(false, false, false, false);
+        emit Settled();
 
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
@@ -230,6 +231,9 @@ contract X402Permit2ProxyTest is Test {
             r: bytes32(uint256(1)),
             s: bytes32(uint256(2))
         });
+
+        vm.expectEmit(false, false, false, false);
+        emit SettledWith2612();
 
         proxy.settleWith2612(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
 

@@ -28,7 +28,7 @@ contract X402Permit2ProxyForkTest is Test {
     uint256 constant MINT_AMOUNT = 10_000e6;
     uint256 constant TRANSFER_AMOUNT = 100e6;
 
-    event X402PermitTransfer(address indexed from, address indexed to, uint256 amount, address indexed asset);
+    event Settled();
 
     function setUp() public {
         if (block.chainid == 31_337) return;
@@ -105,8 +105,8 @@ contract X402Permit2ProxyForkTest is Test {
 
         uint256 balanceBefore = token.balanceOf(recipient);
 
-        vm.expectEmit(true, true, true, true);
-        emit X402PermitTransfer(payer, recipient, TRANSFER_AMOUNT, address(token));
+        vm.expectEmit(false, false, false, false);
+        emit Settled();
 
         proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, sig);
 

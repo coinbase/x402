@@ -30,12 +30,11 @@ contract x402Permit2Proxy is ReentrancyGuard {
     bytes32 public constant WITNESS_TYPEHASH =
         keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
 
-    /// @notice Emitted when a payment is successfully settled
-    /// @param from The payer's address
-    /// @param to The recipient's address
-    /// @param amount The amount transferred
-    /// @param asset The token contract address
-    event X402PermitTransfer(address indexed from, address indexed to, uint256 amount, address indexed asset);
+    /// @notice Emitted when settle() completes successfully
+    event Settled();
+
+    /// @notice Emitted when settleWith2612() completes successfully
+    event SettledWith2612();
 
     /// @notice Thrown when Permit2 address is zero
     error InvalidPermit2Address();
@@ -114,6 +113,7 @@ contract x402Permit2Proxy is ReentrancyGuard {
         bytes calldata signature
     ) external nonReentrant {
         _settleInternal(permit, amount, owner, witness, signature);
+        emit Settled();
     }
 
     /**
@@ -149,6 +149,7 @@ contract x402Permit2Proxy is ReentrancyGuard {
             // Permit2 settlement will fail if approval doesn't exist
         }
         _settleInternal(permit, amount, owner, witness, signature);
+        emit SettledWith2612();
     }
 
     /**
@@ -189,8 +190,5 @@ contract x402Permit2Proxy is ReentrancyGuard {
 
         // Execute transfer via Permit2
         PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
-
-        // Emit event for observability
-        emit X402PermitTransfer(owner, transferDetails.to, transferDetails.requestedAmount, permit.permitted.token);
     }
 }
