@@ -1,3 +1,4 @@
+import inspect
 from typing import Callable, Optional
 from typing_extensions import (
     TypedDict,
@@ -39,14 +40,23 @@ class FacilitatorClient:
 
         self.config = {"url": url, "create_headers": config.get("create_headers")}
 
+    async def _get_custom_headers(self) -> dict[str, dict[str, str]] | None:
+        """Get custom headers, supporting both sync and async create_headers functions."""
+        if not self.config.get("create_headers"):
+            return None
+        result = self.config["create_headers"]()
+        if inspect.iscoroutine(result):
+            return await result
+        return result
+
     async def verify(
         self, payment: PaymentPayload, payment_requirements: PaymentRequirements
     ) -> VerifyResponse:
         """Verify a payment header is valid and a request should be processed"""
         headers = {"Content-Type": "application/json"}
 
-        if self.config.get("create_headers"):
-            custom_headers = await self.config["create_headers"]()
+        custom_headers = await self._get_custom_headers()
+        if custom_headers:
             headers.update(custom_headers.get("verify", {}))
 
         async with httpx.AsyncClient() as client:
@@ -71,8 +81,8 @@ class FacilitatorClient:
     ) -> SettleResponse:
         headers = {"Content-Type": "application/json"}
 
-        if self.config.get("create_headers"):
-            custom_headers = await self.config["create_headers"]()
+        custom_headers = await self._get_custom_headers()
+        if custom_headers:
             headers.update(custom_headers.get("settle", {}))
 
         async with httpx.AsyncClient() as client:
@@ -107,8 +117,8 @@ class FacilitatorClient:
 
         headers = {"Content-Type": "application/json"}
 
-        if self.config.get("create_headers"):
-            custom_headers = await self.config["create_headers"]()
+        custom_headers = await self._get_custom_headers()
+        if custom_headers:
             headers.update(custom_headers.get("list", {}))
 
         # Build query parameters, excluding None values
