@@ -1,4 +1,5 @@
 import { TestFilters } from './filters';
+import type { NetworkMode } from '../networks/networks';
 
 /**
  * Parse command-line arguments
@@ -11,6 +12,7 @@ export interface ParsedArgs {
   filters: TestFilters;
   showHelp: boolean;
   minimize: boolean;
+  networkMode?: NetworkMode;  // undefined = prompt user, set = skip prompt
 }
 
 export function parseArgs(): ParsedArgs {
@@ -48,6 +50,14 @@ export function parseArgs(): ParsedArgs {
   // Parse minimize flag
   const minimize = args.includes('--min');
 
+  // Parse network mode (optional - if not set, will prompt in interactive mode)
+  let networkMode: NetworkMode | undefined;
+  if (args.includes('--mainnet')) {
+    networkMode = 'mainnet';
+  } else if (args.includes('--testnet')) {
+    networkMode = 'testnet';
+  }
+
   // Parse filters (comma-separated lists)
   const facilitators = parseListArg(args, '--facilitators');
   const servers = parseListArg(args, '--servers');
@@ -69,7 +79,8 @@ export function parseArgs(): ParsedArgs {
       protocolFamilies: families,
     },
     showHelp: false,
-    minimize
+    minimize,
+    networkMode
   };
 }
 
@@ -87,6 +98,11 @@ export function printHelp(): void {
   console.log('  pnpm test                  Launch interactive prompt mode');
   console.log('  pnpm test -v               Interactive with verbose logging');
   console.log('');
+  console.log('Network Selection:');
+  console.log('  --testnet                  Use testnet networks (Base Sepolia + Solana Devnet)');
+  console.log('  --mainnet                  Use mainnet networks (Base + Solana) ⚠️  Real funds!');
+  console.log('  (If not specified, will prompt in interactive mode)');
+  console.log('');
   console.log('Programmatic Mode (for CI/workflows):');
   console.log('  --facilitators=<list>      Comma-separated facilitator names');
   console.log('  --servers=<list>           Comma-separated server names');
@@ -102,18 +118,12 @@ export function printHelp(): void {
   console.log('  -h, --help                 Show this help message');
   console.log('');
   console.log('Examples:');
-  console.log('  pnpm test                                           # Interactive mode');
-  console.log('  pnpm test -v                                        # Interactive with verbose');
-  console.log('  pnpm test --min                                     # Minimize tests');
-  console.log('  pnpm test --facilitators=go --servers=express       # Programmatic');
-  console.log('  pnpm test --facilitators=go,typescript \\');
-  console.log('            --servers=legacy-express \\');
-  console.log('            --clients=go-http \\');
-  console.log('            --extensions=bazaar -v                    # Full example');
-  console.log('  pnpm test --min --facilitators=go,typescript \\');
-  console.log('            --extensions=bazaar -v                    # Minimized with filters');
+  console.log('  pnpm test                                           # Interactive mode (testnet)');
+  console.log('  pnpm test --testnet                                 # Skip network prompt');
+  console.log('  pnpm test --mainnet                                 # Use mainnet (real funds!)');
+  console.log('  pnpm test --min -v                                  # Minimize with verbose');
+  console.log('  pnpm test --mainnet --facilitators=go --servers=express  # Mainnet programmatic');
   console.log('');
-  console.log('Note: Extensions control test output visibility, not scenario filtering');
+  console.log('Note: --mainnet requires funded wallets with real tokens!');
   console.log('');
 }
-
