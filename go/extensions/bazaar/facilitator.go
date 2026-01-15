@@ -3,6 +3,7 @@ package bazaar
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/types"
@@ -212,12 +213,26 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		return nil, fmt.Errorf("failed to extract method from discovery info")
 	}
 
+	// Strip query params and hash for discovery cataloging
+	normalizedURL := stripQueryParams(resourceURL)
+
 	return &DiscoveredResource{
-		ResourceURL:   resourceURL,
+		ResourceURL:   normalizedURL,
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
 	}, nil
+}
+
+// stripQueryParams removes query parameters and fragments from a URL for cataloging
+func stripQueryParams(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL // Return original if parsing fails
+	}
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 // ExtractDiscoveredResourceFromPaymentRequired extracts a discovered resource from a 402 PaymentRequired response.
@@ -347,8 +362,11 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		return nil, fmt.Errorf("failed to extract method from discovery info")
 	}
 
+	// Strip query params and hash for discovery cataloging
+	normalizedURL := stripQueryParams(resourceURL)
+
 	return &DiscoveredResource{
-		ResourceURL:   resourceURL,
+		ResourceURL:   normalizedURL,
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
