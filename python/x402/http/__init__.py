@@ -16,6 +16,7 @@ from .constants import (
 from .facilitator_client import (
     AuthHeaders,
     AuthProvider,
+    CreateHeadersAuthProvider,
     FacilitatorClient,
     FacilitatorConfig,
     HTTPFacilitatorClient,
@@ -84,6 +85,7 @@ __all__ = [
     "FacilitatorConfig",
     "AuthProvider",
     "AuthHeaders",
+    "CreateHeadersAuthProvider",
     # HTTP client
     "x402HTTPClient",
     "PaymentRoundTripper",
