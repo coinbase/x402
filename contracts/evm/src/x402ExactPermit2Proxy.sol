@@ -7,16 +7,19 @@ import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC2
 import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 
 /**
- * @title x402Permit2Proxy
- * @notice Trustless proxy for x402 payments using Permit2
+ * @title x402ExactPermit2Proxy
+ * @notice Trustless proxy for x402 payments using Permit2 with exact amount transfers
  *
  * @dev This contract acts as the authorized spender in Permit2 signatures.
  *      It uses the "witness" pattern to cryptographically bind the payment destination,
  *      preventing facilitators from redirecting funds.
  *
+ *      Unlike x402UptoPermit2Proxy, this contract always transfers the EXACT permitted
+ *      amount, similar to EIP-3009's transferWithAuthorization behavior.
+ *
  * @author x402 Protocol
  */
-contract x402Permit2Proxy is ReentrancyGuard {
+contract x402ExactPermit2Proxy is ReentrancyGuard {
     /// @notice The canonical Permit2 contract address
     ISignatureTransfer public immutable PERMIT2;
 
@@ -47,9 +50,6 @@ contract x402Permit2Proxy is ReentrancyGuard {
 
     /// @notice Thrown when payment is attempted after validBefore timestamp
     error PaymentExpired();
-
-    /// @notice Thrown when requested amount exceeds permitted amount
-    error AmountExceedsPermitted();
 
     /// @notice Thrown when owner address is zero
     error InvalidOwner();
@@ -98,31 +98,30 @@ contract x402Permit2Proxy is ReentrancyGuard {
 
     /**
      * @notice Settles a payment using a Permit2 signature
-     * @dev This is the standard settlement path when user has already approved Permit2
+     * @dev This is the standard settlement path when user has already approved Permit2.
+     *      Always transfers the exact permitted amount.
      * @param permit The Permit2 transfer authorization
-     * @param amount The amount to transfer (must be <= permit.permitted.amount)
      * @param owner The token owner (payer)
      * @param witness The witness data containing destination and validity window
      * @param signature The payer's signature over the permit and witness
      */
     function settle(
         ISignatureTransfer.PermitTransferFrom calldata permit,
-        uint256 amount,
         address owner,
         Witness calldata witness,
         bytes calldata signature
     ) external nonReentrant {
-        _settleInternal(permit, amount, owner, witness, signature);
+        _settleInternal(permit, owner, witness, signature);
         emit Settled();
     }
 
     /**
      * @notice Settles a payment using both EIP-2612 permit and Permit2 signature
-     * @dev Enables fully gasless flow for tokens supporting EIP-2612
-     * @dev First submits the EIP-2612 permit to approve Permit2, then settles
+     * @dev Enables fully gasless flow for tokens supporting EIP-2612.
+     *      First submits the EIP-2612 permit to approve Permit2, then settles.
+     *      Always transfers the exact permitted amount.
      * @param permit2612 The EIP-2612 permit parameters
      * @param permit The Permit2 transfer authorization
-     * @param amount The amount to transfer
      * @param owner The token owner (payer)
      * @param witness The witness data containing destination and validity window
      * @param signature The payer's signature over the permit and witness
@@ -133,7 +132,6 @@ contract x402Permit2Proxy is ReentrancyGuard {
     function settleWith2612(
         EIP2612Permit calldata permit2612,
         ISignatureTransfer.PermitTransferFrom calldata permit,
-        uint256 amount,
         address owner,
         Witness calldata witness,
         bytes calldata signature
@@ -148,22 +146,21 @@ contract x402Permit2Proxy is ReentrancyGuard {
         } catch {
             // Permit2 settlement will fail if approval doesn't exist
         }
-        _settleInternal(permit, amount, owner, witness, signature);
+        _settleInternal(permit, owner, witness, signature);
         emit SettledWith2612();
     }
 
     /**
      * @notice Internal settlement logic shared by both settlement functions
-     * @dev Validates all parameters and executes the Permit2 transfer
+     * @dev Validates all parameters and executes the Permit2 transfer.
+     *      Always transfers the exact permitted amount.
      * @param permit The Permit2 transfer authorization
-     * @param amount The amount to transfer
      * @param owner The token owner (payer)
      * @param witness The witness data containing destination and validity window
      * @param signature The payer's signature
      */
     function _settleInternal(
         ISignatureTransfer.PermitTransferFrom calldata permit,
-        uint256 amount,
         address owner,
         Witness calldata witness,
         bytes calldata signature
@@ -176,12 +173,9 @@ contract x402Permit2Proxy is ReentrancyGuard {
         if (block.timestamp < witness.validAfter) revert PaymentTooEarly();
         if (block.timestamp > witness.validBefore) revert PaymentExpired();
 
-        // Validate amount
-        if (amount > permit.permitted.amount) revert AmountExceedsPermitted();
-
-        // Prepare transfer details with destination from witness
+        // Prepare transfer details - always use the exact permitted amount
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
-            ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: amount});
+            ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: permit.permitted.amount});
 
         // Reconstruct witness hash to enforce integrity
         bytes32 witnessHash = keccak256(

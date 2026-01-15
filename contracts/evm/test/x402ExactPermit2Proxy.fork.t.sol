@@ -2,14 +2,14 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {x402Permit2Proxy} from "../src/x402Permit2Proxy.sol";
+import {x402ExactPermit2Proxy} from "../src/x402ExactPermit2Proxy.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
-/// @title X402Permit2ProxyForkTest
-/// @notice Fork tests against real Permit2 deployment
-/// @dev Run with: forge test --match-contract X402Permit2ProxyForkTest --fork-url $RPC_URL
-contract X402Permit2ProxyForkTest is Test {
+/// @title X402ExactPermit2ProxyForkTest
+/// @notice Fork tests against real Permit2 deployment for exact amount transfers
+/// @dev Run with: forge test --match-contract X402ExactPermit2ProxyForkTest --fork-url $RPC_URL
+contract X402ExactPermit2ProxyForkTest is Test {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     bytes32 constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
@@ -18,7 +18,7 @@ contract X402Permit2ProxyForkTest is Test {
     );
     bytes32 constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
 
-    x402Permit2Proxy public proxy;
+    x402ExactPermit2Proxy public proxy;
     MockERC20 public token;
 
     uint256 public payerKey;
@@ -39,7 +39,7 @@ contract X402Permit2ProxyForkTest is Test {
         payer = vm.addr(payerKey);
         recipient = makeAddr("recipient");
 
-        proxy = new x402Permit2Proxy(PERMIT2);
+        proxy = new x402ExactPermit2Proxy(PERMIT2);
         token = new MockERC20("USDC", "USDC", 6);
         token.mint(payer, MINT_AMOUNT);
 
@@ -67,7 +67,7 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 amount,
         uint256 nonce,
         uint256 deadline,
-        x402Permit2Proxy.Witness memory witness
+        x402ExactPermit2Proxy.Witness memory witness
     ) internal view returns (bytes memory) {
         // Must match contract's witness hash computation order
         bytes32 witnessHash = keccak256(
@@ -92,8 +92,8 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 nonce = _nonce(1);
         uint256 deadline = t + 3600;
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -108,7 +108,7 @@ contract X402Permit2ProxyForkTest is Test {
         vm.expectEmit(false, false, false, false);
         emit Settled();
 
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, sig);
+        proxy.settle(permit, payer, witness, sig);
 
         assertEq(token.balanceOf(recipient) - balanceBefore, TRANSFER_AMOUNT);
     }
@@ -117,8 +117,8 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 t = block.timestamp;
         uint256 nonce = _nonce(2);
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: TRANSFER_AMOUNT}),
@@ -129,7 +129,7 @@ contract X402Permit2ProxyForkTest is Test {
         bytes memory badSig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
 
         vm.expectRevert();
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, badSig);
+        proxy.settle(permit, payer, witness, badSig);
     }
 
     function test_fork_rejectsWrongSigner() public onlyFork {
@@ -137,8 +137,8 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 nonce = _nonce(3);
         uint256 deadline = t + 3600;
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         uint256 wrongKey = 0xdeadbeef;
         bytes32 witnessHash = keccak256(
@@ -160,7 +160,7 @@ contract X402Permit2ProxyForkTest is Test {
         });
 
         vm.expectRevert();
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, wrongSig);
+        proxy.settle(permit, payer, witness, wrongSig);
     }
 
     function test_fork_rejectsReplayedNonce() public onlyFork {
@@ -168,8 +168,8 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 nonce = _nonce(4);
         uint256 deadline = t + 3600;
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -179,10 +179,10 @@ contract X402Permit2ProxyForkTest is Test {
             deadline: deadline
         });
 
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, sig);
+        proxy.settle(permit, payer, witness, sig);
 
         vm.expectRevert();
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, sig);
+        proxy.settle(permit, payer, witness, sig);
     }
 
     function test_fork_rejectsExpiredDeadline() public onlyFork {
@@ -190,8 +190,8 @@ contract X402Permit2ProxyForkTest is Test {
         uint256 nonce = _nonce(5);
         uint256 deadline = t - 60; // expired
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 120, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 120, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -202,7 +202,7 @@ contract X402Permit2ProxyForkTest is Test {
         });
 
         vm.expectRevert();
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, witness, sig);
+        proxy.settle(permit, payer, witness, sig);
     }
 
     function test_fork_preventsDestinationTampering() public onlyFork {
@@ -212,8 +212,8 @@ contract X402Permit2ProxyForkTest is Test {
 
         address attacker = makeAddr("attacker");
 
-        x402Permit2Proxy.Witness memory signedWitness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory signedWitness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, signedWitness);
 
@@ -223,7 +223,7 @@ contract X402Permit2ProxyForkTest is Test {
             deadline: deadline
         });
 
-        x402Permit2Proxy.Witness memory tamperedWitness = x402Permit2Proxy.Witness({
+        x402ExactPermit2Proxy.Witness memory tamperedWitness = x402ExactPermit2Proxy.Witness({
             to: attacker,
             validAfter: signedWitness.validAfter,
             validBefore: signedWitness.validBefore,
@@ -231,18 +231,17 @@ contract X402Permit2ProxyForkTest is Test {
         });
 
         vm.expectRevert();
-        proxy.settle(permit, TRANSFER_AMOUNT, payer, tamperedWitness, sig);
+        proxy.settle(permit, payer, tamperedWitness, sig);
     }
 
-    function test_fork_partialAmounts() public onlyFork {
+    function test_fork_alwaysTransfersExactPermittedAmount() public onlyFork {
         uint256 t = block.timestamp;
         uint256 nonce = _nonce(7);
         uint256 deadline = t + 3600;
         uint256 permitted = TRANSFER_AMOUNT;
-        uint256 requested = permitted / 2;
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402ExactPermit2Proxy.Witness memory witness =
+            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), permitted, nonce, deadline, witness);
 
@@ -253,7 +252,8 @@ contract X402Permit2ProxyForkTest is Test {
         });
 
         uint256 balanceBefore = token.balanceOf(recipient);
-        proxy.settle(permit, requested, payer, witness, sig);
-        assertEq(token.balanceOf(recipient) - balanceBefore, requested);
+        proxy.settle(permit, payer, witness, sig);
+        // Exact proxy always transfers the full permitted amount
+        assertEq(token.balanceOf(recipient) - balanceBefore, permitted);
     }
 }

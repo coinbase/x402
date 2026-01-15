@@ -2,11 +2,12 @@
 pragma solidity ^0.8.20;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {x402Permit2Proxy} from "../src/x402Permit2Proxy.sol";
+import {x402ExactPermit2Proxy} from "../src/x402ExactPermit2Proxy.sol";
+import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
 
 /**
  * @title MineVanity
- * @notice Mine for a vanity CREATE2 address
+ * @notice Mine for vanity CREATE2 addresses for x402 Permit2 Proxies
  * @dev Run with: forge script script/MineVanity.s.sol
  *
  * Note: For serious vanity mining, consider using a more efficient tool like:
@@ -37,14 +38,26 @@ contract MineVanity is Script {
         console2.log("Max attempts:", MAX_ATTEMPTS);
         console2.log("");
 
-        // Compute init code
-        bytes memory initCode = abi.encodePacked(type(x402Permit2Proxy).creationCode, abi.encode(PERMIT2));
+        // Mine for x402ExactPermit2Proxy
+        console2.log("------------------------------------------------------------");
+        console2.log("  Mining for x402ExactPermit2Proxy");
+        console2.log("------------------------------------------------------------");
+        _mineForContract("x402-exact-v", type(x402ExactPermit2Proxy).creationCode);
+
+        // Mine for x402UptoPermit2Proxy
+        console2.log("");
+        console2.log("------------------------------------------------------------");
+        console2.log("  Mining for x402UptoPermit2Proxy");
+        console2.log("------------------------------------------------------------");
+        _mineForContract("x402-upto-v", type(x402UptoPermit2Proxy).creationCode);
+    }
+
+    function _mineForContract(string memory prefix, bytes memory creationCode) internal view {
+        bytes memory initCode = abi.encodePacked(creationCode, abi.encode(PERMIT2));
         bytes32 initCodeHash = keccak256(initCode);
 
         console2.log("Init code hash:", vm.toString(initCodeHash));
-        console2.log("");
         console2.log("Mining...");
-        console2.log("");
 
         bool found = false;
         bytes32 bestSalt;
@@ -52,13 +65,8 @@ contract MineVanity is Script {
         uint256 bestMatchLength = 0;
 
         for (uint256 i = 0; i < MAX_ATTEMPTS; i++) {
-            // Generate salt from iteration
-            bytes32 salt = keccak256(abi.encodePacked("x402-x402permit2proxy-v", i));
-
-            // Compute address
+            bytes32 salt = keccak256(abi.encodePacked(prefix, i));
             address addr = _computeCreate2Addr(salt, initCodeHash, CREATE2_DEPLOYER);
-
-            // Check if matches pattern
             uint256 matchLength = checkPatternMatch(addr);
 
             if (matchLength > bestMatchLength) {
@@ -72,14 +80,12 @@ contract MineVanity is Script {
                 }
             }
 
-            // Progress logging
             if (i > 0 && i % 100_000 == 0) {
                 console2.log("  Checked", i, "salts...");
                 console2.log("  Best so far:", bestAddress);
             }
         }
 
-        console2.log("");
         if (found) {
             console2.log("FOUND MATCH!");
             console2.log("  Salt:", vm.toString(bestSalt));
@@ -88,12 +94,7 @@ contract MineVanity is Script {
             console2.log("No exact match found.");
             console2.log("  Best partial match:", bestAddress);
             console2.log("  Best salt:", vm.toString(bestSalt));
-            console2.log("");
-            console2.log("Tips:");
-            console2.log("  - For faster mining, use create2crunch (Rust)");
-            console2.log("  - Or the TypeScript miner in the original package");
         }
-        console2.log("");
     }
 
     function _computeCreate2Addr(

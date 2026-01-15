@@ -10,7 +10,7 @@ optimizer_runs = 200
 via_ir = false
 ffi = false
 fs_permissions = [{ access = "read", path = "./" }]
-gas_reports = ["x402Permit2Proxy"]
+gas_reports = ["x402ExactPermit2Proxy", "x402UptoPermit2Proxy"]
 
 [profile.default.fuzz]
 runs = 256

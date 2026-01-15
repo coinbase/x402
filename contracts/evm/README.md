@@ -4,14 +4,19 @@ Smart contracts for the x402 payment protocol on EVM chains.
 
 ## Overview
 
-The `x402Permit2Proxy` contract enables trustless, gasless payments using [Permit2](https://github.com/Uniswap/permit2). It acts as a proxy that:
+The x402 Permit2 Proxy contracts enable trustless, gasless payments using [Permit2](https://github.com/Uniswap/permit2). There are two variants:
 
-- Uses the **witness pattern** to cryptographically bind payment destinations
-- Prevents facilitators from redirecting funds
-- Supports both standard Permit2 and EIP-2612 flows
-- Deploys to the **same address on all EVM chains** via CREATE2
+### `x402ExactPermit2Proxy`
+Transfers the **exact** permitted amount (similar to EIP-3009's `transferWithAuthorization`). The facilitator cannot choose a different amount—it's always the full permitted amount.
 
-**Deployed Address:** `0x40203F636c4EDFaFc36933837FFB411e1c031B50` (all chains)
+### `x402UptoPermit2Proxy`
+Allows the facilitator to transfer **up to** the permitted amount. Useful for scenarios where the actual amount is determined at settlement time.
+
+Both contracts:
+- Use the **witness pattern** to cryptographically bind payment destinations
+- Prevent facilitators from redirecting funds
+- Support both standard Permit2 and EIP-2612 flows
+- Deploy to the **same address on all EVM chains** via CREATE2
 
 ## Prerequisites
 
@@ -36,8 +41,11 @@ forge test
 # Run with verbosity
 forge test -vvv
 
-# Run specific test file
-forge test --match-path test/x402Permit2Proxy.t.sol
+# Run Exact proxy tests
+forge test --match-contract X402ExactPermit2ProxyTest
+
+# Run Upto proxy tests
+forge test --match-contract X402UptoPermit2ProxyTest
 
 # Run with gas reporting
 forge test --gas-report
@@ -46,7 +54,7 @@ forge test --gas-report
 forge test --fuzz-runs 1000
 
 # Run invariant tests
-forge test --match-contract X402InvariantsTest
+forge test --match-contract Invariants
 ```
 
 ### Fork Testing
@@ -57,13 +65,16 @@ Fork tests run against real Permit2 on Base Sepolia:
 # Set up environment
 export BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
 
-# Run fork tests
-forge test --match-contract X402Permit2ProxyForkTest --fork-url $BASE_SEPOLIA_RPC_URL
+# Run fork tests for Exact variant
+forge test --match-contract X402ExactPermit2ProxyForkTest --fork-url $BASE_SEPOLIA_RPC_URL
+
+# Run fork tests for Upto variant
+forge test --match-contract X402UptoPermit2ProxyForkTest --fork-url $BASE_SEPOLIA_RPC_URL
 ```
 
 ## Deployment
 
-### Compute Expected Address
+### Compute Expected Addresses
 
 ```bash
 forge script script/ComputeAddress.s.sol
@@ -77,7 +88,7 @@ export PRIVATE_KEY="your_private_key"
 export BASE_SEPOLIA_RPC_URL="https://sepolia.base.org"
 export BASESCAN_API_KEY="your_api_key"
 
-# Deploy with verification
+# Deploy both contracts with verification
 forge script script/Deploy.s.sol \
   --rpc-url $BASE_SEPOLIA_RPC_URL \
   --broadcast \
@@ -97,7 +108,7 @@ forge script script/Deploy.s.sol \
 
 ## Vanity Address Mining
 
-The deployment uses a vanity address starting with `0x4020`. To mine a new salt:
+The deployment uses vanity addresses starting with `0x4020`. To mine new salts:
 
 ```bash
 # Simple Solidity miner (slower)
@@ -110,37 +121,55 @@ forge script script/MineVanity.s.sol
 
 ```
 src/
-├── x402Permit2Proxy.sol      # Main proxy contract
+├── x402ExactPermit2Proxy.sol  # Exact amount transfers (EIP-3009-like)
+├── x402UptoPermit2Proxy.sol   # Flexible amount transfers (up to permitted)
 └── interfaces/
     └── ISignatureTransfer.sol # Permit2 SignatureTransfer interface
 
 test/
-├── x402Permit2Proxy.t.sol    # Unit tests
-├── x402Permit2Proxy.fork.t.sol # Fork tests
+├── x402ExactPermit2Proxy.t.sol      # Exact variant unit tests
+├── x402ExactPermit2Proxy.fork.t.sol # Exact variant fork tests
+├── x402UptoPermit2Proxy.t.sol       # Upto variant unit tests
+├── x402UptoPermit2Proxy.fork.t.sol  # Upto variant fork tests
 ├── invariants/
-│   └── X402Invariants.t.sol  # Invariant tests
+│   ├── X402ExactInvariants.t.sol    # Exact variant invariant tests
+│   └── X402UptoInvariants.t.sol     # Upto variant invariant tests
 └── mocks/
     ├── MockERC20.sol
     ├── MockERC20Permit.sol
     ├── MockPermit2.sol
-    └── MaliciousReentrant.sol
+    ├── MaliciousReentrantExact.sol
+    └── MaliciousReentrantUpto.sol
 
 script/
-├── Deploy.s.sol              # CREATE2 deployment
-├── ComputeAddress.s.sol      # Address computation
-└── MineVanity.s.sol          # Vanity address miner
+├── Deploy.s.sol              # CREATE2 deployment for both contracts
+├── ComputeAddress.s.sol      # Address computation for both contracts
+└── MineVanity.s.sol          # Vanity address miner for both contracts
 ```
 
 ## Key Functions
 
-### `settle()`
+### `x402ExactPermit2Proxy.settle()`
 
-Standard settlement path when user has already approved Permit2.
+Standard settlement path - always transfers the exact permitted amount.
 
 ```solidity
 function settle(
     ISignatureTransfer.PermitTransferFrom calldata permit,
-    uint256 amount,
+    address owner,
+    Witness calldata witness,
+    bytes calldata signature
+) external;
+```
+
+### `x402UptoPermit2Proxy.settle()`
+
+Standard settlement path - transfers the specified amount (up to permitted).
+
+```solidity
+function settle(
+    ISignatureTransfer.PermitTransferFrom calldata permit,
+    uint256 amount,  // Facilitator specifies amount to transfer
     address owner,
     Witness calldata witness,
     bytes calldata signature
@@ -149,23 +178,13 @@ function settle(
 
 ### `settleWith2612()`
 
-Settlement with EIP-2612 permit for fully gasless flow.
-
-```solidity
-function settleWith2612(
-    EIP2612Permit calldata permit2612,
-    ISignatureTransfer.PermitTransferFrom calldata permit,
-    uint256 amount,
-    address owner,
-    Witness calldata witness,
-    bytes calldata signature
-) external;
-```
+Both contracts support settlement with EIP-2612 permit for fully gasless flow.
+The function signatures follow the same pattern as `settle()` for each variant.
 
 ## Security
 
 - **Immutable:** No upgrade mechanism
-- **No custody:** Contract never holds tokens
+- **No custody:** Contracts never hold tokens
 - **Destination locked:** Witness pattern enforces payTo address
 - **Reentrancy protected:** Uses OpenZeppelin's ReentrancyGuard
 - **Deterministic:** Same address on all chains via CREATE2
@@ -180,8 +199,6 @@ forge coverage
 forge coverage --no-match-coverage "(test|script)/.*" --offline
 ```
 
-Current coverage: **100%** (lines, statements, branches, functions)
-
 ## Gas Snapshots
 
 ```bash
@@ -195,4 +212,3 @@ forge snapshot --diff
 ## License
 
 Apache-2.0
-

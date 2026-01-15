@@ -2,15 +2,15 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {x402Permit2Proxy} from "../src/x402Permit2Proxy.sol";
+import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockERC20Permit} from "./mocks/MockERC20Permit.sol";
-import {MaliciousReentrant} from "./mocks/MaliciousReentrant.sol";
+import {MaliciousReentrantUpto} from "./mocks/MaliciousReentrantUpto.sol";
 
-contract X402Permit2ProxyTest is Test {
-    x402Permit2Proxy public proxy;
+contract X402UptoPermit2ProxyTest is Test {
+    x402UptoPermit2Proxy public proxy;
     MockPermit2 public mockPermit2;
     MockERC20 public token;
 
@@ -30,7 +30,7 @@ contract X402Permit2ProxyTest is Test {
         recipient = makeAddr("recipient");
 
         mockPermit2 = new MockPermit2();
-        proxy = new x402Permit2Proxy(address(mockPermit2));
+        proxy = new x402UptoPermit2Proxy(address(mockPermit2));
         token = new MockERC20("USDC", "USDC", 6);
 
         token.mint(payer, MINT_AMOUNT);
@@ -55,8 +55,8 @@ contract X402Permit2ProxyTest is Test {
         address to,
         uint256 validAfter,
         uint256 validBefore
-    ) internal pure returns (x402Permit2Proxy.Witness memory) {
-        return x402Permit2Proxy.Witness({to: to, validAfter: validAfter, validBefore: validBefore, extra: ""});
+    ) internal pure returns (x402UptoPermit2Proxy.Witness memory) {
+        return x402UptoPermit2Proxy.Witness({to: to, validAfter: validAfter, validBefore: validBefore, extra: ""});
     }
 
     function _sig() internal pure returns (bytes memory) {
@@ -66,8 +66,8 @@ contract X402Permit2ProxyTest is Test {
     // --- Constructor ---
 
     function test_constructor_revertsOnZeroPermit2() public {
-        vm.expectRevert(x402Permit2Proxy.InvalidPermit2Address.selector);
-        new x402Permit2Proxy(address(0));
+        vm.expectRevert(x402UptoPermit2Proxy.InvalidPermit2Address.selector);
+        new x402UptoPermit2Proxy(address(0));
     }
 
     function test_constructor_setsPermit2() public view {
@@ -78,7 +78,7 @@ contract X402Permit2ProxyTest is Test {
 
     function test_settle_revertsOnZeroOwner() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402Permit2Proxy.InvalidOwner.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.InvalidOwner.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600),
             TRANSFER_AMOUNT,
@@ -90,7 +90,7 @@ contract X402Permit2ProxyTest is Test {
 
     function test_settle_revertsOnZeroDestination() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402Permit2Proxy.InvalidDestination.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.InvalidDestination.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600),
             TRANSFER_AMOUNT,
@@ -102,7 +102,7 @@ contract X402Permit2ProxyTest is Test {
 
     function test_settle_revertsBeforeValidAfter() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402Permit2Proxy.PaymentTooEarly.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.PaymentTooEarly.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t + 60, t + 3600), _sig()
         );
@@ -110,7 +110,7 @@ contract X402Permit2ProxyTest is Test {
 
     function test_settle_revertsAfterValidBefore() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402Permit2Proxy.PaymentExpired.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.PaymentExpired.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 120, t - 60), _sig()
         );
@@ -118,7 +118,7 @@ contract X402Permit2ProxyTest is Test {
 
     function test_settle_revertsWhenAmountExceedsPermitted() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402Permit2Proxy.AmountExceedsPermitted.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
         proxy.settle(_permit(100e6, 0, t + 3600), 150e6, payer, _witness(recipient, t - 60, t + 3600), _sig());
     }
 
@@ -175,8 +175,8 @@ contract X402Permit2ProxyTest is Test {
     // --- Security: Reentrancy ---
 
     function test_settle_blocksReentrancy() public {
-        MaliciousReentrant maliciousPermit2 = new MaliciousReentrant();
-        x402Permit2Proxy vulnerableProxy = new x402Permit2Proxy(address(maliciousPermit2));
+        MaliciousReentrantUpto maliciousPermit2 = new MaliciousReentrantUpto();
+        x402UptoPermit2Proxy vulnerableProxy = new x402UptoPermit2Proxy(address(maliciousPermit2));
         maliciousPermit2.setTarget(address(vulnerableProxy));
 
         MockERC20 testToken = new MockERC20("Test", "TST", 6);
@@ -190,7 +190,7 @@ contract X402Permit2ProxyTest is Test {
             nonce: 0,
             deadline: t + 3600
         });
-        x402Permit2Proxy.Witness memory witness = _witness(recipient, t - 60, t + 3600);
+        x402UptoPermit2Proxy.Witness memory witness = _witness(recipient, t - 60, t + 3600);
 
         maliciousPermit2.setAttemptReentry(true);
         maliciousPermit2.setAttackParams(permit, TRANSFER_AMOUNT, payer, witness, _sig());
@@ -224,7 +224,7 @@ contract X402Permit2ProxyTest is Test {
             deadline: t + 3600
         });
 
-        x402Permit2Proxy.EIP2612Permit memory permit2612 = x402Permit2Proxy.EIP2612Permit({
+        x402UptoPermit2Proxy.EIP2612Permit memory permit2612 = x402UptoPermit2Proxy.EIP2612Permit({
             value: type(uint256).max,
             deadline: t + 3600,
             v: 27,
@@ -255,7 +255,7 @@ contract X402Permit2ProxyTest is Test {
             deadline: t + 3600
         });
 
-        x402Permit2Proxy.EIP2612Permit memory permit2612 = x402Permit2Proxy.EIP2612Permit({
+        x402UptoPermit2Proxy.EIP2612Permit memory permit2612 = x402UptoPermit2Proxy.EIP2612Permit({
             value: type(uint256).max,
             deadline: t + 3600,
             v: 27,
@@ -323,7 +323,7 @@ contract X402Permit2ProxyTest is Test {
 
         uint256 t = block.timestamp;
 
-        vm.expectRevert(x402Permit2Proxy.AmountExceedsPermitted.selector);
+        vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
         proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60, t + 3600), _sig());
     }
 

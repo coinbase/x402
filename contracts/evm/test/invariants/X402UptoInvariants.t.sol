@@ -2,13 +2,13 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {x402Permit2Proxy} from "../../src/x402Permit2Proxy.sol";
+import {x402UptoPermit2Proxy} from "../../src/x402UptoPermit2Proxy.sol";
 import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 
-contract X402Handler is Test {
-    x402Permit2Proxy public proxy;
+contract X402UptoHandler is Test {
+    x402UptoPermit2Proxy public proxy;
     MockPermit2 public mockPermit2;
     MockERC20 public token;
 
@@ -19,7 +19,7 @@ contract X402Handler is Test {
     uint256 public settleCallCount;
 
     constructor(
-        x402Permit2Proxy _proxy,
+        x402UptoPermit2Proxy _proxy,
         MockPermit2 _mockPermit2,
         MockERC20 _token,
         address _payer,
@@ -44,11 +44,16 @@ contract X402Handler is Test {
             deadline: t + 3600
         });
 
-        x402Permit2Proxy.Witness memory witness =
-            x402Permit2Proxy.Witness({to: recipient, validAfter: t > 60 ? t - 60 : 0, validBefore: t + 3600, extra: ""});
+        x402UptoPermit2Proxy.Witness memory witness = x402UptoPermit2Proxy.Witness({
+            to: recipient,
+            validAfter: t > 60 ? t - 60 : 0,
+            validBefore: t + 3600,
+            extra: ""
+        });
 
         bytes memory sig = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), uint8(27));
 
+        // Upto variant includes the amount parameter
         try proxy.settle(permit, amount, payer, witness, sig) {
             totalSettled += amount;
             settleCallCount++;
@@ -56,11 +61,11 @@ contract X402Handler is Test {
     }
 }
 
-contract X402InvariantsTest is Test {
-    x402Permit2Proxy public proxy;
+contract X402UptoInvariantsTest is Test {
+    x402UptoPermit2Proxy public proxy;
     MockPermit2 public mockPermit2;
     MockERC20 public token;
-    X402Handler public handler;
+    X402UptoHandler public handler;
 
     address public payer;
     address public recipient;
@@ -72,7 +77,7 @@ contract X402InvariantsTest is Test {
         recipient = makeAddr("recipient");
 
         mockPermit2 = new MockPermit2();
-        proxy = new x402Permit2Proxy(address(mockPermit2));
+        proxy = new x402UptoPermit2Proxy(address(mockPermit2));
         token = new MockERC20("USDC", "USDC", 6);
 
         token.mint(payer, MINT_AMOUNT);
@@ -80,7 +85,7 @@ contract X402InvariantsTest is Test {
         token.approve(address(mockPermit2), type(uint256).max);
         mockPermit2.setShouldActuallyTransfer(true);
 
-        handler = new X402Handler(proxy, mockPermit2, token, payer, recipient);
+        handler = new X402UptoHandler(proxy, mockPermit2, token, payer, recipient);
         targetContract(address(handler));
     }
 

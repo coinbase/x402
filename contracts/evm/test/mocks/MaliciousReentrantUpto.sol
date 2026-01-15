@@ -2,17 +2,17 @@
 pragma solidity ^0.8.20;
 
 import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
-import {x402Permit2Proxy} from "../../src/x402Permit2Proxy.sol";
+import {x402UptoPermit2Proxy} from "../../src/x402UptoPermit2Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MaliciousReentrant is ISignatureTransfer {
-    x402Permit2Proxy public target;
+contract MaliciousReentrantUpto is ISignatureTransfer {
+    x402UptoPermit2Proxy public target;
     bool public attemptReentry;
 
     ISignatureTransfer.PermitTransferFrom public storedPermit;
     uint256 public storedAmount;
     address public storedOwner;
-    x402Permit2Proxy.Witness public storedWitness;
+    x402UptoPermit2Proxy.Witness public storedWitness;
     bytes public storedSignature;
 
     mapping(address => mapping(uint256 => uint256)) public nonceBitmapStorage;
@@ -20,7 +20,7 @@ contract MaliciousReentrant is ISignatureTransfer {
     function setTarget(
         address _target
     ) external {
-        target = x402Permit2Proxy(_target);
+        target = x402UptoPermit2Proxy(_target);
     }
 
     function setAttemptReentry(
@@ -33,7 +33,7 @@ contract MaliciousReentrant is ISignatureTransfer {
         ISignatureTransfer.PermitTransferFrom calldata permit,
         uint256 amount,
         address owner,
-        x402Permit2Proxy.Witness calldata witness,
+        x402UptoPermit2Proxy.Witness calldata witness,
         bytes calldata signature
     ) external {
         storedPermit = permit;
@@ -69,6 +69,7 @@ contract MaliciousReentrant is ISignatureTransfer {
         nonceBitmapStorage[owner][wordPos] |= (1 << bitPos);
 
         if (attemptReentry && address(target) != address(0)) {
+            // Upto variant includes the amount parameter
             target.settle(storedPermit, storedAmount, storedOwner, storedWitness, storedSignature);
         }
 
