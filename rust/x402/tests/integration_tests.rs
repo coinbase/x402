@@ -1,5 +1,4 @@
 use alloy::signers::local::PrivateKeySigner;
-use axum::response::IntoResponse;
 use http::StatusCode;
 use reqwest::Client;
 use serde_json::json;

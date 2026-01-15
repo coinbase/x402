@@ -76,7 +76,7 @@ async fn test_x402_v2_axum_facilitator_integration() {
             .decode(header_str)
             .expect("base64url decode PAYMENT-REQUIRED");
         let json_str = String::from_utf8(decoded).expect("PAYMENT-REQUIRED to be valid UTF-8");
-        let mut payment_required: PaymentRequired =
+        let payment_required: PaymentRequired =
             serde_json::from_str(&json_str).expect("decode PaymentRequired JSON");
 
         println!("Decoded PAYMENT-REQUIRED: {}", json_str);
@@ -248,7 +248,7 @@ async fn test_x402_v1_axum_facilitator_integration() {
             .decode(header_str)
             .expect("base64url decode PAYMENT-REQUIRED");
         let json_str = String::from_utf8(decoded).expect("PAYMENT-REQUIRED to be valid UTF-8");
-        let mut payment_required: PaymentRequired =
+        let payment_required: PaymentRequired =
             serde_json::from_str(&json_str).expect("decode PaymentRequired JSON");
 
         println!("Decoded PAYMENT-REQUIRED: {}", json_str);
