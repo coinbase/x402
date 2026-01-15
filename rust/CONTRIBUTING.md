@@ -42,6 +42,7 @@ cargo test
 
 # Integration tests
 cargo test --test integration_tests
+# Optional (useful for testing real world scenarios)
 cargo test --test coinbase_facilitator_test
 cargo test --test x402_facilitator_test
 ```
