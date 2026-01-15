@@ -1,0 +1,67 @@
+import { x402Client } from "@x402/core/client";
+import { Network } from "@x402/core/types";
+import type { ClientAptosSigner, ClientAptosConfig } from "../../signer";
+import { ExactAptosScheme } from "./scheme";
+
+/**
+ * Configuration options for registering Aptos schemes to an x402Client
+ */
+export interface AptosClientConfig {
+  /**
+   * The Aptos account signer for client operations
+   */
+  signer: ClientAptosSigner;
+
+  /**
+   * Optional configuration (e.g., custom RPC URL)
+   */
+  config?: ClientAptosConfig;
+
+  /**
+   * Optional specific networks to register.
+   * If not provided, registers for all Aptos networks (aptos:*)
+   */
+  networks?: Network | Network[];
+}
+
+/**
+ * Registers Aptos payment schemes to an existing x402Client instance.
+ *
+ * @param client - The x402Client instance to register schemes to
+ * @param aptosConfig - Configuration for Aptos client registration
+ * @returns The client instance for chaining
+ *
+ * @example
+ * ```typescript
+ * // Register for all Aptos networks
+ * registerExactAptosScheme(client, {
+ *   signer: aptosAccount,
+ * });
+ *
+ * // Register for specific networks
+ * registerExactAptosScheme(client, {
+ *   signer: aptosAccount,
+ *   networks: "aptos:1"  // Mainnet only
+ * });
+ * ```
+ */
+export function registerExactAptosScheme(
+  client: x402Client,
+  aptosConfig: AptosClientConfig,
+): x402Client {
+  const scheme = new ExactAptosScheme(aptosConfig.signer, aptosConfig.config);
+
+  if (aptosConfig.networks) {
+    const networks = Array.isArray(aptosConfig.networks)
+      ? aptosConfig.networks
+      : [aptosConfig.networks];
+    for (const network of networks) {
+      client.register(network, scheme);
+    }
+  } else {
+    // Register for all Aptos networks
+    client.register("aptos:*", scheme);
+  }
+
+  return client;
+}
