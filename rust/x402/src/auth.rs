@@ -1,6 +1,7 @@
 use base64::Engine;
 use bon::bon;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use cdp_sdk::error::CdpError;
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,6 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
-use cdp_sdk::error::CdpError;
 use uuid::Uuid;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -327,10 +327,10 @@ impl Middleware for WalletAuth {
         // Add wallet auth if needed, and not already provided or if empty
         if self.requires_wallet_auth(&method, path)
             && (!req.headers().contains_key("X-Wallet-Auth")
-            || req
-            .headers()
-            .get("X-Wallet-Auth")
-            .is_none_or(|v| v.is_empty()))
+                || req
+                    .headers()
+                    .get("X-Wallet-Auth")
+                    .is_none_or(|v| v.is_empty()))
         {
             let wallet_jwt = self
                 .generate_wallet_jwt(&method, host, path, &body)
@@ -353,14 +353,14 @@ impl Middleware for WalletAuth {
 
         let response = next.run(req, extensions).await;
 
-        if self.debug {
-            if let Ok(ref resp) = response {
-                println!(
-                    "Response: {} {}",
-                    resp.status(),
-                    resp.status().canonical_reason().unwrap_or("")
-                );
-            }
+        if self.debug
+            && let Ok(ref resp) = response
+        {
+            println!(
+                "Response: {} {}",
+                resp.status(),
+                resp.status().canonical_reason().unwrap_or("")
+            );
         }
 
         response

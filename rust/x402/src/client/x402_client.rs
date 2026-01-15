@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use crate::errors::X402Result;
 use crate::types::{PaymentPayload, PaymentRequired};
+use async_trait::async_trait;
 
 #[async_trait]
 pub trait X402Client: Send + Sync {

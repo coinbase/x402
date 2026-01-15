@@ -1,10 +1,13 @@
-use std::sync::Arc;
-use http::HeaderMap;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use crate::errors::{X402Error, X402Result};
 use crate::facilitator::FacilitatorClient;
-use crate::types::{PaymentPayloadV1, PaymentRequirementsV1, VerifyRequestV1, PaymentPayload, PaymentRequirements, SettleResponse, VerifyResponse, VerifyRequest, SupportedResponse};
+use crate::types::{
+    PaymentPayload, PaymentPayloadV1, PaymentRequirements, PaymentRequirementsV1, SettleResponse,
+    SupportedResponse, VerifyRequest, VerifyRequestV1, VerifyResponse,
+};
+use http::HeaderMap;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::sync::Arc;
 
 pub struct HttpFacilitator {
     pub base_url: String,
@@ -78,8 +81,10 @@ impl HttpFacilitatorBuilder {
             base_url: self.base_url,
             verify_path: self.verify_path.unwrap_or_else(|| "/verify".to_string()),
             settle_path: self.settle_path.unwrap_or_else(|| "/settle".to_string()),
-            supported_path: self.supported_path.unwrap_or_else(|| "/supported".to_string()),
-            client: self.client.unwrap_or_else(reqwest::Client::new),
+            supported_path: self
+                .supported_path
+                .unwrap_or_else(|| "/supported".to_string()),
+            client: self.client.unwrap_or_default(),
             headers: self.headers,
             request_hook: self.request_hook,
         }
@@ -87,7 +92,6 @@ impl HttpFacilitatorBuilder {
 }
 
 impl HttpFacilitator {
-
     pub fn builder(base_url: impl Into<String>) -> HttpFacilitatorBuilder {
         HttpFacilitatorBuilder {
             base_url: base_url.into(),
@@ -132,15 +136,14 @@ impl HttpFacilitator {
         let full_url = reqwest::Url::parse(&url)
             .map_err(|e| X402Error::ConfigError(format!("Invalid facilitator URL: {e}")))?;
 
-        let mut builder = self.client
+        let mut builder = self
+            .client
             .post(full_url.clone())
             .headers(self.headers.clone())
             .json(req);
 
         if let Some(hook) = &self.request_hook {
-            builder = hook
-                .on_request(method.clone(), &full_url, builder)
-                .await;
+            builder = hook.on_request(method.clone(), &full_url, builder).await;
         }
 
         let response = builder.send().await?;
@@ -160,61 +163,59 @@ impl HttpFacilitator {
 
 #[async_trait::async_trait]
 impl FacilitatorClient for HttpFacilitator {
-
     async fn verify(
         &self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<VerifyResponse> {
-                match (payload, requirements) {
-                    (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
-                        let payment_payload = PaymentPayloadV1 {
-                            x402_version: payload.x402_version,
-                            scheme: payload.scheme.clone(),
-                            network: payload.network.clone(),
-                            payload: payload.payload
-                        };
-                        let payment_requirements = PaymentRequirementsV1 {
-                            scheme: payload.scheme,
-                            network: payload.network,
-                            max_amount_required: requirements.max_amount_required,
-                            resource: requirements.resource,
-                            description: requirements.description,
-                            mime_type: requirements.mime_type,
-                            pay_to: requirements.pay_to,
-                            max_timeout_seconds: requirements.max_timeout_seconds,
-                            asset: requirements.asset,
-                            output_schema: requirements.output_schema,
-                            extra: requirements.extra,
-                        };
+        match (payload, requirements) {
+            (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
+                let payment_payload = PaymentPayloadV1 {
+                    x402_version: payload.x402_version,
+                    scheme: payload.scheme.clone(),
+                    network: payload.network.clone(),
+                    payload: payload.payload,
+                };
+                let payment_requirements = PaymentRequirementsV1 {
+                    scheme: payload.scheme,
+                    network: payload.network,
+                    max_amount_required: requirements.max_amount_required,
+                    resource: requirements.resource,
+                    description: requirements.description,
+                    mime_type: requirements.mime_type,
+                    pay_to: requirements.pay_to,
+                    max_timeout_seconds: requirements.max_timeout_seconds,
+                    asset: requirements.asset,
+                    output_schema: requirements.output_schema,
+                    extra: requirements.extra,
+                };
 
-                        let request = VerifyRequest {
-                            x402_version: payload.x402_version,
-                            payment_payload: PaymentPayload::V1(payment_payload),
-                            payment_requirements: PaymentRequirements::V1(payment_requirements),
-                        };
-                        self.post_json(self.verify_url(), &request).await
-                    },
-                    (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
-                        let request = VerifyRequest {
-                            x402_version: payload.x402_version,
-                            payment_payload: PaymentPayload::V2(payload),
-                            payment_requirements: PaymentRequirements::V2(requirements),
-                        };
-                        self.post_json(self.verify_url(), &request).await
-                    }
-                    _ => {
-                        Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
-                    }
-                }
+                let request = VerifyRequest {
+                    x402_version: payload.x402_version,
+                    payment_payload: PaymentPayload::V1(payment_payload),
+                    payment_requirements: PaymentRequirements::V1(payment_requirements),
+                };
+                self.post_json(self.verify_url(), &request).await
             }
+            (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
+                let request = VerifyRequest {
+                    x402_version: payload.x402_version,
+                    payment_payload: PaymentPayload::V2(payload),
+                    payment_requirements: PaymentRequirements::V2(requirements),
+                };
+                self.post_json(self.verify_url(), &request).await
+            }
+            _ => Err(X402Error::ConfigError(
+                "Payload and requirements version mismatch".to_string(),
+            )),
+        }
+    }
 
     async fn settle(
         &self,
         payload: PaymentPayload,
         requirements: PaymentRequirements,
     ) -> X402Result<SettleResponse> {
-
         match (payload, requirements) {
             (PaymentPayload::V1(payload), PaymentRequirements::V1(requirements)) => {
                 let request = VerifyRequestV1 {
@@ -223,7 +224,7 @@ impl FacilitatorClient for HttpFacilitator {
                         x402_version: payload.x402_version,
                         scheme: payload.scheme.clone(),
                         network: payload.network.clone(),
-                        payload: payload.payload
+                        payload: payload.payload,
                     },
                     payment_requirements: PaymentRequirementsV1 {
                         scheme: payload.scheme,
@@ -240,7 +241,7 @@ impl FacilitatorClient for HttpFacilitator {
                     },
                 };
                 self.post_json(self.settle_url(), &request).await
-            },
+            }
             (PaymentPayload::V2(payload), PaymentRequirements::V2(requirements)) => {
                 let request = VerifyRequest {
                     x402_version: payload.x402_version,
@@ -249,9 +250,9 @@ impl FacilitatorClient for HttpFacilitator {
                 };
                 self.post_json(self.settle_url(), &request).await
             }
-            _ => {
-                Err(X402Error::ConfigError("Payload and requirements version mismatch".to_string()))
-            }
+            _ => Err(X402Error::ConfigError(
+                "Payload and requirements version mismatch".to_string(),
+            )),
         }
     }
 
@@ -260,16 +261,14 @@ impl FacilitatorClient for HttpFacilitator {
         let full_url = reqwest::Url::parse(self.supported_url().as_str())
             .map_err(|e| X402Error::ConfigError(format!("Invalid facilitator URL: {e}")))?;
 
-        let mut builder = self.client
+        let mut builder = self
+            .client
             .get(full_url.clone())
             .headers(self.headers.clone());
 
         if let Some(hook) = &self.request_hook {
-            builder = hook
-                .on_request(method.clone(), &full_url, builder)
-                .await;
+            builder = hook.on_request(method.clone(), &full_url, builder).await;
         }
-
 
         let response = builder.send().await?;
         let status = response.status();

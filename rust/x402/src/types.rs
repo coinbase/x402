@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use crate::errors::{X402Error, X402Result};
+use crate::schemes::evm::network_to_chain_id;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use crate::errors::X402Result;
-use crate::schemes::evm::network_to_chain_id;
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 
 /// Supported payment requirement versions.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,7 +14,6 @@ pub enum PaymentRequirements {
     V1(PaymentRequirementsV1),
     V2(PaymentRequirementsV2),
 }
-
 
 /// Version 2 of payment requirements.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -29,15 +30,14 @@ pub struct PaymentRequirementsV2 {
     /// Optional asset identifier.
     pub asset: Option<String>,
     /// Optional data payload.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
     /// Optional extra information.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<Value>,
     /// Maximum time allowed for payment.
     pub max_timeout_seconds: u64,
 }
-
 
 impl PaymentRequirementsV2 {
     /// Converts network string to numeric chain ID if applicable.
@@ -50,7 +50,7 @@ impl PaymentRequirementsV2 {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentRequired {
     /// X402 protocol version.
-    #[serde(rename="x402Version")]
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// The resource being paid for.
     pub resource: Resource,
@@ -59,7 +59,7 @@ pub struct PaymentRequired {
     /// Optional human-readable description.
     pub description: Option<String>,
     /// Optional extensions.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Value>,
 }
 
@@ -75,7 +75,7 @@ pub enum PaymentPayload {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PaymentPayloadV2 {
     /// X402 protocol version.
-    #[serde(rename="x402Version")]
+    #[serde(rename = "x402Version")]
     pub x402_version: u32,
     /// The resource being paid for.
     pub resource: Resource,
@@ -84,7 +84,7 @@ pub struct PaymentPayloadV2 {
     /// The actual payment proof/payload.
     pub payload: Value,
     /// Optional extensions.
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Value>,
 }
 
@@ -104,7 +104,7 @@ pub struct ResourceV2 {
     /// Human-readable description.
     pub description: String,
     /// MIME type of the resource.
-    #[serde(rename="mimeType")]
+    #[serde(rename = "mimeType")]
     pub mime_type: String,
 }
 
@@ -170,38 +170,41 @@ pub struct SupportedKind {
     pub extra: Option<Value>,
 }
 
-
 /// Represents an amount of money as either a number or string.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Money {
     Number(f64),
-    Text(String)
+    Text(String),
+}
+
+impl Display for Money {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Money::Number(n) => write!(f, "{}", n),
+            Money::Text(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl FromStr for Money {
+    type Err = X402Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Ok(n) = s.parse::<f64>() {
+            return Ok(Money::Number(n));
+        }
+        Ok(Money::Text(s.to_string()))
+    }
 }
 
 impl Money {
-    /// Converts money to a string representation.
-    pub fn to_string(&self) -> String {
-        match self {
-            Money::Number(n) => n.to_string(),
-            Money::Text(s) => s.clone(),
-        }
-    }
-
     /// Splits money into amount string and optional asset.
     pub fn to_amount_asset(&self) -> (String, Option<String>) {
         match self {
             Money::Number(n) => (n.to_string(), None),
             Money::Text(s) => (s.clone(), None),
         }
-    }
-
-    /// Parses money from a string.
-    pub fn from_str(s: &str) -> X402Result<Money> {
-        if let Ok(n) = s.parse::<f64>() {
-            return Ok(Money::Number(n));
-        }
-        Ok(Money::Text(s.to_string()))
     }
 }
 
@@ -237,7 +240,11 @@ pub struct AssetAmount {
 impl AssetAmount {
     /// Creates a new AssetAmount.
     pub fn new(asset: &str, amount: &str, extra: Option<HashMap<String, Value>>) -> Self {
-        AssetAmount { asset: asset.to_string(), amount: amount.to_string(), extra }
+        AssetAmount {
+            asset: asset.to_string(),
+            amount: amount.to_string(),
+            extra,
+        }
     }
 }
 
@@ -258,7 +265,7 @@ impl Price {
         }
     }
     /// Helper method to create money from something that converts into Money
-    pub fn money<M: Into<Money>>(&self, m:M) -> Self {
+    pub fn money<M: Into<Money>>(&self, m: M) -> Self {
         Price::Money(m.into())
     }
 }
@@ -295,12 +302,12 @@ pub enum Network {
     String(String),
 }
 
-impl Network {
-    /// Converts network to its string representation.
-    pub fn to_string(&self) -> String {
+/// Converts network to its string representation.
+impl Display for Network {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Network::CAIPNetwork(caip_network) => caip_network.to_string(),
-            Network::String(string_val) => string_val.to_owned(),
+            Network::CAIPNetwork(n) => write!(f, "{}", n),
+            Network::String(s) => write!(f, "{}", s),
         }
     }
 }
@@ -335,16 +342,20 @@ pub struct CAIPNetwork {
     namespace: String,
     reference: String,
 }
+/// Returns the "namespace:reference" string.
+impl Display for CAIPNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.namespace, self.reference)
+    }
+}
 
 impl CAIPNetwork {
     /// Creates a new CAIPNetwork.
     pub fn new(namespace: &str, reference: &str) -> CAIPNetwork {
-        CAIPNetwork { namespace: namespace.to_string(), reference: reference.to_string() }
-    }
-
-    /// Returns the "namespace:reference" string.
-    pub fn to_string(&self) -> String {
-        format!("{}:{}", self.namespace, self.reference)
+        CAIPNetwork {
+            namespace: namespace.to_string(),
+            reference: reference.to_string(),
+        }
     }
 }
 
@@ -412,7 +423,7 @@ pub struct PaymentRequirementsV1 {
     pub asset: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<Value>,
-    pub extra: Option<Value>
+    pub extra: Option<Value>,
 }
 
 impl PaymentRequirementsV1 {
@@ -421,7 +432,6 @@ impl PaymentRequirementsV1 {
         network_to_chain_id(self.network.as_str())
     }
 }
-
 
 /// Helper trait to handle the Base64 encoding/decoding for headers
 pub trait X402Header: Serialize + for<'de> Deserialize<'de> {
@@ -442,12 +452,10 @@ pub trait X402Header: Serialize + for<'de> Deserialize<'de> {
 impl X402Header for PaymentPayload {}
 impl X402Header for PaymentRequired {}
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-
 
     fn get_resource_v2() -> Resource {
         Resource::V2(ResourceV2 {
@@ -483,7 +491,7 @@ mod tests {
 
     #[test]
     fn test_payment_required_full_serialization() {
-        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2  {
+        let payment_req = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
             network: "evm".to_string(),
             pay_to: "0x1234567890abcdef".to_string(),
@@ -602,9 +610,11 @@ mod tests {
                     other => panic!("Expected V2 requirements on both sides, got: {:?}", other),
                 }
             }
-            _ => panic!("Expected V2 requirements on both sides, got: {:?}", deserialized),
+            _ => panic!(
+                "Expected V2 requirements on both sides, got: {:?}",
+                deserialized
+            ),
         }
-
     }
 
     #[test]
@@ -685,7 +695,6 @@ mod tests {
             }
             _ => panic!("Expected V2 payload on both sides, got: {:?}", decoded),
         }
-
     }
 
     #[test]
@@ -800,5 +809,3 @@ mod tests {
         }
     }
 }
-
-

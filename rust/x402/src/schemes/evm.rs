@@ -1,13 +1,13 @@
-use std::str::FromStr;
-use alloy::primitives::{Address, U256, B256};
-use std::time::{SystemTime, UNIX_EPOCH};
-use alloy::sol_types::Eip712Domain;
-use alloy::signers::{Signature, Signer};
-use crate::types::PaymentRequirements;
 use crate::errors::{X402Error, X402Result};
-use alloy::sol;
-use rand::RngCore;
+use crate::types::PaymentRequirements;
 use crate::types::PaymentRequirements::{V1, V2};
+use alloy::primitives::{Address, B256, U256};
+use alloy::signers::{Signature, Signer};
+use alloy::sol;
+use alloy::sol_types::Eip712Domain;
+use rand::RngCore;
+use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // EIP-712 structure for the Exact scheme
 sol! {
@@ -34,9 +34,7 @@ pub fn create_exact_eip3009_domain(
                 .extra
                 .as_ref()
                 .expect("requirements.extra must be present for EIP-712 domain");
-            let name = extra["name"]
-                .as_str()
-                .expect("extra.name must be a string");
+            let name = extra["name"].as_str().expect("extra.name must be a string");
             let version = extra["version"]
                 .as_str()
                 .expect("extra.version must be a string");
@@ -60,9 +58,7 @@ pub fn create_exact_eip3009_domain(
                 .extra
                 .as_ref()
                 .expect("requirements.extra must be present for EIP-712 domain");
-            let name = extra["name"]
-                .as_str()
-                .expect("extra.name must be a string");
+            let name = extra["name"].as_str().expect("extra.name must be a string");
             let version = extra["version"]
                 .as_str()
                 .expect("extra.version must be a string");
@@ -92,7 +88,7 @@ async fn sign_transfer<S>(
     value: U256,
     requirement: &PaymentRequirements,
     chain_id: u64,
-    valid_for: Option<u64> // Time in seconds
+    valid_for: Option<u64>, // Time in seconds
 ) -> X402Result<(String, TransferWithAuthorization)>
 where
     S: Signer<Signature> + Send + Sync,
@@ -103,7 +99,7 @@ where
         .unwrap()
         .as_secs();
     let valid_after = U256::from(now.saturating_sub(60)); // 1 minute before
-    let valid_before = U256::from(now + valid_for.unwrap_or(300)) ; // 5 minutes after (or valid_for)
+    let valid_before = U256::from(now + valid_for.unwrap_or(300)); // 5 minutes after (or valid_for)
 
     //  Nonce
     let mut bytes = [0u8; 32];
@@ -138,7 +134,7 @@ pub async fn sign_transfer_with_authorization<S>(
     wallet_address: &str,
     requirement: &PaymentRequirements,
     chain_id: u64,
-    valid_for: Option<u64> // Time in seconds
+    valid_for: Option<u64>, // Time in seconds
 ) -> X402Result<(String, TransferWithAuthorization)>
 where
     S: Signer<Signature> + Send + Sync,
@@ -146,45 +142,34 @@ where
     match requirement {
         V1(req) => {
             // Addresses
-            let from: Address = wallet_address.parse()
-                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid from address: {e}")))?;
-            let to: Address = req.pay_to.parse()
-                .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid to address: {e}")))?;
+            let from: Address = wallet_address.parse().map_err(|e| {
+                crate::errors::X402Error::Internal(format!("Invalid from address: {e}"))
+            })?;
+            let to: Address = req.pay_to.parse().map_err(|e| {
+                crate::errors::X402Error::Internal(format!("Invalid to address: {e}"))
+            })?;
 
             // Value (atomic units as decimal string)
             let value = U256::from_str(&req.max_amount_required)
                 .map_err(|e| crate::errors::X402Error::Internal(format!("Invalid amount: {e}")))?;
 
-            sign_transfer(
-                signer,
-                from,
-                to,
-                value,
-                requirement,
-                chain_id,
-                valid_for
-            ).await
+            sign_transfer(signer, from, to, value, requirement, chain_id, valid_for).await
         }
         V2(req) => {
             // Addresses
-            let from: Address = wallet_address.parse()
+            let from: Address = wallet_address
+                .parse()
                 .map_err(|e| X402Error::Internal(format!("Invalid from address: {e}")))?;
-            let to: Address = req.pay_to.parse()
+            let to: Address = req
+                .pay_to
+                .parse()
                 .map_err(|e| X402Error::Internal(format!("Invalid to address: {e}")))?;
 
             // Value (atomic units as decimal string)
             let value = U256::from_str(&req.amount)
                 .map_err(|e| X402Error::Internal(format!("Invalid amount: {e}")))?;
 
-            sign_transfer(
-                signer,
-                from,
-                to,
-                value,
-                requirement,
-                chain_id,
-                valid_for
-            ).await
+            sign_transfer(signer, from, to, value, requirement, chain_id, valid_for).await
         }
     }
 }
@@ -193,9 +178,9 @@ where
 pub fn network_to_chain_id(network: &str) -> X402Result<u64> {
     // CAIP-2
     if let Some(stripped) = network.strip_prefix("eip155:") {
-        let chain_id = stripped
-            .parse::<u64>()
-            .map_err(|e| X402Error::ConfigError(format!("invalid eip155 network '{}': {}", network, e)))?;
+        let chain_id = stripped.parse::<u64>().map_err(|e| {
+            X402Error::ConfigError(format!("invalid eip155 network '{}': {}", network, e))
+        })?;
         return Ok(chain_id);
     }
     // Legacy human-readable alias
@@ -204,23 +189,32 @@ pub fn network_to_chain_id(network: &str) -> X402Result<u64> {
         "base" => Ok(8453),
         "avalanche-fuji" => Ok(43113),
         "avalanche" => Ok(43114),
-        other => Err(X402Error::ConfigError(format!("unsupported network '{}', try using CAIP-2 naming convention", other))),
+        other => Err(X402Error::ConfigError(format!(
+            "unsupported network '{}', try using CAIP-2 naming convention",
+            other
+        ))),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::PaymentRequirementsV2;
     use alloy::signers::local::PrivateKeySigner;
     use alloy::sol_types::SolStruct;
-    use crate::types::PaymentRequirementsV2;
 
     #[test]
     fn test_create_exact_eip3009_domain() {
         let chain_id = 1u64;
         let mut extra = serde_json::Map::new();
-        extra.insert("name".to_string(), serde_json::Value::String("USD Coin".to_string()));
-        extra.insert("version".to_string(), serde_json::Value::String("2".to_string()));
+        extra.insert(
+            "name".to_string(),
+            serde_json::Value::String("USD Coin".to_string()),
+        );
+        extra.insert(
+            "version".to_string(),
+            serde_json::Value::String("2".to_string()),
+        );
 
         let requirements = V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
@@ -238,7 +232,14 @@ mod tests {
         assert_eq!(domain.name.as_deref(), Some("USD Coin"));
         assert_eq!(domain.version.as_deref(), Some("2"));
         assert_eq!(domain.chain_id, Some(U256::from(chain_id)));
-        assert_eq!(domain.verifying_contract, Some("0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse().unwrap()));
+        assert_eq!(
+            domain.verifying_contract,
+            Some(
+                "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+                    .parse()
+                    .unwrap()
+            )
+        );
         assert_eq!(domain.salt, None);
     }
 
@@ -275,8 +276,14 @@ mod tests {
         let chain_id = 1;
 
         let mut extra = serde_json::Map::new();
-        extra.insert("name".to_string(), serde_json::Value::String("USD Coin".to_string()));
-        extra.insert("version".to_string(), serde_json::Value::String("2".to_string()));
+        extra.insert(
+            "name".to_string(),
+            serde_json::Value::String("USD Coin".to_string()),
+        );
+        extra.insert(
+            "version".to_string(),
+            serde_json::Value::String("2".to_string()),
+        );
 
         let requirement = V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
@@ -289,7 +296,14 @@ mod tests {
             max_timeout_seconds: 60,
         });
 
-        let result = sign_transfer_with_authorization(&signer, &wallet_address, &requirement, chain_id, Some(600)).await;
+        let result = sign_transfer_with_authorization(
+            &signer,
+            &wallet_address,
+            &requirement,
+            chain_id,
+            Some(600),
+        )
+        .await;
 
         assert!(result.is_ok());
         let (signature_hex, auth) = result.unwrap();
@@ -298,10 +312,13 @@ mod tests {
         assert_eq!(signature_hex.len(), 132);
 
         match requirement {
-            V1(_) => {panic!("Expected V2 requirement")}
-            V2(req) => {assert_eq!(auth.value, U256::from_str(&req.amount).unwrap());}
+            V1(_) => {
+                panic!("Expected V2 requirement")
+            }
+            V2(req) => {
+                assert_eq!(auth.value, U256::from_str(&req.amount).unwrap());
+            }
         }
-
     }
 
     #[tokio::test]
@@ -318,8 +335,14 @@ mod tests {
         let chain_id = 84532u64;
 
         let mut extra = serde_json::Map::new();
-        extra.insert("name".to_string(), serde_json::Value::String("x402".to_string()));
-        extra.insert("version".to_string(), serde_json::Value::String("1".to_string()));
+        extra.insert(
+            "name".to_string(),
+            serde_json::Value::String("x402".to_string()),
+        );
+        extra.insert(
+            "version".to_string(),
+            serde_json::Value::String("1".to_string()),
+        );
 
         let requirement = PaymentRequirements::V2(PaymentRequirementsV2 {
             scheme: "exact".to_string(),
@@ -339,8 +362,8 @@ mod tests {
             chain_id,
             None,
         )
-            .await
-            .expect("sign_transfer_with_authorization failed");
+        .await
+        .expect("sign_transfer_with_authorization failed");
 
         let domain = create_exact_eip3009_domain(&requirement, chain_id);
 
@@ -357,5 +380,3 @@ mod tests {
         assert_eq!(recovered, expected_address, "Recovered address mismatch");
     }
 }
-
-

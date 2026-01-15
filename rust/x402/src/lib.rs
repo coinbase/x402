@@ -1,8 +1,8 @@
-pub mod types;
+pub mod auth;
 pub mod client;
-pub mod server;
 pub mod errors;
+pub mod facilitator;
 pub mod frameworks;
 pub mod schemes;
-pub mod auth;
-pub mod facilitator;
+pub mod server;
+pub mod types;

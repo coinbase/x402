@@ -3,12 +3,14 @@ use axum::response::IntoResponse;
 use http::StatusCode;
 use reqwest::Client;
 use serde_json::json;
-use x402::client::evm::exact::EvmExactClient;
 use x402::client::X402Client;
+use x402::client::evm::exact::EvmExactClient;
 
 mod common;
 use crate::common::build_and_serve_test_app;
-use x402::types::{PaymentPayload, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header};
+use x402::types::{
+    PaymentPayload, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header,
+};
 // your helper that returns axum::Router
 
 #[tokio::test]
@@ -31,10 +33,7 @@ async fn test_x402_client_against_axum_server_happy_path() {
     //    - sign & build PAYMENT-SIGNATURE
     //    - retry with payment
     let res = x402_client
-        .execute_with_evm_exact(
-            || x402_client.client.post(&url),
-            signer,
-        )
+        .execute_with_evm_exact(|| x402_client.client.post(&url), signer)
         .await
         .expect("x402 client flow should succeed");
 
@@ -81,7 +80,7 @@ async fn test_invalid_payment_signature_malformed() {
 async fn test_invalid_payment_signature_bad_payload() {
     let addr = build_and_serve_test_app().await;
     let client = Client::new();
-    let call_for_info =  client
+    let call_for_info = client
         .post(format!("http://{addr}/api/premium"))
         .send()
         .await
@@ -89,7 +88,12 @@ async fn test_invalid_payment_signature_bad_payload() {
 
     let status = call_for_info.status();
     assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
-    let req_header = call_for_info.headers().get("PAYMENT-REQUIRED").unwrap().to_str().unwrap();
+    let req_header = call_for_info
+        .headers()
+        .get("PAYMENT-REQUIRED")
+        .unwrap()
+        .to_str()
+        .unwrap();
     let info = PaymentRequired::from_header(req_header).unwrap();
 
     let accepted: PaymentRequirements = info

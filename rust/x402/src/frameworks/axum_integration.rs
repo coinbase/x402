@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use axum::{
     body::Body,
     extract::State,
@@ -6,13 +5,15 @@ use axum::{
     middleware::Next,
     response::IntoResponse,
 };
+use std::collections::HashMap;
 
-use crate::types::{PaymentPayload, X402Header, PaymentRequired, Network, PaymentRequirements, Resource, ResourceV2};
-use std::sync::Arc;
-use crate::errors::{X402Error};
+use crate::errors::X402Error;
 use crate::facilitator::FacilitatorClient;
 use crate::server::{InMemoryResourceServer, ResourceConfig, ResourceServer, SchemeNetworkServer};
-
+use crate::types::{
+    Network, PaymentPayload, PaymentRequired, PaymentRequirements, Resource, ResourceV2, X402Header,
+};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct RouteMeta {
@@ -91,13 +92,11 @@ impl X402ConfigBuilder {
     }
 }
 
-
 pub async fn x402_middleware(
     State(config): State<X402Config>,
     req: Request<Body>,
     next: Next,
 ) -> Response<Body> {
-
     // Configuration
     let path = req.uri().path();
 
@@ -112,17 +111,25 @@ pub async fn x402_middleware(
     };
 
     // Build the payment requirements we have registered in the resource server
-    let accepts = match config.resource_server.build_payment_requirements(&route.resource_config) {
+    let accepts = match config
+        .resource_server
+        .build_payment_requirements(&route.resource_config)
+    {
         Ok(payment_required) => payment_required,
         Err(e) => {
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to build payment requirements for route {}: {}", path, e),
-            ).into_response();
+                format!(
+                    "Failed to build payment requirements for route {}: {}",
+                    path, e
+                ),
+            )
+                .into_response();
         }
     };
 
-    let signature_header = req.headers()
+    let signature_header = req
+        .headers()
         .get("PAYMENT-SIGNATURE")
         .and_then(|value| value.to_str().ok());
 
@@ -135,50 +142,42 @@ pub async fn x402_middleware(
                     return (
                         StatusCode::BAD_REQUEST,
                         format!("Invalid payment header format: {}", e),
-                        ).into_response();
+                    )
+                        .into_response();
                 }
             };
 
             // Ensure the client-chosen requirement matches one of our 'accepts'.
-            let matched_req = accepts.iter().find(|server_req| {
-                match server_req {
-                    PaymentRequirements::V1(server) => {
-                        match &payload {
-                            PaymentPayload::V1(client) => {
-                                server.scheme == client.scheme
-                                    && server.network == client.network
-                                    && server.pay_to == client.payload.authorization.to
-                                    && server.max_amount_required == client.payload.authorization.value
-                            }
-                            _ => false
-                        }
+            let matched_req = accepts.iter().find(|server_req| match server_req {
+                PaymentRequirements::V1(server) => match &payload {
+                    PaymentPayload::V1(client) => {
+                        server.scheme == client.scheme
+                            && server.network == client.network
+                            && server.pay_to == client.payload.authorization.to
+                            && server.max_amount_required == client.payload.authorization.value
                     }
-                    PaymentRequirements::V2(server) => {
-                        match &payload {
-                            PaymentPayload::V2(client_payload) => {
-                                match &client_payload.accepted {
-                                    PaymentRequirements::V2(client_accepted) => {
-                                        server.scheme == client_accepted.scheme
-                                            && server.network == client_accepted.network
-                                            && server.pay_to == client_accepted.pay_to
-                                            && server.amount == client_accepted.amount
-                                            && server.asset == client_accepted.asset
-                                            && match &client_payload.resource {
-                                                Resource::V2(client_resource) => {
-                                                    route.resource_url() == client_resource.url
-                                                }
-                                                _ => false
-                                            }
+                    _ => false,
+                },
+                PaymentRequirements::V2(server) => match &payload {
+                    PaymentPayload::V2(client_payload) => match &client_payload.accepted {
+                        PaymentRequirements::V2(client_accepted) => {
+                            server.scheme == client_accepted.scheme
+                                && server.network == client_accepted.network
+                                && server.pay_to == client_accepted.pay_to
+                                && server.amount == client_accepted.amount
+                                && server.asset == client_accepted.asset
+                                && match &client_payload.resource {
+                                    Resource::V2(client_resource) => {
+                                        route.resource_url() == client_resource.url
                                     }
-                                    _ => false
+                                    _ => false,
                                 }
-                            }
-                            _ => false
                         }
-                    }
-                }
+                        _ => false,
+                    },
+                    _ => false,
+                },
             });
-
 
             // Verify with facilitator
             let accepted_requirement = match matched_req.cloned() {
@@ -191,7 +190,11 @@ pub async fn x402_middleware(
                 }
             };
 
-            match config.facilitator.verify(payload.clone(), accepted_requirement.clone()).await {
+            match config
+                .facilitator
+                .verify(payload.clone(), accepted_requirement.clone())
+                .await
+            {
                 Ok(verify_result) if verify_result.is_valid => {
                     // Run the route handler
                     let response = next.run(req).await;
@@ -206,13 +209,21 @@ pub async fn x402_middleware(
                                 if settle_response.success {
                                     response
                                 } else {
-                                    let err_msg = format!("Failed to settle payment: {}", settle_response.error_reason.unwrap_or("Unknown Reason".to_owned()));
+                                    let err_msg = format!(
+                                        "Failed to settle payment: {}",
+                                        settle_response
+                                            .error_reason
+                                            .unwrap_or("Unknown Reason".to_owned())
+                                    );
                                     (StatusCode::NOT_ACCEPTABLE, err_msg).into_response()
                                 }
-                            },
+                            }
                             Err(e) => {
                                 dbg!("Failed to settle payment: {:?}", e);
-                                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to settle payment")
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Failed to settle payment",
+                                )
                                     .into_response()
                             }
                         }
@@ -221,19 +232,37 @@ pub async fn x402_middleware(
                     }
                 }
                 Ok(verify_result) => {
-                    let reason = verify_result.invalid_reason.unwrap_or_else(|| "Unknown verification error".to_string());
+                    let reason = verify_result
+                        .invalid_reason
+                        .unwrap_or_else(|| "Unknown verification error".to_string());
                     if reason.to_ascii_lowercase().contains("unauthorized") {
-                        return (StatusCode::UNAUTHORIZED, format!("Payment verification failed: {}", reason)).into_response()
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            format!("Payment verification failed: {}", reason),
+                        )
+                            .into_response();
                     }
-                    (StatusCode::BAD_REQUEST, format!("Payment verification failed: {}", reason)).into_response()
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("Payment verification failed: {}", reason),
+                    )
+                        .into_response()
                 }
                 Err(X402Error::FacilitatorRejection(code, msg)) => {
                     // Facilitator explicitly said 'No'
-                    (StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST), msg).into_response()
+                    (
+                        StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+                        msg,
+                    )
+                        .into_response()
                 }
                 Err(e) => {
                     // Failed to verify signature
-                    (StatusCode::SERVICE_UNAVAILABLE, format!("Facilitator error: {}", e)).into_response()
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        format!("Facilitator error: {}", e),
+                    )
+                        .into_response()
                 }
             }
         }
@@ -253,14 +282,12 @@ pub async fn x402_middleware(
             };
 
             match payment_required.to_header() {
-                Ok(header_val) => {
-                    Response::builder()
-                        .status(StatusCode::PAYMENT_REQUIRED)
-                        .header("PAYMENT-REQUIRED", header_val)
-                        .body(Body::from("Payment Required"))
-                        .unwrap()
-                }
-                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                Ok(header_val) => Response::builder()
+                    .status(StatusCode::PAYMENT_REQUIRED)
+                    .header("PAYMENT-REQUIRED", header_val)
+                    .body(Body::from("Payment Required"))
+                    .unwrap(),
+                Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             }
         }
     }
@@ -269,19 +296,22 @@ pub async fn x402_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{routing::get, Router};
-    use tower::ServiceExt; // for oneshot
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-    use wiremock::matchers::{method, path};
-    use crate::types::{PaymentPayloadV2, PaymentRequirements, PaymentRequirementsV2, Resource, SettleResponse, VerifyResponse};
-    use serde_json::json;
+    use crate::errors::X402Result;
     use crate::facilitator::HttpFacilitator;
+    use crate::types::CAIPNetwork;
+    use crate::types::{
+        PaymentPayloadV2, PaymentRequirements, PaymentRequirementsV2, Resource, SettleResponse,
+        VerifyResponse,
+    };
+    use axum::{Router, routing::get};
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
-    use crate::errors::X402Result;
-    use crate::types::{ CAIPNetwork };
+    use serde_json::json;
+    use tower::ServiceExt; // for oneshot
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     struct MockSchemeServer;
 
@@ -290,7 +320,9 @@ mod tests {
             "exact"
         }
 
-        fn x402_version(&self) -> u32 {2}
+        fn x402_version(&self) -> u32 {
+            2
+        }
 
         fn build_requirements(
             &self,
@@ -319,19 +351,15 @@ mod tests {
     }
 
     async fn setup_test_app(facilitator_url: &str) -> Router {
-        let facilitator: Arc<dyn FacilitatorClient> = Arc::new(HttpFacilitator::new(facilitator_url));
+        let facilitator: Arc<dyn FacilitatorClient> =
+            Arc::new(HttpFacilitator::new(facilitator_url));
 
         let network = Network::from(CAIPNetwork::new("ethereum", "1"));
-        let resource_config = ResourceConfig::new(
-            "exact",
-            "0x123",
-            "100".into(),
-            network.clone(),
-            None,
-        );
+        let resource_config =
+            ResourceConfig::new("exact", "0x123", "100".into(), network.clone(), None);
 
         // Create a config builder
-        let mut builder = X402ConfigBuilder::new("",facilitator);
+        let mut builder = X402ConfigBuilder::new("", facilitator);
 
         builder
             // Register a scheme to our config
@@ -343,7 +371,10 @@ mod tests {
 
         Router::new()
             .route("/test", get(|| async { "Success" }))
-            .layer(axum::middleware::from_fn_with_state(config, x402_middleware))
+            .layer(axum::middleware::from_fn_with_state(
+                config,
+                x402_middleware,
+            ))
     }
 
     #[tokio::test]
@@ -405,13 +436,15 @@ mod tests {
                     .uri("/test")
                     .header("PAYMENT-SIGNATURE", header_val)
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
         assert_eq!(body, "Success");
     }
 
@@ -465,20 +498,20 @@ mod tests {
                     .uri("/test")
                     .header("PAYMENT-SIGNATURE", header_val)
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
-        let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
         assert_eq!(body, "Insufficient Balance");
     }
 
-
     #[tokio::test]
     async fn test_middleware_handles_facilitator_not_available() {
-
         // Point to a port that is definitely not listening
         let app = setup_test_app("http://127.0.0.1:1").await;
 
@@ -486,7 +519,7 @@ mod tests {
         let payload = PaymentPayload::V2(PaymentPayloadV2 {
             x402_version: 1,
             resource: get_resource_v2(),
-            accepted: PaymentRequirements::V2(PaymentRequirementsV2  {
+            accepted: PaymentRequirements::V2(PaymentRequirementsV2 {
                 scheme: "exact".to_string(),
                 network: "ethereum:1".to_string(),
                 pay_to: "0x123".to_string(),
@@ -507,13 +540,15 @@ mod tests {
                     .uri("/test")
                     .header("PAYMENT-SIGNATURE", header_val)
                     .body(Body::empty())
-                    .unwrap()
+                    .unwrap(),
             )
             .await
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-        let body_bytes = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
+        let body_bytes = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .unwrap();
         let body_str = String::from_utf8_lossy(&body_bytes);
         // This will contain the reqwest error message
         assert!(body_str.contains("Facilitator error"));

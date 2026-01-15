@@ -1,11 +1,10 @@
-mod facilitator;
-mod http;
 pub mod cdp_request_hook;
+mod http;
+mod x402_facilitator;
 
-pub use facilitator::FacilitatorClient;
 pub use http::HttpFacilitator;
 pub use http::HttpFacilitator as Facilitator;
-
+pub use x402_facilitator::FacilitatorClient;
 
 // Optional helper for a default HTTP facilitator wrapped in Arc<dyn FacilitatorClient>
 

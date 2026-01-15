@@ -1,11 +1,14 @@
+use crate::client::x402_client::X402Client;
+use crate::errors::{X402Error, X402Result};
+use crate::schemes::evm::sign_transfer_with_authorization;
+use crate::types::{
+    AuthorizationV1, PayloadExactV1, PaymentPayload, PaymentPayloadV1, PaymentPayloadV2,
+    PaymentRequired, PaymentRequirements, X402Header,
+};
 use alloy::signers::Signer;
 use http::StatusCode;
 use reqwest::{Client, RequestBuilder, Response};
 use serde_json::json;
-use crate::client::client::X402Client;
-use crate::errors::{X402Error, X402Result};
-use crate::schemes::evm::sign_transfer_with_authorization;
-use crate::types::{AuthorizationV1, PayloadExactV1, PaymentPayload, PaymentPayloadV1, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header};
 
 /// A client for handling X402 payment-required HTTP requests.
 ///
@@ -73,7 +76,7 @@ where
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn execute<B, H, FutH> (
+    pub async fn execute<B, H, FutH>(
         &self,
         mut build_req: B,
         challenge_handler: H,
@@ -87,22 +90,23 @@ where
         let response = build_req().send().await?;
 
         // Handle x402 challenge
-        if response.status() == StatusCode::PAYMENT_REQUIRED {
-            if let Some(header) = response.headers().get("PAYMENT-REQUIRED") {
-                let header_str = header.to_str()
-                    .map_err(|e| X402Error::InvalidHeader(e.to_string()))?;
-                let challenge = PaymentRequired::from_header(header_str)?;
+        if response.status() == StatusCode::PAYMENT_REQUIRED
+            && let Some(header) = response.headers().get("PAYMENT-REQUIRED")
+        {
+            let header_str = header
+                .to_str()
+                .map_err(|e| X402Error::InvalidHeader(e.to_string()))?;
+            let challenge = PaymentRequired::from_header(header_str)?;
 
-                // Use signer to solve the challenge
-                let payload = challenge_handler(challenge).await?;
-                let signature_header = payload.to_header()?;
+            // Use signer to solve the challenge
+            let payload = challenge_handler(challenge).await?;
+            let signature_header = payload.to_header()?;
 
-                // Retry with payment
-                return Ok(build_req()
-                    .header("PAYMENT-SIGNATURE", signature_header)
-                    .send()
-                    .await?);
-            }
+            // Retry with payment
+            return Ok(build_req()
+                .header("PAYMENT-SIGNATURE", signature_header)
+                .send()
+                .await?);
         }
         Ok(response)
     }
@@ -139,9 +143,7 @@ where
     {
         let challenge_handler = move |challenge: PaymentRequired| {
             let wallet_signer = signer.clone();
-            async move {
-                evm_exact_build_payload(&wallet_signer, &challenge).await
-            }
+            async move { evm_exact_build_payload(&wallet_signer, &challenge).await }
         };
         self.execute(build_req, challenge_handler).await
     }
@@ -157,16 +159,9 @@ where
 {
     let wallet_address = signer.address();
 
-    let accepted = challenge
-        .accepts
-        .iter()
-        .find_map(|req| match req {
-            PaymentRequirements::V2(v2) => Some(PaymentRequirements::V2(v2.clone())),
-            PaymentRequirements::V1(v1) => Some(PaymentRequirements::V1(v1.clone())),
-        })
-        .ok_or_else(|| {
-            X402Error::ConfigError("no V1 or V2 payment requirements found in challenge".into())
-        })?;
+    let accepted = challenge.accepts.first().cloned().ok_or_else(|| {
+        X402Error::ConfigError("no V1 or V2 payment requirements found in challenge".into())
+    })?;
 
     match &accepted {
         PaymentRequirements::V2(payment_requirements) => {
@@ -175,8 +170,10 @@ where
                 &wallet_address.to_string(),
                 &accepted,
                 payment_requirements.u64_network()?,
-                None
-            ).await.expect("sign_transfer_with_authorization failed");
+                None,
+            )
+            .await
+            .expect("sign_transfer_with_authorization failed");
 
             let authorization_json = json!({
                "from": wallet_address,
@@ -200,15 +197,17 @@ where
                 extensions: challenge.extensions.clone(),
             };
             Ok(PaymentPayload::V2(payload))
-        },
+        }
         PaymentRequirements::V1(payment_requirements) => {
             let (signature_hex, auth) = sign_transfer_with_authorization(
                 signer,
                 &wallet_address.to_string(),
                 &accepted,
                 payment_requirements.u64_network()?,
-                None
-            ).await.expect("sign_transfer_with_authorization failed");
+                None,
+            )
+            .await
+            .expect("sign_transfer_with_authorization failed");
 
             let exact_payment_payload = PayloadExactV1 {
                 signature: signature_hex,

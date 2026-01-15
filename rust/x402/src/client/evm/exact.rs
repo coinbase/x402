@@ -1,8 +1,8 @@
-use alloy::signers::Signer;
-use crate::client::client::X402Client;
 use crate::client::http::evm_exact_build_payload;
+use crate::client::x402_client::X402Client;
 use crate::errors::X402Result;
 use crate::types::{PaymentPayload, PaymentRequired};
+use alloy::signers::Signer;
 
 pub struct EvmExactClient<S> {
     signer: S,
