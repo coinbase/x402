@@ -51,9 +51,7 @@ class MockHTTPAdapter:
 
 class TestAsyncHooks:
     def setup_method(self):
-        self.facilitator = x402Facilitator().register(
-            ["x402:cash"], CashSchemeNetworkFacilitator()
-        )
+        self.facilitator = x402Facilitator().register(["x402:cash"], CashSchemeNetworkFacilitator())
         facilitator_client = CashFacilitatorClient(self.facilitator)
         self.resource_server = x402ResourceServer(facilitator_client)
         self.resource_server.register("x402:cash", CashSchemeNetworkServer())

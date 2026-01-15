@@ -1063,5 +1063,3 @@ class x402HTTPResourceServerSync(_x402HTTPServerBase):
                 )
             return result
         return value
-
-
