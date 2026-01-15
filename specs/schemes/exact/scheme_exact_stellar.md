@@ -14,21 +14,19 @@ The x402 `exact` scheme on Stellar uses [smart contract token transfers][SEP-41]
 The protocol flow for `exact` on Stellar is client-driven with facilitator-sponsored execution:
 
 1. **Client** makes a request to a **Resource Server**.
-2. **Resource Server** responds with a `402 Payment Required` status and `PaymentRequired` header containing `extra.maxLedgerOffset` (transaction validity window) and `extra.areFeesSponsored` (fee sponsorship indicator).
-3. **Client** fetches the current ledger from Stellar RPC and calculates `maxLedger = currentLedger + maxLedgerOffset`.
-4. **Client** builds a smart contract invocation transaction calling `transfer(from, to, amount)` on the token contract [reference][SEP-41] and simulates it to identify required authorization entries.
-5. **Client** signs the authorization entries (not the full transaction) with their wallet, setting the expiration to `maxLedger`.
-6. **Client** serializes the transaction with signed auth entries and encodes it as XDR (base64).
-7. **Client** sends a new request to the resource server with the `PaymentPayload` containing the base64-encoded transaction.
-8. **Resource Server** forwards the `PaymentPayload` and `PaymentRequirements` to the **Facilitator Server's** `/verify` endpoint.
-9. **Facilitator** decodes and parses the transaction XDR.
-10. **Facilitator** validates the transaction structure, auth entries, amount, recipient, and simulates it.
-11. **Facilitator** returns a `VerifyResponse` to the **Resource Server**.
-12. **Resource Server**, upon successful verification, forwards the payload to the facilitator's `/settle` endpoint.
-13. **Facilitator** rebuilds the transaction with their own account as the source, preserving all operations and auth entries.
-14. **Facilitator** signs the rebuilt transaction with their key and submits it to the Stellar network.
-15. **Facilitator** polls for transaction confirmation and responds with a `SettlementResponse` to the **Resource Server**.
-16. **Resource Server** grants the **Client** access to the resource in its response.
+2. **Resource Server** responds with a `402 Payment Required` status and `PaymentRequired` header containing `extra.areFeesSponsored` (fee sponsorship indicator).
+3. **Client** builds a smart contract invocation transaction calling `transfer(from, to, amount)` on the token contract [reference][SEP-41] and simulates it to identify required authorization entries.
+4. **Client** signs the authorization entries (not the full transaction) with their wallet, setting expiration to `currentLedger + ledgerTimeout`, where `ledgerTimeout = ceil(maxTimeoutSeconds / estimatedLedgerSeconds)`; implementations should use the current network estimate for `estimatedLedgerSeconds` when available (fallback to `5` seconds).
+5. **Client** serializes the transaction with signed auth entries and encodes it as XDR (base64).
+6. **Client** sends a new request to the resource server with the `PaymentPayload` containing the base64-encoded transaction.
+7. **Resource Server** forwards the `PaymentPayload` and `PaymentRequirements` to the **Facilitator Server's** `/settle` endpoint.
+   - NOTE: `/verify` is optional and intended for pre-flight checks only. `/settle` MUST perform full verification independently and MUST NOT assume prior verification.
+8. **Facilitator** decodes the transaction XDR and validates the transaction's: structure, auth entries, signature expiration, amount, payer, and recipient.
+9. **Facilitator** rebuilds the transaction with its own account as the source, preserving all operations and auth entries.
+10. **Facilitator** simulates the transaction to verify it succeeds and emits the expected transfer events.
+11. **Facilitator** signs the rebuilt transaction with its own key and submits it to the Stellar network via RPC `sendTransaction`.
+12. **Facilitator** polls for transaction confirmation and responds with a `SettlementResponse` to the **Resource Server**.
+13. **Resource Server** grants the **Client** access to the resource in its response upon successful settlement.
 
 ## `PaymentRequirements` for `exact`
 
@@ -43,7 +41,6 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
   "payTo": "GBHEGW3KWOY2OFH767EDALFGCUTBOEVBDQMCKU4APMDLQNBW5QV3W3KO",
   "maxTimeoutSeconds": 60,
   "extra": {
-    "maxLedgerOffset": 12,
     "areFeesSponsored": true
   }
 }
@@ -51,7 +48,6 @@ In addition to the standard x402 `PaymentRequirements` fields, the `exact` schem
 
 **Field Definitions:**
 
-- `extra.maxLedgerOffset`: Ledgers to add to current ledger for transaction expiration. Defaults to 12 (≈60s). Enforces short-lived signatures.
 - `extra.areFeesSponsored`: Whether facilitator sponsors fees. Currently always true; a non-sponsored flow will be added later.
 
 ## PaymentPayload `payload` Field
@@ -64,7 +60,7 @@ The `payload` field of the `PaymentPayload` contains:
 }
 ```
 
-The `transaction` field contains the base64-encoded XDR of a Stellar transaction with a single `invokeHostFunction` operation calling `transfer(from, to, amount)` and signed authorization entries with expiration at `currentLedger + maxLedgerOffset`.
+The `transaction` field contains the base64-encoded XDR of a Stellar transaction with a single `invokeHostFunction` operation calling `transfer(from, to, amount)` and signed authorization entries with expiration derived from `maxTimeoutSeconds`.
 
 **Full `PaymentPayload` object:**
 
@@ -84,7 +80,6 @@ The `transaction` field contains the base64-encoded XDR of a Stellar transaction
     "payTo": "GBHEGW3KWOY2OFH767EDALFGCUTBOEVBDQMCKU4APMDLQNBW5QV3W3KO",
     "maxTimeoutSeconds": 60,
     "extra": {
-      "maxLedgerOffset": 12,
       "areFeesSponsored": true
     }
   },
@@ -118,7 +113,8 @@ A facilitator verifying an `exact` scheme on Stellar MUST enforce all of the fol
 
 - The transaction MUST contain signed authorization entries for the `from` address.
 - The facilitator MUST verify that all required signers have signed their auth entries.
-- The auth entry expiration ledger MUST NOT exceed `currentLedger + maxLedgerOffset` (default: 12 ledgers).
+- The auth entry expiration ledger MUST NOT exceed `currentLedger + ceil(maxTimeoutSeconds / estimatedLedgerSeconds)`.
+  - NOTE: implementations should use the current network estimate for `estimatedLedgerSeconds` when available (fallback to `5` seconds).
 
 ### 4. 🚨🚨🚨 Facilitator Safety
 
@@ -126,6 +122,7 @@ A facilitator verifying an `exact` scheme on Stellar MUST enforce all of the fol
 - The operation source account provided by the client MUST NOT be the facilitator's address.
 - The facilitator MUST NOT be the `from` address in the transfer.
 - The facilitator address MUST NOT appear in any authorization entries.
+- The simulation MUST emit events showing only the expected balance changes (recipient increase, payer decrease), and NO OTHER BALANCE CHANGES.
 
 These checks prevent the fee payer from being tricked into transferring their own funds or sponsoring unintended actions.
 
@@ -133,7 +130,7 @@ These checks prevent the fee payer from being tricked into transferring their ow
 
 - The facilitator MUST re-simulate the transaction against the current ledger state.
 - The simulation MUST succeed without errors.
-- The simulation MUST confirm the expected balance change for the recipient.
+- The simulation MUST emit events confirming the exact balance change specified in `requirements.amount`.
 
 ## Settlement Logic
 
