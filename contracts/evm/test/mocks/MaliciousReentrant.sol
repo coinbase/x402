@@ -5,16 +5,10 @@ import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {x402Permit2Proxy} from "../../src/x402Permit2Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/**
- * @title MaliciousReentrant
- * @notice Mock Permit2 that attempts reentrancy attacks
- */
 contract MaliciousReentrant is ISignatureTransfer {
     x402Permit2Proxy public target;
     bool public attemptReentry;
-    uint256 public reentryCount;
 
-    // Store attack parameters
     ISignatureTransfer.PermitTransferFrom public storedPermit;
     uint256 public storedAmount;
     address public storedOwner;
@@ -70,19 +64,14 @@ contract MaliciousReentrant is ISignatureTransfer {
         string calldata,
         bytes calldata
     ) external override {
-        // Mark nonce as used
         uint256 wordPos = permit.nonce >> 8;
         uint256 bitPos = permit.nonce & 0xff;
         nonceBitmapStorage[owner][wordPos] |= (1 << bitPos);
 
-        // Attempt reentrancy if configured
         if (attemptReentry && address(target) != address(0)) {
-            reentryCount++;
-            // Try to call back into the proxy
             target.settle(storedPermit, storedAmount, storedOwner, storedWitness, storedSignature);
         }
 
-        // Transfer tokens
         IERC20(permit.permitted.token).transferFrom(owner, transferDetails.to, transferDetails.requestedAmount);
     }
 }
