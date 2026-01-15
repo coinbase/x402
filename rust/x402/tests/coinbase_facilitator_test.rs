@@ -39,6 +39,7 @@ fn get_cdp_request_hook() -> Arc<CoinbaseRequestHook> {
 
 
 #[tokio::test]
+#[ignore = "Requires CDP_API_KEY_ID, CDP_API_SECRET, PRIVATE_KEY, and network access"]
 async fn test_coinbase_facilitator_integration_v1() {
     let cdp_hook = get_cdp_request_hook();
 
@@ -353,6 +354,7 @@ async fn test_coinbase_facilitator_integration_v2() {
 
 }
 #[tokio::test]
+#[ignore = "Requires CDP_API_KEY_ID, CDP_API_SECRET, PRIVATE_KEY, and network access"]
 async fn test_facilitator_supported() {
     let cdp_hook = get_cdp_request_hook();
 
