@@ -430,9 +430,7 @@ class TestHTTPIntegration:
             result.response.body,
         )
         payment_payload = self.http_client.create_payment_payload(payment_required)
-        request_headers = self.http_client.encode_payment_signature_header(
-            payment_payload
-        )
+        request_headers = self.http_client.encode_payment_signature_header(payment_payload)
 
         # Retry with payment
         mock_adapter_with_payment = MockHTTPAdapter(
@@ -446,9 +444,7 @@ class TestHTTPIntegration:
             method="GET",
         )
 
-        result2 = asyncio.run(
-            self.http_server.process_http_request(context_with_payment)
-        )
+        result2 = asyncio.run(self.http_server.process_http_request(context_with_payment))
         assert result2.type == "payment-verified"
         assert result2.payment_payload is not None
         assert result2.payment_requirements is not None

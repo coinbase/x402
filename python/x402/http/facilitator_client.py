@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -40,6 +41,26 @@ class AuthProvider(Protocol):
     def get_auth_headers(self) -> AuthHeaders:
         """Get authentication headers for each endpoint."""
         ...
+
+
+class CreateHeadersAuthProvider:
+    """AuthProvider that wraps a create_headers callable.
+
+    Adapts the dict-style create_headers function (as used by CDP SDK)
+    to the AuthProvider protocol.
+    """
+
+    def __init__(self, create_headers: Callable[[], dict[str, dict[str, str]]]) -> None:
+        self._create_headers = create_headers
+
+    def get_auth_headers(self) -> AuthHeaders:
+        """Get authentication headers by calling the create_headers function."""
+        result = self._create_headers()
+        return AuthHeaders(
+            verify=result.get("verify", {}),
+            settle=result.get("settle", {}),
+            supported=result.get("supported", result.get("list", {})),
+        )
 
 
 # ============================================================================
@@ -103,20 +124,37 @@ class HTTPFacilitatorClient:
     Supports both V1 and V2 protocol versions.
     """
 
-    def __init__(self, config: FacilitatorConfig | None = None) -> None:
+    def __init__(self, config: FacilitatorConfig | dict[str, Any] | None = None) -> None:
         """Create HTTP facilitator client.
 
         Args:
-            config: Optional configuration (uses defaults if not provided).
+            config: Optional configuration. Accepts either:
+                - FacilitatorConfig dataclass (recommended)
+                - Dict with 'url' and optional 'create_headers'
+                - None (uses defaults)
         """
-        config = config or FacilitatorConfig()
+        # Handle dict-style config
+        if isinstance(config, dict):
+            url = config.get("url", DEFAULT_FACILITATOR_URL)
+            create_headers = config.get("create_headers")
+            auth_provider = CreateHeadersAuthProvider(create_headers) if create_headers else None
 
-        self._url = config.url.rstrip("/")
-        self._timeout = config.timeout
-        self._auth_provider = config.auth_provider
-        self._identifier = config.identifier or self._url
-        self._http_client = config.http_client
-        self._owns_client = config.http_client is None
+            self._url = url.rstrip("/")
+            self._timeout = 30.0
+            self._auth_provider = auth_provider
+            self._identifier = self._url
+            self._http_client = None
+            self._owns_client = True
+        else:
+            # Handle FacilitatorConfig dataclass or None
+            config = config or FacilitatorConfig()
+
+            self._url = config.url.rstrip("/")
+            self._timeout = config.timeout
+            self._auth_provider = config.auth_provider
+            self._identifier = config.identifier or self._url
+            self._http_client = config.http_client
+            self._owns_client = config.http_client is None
 
     def _get_client(self) -> httpx.Client:
         """Get or create HTTP client."""
