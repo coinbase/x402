@@ -19,25 +19,29 @@ The extension follows the standard v2 pattern:
 ```json
 {
   "x402Version": 2,
+  "error": "Payment required",
   "resource": {
-    "url": "https://api.example.com/protected",
-    "type": "http"
+    "url": "https://api.example.com/weather",
+    "description": "Weather data endpoint",
+    "mimeType": "application/json"
   },
-  "description": "Protected endpoint",
-  "mimeType": "application/json",
   "accepts": [ ... ],
   "extensions": {
     "bazaar": {
       "info": {
         "input": {
           "type": "http",
-          "method": "GET"
+          "method": "GET",
+          "queryParams": {
+            "city": "San Francisco"
+          }
         },
         "output": {
           "type": "json",
           "example": {
-            "message": "Success",
-            "timestamp": "2026-01-13T00:00:00Z"
+            "city": "San Francisco",
+            "weather": "foggy",
+            "temperature": 60
           }
         }
       },
@@ -49,9 +53,17 @@ The extension follows the standard v2 pattern:
             "type": "object",
             "properties": {
               "type": { "type": "string", "const": "http" },
-              "method": { "type": "string", "enum": ["GET", "HEAD", "DELETE"] }
+              "method": { "type": "string", "enum": ["GET", "HEAD", "DELETE"] },
+              "queryParams": {
+                "type": "object",
+                "properties": {
+                  "city": { "type": "string" }
+                },
+                "required": ["city"]
+              }
             },
-            "required": ["type"]
+            "required": ["type", "method"],
+            "additionalProperties": false
           },
           "output": {
             "type": "object",
@@ -74,12 +86,12 @@ The extension follows the standard v2 pattern:
 ```json
 {
   "x402Version": 2,
+  "error": "Payment required",
   "resource": {
     "url": "https://api.example.com/search",
-    "type": "http"
+    "description": "Search endpoint",
+    "mimeType": "application/json"
   },
-  "description": "Search endpoint",
-  "mimeType": "application/json",
   "accepts": [ ... ],
   "extensions": {
     "bazaar": {
@@ -111,7 +123,8 @@ The extension follows the standard v2 pattern:
               "bodyType": { "type": "string", "enum": ["json", "form-data", "text"] },
               "body": { "type": "object" }
             },
-            "required": ["type", "bodyType", "body"]
+            "required": ["type", "method", "bodyType", "body"],
+            "additionalProperties": false
           },
           "output": {
             "type": "object",
