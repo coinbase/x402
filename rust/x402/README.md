@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-**See also:** [`examples/buyers/`](examples/buyers/)
+**See also:** [`examples/buyers/`](../../examples/rust/buyers/)
 
 ### Building Payment-Accepting Servers
 
@@ -176,7 +176,7 @@ async fn protected_handler() -> Json<serde_json::Value> {
 }
 ```
 
-**See also:** [`examples/sellers/axum/`](examples/sellers/axum/)
+**See also:** [`examples/sellers/axum/`](../../examples/rust/sellers/axum/)
 
 ## Package Structure
 
@@ -313,8 +313,8 @@ cargo test --test x402_facilitator_test
 
 The [`examples/`](examples/) directory contains complete working examples:
 
-- **[`examples/buyers/client.rs`](examples/buyers/client.rs)** - Client making payment-enabled requests
-- **[`examples/sellers/axum/`](examples/sellers/axum/)** - Axum server with payment protection
+- **[`examples/buyers/client.rs`](../../examples/rust/buyers/client.rs)** - Client making payment-enabled requests
+- **[`examples/sellers/axum/`](../../examples/rust/sellers/axum/)** - Axum server with payment protection
 
 Run examples with:
 
