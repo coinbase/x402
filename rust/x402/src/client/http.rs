@@ -58,7 +58,7 @@ where
     /// `challenge_handler` to solve the challenge and then retries the request.
     ///
     /// # Example
-    /// ```no_run
+    /// ```ignore
     /// # use x402::client::X402Client;
     /// # use x402::types::PaymentPayload;
     /// # async fn doc() -> Result<(), Box<dyn std::error::Error>> {
@@ -116,13 +116,15 @@ where
     /// ```no_run
     /// # use x402::client::X402Client;
     /// # use alloy::signers::local::PrivateKeySigner;
+    /// # use x402::client::evm::exact::EvmExactClient;
     /// # async fn doc() -> Result<(), Box<dyn std::error::Error>> {
-    /// let client = X402Client::new();
     /// let signer = PrivateKeySigner::random();
-    /// let res = client.execute_with_evm_exact(
-    ///     || client.client.get("https://api.example.com/premium"),
+    /// let evm_client = EvmExactClient::new(signer.clone());
+    /// let x402_client = X402Client::new(evm_client);
+    /// let res = x402_client.execute_with_evm_exact(
+    ///     || x402_client.client.get("https://api.example.com/premium"),
     ///     signer
-    /// ).await?;
+    /// ).await.unwrap();
     /// # Ok(())
     /// # }
     /// ```

@@ -1,23 +1,14 @@
-use std::sync::Arc;
 use alloy::signers::local::PrivateKeySigner;
 use axum::response::IntoResponse;
-use axum::Router;
-use axum::routing::{get, post};
-use http::{Request, StatusCode};
+use http::StatusCode;
 use reqwest::Client;
-use serde_json::{json, Value};
-use tokio::task;
+use serde_json::json;
 use x402::client::evm::exact::EvmExactClient;
 use x402::client::X402Client;
 
 mod common;
-use common::build_test_app;
-use x402::client::http::X402HttpClient;
-use x402::errors::X402Error;
-use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
-use x402::server::SchemeServer;
-use x402::types::{AssetAmount, PaymentPayload, PaymentPayloadV2, PaymentRequired, PaymentRequirements, Price, Resource, ResourceV2, X402Header};
-use crate::common::{build_and_serve_test_app, MockFacilitator};
+use crate::common::build_and_serve_test_app;
+use x402::types::{PaymentPayload, PaymentPayloadV2, PaymentRequired, PaymentRequirements, X402Header};
 // your helper that returns axum::Router
 
 #[tokio::test]
@@ -73,7 +64,7 @@ async fn test_invalid_payment_signature_malformed() {
     let bad_signature_header = "not-base64-or-json";
 
     let res = client
-        .post(format!("{addr}/api/premium"))
+        .post(format!("http://{addr}/api/premium"))
         .header("PAYMENT-SIGNATURE", bad_signature_header)
         .send()
         .await
@@ -91,7 +82,7 @@ async fn test_invalid_payment_signature_bad_payload() {
     let addr = build_and_serve_test_app().await;
     let client = Client::new();
     let call_for_info =  client
-        .post(format!("{addr}/api/premium"))
+        .post(format!("http://{addr}/api/premium"))
         .send()
         .await
         .expect("request failed");
@@ -119,7 +110,7 @@ async fn test_invalid_payment_signature_bad_payload() {
     let payload_header = wrapped_payload_header.to_header().unwrap();
 
     let res = client
-        .post(format!("{addr}/api/premium"))
+        .post(format!("http://{addr}/api/premium"))
         .header("PAYMENT-SIGNATURE", payload_header)
         .send()
         .await

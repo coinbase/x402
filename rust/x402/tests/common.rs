@@ -1,22 +1,14 @@
-use std::sync::Arc;
-use alloy::signers::local::PrivateKeySigner;
 use async_trait::async_trait;
-use axum::Router;
 use axum::routing::post;
+use axum::Router;
 use serde_json::Value;
+use std::sync::Arc;
 use tokio::task;
 use x402::errors::X402Result;
 use x402::facilitator::FacilitatorClient;
 use x402::frameworks::axum_integration::{x402_middleware, X402ConfigBuilder};
 use x402::server::SchemeServer;
 use x402::types::{AssetAmount, CAIPNetwork, Network, PaymentPayload, PaymentRequirements, Price, SettleResponse, SupportedKind, SupportedResponse, VerifyResponse};
-
-
-pub fn test_signer() -> PrivateKeySigner {
-    PrivateKeySigner::random()
-}
-
-
 
 #[derive(Debug, Clone)]
 pub struct MockFacilitator;
@@ -135,5 +127,5 @@ pub async fn build_and_serve_test_app() -> String {
         axum::serve(listener, app).await.expect("axum::serve failed");
     });
 
-    format!("http://{}", addr)
+    addr.to_string()
 }
