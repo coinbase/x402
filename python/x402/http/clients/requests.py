@@ -18,8 +18,8 @@ except ImportError as e:
     ) from e
 
 if TYPE_CHECKING:
-    from ...client import x402Client
-    from ..x402_http_client import x402HTTPClient
+    from ...client import x402ClientSync
+    from ..x402_http_client import x402HTTPClientSync
 
 
 class PaymentError(Exception):
@@ -45,30 +45,45 @@ class x402HTTPAdapter(HTTPAdapter):
     Subclasses requests.HTTPAdapter to intercept 402 responses,
     create payment payloads, and retry with payment headers.
 
-    Note: Uses synchronous payment creation.
+    Note: Uses synchronous payment creation with x402ClientSync.
     """
 
     RETRY_HEADER = "X-x402-Payment-Retry"
 
     def __init__(
         self,
-        client: x402Client | x402HTTPClient,
+        client: x402ClientSync | x402HTTPClientSync,
         **kwargs: Any,
     ) -> None:
         """Initialize payment adapter.
 
         Args:
-            client: x402Client or x402HTTPClient for payments.
+            client: x402ClientSync or x402HTTPClientSync for payments.
             **kwargs: Additional arguments for HTTPAdapter.
+
+        Raises:
+            TypeError: If client has async methods (wrong variant).
         """
         super().__init__(**kwargs)
 
-        from ..x402_http_client import x402HTTPClient as HTTPClient
+        # Runtime validation - catch mismatched sync/async early
+        import inspect
 
-        if isinstance(client, HTTPClient):
+        create_method = getattr(client, "create_payment_payload", None)
+        if create_method and inspect.iscoroutinefunction(create_method):
+            raise TypeError(
+                f"x402HTTPAdapter (requests) requires a sync client, "
+                f"but got {type(client).__name__} which has async methods. "
+                f"Use x402ClientSync instead of x402Client, "
+                f"or use x402AsyncTransport (httpx) with x402Client."
+            )
+
+        from ..x402_http_client import x402HTTPClientSync as HTTPClientSync
+
+        if isinstance(client, HTTPClientSync):
             self._http_client = client
         else:
-            self._http_client = HTTPClient(client)
+            self._http_client = HTTPClientSync(client)
 
         self._client = client
 
@@ -145,13 +160,13 @@ class x402HTTPAdapter(HTTPAdapter):
 
 
 def x402_http_adapter(
-    client: x402Client | x402HTTPClient,
+    client: x402ClientSync | x402HTTPClientSync,
     **kwargs: Any,
 ) -> x402HTTPAdapter:
     """Create an HTTP adapter with 402 payment handling.
 
     Args:
-        client: x402Client or x402HTTPClient for payments.
+        client: x402ClientSync or x402HTTPClientSync for payments.
         **kwargs: Additional arguments for HTTPAdapter.
 
     Returns:
@@ -160,10 +175,10 @@ def x402_http_adapter(
     Example:
         ```python
         import requests
-        from x402 import x402Client
+        from x402 import x402ClientSync
         from x402.http.clients import x402_http_adapter
 
-        x402 = x402Client()
+        x402 = x402ClientSync()
         # ... register schemes ...
 
         session = requests.Session()
@@ -184,7 +199,7 @@ def x402_http_adapter(
 
 def wrapRequestsWithPayment(
     session: requests.Session,
-    client: x402Client | x402HTTPClient,
+    client: x402ClientSync | x402HTTPClientSync,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Wrap a requests Session with automatic 402 payment handling.
@@ -193,7 +208,7 @@ def wrapRequestsWithPayment(
 
     Args:
         session: requests Session to wrap.
-        client: x402Client or x402HTTPClient for payments.
+        client: x402ClientSync or x402HTTPClientSync for payments.
         **adapter_kwargs: Additional arguments for the adapter.
 
     Returns:
@@ -202,10 +217,10 @@ def wrapRequestsWithPayment(
     Example:
         ```python
         import requests
-        from x402 import x402Client
+        from x402 import x402ClientSync
         from x402.http.clients import wrapRequestsWithPayment
 
-        x402 = x402Client()
+        x402 = x402ClientSync()
         # ... register schemes ...
 
         session = wrapRequestsWithPayment(requests.Session(), x402)
@@ -225,18 +240,23 @@ def wrapRequestsWithPaymentFromConfig(
 ) -> requests.Session:
     """Wrap requests session with payment handling using configuration.
 
+    Note: This function is deprecated. Create x402ClientSync directly.
+
     Args:
         session: requests Session to wrap.
-        config: x402Client configuration dict.
+        config: Configuration dict (not currently supported).
         **adapter_kwargs: Additional arguments for the adapter.
 
     Returns:
         Wrapped session.
-    """
-    from ...client import x402Client
 
-    x402 = x402Client.from_config(config)
-    return wrapRequestsWithPayment(session, x402, **adapter_kwargs)
+    Raises:
+        NotImplementedError: Configuration-based creation not yet supported.
+    """
+    raise NotImplementedError(
+        "Configuration-based client creation is not yet supported. "
+        "Create x402ClientSync directly and pass to wrapRequestsWithPayment."
+    )
 
 
 # ============================================================================
@@ -245,7 +265,7 @@ def wrapRequestsWithPaymentFromConfig(
 
 
 def x402_requests(
-    client: x402Client | x402HTTPClient,
+    client: x402ClientSync | x402HTTPClientSync,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Create a requests Session with x402 payment handling.
@@ -254,7 +274,7 @@ def x402_requests(
     handling pre-configured.
 
     Args:
-        client: x402Client or x402HTTPClient for payments.
+        client: x402ClientSync or x402HTTPClientSync for payments.
         **adapter_kwargs: Additional arguments for the adapter.
 
     Returns:
@@ -262,10 +282,10 @@ def x402_requests(
 
     Example:
         ```python
-        from x402 import x402Client
+        from x402 import x402ClientSync
         from x402.http.clients import x402_requests
 
-        x402 = x402Client()
+        x402 = x402ClientSync()
         # ... register schemes ...
 
         session = x402_requests(x402)

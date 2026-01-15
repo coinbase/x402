@@ -45,7 +45,7 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from ..server import x402ResourceServer
+    from ..server import x402ResourceServer, x402ResourceServerSync
 
 
 # ============================================================================
@@ -722,9 +722,9 @@ class x402HTTPResourceServer(_x402HTTPServerBase):
                 ),
             )
 
-        # Verify payment
+        # Verify payment (await async method)
         try:
-            verify_result = self._server.verify_payment(
+            verify_result = await self._server.verify_payment(
                 payment_payload,
                 matching_reqs,
             )
@@ -764,6 +764,48 @@ class x402HTTPResourceServer(_x402HTTPServerBase):
                     is_web_browser=False,
                     paywall_config=paywall_config,
                 ),
+            )
+
+    async def process_settlement(
+        self,
+        payment_payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements,
+    ) -> ProcessSettleResult:
+        """Process settlement after successful response (async).
+
+        Call this after the protected resource has been served.
+
+        Args:
+            payment_payload: The verified payment payload.
+            requirements: The matching payment requirements.
+
+        Returns:
+            ProcessSettleResult with headers if success.
+        """
+        try:
+            settle_response = await self._server.settle_payment(
+                payment_payload,
+                requirements,
+            )
+
+            if not settle_response.success:
+                return ProcessSettleResult(
+                    success=False,
+                    error_reason=settle_response.error_reason or "Settlement failed",
+                )
+
+            return ProcessSettleResult(
+                success=True,
+                headers=self._create_settlement_headers(settle_response, requirements),
+                transaction=settle_response.transaction,
+                network=settle_response.network,
+                payer=settle_response.payer,
+            )
+
+        except Exception as e:
+            return ProcessSettleResult(
+                success=False,
+                error_reason=str(e),
             )
 
     async def _build_payment_requirements_from_options(
@@ -836,16 +878,52 @@ class x402HTTPResourceServerSync(_x402HTTPServerBase):
     Use this with sync frameworks like Flask or Django.
     Only supports sync callbacks for dynamic price/payTo.
 
+    IMPORTANT: Use with x402ResourceServerSync (not x402ResourceServer).
+    The async x402ResourceServer has async verify/settle methods that
+    cannot be called from sync code.
+
     Example:
         ```python
+        from x402 import x402ResourceServerSync
         from x402.http import x402HTTPResourceServerSync
 
-        http_server = x402HTTPResourceServerSync(resource_server, routes)
+        # Use sync resource server with sync HTTP server
+        server = x402ResourceServerSync(facilitator)
+        server.register("eip155:8453", ExactEvmServerScheme())
+        http_server = x402HTTPResourceServerSync(server, routes)
 
         # In Flask middleware:
         result = http_server.process_http_request(context)
         ```
     """
+
+    def __init__(
+        self,
+        server: x402ResourceServerSync,  # type: ignore[override]
+        routes: RoutesConfig,
+    ) -> None:
+        """Create sync HTTP resource server.
+
+        Args:
+            server: Core x402ResourceServerSync instance (must be sync variant).
+            routes: Route configuration for payment-protected endpoints.
+
+        Raises:
+            TypeError: If server is not x402ResourceServerSync.
+        """
+        # Runtime validation - catch mismatched sync/async early
+        import inspect
+
+        verify_method = getattr(server, "verify_payment", None)
+        if verify_method and inspect.iscoroutinefunction(verify_method):
+            raise TypeError(
+                f"x402HTTPResourceServerSync requires a sync server, "
+                f"but got {type(server).__name__} which has async methods. "
+                f"Use x402ResourceServerSync instead of x402ResourceServer, "
+                f"or use x402HTTPResourceServer (async) with x402ResourceServer."
+            )
+
+        super().__init__(server, routes)  # type: ignore[arg-type]
 
     def register_paywall_provider(self, provider: PaywallProvider) -> x402HTTPResourceServerSync:
         """Register custom paywall provider for HTML generation.

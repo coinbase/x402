@@ -116,8 +116,8 @@ async def verify(request: VerifyRequest):
         payload = parse_payment_payload(request.paymentPayload)
         requirements = PaymentRequirements.model_validate(request.paymentRequirements)
 
-        # Verify payment
-        response = facilitator.verify(payload, requirements)
+        # Verify payment (await async method)
+        response = await facilitator.verify(payload, requirements)
 
         return {
             "isValid": response.is_valid,
@@ -146,8 +146,8 @@ async def settle(request: SettleRequest):
         payload = parse_payment_payload(request.paymentPayload)
         requirements = PaymentRequirements.model_validate(request.paymentRequirements)
 
-        # Settle payment
-        response = facilitator.settle(payload, requirements)
+        # Settle payment (await async method)
+        response = await facilitator.settle(payload, requirements)
 
         return {
             "success": response.success,

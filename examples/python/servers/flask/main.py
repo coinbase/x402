@@ -3,13 +3,13 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify
 
-from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync, PaymentOption
 from x402.http.middleware.flask import payment_middleware
 from x402.http.types import RouteConfig
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
 from x402.schemas import AssetAmount, Network
-from x402.server import x402ResourceServer
+from x402.server import x402ResourceServerSync
 
 load_dotenv()
 
@@ -29,8 +29,8 @@ app = Flask(__name__)
 
 
 # x402 Middleware
-facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
-server = x402ResourceServer(facilitator)
+facilitator = HTTPFacilitatorClientSync(FacilitatorConfig(url=FACILITATOR_URL))
+server = x402ResourceServerSync(facilitator)
 server.register(EVM_NETWORK, ExactEvmServerScheme())
 server.register(SVM_NETWORK, ExactSvmServerScheme())
 

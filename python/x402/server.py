@@ -1,12 +1,14 @@
 """x402ResourceServer - Server-side component for protecting resources.
 
-Builds payment requirements, verifies payments, and settles transactions
-via facilitator clients.
+Provides both async (x402ResourceServer) and sync (x402ResourceServerSync)
+implementations for building payment requirements, verifying payments,
+and settling transactions via facilitator clients.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import asyncio
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
 from typing_extensions import Self
@@ -44,15 +46,65 @@ if TYPE_CHECKING:
     pass
 
 # ============================================================================
-# FacilitatorClient Protocol (defined here in server module)
+# FacilitatorClient Protocols (Async and Sync)
 # ============================================================================
 
 
 class FacilitatorClient(Protocol):
-    """Protocol for facilitator clients (HTTP or local).
+    """Protocol for async facilitator clients.
 
-    Used by x402ResourceServer to verify/settle payments.
+    Used by x402ResourceServer (async) to verify/settle payments.
     Implemented by HTTPFacilitatorClient for remote facilitators.
+    """
+
+    async def verify(
+        self,
+        payload: PaymentPayload,
+        requirements: PaymentRequirements,
+    ) -> VerifyResponse:
+        """Verify a payment (async).
+
+        Args:
+            payload: Payment payload to verify.
+            requirements: Requirements to verify against.
+
+        Returns:
+            VerifyResponse with is_valid=True or is_valid=False.
+        """
+        ...
+
+    async def settle(
+        self,
+        payload: PaymentPayload,
+        requirements: PaymentRequirements,
+    ) -> SettleResponse:
+        """Settle a payment (async).
+
+        Args:
+            payload: Payment payload to settle.
+            requirements: Requirements for settlement.
+
+        Returns:
+            SettleResponse with success=True or success=False.
+        """
+        ...
+
+    def get_supported(self) -> SupportedResponse:
+        """Get supported payment kinds.
+
+        Note: Sync because it's called during initialization.
+
+        Returns:
+            SupportedResponse with kinds, extensions, and signers.
+        """
+        ...
+
+
+class FacilitatorClientSync(Protocol):
+    """Protocol for sync facilitator clients.
+
+    Used by x402ResourceServerSync (sync) to verify/settle payments.
+    Implemented by HTTPFacilitatorClientSync for remote facilitators.
     """
 
     def verify(
@@ -97,61 +149,54 @@ class FacilitatorClient(Protocol):
 
 
 # ============================================================================
-# Type Aliases
+# Type Aliases - Support both sync and async hooks
 # ============================================================================
 
-BeforeVerifyHook = Callable[[VerifyContext], None | AbortResult]
-AfterVerifyHook = Callable[[VerifyResultContext], None]
-OnVerifyFailureHook = Callable[[VerifyFailureContext], None | RecoveredVerifyResult]
+BeforeVerifyHook = Callable[[VerifyContext], Awaitable[AbortResult | None] | AbortResult | None]
+AfterVerifyHook = Callable[[VerifyResultContext], Awaitable[None] | None]
+OnVerifyFailureHook = Callable[
+    [VerifyFailureContext],
+    Awaitable[RecoveredVerifyResult | None] | RecoveredVerifyResult | None,
+]
 
-BeforeSettleHook = Callable[[SettleContext], None | AbortResult]
-AfterSettleHook = Callable[[SettleResultContext], None]
-OnSettleFailureHook = Callable[[SettleFailureContext], None | RecoveredSettleResult]
+BeforeSettleHook = Callable[[SettleContext], Awaitable[AbortResult | None] | AbortResult | None]
+AfterSettleHook = Callable[[SettleResultContext], Awaitable[None] | None]
+OnSettleFailureHook = Callable[
+    [SettleFailureContext],
+    Awaitable[RecoveredSettleResult | None] | RecoveredSettleResult | None,
+]
+
+# Sync-only hook types (for sync class)
+SyncBeforeVerifyHook = Callable[[VerifyContext], AbortResult | None]
+SyncAfterVerifyHook = Callable[[VerifyResultContext], None]
+SyncOnVerifyFailureHook = Callable[[VerifyFailureContext], RecoveredVerifyResult | None]
+
+SyncBeforeSettleHook = Callable[[SettleContext], AbortResult | None]
+SyncAfterSettleHook = Callable[[SettleResultContext], None]
+SyncOnSettleFailureHook = Callable[[SettleFailureContext], RecoveredSettleResult | None]
 
 
 # ============================================================================
-# x402ResourceServer
+# Base Server Class (Shared Logic)
 # ============================================================================
 
 
-class x402ResourceServer:
-    """Server-side component for protecting resources.
+# Type alias for facilitator clients (either async or sync)
+_AnyFacilitatorClient = FacilitatorClient | FacilitatorClientSync
 
-    Builds payment requirements, verifies payments, and settles transactions
-    via facilitator clients.
 
-    Example:
-        ```python
-        from x402 import x402ResourceServer
-        from x402.http import HTTPFacilitatorClient
-        from x402.mechanisms.evm.exact import ExactEvmServerScheme
+class _x402ResourceServerBase:
+    """Base class with shared logic for x402 resource servers.
 
-        facilitator = HTTPFacilitatorClient(url="https://x402.org/facilitator")
-        server = x402ResourceServer(facilitator)
-        server.register("eip155:8453", ExactEvmServerScheme())
-
-        # Initialize (fetch supported from facilitators)
-        server.initialize()
-
-        # Build requirements for a protected resource
-        config = ResourceConfig(
-            scheme="exact",
-            network="eip155:8453",
-            pay_to="0x...",
-            price="$1.00",
-        )
-        requirements = server.build_payment_requirements(config)
-
-        # Verify payment
-        result = server.verify_payment(payload, requirements[0])
-        ```
+    Contains registration, initialization, and requirement building.
+    Subclasses implement sync/async verify/settle methods.
     """
 
     def __init__(
         self,
-        facilitator_clients: FacilitatorClient | list[FacilitatorClient] | None = None,
+        facilitator_clients: _AnyFacilitatorClient | list[_AnyFacilitatorClient] | None = None,
     ) -> None:
-        """Initialize x402ResourceServer.
+        """Initialize base server.
 
         Args:
             facilitator_clients: Facilitator client(s) for verify/settle.
@@ -159,7 +204,7 @@ class x402ResourceServer:
         """
         # Normalize to list
         if facilitator_clients is None:
-            self._facilitator_clients: list[FacilitatorClient] = []
+            self._facilitator_clients: list[_AnyFacilitatorClient] = []
         elif isinstance(facilitator_clients, list):
             self._facilitator_clients = facilitator_clients
         else:
@@ -169,7 +214,7 @@ class x402ResourceServer:
         self._schemes: dict[Network, dict[str, SchemeNetworkServer]] = {}
 
         # Facilitator client map: network -> scheme -> client
-        self._facilitator_clients_map: dict[Network, dict[str, FacilitatorClient]] = {}
+        self._facilitator_clients_map: dict[Network, dict[str, _AnyFacilitatorClient]] = {}
 
         # Supported responses from facilitators
         self._supported_responses: dict[Network, dict[str, SupportedResponse]] = {}
@@ -177,14 +222,14 @@ class x402ResourceServer:
         # Extensions
         self._extensions: dict[str, ResourceServerExtension] = {}
 
-        # Hooks
-        self._before_verify_hooks: list[BeforeVerifyHook] = []
-        self._after_verify_hooks: list[AfterVerifyHook] = []
-        self._on_verify_failure_hooks: list[OnVerifyFailureHook] = []
+        # Hooks (typed in subclasses)
+        self._before_verify_hooks: list[Any] = []
+        self._after_verify_hooks: list[Any] = []
+        self._on_verify_failure_hooks: list[Any] = []
 
-        self._before_settle_hooks: list[BeforeSettleHook] = []
-        self._after_settle_hooks: list[AfterSettleHook] = []
-        self._on_settle_failure_hooks: list[OnSettleFailureHook] = []
+        self._before_settle_hooks: list[Any] = []
+        self._after_settle_hooks: list[Any] = []
+        self._on_settle_failure_hooks: list[Any] = []
 
         self._initialized = False
 
@@ -293,82 +338,6 @@ class x402ResourceServer:
                                 return kind
 
         return None
-
-    # ========================================================================
-    # Hook Registration
-    # ========================================================================
-
-    def on_before_verify(self, hook: BeforeVerifyHook) -> Self:
-        """Register hook to run before verification.
-
-        Args:
-            hook: Hook function. Can return AbortResult to abort.
-
-        Returns:
-            Self for chaining.
-        """
-        self._before_verify_hooks.append(hook)
-        return self
-
-    def on_after_verify(self, hook: AfterVerifyHook) -> Self:
-        """Register hook to run after successful verification.
-
-        Args:
-            hook: Hook function.
-
-        Returns:
-            Self for chaining.
-        """
-        self._after_verify_hooks.append(hook)
-        return self
-
-    def on_verify_failure(self, hook: OnVerifyFailureHook) -> Self:
-        """Register hook to run on verification failure.
-
-        Args:
-            hook: Hook function. Can return RecoveredVerifyResult to recover.
-
-        Returns:
-            Self for chaining.
-        """
-        self._on_verify_failure_hooks.append(hook)
-        return self
-
-    def on_before_settle(self, hook: BeforeSettleHook) -> Self:
-        """Register hook to run before settlement.
-
-        Args:
-            hook: Hook function. Can return AbortResult to abort.
-
-        Returns:
-            Self for chaining.
-        """
-        self._before_settle_hooks.append(hook)
-        return self
-
-    def on_after_settle(self, hook: AfterSettleHook) -> Self:
-        """Register hook to run after successful settlement.
-
-        Args:
-            hook: Hook function.
-
-        Returns:
-            Self for chaining.
-        """
-        self._after_settle_hooks.append(hook)
-        return self
-
-    def on_settle_failure(self, hook: OnSettleFailureHook) -> Self:
-        """Register hook to run on settlement failure.
-
-        Args:
-            hook: Hook function. Can return RecoveredSettleResult to recover.
-
-        Returns:
-            Self for chaining.
-        """
-        self._on_settle_failure_hooks.append(hook)
-        return self
 
     # ========================================================================
     # Initialization
@@ -532,7 +501,590 @@ class x402ResourceServer:
         return None
 
     # ========================================================================
-    # Verify Payment
+    # Extensions
+    # ========================================================================
+
+    def enrich_extensions(
+        self,
+        declared: dict[str, Any],
+        transport_context: Any,
+    ) -> dict[str, Any]:
+        """Enrich extension declarations with transport-specific data.
+
+        Args:
+            declared: Declared extension data.
+            transport_context: Framework-specific context.
+
+        Returns:
+            Enriched extension data.
+        """
+        result = dict(declared)
+
+        for key, extension in self._extensions.items():
+            if key in declared:
+                result[key] = extension.enrich_declaration(
+                    declared[key],
+                    transport_context,
+                )
+
+        return result
+
+
+# ============================================================================
+# Async Resource Server (Default)
+# ============================================================================
+
+
+class x402ResourceServer(_x402ResourceServerBase):
+    """Async server-side component for protecting resources.
+
+    Supports both sync and async hooks (auto-detected).
+    Use x402ResourceServerSync for sync-only environments.
+
+    IMPORTANT: Use with HTTPFacilitatorClient (async) for proper async operation.
+    The facilitator client's verify/settle methods will be awaited.
+
+    Example:
+        ```python
+        from x402 import x402ResourceServer
+        from x402.http import HTTPFacilitatorClient, FacilitatorConfig
+        from x402.mechanisms.evm.exact import ExactEvmServerScheme
+
+        facilitator = HTTPFacilitatorClient(FacilitatorConfig(url="https://..."))
+        server = x402ResourceServer(facilitator)
+        server.register("eip155:8453", ExactEvmServerScheme())
+
+        # Initialize (fetch supported from facilitators)
+        server.initialize()
+
+        # Build requirements for a protected resource
+        config = ResourceConfig(
+            scheme="exact",
+            network="eip155:8453",
+            pay_to="0x...",
+            price="$1.00",
+        )
+        requirements = server.build_payment_requirements(config)
+
+        # Verify payment (async)
+        result = await server.verify_payment(payload, requirements[0])
+        ```
+    """
+
+    def __init__(
+        self,
+        facilitator_clients: FacilitatorClient | list[FacilitatorClient] | None = None,
+    ) -> None:
+        """Initialize async x402ResourceServer.
+
+        Args:
+            facilitator_clients: Facilitator client(s) for verify/settle.
+                Can be single client, list, or None.
+        """
+        super().__init__(facilitator_clients)
+        # Type the hook lists properly
+        self._before_verify_hooks: list[BeforeVerifyHook] = []
+        self._after_verify_hooks: list[AfterVerifyHook] = []
+        self._on_verify_failure_hooks: list[OnVerifyFailureHook] = []
+
+        self._before_settle_hooks: list[BeforeSettleHook] = []
+        self._after_settle_hooks: list[AfterSettleHook] = []
+        self._on_settle_failure_hooks: list[OnSettleFailureHook] = []
+
+    # ========================================================================
+    # Hook Registration
+    # ========================================================================
+
+    def on_before_verify(self, hook: BeforeVerifyHook) -> Self:
+        """Register hook to run before verification.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function. Can return AbortResult to abort.
+
+        Returns:
+            Self for chaining.
+        """
+        self._before_verify_hooks.append(hook)
+        return self
+
+    def on_after_verify(self, hook: AfterVerifyHook) -> Self:
+        """Register hook to run after successful verification.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function.
+
+        Returns:
+            Self for chaining.
+        """
+        self._after_verify_hooks.append(hook)
+        return self
+
+    def on_verify_failure(self, hook: OnVerifyFailureHook) -> Self:
+        """Register hook to run on verification failure.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function. Can return RecoveredVerifyResult to recover.
+
+        Returns:
+            Self for chaining.
+        """
+        self._on_verify_failure_hooks.append(hook)
+        return self
+
+    def on_before_settle(self, hook: BeforeSettleHook) -> Self:
+        """Register hook to run before settlement.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function. Can return AbortResult to abort.
+
+        Returns:
+            Self for chaining.
+        """
+        self._before_settle_hooks.append(hook)
+        return self
+
+    def on_after_settle(self, hook: AfterSettleHook) -> Self:
+        """Register hook to run after successful settlement.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function.
+
+        Returns:
+            Self for chaining.
+        """
+        self._after_settle_hooks.append(hook)
+        return self
+
+    def on_settle_failure(self, hook: OnSettleFailureHook) -> Self:
+        """Register hook to run on settlement failure.
+
+        Supports both sync and async hooks.
+
+        Args:
+            hook: Hook function. Can return RecoveredSettleResult to recover.
+
+        Returns:
+            Self for chaining.
+        """
+        self._on_settle_failure_hooks.append(hook)
+        return self
+
+    # ========================================================================
+    # Verify Payment (Async)
+    # ========================================================================
+
+    async def verify_payment(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+        payload_bytes: bytes | None = None,
+        requirements_bytes: bytes | None = None,
+    ) -> VerifyResponse:
+        """Verify a payment via facilitator.
+
+        Args:
+            payload: Payment payload to verify.
+            requirements: Requirements to verify against.
+            payload_bytes: Raw payload bytes (escape hatch).
+            requirements_bytes: Raw requirements bytes (escape hatch).
+
+        Returns:
+            VerifyResponse with is_valid=True or is_valid=False.
+
+        Raises:
+            SchemeNotFoundError: If no facilitator for scheme/network.
+            PaymentAbortedError: If a before hook aborts.
+            RuntimeError: If not initialized.
+        """
+        if not self._initialized:
+            raise RuntimeError("Server not initialized. Call initialize() first.")
+
+        # Build context
+        context = VerifyContext(
+            payment_payload=payload,
+            requirements=requirements,
+            payload_bytes=payload_bytes,
+            requirements_bytes=requirements_bytes,
+        )
+
+        # Execute before hooks
+        for hook in self._before_verify_hooks:
+            result = await self._execute_hook(hook, context)
+            if isinstance(result, AbortResult):
+                raise PaymentAbortedError(result.reason)
+
+        try:
+            # Get scheme and network
+            scheme = payload.get_scheme()
+            network = payload.get_network()
+
+            # Find facilitator client (must be async FacilitatorClient)
+            client = self._facilitator_clients_map.get(network, {}).get(scheme)
+            if client is None:
+                raise SchemeNotFoundError(scheme, network)
+
+            # Call facilitator (async)
+            verify_result = await client.verify(  # type: ignore[misc]
+                payload,  # type: ignore[arg-type]
+                requirements,  # type: ignore[arg-type]
+            )
+
+            # Check if verification failed
+            if not verify_result.is_valid:
+                failure_context = VerifyFailureContext(
+                    payment_payload=payload,
+                    requirements=requirements,
+                    payload_bytes=payload_bytes,
+                    requirements_bytes=requirements_bytes,
+                    error=Exception(verify_result.invalid_reason or "Verification failed"),
+                )
+                for hook in self._on_verify_failure_hooks:
+                    result = await self._execute_hook(hook, failure_context)
+                    if isinstance(result, RecoveredVerifyResult):
+                        result_context = VerifyResultContext(
+                            payment_payload=payload,
+                            requirements=requirements,
+                            payload_bytes=payload_bytes,
+                            requirements_bytes=requirements_bytes,
+                            result=result.result,
+                        )
+                        for after_hook in self._after_verify_hooks:
+                            await self._execute_hook(after_hook, result_context)
+                        return result.result
+
+                return verify_result
+
+            # Execute after hooks for success
+            result_context = VerifyResultContext(
+                payment_payload=payload,
+                requirements=requirements,
+                payload_bytes=payload_bytes,
+                requirements_bytes=requirements_bytes,
+                result=verify_result,
+            )
+            for hook in self._after_verify_hooks:
+                await self._execute_hook(hook, result_context)
+
+            return verify_result
+
+        except Exception as e:
+            failure_context = VerifyFailureContext(
+                payment_payload=payload,
+                requirements=requirements,
+                payload_bytes=payload_bytes,
+                requirements_bytes=requirements_bytes,
+                error=e,
+            )
+            for hook in self._on_verify_failure_hooks:
+                result = await self._execute_hook(hook, failure_context)
+                if isinstance(result, RecoveredVerifyResult):
+                    return result.result
+
+            raise
+
+    # ========================================================================
+    # Settle Payment (Async)
+    # ========================================================================
+
+    async def settle_payment(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+        payload_bytes: bytes | None = None,
+        requirements_bytes: bytes | None = None,
+    ) -> SettleResponse:
+        """Settle a payment via facilitator.
+
+        Args:
+            payload: Payment payload to settle.
+            requirements: Requirements for settlement.
+            payload_bytes: Raw payload bytes (escape hatch).
+            requirements_bytes: Raw requirements bytes (escape hatch).
+
+        Returns:
+            SettleResponse with success=True or success=False.
+
+        Raises:
+            SchemeNotFoundError: If no facilitator for scheme/network.
+            PaymentAbortedError: If a before hook aborts.
+            RuntimeError: If not initialized.
+        """
+        if not self._initialized:
+            raise RuntimeError("Server not initialized. Call initialize() first.")
+
+        # Build context
+        context = SettleContext(
+            payment_payload=payload,
+            requirements=requirements,
+            payload_bytes=payload_bytes,
+            requirements_bytes=requirements_bytes,
+        )
+
+        # Execute before hooks
+        for hook in self._before_settle_hooks:
+            result = await self._execute_hook(hook, context)
+            if isinstance(result, AbortResult):
+                raise PaymentAbortedError(result.reason)
+
+        try:
+            # Get scheme and network
+            scheme = payload.get_scheme()
+            network = payload.get_network()
+
+            # Find facilitator client (must be async FacilitatorClient)
+            client = self._facilitator_clients_map.get(network, {}).get(scheme)
+            if client is None:
+                raise SchemeNotFoundError(scheme, network)
+
+            # Call facilitator (async)
+            settle_result = await client.settle(  # type: ignore[misc]
+                payload,  # type: ignore[arg-type]
+                requirements,  # type: ignore[arg-type]
+            )
+
+            # Check if settlement failed
+            if not settle_result.success:
+                failure_context = SettleFailureContext(
+                    payment_payload=payload,
+                    requirements=requirements,
+                    payload_bytes=payload_bytes,
+                    requirements_bytes=requirements_bytes,
+                    error=Exception(settle_result.error_reason or "Settlement failed"),
+                )
+                for hook in self._on_settle_failure_hooks:
+                    result = await self._execute_hook(hook, failure_context)
+                    if isinstance(result, RecoveredSettleResult):
+                        result_context = SettleResultContext(
+                            payment_payload=payload,
+                            requirements=requirements,
+                            payload_bytes=payload_bytes,
+                            requirements_bytes=requirements_bytes,
+                            result=result.result,
+                        )
+                        for after_hook in self._after_settle_hooks:
+                            await self._execute_hook(after_hook, result_context)
+                        return result.result
+
+                return settle_result
+
+            # Execute after hooks for success
+            result_context = SettleResultContext(
+                payment_payload=payload,
+                requirements=requirements,
+                payload_bytes=payload_bytes,
+                requirements_bytes=requirements_bytes,
+                result=settle_result,
+            )
+            for hook in self._after_settle_hooks:
+                await self._execute_hook(hook, result_context)
+
+            return settle_result
+
+        except Exception as e:
+            failure_context = SettleFailureContext(
+                payment_payload=payload,
+                requirements=requirements,
+                payload_bytes=payload_bytes,
+                requirements_bytes=requirements_bytes,
+                error=e,
+            )
+            for hook in self._on_settle_failure_hooks:
+                result = await self._execute_hook(hook, failure_context)
+                if isinstance(result, RecoveredSettleResult):
+                    return result.result
+
+            raise
+
+    async def _execute_hook(self, hook: Any, context: Any) -> Any:
+        """Execute hook, auto-detecting sync/async."""
+        result = hook(context)
+        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+            return await result
+        return result
+
+
+# ============================================================================
+# Sync Resource Server
+# ============================================================================
+
+
+class x402ResourceServerSync(_x402ResourceServerBase):
+    """Sync server-side component for protecting resources.
+
+    Only supports sync hooks. For async hook support, use x402ResourceServer.
+
+    IMPORTANT: Use with HTTPFacilitatorClientSync (sync) for proper sync operation.
+    Using HTTPFacilitatorClient (async) will cause errors.
+
+    Example:
+        ```python
+        from x402 import x402ResourceServerSync
+        from x402.http import HTTPFacilitatorClientSync
+
+        from x402.mechanisms.evm.exact import ExactEvmServerScheme
+
+        facilitator = HTTPFacilitatorClientSync(url="https://x402.org/facilitator")
+        server = x402ResourceServerSync(facilitator)
+        server.register("eip155:8453", ExactEvmServerScheme())
+
+        # Initialize (fetch supported from facilitators)
+        server.initialize()
+
+        # Verify payment
+        result = server.verify_payment(payload, requirements[0])
+        ```
+    """
+
+    def __init__(
+        self,
+        facilitator_clients: FacilitatorClientSync | list[FacilitatorClientSync] | None = None,
+    ) -> None:
+        """Initialize sync x402ResourceServer.
+
+        Args:
+            facilitator_clients: Sync facilitator client(s) for verify/settle.
+                Can be single client, list, or None.
+
+        Raises:
+            TypeError: If any facilitator client is async (HTTPFacilitatorClient).
+        """
+        # Runtime validation - catch mismatched sync/async early
+        self._validate_sync_facilitator_clients(facilitator_clients)
+
+        super().__init__(facilitator_clients)
+        # Type the hook lists for sync-only
+        self._before_verify_hooks: list[SyncBeforeVerifyHook] = []
+        self._after_verify_hooks: list[SyncAfterVerifyHook] = []
+        self._on_verify_failure_hooks: list[SyncOnVerifyFailureHook] = []
+
+        self._before_settle_hooks: list[SyncBeforeSettleHook] = []
+        self._after_settle_hooks: list[SyncAfterSettleHook] = []
+        self._on_settle_failure_hooks: list[SyncOnSettleFailureHook] = []
+
+    @staticmethod
+    def _validate_sync_facilitator_clients(
+        clients: FacilitatorClientSync | list[FacilitatorClientSync] | None,
+    ) -> None:
+        """Validate that all facilitator clients are sync variants."""
+        if clients is None:
+            return
+
+        # Normalize to list
+        client_list = clients if isinstance(clients, list) else [clients]
+
+        for client in client_list:
+            # Check if verify/settle methods are coroutine functions (async)
+            import inspect
+
+            verify_method = getattr(client, "verify", None)
+            if verify_method and inspect.iscoroutinefunction(verify_method):
+                raise TypeError(
+                    f"x402ResourceServerSync requires a sync facilitator client, "
+                    f"but got {type(client).__name__} which has async methods. "
+                    f"Use HTTPFacilitatorClientSync instead of HTTPFacilitatorClient, "
+                    f"or use x402ResourceServer (async) with HTTPFacilitatorClient."
+                )
+
+    # ========================================================================
+    # Hook Registration
+    # ========================================================================
+
+    def on_before_verify(self, hook: SyncBeforeVerifyHook) -> Self:
+        """Register hook to run before verification.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function. Can return AbortResult to abort.
+
+        Returns:
+            Self for chaining.
+        """
+        self._before_verify_hooks.append(hook)
+        return self
+
+    def on_after_verify(self, hook: SyncAfterVerifyHook) -> Self:
+        """Register hook to run after successful verification.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function.
+
+        Returns:
+            Self for chaining.
+        """
+        self._after_verify_hooks.append(hook)
+        return self
+
+    def on_verify_failure(self, hook: SyncOnVerifyFailureHook) -> Self:
+        """Register hook to run on verification failure.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function. Can return RecoveredVerifyResult to recover.
+
+        Returns:
+            Self for chaining.
+        """
+        self._on_verify_failure_hooks.append(hook)
+        return self
+
+    def on_before_settle(self, hook: SyncBeforeSettleHook) -> Self:
+        """Register hook to run before settlement.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function. Can return AbortResult to abort.
+
+        Returns:
+            Self for chaining.
+        """
+        self._before_settle_hooks.append(hook)
+        return self
+
+    def on_after_settle(self, hook: SyncAfterSettleHook) -> Self:
+        """Register hook to run after successful settlement.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function.
+
+        Returns:
+            Self for chaining.
+        """
+        self._after_settle_hooks.append(hook)
+        return self
+
+    def on_settle_failure(self, hook: SyncOnSettleFailureHook) -> Self:
+        """Register hook to run on settlement failure.
+
+        Note: Only sync hooks are supported. Use x402ResourceServer for async hooks.
+
+        Args:
+            hook: Sync hook function. Can return RecoveredSettleResult to recover.
+
+        Returns:
+            Self for chaining.
+        """
+        self._on_settle_failure_hooks.append(hook)
+        return self
+
+    # ========================================================================
+    # Verify Payment (Sync)
     # ========================================================================
 
     def verify_payment(
@@ -571,7 +1123,7 @@ class x402ResourceServer:
 
         # Execute before hooks
         for hook in self._before_verify_hooks:
-            result = hook(context)
+            result = self._execute_hook_sync(hook, context)
             if isinstance(result, AbortResult):
                 raise PaymentAbortedError(result.reason)
 
@@ -601,7 +1153,7 @@ class x402ResourceServer:
                     error=Exception(verify_result.invalid_reason or "Verification failed"),
                 )
                 for hook in self._on_verify_failure_hooks:
-                    result = hook(failure_context)
+                    result = self._execute_hook_sync(hook, failure_context)
                     if isinstance(result, RecoveredVerifyResult):
                         result_context = VerifyResultContext(
                             payment_payload=payload,
@@ -611,7 +1163,7 @@ class x402ResourceServer:
                             result=result.result,
                         )
                         for after_hook in self._after_verify_hooks:
-                            after_hook(result_context)
+                            self._execute_hook_sync(after_hook, result_context)
                         return result.result
 
                 return verify_result
@@ -625,7 +1177,7 @@ class x402ResourceServer:
                 result=verify_result,
             )
             for hook in self._after_verify_hooks:
-                hook(result_context)
+                self._execute_hook_sync(hook, result_context)
 
             return verify_result
 
@@ -638,14 +1190,14 @@ class x402ResourceServer:
                 error=e,
             )
             for hook in self._on_verify_failure_hooks:
-                result = hook(failure_context)
+                result = self._execute_hook_sync(hook, failure_context)
                 if isinstance(result, RecoveredVerifyResult):
                     return result.result
 
             raise
 
     # ========================================================================
-    # Settle Payment
+    # Settle Payment (Sync)
     # ========================================================================
 
     def settle_payment(
@@ -684,7 +1236,7 @@ class x402ResourceServer:
 
         # Execute before hooks
         for hook in self._before_settle_hooks:
-            result = hook(context)
+            result = self._execute_hook_sync(hook, context)
             if isinstance(result, AbortResult):
                 raise PaymentAbortedError(result.reason)
 
@@ -714,7 +1266,7 @@ class x402ResourceServer:
                     error=Exception(settle_result.error_reason or "Settlement failed"),
                 )
                 for hook in self._on_settle_failure_hooks:
-                    result = hook(failure_context)
+                    result = self._execute_hook_sync(hook, failure_context)
                     if isinstance(result, RecoveredSettleResult):
                         result_context = SettleResultContext(
                             payment_payload=payload,
@@ -724,7 +1276,7 @@ class x402ResourceServer:
                             result=result.result,
                         )
                         for after_hook in self._after_settle_hooks:
-                            after_hook(result_context)
+                            self._execute_hook_sync(after_hook, result_context)
                         return result.result
 
                 return settle_result
@@ -738,7 +1290,7 @@ class x402ResourceServer:
                 result=settle_result,
             )
             for hook in self._after_settle_hooks:
-                hook(result_context)
+                self._execute_hook_sync(hook, result_context)
 
             return settle_result
 
@@ -751,37 +1303,19 @@ class x402ResourceServer:
                 error=e,
             )
             for hook in self._on_settle_failure_hooks:
-                result = hook(failure_context)
+                result = self._execute_hook_sync(hook, failure_context)
                 if isinstance(result, RecoveredSettleResult):
                     return result.result
 
             raise
 
-    # ========================================================================
-    # Extensions
-    # ========================================================================
-
-    def enrich_extensions(
-        self,
-        declared: dict[str, Any],
-        transport_context: Any,
-    ) -> dict[str, Any]:
-        """Enrich extension declarations with transport-specific data.
-
-        Args:
-            declared: Declared extension data.
-            transport_context: Framework-specific context.
-
-        Returns:
-            Enriched extension data.
-        """
-        result = dict(declared)
-
-        for key, extension in self._extensions.items():
-            if key in declared:
-                result[key] = extension.enrich_declaration(
-                    declared[key],
-                    transport_context,
-                )
-
+    def _execute_hook_sync(self, hook: Any, context: Any) -> Any:
+        """Execute hook synchronously. Raises if async hook detected."""
+        result = hook(context)
+        if asyncio.iscoroutine(result):
+            result.close()  # Prevent warning
+            raise TypeError(
+                "Async hooks are not supported in x402ResourceServerSync. "
+                "Use x402ResourceServer for async hook support."
+            )
         return result

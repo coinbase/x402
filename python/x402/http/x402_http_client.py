@@ -1,4 +1,7 @@
-"""HTTP-specific client for x402 payment protocol."""
+"""HTTP-specific client for x402 payment protocol.
+
+Provides both async (x402HTTPClient) and sync (x402HTTPClientSync) implementations.
+"""
 
 from __future__ import annotations
 
@@ -26,23 +29,19 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from ..client import x402Client
+    from ..client import x402Client, x402ClientSync
 
 
-class x402HTTPClient:
-    """HTTP-specific client for x402 payment protocol.
+# ============================================================================
+# Base HTTP Client (Shared Logic)
+# ============================================================================
 
-    Wraps a x402Client to provide HTTP-specific encoding/decoding
-    and automatic payment handling.
+
+class _x402HTTPClientBase:
+    """Base class with shared logic for x402 HTTP clients.
+
+    Contains header encoding/decoding logic.
     """
-
-    def __init__(self, client: x402Client) -> None:
-        """Create x402HTTPClient.
-
-        Args:
-            client: Underlying x402Client for payment logic.
-        """
-        self._client = client
 
     # =========================================================================
     # Header Encoding/Decoding
@@ -135,8 +134,134 @@ class x402HTTPClient:
 
         raise ValueError("Payment response header not found")
 
+
+# ============================================================================
+# Async HTTP Client (Default)
+# ============================================================================
+
+
+class x402HTTPClient(_x402HTTPClientBase):
+    """Async HTTP-specific client for x402 payment protocol.
+
+    Wraps a x402Client to provide HTTP-specific encoding/decoding
+    and automatic payment handling.
+    """
+
+    def __init__(self, client: x402Client) -> None:
+        """Create x402HTTPClient.
+
+        Args:
+            client: Underlying x402Client for payment logic.
+        """
+        self._client = client
+
     # =========================================================================
-    # Payment Creation (delegates to x402Client)
+    # Payment Creation (async, delegates to x402Client)
+    # =========================================================================
+
+    async def create_payment_payload(
+        self,
+        payment_required: PaymentRequired | PaymentRequiredV1,
+    ) -> PaymentPayload | PaymentPayloadV1:
+        """Create payment payload for the given requirements.
+
+        Delegates to the underlying x402Client.
+
+        Args:
+            payment_required: Payment required response from server.
+
+        Returns:
+            Payment payload to send with retry request.
+        """
+        return await self._client.create_payment_payload(payment_required)
+
+    # =========================================================================
+    # Convenience Methods
+    # =========================================================================
+
+    async def handle_402_response(
+        self,
+        headers: dict[str, str],
+        body: bytes | None,
+    ) -> tuple[dict[str, str], PaymentPayload | PaymentPayloadV1]:
+        """Handle a 402 response and create payment headers.
+
+        Convenience method that:
+        1. Detects protocol version
+        2. Parses PaymentRequired
+        3. Creates PaymentPayload
+        4. Returns headers to add to retry request
+
+        Args:
+            headers: Response headers.
+            body: Response body bytes.
+
+        Returns:
+            Tuple of (headers_to_add, payment_payload).
+        """
+        # Normalize headers
+        normalized = {k.upper(): v for k, v in headers.items()}
+
+        def get_header(name: str) -> str | None:
+            return normalized.get(name.upper())
+
+        # Parse body if present
+        body_data = None
+        if body:
+            try:
+                body_data = json.loads(body)
+            except json.JSONDecodeError:
+                pass
+
+        # Get payment required
+        payment_required = self.get_payment_required_response(get_header, body_data)
+
+        # Create payment
+        payment_payload = await self.create_payment_payload(payment_required)
+
+        # Encode headers
+        payment_headers = self.encode_payment_signature_header(payment_payload)
+
+        return payment_headers, payment_payload
+
+
+# ============================================================================
+# Sync HTTP Client
+# ============================================================================
+
+
+class x402HTTPClientSync(_x402HTTPClientBase):
+    """Sync HTTP-specific client for x402 payment protocol.
+
+    Wraps a x402ClientSync to provide HTTP-specific encoding/decoding
+    and automatic payment handling.
+    """
+
+    def __init__(self, client: x402ClientSync) -> None:
+        """Create x402HTTPClientSync.
+
+        Args:
+            client: Underlying x402ClientSync for payment logic.
+
+        Raises:
+            TypeError: If client has async methods (wrong variant).
+        """
+        # Runtime validation - catch mismatched sync/async early
+        import inspect
+
+        create_method = getattr(client, "create_payment_payload", None)
+        if create_method and inspect.iscoroutinefunction(create_method):
+            raise TypeError(
+                f"x402HTTPClientSync requires a sync client, "
+                f"but got {type(client).__name__} which has async methods. "
+                f"Use x402ClientSync instead of x402Client, "
+                f"or use x402HTTPClient (async) with x402Client."
+            )
+
+        self._client = client
+
+    # =========================================================================
+    # Payment Creation (sync, delegates to x402ClientSync)
     # =========================================================================
 
     def create_payment_payload(
@@ -145,7 +270,7 @@ class x402HTTPClient:
     ) -> PaymentPayload | PaymentPayloadV1:
         """Create payment payload for the given requirements.
 
-        Delegates to the underlying x402Client.
+        Delegates to the underlying x402ClientSync.
 
         Args:
             payment_required: Payment required response from server.
@@ -205,6 +330,11 @@ class x402HTTPClient:
         return payment_headers, payment_payload
 
 
+# ============================================================================
+# PaymentRoundTripper (Sync - for requests-style adapters)
+# ============================================================================
+
+
 class PaymentRoundTripper:
     """HTTP transport wrapper with automatic payment handling.
 
@@ -215,11 +345,11 @@ class PaymentRoundTripper:
 
     MAX_RETRIES = 1  # Prevent infinite loops
 
-    def __init__(self, x402_client: x402HTTPClient) -> None:
+    def __init__(self, x402_client: x402HTTPClientSync) -> None:
         """Create PaymentRoundTripper.
 
         Args:
-            x402_client: HTTP client for payment handling.
+            x402_client: Sync HTTP client for payment handling.
         """
         self._x402_client = x402_client
         self._retry_counts: dict[str, int] = {}

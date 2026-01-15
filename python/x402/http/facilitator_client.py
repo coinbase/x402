@@ -1,4 +1,8 @@
-"""HTTP-based facilitator client for x402 protocol."""
+"""HTTP-based facilitator client for x402 protocol.
+
+Provides both async (HTTPFacilitatorClient) and sync (HTTPFacilitatorClientSync)
+implementations for communicating with remote facilitator services.
+"""
 
 from __future__ import annotations
 
@@ -64,15 +68,41 @@ class CreateHeadersAuthProvider:
 
 
 # ============================================================================
-# FacilitatorClient Protocol
+# FacilitatorClient Protocols
 # ============================================================================
 
 
 class FacilitatorClient(Protocol):
-    """Protocol for facilitator clients (HTTP or local).
+    """Protocol for async facilitator clients.
 
-    Used by x402ResourceServer to verify/settle payments.
-    Note: verify/settle return response objects with is_valid/success=False on failure.
+    Used by x402ResourceServer (async) to verify/settle payments.
+    """
+
+    async def verify(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+    ) -> VerifyResponse:
+        """Verify a payment. Returns VerifyResponse with is_valid=False on failure."""
+        ...
+
+    async def settle(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+    ) -> SettleResponse:
+        """Settle a payment. Returns SettleResponse with success=False on failure."""
+        ...
+
+    def get_supported(self) -> SupportedResponse:
+        """Get supported payment kinds (sync - used during initialization)."""
+        ...
+
+
+class FacilitatorClientSync(Protocol):
+    """Protocol for sync facilitator clients.
+
+    Used by x402ResourceServerSync (sync) to verify/settle payments.
     """
 
     def verify(
@@ -107,22 +137,18 @@ class FacilitatorConfig:
 
     url: str = DEFAULT_FACILITATOR_URL
     timeout: float = 30.0
-    http_client: Any = None  # Optional httpx.Client
+    http_client: Any = None  # Optional httpx.Client or httpx.AsyncClient
     auth_provider: AuthProvider | None = None
     identifier: str | None = None
 
 
 # ============================================================================
-# HTTP Facilitator Client
+# Base HTTP Facilitator Client (Shared Logic)
 # ============================================================================
 
 
-class HTTPFacilitatorClient:
-    """HTTP-based facilitator client.
-
-    Communicates with remote x402 facilitator services over HTTP.
-    Supports both V1 and V2 protocol versions.
-    """
+class _HTTPFacilitatorClientBase:
+    """Base class with shared logic for HTTP facilitator clients."""
 
     def __init__(self, config: FacilitatorConfig | dict[str, Any] | None = None) -> None:
         """Create HTTP facilitator client.
@@ -156,6 +182,302 @@ class HTTPFacilitatorClient:
             self._http_client = config.http_client
             self._owns_client = config.http_client is None
 
+    @property
+    def url(self) -> str:
+        """Get facilitator URL."""
+        return self._url
+
+    @property
+    def identifier(self) -> str:
+        """Get facilitator identifier."""
+        return self._identifier
+
+    @staticmethod
+    def _to_json_safe(obj: Any) -> Any:
+        """Convert object to JSON-safe format (handles bigints)."""
+        return json.loads(
+            json.dumps(
+                obj,
+                default=lambda x: str(x) if isinstance(x, int) and x > 2**53 else x,
+            )
+        )
+
+
+# ============================================================================
+# Async HTTP Facilitator Client (Default)
+# ============================================================================
+
+
+class HTTPFacilitatorClient(_HTTPFacilitatorClientBase):
+    """Async HTTP-based facilitator client.
+
+    Communicates with remote x402 facilitator services over HTTP using
+    async httpx.AsyncClient. Use with x402ResourceServer (async).
+
+    Example:
+        ```python
+        from x402.http import HTTPFacilitatorClient, FacilitatorConfig
+
+        facilitator = HTTPFacilitatorClient(FacilitatorConfig(url="https://..."))
+
+        # In async context
+        result = await facilitator.verify(payload, requirements)
+        ```
+    """
+
+    def _get_sync_client(self) -> httpx.Client:
+        """Get or create sync HTTP client for get_supported (initialization)."""
+        import httpx
+
+        # Create temporary sync client for initialization
+        return httpx.Client(timeout=self._timeout, follow_redirects=True)
+
+    def _get_async_client(self) -> httpx.AsyncClient:
+        """Get or create async HTTP client."""
+        if self._http_client is None:
+            import httpx
+
+            self._http_client = httpx.AsyncClient(timeout=self._timeout, follow_redirects=True)
+        return self._http_client
+
+    async def aclose(self) -> None:
+        """Close async HTTP client if we own it."""
+        if self._owns_client and self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
+
+    async def __aenter__(self) -> HTTPFacilitatorClient:
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.aclose()
+
+    # =========================================================================
+    # FacilitatorClient Implementation (Async)
+    # =========================================================================
+
+    async def verify(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+    ) -> VerifyResponse:
+        """Verify a payment with the facilitator (async).
+
+        Args:
+            payload: Payment payload to verify.
+            requirements: Requirements to verify against.
+
+        Returns:
+            VerifyResponse.
+
+        Raises:
+            httpx.HTTPError: If request fails.
+            ValueError: If response is invalid.
+        """
+        return await self._verify_http(
+            payload.x402_version,
+            payload.model_dump(by_alias=True, exclude_none=True),
+            requirements.model_dump(by_alias=True, exclude_none=True),
+        )
+
+    async def settle(
+        self,
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+    ) -> SettleResponse:
+        """Settle a payment with the facilitator (async).
+
+        Args:
+            payload: Payment payload to settle.
+            requirements: Requirements for settlement.
+
+        Returns:
+            SettleResponse.
+
+        Raises:
+            httpx.HTTPError: If request fails.
+            ValueError: If response is invalid.
+        """
+        return await self._settle_http(
+            payload.x402_version,
+            payload.model_dump(by_alias=True, exclude_none=True),
+            requirements.model_dump(by_alias=True, exclude_none=True),
+        )
+
+    def get_supported(self) -> SupportedResponse:
+        """Get supported payment kinds and extensions.
+
+        Note: This is sync because it's called during initialization.
+
+        Returns:
+            SupportedResponse.
+
+        Raises:
+            httpx.HTTPError: If request fails.
+        """
+        # Use sync client for initialization (called from sync initialize())
+        with self._get_sync_client() as client:
+            headers = {"Content-Type": "application/json"}
+
+            if self._auth_provider:
+                auth = self._auth_provider.get_auth_headers()
+                headers.update(auth.supported)
+
+            response = client.get(f"{self._url}/supported", headers=headers)
+
+            if response.status_code != 200:
+                raise ValueError(
+                    f"Facilitator get_supported failed ({response.status_code}): {response.text}"
+                )
+
+            data = response.json()
+            return SupportedResponse.model_validate(data)
+
+    # =========================================================================
+    # Bytes-Based Methods (Network Boundary)
+    # =========================================================================
+
+    async def verify_from_bytes(
+        self,
+        payload_bytes: bytes,
+        requirements_bytes: bytes,
+    ) -> VerifyResponse:
+        """Verify payment from raw JSON bytes.
+
+        Operates at network boundary - detects version from bytes.
+
+        Args:
+            payload_bytes: JSON bytes of payment payload.
+            requirements_bytes: JSON bytes of requirements.
+
+        Returns:
+            VerifyResponse.
+        """
+        from ..schemas.helpers import detect_version
+
+        version = detect_version(payload_bytes)
+        payload_dict = json.loads(payload_bytes)
+        requirements_dict = json.loads(requirements_bytes)
+
+        return await self._verify_http(version, payload_dict, requirements_dict)
+
+    async def settle_from_bytes(
+        self,
+        payload_bytes: bytes,
+        requirements_bytes: bytes,
+    ) -> SettleResponse:
+        """Settle payment from raw JSON bytes.
+
+        Operates at network boundary - detects version from bytes.
+
+        Args:
+            payload_bytes: JSON bytes of payment payload.
+            requirements_bytes: JSON bytes of requirements.
+
+        Returns:
+            SettleResponse.
+        """
+        from ..schemas.helpers import detect_version
+
+        version = detect_version(payload_bytes)
+        payload_dict = json.loads(payload_bytes)
+        requirements_dict = json.loads(requirements_bytes)
+
+        return await self._settle_http(version, payload_dict, requirements_dict)
+
+    # =========================================================================
+    # Internal HTTP Methods (Async)
+    # =========================================================================
+
+    async def _verify_http(
+        self,
+        version: int,
+        payload_dict: dict[str, Any],
+        requirements_dict: dict[str, Any],
+    ) -> VerifyResponse:
+        """Internal verify via HTTP (async)."""
+        client = self._get_async_client()
+
+        headers = {"Content-Type": "application/json"}
+
+        if self._auth_provider:
+            auth = self._auth_provider.get_auth_headers()
+            headers.update(auth.verify)
+
+        request_body = {
+            "x402Version": version,
+            "paymentPayload": self._to_json_safe(payload_dict),
+            "paymentRequirements": self._to_json_safe(requirements_dict),
+        }
+
+        response = await client.post(
+            f"{self._url}/verify",
+            headers=headers,
+            json=request_body,
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Facilitator verify failed ({response.status_code}): {response.text}")
+
+        data = response.json()
+        return VerifyResponse.model_validate(data)
+
+    async def _settle_http(
+        self,
+        version: int,
+        payload_dict: dict[str, Any],
+        requirements_dict: dict[str, Any],
+    ) -> SettleResponse:
+        """Internal settle via HTTP (async)."""
+        client = self._get_async_client()
+
+        headers = {"Content-Type": "application/json"}
+
+        if self._auth_provider:
+            auth = self._auth_provider.get_auth_headers()
+            headers.update(auth.settle)
+
+        request_body = {
+            "x402Version": version,
+            "paymentPayload": self._to_json_safe(payload_dict),
+            "paymentRequirements": self._to_json_safe(requirements_dict),
+        }
+
+        response = await client.post(
+            f"{self._url}/settle",
+            headers=headers,
+            json=request_body,
+        )
+
+        if response.status_code != 200:
+            raise ValueError(f"Facilitator settle failed ({response.status_code}): {response.text}")
+
+        data = response.json()
+        return SettleResponse.model_validate(data)
+
+
+# ============================================================================
+# Sync HTTP Facilitator Client
+# ============================================================================
+
+
+class HTTPFacilitatorClientSync(_HTTPFacilitatorClientBase):
+    """Sync HTTP-based facilitator client.
+
+    Communicates with remote x402 facilitator services over HTTP using
+    sync httpx.Client. Use with x402ResourceServerSync (sync).
+
+    Example:
+        ```python
+        from x402.http import HTTPFacilitatorClientSync, FacilitatorConfig
+
+        facilitator = HTTPFacilitatorClientSync(FacilitatorConfig(url="https://..."))
+
+        # Sync usage
+        result = facilitator.verify(payload, requirements)
+        ```
+    """
+
     def _get_client(self) -> httpx.Client:
         """Get or create HTTP client."""
         if self._http_client is None:
@@ -170,24 +492,14 @@ class HTTPFacilitatorClient:
             self._http_client.close()
             self._http_client = None
 
-    def __enter__(self) -> HTTPFacilitatorClient:
+    def __enter__(self) -> HTTPFacilitatorClientSync:
         return self
 
     def __exit__(self, *args: Any) -> None:
         self.close()
 
-    @property
-    def url(self) -> str:
-        """Get facilitator URL."""
-        return self._url
-
-    @property
-    def identifier(self) -> str:
-        """Get facilitator identifier."""
-        return self._identifier
-
     # =========================================================================
-    # FacilitatorClient Implementation
+    # FacilitatorClientSync Implementation
     # =========================================================================
 
     def verify(
@@ -386,13 +698,3 @@ class HTTPFacilitatorClient:
 
         data = response.json()
         return SettleResponse.model_validate(data)
-
-    @staticmethod
-    def _to_json_safe(obj: Any) -> Any:
-        """Convert object to JSON-safe format (handles bigints)."""
-        return json.loads(
-            json.dumps(
-                obj,
-                default=lambda x: str(x) if isinstance(x, int) and x > 2**53 else x,
-            )
-        )

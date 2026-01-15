@@ -113,7 +113,7 @@ class x402AsyncTransport(AsyncBaseTransport):
             payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload
-            payment_payload = self._client.create_payment_payload(payment_required)
+            payment_payload = await self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
             payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
@@ -251,17 +251,22 @@ def wrapHttpxWithPaymentFromConfig(
 ) -> httpx.AsyncClient:
     """Create httpx client with payment handling using configuration.
 
+    Note: This function is deprecated. Create x402Client directly.
+
     Args:
-        config: x402Client configuration dict.
+        config: Configuration dict (not currently supported).
         **httpx_kwargs: Additional arguments for httpx.AsyncClient.
 
     Returns:
         New client with payment handling.
-    """
-    from ...client import x402Client
 
-    x402 = x402Client.from_config(config)
-    return wrapHttpxWithPayment(x402, **httpx_kwargs)
+    Raises:
+        NotImplementedError: Configuration-based creation not yet supported.
+    """
+    raise NotImplementedError(
+        "Configuration-based client creation is not yet supported. "
+        "Create x402Client directly and pass to wrapHttpxWithPayment."
+    )
 
 
 # ============================================================================
