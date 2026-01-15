@@ -10,6 +10,7 @@ on:
       - '**/__tests__/**'
       - '**/test/**'
       - '**/tests/**'
+      - '**/typescript/site/*'
 
 jobs:
   update-docs:
