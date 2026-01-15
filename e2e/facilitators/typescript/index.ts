@@ -29,15 +29,35 @@ import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import express from "express";
-import { createWalletClient, http, publicActions } from "viem";
+import { createWalletClient, http, publicActions, Chain } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { baseSepolia } from "viem/chains";
+import { baseSepolia, base } from "viem/chains";
 import { BazaarCatalog } from "./bazaar.js";
 
 dotenv.config();
 
 // Configuration
 const PORT = process.env.PORT || "4022";
+const EVM_NETWORK = process.env.EVM_NETWORK || "eip155:84532";
+const SVM_NETWORK = process.env.SVM_NETWORK || "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+const EVM_RPC_URL = process.env.EVM_RPC_URL;
+const SVM_RPC_URL = process.env.SVM_RPC_URL;
+
+// Map CAIP-2 network IDs to viem chains
+function getEvmChain(network: string): Chain {
+  switch (network) {
+    case "eip155:8453":
+      return base;
+    case "eip155:84532":
+    default:
+      return baseSepolia;
+  }
+}
+
+console.log(`🌐 EVM Network: ${EVM_NETWORK}`);
+console.log(`🌐 SVM Network: ${SVM_NETWORK}`);
+if (EVM_RPC_URL) console.log(`🌐 EVM RPC URL: ${EVM_RPC_URL}`);
+if (SVM_RPC_URL) console.log(`🌐 SVM RPC URL: ${SVM_RPC_URL}`);
 
 // Validate required environment variables
 if (!process.env.EVM_PRIVATE_KEY) {
@@ -60,10 +80,11 @@ const svmAccount = await createKeyPairSignerFromBytes(base58.decode(process.env.
 console.info(`EVM Facilitator account: ${evmAccount.address}`);
 
 // Create a Viem client with both wallet and public capabilities
+const evmChain = getEvmChain(EVM_NETWORK);
 const viemClient = createWalletClient({
   account: evmAccount,
-  chain: baseSepolia,
-  transport: http(),
+  chain: evmChain,
+  transport: http(EVM_RPC_URL),
 }).extend(publicActions);
 
 // Initialize the x402 Facilitator with EVM and SVM support
@@ -106,7 +127,8 @@ const evmSigner = toFacilitatorEvmSigner({
 });
 
 // Facilitator can now handle all Solana networks with automatic RPC creation
-const svmSigner = toFacilitatorSvmSigner(svmAccount);
+// Pass custom RPC URL if provided
+const svmSigner = toFacilitatorSvmSigner(svmAccount, SVM_RPC_URL ? { defaultRpcUrl: SVM_RPC_URL } : undefined);
 
 const verifiedPayments = new Map<string, number>();
 const bazaarCatalog = new BazaarCatalog();
@@ -123,11 +145,11 @@ const facilitator = new x402Facilitator();
 // Register EVM and SVM schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
-  networks: "eip155:84532"  // Base Sepolia
+  networks: EVM_NETWORK as Network,
 });
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
-  networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  // Devnet
+  networks: SVM_NETWORK as Network,
 });
 
 facilitator.registerExtension(BAZAAR)
@@ -311,7 +333,8 @@ app.get("/discovery/resources", (req, res) => {
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
-    network: "eip155:84532",
+    evmNetwork: EVM_NETWORK,
+    svmNetwork: SVM_NETWORK,
     facilitator: "typescript",
     version: "2.0.0",
     extensions: [BAZAAR],
@@ -340,7 +363,8 @@ app.listen(parseInt(PORT), () => {
 ║           x402 TypeScript Facilitator                  ║
 ╠════════════════════════════════════════════════════════╣
 ║  Server:     http://localhost:${PORT}                  ║
-║  Network:    eip155:84532                              ║
+║  EVM Network:    ${EVM_NETWORK}                        ║
+║  SVM Network:    ${SVM_NETWORK}                        ║
 ║  Address:    ${evmAccount.address}                        ║
 ║  Extensions: bazaar                                    ║
 ║                                                        ║

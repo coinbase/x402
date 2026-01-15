@@ -100,10 +100,10 @@ type AssetInfo struct {
 }
 
 // NetworkConfig contains network-specific configuration
+// See DEFAULT_ASSET.md for guidelines on adding new chains
 type NetworkConfig struct {
-	ChainID         *big.Int
-	DefaultAsset    AssetInfo
-	SupportedAssets map[string]AssetInfo // symbol -> AssetInfo
+	ChainID      *big.Int
+	DefaultAsset AssetInfo
 }
 
 // PayloadToMap converts an ExactEIP3009Payload to a map for JSON marshaling
@@ -154,16 +154,6 @@ func PayloadFromMap(data map[string]interface{}) (*ExactEIP3009Payload, error) {
 	}
 
 	return payload, nil
-}
-
-// IsValidNetwork checks if the network is supported for EVM
-func IsValidNetwork(network string) bool {
-	switch network {
-	case "eip155:1", "eip155:8453", "eip155:84532", "base", "base-sepolia", "base-mainnet":
-		return true
-	default:
-		return false
-	}
 }
 
 // ERC6492SignatureData represents the parsed components of an ERC-6492 signature

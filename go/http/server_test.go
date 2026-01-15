@@ -231,8 +231,7 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 	}
 
 	paywallConfig := &PaywallConfig{
-		AppName:      "Test App",
-		CDPClientKey: "test-key",
+		AppName: "Test App",
 	}
 
 	result := server.ProcessHTTPRequest(ctx, reqCtx, paywallConfig)
@@ -258,8 +257,8 @@ func TestProcessHTTPRequestWithBrowser(t *testing.T) {
 	if !strings.Contains(html, "Test App") {
 		t.Error("Expected app name in HTML")
 	}
-	if !strings.Contains(html, "test-key") {
-		t.Error("Expected CDP client key in HTML")
+	if !strings.Contains(html, "http://example.com/content") {
+		t.Error("Expected current URL in HTML, got: " + html)
 	}
 }
 

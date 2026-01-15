@@ -18,6 +18,7 @@
   },
   "include": [
     "src/**/*",
+    "extensions/**/*",
     "test.ts",
     "clients/**/*",
     "servers/**/*"
