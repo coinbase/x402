@@ -1,15 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Context } from "hono";
 import { paymentMiddleware } from "./index";
-import { x402HTTPResourceServer, x402ResourceServer, type HTTPRequestContext } from "@x402/core/server";
+import {
+  x402HTTPResourceServer,
+  x402ResourceServer,
+  type HTTPRequestContext,
+} from "@x402/core/server";
 
-function createMockContext(
-  options: {
-    path: string;
-    method?: string;
-    headers?: Record<string, string>;
-  },
-): Context & {
+/**
+ * Creates a mock Hono context for testing
+ *
+ * @param options - Configuration options
+ * @param options.path - Request path
+ * @param options.method - HTTP method
+ * @param options.headers - Request headers
+ * @returns Mock context object
+ */
+function createMockContext(options: {
+  path: string;
+  method?: string;
+  headers?: Record<string, string>;
+}): Context & {
   _status: number;
   _headers: Record<string, string>;
   _body: unknown;
