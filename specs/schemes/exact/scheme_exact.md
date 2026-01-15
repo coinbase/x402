@@ -26,7 +26,8 @@ While implementation details vary by network, facilitators MUST enforce security
 ### Stellar
 
 - Facilitator safety: the facilitator's address MUST NOT appear as transaction source, operation source, transfer `from` address, or in authorization entries.
-- Authorization integrity: auth entry expiration MUST NOT exceed `currentLedger + maxLedgerOffset` (default: 12 ledgers).
-- Transfer correctness: `to` MUST equal `payTo` and `amount` MUST equal the required amount exactly.
+- Authorization integrity: auth entry expiration MUST NOT exceed `currentLedger + ceil(maxTimeoutSeconds / estimatedLedgerSeconds)` (fallback to `5` seconds).
+- Transfer correctness: `to` MUST equal `payTo` and `amount` MUST equal `requirements.amount` exactly.
+- Simulation verification: MUST emit events showing only the expected balance changes (recipient increase, payer decrease) for `requirements.amount`—no other balance changes allowed.
 
 Network-specific rules are in per-network documents: `scheme_exact_svm.md` (Solana), `scheme_exact_stellar.md` (Stellar), `scheme_exact_evm.md` (EVM), `scheme_exact_sui.md` (SUI).
