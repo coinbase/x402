@@ -15,6 +15,8 @@ interface DiscoveryResourcesResponse {
   x402Version: number;
   items: Array<{
     resource: string;
+    description?: string;
+    mimeType?: string;
     type: string;
     x402Version: number;
     accepts: any[];
