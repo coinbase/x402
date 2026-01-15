@@ -5,16 +5,23 @@ use crate::errors::{X402Error, X402Result};
 use crate::types::{PaymentRequirementsV1, Network, PaymentRequirements, PaymentRequirementsV2, Price};
 
 
+/// Configuration for a specific resource's payment requirements.
 #[derive(Debug, Clone)]
 pub struct ResourceConfig {
+    /// The payment scheme (e.g., "exact").
     pub scheme: String,
+    /// The recipient address or identifier.
     pub pay_to: String,
+    /// The price of the resource.
     pub price: Price,
+    /// The network the payment should be made on.
     pub network: Network,
+    /// Optional maximum time allowed for the payment to be completed.
     pub max_timeout_in_seconds: Option<u64>,
 }
 
 impl ResourceConfig {
+    /// Creates a new `ResourceConfig`.
     pub fn new(scheme: &str, pay_to: &str, price: Price, network: Network, max_timeout_in_seconds: Option<u64>) -> Self {
         Self {
             scheme: scheme.to_string(),
@@ -26,20 +33,22 @@ impl ResourceConfig {
     }
 }
 
+/// Trait for a server that implements a specific payment scheme on a specific network.
 pub trait SchemeNetworkServer: Send + Sync {
-    /// The name of the scheme the server implements. (e.g.) "exact").
+    /// The name of the scheme the server implements (e.g., "exact").
     fn scheme(&self) -> &str;
 
-    /// x402 version to build relevant PaymentRequirements
+    /// The X402 protocol version supported by this server.
     fn x402_version(&self) -> u32;
 
-    /// Build PaymentRequirements for this particular (scheme, network) from a generic ResourceConfig
+    /// Builds `PaymentRequirements` for a specific `ResourceConfig`.
     fn build_requirements(
         &self,
         resource_config: &ResourceConfig
     ) -> X402Result<PaymentRequirements>;
 }
 
+/// Server implementation for a specific scheme.
 pub struct SchemeServer {
     x402_version: u32,
     scheme: String,
@@ -48,14 +57,20 @@ pub struct SchemeServer {
     v1_resource_info: Option<V1ResourceInfo>,
 }
 
+/// Metadata for a V1 resource.
 pub struct V1ResourceInfo {
+    /// The resource identifier (e.g., URL).
     resource: String,
+    /// A description of the resource.
     description: String,
+    /// The MIME type of the resource.
     mime_type: String,
+    /// Optional maximum time allowed for the payment.
     max_timeout_in_seconds: Option<u64>,
 }
 
 impl V1ResourceInfo {
+    /// Creates a new `V1ResourceInfo`.
     pub fn new(resource: &str, description: &str, mime_type: &str, max_timeout_in_seconds: Option<u64>) -> Self {
         V1ResourceInfo {
             resource: resource.to_string(),
@@ -67,6 +82,7 @@ impl V1ResourceInfo {
 }
 
 impl SchemeServer {
+    /// Creates a new `SchemeServer`.
     pub fn new(
         x402_version: u32,
         scheme: Option<&str>,
@@ -83,12 +99,15 @@ impl SchemeServer {
         }
     }
 
+    /// Creates a new `SchemeServer` wrapped in an `Arc` with default settings.
     pub fn new_default() -> Arc<SchemeServer> {
         Arc::new(SchemeServer::default())
     }
 
+    /// Returns the network this server operates on.
     pub fn network(&self) -> Network {self.network.clone()}
 
+    /// Builds a `ResourceConfig` for this server.
     pub fn build_resource_config(
         &self,
         pay_to: &str,
@@ -169,6 +188,7 @@ impl SchemeNetworkServer for SchemeServer {
 
 
 
+/// Trait for a server that manages multiple payment schemes and networks.
 pub trait ResourceServer {
 
     /// Register a scheme/network server implementation.
@@ -183,11 +203,13 @@ pub trait ResourceServer {
 
 }
 
+/// An in-memory implementation of `ResourceServer`.
 pub struct InMemoryResourceServer {
     servers: HashMap<Network, HashMap<String, Arc<dyn SchemeNetworkServer>>>,
 }
 
 impl InMemoryResourceServer {
+    /// Creates a new `InMemoryResourceServer`.
     pub fn new() -> Self {
         Self {servers: HashMap::new()}
     }
@@ -232,7 +254,7 @@ mod tests {
     use crate::types::CAIPNetwork;
     use super::*;
 
-    /// A simple test scheme that just echoes the price
+    /// A simple test scheme showing a minimal implementation.
     struct TestSchemeServer;
 
     impl SchemeNetworkServer for TestSchemeServer {
