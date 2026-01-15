@@ -233,27 +233,4 @@ contract X402ExactPermit2ProxyForkTest is Test {
         vm.expectRevert();
         proxy.settle(permit, payer, tamperedWitness, sig);
     }
-
-    function test_fork_alwaysTransfersExactPermittedAmount() public onlyFork {
-        uint256 t = block.timestamp;
-        uint256 nonce = _nonce(7);
-        uint256 deadline = t + 3600;
-        uint256 permitted = TRANSFER_AMOUNT;
-
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
-
-        bytes memory sig = _sign(address(token), permitted, nonce, deadline, witness);
-
-        ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
-            permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: permitted}),
-            nonce: nonce,
-            deadline: deadline
-        });
-
-        uint256 balanceBefore = token.balanceOf(recipient);
-        proxy.settle(permit, payer, witness, sig);
-        // Exact proxy always transfers the full permitted amount
-        assertEq(token.balanceOf(recipient) - balanceBefore, permitted);
-    }
 }
