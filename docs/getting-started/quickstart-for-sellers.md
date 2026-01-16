@@ -301,7 +301,6 @@ func main() {
 Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/fastapi).
 
 ```python
-import os
 from typing import Any
 
 from fastapi import FastAPI
@@ -366,8 +365,6 @@ if __name__ == "__main__":
 Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/flask).
 
 ```python
-import os
-
 from flask import Flask, jsonify
 
 from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync, PaymentOption

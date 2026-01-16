@@ -187,7 +187,6 @@ console.log("Response data:", response.data);
 
 {% tab title="Python" %}
 ```python
-import os
 from eth_account import Account
 
 from x402 import x402Client
@@ -195,8 +194,7 @@ from x402.http.clients import x402HttpxClient
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
-# Set up your payment account
-account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+account = Account.from_key("0xYourPrivateKey")
 client = x402Client()
 register_exact_evm_client(client, EthAccountSigner(account))
 
