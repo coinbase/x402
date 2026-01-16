@@ -1,33 +1,6 @@
 import { BaseProxy, RunConfig } from '../proxy-base';
-import { ServerProxy } from '../types';
+import { ServerProxy, ServerConfig } from '../types';
 import { verboseLog, errorLog } from '../logger';
-import { getNetwork } from '../networks/networks';
-
-/**
- * Translates v2 CAIP-2 network format to v1 simple format for legacy servers
- * 
- * @param network - Network in CAIP-2 format (e.g., "eip155:84532")
- * @returns Network in v1 format (e.g., "base-sepolia")
- */
-function translateNetworkForV1(network: string): string {
-  const networkMap: Record<string, string> = {
-    'eip155:84532': 'base-sepolia',
-    'eip155:8453': 'base',
-    'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'solana-devnet',
-    'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'solana-mainnet',
-  };
-
-  return networkMap[network] || network;
-}
-
-interface ServerConfig {
-  port: number;
-  evmPayTo: string;
-  svmPayTo: string;
-  evmNetwork: string;
-  svmNetwork: string;
-  facilitatorUrl?: string;
-}
 
 export interface ProtectedResponse {
   message: string;
@@ -99,32 +72,33 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
 
     verboseLog(`  📂 Server directory: ${this.directory}, isV1: ${isV1Server}`);
 
-    // Translate networks to v1 format for legacy servers using getNetwork helper
-    let evmNetwork = config.evmNetwork;
-    let svmNetwork = config.svmNetwork;
+    // For legacy servers, translate CAIP-2 to v1 network names
+    let evmNetwork = config.networks.evm.caip2;
+    let svmNetwork = config.networks.svm.caip2;
 
     if (isV1Server) {
-      // Use getNetwork to look up and get v1 name
-      const evmNetworkInfo = getNetwork(config.evmNetwork);
-      const svmNetworkInfo = getNetwork(config.svmNetwork);
+      evmNetwork = translateNetworkForV1(config.networks.evm.caip2);
+      svmNetwork = translateNetworkForV1(config.networks.svm.caip2);
 
-      evmNetwork = evmNetworkInfo?.v1Name || translateNetworkForV1(config.evmNetwork);
-      svmNetwork = svmNetworkInfo?.v1Name || translateNetworkForV1(config.svmNetwork);
-
-      verboseLog(`  🔄 Translating networks for v1 server: ${config.evmNetwork} → ${evmNetwork}, ${config.svmNetwork} → ${svmNetwork}`);
+      verboseLog(`  🔄 Translating networks for v1 server: ${config.networks.evm.caip2} → ${evmNetwork}, ${config.networks.svm.caip2} → ${svmNetwork}`);
     }
 
     const runConfig: RunConfig = {
       port: config.port,
       env: {
-        EVM_NETWORK: evmNetwork,
-        EVM_PAYEE_ADDRESS: config.evmPayTo,
-        SVM_NETWORK: svmNetwork,
-        SVM_PAYEE_ADDRESS: config.svmPayTo,
         PORT: config.port.toString(),
-        EVM_RPC_URL: getNetwork(config.evmNetwork)?.rpcUrl || '',
 
-        // Use facilitator URL if provided
+        // EVM network config
+        EVM_NETWORK: evmNetwork,
+        EVM_RPC_URL: config.networks.evm.rpcUrl,
+        EVM_PAYEE_ADDRESS: config.evmPayTo,
+
+        // SVM network config
+        SVM_NETWORK: svmNetwork,
+        SVM_RPC_URL: config.networks.svm.rpcUrl,
+        SVM_PAYEE_ADDRESS: config.svmPayTo,
+
+        // Facilitator
         FACILITATOR_URL: config.facilitatorUrl || '',
       }
     };
@@ -242,4 +216,23 @@ export class GenericServerProxy extends BaseProxy implements ServerProxy {
   getUrl(): string {
     return `http://localhost:${this.port}`;
   }
-} 
+}
+
+/**
+ * Translates v2 CAIP-2 network format to v1 simple format for legacy servers
+ * 
+ * @param network - Network in CAIP-2 format (e.g., "eip155:84532")
+ * @returns Network in v1 format (e.g., "base-sepolia")
+ */
+function translateNetworkForV1(network: string): string {
+  const networkMap: Record<string, string> = {
+    // Testnets
+    'eip155:84532': 'base-sepolia',
+    'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'solana-devnet',
+    // Mainnets
+    'eip155:8453': 'base',
+    'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'solana',
+  };
+
+  return networkMap[network] || network;
+}

@@ -101,6 +101,8 @@ export function validateDiscoveryExtension(extension: DiscoveryExtension): Valid
  */
 export interface DiscoveredResource {
   resourceUrl: string;
+  description?: string;
+  mimeType?: string;
   method: string;
   x402Version: number;
   discoveryInfo: DiscoveryInfo;
@@ -166,8 +168,23 @@ export function extractDiscoveryInfo(
   const url = new URL(resourceUrl);
   const normalizedResourceUrl = `${url.origin}${url.pathname}`;
 
+  // Extract description and mimeType from resource info (v2) or requirements (v1)
+  let description: string | undefined;
+  let mimeType: string | undefined;
+
+  if (paymentPayload.x402Version === 2) {
+    description = paymentPayload.resource?.description;
+    mimeType = paymentPayload.resource?.mimeType;
+  } else if (paymentPayload.x402Version === 1) {
+    const requirementsV1 = paymentRequirements as PaymentRequirementsV1;
+    description = requirementsV1.description;
+    mimeType = requirementsV1.mimeType;
+  }
+
   return {
     resourceUrl: normalizedResourceUrl,
+    description,
+    mimeType,
     method: discoveryInfo.input.method,
     x402Version: paymentPayload.x402Version,
     discoveryInfo,

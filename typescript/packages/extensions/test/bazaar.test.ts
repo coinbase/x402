@@ -367,6 +367,8 @@ describe("Bazaar Discovery Extension", () => {
 
       expect(discovered).not.toBeNull();
       expect(discovered!.resourceUrl).toBe("https://api.example.com/weather");
+      expect(discovered!.description).toBe("Weather API");
+      expect(discovered!.mimeType).toBe("application/json");
     });
 
     it("should strip hash sections from v2 resourceUrl", () => {
@@ -464,6 +466,8 @@ describe("Bazaar Discovery Extension", () => {
       expect(discovered!.discoveryInfo.input.method).toBe("GET");
       expect(discovered!.resourceUrl).toBe("https://api.example.com/data");
       expect(discovered!.method).toBe("GET");
+      expect(discovered!.description).toBe("Get data");
+      expect(discovered!.mimeType).toBe("application/json");
     });
 
     it("should strip query params from v1 resourceUrl", () => {
