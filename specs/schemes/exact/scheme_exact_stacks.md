@@ -253,7 +253,7 @@ Stacks transactions are anchored in Bitcoin blocks. Facilitators should wait for
 | STX | mainnet/testnet | Native (no contract) |
 | sBTC | mainnet | `SM3VDXK3WZZSA84XXFKAFAF15NNZX32CTSG82JFQ4.sbtc-token::sbtc-token` |
 | sBTC | testnet | `ST1F7QA2MDF17S807EPA36TSS8AMEFY4KA9TVGWXT.sbtc-token::sbtc-token` |
-| USDCx | mainnet | `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx::USDCx` |
+| USDCx | mainnet | `SP120SBRBQJ00MCWS7TM5R8WJNTTKD5K0HFRC2CNE.usdcx::usdcx-token` |
 | USDCx | testnet | Not yet deployed (aeUSDC from Allbridge available as alternative) |
 
 ## Reference Implementation
