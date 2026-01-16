@@ -1,7 +1,6 @@
 """Bazaar catalog for storing discovered x402 resources.
 
-This module provides a simple in-memory catalog for discovered resources
-during e2e testing, following the same pattern as TypeScript and Go implementations.
+This module provides a simple in-memory catalog for discovered resources during e2e testing
 """
 
 from datetime import datetime
@@ -45,9 +44,6 @@ class DiscoveredResource:
 
 class BazaarCatalog:
     """Catalog for storing discovered x402 resources.
-
-    This follows the same interface as the TypeScript and Go implementations
-    in the e2e test suite.
     """
 
     def __init__(self) -> None:

@@ -43,10 +43,10 @@ The example demonstrates the complete x402 payment flow:
 
 ```python
 from x402 import x402Client
-from x402.http.clients.httpx import x402HttpxClient
-from x402.http.x402_http_client import x402HTTPClient
+from x402.http import x402HTTPClient
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
-from x402.mechanisms.evm.signers import EthAccountSigner
 from x402.mechanisms.svm import KeypairSigner
 from x402.mechanisms.svm.exact.register import register_exact_svm_client
 

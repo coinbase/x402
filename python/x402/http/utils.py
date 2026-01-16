@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+from typing import Any
 
 from ..schemas import (
     PaymentPayload,
@@ -104,3 +105,23 @@ def detect_payment_required_version(
             pass
 
     raise ValueError("Could not detect x402 version from response")
+
+
+def htmlsafe_json_dumps(obj: Any) -> str:
+    """Serialize object to JSON with HTML-safe escaping.
+
+    Escapes <, >, and & characters to prevent XSS attacks when
+    embedding JSON in HTML script tags.
+
+    Args:
+        obj: Object to serialize to JSON.
+
+    Returns:
+        HTML-safe JSON string.
+    """
+    _json_script_escapes = {
+        ord(">"): "\\u003E",
+        ord("<"): "\\u003C",
+        ord("&"): "\\u0026",
+    }
+    return json.dumps(obj).translate(_json_script_escapes)

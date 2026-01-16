@@ -5,8 +5,8 @@ import json
 from dotenv import load_dotenv
 from eth_account import Account
 
-# Import from new x402 package
-from x402 import x402Client
+# Import from new x402 package (sync variant for requests)
+from x402 import x402ClientSync
 from x402.http import decode_payment_response_header
 from x402.http.clients import x402_requests
 from x402.mechanisms.evm import EthAccountSigner
@@ -36,8 +36,8 @@ if not evm_private_key and not svm_private_key:
 
 
 def main():
-    # Create x402 client
-    client = x402Client()
+    # Create x402 client (sync for requests)
+    client = x402ClientSync()
 
     # Register EVM exact scheme if private key is available
     if evm_private_key:

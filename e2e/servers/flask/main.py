@@ -8,9 +8,9 @@ from flask import Flask, jsonify
 
 from dotenv import load_dotenv
 
-# Import from new x402 package
-from x402 import x402ResourceServer
-from x402.http import FacilitatorConfig, HTTPFacilitatorClient
+# Import from new x402 package (sync variants for Flask)
+from x402 import x402ResourceServerSync
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync
 from x402.http.middleware.flask import PaymentMiddleware
 from x402.mechanisms.evm.exact import register_exact_evm_server
 from x402.mechanisms.svm.exact import register_exact_svm_server
@@ -47,17 +47,17 @@ SVM_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
 
 app = Flask(__name__)
 
-# Create HTTP facilitator client
+# Create HTTP facilitator client (sync for Flask)
 if FACILITATOR_URL:
     print(f"Using remote facilitator at: {FACILITATOR_URL}")
     config = FacilitatorConfig(url=FACILITATOR_URL)
-    facilitator = HTTPFacilitatorClient(config)
+    facilitator = HTTPFacilitatorClientSync(config)
 else:
     print("Using default facilitator")
-    facilitator = HTTPFacilitatorClient()
+    facilitator = HTTPFacilitatorClientSync()
 
-# Create resource server
-server = x402ResourceServer(facilitator)
+# Create resource server (sync for Flask)
+server = x402ResourceServerSync(facilitator)
 
 # Register EVM and SVM exact schemes
 register_exact_evm_server(server, EVM_NETWORK)

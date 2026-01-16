@@ -97,21 +97,23 @@ async def run_builder_pattern_example(
                 settle_response = http_client.get_payment_settle_response(
                     lambda name: response.headers.get(name)
                 )
-                print(f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}")
+                print(
+                    f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}"
+                )
             except ValueError:
                 print("\nNo payment response header found")
 
 
 async def main() -> None:
     """Main entry point."""
-    private_key = os.getenv("PRIVATE_KEY")
+    private_key = os.getenv("EVM_PRIVATE_KEY")
     mainnet_key = os.getenv("MAINNET_PRIVATE_KEY")  # Optional: separate mainnet key
     testnet_key = os.getenv("TESTNET_PRIVATE_KEY")  # Optional: separate testnet key
     base_url = os.getenv("RESOURCE_SERVER_URL", "http://localhost:4021")
     endpoint_path = os.getenv("ENDPOINT_PATH", "/weather")
 
     if not private_key:
-        print("Error: PRIVATE_KEY environment variable is required")
+        print("Error: EVM_PRIVATE_KEY environment variable is required")
         print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 

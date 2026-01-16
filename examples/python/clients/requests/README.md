@@ -42,16 +42,16 @@ The example demonstrates the complete x402 payment flow:
 ## Code Overview
 
 ```python
-from x402 import x402Client
-from x402.http.clients.requests import x402_requests
-from x402.http.x402_http_client import x402HTTPClient
+from x402 import x402ClientSync
+from x402.http import x402HTTPClientSync
+from x402.http.clients import x402_requests
+from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
-from x402.mechanisms.evm.signers import EthAccountSigner
 from x402.mechanisms.svm import KeypairSigner
 from x402.mechanisms.svm.exact.register import register_exact_svm_client
 
 # Setup
-client = x402Client()
+client = x402ClientSync()
 
 # Register EVM (Ethereum) payments
 account = Account.from_key(evm_private_key)
@@ -66,7 +66,7 @@ with x402_requests(client) as session:
     response = session.get(url)
 
     # Extract payment settlement info
-    http_client = x402HTTPClient(client)
+    http_client = x402HTTPClientSync(client)
     settle_response = http_client.get_payment_settle_response(
         lambda name: response.headers.get(name)
     )

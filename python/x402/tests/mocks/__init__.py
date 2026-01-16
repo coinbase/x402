@@ -2,6 +2,7 @@
 
 from .cash import (
     CashFacilitatorClient,
+    CashFacilitatorClientSync,
     CashSchemeNetworkClient,
     CashSchemeNetworkFacilitator,
     CashSchemeNetworkServer,
@@ -13,5 +14,6 @@ __all__ = [
     "CashSchemeNetworkFacilitator",
     "CashSchemeNetworkServer",
     "CashFacilitatorClient",
+    "CashFacilitatorClientSync",
     "build_cash_payment_requirements",
 ]

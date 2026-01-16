@@ -43,7 +43,7 @@ def validate_environment() -> tuple[str | None, str | None, str, str]:
 
     if missing:
         print(f"Error: Missing required environment variables: {', '.join(missing)}")
-        print("Please copy .env-example to .env and fill in the values.")
+        print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 
     return evm_private_key, svm_private_key, base_url, endpoint_path

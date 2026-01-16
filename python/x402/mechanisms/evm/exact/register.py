@@ -1,21 +1,33 @@
 """Registration helpers for EVM exact payment schemes."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from ..constants import V1_NETWORKS
 
 if TYPE_CHECKING:
-    from x402 import x402Client, x402Facilitator, x402ResourceServer
+    from x402 import (
+        x402Client,
+        x402ClientSync,
+        x402Facilitator,
+        x402FacilitatorSync,
+        x402ResourceServer,
+        x402ResourceServerSync,
+    )
 
     from ..signer import ClientEvmSigner, FacilitatorEvmSigner
 
+# Type vars for accepting both async and sync variants
+ClientT = TypeVar("ClientT", "x402Client", "x402ClientSync")
+ServerT = TypeVar("ServerT", "x402ResourceServer", "x402ResourceServerSync")
+FacilitatorT = TypeVar("FacilitatorT", "x402Facilitator", "x402FacilitatorSync")
+
 
 def register_exact_evm_client(
-    client: "x402Client",
+    client: ClientT,
     signer: "ClientEvmSigner",
     networks: str | list[str] | None = None,
     policies: list | None = None,
-) -> "x402Client":
+) -> ClientT:
     """Register EVM exact payment schemes to x402Client.
 
     Registers:
@@ -57,9 +69,9 @@ def register_exact_evm_client(
 
 
 def register_exact_evm_server(
-    server: "x402ResourceServer",
+    server: ServerT,
     networks: str | list[str] | None = None,
-) -> "x402ResourceServer":
+) -> ServerT:
     """Register EVM exact payment schemes to x402ResourceServer.
 
     V2 only (no server-side for V1).
@@ -87,11 +99,11 @@ def register_exact_evm_server(
 
 
 def register_exact_evm_facilitator(
-    facilitator: "x402Facilitator",
+    facilitator: FacilitatorT,
     signer: "FacilitatorEvmSigner",
     networks: str | list[str],
     deploy_erc4337_with_eip6492: bool = False,
-) -> "x402Facilitator":
+) -> FacilitatorT:
     """Register EVM exact payment schemes to x402Facilitator.
 
     Registers:

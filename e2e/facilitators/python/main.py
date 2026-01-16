@@ -178,7 +178,7 @@ async def verify(request: VerifyRequest):
         # Hooks will automatically:
         # - Track verified payment (on_after_verify)
         # - Extract and catalog discovery info (on_after_verify)
-        response = facilitator.verify(payload, requirements)
+        response = await facilitator.verify(payload, requirements)
 
         return {
             "isValid": response.is_valid,
@@ -213,7 +213,7 @@ async def settle(request: SettleRequest):
         # - Validate payment was verified (on_before_settle - will abort if not)
         # - Check verification timeout (on_before_settle)
         # - Clean up tracking (on_after_settle / on_settle_failure)
-        response = facilitator.settle(payload, requirements)
+        response = await facilitator.settle(payload, requirements)
 
         return {
             "success": response.success,

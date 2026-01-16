@@ -322,9 +322,9 @@ def payment_middleware(
             async for chunk in response.body_iterator:
                 body += chunk
 
-            # Process settlement
+            # Process settlement (await async method)
             try:
-                settle_result = http_server.process_settlement(
+                settle_result = await http_server.process_settlement(
                     result.payment_payload,
                     result.payment_requirements,
                 )

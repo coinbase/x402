@@ -1,102 +1,105 @@
-from x402.server import (
-    AbortResult,
-    RecoveredSettleResult,
-    RecoveredVerifyResult,
-    SettleContext,
-    SettleFailureContext,
-    SettleResponse,
-    SettleResultContext,
-    VerifyContext,
-    VerifyFailureContext,
-    VerifyResponse,
-    VerifyResultContext,
-)
+"""Server lifecycle hooks example."""
+
+import os
+from pprint import pprint
+
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.schemas import Network
+from x402.server import x402ResourceServer
+
+load_dotenv()
+
+# Config
+EVM_ADDRESS = os.getenv("EVM_ADDRESS")
+EVM_NETWORK: Network = "eip155:84532"  # Base Sepolia
+FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
+
+if not EVM_ADDRESS:
+    raise ValueError("Missing required EVM_ADDRESS environment variable")
 
 
-def before_verify_hook(context: VerifyContext) -> None | AbortResult:
-    """
-    Before verify hook is called before verification
-    return an AbortResult to abort the verification
-
-    Args:
-        context: VerifyContext
-
-    Returns:
-        None | AbortResult
-    """
-    print(f"Before verify hook: {context}")
-
-    if False:
-        return AbortResult(reason="Verification aborted")
-
-def after_verify_hook(context: VerifyResultContext) -> None:
-    """
-    After verify hook is called after successful verification
-
-    Args:
-        context: VerifyResultContext
-
-    Returns:
-        None
-    """
-    print(f"After verify hook: {context}")
-
-def on_verify_failure_hook(context: VerifyFailureContext) -> None | RecoveredVerifyResult:
-    """
-    On verify failure hook is called when verification fails
-
-    Args:
-        context: VerifyFailureContext
-
-    Returns:
-        None | RecoveredVerifyResult
-    """
-    print(f"On verify failure hook: {context}")
-
-    if False:
-        return RecoveredVerifyResult(result=VerifyResponse(is_valid=True, invalid_reason="Recovered from failure"))
-
-def before_settle_hook(context: SettleContext) -> None:
-    """
-    Before settle hook is called before settlement
-    return an AbortResult to abort the settlement
-
-    Args:
-        context: SettleContext
-
-    Returns:
-        None | AbortResult
-    """
-    print(f"Before settle hook: {context}")
-
-    if False:
-        return AbortResult(reason="Settlement aborted")
+class WeatherReport(BaseModel):
+    weather: str
+    temperature: int
 
 
-def after_settle_hook(context: SettleResultContext) -> None:
-    """
-    After settle hook is called after successful settlement
+class WeatherResponse(BaseModel):
+    report: WeatherReport
 
-    Args:
-        context: SettleResultContext
 
-    Returns:
-        None
-    """
-    print(f"After settle hook: {context}")
+app = FastAPI()
 
-def on_settle_failure_hook(context: SettleFailureContext) -> None | RecoveredSettleResult:
-    """
-    On settle failure hook is called when settlement fails
-    return a result with Recovered=true to recover from the failure
+facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
+server = x402ResourceServer(facilitator)
+server.register(EVM_NETWORK, ExactEvmServerScheme())
 
-    Args:
-        context: SettleFailureContext
 
-    Returns:
-        None | RecoveredSettleResult
-    """
-    print(f"On settle failure hook: {context}")
+# Register async hooks
+async def before_verify(ctx):
+    print("\n=== Before verify ===")
+    pprint(vars(ctx))
 
-    if False:
-        return RecoveredSettleResult(result=SettleResponse(success=True, transaction="0x123..."))
+
+async def after_verify(ctx):
+    print("\n=== After verify ===")
+    pprint(vars(ctx))
+
+
+async def verify_failure(ctx):
+    print("\n=== Verify failure ===")
+    pprint(vars(ctx))
+
+
+async def before_settle(ctx):
+    print("\n=== Before settle ===")
+    pprint(vars(ctx))
+
+
+async def after_settle(ctx):
+    print("\n=== After settle ===")
+    pprint(vars(ctx))
+
+
+async def settle_failure(ctx):
+    print("\n=== Settle failure ===")
+    pprint(vars(ctx))
+
+
+server.on_before_verify(before_verify)
+server.on_after_verify(after_verify)
+server.on_verify_failure(verify_failure)
+server.on_before_settle(before_settle)
+server.on_after_settle(after_settle)
+server.on_settle_failure(settle_failure)
+
+routes = {
+    "GET /weather": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to=EVM_ADDRESS,
+                price="$0.001",
+                network=EVM_NETWORK,
+            ),
+        ],
+    ),
+}
+app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
+
+
+@app.get("/weather")
+async def get_weather(city: str = "San Francisco") -> WeatherResponse:
+    return WeatherResponse(report=WeatherReport(weather="sunny", temperature=70))
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=4021)
