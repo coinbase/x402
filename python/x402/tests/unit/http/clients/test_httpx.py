@@ -367,3 +367,389 @@ class TestPaymentErrors:
         """Test MissingRequestConfigError inherits from PaymentError."""
         error = MissingRequestConfigError()
         assert isinstance(error, PaymentError)
+
+
+# =============================================================================
+# Additional Mock Classes for Fixture-based Tests
+# =============================================================================
+
+
+class MockX402ClientWithCounter:
+    """Mock x402Client for testing with call count tracking."""
+
+    def __init__(self, payload: PaymentPayload | None = None):
+        self.payload = payload or make_v2_payload()
+        self.create_payment_payload_call_count = 0
+
+    async def create_payment_payload(self, payment_required):
+        self.create_payment_payload_call_count += 1
+        return self.payload
+
+
+class MockX402HTTPClientForTransport:
+    """Mock x402HTTPClient for testing transport."""
+
+    def __init__(self):
+        self.get_payment_required_response_call_count = 0
+
+    def get_payment_required_response(self, _get_header, _body):
+        self.get_payment_required_response_call_count += 1
+        return MagicMock(
+            scheme="exact",
+            network="base-sepolia",
+            asset="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+            amount="10000",
+            pay_to="0x0000000000000000000000000000000000000000",
+        )
+
+    def encode_payment_signature_header(self, _payload):
+        return {"X-Payment": "mock_payment_header"}
+
+
+# =============================================================================
+# Fixtures for Transport Tests
+# =============================================================================
+
+
+@pytest.fixture(scope="function")
+def mock_client_with_counter():
+    """Create a mock x402Client with call counting."""
+    return MockX402ClientWithCounter()
+
+
+@pytest.fixture(scope="function")
+def mock_http_client_for_transport():
+    """Create a mock x402HTTPClient for transport tests."""
+    return MockX402HTTPClientForTransport()
+
+
+@pytest.fixture(scope="function")
+def transport_with_mocks(mock_client_with_counter, mock_http_client_for_transport):
+    """Create an x402AsyncTransport with mocked dependencies.
+
+    Uses MagicMock spec to create a valid transport instance, then injects
+    mock dependencies for isolated unit testing.
+    """
+    transport = MagicMock(spec=x402AsyncTransport)
+    transport._client = mock_client_with_counter
+    transport._http_client = mock_http_client_for_transport
+    transport.RETRY_KEY = x402AsyncTransport.RETRY_KEY
+    return transport
+
+
+def _create_mock_response(status_code: int, content: bytes = b"") -> MagicMock:
+    """Create a mock httpx Response object."""
+    response = MagicMock()
+    response.status_code = status_code
+    response.content = content
+    response.headers = {}
+    response.json.return_value = None
+    response.aread = AsyncMock()
+    return response
+
+
+def _create_httpx_request(url: str = "https://example.com") -> httpx.Request:
+    """Create an httpx Request object."""
+    return httpx.Request("GET", url)
+
+
+# =============================================================================
+# Consecutive Payments Tests
+# =============================================================================
+
+
+class TestConsecutivePayments:
+    """Test consecutive payment requests."""
+
+    @pytest.mark.asyncio
+    async def test_should_handle_all_consecutive_402_requests(self):
+        """Should handle all consecutive 402 requests with payment retry."""
+        mock_client = MockX402ClientWithCounter()
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        call_count = 0
+
+        async def mock_handle_request(request):
+            nonlocal call_count
+            call_count += 1
+            is_retry = request.extensions.get(x402AsyncTransport.RETRY_KEY)
+            if is_retry:
+                return _create_mock_response(200, b'{"success": true}')
+            mock_402 = _create_mock_response(402, b"{}")
+            mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+            return mock_402
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = mock_handle_request
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+
+        for i in range(3):
+            request = _create_httpx_request(f"https://example.com/resource{i}")
+            response = await transport.handle_async_request(request)
+            assert response.status_code == 200, f"Request {i + 1} failed"
+
+        assert call_count == 6  # 3 initial + 3 retries
+        assert mock_client.create_payment_payload_call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_should_set_retry_key_on_retry_request(self):
+        """Should set retry key extension on the retry request."""
+        mock_client = MockX402ClientWithCounter()
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        captured_requests = []
+
+        async def mock_handle_request(request):
+            captured_requests.append(request)
+            is_retry = request.extensions.get(x402AsyncTransport.RETRY_KEY)
+            if is_retry:
+                return _create_mock_response(200, b'{"success": true}')
+            mock_402 = _create_mock_response(402, b"{}")
+            mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+            return mock_402
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = mock_handle_request
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+        await transport.handle_async_request(_create_httpx_request())
+
+        assert x402AsyncTransport.RETRY_KEY not in captured_requests[0].extensions
+        assert captured_requests[1].extensions.get(x402AsyncTransport.RETRY_KEY) is True
+
+    @pytest.mark.asyncio
+    async def test_should_not_modify_original_request(self):
+        """Should not modify original request during retry."""
+        mock_client = MockX402ClientWithCounter()
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        async def mock_handle_request(request):
+            is_retry = request.extensions.get(x402AsyncTransport.RETRY_KEY)
+            if is_retry:
+                return _create_mock_response(200, b'{"success": true}')
+            mock_402 = _create_mock_response(402, b"{}")
+            mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+            return mock_402
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = mock_handle_request
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+        original_request = _create_httpx_request()
+        await transport.handle_async_request(original_request)
+
+        assert x402AsyncTransport.RETRY_KEY not in original_request.extensions
+        assert "X-Payment" not in original_request.headers
+
+    @pytest.mark.asyncio
+    async def test_should_handle_mixed_200_and_402_requests(self):
+        """Should handle alternating free (200) and paid (402) requests."""
+        mock_client = MockX402ClientWithCounter()
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        call_sequence = []
+
+        async def mock_handle_request(request):
+            url = str(request.url)
+            is_retry = request.extensions.get(x402AsyncTransport.RETRY_KEY)
+            call_sequence.append((url, is_retry or False))
+
+            if "/free" in url:
+                return _create_mock_response(200, b'{"free": true}')
+            elif is_retry:
+                return _create_mock_response(200, b'{"paid": true}')
+            mock_402 = _create_mock_response(402, b"{}")
+            mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+            return mock_402
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = mock_handle_request
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+
+        urls = [
+            "https://example.com/free",
+            "https://example.com/paid1",
+            "https://example.com/free",
+            "https://example.com/paid2",
+        ]
+        for url in urls:
+            response = await transport.handle_async_request(_create_httpx_request(url))
+            assert response.status_code == 200
+
+        expected = [
+            ("https://example.com/free", False),
+            ("https://example.com/paid1", False),
+            ("https://example.com/paid1", True),
+            ("https://example.com/free", False),
+            ("https://example.com/paid2", False),
+            ("https://example.com/paid2", True),
+        ]
+        assert call_sequence == expected
+
+
+# =============================================================================
+# Basic Functionality Tests with Parametrization
+# =============================================================================
+
+
+class TestBasicFunctionalityParameterized:
+    """Test basic transport functionality with parameterized tests."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("status_code", "content"),
+        [
+            (200, b"success"),
+            (404, b"not found"),
+            (500, b"server error"),
+            (301, b"redirect"),
+        ],
+    )
+    async def test_should_return_non_402_response_directly(self, status_code, content):
+        """Should return non-402 responses without payment handling."""
+        mock_client = MockX402ClientWithCounter()
+        mock_response = _create_mock_response(status_code, content)
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = AsyncMock(return_value=mock_response)
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+        response = await transport.handle_async_request(_create_httpx_request())
+
+        assert response.status_code == status_code
+        assert response.content == content
+        assert mock_client.create_payment_payload_call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_should_return_402_directly_when_retry_key_present(self):
+        """Should return 402 directly when retry key is present.
+
+        This prevents infinite retry loops when payment is rejected.
+        """
+        mock_client = MockX402ClientWithCounter()
+        mock_response = _create_mock_response(402, b"payment rejected")
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = AsyncMock(return_value=mock_response)
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+        request = httpx.Request(
+            "GET",
+            "https://example.com",
+            extensions={x402AsyncTransport.RETRY_KEY: True},
+        )
+
+        response = await transport.handle_async_request(request)
+
+        assert response.status_code == 402
+        assert mock_client.create_payment_payload_call_count == 0
+
+
+# =============================================================================
+# Error Handling Tests
+# =============================================================================
+
+
+class TestErrorHandlingTransport:
+    """Test error handling in the transport."""
+
+    @pytest.mark.asyncio
+    async def test_should_raise_payment_error_on_client_error(self):
+        """Should raise PaymentError when client fails."""
+        mock_client = MagicMock()
+        mock_client.create_payment_payload = AsyncMock(side_effect=Exception("Client error"))
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        mock_402 = _create_mock_response(402, b"{}")
+        mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = AsyncMock(return_value=mock_402)
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+
+        with pytest.raises(PaymentError, match="Failed to handle payment"):
+            await transport.handle_async_request(_create_httpx_request())
+
+    @pytest.mark.asyncio
+    async def test_should_propagate_payment_error(self):
+        """Should propagate PaymentError from client."""
+        mock_client = MagicMock()
+        mock_client.create_payment_payload = AsyncMock(
+            side_effect=PaymentError("Custom payment error")
+        )
+
+        payment_required = PaymentRequired(
+            x402_version=2,
+            accepts=[make_payment_requirements()],
+        )
+        encoded = encode_payment_required_header(payment_required)
+
+        mock_402 = _create_mock_response(402, b"{}")
+        mock_402.headers = {"PAYMENT-REQUIRED": encoded}
+
+        mock_transport = AsyncMock()
+        mock_transport.handle_async_request = AsyncMock(return_value=mock_402)
+
+        transport = x402AsyncTransport(mock_client, mock_transport)
+
+        with pytest.raises(PaymentError, match="Custom payment error"):
+            await transport.handle_async_request(_create_httpx_request())
+
+
+# =============================================================================
+# Factory Functions Tests with Patching
+# =============================================================================
+
+
+class TestFactoryFunctionsWithPatch:
+    """Test factory functions for creating transports and clients."""
+
+    def test_x402_httpx_transport_should_create_transport(self):
+        """Should create x402AsyncTransport instance."""
+        mock_client = MockX402Client()
+        transport = x402_httpx_transport(mock_client)
+        assert isinstance(transport, x402AsyncTransport)
+
+    def test_wrap_httpx_with_payment_should_create_client_with_transport(self):
+        """Should create AsyncClient with x402AsyncTransport."""
+        mock_client = MockX402Client()
+        client = wrapHttpxWithPayment(mock_client)
+
+        assert isinstance(client, httpx.AsyncClient)
+        assert isinstance(client._transport, x402AsyncTransport)
+
+    def test_x402_httpx_client_should_create_client_with_transport(self):
+        """Should create x402HttpxClient with payment transport."""
+        mock_client = MockX402Client()
+        client = x402HttpxClient(mock_client)
+
+        assert isinstance(client, httpx.AsyncClient)
+        assert isinstance(client._transport, x402AsyncTransport)

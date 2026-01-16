@@ -48,7 +48,7 @@ class x402HTTPAdapter(HTTPAdapter):
     Note: Uses synchronous payment creation with x402ClientSync.
     """
 
-    RETRY_HEADER = "X-x402-Payment-Retry"
+    RETRY_HEADER = "Payment-Retry"
 
     def __init__(
         self,
