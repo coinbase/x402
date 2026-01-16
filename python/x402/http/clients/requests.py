@@ -48,6 +48,8 @@ class x402HTTPAdapter(HTTPAdapter):
     Note: Uses synchronous payment creation.
     """
 
+    RETRY_HEADER = "X-x402-Payment-Retry"
+
     def __init__(
         self,
         client: x402Client | x402HTTPClient,
@@ -69,7 +71,6 @@ class x402HTTPAdapter(HTTPAdapter):
             self._http_client = HTTPClient(client)
 
         self._client = client
-        self._is_retry = False
 
     def send(
         self,
@@ -88,16 +89,18 @@ class x402HTTPAdapter(HTTPAdapter):
         Raises:
             PaymentError: If payment handling fails.
         """
-        # If this is a retry, just send it
-        if self._is_retry:
-            self._is_retry = False
-            return super().send(request, **kwargs)
+        # Check if this is already a retry (per-request state via header)
+        is_retry = request.headers.get(self.RETRY_HEADER) == "1"
 
         # Make initial request
         response = super().send(request, **kwargs)
 
         # Not a 402, return as-is
         if response.status_code != 402:
+            return response
+
+        # Already retried with payment, return the 402
+        if is_retry:
             return response
 
         try:
@@ -122,26 +125,20 @@ class x402HTTPAdapter(HTTPAdapter):
             # Encode payment headers
             payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
 
-            # Mark as retry and add payment headers
-            self._is_retry = True
-            request.headers.update(payment_headers)
-            request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
+            # Create a copy of the request for retry (don't modify original)
+            retry_request = request.copy()
+            retry_request.headers.update(payment_headers)
+            retry_request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
+            retry_request.headers[self.RETRY_HEADER] = "1"
 
-            # Retry request
-            retry_response = super().send(request, **kwargs)
+            # Retry request with payment
+            retry_response = super().send(retry_request, **kwargs)
 
-            # Copy retry response to original
-            response.status_code = retry_response.status_code
-            response.headers = retry_response.headers
-            response._content = retry_response.content
-
-            return response
+            return retry_response
 
         except PaymentError:
-            self._is_retry = False
             raise
         except Exception as e:
-            self._is_retry = False
             raise PaymentError(f"Failed to handle payment: {e}") from e
 
 
