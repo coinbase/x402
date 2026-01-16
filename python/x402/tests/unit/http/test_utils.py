@@ -13,6 +13,7 @@ from x402.http.utils import (
     encode_payment_required_header,
     encode_payment_response_header,
     encode_payment_signature_header,
+    htmlsafe_json_dumps,
     safe_base64_decode,
     safe_base64_encode,
 )
@@ -282,3 +283,69 @@ class TestDetectPaymentRequiredVersion:
         body = b"not json"
         with pytest.raises(ValueError, match="Could not detect x402 version"):
             detect_payment_required_version(headers, body)
+
+
+class TestHtmlsafeJsonDumps:
+    """Tests for HTML-safe JSON serialization (XSS prevention)."""
+
+    def test_escapes_less_than(self):
+        """Test that < is escaped to prevent XSS."""
+        result = htmlsafe_json_dumps({"script": "</script>"})
+        assert "<" not in result
+        assert "\\u003C" in result
+
+    def test_escapes_greater_than(self):
+        """Test that > is escaped to prevent XSS."""
+        result = htmlsafe_json_dumps({"tag": "<script>"})
+        assert ">" not in result
+        assert "\\u003E" in result
+
+    def test_escapes_ampersand(self):
+        """Test that & is escaped to prevent XSS."""
+        result = htmlsafe_json_dumps({"entity": "&amp;"})
+        assert "&" not in result
+        assert "\\u0026" in result
+
+    def test_xss_script_injection(self):
+        """Test that script tag injection is prevented."""
+        malicious = {"payload": "</script><script>alert('xss')</script>"}
+        result = htmlsafe_json_dumps(malicious)
+        # Verify no raw script tags
+        assert "</script>" not in result
+        assert "<script>" not in result
+        # Verify JSON is still valid when decoded
+        decoded = json.loads(result)
+        assert decoded == malicious
+
+    def test_preserves_valid_json(self):
+        """Test that normal JSON values are preserved."""
+        data = {"key": "value", "number": 123, "bool": True, "null": None}
+        result = htmlsafe_json_dumps(data)
+        decoded = json.loads(result)
+        assert decoded == data
+
+    def test_nested_objects(self):
+        """Test escaping in nested objects."""
+        data = {"outer": {"inner": "<script>alert(1)</script>"}}
+        result = htmlsafe_json_dumps(data)
+        assert "<" not in result
+        assert ">" not in result
+        decoded = json.loads(result)
+        assert decoded == data
+
+    def test_arrays(self):
+        """Test escaping in arrays."""
+        data = ["<", ">", "&", "normal"]
+        result = htmlsafe_json_dumps(data)
+        assert "<" not in result.replace("\\u003C", "")
+        assert ">" not in result.replace("\\u003E", "")
+        assert "&" not in result.replace("\\u0026", "")
+        decoded = json.loads(result)
+        assert decoded == data
+
+    def test_unicode_passthrough(self):
+        """Test that other unicode characters pass through correctly."""
+        data = {"emoji": "🔒", "chinese": "你好", "russian": "привет"}
+        result = htmlsafe_json_dumps(data)
+        decoded = json.loads(result)
+        assert decoded == data

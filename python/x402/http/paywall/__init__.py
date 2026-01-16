@@ -32,9 +32,10 @@ Example:
 from __future__ import annotations
 
 import html
-import json
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
+
+from ..utils import htmlsafe_json_dumps
 
 if TYPE_CHECKING:
     from ...schemas import PaymentRequired
@@ -109,18 +110,6 @@ class PaywallNetworkHandler(Protocol):
 # ============================================================================
 
 
-def _escape_string(s: str) -> str:
-    """Escape a string for safe injection into JavaScript."""
-    return (
-        s.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("'", "\\'")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-    )
-
-
 def _get_display_amount(payment_required: PaymentRequired) -> float:
     """Extract display amount from payment requirements."""
     if payment_required.accepts:
@@ -164,16 +153,17 @@ class EvmPaywallHandler:
         amount = _get_display_amount(payment_required)
         payment_required_json = payment_required.model_dump(by_alias=True, exclude_none=True)
 
+        x402_config = {
+            "amount": amount,
+            "paymentRequired": payment_required_json,
+            "testnet": testnet,
+            "currentUrl": current_url,
+            "appName": app_name,
+            "appLogo": app_logo,
+        }
         config_script = f"""
   <script>
-    window.x402 = {{
-      amount: {amount},
-      paymentRequired: {json.dumps(payment_required_json)},
-      testnet: {str(testnet).lower()},
-      currentUrl: "{_escape_string(current_url)}",
-      appName: "{_escape_string(app_name)}",
-      appLogo: "{_escape_string(app_logo)}",
-    }};
+    window.x402 = {htmlsafe_json_dumps(x402_config)};
   </script>"""
 
         return template.replace("</head>", f"{config_script}\n</head>")
@@ -240,16 +230,17 @@ class SvmPaywallHandler:
         amount = _get_display_amount(payment_required)
         payment_required_json = payment_required.model_dump(by_alias=True, exclude_none=True)
 
+        x402_config = {
+            "amount": amount,
+            "paymentRequired": payment_required_json,
+            "testnet": testnet,
+            "currentUrl": current_url,
+            "appName": app_name,
+            "appLogo": app_logo,
+        }
         config_script = f"""
   <script>
-    window.x402 = {{
-      amount: {amount},
-      paymentRequired: {json.dumps(payment_required_json)},
-      testnet: {str(testnet).lower()},
-      currentUrl: "{_escape_string(current_url)}",
-      appName: "{_escape_string(app_name)}",
-      appLogo: "{_escape_string(app_logo)}",
-    }};
+    window.x402 = {htmlsafe_json_dumps(x402_config)};
   </script>"""
 
         return template.replace("</head>", f"{config_script}\n</head>")

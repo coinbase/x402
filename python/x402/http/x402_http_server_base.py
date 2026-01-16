@@ -41,6 +41,7 @@ from .utils import (
     decode_payment_signature_header,
     encode_payment_required_header,
     encode_payment_response_header,
+    htmlsafe_json_dumps,
 )
 
 if TYPE_CHECKING:
@@ -639,8 +640,6 @@ class x402HTTPServerBase:
         config: PaywallConfig | None,
     ) -> str:
         """Inject configuration into paywall template (like Go)."""
-        import json
-
         display_amount = self._get_display_amount(payment_required)
         app_name = config.app_name if config and config.app_name else ""
         app_logo = config.app_logo if config and config.app_logo else ""
@@ -653,17 +652,18 @@ class x402HTTPServerBase:
 
         payment_data = payment_required.model_dump(by_alias=True, exclude_none=True)
 
-        config_script = f"""<script>
-    window.x402 = {{
-        paymentRequired: {json.dumps(payment_data)},
-        appName: "{html.escape(app_name)}",
-        appLogo: "{html.escape(app_logo)}",
-        amount: {display_amount},
-        testnet: {str(testnet).lower()},
-        displayAmount: {display_amount:.2f},
-        currentUrl: "{html.escape(current_url)}"
-    }};
-</script>"""
+        x402_config = {
+            "paymentRequired": payment_data,
+            "appName": app_name,
+            "appLogo": app_logo,
+            "amount": display_amount,
+            "testnet": testnet,
+            "displayAmount": round(display_amount, 2),
+            "currentUrl": current_url,
+        }
+        config_script = (
+            f"<script>\n    window.x402 = {htmlsafe_json_dumps(x402_config)};\n</script>"
+        )
 
         return template.replace("</body>", config_script + "</body>")
 
