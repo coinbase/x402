@@ -36,12 +36,12 @@ RequirementsView = PaymentRequirements | PaymentRequirementsV1
 # Includes both EVM (eip155) and SVM (solana) networks
 NETWORK_PREFERENCES = [
     SOLANA_MAINNET_CAIP2,  # Solana mainnet (preferred - fast & low fees)
-    "eip155:8453",         # Base mainnet (low fees)
-    "eip155:42161",        # Arbitrum One
-    "eip155:10",           # Optimism
-    "eip155:1",            # Ethereum mainnet
-    SOLANA_DEVNET_CAIP2,   # Solana devnet (testnet)
-    "eip155:84532",        # Base Sepolia (testnet)
+    "eip155:8453",  # Base mainnet (low fees)
+    "eip155:42161",  # Arbitrum One
+    "eip155:10",  # Optimism
+    "eip155:1",  # Ethereum mainnet
+    SOLANA_DEVNET_CAIP2,  # Solana devnet (testnet)
+    "eip155:84532",  # Base Sepolia (testnet)
 ]
 
 
@@ -71,7 +71,9 @@ def preferred_network_selector(
     # Try each preference in order
     for preference in NETWORK_PREFERENCES:
         for opt in options:
-            if opt.network == preference or opt.network.startswith(preference.split(":")[0] + ":"):
+            if opt.network == preference or opt.network.startswith(
+                preference.split(":")[0] + ":"
+            ):
                 print(f"✨ Selected preferred network: {opt.network}")
                 return opt
 
@@ -93,7 +95,7 @@ async def run_preferred_network_example(
         url: URL to make the request to.
     """
     if not evm_private_key and not svm_private_key:
-        print("Error: At least one of PRIVATE_KEY (EVM) or SOLANA_PRIVATE_KEY is required")
+        print("Error: At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required")
         sys.exit(1)
 
     print("🎯 Creating client with preferred network selection...\n")
@@ -132,20 +134,22 @@ async def run_preferred_network_example(
                 settle_response = http_client.get_payment_settle_response(
                     lambda name: response.headers.get(name)
                 )
-                print(f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}")
+                print(
+                    f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}"
+                )
             except ValueError:
                 print("\nNo payment response header found")
 
 
 async def main() -> None:
     """Main entry point."""
-    evm_private_key = os.getenv("PRIVATE_KEY")
-    svm_private_key = os.getenv("SOLANA_PRIVATE_KEY")
+    evm_private_key = os.getenv("EVM_PRIVATE_KEY")
+    svm_private_key = os.getenv("SVM_PRIVATE_KEY")
     base_url = os.getenv("RESOURCE_SERVER_URL", "http://localhost:4021")
     endpoint_path = os.getenv("ENDPOINT_PATH", "/weather")
 
     if not evm_private_key and not svm_private_key:
-        print("Error: At least one of PRIVATE_KEY (EVM) or SOLANA_PRIVATE_KEY is required")
+        print("Error: At least one of EVM_PRIVATE_KEY or SVM_PRIVATE_KEY is required")
         print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 

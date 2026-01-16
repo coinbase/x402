@@ -35,7 +35,7 @@ from x402.schemas import (
 load_dotenv()
 
 
-def before_payment_creation_hook(
+async def before_payment_creation_hook(
     context: PaymentCreationContext,
 ) -> AbortResult | None:
     """Hook called before payment creation.
@@ -57,7 +57,7 @@ def before_payment_creation_hook(
     return None  # Continue with payment creation
 
 
-def after_payment_creation_hook(context: PaymentCreatedContext) -> None:
+async def after_payment_creation_hook(context: PaymentCreatedContext) -> None:
     """Hook called after successful payment creation.
 
     Use this for logging, metrics, or other side effects.
@@ -70,7 +70,7 @@ def after_payment_creation_hook(context: PaymentCreatedContext) -> None:
     print()
 
 
-def payment_creation_failure_hook(
+async def payment_creation_failure_hook(
     context: PaymentCreationFailureContext,
 ) -> None:
     """Hook called when payment creation fails.
@@ -127,19 +127,21 @@ async def run_hooks_example(private_key: str, url: str) -> None:
                 settle_response = http_client.get_payment_settle_response(
                     lambda name: response.headers.get(name)
                 )
-                print(f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}")
+                print(
+                    f"\n💰 Payment Details: {settle_response.model_dump_json(indent=2)}"
+                )
             except ValueError:
                 print("\nNo payment response header found")
 
 
 async def main() -> None:
     """Main entry point."""
-    private_key = os.getenv("PRIVATE_KEY")
+    private_key = os.getenv("EVM_PRIVATE_KEY")
     base_url = os.getenv("RESOURCE_SERVER_URL", "http://localhost:4021")
     endpoint_path = os.getenv("ENDPOINT_PATH", "/weather")
 
     if not private_key:
-        print("Error: PRIVATE_KEY environment variable is required")
+        print("Error: EVM_PRIVATE_KEY environment variable is required")
         print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 

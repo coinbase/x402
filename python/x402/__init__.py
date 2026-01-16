@@ -3,37 +3,66 @@
 This SDK provides client-side, server-side, and facilitator components
 for implementing the x402 payment protocol.
 
-Quick Start:
+Both async (default) and sync variants are available:
+- x402Client / x402ClientSync
+- x402ResourceServer / x402ResourceServerSync
+- x402Facilitator / x402FacilitatorSync
+
+Quick Start (Async - Recommended):
     ```python
     from x402 import x402Client, x402ResourceServer, x402Facilitator
 
     # Client-side: Create payment payloads
     client = x402Client()
     client.register("eip155:8453", ExactEvmScheme(signer=my_signer))
-    payload = client.create_payment_payload(payment_required)
+    payload = await client.create_payment_payload(payment_required)
 
     # Server-side: Protect resources
     server = x402ResourceServer(facilitator_client)
     server.register("eip155:8453", ExactEvmServerScheme())
     server.initialize()
-    requirements = server.build_payment_requirements(config)
+    result = await server.verify_payment(payload, requirements)
 
     # Facilitator: Verify and settle payments
     facilitator = x402Facilitator()
+    facilitator.register(["eip155:8453"], ExactEvmFacilitatorScheme(wallet))
+    result = await facilitator.verify(payload, requirements)
+    ```
+
+Quick Start (Sync):
+    ```python
+    from x402 import x402ClientSync, x402ResourceServerSync, x402FacilitatorSync
+
+    # Client-side: Create payment payloads
+    client = x402ClientSync()
+    client.register("eip155:8453", ExactEvmScheme(signer=my_signer))
+    payload = client.create_payment_payload(payment_required)
+
+    # Server-side: Protect resources
+    server = x402ResourceServerSync(facilitator_client)
+    server.register("eip155:8453", ExactEvmServerScheme())
+    server.initialize()
+    result = server.verify_payment(payload, requirements)
+
+    # Facilitator: Verify and settle payments
+    facilitator = x402FacilitatorSync()
     facilitator.register(["eip155:8453"], ExactEvmFacilitatorScheme(wallet))
     result = facilitator.verify(payload, requirements)
     ```
 """
 
-# Core components
+# Core components - Async (default)
 from .client import (
+    SchemeRegistration,
     default_payment_selector,
     max_amount,
     prefer_network,
     prefer_scheme,
     x402Client,
+    x402ClientConfig,
+    x402ClientSync,
 )
-from .facilitator import x402Facilitator
+from .facilitator import x402Facilitator, x402FacilitatorSync
 
 # Interfaces (for implementing custom schemes)
 from .interfaces import (
@@ -101,18 +130,32 @@ from .schemas import (
     parse_payment_payload,
     parse_payment_required,
 )
-from .server import FacilitatorClient, x402ResourceServer
+from .server import (
+    FacilitatorClient,
+    FacilitatorClientSync,
+    x402ResourceServer,
+    x402ResourceServerSync,
+)
 
 __version__ = "0.1.0"
 
 __all__ = [
     # Version
     "__version__",
-    # Core components
+    # Core components - Async (default)
     "x402Client",
     "x402ResourceServer",
     "x402Facilitator",
+    # Core components - Sync
+    "x402ClientSync",
+    "x402ResourceServerSync",
+    "x402FacilitatorSync",
+    # Config types
+    "SchemeRegistration",
+    "x402ClientConfig",
+    # Protocols
     "FacilitatorClient",
+    "FacilitatorClientSync",
     # Policies
     "default_payment_selector",
     "prefer_network",

@@ -18,8 +18,10 @@ from .facilitator_client import (
     AuthProvider,
     CreateHeadersAuthProvider,
     FacilitatorClient,
+    FacilitatorClientSync,
     FacilitatorConfig,
     HTTPFacilitatorClient,
+    HTTPFacilitatorClientSync,
 )
 from .types import (
     CompiledRoute,
@@ -50,7 +52,7 @@ from .utils import (
     safe_base64_decode,
     safe_base64_encode,
 )
-from .x402_http_client import PaymentRoundTripper, x402HTTPClient
+from .x402_http_client import PaymentRoundTripper, x402HTTPClient, x402HTTPClientSync
 from .x402_http_server import PaywallProvider, x402HTTPResourceServer, x402HTTPResourceServerSync
 
 # HTTP clients (imported on demand to avoid requiring httpx/requests)
@@ -81,13 +83,16 @@ __all__ = [
     "DEFAULT_FACILITATOR_URL",
     # Facilitator client
     "HTTPFacilitatorClient",
+    "HTTPFacilitatorClientSync",
     "FacilitatorClient",
+    "FacilitatorClientSync",
     "FacilitatorConfig",
     "AuthProvider",
     "AuthHeaders",
     "CreateHeadersAuthProvider",
     # HTTP client
     "x402HTTPClient",
+    "x402HTTPClientSync",
     "PaymentRoundTripper",
     # HTTP server
     "x402HTTPResourceServer",

@@ -132,10 +132,6 @@ class FacilitatorWeb3Signer:
     Implements the FacilitatorEvmSigner protocol for use with web3.py
     and eth_account, enabling signature verification and on-chain settlement.
 
-    This implementation follows the patterns established by:
-    - TypeScript: toFacilitatorEvmSigner with viem
-    - Go: facilitatorEvmSigner in signer.go
-
     Example:
         ```python
         from x402.mechanisms.evm import FacilitatorWeb3Signer

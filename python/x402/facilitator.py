@@ -1,81 +1,50 @@
 """x402Facilitator - Payment verification and settlement component.
 
-Runs as a service, manages scheme mechanisms, handles V1/V2 routing.
+Provides both async (x402Facilitator) and sync (x402FacilitatorSync)
+implementations. Runs as a service, manages scheme mechanisms, handles V1/V2 routing.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Generic, TypeVar
+import asyncio
+from typing import Any
 
 from typing_extensions import Self
 
-from .interfaces import SchemeNetworkFacilitator, SchemeNetworkFacilitatorV1
+from .facilitator_base import (
+    AfterSettleHook,
+    AfterVerifyHook,
+    BeforeSettleHook,
+    BeforeVerifyHook,
+    OnSettleFailureHook,
+    OnVerifyFailureHook,
+    SyncAfterSettleHook,
+    SyncAfterVerifyHook,
+    SyncBeforeSettleHook,
+    SyncBeforeVerifyHook,
+    SyncOnSettleFailureHook,
+    SyncOnVerifyFailureHook,
+    x402FacilitatorBase,
+)
 from .schemas import (
-    AbortResult,
-    Network,
-    PaymentAbortedError,
     PaymentPayload,
     PaymentPayloadV1,
     PaymentRequirements,
     PaymentRequirementsV1,
-    RecoveredSettleResult,
-    RecoveredVerifyResult,
-    SchemeNotFoundError,
-    SettleContext,
-    SettleFailureContext,
     SettleResponse,
-    SettleResultContext,
-    SupportedKind,
-    SupportedResponse,
-    VerifyContext,
-    VerifyFailureContext,
     VerifyResponse,
-    VerifyResultContext,
-    derive_network_pattern,
-    matches_network_pattern,
 )
 
 # ============================================================================
-# Type Aliases
-# ============================================================================
-
-T = TypeVar("T")
-
-BeforeVerifyHook = Callable[[VerifyContext], None | AbortResult]
-AfterVerifyHook = Callable[[VerifyResultContext], None]
-OnVerifyFailureHook = Callable[[VerifyFailureContext], None | RecoveredVerifyResult]
-
-BeforeSettleHook = Callable[[SettleContext], None | AbortResult]
-AfterSettleHook = Callable[[SettleResultContext], None]
-OnSettleFailureHook = Callable[[SettleFailureContext], None | RecoveredSettleResult]
-
-
-# ============================================================================
-# Internal Types
+# Async Facilitator (Default)
 # ============================================================================
 
 
-@dataclass
-class _SchemeData(Generic[T]):
-    """Internal storage for registered schemes."""
+class x402Facilitator(x402FacilitatorBase):
+    """Async payment verification and settlement component.
 
-    facilitator: T
-    networks: set[Network]
-    pattern: Network  # Wildcard like "eip155:*"
-
-
-# ============================================================================
-# x402Facilitator
-# ============================================================================
-
-
-class x402Facilitator:
-    """Payment verification and settlement component.
-
-    Manages scheme mechanisms and handles V1/V2 protocol routing.
-    Typically runs as a service with HTTP endpoints for verify/settle/supported.
+    Supports both sync and async hooks (auto-detected).
+    Use x402FacilitatorSync for sync-only environments.
 
     Example:
         ```python
@@ -90,7 +59,7 @@ class x402Facilitator:
         facilitator.register_extension("bazaar")
 
         # Verify payment
-        result = facilitator.verify(payload, requirements)
+        result = await facilitator.verify(payload, requirements)
 
         # Get supported kinds for /supported endpoint
         supported = facilitator.get_supported()
@@ -98,12 +67,9 @@ class x402Facilitator:
     """
 
     def __init__(self) -> None:
-        """Initialize x402Facilitator."""
-        self._schemes: list[_SchemeData[SchemeNetworkFacilitator]] = []
-        self._schemes_v1: list[_SchemeData[SchemeNetworkFacilitatorV1]] = []
-        self._extensions: list[str] = []
-
-        # Hooks
+        """Initialize async x402Facilitator."""
+        super().__init__()
+        # Type the hook lists properly
         self._before_verify_hooks: list[BeforeVerifyHook] = []
         self._after_verify_hooks: list[AfterVerifyHook] = []
         self._on_verify_failure_hooks: list[OnVerifyFailureHook] = []
@@ -113,148 +79,195 @@ class x402Facilitator:
         self._on_settle_failure_hooks: list[OnSettleFailureHook] = []
 
     # ========================================================================
-    # Registration
+    # Hook Registration
     # ========================================================================
 
-    def register(
+    def on_before_verify(self, hook: BeforeVerifyHook) -> Self:
+        """Register hook before verification. Return AbortResult to abort."""
+        self._before_verify_hooks.append(hook)
+        return self
+
+    def on_after_verify(self, hook: AfterVerifyHook) -> Self:
+        """Register hook after successful verification."""
+        self._after_verify_hooks.append(hook)
+        return self
+
+    def on_verify_failure(self, hook: OnVerifyFailureHook) -> Self:
+        """Register hook on verification failure. Return RecoveredVerifyResult to recover."""
+        self._on_verify_failure_hooks.append(hook)
+        return self
+
+    def on_before_settle(self, hook: BeforeSettleHook) -> Self:
+        """Register hook before settlement. Return AbortResult to abort."""
+        self._before_settle_hooks.append(hook)
+        return self
+
+    def on_after_settle(self, hook: AfterSettleHook) -> Self:
+        """Register hook after successful settlement."""
+        self._after_settle_hooks.append(hook)
+        return self
+
+    def on_settle_failure(self, hook: OnSettleFailureHook) -> Self:
+        """Register hook on settlement failure. Return RecoveredSettleResult to recover."""
+        self._on_settle_failure_hooks.append(hook)
+        return self
+
+    # ========================================================================
+    # Verify (Async)
+    # ========================================================================
+
+    async def verify(
         self,
-        networks: list[Network],
-        facilitator: SchemeNetworkFacilitator,
-    ) -> Self:
-        """Register a V2 facilitator for one or more networks.
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+        payload_bytes: bytes | None = None,
+        requirements_bytes: bytes | None = None,
+    ) -> VerifyResponse:
+        """Verify a payment.
+
+        Routes to V1 or V2 verification based on payload version.
 
         Args:
-            networks: List of networks to register for.
-            facilitator: Scheme facilitator implementation.
+            payload: Payment payload to verify.
+            requirements: Requirements to verify against.
+            payload_bytes: Raw payload bytes (escape hatch for extensions).
+            requirements_bytes: Raw requirements bytes (escape hatch).
 
         Returns:
-            Self for chaining.
-        """
-        pattern = derive_network_pattern(networks)
-        self._schemes.append(
-            _SchemeData(
-                facilitator=facilitator,
-                networks=set(networks),
-                pattern=pattern,
-            )
-        )
-        return self
+            VerifyResponse with is_valid=True or is_valid=False.
 
-    def register_v1(
+        Raises:
+            SchemeNotFoundError: If no facilitator registered for scheme/network.
+            PaymentAbortedError: If a before hook aborts.
+        """
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
+        result = None
+        try:
+            while True:
+                _, hook, ctx = gen.send(result)
+                result = await self._execute_hook(hook, ctx)
+        except StopIteration as e:
+            return e.value
+
+    # ========================================================================
+    # Settle (Async)
+    # ========================================================================
+
+    async def settle(
         self,
-        networks: list[Network],
-        facilitator: SchemeNetworkFacilitatorV1,
-    ) -> Self:
-        """Register a V1 facilitator for one or more networks.
+        payload: PaymentPayload | PaymentPayloadV1,
+        requirements: PaymentRequirements | PaymentRequirementsV1,
+        payload_bytes: bytes | None = None,
+        requirements_bytes: bytes | None = None,
+    ) -> SettleResponse:
+        """Settle a payment.
+
+        Routes to V1 or V2 settlement based on payload version.
 
         Args:
-            networks: List of networks to register for.
-            facilitator: V1 scheme facilitator implementation.
+            payload: Payment payload to settle.
+            requirements: Requirements for settlement.
+            payload_bytes: Raw payload bytes (escape hatch for extensions).
+            requirements_bytes: Raw requirements bytes (escape hatch).
 
         Returns:
-            Self for chaining.
+            SettleResponse with success=True or success=False.
+
+        Raises:
+            SchemeNotFoundError: If no facilitator registered for scheme/network.
+            PaymentAbortedError: If a before hook aborts.
         """
-        pattern = derive_network_pattern(networks)
-        self._schemes_v1.append(
-            _SchemeData(
-                facilitator=facilitator,
-                networks=set(networks),
-                pattern=pattern,
-            )
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
+        result = None
+        try:
+            while True:
+                _, hook, ctx = gen.send(result)
+                result = await self._execute_hook(hook, ctx)
+        except StopIteration as e:
+            return e.value
+
+    async def _execute_hook(self, hook: Any, context: Any) -> Any:
+        """Execute hook, auto-detecting sync/async."""
+        result = hook(context)
+        if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+            return await result
+        return result
+
+
+# ============================================================================
+# Sync Facilitator
+# ============================================================================
+
+
+class x402FacilitatorSync(x402FacilitatorBase):
+    """Sync payment verification and settlement component.
+
+    Only supports sync hooks. For async hook support, use x402Facilitator.
+
+    Example:
+        ```python
+        from x402 import x402FacilitatorSync
+        from x402.mechanisms.evm.exact import ExactEvmFacilitatorScheme
+
+        facilitator = x402FacilitatorSync()
+        facilitator.register(
+            ["eip155:8453", "eip155:84532"],
+            ExactEvmFacilitatorScheme(wallet=facilitator_wallet),
         )
-        return self
 
-    def register_extension(self, extension: str) -> Self:
-        """Register an extension name.
+        # Verify payment
+        result = facilitator.verify(payload, requirements)
+        ```
+    """
 
-        Args:
-            extension: Extension key (e.g., "bazaar").
+    def __init__(self) -> None:
+        """Initialize sync x402Facilitator."""
+        super().__init__()
+        # Type the hook lists for sync-only
+        self._before_verify_hooks: list[SyncBeforeVerifyHook] = []
+        self._after_verify_hooks: list[SyncAfterVerifyHook] = []
+        self._on_verify_failure_hooks: list[SyncOnVerifyFailureHook] = []
 
-        Returns:
-            Self for chaining.
-        """
-        if extension not in self._extensions:
-            self._extensions.append(extension)
-        return self
+        self._before_settle_hooks: list[SyncBeforeSettleHook] = []
+        self._after_settle_hooks: list[SyncAfterSettleHook] = []
+        self._on_settle_failure_hooks: list[SyncOnSettleFailureHook] = []
 
     # ========================================================================
     # Hook Registration
     # ========================================================================
 
-    def on_before_verify(self, hook: BeforeVerifyHook) -> Self:
-        """Register hook to run before verification.
-
-        Args:
-            hook: Hook function. Can return AbortResult to abort.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_before_verify(self, hook: SyncBeforeVerifyHook) -> Self:
+        """Register hook before verification. Return AbortResult to abort."""
         self._before_verify_hooks.append(hook)
         return self
 
-    def on_after_verify(self, hook: AfterVerifyHook) -> Self:
-        """Register hook to run after successful verification.
-
-        Args:
-            hook: Hook function.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_after_verify(self, hook: SyncAfterVerifyHook) -> Self:
+        """Register hook after successful verification."""
         self._after_verify_hooks.append(hook)
         return self
 
-    def on_verify_failure(self, hook: OnVerifyFailureHook) -> Self:
-        """Register hook to run on verification failure.
-
-        Args:
-            hook: Hook function. Can return RecoveredVerifyResult to recover.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_verify_failure(self, hook: SyncOnVerifyFailureHook) -> Self:
+        """Register hook on verification failure. Return RecoveredVerifyResult to recover."""
         self._on_verify_failure_hooks.append(hook)
         return self
 
-    def on_before_settle(self, hook: BeforeSettleHook) -> Self:
-        """Register hook to run before settlement.
-
-        Args:
-            hook: Hook function. Can return AbortResult to abort.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_before_settle(self, hook: SyncBeforeSettleHook) -> Self:
+        """Register hook before settlement. Return AbortResult to abort."""
         self._before_settle_hooks.append(hook)
         return self
 
-    def on_after_settle(self, hook: AfterSettleHook) -> Self:
-        """Register hook to run after successful settlement.
-
-        Args:
-            hook: Hook function.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_after_settle(self, hook: SyncAfterSettleHook) -> Self:
+        """Register hook after successful settlement."""
         self._after_settle_hooks.append(hook)
         return self
 
-    def on_settle_failure(self, hook: OnSettleFailureHook) -> Self:
-        """Register hook to run on settlement failure.
-
-        Args:
-            hook: Hook function. Can return RecoveredSettleResult to recover.
-
-        Returns:
-            Self for chaining.
-        """
+    def on_settle_failure(self, hook: SyncOnSettleFailureHook) -> Self:
+        """Register hook on settlement failure. Return RecoveredSettleResult to recover."""
         self._on_settle_failure_hooks.append(hook)
         return self
 
     # ========================================================================
-    # Verify
+    # Verify (Sync)
     # ========================================================================
 
     def verify(
@@ -281,120 +294,17 @@ class x402Facilitator:
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        # Build context
-        context = VerifyContext(
-            payment_payload=payload,
-            requirements=requirements,
-            payload_bytes=payload_bytes,
-            requirements_bytes=requirements_bytes,
-        )
-
-        # Execute before hooks
-        for hook in self._before_verify_hooks:
-            result = hook(context)
-            if isinstance(result, AbortResult):
-                raise PaymentAbortedError(result.reason)
-
+        gen = self._verify_core(payload, requirements, payload_bytes, requirements_bytes)
+        result = None
         try:
-            # Route by version
-            if payload.x402_version == 1:
-                verify_result = self._verify_v1(
-                    payload,  # type: ignore[arg-type]
-                    requirements,  # type: ignore[arg-type]
-                )
-            else:
-                verify_result = self._verify_v2(
-                    payload,  # type: ignore[arg-type]
-                    requirements,  # type: ignore[arg-type]
-                )
-
-            # Check if verification failed
-            if not verify_result.is_valid:
-                failure_context = VerifyFailureContext(
-                    payment_payload=payload,
-                    requirements=requirements,
-                    payload_bytes=payload_bytes,
-                    requirements_bytes=requirements_bytes,
-                    error=Exception(verify_result.invalid_reason or "Verification failed"),
-                )
-                for hook in self._on_verify_failure_hooks:
-                    result = hook(failure_context)
-                    if isinstance(result, RecoveredVerifyResult):
-                        # Execute after hooks with recovered result
-                        result_context = VerifyResultContext(
-                            payment_payload=payload,
-                            requirements=requirements,
-                            payload_bytes=payload_bytes,
-                            requirements_bytes=requirements_bytes,
-                            result=result.result,
-                        )
-                        for after_hook in self._after_verify_hooks:
-                            after_hook(result_context)
-                        return result.result
-
-                return verify_result
-
-            # Execute after hooks for success
-            result_context = VerifyResultContext(
-                payment_payload=payload,
-                requirements=requirements,
-                payload_bytes=payload_bytes,
-                requirements_bytes=requirements_bytes,
-                result=verify_result,
-            )
-            for hook in self._after_verify_hooks:
-                hook(result_context)
-
-            return verify_result
-
-        except Exception as e:
-            # Execute failure hooks
-            failure_context = VerifyFailureContext(
-                payment_payload=payload,
-                requirements=requirements,
-                payload_bytes=payload_bytes,
-                requirements_bytes=requirements_bytes,
-                error=e,
-            )
-            for hook in self._on_verify_failure_hooks:
-                result = hook(failure_context)
-                if isinstance(result, RecoveredVerifyResult):
-                    return result.result
-
-            raise
-
-    def _verify_v2(
-        self,
-        payload: PaymentPayload,
-        requirements: PaymentRequirements,
-    ) -> VerifyResponse:
-        """Verify V2 payment."""
-        scheme = payload.get_scheme()
-        network = payload.get_network()
-
-        facilitator = self._find_facilitator(scheme, network)
-        if facilitator is None:
-            raise SchemeNotFoundError(scheme, network)
-
-        return facilitator.verify(payload, requirements)
-
-    def _verify_v1(
-        self,
-        payload: PaymentPayloadV1,
-        requirements: PaymentRequirementsV1,
-    ) -> VerifyResponse:
-        """Verify V1 payment."""
-        scheme = payload.get_scheme()
-        network = payload.get_network()
-
-        facilitator = self._find_facilitator_v1(scheme, network)
-        if facilitator is None:
-            raise SchemeNotFoundError(scheme, network)
-
-        return facilitator.verify(payload, requirements)
+            while True:
+                _, hook, ctx = gen.send(result)
+                result = self._execute_hook_sync(hook, ctx)
+        except StopIteration as e:
+            return e.value
 
     # ========================================================================
-    # Settle
+    # Settle (Sync)
     # ========================================================================
 
     def settle(
@@ -421,231 +331,22 @@ class x402Facilitator:
             SchemeNotFoundError: If no facilitator registered for scheme/network.
             PaymentAbortedError: If a before hook aborts.
         """
-        # Build context
-        context = SettleContext(
-            payment_payload=payload,
-            requirements=requirements,
-            payload_bytes=payload_bytes,
-            requirements_bytes=requirements_bytes,
-        )
-
-        # Execute before hooks
-        for hook in self._before_settle_hooks:
-            result = hook(context)
-            if isinstance(result, AbortResult):
-                raise PaymentAbortedError(result.reason)
-
+        gen = self._settle_core(payload, requirements, payload_bytes, requirements_bytes)
+        result = None
         try:
-            # Route by version
-            if payload.x402_version == 1:
-                settle_result = self._settle_v1(
-                    payload,  # type: ignore[arg-type]
-                    requirements,  # type: ignore[arg-type]
-                )
-            else:
-                settle_result = self._settle_v2(
-                    payload,  # type: ignore[arg-type]
-                    requirements,  # type: ignore[arg-type]
-                )
+            while True:
+                _, hook, ctx = gen.send(result)
+                result = self._execute_hook_sync(hook, ctx)
+        except StopIteration as e:
+            return e.value
 
-            # Check if settlement failed
-            if not settle_result.success:
-                failure_context = SettleFailureContext(
-                    payment_payload=payload,
-                    requirements=requirements,
-                    payload_bytes=payload_bytes,
-                    requirements_bytes=requirements_bytes,
-                    error=Exception(settle_result.error_reason or "Settlement failed"),
-                )
-                for hook in self._on_settle_failure_hooks:
-                    result = hook(failure_context)
-                    if isinstance(result, RecoveredSettleResult):
-                        # Execute after hooks with recovered result
-                        result_context = SettleResultContext(
-                            payment_payload=payload,
-                            requirements=requirements,
-                            payload_bytes=payload_bytes,
-                            requirements_bytes=requirements_bytes,
-                            result=result.result,
-                        )
-                        for after_hook in self._after_settle_hooks:
-                            after_hook(result_context)
-                        return result.result
-
-                return settle_result
-
-            # Execute after hooks for success
-            result_context = SettleResultContext(
-                payment_payload=payload,
-                requirements=requirements,
-                payload_bytes=payload_bytes,
-                requirements_bytes=requirements_bytes,
-                result=settle_result,
+    def _execute_hook_sync(self, hook: Any, context: Any) -> Any:
+        """Execute hook synchronously. Raises if async hook detected."""
+        result = hook(context)
+        if asyncio.iscoroutine(result):
+            result.close()  # Prevent warning
+            raise TypeError(
+                "Async hooks are not supported in x402FacilitatorSync. "
+                "Use x402Facilitator for async hook support."
             )
-            for hook in self._after_settle_hooks:
-                hook(result_context)
-
-            return settle_result
-
-        except Exception as e:
-            # Execute failure hooks
-            failure_context = SettleFailureContext(
-                payment_payload=payload,
-                requirements=requirements,
-                payload_bytes=payload_bytes,
-                requirements_bytes=requirements_bytes,
-                error=e,
-            )
-            for hook in self._on_settle_failure_hooks:
-                result = hook(failure_context)
-                if isinstance(result, RecoveredSettleResult):
-                    return result.result
-
-            raise
-
-    def _settle_v2(
-        self,
-        payload: PaymentPayload,
-        requirements: PaymentRequirements,
-    ) -> SettleResponse:
-        """Settle V2 payment."""
-        scheme = payload.get_scheme()
-        network = payload.get_network()
-
-        facilitator = self._find_facilitator(scheme, network)
-        if facilitator is None:
-            raise SchemeNotFoundError(scheme, network)
-
-        return facilitator.settle(payload, requirements)
-
-    def _settle_v1(
-        self,
-        payload: PaymentPayloadV1,
-        requirements: PaymentRequirementsV1,
-    ) -> SettleResponse:
-        """Settle V1 payment."""
-        scheme = payload.get_scheme()
-        network = payload.get_network()
-
-        facilitator = self._find_facilitator_v1(scheme, network)
-        if facilitator is None:
-            raise SchemeNotFoundError(scheme, network)
-
-        return facilitator.settle(payload, requirements)
-
-    # ========================================================================
-    # Supported
-    # ========================================================================
-
-    def get_supported(self) -> SupportedResponse:
-        """Get supported payment kinds and extensions.
-
-        Returns:
-            SupportedResponse with kinds, extensions, and signers.
-        """
-        kinds: list[SupportedKind] = []
-        signers: dict[str, list[str]] = {}
-
-        # V2 schemes
-        for scheme_data in self._schemes:
-            facilitator = scheme_data.facilitator
-
-            for network in scheme_data.networks:
-                kinds.append(
-                    SupportedKind(
-                        x402_version=2,
-                        scheme=facilitator.scheme,
-                        network=network,
-                        extra=facilitator.get_extra(network),
-                    )
-                )
-
-                # Collect signers by CAIP family
-                caip_family = facilitator.caip_family
-                network_signers = facilitator.get_signers(network)
-                if caip_family not in signers:
-                    signers[caip_family] = []
-                for signer in network_signers:
-                    if signer not in signers[caip_family]:
-                        signers[caip_family].append(signer)
-
-        # V1 schemes
-        for scheme_data in self._schemes_v1:
-            facilitator = scheme_data.facilitator
-
-            for network in scheme_data.networks:
-                kinds.append(
-                    SupportedKind(
-                        x402_version=1,
-                        scheme=facilitator.scheme,
-                        network=network,
-                        extra=facilitator.get_extra(network),
-                    )
-                )
-
-                # Collect signers
-                caip_family = facilitator.caip_family
-                network_signers = facilitator.get_signers(network)
-                if caip_family not in signers:
-                    signers[caip_family] = []
-                for signer in network_signers:
-                    if signer not in signers[caip_family]:
-                        signers[caip_family].append(signer)
-
-        return SupportedResponse(
-            kinds=kinds,
-            extensions=self._extensions,
-            signers=signers,
-        )
-
-    def get_extensions(self) -> list[str]:
-        """Get registered extension names.
-
-        Returns:
-            List of extension keys.
-        """
-        return list(self._extensions)
-
-    # ========================================================================
-    # Internal Helpers
-    # ========================================================================
-
-    def _find_facilitator(
-        self,
-        scheme: str,
-        network: Network,
-    ) -> SchemeNetworkFacilitator | None:
-        """Find V2 facilitator for scheme/network."""
-        for scheme_data in self._schemes:
-            if scheme_data.facilitator.scheme != scheme:
-                continue
-
-            # Check if network matches
-            if network in scheme_data.networks:
-                return scheme_data.facilitator
-
-            # Check wildcard pattern
-            if matches_network_pattern(network, scheme_data.pattern):
-                return scheme_data.facilitator
-
-        return None
-
-    def _find_facilitator_v1(
-        self,
-        scheme: str,
-        network: Network,
-    ) -> SchemeNetworkFacilitatorV1 | None:
-        """Find V1 facilitator for scheme/network."""
-        for scheme_data in self._schemes_v1:
-            if scheme_data.facilitator.scheme != scheme:
-                continue
-
-            # Check if network matches
-            if network in scheme_data.networks:
-                return scheme_data.facilitator
-
-            # Check wildcard pattern
-            if matches_network_pattern(network, scheme_data.pattern):
-                return scheme_data.facilitator
-
-        return None
+        return result

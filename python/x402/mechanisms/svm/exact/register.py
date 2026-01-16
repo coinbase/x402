@@ -1,22 +1,34 @@
 """Registration helpers for SVM exact payment schemes."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from ..constants import V1_NETWORKS
 
 if TYPE_CHECKING:
-    from x402 import x402Client, x402Facilitator, x402ResourceServer
+    from x402 import (
+        x402Client,
+        x402ClientSync,
+        x402Facilitator,
+        x402FacilitatorSync,
+        x402ResourceServer,
+        x402ResourceServerSync,
+    )
 
     from ..signer import ClientSvmSigner, FacilitatorSvmSigner
 
+# Type vars for accepting both async and sync variants
+ClientT = TypeVar("ClientT", "x402Client", "x402ClientSync")
+ServerT = TypeVar("ServerT", "x402ResourceServer", "x402ResourceServerSync")
+FacilitatorT = TypeVar("FacilitatorT", "x402Facilitator", "x402FacilitatorSync")
+
 
 def register_exact_svm_client(
-    client: "x402Client",
+    client: ClientT,
     signer: "ClientSvmSigner",
     networks: str | list[str] | None = None,
     policies: list | None = None,
     rpc_url: str | None = None,
-) -> "x402Client":
+) -> ClientT:
     """Register SVM exact payment schemes to x402Client.
 
     Registers:
@@ -59,9 +71,9 @@ def register_exact_svm_client(
 
 
 def register_exact_svm_server(
-    server: "x402ResourceServer",
+    server: ServerT,
     networks: str | list[str] | None = None,
-) -> "x402ResourceServer":
+) -> ServerT:
     """Register SVM exact payment schemes to x402ResourceServer.
 
     V2 only (no server-side for V1).
@@ -89,10 +101,10 @@ def register_exact_svm_server(
 
 
 def register_exact_svm_facilitator(
-    facilitator: "x402Facilitator",
+    facilitator: FacilitatorT,
     signer: "FacilitatorSvmSigner",
     networks: str | list[str],
-) -> "x402Facilitator":
+) -> FacilitatorT:
     """Register SVM exact payment schemes to x402Facilitator.
 
     Registers:

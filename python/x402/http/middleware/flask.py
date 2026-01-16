@@ -27,7 +27,7 @@ from ..types import (
 from ..x402_http_server import PaywallProvider, x402HTTPResourceServerSync
 
 if TYPE_CHECKING:
-    from ...server import x402ResourceServer
+    from ...server import x402ResourceServerSync
 
 
 # ============================================================================
@@ -68,11 +68,11 @@ def _check_if_bazaar_needed(routes: RoutesConfig) -> bool:
     return False
 
 
-def _register_bazaar_extension(server: x402ResourceServer) -> None:
+def _register_bazaar_extension(server: x402ResourceServerSync) -> None:
     """Register bazaar extension with server if available.
 
     Args:
-        server: x402ResourceServer to register extension with.
+        server: x402ResourceServerSync to register extension with.
     """
     try:
         from ...extensions.bazaar import bazaar_resource_server_extension
@@ -296,7 +296,7 @@ class PaymentMiddleware:
         self,
         app: Flask,
         routes: RoutesConfig,
-        server: x402ResourceServer,
+        server: x402ResourceServerSync,
         paywall_config: PaywallConfig | None = None,
         paywall_provider: PaywallProvider | None = None,
         sync_facilitator_on_start: bool = True,
@@ -306,7 +306,7 @@ class PaymentMiddleware:
         Args:
             app: Flask application.
             routes: Route configuration.
-            server: x402ResourceServer instance.
+            server: x402ResourceServerSync instance (must be sync variant).
             paywall_config: Optional paywall configuration.
             paywall_provider: Optional custom paywall provider.
             sync_facilitator_on_start: Initialize on first protected request.
@@ -468,7 +468,7 @@ class PaymentMiddleware:
 def payment_middleware(
     app: Flask,
     routes: RoutesConfig,
-    server: x402ResourceServer,
+    server: x402ResourceServerSync,
     paywall_config: PaywallConfig | None = None,
     paywall_provider: PaywallProvider | None = None,
     sync_facilitator_on_start: bool = True,
@@ -478,7 +478,7 @@ def payment_middleware(
     Args:
         app: Flask application.
         routes: Route configuration for protected endpoints.
-        server: Pre-configured x402ResourceServer.
+        server: Pre-configured x402ResourceServerSync (must be sync variant).
         paywall_config: Optional paywall UI configuration.
         paywall_provider: Optional custom paywall provider.
         sync_facilitator_on_start: Fetch facilitator support on first request.

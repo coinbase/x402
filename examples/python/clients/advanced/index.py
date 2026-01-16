@@ -41,12 +41,12 @@ def validate_environment() -> tuple[str, str]:
     Raises:
         SystemExit: If required environment variables are missing.
     """
-    private_key = os.getenv("PRIVATE_KEY")
+    private_key = os.getenv("EVM_PRIVATE_KEY")
     base_url = os.getenv("RESOURCE_SERVER_URL", "http://localhost:4021")
     endpoint_path = os.getenv("ENDPOINT_PATH", "/weather")
 
     if not private_key:
-        print("Error: PRIVATE_KEY environment variable is required")
+        print("Error: EVM_PRIVATE_KEY environment variable is required")
         print("Please copy .env-local to .env and fill in your private key.")
         sys.exit(1)
 
@@ -56,18 +56,21 @@ def validate_environment() -> tuple[str, str]:
 async def run_hooks_example(private_key: str, url: str) -> None:
     """Run the hooks example."""
     from hooks import run_hooks_example
+
     await run_hooks_example(private_key, url)
 
 
 async def run_preferred_network_example(private_key: str, url: str) -> None:
     """Run the preferred network example."""
     from preferred_network import run_preferred_network_example
+
     await run_preferred_network_example(private_key, url)
 
 
 async def run_builder_pattern_example(private_key: str, url: str) -> None:
     """Run the builder pattern example."""
     from builder_pattern import run_builder_pattern_example
+
     await run_builder_pattern_example(private_key, url)
 
 
@@ -86,10 +89,10 @@ async def run_example(name: str, private_key: str, url: str) -> None:
         private_key: EVM private key for signing.
         url: URL to make the request to.
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running: {name}")
     print(f"Description: {EXAMPLES[name]}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     runner = EXAMPLE_RUNNERS[name]
     await runner(private_key, url)

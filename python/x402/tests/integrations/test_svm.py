@@ -1,6 +1,6 @@
-"""SVM integration tests for x402Client, x402ResourceServer, and x402Facilitator.
+"""SVM integration tests for x402ClientSync, x402ResourceServerSync, and x402FacilitatorSync.
 
-These tests perform REAL blockchain transactions on Solana Devnet.
+These tests perform REAL blockchain transactions on Solana Devnet using sync classes.
 
 Required environment variables:
 - SVM_CLIENT_PRIVATE_KEY: Base58 encoded private key for the client (payer)
@@ -14,7 +14,7 @@ import os
 import pytest
 from solders.keypair import Keypair
 
-from x402 import x402Client, x402Facilitator, x402ResourceServer
+from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
 from x402.mechanisms.svm import (
     SCHEME_EXACT,
     SOLANA_DEVNET_CAIP2,
@@ -59,18 +59,18 @@ pytestmark = pytest.mark.skipif(
 # =============================================================================
 
 
-class SvmFacilitatorClient:
-    """Facilitator client wrapper for the x402ResourceServer."""
+class SvmFacilitatorClientSync:
+    """Facilitator client wrapper for the x402ResourceServerSync."""
 
     scheme = SCHEME_EXACT
     network = SOLANA_DEVNET_CAIP2
     x402_version = 2
 
-    def __init__(self, facilitator: x402Facilitator):
+    def __init__(self, facilitator: x402FacilitatorSync):
         """Create wrapper.
 
         Args:
-            facilitator: The x402Facilitator to wrap.
+            facilitator: The x402FacilitatorSync to wrap.
         """
         self._facilitator = facilitator
 
@@ -157,22 +157,22 @@ class TestSvmIntegrationV2:
         self.facilitator_address = self.facilitator_signer.get_addresses()[0]
 
         # Create client with SVM scheme
-        self.client = x402Client().register(
+        self.client = x402ClientSync().register(
             SOLANA_DEVNET_CAIP2,
             ExactSvmClientScheme(self.client_signer, rpc_url=RPC_URL),
         )
 
         # Create facilitator with SVM scheme
-        self.facilitator = x402Facilitator().register(
+        self.facilitator = x402FacilitatorSync().register(
             [SOLANA_DEVNET_CAIP2],
             ExactSvmFacilitatorScheme(self.facilitator_signer),
         )
 
         # Create facilitator client wrapper
-        facilitator_client = SvmFacilitatorClient(self.facilitator)
+        facilitator_client = SvmFacilitatorClientSync(self.facilitator)
 
         # Create resource server with SVM scheme
-        self.server = x402ResourceServer(facilitator_client)
+        self.server = x402ResourceServerSync(facilitator_client)
         self.server.register(SOLANA_DEVNET_CAIP2, ExactSvmServerScheme())
         self.server.initialize()
 
@@ -405,13 +405,13 @@ class TestSvmPriceParsing:
         )
         self.facilitator_address = self.facilitator_signer.get_addresses()[0]
 
-        self.facilitator = x402Facilitator().register(
+        self.facilitator = x402FacilitatorSync().register(
             [SOLANA_DEVNET_CAIP2],
             ExactSvmFacilitatorScheme(self.facilitator_signer),
         )
 
-        facilitator_client = SvmFacilitatorClient(self.facilitator)
-        self.server = x402ResourceServer(facilitator_client)
+        facilitator_client = SvmFacilitatorClientSync(self.facilitator)
+        self.server = x402ResourceServerSync(facilitator_client)
         self.svm_server = ExactSvmServerScheme()
         self.server.register(SOLANA_DEVNET_CAIP2, self.svm_server)
         self.server.initialize()
@@ -513,7 +513,7 @@ class TestSvmNetworkNormalization:
         self.facilitator_address = self.facilitator_signer.get_addresses()[0]
 
         # Register for devnet with CAIP-2 identifier
-        self.facilitator = x402Facilitator().register(
+        self.facilitator = x402FacilitatorSync().register(
             [SOLANA_DEVNET_CAIP2],
             ExactSvmFacilitatorScheme(self.facilitator_signer),
         )

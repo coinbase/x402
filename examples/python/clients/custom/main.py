@@ -67,7 +67,7 @@ def validate_environment() -> tuple[str | None, str | None, str, str]:
 
     if missing:
         print(f"Error: Missing required environment variables: {', '.join(missing)}")
-        print("Please copy .env-example to .env and fill in the values.")
+        print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 
     return evm_private_key, svm_private_key, base_url, endpoint_path
@@ -120,7 +120,7 @@ async def make_request_with_payment(client: x402Client, url: str) -> None:
             # Step 4: Create signed payment payload
             # The client will select the appropriate scheme based on registration
             print("\n  Creating payment...\n")
-            payment_payload = client.create_payment_payload(payment_required)
+            payment_payload = await client.create_payment_payload(payment_required)
 
             # Step 5: Encode payment and retry with PAYMENT-SIGNATURE header
             payment_header = encode_payment_signature_header(payment_payload)
@@ -150,7 +150,9 @@ async def make_request_with_payment(client: x402Client, url: str) -> None:
             print("  Payment rejected!\n")
             payment_response_header = response.headers.get(PAYMENT_RESPONSE_HEADER)
             if payment_response_header:
-                payment_response = decode_payment_response_header(payment_response_header)
+                payment_response = decode_payment_response_header(
+                    payment_response_header
+                )
                 print(f"  Error: {payment_response.error_reason}")
             else:
                 print("  No error details available in response headers.")

@@ -18,7 +18,7 @@ except ImportError as e:
     ) from e
 
 if TYPE_CHECKING:
-    from ...client import x402Client
+    from ...client import x402Client, x402ClientConfig
     from ..x402_http_client import x402HTTPClient
 
 
@@ -113,7 +113,7 @@ class x402AsyncTransport(AsyncBaseTransport):
             payment_required = self._http_client.get_payment_required_response(get_header, body)
 
             # Create payment payload
-            payment_payload = self._client.create_payment_payload(payment_required)
+            payment_payload = await self._client.create_payment_payload(payment_required)
 
             # Encode payment headers
             payment_headers = self._http_client.encode_payment_signature_header(payment_payload)
@@ -205,7 +205,7 @@ def x402_httpx_hooks(
 
 
 # ============================================================================
-# Wrapper Functions (like TypeScript)
+# Wrapper Functions
 # ============================================================================
 
 
@@ -246,22 +246,45 @@ def wrapHttpxWithPayment(
 
 
 def wrapHttpxWithPaymentFromConfig(
-    config: dict[str, Any],
+    config: x402ClientConfig,
     **httpx_kwargs: Any,
 ) -> httpx.AsyncClient:
     """Create httpx client with payment handling using configuration.
 
+    Creates a new x402Client from the configuration and wraps it
+    in an httpx AsyncClient with automatic 402 payment handling.
+
     Args:
-        config: x402Client configuration dict.
+        config: x402ClientConfig with schemes, policies, and selector.
         **httpx_kwargs: Additional arguments for httpx.AsyncClient.
 
     Returns:
-        New client with payment handling.
-    """
-    from ...client import x402Client
+        New AsyncClient with payment handling configured.
 
-    x402 = x402Client.from_config(config)
-    return wrapHttpxWithPayment(x402, **httpx_kwargs)
+    Example:
+        ```python
+        import httpx
+        from x402 import x402ClientConfig, SchemeRegistration
+        from x402.http.clients import wrapHttpxWithPaymentFromConfig
+        from x402.mechanisms.evm.exact import ExactEvmScheme
+
+        config = x402ClientConfig(
+            schemes=[
+                SchemeRegistration(
+                    network="eip155:8453",
+                    client=ExactEvmScheme(signer=my_signer),
+                ),
+            ],
+        )
+
+        async with wrapHttpxWithPaymentFromConfig(config) as client:
+            response = await client.get("https://api.example.com/paid")
+        ```
+    """
+    from ...client import x402Client as Client
+
+    client = Client.from_config(config)
+    return wrapHttpxWithPayment(client, **httpx_kwargs)
 
 
 # ============================================================================

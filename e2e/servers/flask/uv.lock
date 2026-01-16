@@ -2105,7 +2105,7 @@ requires-dist = [
     { name = "solders", marker = "extra == 'svm'", specifier = ">=0.27.0" },
     { name = "starlette", marker = "extra == 'fastapi'", specifier = ">=0.27.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
-    { name = "web3", marker = "extra == 'evm'", specifier = ">=6.0.0" },
+    { name = "web3", marker = "extra == 'evm'", specifier = ">=7.0.0" },
     { name = "x402", extras = ["evm", "svm"], marker = "extra == 'mechanisms'" },
     { name = "x402", extras = ["flask", "fastapi"], marker = "extra == 'servers'" },
     { name = "x402", extras = ["httpx", "requests"], marker = "extra == 'clients'" },
@@ -2132,7 +2132,7 @@ dev = [
     { name = "solana", specifier = ">=0.36.0" },
     { name = "solders", specifier = ">=0.27.0" },
     { name = "starlette", specifier = ">=0.27.0" },
-    { name = "web3", specifier = ">=6.0.0" },
+    { name = "web3", specifier = ">=7.0.0" },
 ]
 
 [[package]]

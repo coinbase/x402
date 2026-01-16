@@ -6,8 +6,8 @@ import sys
 from dotenv import load_dotenv
 from eth_account import Account
 
-from x402 import x402Client
-from x402.http import x402HTTPClient
+from x402 import x402ClientSync
+from x402.http import x402HTTPClientSync
 from x402.http.clients import x402_requests
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
@@ -42,7 +42,7 @@ def validate_environment() -> tuple[str | None, str | None, str, str]:
 
     if missing:
         print(f"Error: Missing required environment variables: {', '.join(missing)}")
-        print("Please copy .env-example to .env and fill in the values.")
+        print("Please copy .env-local to .env and fill in the values.")
         sys.exit(1)
 
     return evm_private_key, svm_private_key, base_url, endpoint_path
@@ -53,8 +53,8 @@ def main() -> None:
     # Validate environment
     evm_private_key, svm_private_key, base_url, endpoint_path = validate_environment()
 
-    # Create x402 client
-    client = x402Client()
+    # Create x402 client (sync variant for requests)
+    client = x402ClientSync()
 
     # Register EVM payment scheme if private key provided
     if evm_private_key:
@@ -68,8 +68,8 @@ def main() -> None:
         register_exact_svm_client(client, svm_signer)
         print(f"Initialized SVM account: {svm_signer.address}")
 
-    # Create HTTP client helper for payment response extraction
-    http_client = x402HTTPClient(client)
+    # Create HTTP client helper for payment response extraction (sync)
+    http_client = x402HTTPClientSync(client)
 
     # Build full URL
     url = f"{base_url}{endpoint_path}"

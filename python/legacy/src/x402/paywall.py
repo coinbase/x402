@@ -87,7 +87,7 @@ def inject_payment_data(
     # Create x402 configuration object
     x402_config = create_x402_config(error, payment_requirements, paywall_config)
 
-    # Create the configuration script (matching TypeScript pattern)
+    # Create the configuration script
     log_on_testnet = (
         "console.log('Payment requirements initialized:', window.x402);"
         if x402_config["testnet"]
@@ -100,7 +100,7 @@ def inject_payment_data(
     {log_on_testnet}
   </script>"""
 
-    # Inject the configuration script into the head (same as TypeScript)
+    # Inject the configuration script into the head
     return html_content.replace("</head>", f"{config_script}\n</head>")
 
 

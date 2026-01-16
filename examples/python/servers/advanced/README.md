@@ -63,7 +63,12 @@ uv sync
 4. Run the server:
 
 ```bash
-uv run python main.py
+uv run python hooks.py              # Payment lifecycle hooks
+uv run python dynamic_price.py      # Dynamic pricing
+uv run python dynamic_pay_to.py     # Dynamic payment routing
+uv run python custom_token.py       # Custom token parser
+uv run python bazaar.py             # Bazaar AI discovery
+uv run python paywall.py            # Browser-based payment UI
 ```
 
 Server runs at http://localhost:4021
@@ -76,6 +81,7 @@ Server runs at http://localhost:4021
 | `GET /weather` | Yes | $0.01 USDC | Static pricing, Bazaar extension |
 | `GET /weather-dynamic` | Yes | $0.001-$0.005 USDC | Dynamic pricing (tier param) |
 | `GET /weather-pay-to` | Yes | $0.001 USDC | Dynamic pay-to (country param) |
+| `GET /premium/*` | Yes | $0.01 USDC | Paywall with browser UI |
 
 ## Response Format
 
@@ -188,6 +194,31 @@ Network identifiers use [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/mai
 
 ## Advanced Features
 
+### Paywall (Browser Payment UI)
+
+Add a browser-based payment interface for human users:
+
+```python
+from x402.http.paywall import create_paywall, evm_paywall, svm_paywall
+
+paywall = (
+    create_paywall()
+    .with_network(evm_paywall)
+    .with_network(svm_paywall)
+    .with_config(app_name="My App", testnet=True)
+    .build()
+)
+
+app.add_middleware(
+    PaymentMiddlewareASGI,
+    routes=routes,
+    server=server,
+    paywall_provider=paywall,
+)
+```
+
+**Use case:** When browser users access a paid endpoint, they see a payment UI instead of raw 402 responses. Supports both EVM (Base) and SVM (Solana) networks.
+
 ### Bazaar Extension
 
 Enable AI agent discovery with structured input/output schemas:
@@ -276,7 +307,7 @@ RouteConfig(
 Add custom logic before/after payment verification and settlement:
 
 ```python
-from x402.server import VerifyContext, SettleContext, AbortResult
+from x402 import VerifyContext, SettleResultContext, AbortResult
 
 def before_verify_hook(context: VerifyContext) -> None | AbortResult:
     print(f"Verifying payment: {context}")

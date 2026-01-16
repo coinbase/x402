@@ -51,15 +51,41 @@ svm_keypair = Keypair.from_base58_string(os.environ["SVM_PRIVATE_KEY"])
 svm_signer = FacilitatorKeypairSigner(svm_keypair)
 print(f"SVM Facilitator account: {svm_signer.get_addresses()[0]}")
 
+
+# Async hook functions for the facilitator
+async def before_verify_hook(ctx):
+    print(f"Before verify: {ctx.payment_payload}")
+
+
+async def after_verify_hook(ctx):
+    print(f"After verify: {ctx.result}")
+
+
+async def verify_failure_hook(ctx):
+    print(f"Verify failure: {ctx.error}")
+
+
+async def before_settle_hook(ctx):
+    print(f"Before settle: {ctx.payment_payload}")
+
+
+async def after_settle_hook(ctx):
+    print(f"After settle: {ctx.result}")
+
+
+async def settle_failure_hook(ctx):
+    print(f"Settle failure: {ctx.error}")
+
+
 # Initialize the x402 Facilitator with EVM and SVM support
 facilitator = (
     x402Facilitator()
-    .on_before_verify(lambda ctx: print(f"Before verify: {ctx.payment_payload}"))
-    .on_after_verify(lambda ctx: print(f"After verify: {ctx.result}"))
-    .on_verify_failure(lambda ctx: print(f"Verify failure: {ctx.error}"))
-    .on_before_settle(lambda ctx: print(f"Before settle: {ctx.payment_payload}"))
-    .on_after_settle(lambda ctx: print(f"After settle: {ctx.result}"))
-    .on_settle_failure(lambda ctx: print(f"Settle failure: {ctx.error}"))
+    .on_before_verify(before_verify_hook)
+    .on_after_verify(after_verify_hook)
+    .on_verify_failure(verify_failure_hook)
+    .on_before_settle(before_settle_hook)
+    .on_after_settle(after_settle_hook)
+    .on_settle_failure(settle_failure_hook)
 )
 
 # Register EVM and SVM schemes
@@ -116,8 +142,8 @@ async def verify(request: VerifyRequest):
         payload = parse_payment_payload(request.paymentPayload)
         requirements = PaymentRequirements.model_validate(request.paymentRequirements)
 
-        # Verify payment
-        response = facilitator.verify(payload, requirements)
+        # Verify payment (await async method)
+        response = await facilitator.verify(payload, requirements)
 
         return {
             "isValid": response.is_valid,
@@ -146,8 +172,8 @@ async def settle(request: SettleRequest):
         payload = parse_payment_payload(request.paymentPayload)
         requirements = PaymentRequirements.model_validate(request.paymentRequirements)
 
-        # Settle payment
-        response = facilitator.settle(payload, requirements)
+        # Settle payment (await async method)
+        response = await facilitator.settle(payload, requirements)
 
         return {
             "success": response.success,
@@ -164,9 +190,7 @@ async def settle(request: SettleRequest):
             return {
                 "success": False,
                 "errorReason": str(e),
-                "network": request.paymentPayload.get("accepted", {}).get(
-                    "network", "unknown"
-                ),
+                "network": request.paymentPayload.get("accepted", {}).get("network", "unknown"),
                 "transaction": "",
             }
 
@@ -212,4 +236,3 @@ if __name__ == "__main__":
 
     print(f"Facilitator listening on port {PORT}")
     uvicorn.run(app, host="0.0.0.0", port=PORT)
-
