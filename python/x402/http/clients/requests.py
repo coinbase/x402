@@ -128,7 +128,9 @@ class x402HTTPAdapter(HTTPAdapter):
             # Create a copy of the request for retry (don't modify original)
             retry_request = request.copy()
             retry_request.headers.update(payment_headers)
-            retry_request.headers["Access-Control-Expose-Headers"] = "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
+            retry_request.headers["Access-Control-Expose-Headers"] = (
+                "PAYMENT-RESPONSE,X-PAYMENT-RESPONSE"
+            )
             retry_request.headers[self.RETRY_HEADER] = "1"
 
             # Retry request with payment

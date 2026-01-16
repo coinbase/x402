@@ -13,10 +13,10 @@ from requests import PreparedRequest, Response
 
 from x402.http.clients.requests import (
     PaymentError,
-    x402HTTPAdapter,
+    wrapRequestsWithPayment,
     x402_http_adapter,
     x402_requests,
-    wrapRequestsWithPayment,
+    x402HTTPAdapter,
 )
 
 
@@ -121,13 +121,13 @@ class TestConsecutivePayments:
             is_retry = request.headers.get(x402HTTPAdapter.RETRY_HEADER) == "1"
             if is_retry:
                 return _create_response(200, b'{"success": true}')
-            return _create_response(402, b'{}')
+            return _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", side_effect=mock_send):
             for i in range(3):
                 request = _create_request(f"https://example.com/resource{i}")
                 response = adapter.send(request)
-                assert response.status_code == 200, f"Request {i+1} failed"
+                assert response.status_code == 200, f"Request {i + 1} failed"
 
             assert call_count == 6  # 3 initial + 3 retries
             assert adapter._client.create_payment_payload_call_count == 3
@@ -141,7 +141,7 @@ class TestConsecutivePayments:
             is_retry = request.headers.get(x402HTTPAdapter.RETRY_HEADER) == "1"
             if is_retry:
                 return _create_response(200, b'{"success": true}')
-            return _create_response(402, b'{}')
+            return _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", side_effect=mock_send):
             adapter.send(_create_request())
@@ -151,11 +151,12 @@ class TestConsecutivePayments:
 
     def test_should_not_modify_original_request(self, adapter):
         """Should not modify original request during retry."""
+
         def mock_send(request, **_kwargs):
             is_retry = request.headers.get(x402HTTPAdapter.RETRY_HEADER) == "1"
             if is_retry:
                 return _create_response(200, b'{"success": true}')
-            return _create_response(402, b'{}')
+            return _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", side_effect=mock_send):
             original_request = _create_request()
@@ -177,7 +178,7 @@ class TestConsecutivePayments:
                 return _create_response(200, b'{"free": true}')
             elif is_retry:
                 return _create_response(200, b'{"paid": true}')
-            return _create_response(402, b'{}')
+            return _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", side_effect=mock_send):
             urls = [
@@ -246,10 +247,8 @@ class TestErrorHandling:
 
     def test_should_raise_payment_error_on_client_error(self, adapter):
         """Should raise PaymentError when client fails."""
-        adapter._client.create_payment_payload = MagicMock(
-            side_effect=Exception("Client error")
-        )
-        mock_402 = _create_response(402, b'{}')
+        adapter._client.create_payment_payload = MagicMock(side_effect=Exception("Client error"))
+        mock_402 = _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", return_value=mock_402):
             with pytest.raises(PaymentError, match="Failed to handle payment"):
@@ -260,7 +259,7 @@ class TestErrorHandling:
         adapter._client.create_payment_payload = MagicMock(
             side_effect=PaymentError("Custom payment error")
         )
-        mock_402 = _create_response(402, b'{}')
+        mock_402 = _create_response(402, b"{}")
 
         with patch("requests.adapters.HTTPAdapter.send", return_value=mock_402):
             with pytest.raises(PaymentError, match="Custom payment error"):
