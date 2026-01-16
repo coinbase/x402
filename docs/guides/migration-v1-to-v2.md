@@ -88,6 +88,7 @@ const response = await api.get("/paid-endpoint");
 
 {% tab title="Python" %}
 ```python
+import asyncio
 import os
 
 from eth_account import Account
@@ -98,27 +99,29 @@ from x402.http.clients import x402HttpxClient
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
-# V2 pattern: Create client and register scheme separately
-client = x402Client()
-account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
-register_exact_evm_client(client, EthAccountSigner(account))
 
-# Create HTTP client helper for payment response extraction
-http_client = x402HTTPClient(client)
+async def main() -> None:
+    # V2 pattern: Create client and register scheme separately
+    client = x402Client()
+    account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+    register_exact_evm_client(client, EthAccountSigner(account))
 
-# Make request - payment is handled automatically
-async with x402HttpxClient(client) as http:
-    response = await http.get("https://api.example.com/paid-endpoint")
-    await response.aread()
+    http_client = x402HTTPClient(client)
 
-    print(f"Response: {response.text}")
+    async with x402HttpxClient(client) as http:
+        response = await http.get("https://api.example.com/paid-endpoint")
+        await response.aread()
 
-    # Get payment receipt from response headers
-    if response.is_success:
-        settle_response = http_client.get_payment_settle_response(
-            lambda name: response.headers.get(name)
-        )
-        print(f"Payment settled: {settle_response}")
+        print(f"Response: {response.text}")
+
+        if response.is_success:
+            settle_response = http_client.get_payment_settle_response(
+                lambda name: response.headers.get(name)
+            )
+            print(f"Payment settled: {settle_response}")
+
+
+asyncio.run(main())
 ```
 {% endtab %}
 {% endtabs %}

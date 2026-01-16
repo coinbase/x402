@@ -103,10 +103,7 @@ import os
 from eth_account import Account
 from x402.mechanisms.evm import EthAccountSigner
 
-# Create account from private key
 account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
-
-# Wrap with x402 signer interface
 signer = EthAccountSigner(account)
 ```
 {% endtab %}
@@ -282,22 +279,18 @@ from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
 
 async def main() -> None:
-    # Create x402 client and register EVM scheme
     client = x402Client()
     account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
     register_exact_evm_client(client, EthAccountSigner(account))
 
-    # Create HTTP client helper for payment response extraction
     http_client = x402HTTPClient(client)
 
-    # Make request - payment is handled automatically
     async with x402HttpxClient(client) as http:
         response = await http.get("https://api.example.com/paid-endpoint")
         await response.aread()
 
         print(f"Response: {response.text}")
 
-        # Get payment receipt from response headers
         if response.is_success:
             settle_response = http_client.get_payment_settle_response(
                 lambda name: response.headers.get(name)
@@ -413,7 +406,9 @@ httpClient := x402http.WrapHTTPClientWithPayment(
 
 {% tab title="Python" %}
 ```python
+import asyncio
 import os
+
 from eth_account import Account
 
 from x402 import x402Client
@@ -423,20 +418,24 @@ from x402.mechanisms.evm.exact.register import register_exact_evm_client
 from x402.mechanisms.svm import KeypairSigner
 from x402.mechanisms.svm.exact.register import register_exact_svm_client
 
-# Create x402 client
-client = x402Client()
 
-# Register EVM payment scheme
-account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
-register_exact_evm_client(client, EthAccountSigner(account))
+async def main() -> None:
+    client = x402Client()
 
-# Register SVM (Solana) payment scheme
-svm_signer = KeypairSigner.from_base58(os.getenv("SVM_PRIVATE_KEY"))
-register_exact_svm_client(client, svm_signer)
+    # Register EVM scheme
+    account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+    register_exact_evm_client(client, EthAccountSigner(account))
 
-# Make requests - handles both EVM and Solana networks automatically!
-async with x402HttpxClient(client) as http:
-    response = await http.get("https://api.example.com/paid-endpoint")
+    # Register SVM scheme
+    svm_signer = KeypairSigner.from_base58(os.getenv("SVM_PRIVATE_KEY"))
+    register_exact_svm_client(client, svm_signer)
+
+    async with x402HttpxClient(client) as http:
+        response = await http.get("https://api.example.com/paid-endpoint")
+        print(f"Response: {response.text}")
+
+
+asyncio.run(main())
 ```
 {% endtab %}
 {% endtabs %}

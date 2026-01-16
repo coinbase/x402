@@ -89,18 +89,14 @@ Fetch the list of available x402 services using the facilitator client:
 import { HTTPFacilitatorClient } from "@x402/core/http";
 import { withBazaar } from "@x402/extensions";
 
-// Create facilitator client with Bazaar discovery extension
 const facilitatorClient = new HTTPFacilitatorClient({
   url: "https://x402.org/facilitator"
 });
 const client = withBazaar(facilitatorClient);
 
-// Fetch all available services
 const response = await client.extensions.discovery.listResources({ type: "http" });
 
-// NOTE: in an MCP context, you can see the full list then decide which service to use
-
-// Find services under $0.10
+// Filter services under $0.10
 const usdcAsset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const maxPrice = 100000; // $0.10 in USDC atomic units (6 decimals)
 
@@ -117,17 +113,13 @@ const affordableServices = response.items.filter(item =>
 ```python
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient
 
-# Set up facilitator client
 facilitator = HTTPFacilitatorClient(
     FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
 )
 
-# Fetch all available services
 response = await facilitator.list_resources(type="http")
 
-# NOTE: in an MCP context, you can see the full list then decide which service to use
-
-# Find services under $0.10
+# Filter services under $0.10
 usdc_asset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 max_price = 100000  # $0.10 in USDC atomic units (6 decimals)
 
@@ -187,6 +179,8 @@ console.log("Response data:", response.data);
 
 {% tab title="Python" %}
 ```python
+import asyncio
+
 from eth_account import Account
 
 from x402 import x402Client
@@ -194,26 +188,31 @@ from x402.http.clients import x402HttpxClient
 from x402.mechanisms.evm import EthAccountSigner
 from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
-account = Account.from_key("0xYourPrivateKey")
-client = x402Client()
-register_exact_evm_client(client, EthAccountSigner(account))
 
-# Select a service from discovery
-selected_service = affordable_services[0]
+async def main() -> None:
+    account = Account.from_key("0xYourPrivateKey")
+    client = x402Client()
+    register_exact_evm_client(client, EthAccountSigner(account))
 
-# Select the payment method of your choice
-selected_payment_requirements = selected_service.accepts[0]
-input_schema = selected_payment_requirements.output_schema.input
+    # Select a service from discovery (from Step 1)
+    selected_service = affordable_services[0]
 
-# Make the request using httpx client
-async with x402HttpxClient(client) as http:
-    response = await http.request(
-        method=input_schema.method,
-        url=input_schema.resource,
-        params={"location": "San Francisco"}  # Based on input_schema
-    )
-    await response.aread()
-    print(f"Response data: {response.json()}")
+    # Select the payment method of your choice
+    selected_payment_requirements = selected_service.accepts[0]
+    input_schema = selected_payment_requirements.output_schema.input
+
+    # Make the request using httpx client
+    async with x402HttpxClient(client) as http:
+        response = await http.request(
+            method=input_schema.method,
+            url=input_schema.resource,
+            params={"location": "San Francisco"}  # Based on input_schema
+        )
+        await response.aread()
+        print(f"Response data: {response.json()}")
+
+
+asyncio.run(main())
 ```
 {% endtab %}
 {% endtabs %}
