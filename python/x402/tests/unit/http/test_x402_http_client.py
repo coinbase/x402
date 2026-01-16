@@ -14,10 +14,10 @@ from x402.http.constants import (
 from x402.http.utils import encode_payment_required_header, encode_payment_response_header
 from x402.http.x402_http_client import (
     PaymentRoundTripper,
-    _x402HTTPClientBase,
     x402HTTPClient,
     x402HTTPClientSync,
 )
+from x402.http.x402_http_client_base import x402HTTPClientBase
 from x402.schemas import PaymentPayload, PaymentRequired, PaymentRequirements, SettleResponse
 from x402.schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
 
@@ -77,11 +77,11 @@ class MockX402ClientSync:
 
 
 class TestX402HTTPClientBase:
-    """Tests for _x402HTTPClientBase shared logic."""
+    """Tests for x402HTTPClientBase shared logic."""
 
     def test_encode_v2_payment_header(self):
         """Test encoding V2 payment payload returns PAYMENT-SIGNATURE header."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         payload = make_v2_payload()
 
         headers = base.encode_payment_signature_header(payload)
@@ -91,7 +91,7 @@ class TestX402HTTPClientBase:
 
     def test_encode_v1_payment_header(self):
         """Test encoding V1 payment payload returns X-PAYMENT header."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         payload = PaymentPayloadV1(
             x402_version=1,
             scheme="exact",
@@ -106,7 +106,7 @@ class TestX402HTTPClientBase:
 
     def test_encode_unsupported_version_raises(self):
         """Test encoding unsupported version raises ValueError."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         # Create valid payload then modify version
         payload = make_v2_payload()
         # Manually set invalid version (bypassing validation)
@@ -117,7 +117,7 @@ class TestX402HTTPClientBase:
 
     def test_get_payment_required_from_v2_header(self):
         """Test extracting PaymentRequired from V2 header."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         requirements = make_payment_requirements()
         payment_required = PaymentRequired(x402_version=2, accepts=[requirements])
         encoded = encode_payment_required_header(payment_required)
@@ -135,7 +135,7 @@ class TestX402HTTPClientBase:
 
     def test_get_payment_required_from_v1_body(self):
         """Test extracting PaymentRequired from V1 body."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         body = {
             "x402Version": 1,
             "accepts": [
@@ -164,7 +164,7 @@ class TestX402HTTPClientBase:
 
     def test_get_payment_required_from_v1_bytes_body(self):
         """Test extracting PaymentRequired from V1 body as bytes."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         body = {
             "x402Version": 1,
             "accepts": [
@@ -193,7 +193,7 @@ class TestX402HTTPClientBase:
 
     def test_get_payment_required_raises_on_missing(self):
         """Test that ValueError is raised when no payment required info found."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
 
         def get_header(name: str) -> str | None:
             return None
@@ -203,7 +203,7 @@ class TestX402HTTPClientBase:
 
     def test_get_settle_response_from_v2_header(self):
         """Test extracting SettleResponse from V2 header."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         settle = SettleResponse(
             success=True,
             transaction="0xabc123",
@@ -224,7 +224,7 @@ class TestX402HTTPClientBase:
 
     def test_get_settle_response_from_v1_header(self):
         """Test extracting SettleResponse from V1 X-PAYMENT-RESPONSE header."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
         settle = SettleResponse(
             success=True,
             transaction="0xdef456",
@@ -243,7 +243,7 @@ class TestX402HTTPClientBase:
 
     def test_get_settle_response_raises_on_missing(self):
         """Test that ValueError is raised when no payment response header found."""
-        base = _x402HTTPClientBase()
+        base = x402HTTPClientBase()
 
         def get_header(name: str) -> str | None:
             return None

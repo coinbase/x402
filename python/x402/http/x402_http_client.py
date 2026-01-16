@@ -5,134 +5,23 @@ Provides both async (x402HTTPClient) and sync (x402HTTPClientSync) implementatio
 
 from __future__ import annotations
 
-import json
+import inspect
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ..schemas import (
-    PaymentPayload,
-    PaymentRequired,
-    SettleResponse,
-)
+from ..schemas import PaymentPayload, PaymentRequired
 from ..schemas.v1 import PaymentPayloadV1, PaymentRequiredV1
-from .constants import (
-    PAYMENT_REQUIRED_HEADER,
-    PAYMENT_RESPONSE_HEADER,
-    PAYMENT_SIGNATURE_HEADER,
-    X_PAYMENT_HEADER,
-    X_PAYMENT_RESPONSE_HEADER,
-)
-from .utils import (
-    decode_payment_required_header,
-    decode_payment_response_header,
-    encode_payment_signature_header,
-)
+from .x402_http_client_base import x402HTTPClientBase
 
 if TYPE_CHECKING:
     from ..client import x402Client, x402ClientSync
 
-
-# ============================================================================
-# Base HTTP Client (Shared Logic)
-# ============================================================================
-
-
-class _x402HTTPClientBase:
-    """Base class with shared logic for x402 HTTP clients.
-
-    Contains header encoding/decoding logic.
-    """
-
-    # =========================================================================
-    # Header Encoding/Decoding
-    # =========================================================================
-
-    def encode_payment_signature_header(
-        self,
-        payload: PaymentPayload | PaymentPayloadV1,
-    ) -> dict[str, str]:
-        """Encode payment payload into HTTP headers.
-
-        Returns appropriate header based on protocol version:
-        - V2: { "PAYMENT-SIGNATURE": base64 }
-        - V1: { "X-PAYMENT": base64 }
-
-        Args:
-            payload: Payment payload to encode.
-
-        Returns:
-            Dict with single header name -> value.
-        """
-        encoded = encode_payment_signature_header(payload)
-
-        if payload.x402_version == 2:
-            return {PAYMENT_SIGNATURE_HEADER: encoded}
-        elif payload.x402_version == 1:
-            return {X_PAYMENT_HEADER: encoded}
-        else:
-            raise ValueError(f"Unsupported x402 version: {payload.x402_version}")
-
-    def get_payment_required_response(
-        self,
-        get_header: Callable[[str], str | None],
-        body: Any = None,
-    ) -> PaymentRequired | PaymentRequiredV1:
-        """Extract payment required from HTTP response.
-
-        Handles both V1 (body) and V2 (header) formats.
-
-        Args:
-            get_header: Function to get header by name (case-insensitive).
-            body: Response body (for V1 compatibility).
-
-        Returns:
-            Decoded PaymentRequired.
-
-        Raises:
-            ValueError: If no payment required info found.
-        """
-        # V2: Check PAYMENT-REQUIRED header
-        header = get_header(PAYMENT_REQUIRED_HEADER)
-        if header:
-            return decode_payment_required_header(header)
-
-        # V1: Check body
-        if body:
-            if isinstance(body, dict) and body.get("x402Version") == 1:
-                return PaymentRequiredV1.model_validate(body)
-            if isinstance(body, bytes):
-                data = json.loads(body.decode("utf-8"))
-                if data.get("x402Version") == 1:
-                    return PaymentRequiredV1.model_validate(data)
-
-        raise ValueError("Invalid payment required response")
-
-    def get_payment_settle_response(
-        self,
-        get_header: Callable[[str], str | None],
-    ) -> SettleResponse:
-        """Extract settlement response from HTTP headers.
-
-        Args:
-            get_header: Function to get header by name.
-
-        Returns:
-            Decoded SettleResponse.
-
-        Raises:
-            ValueError: If no payment response header found.
-        """
-        # V2 header
-        header = get_header(PAYMENT_RESPONSE_HEADER)
-        if header:
-            return decode_payment_response_header(header)
-
-        # V1 header
-        header = get_header(X_PAYMENT_RESPONSE_HEADER)
-        if header:
-            return decode_payment_response_header(header)
-
-        raise ValueError("Payment response header not found")
+# Re-export for external use
+__all__ = [
+    "x402HTTPClient",
+    "x402HTTPClientSync",
+    "PaymentRoundTripper",
+]
 
 
 # ============================================================================
@@ -140,7 +29,7 @@ class _x402HTTPClientBase:
 # ============================================================================
 
 
-class x402HTTPClient(_x402HTTPClientBase):
+class x402HTTPClient(x402HTTPClientBase):
     """Async HTTP-specific client for x402 payment protocol.
 
     Wraps a x402Client to provide HTTP-specific encoding/decoding
@@ -199,26 +88,11 @@ class x402HTTPClient(_x402HTTPClientBase):
         Returns:
             Tuple of (headers_to_add, payment_payload).
         """
-        # Normalize headers
-        normalized = {k.upper(): v for k, v in headers.items()}
-
-        def get_header(name: str) -> str | None:
-            return normalized.get(name.upper())
-
-        # Parse body if present
-        body_data = None
-        if body:
-            try:
-                body_data = json.loads(body)
-            except json.JSONDecodeError:
-                pass
-
         # Get payment required
+        get_header, body_data = self._handle_402_common(headers, body)
         payment_required = self.get_payment_required_response(get_header, body_data)
-
         # Create payment
         payment_payload = await self.create_payment_payload(payment_required)
-
         # Encode headers
         payment_headers = self.encode_payment_signature_header(payment_payload)
 
@@ -230,7 +104,7 @@ class x402HTTPClient(_x402HTTPClientBase):
 # ============================================================================
 
 
-class x402HTTPClientSync(_x402HTTPClientBase):
+class x402HTTPClientSync(x402HTTPClientBase):
     """Sync HTTP-specific client for x402 payment protocol.
 
     Wraps a x402ClientSync to provide HTTP-specific encoding/decoding
@@ -247,8 +121,6 @@ class x402HTTPClientSync(_x402HTTPClientBase):
             TypeError: If client has async methods (wrong variant).
         """
         # Runtime validation - catch mismatched sync/async early
-        import inspect
-
         create_method = getattr(client, "create_payment_payload", None)
         if create_method and inspect.iscoroutinefunction(create_method):
             raise TypeError(
@@ -259,10 +131,6 @@ class x402HTTPClientSync(_x402HTTPClientBase):
             )
 
         self._client = client
-
-    # =========================================================================
-    # Payment Creation (sync, delegates to x402ClientSync)
-    # =========================================================================
 
     def create_payment_payload(
         self,
@@ -279,10 +147,6 @@ class x402HTTPClientSync(_x402HTTPClientBase):
             Payment payload to send with retry request.
         """
         return self._client.create_payment_payload(payment_required)
-
-    # =========================================================================
-    # Convenience Methods
-    # =========================================================================
 
     def handle_402_response(
         self,
@@ -304,23 +168,9 @@ class x402HTTPClientSync(_x402HTTPClientBase):
         Returns:
             Tuple of (headers_to_add, payment_payload).
         """
-        # Normalize headers
-        normalized = {k.upper(): v for k, v in headers.items()}
-
-        def get_header(name: str) -> str | None:
-            return normalized.get(name.upper())
-
-        # Parse body if present
-        body_data = None
-        if body:
-            try:
-                body_data = json.loads(body)
-            except json.JSONDecodeError:
-                pass
-
         # Get payment required
+        get_header, body_data = self._handle_402_common(headers, body)
         payment_required = self.get_payment_required_response(get_header, body_data)
-
         # Create payment
         payment_payload = self.create_payment_payload(payment_required)
 
@@ -389,7 +239,6 @@ class PaymentRoundTripper:
 
         # Get payment headers
         payment_headers, _ = self._x402_client.handle_402_response(headers, body)
-
         # Retry with payment
         result = retry_func(payment_headers)
 
