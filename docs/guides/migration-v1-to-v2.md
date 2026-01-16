@@ -12,10 +12,12 @@ This guide helps you migrate from x402 V1 to V2. The V2 protocol introduces stan
 | Version Field | `x402Version: 1` | `x402Version: 2` |
 | Packages | `x402`, `x402-express`, `x402-axios` | `@x402/core`, `@x402/express`, `@x402/axios`, `@x402/evm` |
 
-## For Buyers (Client-Side)
+## For Buyers
 
 ### Before (V1)
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { withPaymentInterceptor } from "x402-axios";
 import { createWalletClient, http } from "viem";
@@ -38,9 +40,30 @@ const api = withPaymentInterceptor(
 
 const response = await api.get("/paid-endpoint");
 ```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+import os
+
+from eth_account import Account
+
+from x402.clients.httpx import x402HttpxClient
+
+# V1 pattern
+account = Account.from_key(os.getenv("PRIVATE_KEY"))
+
+async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
+    response = await client.get("/protected-endpoint")
+    print(await response.aread())
+```
+{% endtab %}
+{% endtabs %}
 
 ### After (V2)
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { x402Client, wrapAxiosWithPayment } from "@x402/axios";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
@@ -61,35 +84,12 @@ const api = wrapAxiosWithPayment(
 
 const response = await api.get("/paid-endpoint");
 ```
+{% endtab %}
 
-### Key Changes
-
-1. **Package rename**: `x402-axios` → `@x402/axios`
-2. **Function rename**: `withPaymentInterceptor` → `wrapAxiosWithPayment`
-3. **Wallet setup**: Use `x402Client` with `registerExactEvmScheme` helper instead of passing wallet directly
-4. **No chain-specific configuration**: The V2 client automatically handles network selection based on payment requirements
-
-## For Buyers (Python)
-
-### Before (V1)
-
-```python
-from x402.clients.httpx import x402HttpxClient
-from eth_account import Account
-import os
-
-# V1 pattern
-account = Account.from_key(os.getenv("PRIVATE_KEY"))
-
-async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
-```
-
-### After (V2)
-
+{% tab title="Python" %}
 ```python
 import os
+
 from eth_account import Account
 
 from x402 import x402Client
@@ -120,19 +120,34 @@ async with x402HttpxClient(client) as http:
         )
         print(f"Payment settled: {settle_response}")
 ```
+{% endtab %}
+{% endtabs %}
 
-### Key Changes (Python)
+### Key Changes
 
+{% tabs %}
+{% tab title="TypeScript" %}
+1. **Package rename**: `x402-axios` → `@x402/axios`
+2. **Function rename**: `withPaymentInterceptor` → `wrapAxiosWithPayment`
+3. **Wallet setup**: Use `x402Client` with `registerExactEvmScheme` helper instead of passing wallet directly
+4. **No chain-specific configuration**: The V2 client automatically handles network selection based on payment requirements
+{% endtab %}
+
+{% tab title="Python" %}
 1. **Import path changes**: `x402.clients.httpx` → `x402.http.clients`
 2. **Signer wrapper**: Wrap `eth_account.Account` with `EthAccountSigner`
 3. **Client construction**: Create `x402Client()` first, then register schemes
 4. **Environment variable**: `PRIVATE_KEY` → `EVM_PRIVATE_KEY`
 5. **Async/Sync variants**: Use `x402Client` for httpx (async), `x402ClientSync` for requests (sync)
+{% endtab %}
+{% endtabs %}
 
-## For Sellers (Server-Side)
+## For Sellers
 
 ### Before (V1)
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { paymentMiddleware, FacilitatorConfig } from "x402-express";
 import express from "express";
@@ -155,9 +170,39 @@ app.use(
   }),
 );
 ```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+from typing import Any, Dict
+
+from fastapi import FastAPI
+
+from x402.fastapi.middleware import require_payment
+
+app = FastAPI()
+
+# V1 pattern
+app.middleware("http")(
+    require_payment(
+        path="/weather",
+        price="$0.001",
+        pay_to_address="0xYourAddress",
+        network="base-sepolia",  # V1 string identifier
+    )
+)
+
+@app.get("/weather")
+async def get_weather() -> Dict[str, Any]:
+    return {"report": {"weather": "sunny", "temperature": 70}}
+```
+{% endtab %}
+{% endtabs %}
 
 ### After (V2)
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import express from "express";
 import { paymentMiddleware } from "@x402/express";
@@ -195,43 +240,9 @@ app.use(
   ),
 );
 ```
+{% endtab %}
 
-### Key Changes
-
-1. **Package rename**: `x402-express` → `@x402/express`
-2. **Configuration structure**: Route config now uses `accepts` array with explicit `scheme`, `network`, and `payTo`
-3. **Network format**: `base-sepolia` → `eip155:84532` (CAIP-2 standard)
-4. **Resource server**: Create `x402ResourceServer` with facilitator client and register schemes using helper functions
-5. **Price recipient**: Explicitly specify `payTo` address per route
-
-## For Sellers (Python)
-
-### Before (V1 - FastAPI)
-
-```python
-from typing import Any, Dict
-from fastapi import FastAPI
-from x402.fastapi.middleware import require_payment
-
-app = FastAPI()
-
-# V1 pattern
-app.middleware("http")(
-    require_payment(
-        path="/weather",
-        price="$0.001",
-        pay_to_address="0xYourAddress",
-        network="base-sepolia",  # V1 string identifier
-    )
-)
-
-@app.get("/weather")
-async def get_weather() -> Dict[str, Any]:
-    return {"report": {"weather": "sunny", "temperature": 70}}
-```
-
-### After (V2 - FastAPI)
-
+{% tab title="Python" %}
 ```python
 from typing import Any
 
@@ -276,9 +287,21 @@ app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 async def get_weather() -> dict[str, Any]:
     return {"report": {"weather": "sunny", "temperature": 70}}
 ```
+{% endtab %}
+{% endtabs %}
 
-### Key Changes (Python)
+### Key Changes
 
+{% tabs %}
+{% tab title="TypeScript" %}
+1. **Package rename**: `x402-express` → `@x402/express`
+2. **Configuration structure**: Route config now uses `accepts` array with explicit `scheme`, `network`, and `payTo`
+3. **Network format**: `base-sepolia` → `eip155:84532` (CAIP-2 standard)
+4. **Resource server**: Create `x402ResourceServer` with facilitator client and register schemes using helper functions
+5. **Price recipient**: Explicitly specify `payTo` address per route
+{% endtab %}
+
+{% tab title="Python" %}
 1. **Import path changes**: `x402.fastapi.middleware` → `x402.http.middleware.fastapi`
 2. **Middleware pattern**: `require_payment` decorator → `PaymentMiddlewareASGI` class
 3. **Configuration structure**: Route config now uses `RouteConfig` and `PaymentOption` Pydantic models
@@ -286,6 +309,8 @@ async def get_weather() -> dict[str, Any]:
 5. **Resource server**: Create `x402ResourceServer` and register schemes explicitly
 6. **Type hints**: Use modern Python type hints (`dict[str, Any]` instead of `Dict[str, Any]`)
 7. **Async/Sync variants**: Use `x402ResourceServer` + `HTTPFacilitatorClient` for FastAPI (async), use `x402ResourceServerSync` + `HTTPFacilitatorClientSync` for Flask (sync)
+{% endtab %}
+{% endtabs %}
 
 ## Network Identifier Mapping
 
@@ -300,8 +325,8 @@ async def get_weather() -> dict[str, Any]:
 
 ## Package Migration Reference
 
-### TypeScript
-
+{% tabs %}
+{% tab title="TypeScript" %}
 | V1 Package | V2 Package(s) |
 |------------|---------------|
 | `x402` | `@x402/core` |
@@ -312,9 +337,9 @@ async def get_weather() -> dict[str, Any]:
 | `x402-next` | `@x402/next` |
 | (built-in) | `@x402/evm` (EVM support) |
 | (built-in) | `@x402/svm` (Solana support) |
+{% endtab %}
 
-### Python
-
+{% tab title="Python" %}
 | V1 Import Path | V2 Import Path |
 |----------------|----------------|
 | `x402.clients.httpx` | `x402.http.clients.x402HttpxClient` |
@@ -341,11 +366,15 @@ pip install "x402[fastapi]"    # For FastAPI servers
 pip install "x402[flask]"      # For Flask servers
 pip install "x402[svm]"        # For Solana support
 ```
+{% endtab %}
+{% endtabs %}
 
 ## Header Changes
 
 If you're implementing custom HTTP handling, update your header names:
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 // V1
 const payment = req.header("X-PAYMENT");
@@ -355,10 +384,26 @@ res.setHeader("X-PAYMENT-RESPONSE", responseData);
 const payment = req.header("PAYMENT-SIGNATURE");
 res.setHeader("PAYMENT-RESPONSE", responseData);
 ```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+# V1
+payment = request.headers.get("X-PAYMENT")
+response.headers["X-PAYMENT-RESPONSE"] = response_data
+
+# V2
+payment = request.headers.get("PAYMENT-SIGNATURE")
+response.headers["PAYMENT-RESPONSE"] = response_data
+```
+{% endtab %}
+{% endtabs %}
 
 ## Troubleshooting
 
-### "Cannot find module" errors (TypeScript)
+{% tabs %}
+{% tab title="TypeScript" %}
+### "Cannot find module" errors
 
 Ensure you've installed all V2 packages:
 
@@ -369,8 +414,10 @@ npm install @x402/axios @x402/evm
 # For sellers (Express)
 npm install @x402/express @x402/core @x402/evm
 ```
+{% endtab %}
 
-### "ModuleNotFoundError" errors (Python)
+{% tab title="Python" %}
+### "ModuleNotFoundError" errors
 
 Ensure you've installed the x402 package with the correct extras:
 
@@ -390,6 +437,8 @@ pip install "x402[flask]"
 # For Solana support
 pip install "x402[svm]"
 ```
+{% endtab %}
+{% endtabs %}
 
 ### Payment verification failures
 
