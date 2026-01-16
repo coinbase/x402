@@ -1,6 +1,6 @@
-"""EVM integration tests for x402Client, x402ResourceServer, and x402Facilitator.
+"""EVM integration tests for x402ClientSync, x402ResourceServerSync, and x402FacilitatorSync.
 
-These tests perform REAL blockchain transactions on Base Sepolia.
+These tests perform REAL blockchain transactions on Base Sepolia using sync classes.
 
 Required environment variables:
 - EVM_CLIENT_PRIVATE_KEY: Private key for the client (payer)
@@ -15,7 +15,7 @@ import pytest
 from eth_account import Account
 from web3 import Web3
 
-from x402 import x402Client, x402Facilitator, x402ResourceServer
+from x402 import x402ClientSync, x402FacilitatorSync, x402ResourceServerSync
 from x402.mechanisms.evm import (
     SCHEME_EXACT,
     TypedDataDomain,
@@ -105,18 +105,18 @@ ERC20_ABI = [
 # =============================================================================
 
 
-class EvmFacilitatorClient:
-    """Facilitator client wrapper for the x402ResourceServer."""
+class EvmFacilitatorClientSync:
+    """Facilitator client wrapper for the x402ResourceServerSync."""
 
     scheme = SCHEME_EXACT
     network = "eip155:84532"
     x402_version = 2
 
-    def __init__(self, facilitator: x402Facilitator):
+    def __init__(self, facilitator: x402FacilitatorSync):
         """Create wrapper.
 
         Args:
-            facilitator: The x402Facilitator to wrap.
+            facilitator: The x402FacilitatorSync to wrap.
         """
         self._facilitator = facilitator
 
@@ -198,13 +198,13 @@ class TestEvmIntegrationV2:
         self.facilitator_address = self.facilitator_signer.address
 
         # Create client with EVM scheme using EthAccountSigner
-        self.client = x402Client().register(
+        self.client = x402ClientSync().register(
             "eip155:84532",
             ExactEvmClientScheme(self.client_signer),
         )
 
         # Create facilitator with EVM scheme using FacilitatorWeb3Signer
-        self.facilitator = x402Facilitator().register(
+        self.facilitator = x402FacilitatorSync().register(
             ["eip155:84532"],
             ExactEvmFacilitatorScheme(
                 self.facilitator_signer,
@@ -213,10 +213,10 @@ class TestEvmIntegrationV2:
         )
 
         # Create facilitator client wrapper
-        facilitator_client = EvmFacilitatorClient(self.facilitator)
+        facilitator_client = EvmFacilitatorClientSync(self.facilitator)
 
         # Create resource server with EVM scheme
-        self.server = x402ResourceServer(facilitator_client)
+        self.server = x402ResourceServerSync(facilitator_client)
         self.server.register("eip155:84532", ExactEvmServerScheme())
         self.server.initialize()
 
@@ -400,13 +400,13 @@ class TestEvmPriceParsing:
             private_key=FACILITATOR_PRIVATE_KEY,
             rpc_url=RPC_URL,
         )
-        self.facilitator = x402Facilitator().register(
+        self.facilitator = x402FacilitatorSync().register(
             ["eip155:84532"],
             ExactEvmFacilitatorScheme(self.facilitator_signer),
         )
 
-        facilitator_client = EvmFacilitatorClient(self.facilitator)
-        self.server = x402ResourceServer(facilitator_client)
+        facilitator_client = EvmFacilitatorClientSync(self.facilitator)
+        self.server = x402ResourceServerSync(facilitator_client)
         self.evm_server = ExactEvmServerScheme()
         self.server.register("eip155:84532", self.evm_server)
         self.server.initialize()

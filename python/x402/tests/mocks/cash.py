@@ -8,7 +8,7 @@ integration without needing real blockchain infrastructure.
 import time
 from typing import Any
 
-from x402.facilitator import x402Facilitator
+from x402.facilitator import x402Facilitator, x402FacilitatorSync
 from x402.schemas import (
     AssetAmount,
     Network,
@@ -262,7 +262,7 @@ class CashSchemeNetworkServer:
 
 
 class CashFacilitatorClient:
-    """Mock FacilitatorClient that wraps an x402Facilitator.
+    """Mock FacilitatorClient that wraps an x402Facilitator (async).
 
     Used for testing the server integration without HTTP.
 
@@ -280,6 +280,80 @@ class CashFacilitatorClient:
 
         Args:
             facilitator: The x402Facilitator to wrap.
+        """
+        self._facilitator = facilitator
+
+    async def verify(
+        self,
+        payload: PaymentPayload,
+        requirements: PaymentRequirements,
+    ) -> VerifyResponse:
+        """Verify a payment through the facilitator.
+
+        Args:
+            payload: The payment payload.
+            requirements: The payment requirements.
+
+        Returns:
+            VerifyResponse from the facilitator.
+        """
+        return await self._facilitator.verify(payload, requirements)
+
+    async def settle(
+        self,
+        payload: PaymentPayload,
+        requirements: PaymentRequirements,
+    ) -> SettleResponse:
+        """Settle a payment through the facilitator.
+
+        Args:
+            payload: The payment payload.
+            requirements: The payment requirements.
+
+        Returns:
+            SettleResponse from the facilitator.
+        """
+        return await self._facilitator.settle(payload, requirements)
+
+    def get_supported(self) -> SupportedResponse:
+        """Get supported payment kinds.
+
+        Returns:
+            SupportedResponse with cash scheme support.
+        """
+        return SupportedResponse(
+            kinds=[
+                SupportedKind(
+                    x402_version=self.x402_version,
+                    scheme=self.scheme,
+                    network=self.network,
+                    extra={},
+                )
+            ],
+            extensions=[],
+            signers={},
+        )
+
+
+class CashFacilitatorClientSync:
+    """Mock FacilitatorClient that wraps an x402FacilitatorSync.
+
+    Used for testing the server integration without HTTP.
+
+    Attributes:
+        scheme: The scheme identifier ("cash").
+        network: The network identifier ("x402:cash").
+    """
+
+    scheme = "cash"
+    network = "x402:cash"
+    x402_version = 2
+
+    def __init__(self, facilitator: x402FacilitatorSync) -> None:
+        """Create a CashFacilitatorClientSync.
+
+        Args:
+            facilitator: The x402FacilitatorSync to wrap.
         """
         self._facilitator = facilitator
 
