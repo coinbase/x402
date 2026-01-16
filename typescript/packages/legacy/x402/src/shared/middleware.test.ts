@@ -288,6 +288,43 @@ describe("findMatchingRoute", () => {
     const result = findMatchingRoute(routePatterns, "/api/%XX", "GET");
     expect(result).toBeUndefined(); // Should not match as %XX is not a valid encoding
   });
+
+  describe("malformed percent-encoding", () => {
+    const paywallRoutes = {
+      "/paywall/[param]": "$0.01",
+      "/api/protected/*": "$0.02",
+    };
+    const paywallPatterns = computeRoutePatterns(paywallRoutes);
+
+    it("should match route with trailing malformed %", () => {
+      const result = findMatchingRoute(paywallPatterns, "/paywall/test%", "GET");
+      expect(result).toBeDefined();
+      expect(result?.config.price).toBe("$0.01");
+    });
+
+    it("should match route with malformed %c0 sequence", () => {
+      const result = findMatchingRoute(paywallPatterns, "/paywall/test%c0", "GET");
+      expect(result).toBeDefined();
+      expect(result?.config.price).toBe("$0.01");
+    });
+
+    it("should match route with multiple malformed sequences", () => {
+      const result = findMatchingRoute(paywallPatterns, "/paywall/test%c0%c1%", "GET");
+      expect(result).toBeDefined();
+      expect(result?.config.price).toBe("$0.01");
+    });
+
+    it("should match wildcard route with malformed encoding", () => {
+      const result = findMatchingRoute(paywallPatterns, "/api/protected/resource%", "GET");
+      expect(result).toBeDefined();
+      expect(result?.config.price).toBe("$0.02");
+    });
+
+    it("should match route with malformed encoding in middle of path", () => {
+      const result = findMatchingRoute(paywallPatterns, "/paywall/te%st", "GET");
+      expect(result).toBeDefined();
+    });
+  });
 });
 
 describe("getDefaultAsset", () => {
