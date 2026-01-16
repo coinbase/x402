@@ -6,6 +6,8 @@ description: >-
 
 # Welcome to x402
 
+Testing for python v2 changes yo
+
 x402 is the open payment standard that enables services to charge for access to their APIs and content directly over HTTP. It is built around the HTTP `402 Payment Required` status code and allows clients to programmatically pay for resources without accounts, sessions, or credential management.
 
 With x402, any web service can require payment before serving a response, using crypto-native payments for speed, privacy, and efficiency.
