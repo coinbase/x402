@@ -728,16 +728,19 @@ export class x402HTTPResourceServer {
    * @returns Normalized path
    */
   private normalizePath(path: string): string {
+    const pathWithoutQuery = path.split(/[?#]/)[0];
+
+    let decodedOrRawPath: string;
     try {
-      const pathWithoutQuery = path.split(/[?#]/)[0];
-      const decodedPath = decodeURIComponent(pathWithoutQuery);
-      return decodedPath
-        .replace(/\\/g, "/")
-        .replace(/\/+/g, "/")
-        .replace(/(.+?)\/+$/, "$1");
+      decodedOrRawPath = decodeURIComponent(pathWithoutQuery);
     } catch {
-      return path;
+      decodedOrRawPath = pathWithoutQuery;
     }
+
+    return decodedOrRawPath
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/")
+      .replace(/(.+?)\/+$/, "$1");
   }
 
   /**

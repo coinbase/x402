@@ -74,24 +74,20 @@ export function findMatchingRoute(
   // 2. Replace backslashes with forward slashes
   // 3. Replace multiple consecutive slashes with a single slash
   // 4. Keep trailing slash if path is not root
-  let normalizedPath: string;
+
+  const pathWithoutQuery = path.split(/[?#]/)[0];
+
+  let decodedOrRawPath: string;
   try {
-    // First split off query parameters and hash fragments
-    const pathWithoutQuery = path.split(/[?#]/)[0];
-
-    // Then decode the path - this needs to happen before any normalization
-    // so encoded characters are properly handled
-    const decodedPath = decodeURIComponent(pathWithoutQuery);
-
-    // Normalize the path (just clean up slashes)
-    normalizedPath = decodedPath
-      .replace(/\\/g, "/") // replace backslashes
-      .replace(/\/+/g, "/") // collapse slashes
-      .replace(/(.+?)\/+$/, "$1"); // trim trailing slashes
+    decodedOrRawPath = decodeURIComponent(pathWithoutQuery);
   } catch {
-    // If decoding fails (e.g., invalid % encoding), return undefined
-    return undefined;
+    decodedOrRawPath = pathWithoutQuery;
   }
+
+  const normalizedPath = decodedOrRawPath
+    .replace(/\\/g, "/") // replace backslashes
+    .replace(/\/+/g, "/") // collapse slashes
+    .replace(/(.+?)\/+$/, "$1"); // trim trailing slashes
 
   // Find matching route pattern
   const matchingRoutes = routePatterns.filter(({ pattern, verb }) => {
