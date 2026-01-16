@@ -192,6 +192,38 @@ schemes := []ginmw.SchemeConfig{
 }
 ```
 {% endtab %}
+
+{% tab title="Python" %}
+```python
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.server import x402ResourceServer
+
+# Create facilitator client for your network
+facilitator = HTTPFacilitatorClient(
+    FacilitatorConfig(url="https://your-facilitator.com")
+)
+
+# Create server and register EVM scheme for your network
+server = x402ResourceServer(facilitator)
+server.register("eip155:43114", ExactEvmServerScheme())  # Avalanche mainnet
+
+# Now use any CAIP-2 network identifier in your routes:
+routes: dict[str, RouteConfig] = {
+    "GET /api/data": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                price="$0.001",
+                network="eip155:43114",  # Avalanche mainnet
+                pay_to="0xYourAddress",
+            ),
+        ],
+    ),
+}
+```
+{% endtab %}
 {% endtabs %}
 
 **Key Points:**

@@ -115,13 +115,15 @@ const affordableServices = response.items.filter(item =>
 
 {% tab title="Python" %}
 ```python
-from x402.facilitator import FacilitatorClient
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient
 
-# Set up facilitator client (defaults to https://x402.org/facilitator)
-facilitator = FacilitatorClient()
+# Set up facilitator client
+facilitator = HTTPFacilitatorClient(
+    FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+)
 
 # Fetch all available services
-response = await facilitator.list()
+response = await facilitator.list_resources(type="http")
 
 # NOTE: in an MCP context, you can see the full list then decide which service to use
 
@@ -130,13 +132,13 @@ usdc_asset = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
 max_price = 100000  # $0.10 in USDC atomic units (6 decimals)
 
 affordable_services = [
-  item
-  for item in response.items
-  if any(
-    payment_req.asset == usdc_asset
-    and int(payment_req.max_amount_required) < max_price
-    for payment_req in item.accepts
-  )
+    item
+    for item in response.items
+    if any(
+        payment_req.asset == usdc_asset
+        and int(payment_req.max_amount_required) < max_price
+        for payment_req in item.accepts
+    )
 ]
 ```
 {% endtab %}
@@ -185,12 +187,18 @@ console.log("Response data:", response.data);
 
 {% tab title="Python" %}
 ```python
-from x402.client import X402Client
+import os
 from eth_account import Account
 
+from x402 import x402Client
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
+
 # Set up your payment account
-account = Account.from_key("0xYourPrivateKey")
-client = X402Client(account)
+account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+client = x402Client()
+register_exact_evm_client(client, EthAccountSigner(account))
 
 # Select a service from discovery
 selected_service = affordable_services[0]
@@ -199,14 +207,15 @@ selected_service = affordable_services[0]
 selected_payment_requirements = selected_service.accepts[0]
 input_schema = selected_payment_requirements.output_schema.input
 
-# Make the request
-response = client.request(
-    method=input_schema.method,
-    url=input_schema.resource,
-    params={"location": "San Francisco"}  # Based on input_schema
-)
-
-print(f"Response data: {response}")
+# Make the request using httpx client
+async with x402HttpxClient(client) as http:
+    response = await http.request(
+        method=input_schema.method,
+        url=input_schema.resource,
+        params={"location": "San Francisco"}  # Based on input_schema
+    )
+    await response.aread()
+    print(f"Response data: {response.json()}")
 ```
 {% endtab %}
 {% endtabs %}
@@ -272,44 +281,64 @@ app.use(paymentMiddleware(routes, server));
 
 {% tab title="Python" %}
 ```python
-from x402.middleware.fastapi import payment_middleware
-from x402.facilitators import cdp_facilitator
+from fastapi import FastAPI
 
-app.middleware("http")(
-    payment_middleware(
-        routes={
-            "/weather": {
-                "price": "$0.001",
-                "network": "eip155:8453",
-                "resource": "0xYourAddress",
-                "description": "Get current weather data for any location",
-                "extensions": {
-                    "bazaar": {
-                        "discoverable": True,
-                        "inputSchema": {
-                            "queryParams": {
-                                "location": {
-                                    "type": "string",
-                                    "description": "City name or coordinates",
-                                    "required": True
-                                }
-                            }
-                        },
-                        "outputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "temperature": {"type": "number"},
-                                "conditions": {"type": "string"},
-                                "humidity": {"type": "number"}
-                            }
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.server import x402ResourceServer
+
+app = FastAPI()
+
+# Create facilitator client (CDP mainnet)
+facilitator = HTTPFacilitatorClient(
+    FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+)
+
+# Create resource server and register EVM scheme
+server = x402ResourceServer(facilitator)
+server.register("eip155:8453", ExactEvmServerScheme())
+
+# Define routes with Bazaar discovery metadata
+routes: dict[str, RouteConfig] = {
+    "GET /weather": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to="0xYourAddress",
+                price="$0.001",
+                network="eip155:8453",
+            ),
+        ],
+        mime_type="application/json",
+        description="Get current weather data for any location",
+        extensions={
+            "bazaar": {
+                "discoverable": True,
+                "inputSchema": {
+                    "queryParams": {
+                        "location": {
+                            "type": "string",
+                            "description": "City name or coordinates",
+                            "required": True,
                         }
                     }
-                }
+                },
+                "outputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "temperature": {"type": "number"},
+                        "conditions": {"type": "string"},
+                        "humidity": {"type": "number"},
+                    },
+                },
             }
         },
-        facilitator=cdp_facilitator
-    )
-)
+    ),
+}
+
+app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 ```
 {% endtab %}
 
