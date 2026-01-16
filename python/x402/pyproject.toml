@@ -106,8 +106,11 @@ exclude = [
 [tool.hatch.build.targets.wheel.force-include]
 "__init__.py" = "x402/__init__.py"
 "client.py" = "x402/client.py"
+"client_base.py" = "x402/client_base.py"
 "server.py" = "x402/server.py"
+"server_base.py" = "x402/server_base.py"
 "facilitator.py" = "x402/facilitator.py"
+"facilitator_base.py" = "x402/facilitator_base.py"
 "interfaces.py" = "x402/interfaces.py"
 "py.typed" = "x402/py.typed"
 "schemas" = "x402/schemas"
