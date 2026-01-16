@@ -90,10 +90,7 @@ class x402Client(x402ClientBase):
 
     @classmethod
     def from_config(cls, config: x402ClientConfig) -> x402Client:
-        """Create a new x402Client instance from a configuration object.
-
-        Matches TypeScript x402Client.fromConfig() behavior.
-        """
+        """Create a new x402Client instance from a configuration object."""
         client = cls(config.payment_requirements_selector)
         for scheme in config.schemes:
             if scheme.x402_version == 1:
@@ -240,10 +237,7 @@ class x402ClientSync(x402ClientBase):
 
     @classmethod
     def from_config(cls, config: x402ClientConfig) -> x402ClientSync:
-        """Create a new x402ClientSync instance from a configuration object.
-
-        Matches TypeScript x402Client.fromConfig() behavior (sync variant).
-        """
+        """Create a new x402ClientSync instance from a configuration object."""
         client = cls(config.payment_requirements_selector)
         for scheme in config.schemes:
             if scheme.x402_version == 1:

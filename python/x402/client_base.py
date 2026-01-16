@@ -47,7 +47,7 @@ PaymentRequirementsSelector = Callable[[int, list[RequirementsView]], Requiremen
 
 
 # ============================================================================
-# Configuration Types (matching TypeScript)
+# Configuration Types
 # ============================================================================
 
 

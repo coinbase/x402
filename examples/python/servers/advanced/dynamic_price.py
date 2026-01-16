@@ -1,7 +1,6 @@
-"""Server lifecycle hooks example."""
+"""Dynamic pricing example."""
 
 import os
-from pprint import pprint
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -9,7 +8,7 @@ from pydantic import BaseModel
 
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
-from x402.http.types import RouteConfig
+from x402.http.types import HTTPRequestContext, RouteConfig
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.schemas import Network
 from x402.server import x402ResourceServer
@@ -23,6 +22,12 @@ FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
 if not EVM_ADDRESS:
     raise ValueError("Missing required EVM_ADDRESS environment variable")
+
+
+def get_dynamic_price(context: HTTPRequestContext) -> str:
+    """Get dynamic price based on tier query parameter."""
+    tier = context.adapter.get_query_param("tier") or "standard"
+    return "$0.005" if tier == "premium" else "$0.001"
 
 
 class WeatherReport(BaseModel):
@@ -41,43 +46,14 @@ server = x402ResourceServer(facilitator)
 server.register(EVM_NETWORK, ExactEvmServerScheme())
 
 
-# Register async hooks
-async def before_verify(ctx):
-    print("\n=== Before verify ===")
-    pprint(vars(ctx))
-
-
+# Register hooks to log selected payment option
 async def after_verify(ctx):
-    print("\n=== After verify ===")
-    pprint(vars(ctx))
+    print("\n=== Dynamic Price - After verify ===")
+    print(f"Amount: {ctx.requirements.amount}")
+    print(f"Payer: {ctx.result.payer}")
 
 
-async def verify_failure(ctx):
-    print("\n=== Verify failure ===")
-    pprint(vars(ctx))
-
-
-async def before_settle(ctx):
-    print("\n=== Before settle ===")
-    pprint(vars(ctx))
-
-
-async def after_settle(ctx):
-    print("\n=== After settle ===")
-    pprint(vars(ctx))
-
-
-async def settle_failure(ctx):
-    print("\n=== Settle failure ===")
-    pprint(vars(ctx))
-
-
-server.on_before_verify(before_verify)
 server.on_after_verify(after_verify)
-server.on_verify_failure(verify_failure)
-server.on_before_settle(before_settle)
-server.on_after_settle(after_settle)
-server.on_settle_failure(settle_failure)
 
 routes = {
     "GET /weather": RouteConfig(
@@ -85,7 +61,7 @@ routes = {
             PaymentOption(
                 scheme="exact",
                 pay_to=EVM_ADDRESS,
-                price="$0.001",
+                price=get_dynamic_price,
                 network=EVM_NETWORK,
             ),
         ],
@@ -95,7 +71,7 @@ app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
 
 
 @app.get("/weather")
-async def get_weather(city: str = "San Francisco") -> WeatherResponse:
+async def get_weather(city: str = "San Francisco", tier: str = "standard") -> WeatherResponse:
     return WeatherResponse(report=WeatherReport(weather="sunny", temperature=70))
 
 

@@ -51,7 +51,7 @@ Use this approach when you need:
 
 1. Copy the environment template:
    ```bash
-   cp .env-example .env
+   cp .env-local .env
    ```
 
 2. Edit `.env` with your configuration:
@@ -130,7 +130,7 @@ def select_payment(version: int, requirements: list) -> PaymentRequirements:
             return req
     return requirements[0]
 
-client = x402Client(selector=select_payment)
+client = x402Client(payment_requirements_selector=select_payment)
 ```
 
 ## Comparison with Convenience Wrappers

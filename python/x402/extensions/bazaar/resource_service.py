@@ -267,5 +267,5 @@ def declare_discovery_extension(
             output=output,
         )
 
-    # Convert to dict excluding None values to match TypeScript output
+    # Convert to dict excluding None values
     return {BAZAAR: extension.model_dump(by_alias=True, exclude_none=True)}

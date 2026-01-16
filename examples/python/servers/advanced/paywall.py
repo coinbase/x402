@@ -1,15 +1,19 @@
+"""Paywall example with browser-based payment UI."""
+
 import os
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify
+from fastapi import FastAPI
+from pydantic import BaseModel
 
-from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync, PaymentOption
-from x402.http.middleware.flask import payment_middleware
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+from x402.http.paywall import create_paywall, evm_paywall, svm_paywall
 from x402.http.types import RouteConfig
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
 from x402.mechanisms.svm.exact import ExactSvmServerScheme
 from x402.schemas import AssetAmount, Network
-from x402.server import x402ResourceServerSync
+from x402.server import x402ResourceServer
 
 load_dotenv()
 
@@ -21,16 +25,26 @@ SVM_NETWORK: Network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devne
 FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
 if not EVM_ADDRESS or not SVM_ADDRESS:
-    raise ValueError("Missing required environment variables")
+    raise ValueError("Missing required environment variables (EVM_ADDRESS, SVM_ADDRESS)")
 
 
-# App
-app = Flask(__name__)
+class WeatherReport(BaseModel):
+    weather: str
+    temperature: int
 
 
-# x402 Middleware
-facilitator = HTTPFacilitatorClientSync(FacilitatorConfig(url=FACILITATOR_URL))
-server = x402ResourceServerSync(facilitator)
+class WeatherResponse(BaseModel):
+    report: WeatherReport
+
+
+class PremiumContentResponse(BaseModel):
+    content: str
+
+
+app = FastAPI()
+
+facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
+server = x402ResourceServer(facilitator)
 server.register(EVM_NETWORK, ExactEvmServerScheme())
 server.register(SVM_NETWORK, ExactSvmServerScheme())
 
@@ -76,24 +90,40 @@ routes = {
         description="Premium content",
     ),
 }
-payment_middleware(app, routes=routes, server=server)
+
+# Paywall provider for browser-based payment UI
+paywall = (
+    create_paywall()
+    .with_network(evm_paywall)
+    .with_network(svm_paywall)
+    .with_config(app_name="x402 Paywall Demo", testnet=True)
+    .build()
+)
+
+app.add_middleware(
+    PaymentMiddlewareASGI,
+    routes=routes,
+    server=server,
+    paywall_provider=paywall,
+)
 
 
-# Routes
-@app.route("/health")
-def health_check():
-    return jsonify({"status": "ok"})
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    return {"status": "ok"}
 
 
-@app.route("/weather")
-def get_weather():
-    return jsonify({"report": {"weather": "sunny", "temperature": 70}})
+@app.get("/weather")
+async def get_weather() -> WeatherResponse:
+    return WeatherResponse(report=WeatherReport(weather="sunny", temperature=70))
 
 
-@app.route("/premium/content")
-def get_premium_content():
-    return jsonify({"content": "This is premium content"})
+@app.get("/premium/content")
+async def get_premium_content() -> PremiumContentResponse:
+    return PremiumContentResponse(content="This is premium content")
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=4021, debug=False)
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=4021)

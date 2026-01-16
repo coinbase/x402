@@ -183,7 +183,6 @@ def settle_response_header(response: SettleResponse) -> str:
     """
     Creates a settlement response header.
 
-    This is the Python equivalent of the TypeScript settleResponseHeader function.
     It base64 encodes the settlement response for use in the X-PAYMENT-RESPONSE header.
 
     Args:

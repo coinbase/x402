@@ -1,12 +1,16 @@
-"""Server lifecycle hooks example."""
+"""Bazaar discovery extension example."""
 
 import os
-from pprint import pprint
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from x402.extensions.bazaar import (
+    OutputConfig,
+    bazaar_resource_server_extension,
+    declare_discovery_extension,
+)
 from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
 from x402.http.types import RouteConfig
@@ -39,45 +43,7 @@ app = FastAPI()
 facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
 server = x402ResourceServer(facilitator)
 server.register(EVM_NETWORK, ExactEvmServerScheme())
-
-
-# Register async hooks
-async def before_verify(ctx):
-    print("\n=== Before verify ===")
-    pprint(vars(ctx))
-
-
-async def after_verify(ctx):
-    print("\n=== After verify ===")
-    pprint(vars(ctx))
-
-
-async def verify_failure(ctx):
-    print("\n=== Verify failure ===")
-    pprint(vars(ctx))
-
-
-async def before_settle(ctx):
-    print("\n=== Before settle ===")
-    pprint(vars(ctx))
-
-
-async def after_settle(ctx):
-    print("\n=== After settle ===")
-    pprint(vars(ctx))
-
-
-async def settle_failure(ctx):
-    print("\n=== Settle failure ===")
-    pprint(vars(ctx))
-
-
-server.on_before_verify(before_verify)
-server.on_after_verify(after_verify)
-server.on_verify_failure(verify_failure)
-server.on_before_settle(before_settle)
-server.on_after_settle(after_settle)
-server.on_settle_failure(settle_failure)
+server.register_extension(bazaar_resource_server_extension)
 
 routes = {
     "GET /weather": RouteConfig(
@@ -89,6 +55,25 @@ routes = {
                 network=EVM_NETWORK,
             ),
         ],
+        extensions={
+            **declare_discovery_extension(
+                input={"city": "San Francisco"},
+                input_schema={
+                    "properties": {"city": {"type": "string"}},
+                    "required": ["city"],
+                },
+                output=OutputConfig(
+                    example={"weather": "sunny", "temperature": 70},
+                    schema={
+                        "properties": {
+                            "weather": {"type": "string"},
+                            "temperature": {"type": "number"},
+                        },
+                        "required": ["weather", "temperature"],
+                    },
+                ),
+            )
+        },
     ),
 }
 app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)

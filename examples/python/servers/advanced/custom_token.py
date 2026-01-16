@@ -1,7 +1,6 @@
-"""Server lifecycle hooks example."""
+"""Custom token/money parser example."""
 
 import os
-from pprint import pprint
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -11,7 +10,7 @@ from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
 from x402.http.middleware.fastapi import PaymentMiddlewareASGI
 from x402.http.types import RouteConfig
 from x402.mechanisms.evm.exact import ExactEvmServerScheme
-from x402.schemas import Network
+from x402.schemas import AssetAmount, Network
 from x402.server import x402ResourceServer
 
 load_dotenv()
@@ -23,6 +22,20 @@ FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
 if not EVM_ADDRESS:
     raise ValueError("Missing required EVM_ADDRESS environment variable")
+
+
+def custom_money_parser(amount: float, network: str) -> AssetAmount | None:
+    """Custom money parser for Gnosis Chain using Wrapped XDAI.
+
+    NOTE: Wrapped XDAI is not EIP-3009 compliant. This is for demonstration.
+    """
+    if network == "eip155:100":  # Gnosis Chain
+        return AssetAmount(
+            amount=str(int(amount * 1e18)),
+            asset="0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",  # WXDAI
+            extra={"token": "Wrapped XDAI"},
+        )
+    return None
 
 
 class WeatherReport(BaseModel):
@@ -38,46 +51,11 @@ app = FastAPI()
 
 facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=FACILITATOR_URL))
 server = x402ResourceServer(facilitator)
-server.register(EVM_NETWORK, ExactEvmServerScheme())
 
-
-# Register async hooks
-async def before_verify(ctx):
-    print("\n=== Before verify ===")
-    pprint(vars(ctx))
-
-
-async def after_verify(ctx):
-    print("\n=== After verify ===")
-    pprint(vars(ctx))
-
-
-async def verify_failure(ctx):
-    print("\n=== Verify failure ===")
-    pprint(vars(ctx))
-
-
-async def before_settle(ctx):
-    print("\n=== Before settle ===")
-    pprint(vars(ctx))
-
-
-async def after_settle(ctx):
-    print("\n=== After settle ===")
-    pprint(vars(ctx))
-
-
-async def settle_failure(ctx):
-    print("\n=== Settle failure ===")
-    pprint(vars(ctx))
-
-
-server.on_before_verify(before_verify)
-server.on_after_verify(after_verify)
-server.on_verify_failure(verify_failure)
-server.on_before_settle(before_settle)
-server.on_after_settle(after_settle)
-server.on_settle_failure(settle_failure)
+# Register EVM scheme with custom money parser
+evm_scheme = ExactEvmServerScheme()
+evm_scheme.register_money_parser(custom_money_parser)
+server.register(EVM_NETWORK, evm_scheme)
 
 routes = {
     "GET /weather": RouteConfig(

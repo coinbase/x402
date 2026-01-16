@@ -19,7 +19,7 @@ EVM_ADDRESS = os.getenv("EVM_ADDRESS")
 SVM_ADDRESS = os.getenv("SVM_ADDRESS")
 EVM_NETWORK: Network = "eip155:84532"  # Base Sepolia
 SVM_NETWORK: Network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"  # Solana Devnet
-FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://www.x402.org/facilitator")
+FACILITATOR_URL = os.getenv("FACILITATOR_URL", "https://x402.org/facilitator")
 
 if not EVM_ADDRESS or not SVM_ADDRESS:
     raise ValueError("Missing required environment variables")
