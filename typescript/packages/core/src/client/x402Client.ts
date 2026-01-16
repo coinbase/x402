@@ -220,6 +220,96 @@ export class x402Client {
     return this;
   }
 
+  private validatePaymentPayload(
+  payload: any,
+  x402Version: number,
+  requirements: PaymentRequirements
+): void {
+  // Basic type checking
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Payment payload must be an object');
+  }
+
+  if (x402Version === 1) {
+    // V1 validation
+    if (typeof payload.x402Version !== 'number') {
+      throw new Error('V1 payload must have x402Version as number');
+    }
+    if (payload.x402Version !== 1) {
+      throw new Error(`V1 payload must have x402Version=1, got ${payload.x402Version}`);
+    }
+    // Add other V1 specific validations as needed
+  } else {
+    // V2+ validation
+    const requiredFields = ['x402Version', 'resource', 'extensions', 'accepted'];
+    
+    for (const field of requiredFields) {
+      if (!(field in payload)) {
+        throw new Error(`Payment payload missing required field: ${field}`);
+      }
+    }
+
+    // Validate x402Version matches
+    if (payload.x402Version !== x402Version) {
+      throw new Error(
+        `Payment payload x402Version mismatch: expected ${x402Version}, got ${payload.x402Version}`
+      );
+    }
+
+    // Validate accepted matches requirements
+    if (!this.deepEqual(payload.accepted, requirements)) {
+      throw new Error(
+        'Payment payload accepted requirements do not match selected requirements'
+      );
+    }
+
+    // Validate resource is non-empty
+    if (!payload.resource || typeof payload.resource !== 'string') {
+      throw new Error('Payment payload resource must be a non-empty string');
+    }
+
+    // Validate extensions is an object (if present)
+    if (payload.extensions && typeof payload.extensions !== 'object') {
+      throw new Error('Payment payload extensions must be an object');
+    }
+  }
+}
+
+/**
+ * Simple deep equality check for objects
+ * @param a - First object
+ * @param b - Second object
+ * @returns true if objects are deeply equal
+ */
+private deepEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) {
+    return false;
+  }
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+
+  if (keysA.length !== keysB.length) return false;
+
+  for (const key of keysA) {
+    if (!keysB.includes(key)) return false;
+    
+    const valA = a[key];
+    const valB = b[key];
+    
+    if (typeof valA === 'object' && typeof valB === 'object') {
+      if (!this.deepEqual(valA, valB)) return false;
+    } else if (valA !== valB) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
   /**
    * Creates a payment payload based on a PaymentRequired response.
    *
