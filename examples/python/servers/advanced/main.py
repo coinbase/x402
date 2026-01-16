@@ -3,15 +3,8 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
+from pprint import pprint
 
-from hooks import (
-    after_settle_hook,
-    after_verify_hook,
-    before_settle_hook,
-    before_verify_hook,
-    on_settle_failure_hook,
-    on_verify_failure_hook,
-)
 from x402.extensions.bazaar import (
     OutputConfig,
     bazaar_resource_server_extension,
@@ -144,12 +137,12 @@ server.register(EVM_NETWORK, evm_scheme)
 server.register(SVM_NETWORK, ExactSvmServerScheme())
 
 # Register hooks
-server.on_before_verify(before_verify_hook)
-server.on_after_verify(after_verify_hook)
-server.on_verify_failure(on_verify_failure_hook)
-server.on_before_settle(before_settle_hook)
-server.on_after_settle(after_settle_hook)
-server.on_settle_failure(on_settle_failure_hook)
+server.on_before_verify(lambda ctx: (print("\n=== Before verify ==="), pprint(vars(ctx))))
+server.on_after_verify(lambda ctx: (print("\n=== After verify ==="), pprint(vars(ctx))))
+server.on_verify_failure(lambda ctx: (print("\n=== Verify failure ==="), pprint(vars(ctx))))
+server.on_before_settle(lambda ctx: (print("\n=== Before settle ==="), pprint(vars(ctx))))
+server.on_after_settle(lambda ctx: (print("\n=== After settle ==="), pprint(vars(ctx))))
+server.on_settle_failure(lambda ctx: (print("\n=== Settle failure ==="), pprint(vars(ctx))))
 
 # Register extensions
 server.register_extension(bazaar_resource_server_extension)
