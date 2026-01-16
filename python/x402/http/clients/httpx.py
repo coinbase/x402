@@ -18,7 +18,7 @@ except ImportError as e:
     ) from e
 
 if TYPE_CHECKING:
-    from ...client import x402Client
+    from ...client import x402Client, x402ClientConfig
     from ..x402_http_client import x402HTTPClient
 
 
@@ -246,27 +246,45 @@ def wrapHttpxWithPayment(
 
 
 def wrapHttpxWithPaymentFromConfig(
-    config: dict[str, Any],
+    config: x402ClientConfig,
     **httpx_kwargs: Any,
 ) -> httpx.AsyncClient:
     """Create httpx client with payment handling using configuration.
 
-    Note: This function is deprecated. Create x402Client directly.
+    Creates a new x402Client from the configuration and wraps it
+    in an httpx AsyncClient with automatic 402 payment handling.
 
     Args:
-        config: Configuration dict (not currently supported).
+        config: x402ClientConfig with schemes, policies, and selector.
         **httpx_kwargs: Additional arguments for httpx.AsyncClient.
 
     Returns:
-        New client with payment handling.
+        New AsyncClient with payment handling configured.
 
-    Raises:
-        NotImplementedError: Configuration-based creation not yet supported.
+    Example:
+        ```python
+        import httpx
+        from x402 import x402ClientConfig, SchemeRegistration
+        from x402.http.clients import wrapHttpxWithPaymentFromConfig
+        from x402.mechanisms.evm.exact import ExactEvmScheme
+
+        config = x402ClientConfig(
+            schemes=[
+                SchemeRegistration(
+                    network="eip155:8453",
+                    client=ExactEvmScheme(signer=my_signer),
+                ),
+            ],
+        )
+
+        async with wrapHttpxWithPaymentFromConfig(config) as client:
+            response = await client.get("https://api.example.com/paid")
+        ```
     """
-    raise NotImplementedError(
-        "Configuration-based client creation is not yet supported. "
-        "Create x402Client directly and pass to wrapHttpxWithPayment."
-    )
+    from ...client import x402Client as Client
+
+    client = Client.from_config(config)
+    return wrapHttpxWithPayment(client, **httpx_kwargs)
 
 
 # ============================================================================

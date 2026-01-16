@@ -18,7 +18,7 @@ except ImportError as e:
     ) from e
 
 if TYPE_CHECKING:
-    from ...client import x402ClientSync
+    from ...client import x402ClientConfig, x402ClientSync
     from ..x402_http_client import x402HTTPClientSync
 
 
@@ -235,28 +235,46 @@ def wrapRequestsWithPayment(
 
 def wrapRequestsWithPaymentFromConfig(
     session: requests.Session,
-    config: dict[str, Any],
+    config: x402ClientConfig,
     **adapter_kwargs: Any,
 ) -> requests.Session:
     """Wrap requests session with payment handling using configuration.
 
-    Note: This function is deprecated. Create x402ClientSync directly.
+    Creates a new x402ClientSync from the configuration and wraps the
+    session with automatic 402 payment handling.
 
     Args:
         session: requests Session to wrap.
-        config: Configuration dict (not currently supported).
+        config: x402ClientConfig with schemes, policies, and selector.
         **adapter_kwargs: Additional arguments for the adapter.
 
     Returns:
-        Wrapped session.
+        The same session with payment adapter mounted.
 
-    Raises:
-        NotImplementedError: Configuration-based creation not yet supported.
+    Example:
+        ```python
+        import requests
+        from x402 import x402ClientConfig, SchemeRegistration
+        from x402.http.clients import wrapRequestsWithPaymentFromConfig
+        from x402.mechanisms.evm.exact import ExactEvmScheme
+
+        config = x402ClientConfig(
+            schemes=[
+                SchemeRegistration(
+                    network="eip155:8453",
+                    client=ExactEvmScheme(signer=my_signer),
+                ),
+            ],
+        )
+
+        session = wrapRequestsWithPaymentFromConfig(requests.Session(), config)
+        response = session.get("https://api.example.com/paid")
+        ```
     """
-    raise NotImplementedError(
-        "Configuration-based client creation is not yet supported. "
-        "Create x402ClientSync directly and pass to wrapRequestsWithPayment."
-    )
+    from ...client import x402ClientSync as ClientSync
+
+    client = ClientSync.from_config(config)
+    return wrapRequestsWithPayment(session, client, **adapter_kwargs)
 
 
 # ============================================================================

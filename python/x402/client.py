@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from typing_extensions import Self
@@ -46,6 +47,50 @@ PaymentPolicy = Callable[[int, list[RequirementsView]], list[RequirementsView]]
 
 # Selector: choose final requirement from filtered list
 PaymentRequirementsSelector = Callable[[int, list[RequirementsView]], RequirementsView]
+
+
+# ============================================================================
+# Configuration Types (matching TypeScript)
+# ============================================================================
+
+
+@dataclass
+class SchemeRegistration:
+    """Configuration for registering a payment scheme with a specific network.
+
+    Matches TypeScript SchemeRegistration interface.
+
+    Attributes:
+        network: The network identifier (e.g., 'eip155:8453', 'solana:mainnet').
+        client: The scheme client implementation for this network.
+        x402_version: The x402 protocol version to use for this scheme.
+            Defaults to 2.
+    """
+
+    network: Network
+    client: SchemeNetworkClient | SchemeNetworkClientV1
+    x402_version: int = 2
+
+
+@dataclass
+class x402ClientConfig:
+    """Configuration options for creating x402Client from config.
+
+    Matches TypeScript x402ClientConfig interface.
+
+    Attributes:
+        schemes: Array of scheme registrations defining which payment methods
+            are supported.
+        policies: Optional policies to apply to the client.
+        payment_requirements_selector: Optional custom payment requirements
+            selector function. If not provided, uses the default selector
+            (first available option).
+    """
+
+    schemes: list[SchemeRegistration]
+    policies: list[PaymentPolicy] | None = None
+    payment_requirements_selector: PaymentRequirementsSelector | None = field(default=None)
+
 
 # Hook types - support both sync and async (for async class auto-detection)
 BeforePaymentCreationHook = Callable[
@@ -345,6 +390,51 @@ class x402Client(_x402ClientBase):
         self._on_payment_creation_failure_hooks: list[OnPaymentCreationFailureHook] = []
 
     # ========================================================================
+    # Factory Methods
+    # ========================================================================
+
+    @classmethod
+    def from_config(cls, config: x402ClientConfig) -> x402Client:
+        """Create a new x402Client instance from a configuration object.
+
+        Matches TypeScript x402Client.fromConfig() behavior.
+
+        Args:
+            config: The client configuration including schemes, policies,
+                and payment requirements selector.
+
+        Returns:
+            A configured x402Client instance.
+
+        Example:
+            ```python
+            from x402 import x402Client, x402ClientConfig, SchemeRegistration
+            from x402.mechanisms.evm.exact import ExactEvmScheme
+
+            config = x402ClientConfig(
+                schemes=[
+                    SchemeRegistration(
+                        network="eip155:8453",
+                        client=ExactEvmScheme(signer=my_signer),
+                        x402_version=2,
+                    ),
+                ],
+                policies=[prefer_network("eip155:8453")],
+            )
+            client = x402Client.from_config(config)
+            ```
+        """
+        client = cls(config.payment_requirements_selector)
+        for scheme in config.schemes:
+            if scheme.x402_version == 1:
+                client.register_v1(scheme.network, scheme.client)  # type: ignore[arg-type]
+            else:
+                client.register(scheme.network, scheme.client)  # type: ignore[arg-type]
+        for policy in config.policies or []:
+            client.register_policy(policy)
+        return client
+
+    # ========================================================================
     # Hook Registration
     # ========================================================================
 
@@ -607,6 +697,51 @@ class x402ClientSync(_x402ClientBase):
         self._before_payment_creation_hooks: list[SyncBeforePaymentCreationHook] = []
         self._after_payment_creation_hooks: list[SyncAfterPaymentCreationHook] = []
         self._on_payment_creation_failure_hooks: list[SyncOnPaymentCreationFailureHook] = []
+
+    # ========================================================================
+    # Factory Methods
+    # ========================================================================
+
+    @classmethod
+    def from_config(cls, config: x402ClientConfig) -> x402ClientSync:
+        """Create a new x402ClientSync instance from a configuration object.
+
+        Matches TypeScript x402Client.fromConfig() behavior (sync variant).
+
+        Args:
+            config: The client configuration including schemes, policies,
+                and payment requirements selector.
+
+        Returns:
+            A configured x402ClientSync instance.
+
+        Example:
+            ```python
+            from x402 import x402ClientSync, x402ClientConfig, SchemeRegistration
+            from x402.mechanisms.evm.exact import ExactEvmScheme
+
+            config = x402ClientConfig(
+                schemes=[
+                    SchemeRegistration(
+                        network="eip155:8453",
+                        client=ExactEvmScheme(signer=my_signer),
+                        x402_version=2,
+                    ),
+                ],
+                policies=[prefer_network("eip155:8453")],
+            )
+            client = x402ClientSync.from_config(config)
+            ```
+        """
+        client = cls(config.payment_requirements_selector)
+        for scheme in config.schemes:
+            if scheme.x402_version == 1:
+                client.register_v1(scheme.network, scheme.client)  # type: ignore[arg-type]
+            else:
+                client.register(scheme.network, scheme.client)  # type: ignore[arg-type]
+        for policy in config.policies or []:
+            client.register_policy(policy)
+        return client
 
     # ========================================================================
     # Hook Registration

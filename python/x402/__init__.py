@@ -53,11 +53,13 @@ Quick Start (Sync):
 
 # Core components - Async (default)
 from .client import (
+    SchemeRegistration,
     default_payment_selector,
     max_amount,
     prefer_network,
     prefer_scheme,
     x402Client,
+    x402ClientConfig,
     x402ClientSync,
 )
 from .facilitator import x402Facilitator, x402FacilitatorSync
@@ -148,6 +150,9 @@ __all__ = [
     "x402ClientSync",
     "x402ResourceServerSync",
     "x402FacilitatorSync",
+    # Config types
+    "SchemeRegistration",
+    "x402ClientConfig",
     # Protocols
     "FacilitatorClient",
     "FacilitatorClientSync",

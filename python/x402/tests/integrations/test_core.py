@@ -465,4 +465,3 @@ class TestSyncHooks:
         assert hook_called is True
         assert received_result is not None
         assert received_result.is_valid is True
-
