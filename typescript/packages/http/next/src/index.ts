@@ -65,9 +65,10 @@ export function paymentProxy(
 ) {
   const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
 
-  // Dynamically register bazaar extension if routes declare it
+  // Dynamically register bazaar extension if routes declare it and not already registered
+  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(routes)) {
+  if (checkIfBazaarNeeded(routes) && !server.hasExtension("bazaar")) {
     bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
       .then(({ bazaarResourceServerExtension }) => {
         server.registerExtension(bazaarResourceServerExtension);
@@ -220,9 +221,10 @@ export function withX402<T = unknown>(
   const routes = { "*": routeConfig };
   const { httpServer, init } = createHttpServer(routes, server, paywall, syncFacilitatorOnStart);
 
-  // Dynamically register bazaar extension if route declares it
+  // Dynamically register bazaar extension if route declares it and not already registered
+  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(routes)) {
+  if (checkIfBazaarNeeded(routes) && !server.hasExtension("bazaar")) {
     bazaarPromise = import(/* webpackIgnore: true */ "@x402/extensions/bazaar")
       .then(({ bazaarResourceServerExtension }) => {
         server.registerExtension(bazaarResourceServerExtension);
