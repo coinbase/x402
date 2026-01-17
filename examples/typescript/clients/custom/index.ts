@@ -10,6 +10,8 @@ import {
 } from "@x402/core/http";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme } from "@x402/stellar/exact/client";
+import { createEd25519Signer } from "@x402/stellar";
 import type { PaymentRequirements } from "@x402/core/types";
 
 config();
@@ -28,6 +30,7 @@ config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
 const svmPrivateKey = process.env.SVM_PRIVATE_KEY as string;
+const stellarPrivateKey = process.env.STELLAR_PRIVATE_KEY as string;
 const baseURL = process.env.SERVER_URL || "http://localhost:4021";
 const url = `${baseURL}/weather`;
 
@@ -102,26 +105,43 @@ async function makeRequestWithPayment(client: x402Client, url: string): Promise<
 async function main(): Promise<void> {
   console.log("\n🔧 Custom x402 Client (v2 Protocol)\n");
 
-  if (!evmPrivateKey) {
-    console.error("❌ EVM_PRIVATE_KEY required");
+  if (!evmPrivateKey && !svmPrivateKey && !stellarPrivateKey) {
+    console.error(
+      "❌ At least one private key (EVM_PRIVATE_KEY, SVM_PRIVATE_KEY, or STELLAR_PRIVATE_KEY) is required",
+    );
     process.exit(1);
   }
 
-  const evmSigner = privateKeyToAccount(evmPrivateKey);
-  const solanaSigner = await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey));
+  const evmSigner = evmPrivateKey ? privateKeyToAccount(evmPrivateKey) : undefined;
+  const solanaSigner = svmPrivateKey
+    ? await createKeyPairSignerFromBytes(base58.decode(svmPrivateKey))
+    : undefined;
+  const stellarSigner = stellarPrivateKey
+    ? createEd25519Signer(stellarPrivateKey, "stellar:testnet")
+    : undefined;
 
   // Custom selector - pick which payment option to use
-  // This selects the second payment option (Solana)
+  // This selects the second payment option (Solana) if available, otherwise first
   // Create your own logic here to select preferred payment option
   const selectPayment = (_version: number, requirements: PaymentRequirements[]) => {
-    const selected = requirements[1];
+    // Prefer Stellar if available, otherwise Solana, otherwise first
+    const stellar = requirements.find(req => req.network.startsWith("stellar:"));
+    const solana = requirements.find(req => req.network.startsWith("solana:"));
+    const selected = stellar || solana || requirements[0];
     console.log(`🎯 Selected: ${selected.network} / ${selected.scheme}`);
     return selected;
   };
 
-  const client = new x402Client(selectPayment)
-    .register("eip155:*", new ExactEvmScheme(evmSigner))
-    .register("solana:*", new ExactSvmScheme(solanaSigner));
+  const client = new x402Client(selectPayment);
+  if (evmSigner) {
+    client.register("eip155:*", new ExactEvmScheme(evmSigner));
+  }
+  if (solanaSigner) {
+    client.register("solana:*", new ExactSvmScheme(solanaSigner));
+  }
+  if (stellarSigner) {
+    client.register("stellar:*", new ExactStellarScheme(stellarSigner));
+  }
   console.log("✅ Client ready\n");
 
   await makeRequestWithPayment(client, url);

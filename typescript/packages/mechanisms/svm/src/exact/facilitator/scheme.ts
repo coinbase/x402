@@ -18,6 +18,7 @@ import {
   type Address,
 } from "@solana/kit";
 import type {
+  Network,
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
@@ -52,7 +53,7 @@ export class ExactSvmScheme implements SchemeNetworkFacilitator {
    * @param _ - The network identifier (unused for SVM)
    * @returns Extra data with feePayer address
    */
-  getExtra(_: string): Record<string, unknown> | undefined {
+  getExtra(_: Network): Record<string, unknown> | undefined {
     // Randomly select from available signers to distribute load
     const addresses = this.signer.getAddresses();
     const randomIndex = Math.floor(Math.random() * addresses.length);

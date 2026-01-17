@@ -56,8 +56,16 @@ export interface SchemeNetworkFacilitator {
    *
    * @example
    * // SVM schemes return feePayer address
-   * getExtra(network: Network): Record<string, unknown> | undefined {
+   * getExtra(network: Network): Record<string, unknown | undefined> {
    *   return { feePayer: this.signer.address };
+   * }
+   *
+   * @example
+   * // Stellar schemes fetch latest ledger from network
+   * getExtra(network: Network): Record<string, unknown | undefined> {
+   *   const server = getRpcClient(network, this.rpcConfig);
+   *   const latestLedger = await server.getLatestLedger();
+   *   return { maxLedger: latestLedger.sequence + this.ledgerBuffer };
    * }
    */
   getExtra(network: Network): Record<string, unknown> | undefined;

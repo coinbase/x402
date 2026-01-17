@@ -47,6 +47,7 @@ and fill required environment variables:
 - `FACILITATOR_URL` - Facilitator endpoint URL
 - `EVM_ADDRESS` - Ethereum address to receive payments
 - `SVM_ADDRESS` - Solana address to receive payments
+- `STELLAR_ADDRESS` - Stellar address to receive payments
 
 2. Install and build all packages from the typescript examples root:
 
@@ -90,7 +91,7 @@ These clients will demonstrate how to:
 
 ## Example Endpoint
 
-The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia or Solana Devnet to access. The endpoint returns a simple weather report.
+The server includes a single example endpoint at `/weather` that requires a payment of 0.001 USDC on Base Sepolia, Solana Devnet, or Stellar Testnet to access. The endpoint returns a simple weather report.
 
 ## Response Format
 
@@ -218,6 +219,8 @@ app.get("/your-endpoint", (c) => {
 - `eip155:8453` — Base Mainnet
 - `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` — Solana Devnet
 - `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` — Solana Mainnet
+- `stellar:testnet` — Stellar Testnet
+- `stellar:pubnet` — Stellar Mainnet
 
 ## x402ResourceServer Config
 
@@ -226,7 +229,8 @@ The `x402ResourceServer` uses a builder pattern to register payment schemes that
 ```typescript
 const resourceServer = new x402ResourceServer(facilitatorClient)
   .register("eip155:*", new ExactEvmScheme()) // All EVM chains
-  .register("solana:*", new ExactSvmScheme()); // All SVM chains
+  .register("solana:*", new ExactSvmScheme()) // All SVM chains
+  .register("stellar:*", new ExactStellarScheme()); // All Stellar networks
 ```
 
 ## Facilitator Config
