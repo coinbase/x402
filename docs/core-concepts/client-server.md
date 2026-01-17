@@ -1,6 +1,7 @@
-# Client / Server
-
-This page explains the roles and responsibilities of the **client** and **server** in the x402 protocol.
+---
+title: "Client / Server"
+description: "This page explains the roles and responsibilities of the **client** and **server** in the x402 protocol."
+---
 
 Understanding these roles is essential to designing, building, or integrating services that use x402 for programmatic payments.
 
@@ -69,5 +70,5 @@ This interaction is stateless, HTTP-native, and compatible with both human appli
 
 Next, explore:
 
-* [Facilitator](facilitator.md) — how servers verify and settle payments
-* [HTTP 402](http-402.md) — how servers communicate payment requirements to clients
+* [Facilitator](/core-concepts/facilitator) — how servers verify and settle payments
+* [HTTP 402](/core-concepts/http-402) — how servers communicate payment requirements to clients
