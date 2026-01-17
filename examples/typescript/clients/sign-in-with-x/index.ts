@@ -2,13 +2,7 @@ import { config } from "dotenv";
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 import { privateKeyToAccount } from "viem/accounts";
-import { decodePaymentRequiredHeader } from "@x402/core/http";
-import {
-  createSIWxPayload,
-  encodeSIWxHeader,
-  SIGN_IN_WITH_X,
-  SIWxExtensionInfo,
-} from "@x402/extensions/sign-in-with-x";
+import { wrapFetchWithSIWx } from "@x402/extensions/sign-in-with-x";
 config();
 
 const evmPrivateKey = process.env.EVM_PRIVATE_KEY as `0x${string}`;
@@ -16,51 +10,13 @@ const baseURL = process.env.RESOURCE_SERVER_URL || "http://localhost:4021";
 
 const evmSigner = privateKeyToAccount(evmPrivateKey);
 
+// Payment wrapper - handles initial 402 by paying
 const client = new x402Client();
 registerExactEvmScheme(client, { signer: evmSigner });
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
-/**
- * Makes a request using SIWX authentication (for returning users).
- *
- * @param url - The URL to request
- * @returns The response data
- */
-async function fetchWithSIWx(url: string): Promise<unknown> {
-  // First request to get SIWX extension info from 402 response
-  const probeResponse = await fetch(url);
-  if (probeResponse.status !== 402) {
-    return probeResponse.json();
-  }
-
-  const paymentRequiredHeader = probeResponse.headers.get("PAYMENT-REQUIRED");
-  if (!paymentRequiredHeader) {
-    throw new Error("Missing PAYMENT-REQUIRED header");
-  }
-
-  const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
-  const siwxExtension = paymentRequired.extensions?.[SIGN_IN_WITH_X] as
-    | { info: SIWxExtensionInfo }
-    | undefined;
-
-  if (!siwxExtension) {
-    throw new Error("Server does not support SIWX");
-  }
-
-  // Create and send SIWX proof
-  const payload = await createSIWxPayload(siwxExtension.info, evmSigner);
-  const siwxHeader = encodeSIWxHeader(payload);
-
-  const authResponse = await fetch(url, {
-    headers: { [SIGN_IN_WITH_X]: siwxHeader },
-  });
-
-  if (!authResponse.ok) {
-    throw new Error(`SIWX auth failed: ${authResponse.status}`);
-  }
-
-  return authResponse.json();
-}
+// SIWX wrapper - handles 402 by proving wallet ownership (for returning users)
+const fetchWithSIWx = wrapFetchWithSIWx(fetch, evmSigner);
 
 /**
  * Demonstrates the SIWX flow for a single resource.
@@ -79,7 +35,7 @@ async function demonstrateResource(path: string): Promise<void> {
   // Second request: use SIWX to prove we already paid
   console.log("2. Second request (SIWX auth)...");
   const siwxResponse = await fetchWithSIWx(url);
-  console.log("   Response:", siwxResponse);
+  console.log("   Response:", await siwxResponse.json());
 }
 
 /**
@@ -97,7 +53,7 @@ async function testSIWxOnly(path: string): Promise<void> {
 
   console.log("2. Request with SIWX auth...");
   const siwxResponse = await fetchWithSIWx(url);
-  console.log("   Response:", siwxResponse);
+  console.log("   Response:", await siwxResponse.json());
 }
 
 /**

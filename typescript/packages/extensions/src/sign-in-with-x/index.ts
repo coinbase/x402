@@ -99,6 +99,7 @@ export { buildSIWxSchema } from "./schema";
 export { createSIWxMessage } from "./message";
 export { createSIWxPayload } from "./client";
 export { encodeSIWxHeader } from "./encode";
+export { wrapFetchWithSIWx } from "./fetch";
 export {
   getEVMAddress,
   getSolanaAddress,
