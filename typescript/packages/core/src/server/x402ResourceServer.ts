@@ -4,7 +4,14 @@ import {
   SupportedResponse,
   SupportedKind,
 } from "../types/facilitator";
-import { PaymentPayload, PaymentRequirements, PaymentRequired } from "../types/payments";
+import {
+  PaymentPayload,
+  PaymentRequirements,
+  PaymentRequired,
+  validatePaymentRequired,
+  validatePaymentRequirements,
+  validateResourceInfo,
+} from "../types/payments";
 import { SchemeNetworkServer } from "../types/mechanisms";
 import { Price, Network, ResourceServerExtension } from "../types";
 import { deepEqual, findByNetworkAndScheme } from "../utils";
@@ -505,6 +512,7 @@ export class x402ResourceServer {
    * @param error - Error message
    * @param extensions - Optional extensions
    * @returns Payment required response object
+   * @throws Error if validation fails
    */
   createPaymentRequiredResponse(
     requirements: PaymentRequirements[],
@@ -512,6 +520,25 @@ export class x402ResourceServer {
     error?: string,
     extensions?: Record<string, unknown>,
   ): PaymentRequired {
+    // Validate resource info
+    validateResourceInfo(resourceInfo);
+
+    // Validate requirements array
+    if (!Array.isArray(requirements) || requirements.length === 0) {
+      throw new Error("Payment requirements array is required and must be non-empty");
+    }
+
+    // Validate each payment requirement
+    requirements.forEach((req, index) => {
+      try {
+        validatePaymentRequirements(req);
+      } catch (validationError) {
+        throw new Error(
+          `Invalid payment requirement at index ${index}: ${validationError instanceof Error ? validationError.message : String(validationError)}`,
+        );
+      }
+    });
+
     // V2 response with resource at top level
     const response: PaymentRequired = {
       x402Version: 2,
@@ -524,6 +551,9 @@ export class x402ResourceServer {
     if (extensions && Object.keys(extensions).length > 0) {
       response.extensions = extensions;
     }
+
+    // Final validation of the complete PaymentRequired object
+    validatePaymentRequired(response);
 
     return response;
   }

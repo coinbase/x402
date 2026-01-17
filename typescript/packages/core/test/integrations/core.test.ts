@@ -138,7 +138,10 @@ describe("Core Integration Tests", () => {
       expect(initial402Response.headers).toBeDefined();
       expect(initial402Response.headers["PAYMENT-REQUIRED"]).toBeDefined();
       expect(initial402Response.isHtml).toBeFalsy();
-      expect(initial402Response.body).toEqual({});
+      // Standardized response body should include error and x402Version
+      expect(initial402Response.body).toHaveProperty("error");
+      expect(initial402Response.body).toHaveProperty("x402Version");
+      expect((initial402Response.body as { x402Version: number }).x402Version).toBe(2);
 
       // Client responds to PaymentRequired and submits a request with a PaymentPayload
       const paymentRequired = client.getPaymentRequiredResponse(

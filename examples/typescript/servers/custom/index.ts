@@ -115,19 +115,24 @@ async function customPaymentMiddleware(
     console.log("💳 No payment provided, returning 402 Payment Required");
 
     // Step 2: Return 402 with payment requirements
-    const paymentRequired = resourceServer.createPaymentRequiredResponse([requirements], {
-      url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
-      description: routeConfig.description,
-      mimeType: routeConfig.mimeType,
-    });
+    const paymentRequired = resourceServer.createPaymentRequiredResponse(
+      [requirements],
+      {
+        url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+        description: routeConfig.description,
+        mimeType: routeConfig.mimeType,
+      },
+      "Payment required",
+    );
     // Use base64 encoding for the PAYMENT-REQUIRED header (v2 protocol)
     const requirementsHeader = Buffer.from(JSON.stringify(paymentRequired)).toString("base64");
 
     res.status(402);
     res.set("PAYMENT-REQUIRED", requirementsHeader);
+    // Use standardized response body structure
     res.json({
-      error: "Payment Required",
-      message: "This endpoint requires payment",
+      error: paymentRequired.error || "Payment required",
+      x402Version: paymentRequired.x402Version,
     });
     return;
   }
@@ -141,9 +146,22 @@ async function customPaymentMiddleware(
 
     if (!verifyResult.isValid) {
       console.log(`❌ Payment verification failed: ${verifyResult.invalidReason}`);
-      res.status(402).json({
-        error: "Invalid Payment",
-        reason: verifyResult.invalidReason,
+      // Create a proper PaymentRequired response for the error case
+      const errorPaymentRequired = resourceServer.createPaymentRequiredResponse(
+        [requirements],
+        {
+          url: `${req.protocol}://${req.get("host")}${req.originalUrl}`,
+          description: routeConfig.description,
+          mimeType: routeConfig.mimeType,
+        },
+        verifyResult.invalidReason || "Invalid payment",
+      );
+      const errorHeader = Buffer.from(JSON.stringify(errorPaymentRequired)).toString("base64");
+      res.status(402);
+      res.set("PAYMENT-REQUIRED", errorHeader);
+      res.json({
+        error: errorPaymentRequired.error || "Invalid payment",
+        x402Version: errorPaymentRequired.x402Version,
       });
       return;
     }

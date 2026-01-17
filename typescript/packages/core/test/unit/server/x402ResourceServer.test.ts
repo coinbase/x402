@@ -925,6 +925,180 @@ describe("x402ResourceServer", () => {
 
       expect(result.extensions).toBeUndefined();
     });
+
+    it("should throw error if requirements array is empty", () => {
+      const server = new x402ResourceServer();
+
+      expect(() => {
+        server.createPaymentRequiredResponse(
+          [],
+          { url: "https://example.com", description: "Test", mimeType: "application/json" },
+        );
+      }).toThrow("Payment requirements array is required and must be non-empty");
+    });
+
+    it("should throw error if resource url is missing", () => {
+      const server = new x402ResourceServer();
+
+      expect(() => {
+        server.createPaymentRequiredResponse(
+          [buildPaymentRequirements()],
+          { url: "", description: "Test", mimeType: "application/json" },
+        );
+      }).toThrow("ResourceInfo validation failed: url is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement scheme is missing", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          scheme: "",
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("scheme is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement network is missing", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          network: "" as Network,
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("network is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement asset is missing", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          asset: "",
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("asset is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement amount is missing", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          amount: "",
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("amount is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement payTo is missing", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          payTo: "",
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("payTo is required and must be a non-empty string");
+    });
+
+    it("should throw error if payment requirement maxTimeoutSeconds is invalid", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          maxTimeoutSeconds: 0,
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("maxTimeoutSeconds is required and must be a positive integer");
+    });
+
+    it("should throw error if payment requirement maxTimeoutSeconds is negative", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          maxTimeoutSeconds: -1,
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("maxTimeoutSeconds is required and must be a positive integer");
+    });
+
+    it("should throw error if payment requirement extra is not an object", () => {
+      const server = new x402ResourceServer();
+
+      const invalidRequirements = [
+        {
+          ...buildPaymentRequirements(),
+          extra: null as unknown as Record<string, unknown>,
+        },
+      ];
+
+      expect(() => {
+        server.createPaymentRequiredResponse(invalidRequirements, {
+          url: "https://example.com",
+          description: "Test",
+          mimeType: "application/json",
+        });
+      }).toThrow("extra is required and must be an object");
+    });
   });
 
   describe("getSupportedKind and getFacilitatorExtensions", () => {
