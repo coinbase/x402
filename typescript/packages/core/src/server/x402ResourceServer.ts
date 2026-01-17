@@ -169,6 +169,16 @@ export class x402ResourceServer {
   }
 
   /**
+   * Check if an extension is registered.
+   *
+   * @param key - The extension key
+   * @returns True if the extension is registered
+   */
+  hasExtension(key: string): boolean {
+    return this.registeredExtensions.has(key);
+  }
+
+  /**
    * Enriches declared extensions using registered extension hooks.
    *
    * @param declaredExtensions - Extensions declared on the route
