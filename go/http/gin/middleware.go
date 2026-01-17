@@ -259,11 +259,6 @@ func createMiddlewareHandler(server *x402http.HTTPServer, config *MiddlewareConf
 
 		result := server.ProcessHTTPRequest(ctx, reqCtx, config.PaywallConfig)
 
-		// Debug logging for request processing
-		fmt.Printf("🔍 [GIN REQUEST DEBUG] Processed HTTP request\n")
-		fmt.Printf("   Result Type: %v\n", result.Type)
-		fmt.Printf("   Path: %s, Method: %s\n", reqCtx.Path, reqCtx.Method)
-
 		// Handle result
 		switch result.Type {
 		case x402http.ResultNoPaymentRequired:
@@ -302,8 +297,35 @@ func handlePaymentError(c *gin.Context, response *x402http.HTTPResponseInstructi
 	c.Abort()
 }
 
+// PaymentContext contains payment information accessible to handlers
+type PaymentContext struct {
+	Payer           string
+	Amount          string
+	Asset           string
+	Network         string
+	TransactionHash string
+}
+
+// PaymentContextKey is the key used to store PaymentContext in Gin
+const PaymentContextKey = "x402_payment_context"
+
 // handlePaymentVerified handles verified payments with settlement
 func handlePaymentVerified(c *gin.Context, server *x402http.HTTPServer, ctx context.Context, result x402http.HTTPProcessResult, config *MiddlewareConfig) {
+	// Set payment context for handlers
+	if result.PaymentPayload != nil && result.PaymentRequirements != nil {
+		payCtx := &PaymentContext{
+			Amount:  result.PaymentRequirements.Amount,
+			Asset:   result.PaymentRequirements.Asset,
+			Network: result.PaymentRequirements.Network,
+		}
+
+		if result.VerifyResponse != nil {
+			payCtx.Payer = result.VerifyResponse.Payer
+			payCtx.TransactionHash = result.VerifyResponse.TransactionHash
+		}
+
+		c.Set(PaymentContextKey, payCtx)
+	}
 	// Capture response for settlement
 	writer := &responseCapture{
 		ResponseWriter: c.Writer,

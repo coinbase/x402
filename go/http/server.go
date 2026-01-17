@@ -143,6 +143,7 @@ type HTTPProcessResult struct {
 	Response            *HTTPResponseInstructions
 	PaymentPayload      *types.PaymentPayload      // V2 only
 	PaymentRequirements *types.PaymentRequirements // V2 only
+	VerifyResponse      *x402.VerifyResponse       // Added: Verification details
 }
 
 // Result type constants
@@ -380,7 +381,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 	}
 
 	// Verify payment (type-safe)
-	_, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
+	verifyResult, verifyErr := s.VerifyPayment(ctx, *typedPayload, *matchingReqs)
 	if verifyErr != nil {
 		err = verifyErr
 		errorMsg := err.Error()
@@ -403,6 +404,7 @@ func (s *x402HTTPResourceServer) ProcessHTTPRequest(ctx context.Context, reqCtx 
 		Type:                ResultPaymentVerified,
 		PaymentPayload:      typedPayload,
 		PaymentRequirements: matchingReqs,
+		VerifyResponse:      verifyResult, // Added
 	}
 }
 
