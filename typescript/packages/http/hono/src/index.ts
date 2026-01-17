@@ -89,9 +89,10 @@ export function paymentMiddleware(
   // httpServer.initialize() fetches facilitator support and validates routes
   let initPromise: Promise<void> | null = syncFacilitatorOnStart ? httpServer.initialize() : null;
 
-  // Dynamically register bazaar extension if routes declare it
+  // Dynamically register bazaar extension if routes declare it and not already registered
+  // Skip if pre-registered (e.g., in serverless environments where static imports are used)
   let bazaarPromise: Promise<void> | null = null;
-  if (checkIfBazaarNeeded(routes)) {
+  if (checkIfBazaarNeeded(routes) && !server.hasExtension("bazaar")) {
     bazaarPromise = import("@x402/extensions/bazaar")
       .then(({ bazaarResourceServerExtension }) => {
         server.registerExtension(bazaarResourceServerExtension);
