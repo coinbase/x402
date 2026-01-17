@@ -10,10 +10,11 @@ This is implemented via one of two asset transfer methods, depending on the toke
 | :------------------ | :----------------------------------------------------------- | :--------------------------------------------- |
 | **1. EIP-3009**     | Tokens with native `transferWithAuthorization` (e.g., USDC). | **Recommended** (Simplest, truly gasless).     |
 | **2. Permit2**      | Tokens without EIP-3009. Uses a Proxy + Permit2.             | **Universal Fallback** (Works for any ERC-20). |
+| **3. ERC-7710**      | Smart accounts with delegation support.                              | **Smart Account Option** (Requires ERC-7710 compatible account). |
 
 If no `assetTransferMethod` is specified in the payload, the implementation should prioritize `eip3009` (if compatible) and then `permit2`.
 
-In both cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
+In all cases, the Facilitator cannot modify the amount or destination. They serve only as the transaction broadcaster.
 
 ---
 
@@ -201,7 +202,123 @@ Settlement is performed by calling the `x402Permit2Proxy`.
 
 ---
 
+## 3. AssetTransferMethod: `ERC-7710`
+
+This asset transfer method uses [ERC-7710](https://eips.ethereum.org/EIPS/eip-7710) smart contract delegation to authorize transfers from accounts that support the standard. It is particularly suited for smart contract accounts (e.g., ERC-4337 accounts, ERC-7579 modular accounts) that have enabled delegation capabilities.
+
+### Prerequisites
+
+For ERC-7710 to work, the following must be true:
+
+1. **Delegator Account**: The payer's account must be a smart contract that supports ERC-7710 delegation (e.g., a modular smart account with delegation capabilities).
+2. **Delegation Manager**: A `DelegationManager` contract implementing the `ERC7710Manager` interface must be deployed on the network.
+3. **Active Delegation**: The payer must have created a delegation authorizing the delegate to execute token transfers on their behalf, with appropriate caveats (amount limits, recipient restrictions, etc.).
+
+### Phase 1: Obtaining a Delegation
+
+The process of obtaining a delegation is outside the scope of x402. Delegations may be obtained through:
+
+- [ERC-7715](https://eips.ethereum.org/EIPS/eip-7715) permission requests
+- Direct wallet interactions
+- Pre-configured session keys
+- Other delegation protocols
+
+The key requirement is that the delegate (typically the x402 client or facilitator) holds a valid delegation that permits the required token transfer.
+
+### Phase 2: `PAYMENT-SIGNATURE` Header Payload
+
+The `payload` field must contain:
+
+- `delegationManager`: The address of the ERC-7710 Delegation Manager contract.
+- `permissionContext`: The delegation proof/context required by the specific Delegation Manager implementation.
+- `mode`: The ERC-7579 execution mode (typically single call mode: `0x0000...`).
+- `executionCallData`: The encoded execution data for the token transfer.
+
+**Example PaymentPayload:**
+
+```json
+{
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepted": {
+    "scheme": "exact",
+    "network": "eip155:84532",
+    "amount": "10000",
+    "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "maxTimeoutSeconds": 60,
+    "extra": {
+      "assetTransferMethod": "erc7710",
+      "name": "USDC",
+      "version": "2"
+    }
+  },
+  "payload": {
+    "delegationManager": "0xDelegationManagerAddress",
+    "permissionContext": "0x...",
+    "mode": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "executionCallData": "0x...",
+    "delegator": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+  }
+}
+```
+
+**Note:** The structure of `permissionContext` is determined by the specific Delegation Manager implementation. Common implementations (e.g., MetaMask Delegation Framework) use EIP-712 signed delegation chains.
+
+### Phase 3: Verification Logic
+
+The verifier must execute these checks in order:
+
+1. **Verify** the `delegationManager` is a known, trusted ERC-7710 implementation.
+
+2. **Verify** the `delegator` account supports ERC-7710 (is a compatible smart account).
+
+3. **Verify** the `client` (delegator) has sufficient balance of the `asset`.
+
+4. **Verify** the `executionCallData` encodes a valid ERC-20 `transfer(to, amount)` call where:
+   - `to` matches the `payTo` address in the payment requirements.
+   - `amount` covers the required payment amount.
+
+5. **Verify** the `mode` is appropriate for a single token transfer (typically `0x00...` for single call mode per ERC-7579).
+
+6. **Verify** the Token and Network match the requirement.
+
+7. **Simulation**: Simulate `delegationManager.redeemDelegations([permissionContext], [mode], [executionCallData])` to ensure the delegation is valid and the transfer will succeed.
+
+### Phase 4: Settlement Logic
+
+Settlement is performed by calling `redeemDelegations` on the Delegation Manager:
+
+```solidity
+delegationManager.redeemDelegations(
+    [permissionContext],  // bytes[] - delegation proof
+    [mode],               // bytes32[] - execution mode
+    [executionCallData]   // bytes[] - encoded transfer call
+);
+```
+
+The Delegation Manager validates the delegation authority and calls the delegator account to execute the token transfer. The delegator account then performs `token.transfer(payTo, amount)`.
+
+**Important**: Unlike EIP-3009 and Permit2, the facilitator does NOT need to be explicitly authorized in the signature. The delegation's caveats (enforced by the Delegation Manager) ensure that:
+- Only authorized actions can be executed
+- Transfer recipients are constrained to allowed addresses
+- Amounts are within permitted limits
+
+---
+
 ## Annex
+
+### ERC-7710 Delegation Managers
+
+ERC-7710 does not define a canonical Delegation Manager. Implementations may vary in their delegation structure, caveat enforcement, and permission context format. Notable implementations include:
+
+- **MetaMask Delegation Framework**: A full-featured implementation supporting EIP-712 signed delegation chains, caveat enforcement, and batch processing. See [delegator.xyz](https://delegator.xyz/) for documentation.
+
+When using ERC-7710, facilitators should maintain a list of trusted Delegation Manager addresses for each supported network.
 
 ### Canonical Permit2
 
