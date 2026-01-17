@@ -7,6 +7,7 @@ import (
 	x402 "github.com/coinbase/x402/go"
 	"github.com/coinbase/x402/go/extensions/bazaar"
 	v1 "github.com/coinbase/x402/go/extensions/v1"
+	x402http "github.com/coinbase/x402/go/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -413,6 +414,191 @@ func TestExtractDiscoveredResourceFromPaymentPayload_FullFlow(t *testing.T) {
 		assert.Equal(t, "http", queryInput.Type)
 		assert.Equal(t, "https://api.example.com/data", info.ResourceURL)
 		assert.Equal(t, 1, info.X402Version)
+	})
+
+	t.Run("should strip query params from v2 resourceUrl", func(t *testing.T) {
+		extension, _ := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"city": "NYC"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"city": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
+		paymentPayload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted:    requirements,
+			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/weather?city=NYC&units=metric",
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR: extension,
+			},
+		}
+
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/weather", info.ResourceURL)
+	})
+
+	t.Run("should strip hash sections from v2 resourceUrl", func(t *testing.T) {
+		extension, _ := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{},
+			bazaar.JSONSchema{"properties": map[string]interface{}{}},
+			"",
+			nil,
+		)
+
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
+		paymentPayload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted:    requirements,
+			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/docs#section-1",
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR: extension,
+			},
+		}
+
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/docs", info.ResourceURL)
+	})
+
+	t.Run("should strip both query params and hash from v2 resourceUrl", func(t *testing.T) {
+		extension, _ := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{},
+			bazaar.JSONSchema{"properties": map[string]interface{}{}},
+			"",
+			nil,
+		)
+
+		requirements := x402.PaymentRequirements{
+			Scheme:  "exact",
+			Network: "eip155:8453",
+		}
+
+		paymentPayload := x402.PaymentPayload{
+			X402Version: 2,
+			Accepted:    requirements,
+			Payload:     map[string]interface{}{},
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/page?foo=bar#anchor",
+			},
+			Extensions: map[string]interface{}{
+				bazaar.BAZAAR: extension,
+			},
+		}
+
+		payloadBytes, _ := json.Marshal(paymentPayload)
+		requirementsBytes, _ := json.Marshal(requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/page", info.ResourceURL)
+	})
+
+	t.Run("should strip query params from v1 resourceUrl", func(t *testing.T) {
+		v1Requirements := map[string]interface{}{
+			"scheme":            "exact",
+			"network":           "eip155:8453",
+			"maxAmountRequired": "10000",
+			"resource":          "https://api.example.com/search?q=test&page=1",
+			"description":       "Search",
+			"mimeType":          "application/json",
+			"outputSchema": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":         "http",
+					"method":       "GET",
+					"discoverable": true,
+					"queryParams": map[string]interface{}{
+						"q":    "string",
+						"page": "number",
+					},
+				},
+			},
+			"payTo":             "0x...",
+			"maxTimeoutSeconds": 300,
+			"asset":             "0x...",
+		}
+
+		v1Payload := map[string]interface{}{
+			"x402Version": 1,
+			"scheme":      "exact",
+			"network":     "eip155:8453",
+			"payload":     map[string]interface{}{},
+		}
+
+		payloadBytes, _ := json.Marshal(v1Payload)
+		requirementsBytes, _ := json.Marshal(v1Requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/search", info.ResourceURL)
+	})
+
+	t.Run("should strip hash sections from v1 resourceUrl", func(t *testing.T) {
+		v1Requirements := map[string]interface{}{
+			"scheme":            "exact",
+			"network":           "eip155:8453",
+			"maxAmountRequired": "10000",
+			"resource":          "https://api.example.com/docs#section",
+			"description":       "Docs",
+			"mimeType":          "application/json",
+			"outputSchema": map[string]interface{}{
+				"input": map[string]interface{}{
+					"type":         "http",
+					"method":       "GET",
+					"discoverable": true,
+				},
+			},
+			"payTo":             "0x...",
+			"maxTimeoutSeconds": 300,
+			"asset":             "0x...",
+		}
+
+		v1Payload := map[string]interface{}{
+			"x402Version": 1,
+			"scheme":      "exact",
+			"network":     "eip155:8453",
+			"payload":     map[string]interface{}{},
+		}
+
+		payloadBytes, _ := json.Marshal(v1Payload)
+		requirementsBytes, _ := json.Marshal(v1Requirements)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentPayload(payloadBytes, requirementsBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/docs", info.ResourceURL)
 	})
 
 	t.Run("should return nil when no discovery info is present", func(t *testing.T) {
@@ -1103,6 +1289,178 @@ func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
 		assert.Equal(t, bazaar.BodyTypeJSON, bodyInput.BodyType)
 	})
 
+	t.Run("v2: should strip query params from resourceUrl", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"city": "NYC"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"city": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/weather?city=NYC&units=metric",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/weather", info.ResourceURL)
+	})
+
+	t.Run("v2: should strip hash sections from resourceUrl", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{},
+			bazaar.JSONSchema{"properties": map[string]interface{}{}},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/docs#section-1",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/docs", info.ResourceURL)
+	})
+
+	t.Run("v2: should strip both query params and hash from resourceUrl", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{},
+			bazaar.JSONSchema{"properties": map[string]interface{}{}},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		paymentRequired := x402.PaymentRequired{
+			X402Version: 2,
+			Resource: &x402.ResourceInfo{
+				URL: "https://api.example.com/page?foo=bar#anchor",
+			},
+			Accepts: []x402.PaymentRequirements{
+				{
+					Scheme:  "exact",
+					Network: "eip155:8453",
+				},
+			},
+			Extensions: map[string]interface{}{
+				"bazaar": extension,
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(paymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/page", info.ResourceURL)
+	})
+
+	t.Run("v1: should strip query params from resourceUrl", func(t *testing.T) {
+		v1PaymentRequired := map[string]interface{}{
+			"x402Version": 1,
+			"accepts": []interface{}{
+				map[string]interface{}{
+					"scheme":            "exact",
+					"network":           "eip155:8453",
+					"maxAmountRequired": "1000000",
+					"resource":          "https://api.example.com/search?q=test&page=1",
+					"payTo":             "0x123",
+					"asset":             "0x456",
+					"maxTimeoutSeconds": 300,
+					"outputSchema": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":         "http",
+							"method":       "GET",
+							"discoverable": true,
+							"queryParams": map[string]interface{}{
+								"q":    "string",
+								"page": "number",
+							},
+						},
+					},
+				},
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/search", info.ResourceURL)
+	})
+
+	t.Run("v1: should strip hash sections from resourceUrl", func(t *testing.T) {
+		v1PaymentRequired := map[string]interface{}{
+			"x402Version": 1,
+			"accepts": []interface{}{
+				map[string]interface{}{
+					"scheme":            "exact",
+					"network":           "eip155:8453",
+					"maxAmountRequired": "1000000",
+					"resource":          "https://api.example.com/docs#section",
+					"payTo":             "0x123",
+					"asset":             "0x456",
+					"maxTimeoutSeconds": 300,
+					"outputSchema": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":         "http",
+							"method":       "GET",
+							"discoverable": true,
+						},
+					},
+				},
+			},
+		}
+
+		paymentRequiredBytes, _ := json.Marshal(v1PaymentRequired)
+
+		info, err := bazaar.ExtractDiscoveredResourceFromPaymentRequired(paymentRequiredBytes, true)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		assert.Equal(t, "https://api.example.com/docs", info.ResourceURL)
+	})
+
 	t.Run("v1: should extract discovery info from accepts[0].outputSchema", func(t *testing.T) {
 		// Create a v1 PaymentRequired with outputSchema in accepts[0]
 		v1PaymentRequired := map[string]interface{}{
@@ -1254,5 +1612,189 @@ func TestExtractDiscoveredResourceFromPaymentRequired(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		assert.Equal(t, "GET", info.Method)
+	})
+}
+
+// extractMethodEnum is a test helper that extracts the method enum from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["properties"]["method"]["enum"]
+func extractMethodEnum(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	inputPropsProps := inputProps["properties"].(map[string]interface{})
+	methodProp := inputPropsProps["method"].(map[string]interface{})
+	return methodProp["enum"].([]string)
+}
+
+// extractRequiredFields is a test helper that extracts the required array from a discovery extension schema.
+// It navigates: schema["properties"]["input"]["required"]
+func extractRequiredFields(t *testing.T, schema bazaar.JSONSchema) []string {
+	t.Helper()
+	schemaProps := schema["properties"].(map[string]interface{})
+	inputProps := schemaProps["input"].(map[string]interface{})
+	return inputProps["required"].([]string)
+}
+
+func TestBazaarResourceServerExtension(t *testing.T) {
+	// NOTE: Go's API is different from TypeScript.
+	// In Go, DeclareDiscoveryExtension takes the method as a parameter,
+	// so the schema is already narrow at creation time.
+	// In TypeScript, the method is inferred at runtime from the route key,
+	// so declareDiscoveryExtension creates a broad enum and enrichDeclaration narrows it.
+
+	t.Run("should enrich declaration with method from HTTP context", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"prompt": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"prompt": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// Method should be set in info.input
+		bodyInput, ok := enrichedExt.Info.Input.(bazaar.BodyInput)
+		require.True(t, ok)
+		assert.Equal(t, bazaar.MethodPOST, bodyInput.Method)
+	})
+
+	t.Run("should create schema with narrow method enum for POST", func(t *testing.T) {
+		// Go-specific: Unlike TypeScript, Go's DeclareDiscoveryExtension takes the method as a parameter.
+		// This means the schema is already narrow at creation time.
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"data": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"data": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Schema should already have just ["POST"] at creation time
+		methodEnum := extractMethodEnum(t, extension.Schema)
+		assert.Equal(t, []string{"POST"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
+
+		// EnrichDeclaration should preserve the narrow enum
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// After enrichment, the schema should still have just POST
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
+		assert.Equal(t, []string{"POST"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
+	})
+
+	t.Run("should create schema with narrow method enum for GET", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodGET,
+			map[string]interface{}{"query": "search term"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{"type": "string"},
+				},
+			},
+			"",
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Schema should already have just ["GET"] at creation time
+		methodEnum := extractMethodEnum(t, extension.Schema)
+		assert.Equal(t, []string{"GET"}, methodEnum, "Go creates narrow enum at DeclareDiscoveryExtension time")
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "GET",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		// After enrichment, should still be just GET
+		enrichedMethodEnum := extractMethodEnum(t, enrichedExt.Schema)
+		assert.Equal(t, []string{"GET"}, enrichedMethodEnum, "Schema method enum should remain narrow after enrichment")
+	})
+
+	t.Run("should add method to required array if not already present", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"prompt": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"prompt": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		httpContext := x402http.HTTPRequestContext{
+			Method: "POST",
+		}
+
+		enriched := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, httpContext)
+
+		enrichedExt, ok := enriched.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+
+		required := extractRequiredFields(t, enrichedExt.Schema)
+
+		hasMethod := false
+		for _, r := range required {
+			if r == "method" {
+				hasMethod = true
+				break
+			}
+		}
+		assert.True(t, hasMethod, "method should be in required array")
+	})
+
+	t.Run("should return unchanged declaration for non-HTTP context", func(t *testing.T) {
+		extension, err := bazaar.DeclareDiscoveryExtension(
+			bazaar.MethodPOST,
+			map[string]interface{}{"data": "test"},
+			bazaar.JSONSchema{
+				"properties": map[string]interface{}{
+					"data": map[string]interface{}{"type": "string"},
+				},
+			},
+			bazaar.BodyTypeJSON,
+			nil,
+		)
+		require.NoError(t, err)
+
+		// Non-HTTP context
+		nonHTTPContext := "not an http context"
+
+		result := bazaar.BazaarResourceServerExtension.EnrichDeclaration(extension, nonHTTPContext)
+
+		// Should return unchanged
+		resultExt, ok := result.(bazaar.DiscoveryExtension)
+		require.True(t, ok)
+		assert.Equal(t, extension.Info, resultExt.Info)
 	})
 }
