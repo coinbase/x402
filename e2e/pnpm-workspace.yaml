@@ -11,3 +11,4 @@ packages:
   - "../typescript/packages/http/*"
   - "../typescript/packages/mechanisms/*"
   - "../typescript/packages/legacy/*"
+  - "../typescript/packages/contracts/*"
