@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { ExactEvmPayloadV1, ExactEvmPayloadV2 } from "../../src/types";
+import type {
+  ExactEvmPayloadV1,
+  ExactEvmPayloadV2,
+  ExactEIP3009Payload,
+  ExactPermit2Payload,
+} from "../../src/types";
+import { isEIP3009Payload, isPermit2Payload } from "../../src/types";
 
 describe("EVM Types", () => {
   describe("ExactEvmPayloadV1", () => {
@@ -39,7 +45,7 @@ describe("EVM Types", () => {
   });
 
   describe("ExactEvmPayloadV2", () => {
-    it("should have the same structure as V1", () => {
+    it("should accept EIP-3009 payload structure", () => {
       const payload: ExactEvmPayloadV2 = {
         signature: "0x1234567890abcdef",
         authorization: {
@@ -53,8 +59,97 @@ describe("EVM Types", () => {
       };
 
       // V2 should be compatible with V1
-      const payloadV1: ExactEvmPayloadV1 = payload;
+      const payloadV1: ExactEvmPayloadV1 = payload as ExactEIP3009Payload;
       expect(payloadV1).toEqual(payload);
+    });
+
+    it("should accept Permit2 payload structure", () => {
+      const payload: ExactPermit2Payload = {
+        signature: "0x1234567890abcdef",
+        permit2Authorization: {
+          from: "0x1234567890123456789012345678901234567890",
+          permitted: {
+            token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            amount: "100000",
+          },
+          spender: "0x9876543210987654321098765432109876543210",
+          nonce: "12345678901234567890",
+          deadline: "1234567890",
+          witness: {
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+            validAfter: "1234567800",
+            validBefore: "1234567890",
+            extra: "0x",
+          },
+        },
+      };
+
+      expect(payload.signature).toBeDefined();
+      expect(payload.permit2Authorization.from).toMatch(/^0x[0-9a-fA-F]{40}$/);
+      expect(payload.permit2Authorization.permitted.token).toMatch(/^0x[0-9a-fA-F]{40}$/);
+      expect(payload.permit2Authorization.witness.to).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    });
+  });
+
+  describe("Type Guards", () => {
+    const eip3009Payload: ExactEIP3009Payload = {
+      signature: "0x1234567890abcdef",
+      authorization: {
+        from: "0x1234567890123456789012345678901234567890",
+        to: "0x9876543210987654321098765432109876543210",
+        value: "100000",
+        validAfter: "1234567890",
+        validBefore: "1234567890",
+        nonce: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      },
+    };
+
+    const permit2Payload: ExactPermit2Payload = {
+      signature: "0x1234567890abcdef",
+      permit2Authorization: {
+        from: "0x1234567890123456789012345678901234567890",
+        permitted: {
+          token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          amount: "100000",
+        },
+        spender: "0x9876543210987654321098765432109876543210",
+        nonce: "12345678901234567890",
+        deadline: "1234567890",
+        witness: {
+          to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          validAfter: "1234567800",
+          validBefore: "1234567890",
+          extra: "0x",
+        },
+      },
+    };
+
+    describe("isEIP3009Payload", () => {
+      it("should return true for EIP-3009 payload", () => {
+        expect(isEIP3009Payload(eip3009Payload)).toBe(true);
+      });
+
+      it("should return false for Permit2 payload", () => {
+        expect(isEIP3009Payload(permit2Payload)).toBe(false);
+      });
+    });
+
+    describe("isPermit2Payload", () => {
+      it("should return true for Permit2 payload", () => {
+        expect(isPermit2Payload(permit2Payload)).toBe(true);
+      });
+
+      it("should return false for EIP-3009 payload", () => {
+        expect(isPermit2Payload(eip3009Payload)).toBe(false);
+      });
+    });
+
+    it("type guards should be mutually exclusive", () => {
+      const eip3009: ExactEvmPayloadV2 = eip3009Payload;
+      const permit2: ExactEvmPayloadV2 = permit2Payload;
+
+      expect(isEIP3009Payload(eip3009)).toBe(!isPermit2Payload(eip3009));
+      expect(isPermit2Payload(permit2)).toBe(!isEIP3009Payload(permit2));
     });
   });
 });

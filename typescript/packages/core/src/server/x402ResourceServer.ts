@@ -21,6 +21,7 @@ export interface ResourceConfig {
   price: Price;
   network: Network;
   maxTimeoutSeconds?: number;
+  extra?: Record<string, unknown>;
 }
 
 /**
@@ -426,6 +427,7 @@ export class x402ResourceServer {
       maxTimeoutSeconds: resourceConfig.maxTimeoutSeconds || 300, // Default 5 minutes
       extra: {
         ...parsedPrice.extra,
+        ...resourceConfig.extra,
       },
     };
 
@@ -459,6 +461,7 @@ export class x402ResourceServer {
       price: Price | ((context: TContext) => Price | Promise<Price>);
       network: Network;
       maxTimeoutSeconds?: number;
+      extra?: Record<string, unknown>;
     }>,
     context: TContext,
   ): Promise<PaymentRequirements[]> {
@@ -477,6 +480,7 @@ export class x402ResourceServer {
         price: resolvedPrice,
         network: option.network,
         maxTimeoutSeconds: option.maxTimeoutSeconds,
+        extra: option.extra,
       };
 
       // Use existing buildPaymentRequirements for each option

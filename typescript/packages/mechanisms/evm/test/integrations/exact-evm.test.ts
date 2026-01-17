@@ -19,7 +19,14 @@ import {
 import { ExactEvmScheme as ExactEvmClient, toFacilitatorEvmSigner } from "../../src";
 import { ExactEvmScheme as ExactEvmServer } from "../../src/exact/server/scheme";
 import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitator/scheme";
-import type { ExactEvmPayloadV2 } from "../../src/types";
+import type { ExactEvmPayloadV2, ExactPermit2Payload } from "../../src/types";
+import { isPermit2Payload } from "../../src/types";
+import { x402Permit2ProxyAddress, PERMIT2_ADDRESS } from "../../src/constants";
+import {
+  createPermit2ApprovalTx,
+  getPermit2AllowanceReadParams,
+  erc20AllowanceAbi,
+} from "../../src/exact/client/permit2";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -112,6 +119,24 @@ function buildEvmPaymentRequirements(
     extra: {
       name: "USDC",
       version: "2",
+    },
+  };
+}
+
+function buildPermit2PaymentRequirements(
+  payTo: string,
+  amount: string,
+  network: Network = "eip155:84532",
+): PaymentRequirements {
+  return {
+    scheme: "exact",
+    network,
+    asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // Base Sepolia USDC
+    amount,
+    payTo,
+    maxTimeoutSeconds: 3600,
+    extra: {
+      assetTransferMethod: "permit2",
     },
   };
 }
@@ -219,6 +244,93 @@ describe("EVM Integration Tests", () => {
       expect(verifyResponse.payer).toBe(clientAddress);
 
       // Server does work here
+
+      const settleResponse = await server.settlePayment(paymentPayload, accepted!);
+      expect(settleResponse.success).toBe(true);
+      expect(settleResponse.network).toBe("eip155:84532");
+      expect(settleResponse.transaction).toBeDefined();
+      expect(settleResponse.payer).toBe(clientAddress);
+    });
+
+    it("server should successfully verify and settle a Permit2 payment from a client", async () => {
+      const clientAccount = privateKeyToAccount(CLIENT_PRIVATE_KEY);
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http(),
+      });
+      const clientWallet = createWalletClient({
+        account: clientAccount,
+        chain: baseSepolia,
+        transport: http(),
+      });
+
+      const usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+      const allowanceParams = getPermit2AllowanceReadParams({
+        tokenAddress: usdcAddress,
+        ownerAddress: clientAddress,
+      });
+
+      const currentAllowance = (await publicClient.readContract(allowanceParams)) as bigint;
+
+      if (currentAllowance < BigInt("1000")) {
+        console.log("📝 Approving Permit2 to spend USDC...");
+        const approvalTx = createPermit2ApprovalTx(usdcAddress);
+        const txHash = await clientWallet.sendTransaction({
+          to: approvalTx.to,
+          data: approvalTx.data,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        console.log("✅ Permit2 approval complete:", txHash);
+      }
+
+      const accepts = [
+        buildPermit2PaymentRequirements(
+          "0x9876543210987654321098765432109876543210",
+          "1000", // 0.001 USDC
+        ),
+      ];
+      const resource = {
+        url: "https://company.co",
+        description: "Company Co. resource",
+        mimeType: "application/json",
+      };
+      const paymentRequired = server.createPaymentRequiredResponse(accepts, resource);
+
+      const paymentPayload = await client.createPaymentPayload(paymentRequired);
+
+      expect(paymentPayload).toBeDefined();
+      expect(paymentPayload.x402Version).toBe(2);
+      expect(paymentPayload.accepted.scheme).toBe("exact");
+
+      const evmPayload = paymentPayload.payload as ExactEvmPayloadV2;
+      expect(isPermit2Payload(evmPayload)).toBe(true);
+
+      const permit2Payload = evmPayload as ExactPermit2Payload;
+      expect(permit2Payload.permit2Authorization).toBeDefined();
+      expect(permit2Payload.permit2Authorization.from).toBe(clientAddress);
+      expect(permit2Payload.permit2Authorization.spender.toLowerCase()).toBe(
+        x402Permit2ProxyAddress.toLowerCase(),
+      );
+      expect(permit2Payload.permit2Authorization.witness.to).toBe(
+        "0x9876543210987654321098765432109876543210",
+      );
+      expect(permit2Payload.signature).toBeDefined();
+
+      const accepted = server.findMatchingRequirements(accepts, paymentPayload);
+      expect(accepted).toBeDefined();
+
+      const verifyResponse = await server.verifyPayment(paymentPayload, accepted!);
+
+      if (!verifyResponse.isValid) {
+        console.log("❌ Permit2 Verification failed!");
+        console.log("Invalid reason:", verifyResponse.invalidReason);
+        console.log("Payer:", verifyResponse.payer);
+        console.log("Client address:", clientAddress);
+        console.log("Payload:", JSON.stringify(paymentPayload, null, 2));
+      }
+
+      expect(verifyResponse.isValid).toBe(true);
+      expect(verifyResponse.payer).toBe(clientAddress);
 
       const settleResponse = await server.settlePayment(paymentPayload, accepted!);
       expect(settleResponse.success).toBe(true);

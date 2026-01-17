@@ -10,6 +10,44 @@ export const authorizationTypes = {
   ],
 } as const;
 
+/**
+ * Permit2 EIP-712 types for signing PermitWitnessTransferFrom.
+ * Must match the exact format expected by the Permit2 contract.
+ */
+export const permit2WitnessTypes = {
+  PermitWitnessTransferFrom: [
+    { name: "permitted", type: "TokenPermissions" },
+    { name: "spender", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+    { name: "witness", type: "Witness" },
+  ],
+  TokenPermissions: [
+    { name: "token", type: "address" },
+    { name: "amount", type: "uint256" },
+  ],
+  Witness: [
+    { name: "extra", type: "bytes" },
+    { name: "to", type: "address" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+  ],
+} as const;
+
+/**
+ * EIP-2612 permit types for gasless approval signatures.
+ * Used with the eip2612GasSponsoring extension.
+ */
+export const eip2612PermitTypes = {
+  Permit: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 // EIP3009 ABI for transferWithAuthorization function
 export const eip3009ABI = [
   {
