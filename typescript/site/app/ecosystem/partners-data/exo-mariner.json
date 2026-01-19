@@ -1,0 +1,9 @@
+{
+  "id": "exo-mariner",
+  "name": "Phone Number Normalizer",
+  "description": "Converts unformatted phone numbers into a clean, internationally standardized E.164 format by applying the appropriate country code.",
+  "url": "https://exo-mariner.up.railway.app",
+  "category": "Utility",
+  "tags": ["phone", "normalization", "utility", "data"],
+  "imageUrl": "https://exo-mariner.up.railway.app/icon.png" 
+}
