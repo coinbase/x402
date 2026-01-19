@@ -189,7 +189,6 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		}
 
 		// Extract resource URL from requirements
-		// Extract resource URL from requirements
 		resourceURL = requirementsV1.Resource
 		description = requirementsV1.Description
 		mimeType = requirementsV1.MimeType
