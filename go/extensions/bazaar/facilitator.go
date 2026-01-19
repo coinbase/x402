@@ -91,6 +91,8 @@ type DiscoveredResource struct {
 	Method        string
 	X402Version   int
 	DiscoveryInfo *types.DiscoveryInfo
+	Description   string
+	MimeType      string
 }
 
 // ExtractDiscoveredResourceFromPaymentPayload extracts a discovered resource from a client's payment payload and requirements.
@@ -138,6 +140,8 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 
 	var discoveryInfo *types.DiscoveryInfo
 	var resourceURL string
+	var description string
+	var mimeType string
 	version := versionCheck.X402Version
 
 	switch version {
@@ -151,6 +155,8 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		// Extract resource URL
 		if payload.Resource != nil {
 			resourceURL = payload.Resource.URL
+			description = payload.Resource.Description
+			mimeType = payload.Resource.MimeType
 		}
 
 		// Extract discovery info from extensions
@@ -183,7 +189,10 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 		}
 
 		// Extract resource URL from requirements
+		// Extract resource URL from requirements
 		resourceURL = requirementsV1.Resource
+		description = requirementsV1.Description
+		mimeType = requirementsV1.MimeType
 
 		// Extract discovery info from outputSchema
 		infoV1, err := v1.ExtractDiscoveryInfoV1(requirementsV1)
@@ -218,6 +227,8 @@ func ExtractDiscoveredResourceFromPaymentPayload(
 
 	return &DiscoveredResource{
 		ResourceURL:   normalizedURL,
+		Description:   description,
+		MimeType:      mimeType,
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
@@ -281,6 +292,8 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 
 	var discoveryInfo *types.DiscoveryInfo
 	var resourceURL string
+	var description string
+	var mimeType string
 	version := versionCheck.X402Version
 
 	switch version {
@@ -294,6 +307,8 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 		// Extract resource URL
 		if paymentRequired.Resource != nil {
 			resourceURL = paymentRequired.Resource.URL
+			description = paymentRequired.Resource.Description
+			mimeType = paymentRequired.Resource.MimeType
 		}
 
 		// First check PaymentRequired.extensions for bazaar extension
@@ -333,6 +348,8 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 
 		// Extract resource URL from first accept
 		resourceURL = paymentRequiredV1.Accepts[0].Resource
+		description = paymentRequiredV1.Accepts[0].Description
+		mimeType = paymentRequiredV1.Accepts[0].MimeType
 
 		// Extract discovery info from outputSchema
 		infoV1, err := v1.ExtractDiscoveryInfoV1(paymentRequiredV1.Accepts[0])
@@ -367,6 +384,8 @@ func ExtractDiscoveredResourceFromPaymentRequired(
 
 	return &DiscoveredResource{
 		ResourceURL:   normalizedURL,
+		Description:   description,
+		MimeType:      mimeType,
 		Method:        method,
 		X402Version:   version,
 		DiscoveryInfo: discoveryInfo,
