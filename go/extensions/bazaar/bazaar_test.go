@@ -1086,6 +1086,8 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 		// Verify resource URL extracted correctly
 		assert.Equal(t, "https://mesh.heurist.xyz/x402/agents/TokenResolverAgent/search", info.ResourceURL)
+		assert.Equal(t, "Find tokens by address, ticker/symbol, or token name", info.Description)
+		assert.Equal(t, "application/json", info.MimeType)
 		assert.Equal(t, 1, info.X402Version)
 	})
 
