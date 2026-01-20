@@ -263,9 +263,3 @@ Reference implementation provided in this PR:
 ## Open Questions
 
 1. **Facilitator `/fee-quote` endpoint**: Standardize a facilitator API for fetching quotes directly?
-
-## Resolved Questions
-
-- ~~**`selectedQuoteId` enforcement**: SHOULD vs MUST honor selection?~~ → **MUST** (see Selection Semantics)
-- ~~**Fee model vocabulary**: Formally define `flat | bps | tiered` semantics?~~ → **Defined** (see Fee Model Semantics)
-- ~~**Canonical signing format**: How to deterministically sign quotes?~~ → **Defined** (see Canonical Quote Format)
