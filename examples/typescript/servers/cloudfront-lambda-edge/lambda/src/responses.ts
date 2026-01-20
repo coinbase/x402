@@ -1,7 +1,8 @@
-import type { PaymentRequirements, PaymentRequired } from '@x402/core';
+import { decodePaymentRequiredHeader } from '@x402/core/http';
 
-const X402_VERSION = 2;
-
+/**
+ * Lambda@Edge response format
+ */
 export interface LambdaEdgeResponse {
   status: string;
   statusDescription?: string;
@@ -10,61 +11,34 @@ export interface LambdaEdgeResponse {
 }
 
 /**
- * Create PaymentRequired object per x402 spec
+ * Convert HTTP response to Lambda@Edge response format.
+ * For 402 responses, decodes the PAYMENT-REQUIRED header and includes it in the body.
  */
-function createPaymentRequired(
-  requirements: PaymentRequirements,
-  resourceUrl: string,
-  error?: string
-): PaymentRequired {
-  return {
-    x402Version: X402_VERSION,
-    error,
-    resource: { url: resourceUrl, description: '', mimeType: 'application/json' },
-    accepts: [requirements],
-  };
-}
-
-/**
- * Create 402 Payment Required response
- */
-export function createPaymentRequiredResponse(
-  paymentRequirements: PaymentRequirements,
-  error: string,
-  resourceUrl: string
+export function toLambdaResponse(
+  status: number,
+  headers: Record<string, string>,
+  body?: unknown
 ): LambdaEdgeResponse {
-  const paymentRequired = createPaymentRequired(paymentRequirements, resourceUrl, error);
-  const body = JSON.stringify(paymentRequired);
+  const lambdaHeaders: Record<string, Array<{ key: string; value: string }>> = {};
+
+  for (const [key, value] of Object.entries(headers)) {
+    lambdaHeaders[key.toLowerCase()] = [{ key, value }];
+  }
+
+  // For 402 responses, decode PAYMENT-REQUIRED header and use as body
+  let responseBody = body;
+  if (status === 402 && headers['PAYMENT-REQUIRED']) {
+    try {
+      responseBody = decodePaymentRequiredHeader(headers['PAYMENT-REQUIRED']);
+    } catch {
+      // Fall back to original body if decoding fails
+    }
+  }
 
   return {
-    status: '402',
-    statusDescription: 'Payment Required',
-    headers: {
-      'content-type': [{ key: 'Content-Type', value: 'application/json; charset=utf-8' }],
-      'payment-required': [{ key: 'PAYMENT-REQUIRED', value: Buffer.from(body).toString('base64') }],
-    },
-    body,
-  };
-}
-
-/**
- * Create 402 response for invalid payment
- */
-export function createPaymentInvalidResponse(
-  paymentRequirements: PaymentRequirements,
-  error: string,
-  resourceUrl: string,
-  payer?: string
-): LambdaEdgeResponse {
-  const paymentRequired = createPaymentRequired(paymentRequirements, resourceUrl, error);
-  const body = JSON.stringify({ ...paymentRequired, payer });
-
-  return {
-    status: '402',
-    statusDescription: 'Payment Required',
-    headers: {
-      'content-type': [{ key: 'Content-Type', value: 'application/json; charset=utf-8' }],
-    },
-    body,
+    status: String(status),
+    statusDescription: status === 402 ? 'Payment Required' : undefined,
+    headers: lambdaHeaders,
+    body: responseBody ? (typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody)) : undefined,
   };
 }

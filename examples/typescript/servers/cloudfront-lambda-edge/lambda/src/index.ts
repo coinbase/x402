@@ -1,7 +1,7 @@
 import type { CloudFrontRequestEvent, CloudFrontRequestResult } from 'aws-lambda';
-import { matchRoute } from './config';
-import { createPaymentRequirements, verifyPayment, settlePayment } from './payment';
-import { createPaymentRequiredResponse, createPaymentInvalidResponse, LambdaEdgeResponse } from './responses';
+import { CloudFrontHTTPAdapter } from './adapter';
+import { getServer } from './server';
+import { toLambdaResponse, LambdaEdgeResponse } from './responses';
 
 /**
  * Lambda@Edge Origin Request handler for x402 payment verification
@@ -10,48 +10,59 @@ export const handler = async (
   event: CloudFrontRequestEvent
 ): Promise<CloudFrontRequestResult | LambdaEdgeResponse> => {
   const request = event.Records[0].cf.request;
-  const path = request.uri;
+  const distributionDomain = event.Records[0].cf.config.distributionDomainName;
 
-  console.log('x402 check:', path);
+  console.log('x402 check:', request.uri);
 
-  // Check if route requires payment
-  const route = matchRoute(path);
-  if (!route) {
-    return request; // No payment required, pass through
+  try {
+    const server = await getServer();
+    const adapter = new CloudFrontHTTPAdapter(request, distributionDomain);
+
+    const context = {
+      adapter,
+      path: adapter.getPath(),
+      method: adapter.getMethod(),
+      paymentHeader: adapter.getHeader('payment-signature'),
+    };
+
+    const result = await server.processHTTPRequest(context);
+
+    switch (result.type) {
+      case 'no-payment-required':
+        return request;
+
+      case 'payment-error':
+        console.log('Payment required or invalid');
+        return toLambdaResponse(
+          result.response.status,
+          result.response.headers,
+          result.response.body
+        );
+
+      case 'payment-verified':
+        console.log('Payment verified, settling...');
+        const settlement = await server.processSettlement(
+          result.paymentPayload,
+          result.paymentRequirements
+        );
+
+        if (settlement.success) {
+          for (const [key, value] of Object.entries(settlement.headers)) {
+            request.headers[key.toLowerCase()] = [{ key, value: String(value) }];
+          }
+          console.log('Payment settled, forwarding to origin');
+          return request;
+        } else {
+          console.log('Settlement failed:', settlement.errorReason);
+          return toLambdaResponse(402, { 'Content-Type': 'application/json' }, {
+            error: settlement.errorReason,
+          });
+        }
+    }
+  } catch (error) {
+    console.error('x402 error:', error);
+    return toLambdaResponse(500, { 'Content-Type': 'application/json' }, {
+      error: 'Internal server error',
+    });
   }
-
-  // Build resource URL - prefer Host header (custom domain), fallback to CloudFront domain
-  const host = request.headers['host']?.[0]?.value 
-    || event.Records[0].cf.config.distributionDomainName;
-  const protocol = request.headers['cloudfront-forwarded-proto']?.[0]?.value || 'https';
-  const resourceUrl = `${protocol}://${host}${path}`;
-  const requirements = createPaymentRequirements(resourceUrl, route);
-
-  // Check for payment header
-  const paymentHeader = request.headers['payment-signature']?.[0]?.value;
-
-  if (!paymentHeader) {
-    console.log('No payment, returning 402');
-    return createPaymentRequiredResponse(requirements, 'Payment required', resourceUrl);
-  }
-
-  // Verify payment
-  console.log('Verifying payment...');
-  const verification = await verifyPayment(paymentHeader, requirements);
-
-  if (!verification.isValid) {
-    console.log('Payment invalid:', verification.error);
-    return createPaymentInvalidResponse(requirements, verification.error || 'Invalid payment', resourceUrl, verification.payer);
-  }
-
-  // Settle payment
-  console.log('Settling payment...');
-  const settlement = await settlePayment(paymentHeader, requirements);
-
-  if (settlement.responseHeader) {
-    request.headers['payment-response'] = [{ key: 'PAYMENT-RESPONSE', value: settlement.responseHeader }];
-  }
-
-  console.log('Payment verified, forwarding to origin');
-  return request;
 };
