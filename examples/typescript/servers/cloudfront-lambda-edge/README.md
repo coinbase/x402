@@ -44,6 +44,11 @@ Lambda@Edge intercepts requests, checks for payment, verifies with the facilitat
 
 Copy the `lambda/src/` files into your project and adapt the build process to your tooling.
 
+> **Note**: The `lambda/package.json` uses `"@x402/core": "workspace:*"` for monorepo development. When copying this example to a standalone project, replace it with a specific version:
+> ```json
+> "@x402/core": "^2.2.0"
+> ```
+
 ### 2. Configure Routes
 
 Edit `config.ts` with your payment settings:

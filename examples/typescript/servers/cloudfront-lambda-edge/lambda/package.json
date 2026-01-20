@@ -13,7 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@x402/core": "^2.2.0"
+    "@x402/core": "workspace:*"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.159",
