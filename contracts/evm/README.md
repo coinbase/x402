@@ -176,7 +176,7 @@ function settle(
 ) external;
 ```
 
-### `settleWith2612()`
+### `settleWithPermit()`
 
 Both contracts support settlement with EIP-2612 permit for fully gasless flow.
 The function signatures follow the same pattern as `settle()` for each variant.

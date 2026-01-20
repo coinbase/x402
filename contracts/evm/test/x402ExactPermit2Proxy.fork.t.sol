@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {x402ExactPermit2Proxy} from "../src/x402ExactPermit2Proxy.sol";
+import {x402BasePermit2Proxy} from "../src/x402BasePermit2Proxy.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
@@ -67,7 +68,7 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 amount,
         uint256 nonce,
         uint256 deadline,
-        x402ExactPermit2Proxy.Witness memory witness
+        x402BasePermit2Proxy.Witness memory witness
     ) internal view returns (bytes memory) {
         // Must match contract's witness hash computation order
         bytes32 witnessHash = keccak256(
@@ -92,8 +93,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 nonce = _nonce(1);
         uint256 deadline = t + 3600;
 
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory witness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -117,8 +118,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 t = block.timestamp;
         uint256 nonce = _nonce(2);
 
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory witness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         ISignatureTransfer.PermitTransferFrom memory permit = ISignatureTransfer.PermitTransferFrom({
             permitted: ISignatureTransfer.TokenPermissions({token: address(token), amount: TRANSFER_AMOUNT}),
@@ -137,8 +138,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 nonce = _nonce(3);
         uint256 deadline = t + 3600;
 
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory witness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         uint256 wrongKey = 0xdeadbeef;
         bytes32 witnessHash = keccak256(
@@ -168,8 +169,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 nonce = _nonce(4);
         uint256 deadline = t + 3600;
 
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory witness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -190,8 +191,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
         uint256 nonce = _nonce(5);
         uint256 deadline = t - 60; // expired
 
-        x402ExactPermit2Proxy.Witness memory witness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 120, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory witness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 120, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, witness);
 
@@ -212,8 +213,8 @@ contract X402ExactPermit2ProxyForkTest is Test {
 
         address attacker = makeAddr("attacker");
 
-        x402ExactPermit2Proxy.Witness memory signedWitness =
-            x402ExactPermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
+        x402BasePermit2Proxy.Witness memory signedWitness =
+            x402BasePermit2Proxy.Witness({to: recipient, validAfter: t - 60, validBefore: t + 3600, extra: ""});
 
         bytes memory sig = _sign(address(token), TRANSFER_AMOUNT, nonce, deadline, signedWitness);
 
@@ -223,7 +224,7 @@ contract X402ExactPermit2ProxyForkTest is Test {
             deadline: deadline
         });
 
-        x402ExactPermit2Proxy.Witness memory tamperedWitness = x402ExactPermit2Proxy.Witness({
+        x402BasePermit2Proxy.Witness memory tamperedWitness = x402BasePermit2Proxy.Witness({
             to: attacker,
             validAfter: signedWitness.validAfter,
             validBefore: signedWitness.validBefore,

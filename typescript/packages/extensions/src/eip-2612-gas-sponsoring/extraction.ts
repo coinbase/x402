@@ -34,7 +34,7 @@ export interface ExtractionResult {
  * ```typescript
  * const result = extractEIP2612GasSponsoring(payload, requirements);
  * if (result.found && result.validation?.valid) {
- *   // Use result.info for settlement via x402Permit2Proxy.settleWith2612()
+ *   // Use result.info for settlement via x402Permit2Proxy.settleWithPermit()
  * }
  * ```
  */
@@ -77,7 +77,7 @@ export function extractEIP2612GasSponsoring(
  * @example
  * ```typescript
  * if (hasEIP2612GasSponsoring(payload)) {
- *   // Handle EIP-2612 settlement path via x402Permit2Proxy.settleWith2612()
+ *   // Handle EIP-2612 settlement path via x402Permit2Proxy.settleWithPermit()
  * } else {
  *   // Handle standard settlement path via x402Permit2Proxy.settle()
  * }
@@ -100,7 +100,7 @@ export function hasEIP2612GasSponsoring(payload: PaymentPayload): boolean {
  * const info = extractValidEIP2612GasSponsoring(payload, requirements);
  * if (info) {
  *   // Safe to use for settlement
- *   await x402Permit2Proxy.settleWith2612(info, ...);
+ *   await x402Permit2Proxy.settleWithPermit(info, ...);
  * }
  * ```
  */

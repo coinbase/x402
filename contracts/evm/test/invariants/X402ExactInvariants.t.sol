@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {x402ExactPermit2Proxy} from "../../src/x402ExactPermit2Proxy.sol";
+import {x402BasePermit2Proxy} from "../../src/x402BasePermit2Proxy.sol";
 import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "../mocks/MockPermit2.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -44,7 +45,7 @@ contract X402ExactHandler is Test {
             deadline: t + 3600
         });
 
-        x402ExactPermit2Proxy.Witness memory witness = x402ExactPermit2Proxy.Witness({
+        x402BasePermit2Proxy.Witness memory witness = x402BasePermit2Proxy.Witness({
             to: recipient,
             validAfter: t > 60 ? t - 60 : 0,
             validBefore: t + 3600,

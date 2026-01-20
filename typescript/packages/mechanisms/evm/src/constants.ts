@@ -219,7 +219,7 @@ export const x402Permit2ProxyABI = [
   },
   {
     type: "function",
-    name: "settleWith2612",
+    name: "settleWithPermit",
     inputs: [
       {
         name: "permit2612",

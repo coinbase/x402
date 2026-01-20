@@ -561,7 +561,7 @@ describe("EIP-2612 Gas Sponsoring Extension", () => {
       const validInfo = extractValidEIP2612GasSponsoring(payload, requirements);
       expect(validInfo).toBeNull();
 
-      // Facilitator would use standard settle() instead of settleWith2612()
+      // Facilitator would use standard settle() instead of settleWithPermit()
     });
 
     it("should reject invalid extension data in workflow", () => {

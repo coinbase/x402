@@ -7,7 +7,7 @@
  * When this extension is active, the Facilitator agrees to accept an
  * off-chain EIP-2612 signature and submit it to the blockchain on the
  * user's behalf, paying the gas fees. This is executed atomically
- * with the settlement transaction via x402Permit2Proxy.settleWith2612().
+ * with the settlement transaction via x402Permit2Proxy.settleWithPermit().
  *
  * ## For Facilitators
  *
@@ -26,7 +26,7 @@
  * if (hasEIP2612GasSponsoring(payload)) {
  *   const result = extractEIP2612GasSponsoring(payload, requirements);
  *   if (result.found && result.validation?.valid) {
- *     // Use result.info for x402Permit2Proxy.settleWith2612()
+ *     // Use result.info for x402Permit2Proxy.settleWithPermit()
  *   }
  * }
  * ```

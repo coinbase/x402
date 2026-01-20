@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
+import {x402BasePermit2Proxy} from "../src/x402BasePermit2Proxy.sol";
 import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 import {MockPermit2} from "./mocks/MockPermit2.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -21,7 +22,7 @@ contract X402UptoPermit2ProxyTest is Test {
     uint256 constant TRANSFER_AMOUNT = 100e6;
 
     event Settled();
-    event SettledWith2612();
+    event SettledWithPermit();
 
     function setUp() public {
         vm.warp(1_000_000);
@@ -55,8 +56,8 @@ contract X402UptoPermit2ProxyTest is Test {
         address to,
         uint256 validAfter,
         uint256 validBefore
-    ) internal pure returns (x402UptoPermit2Proxy.Witness memory) {
-        return x402UptoPermit2Proxy.Witness({to: to, validAfter: validAfter, validBefore: validBefore, extra: ""});
+    ) internal pure returns (x402BasePermit2Proxy.Witness memory) {
+        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter, validBefore: validBefore, extra: ""});
     }
 
     function _sig() internal pure returns (bytes memory) {
@@ -66,7 +67,7 @@ contract X402UptoPermit2ProxyTest is Test {
     // --- Constructor ---
 
     function test_constructor_revertsOnZeroPermit2() public {
-        vm.expectRevert(x402UptoPermit2Proxy.InvalidPermit2Address.selector);
+        vm.expectRevert(x402BasePermit2Proxy.InvalidPermit2Address.selector);
         new x402UptoPermit2Proxy(address(0));
     }
 
@@ -78,7 +79,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_revertsOnZeroOwner() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402UptoPermit2Proxy.InvalidOwner.selector);
+        vm.expectRevert(x402BasePermit2Proxy.InvalidOwner.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600),
             TRANSFER_AMOUNT,
@@ -90,7 +91,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_revertsOnZeroDestination() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402UptoPermit2Proxy.InvalidDestination.selector);
+        vm.expectRevert(x402BasePermit2Proxy.InvalidDestination.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600),
             TRANSFER_AMOUNT,
@@ -102,7 +103,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_revertsBeforeValidAfter() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402UptoPermit2Proxy.PaymentTooEarly.selector);
+        vm.expectRevert(x402BasePermit2Proxy.PaymentTooEarly.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t + 60, t + 3600), _sig()
         );
@@ -110,7 +111,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_revertsAfterValidBefore() public {
         uint256 t = block.timestamp;
-        vm.expectRevert(x402UptoPermit2Proxy.PaymentExpired.selector);
+        vm.expectRevert(x402BasePermit2Proxy.PaymentExpired.selector);
         proxy.settle(
             _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 120, t - 60), _sig()
         );
@@ -209,9 +210,9 @@ contract X402UptoPermit2ProxyTest is Test {
         assertEq(token.balanceOf(address(proxy)), 0);
     }
 
-    // --- settleWith2612() ---
+    // --- settleWithPermit() ---
 
-    function test_settleWith2612_transfersTokens() public {
+    function test_settleWithPermit_transfersTokens() public {
         MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
         permitToken.mint(payer, MINT_AMOUNT);
         vm.prank(payer);
@@ -224,7 +225,7 @@ contract X402UptoPermit2ProxyTest is Test {
             deadline: t + 3600
         });
 
-        x402UptoPermit2Proxy.EIP2612Permit memory permit2612 = x402UptoPermit2Proxy.EIP2612Permit({
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
             value: type(uint256).max,
             deadline: t + 3600,
             v: 27,
@@ -233,14 +234,14 @@ contract X402UptoPermit2ProxyTest is Test {
         });
 
         vm.expectEmit(false, false, false, false);
-        emit SettledWith2612();
+        emit SettledWithPermit();
 
-        proxy.settleWith2612(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
 
-    function test_settleWith2612_succeedsWhenPermitFails() public {
+    function test_settleWithPermit_succeedsWhenPermitFails() public {
         MockERC20Permit permitToken = new MockERC20Permit("USDC", "USDC", 6);
         permitToken.mint(payer, MINT_AMOUNT);
         permitToken.setPermitRevert(true, "Permit failed");
@@ -255,7 +256,7 @@ contract X402UptoPermit2ProxyTest is Test {
             deadline: t + 3600
         });
 
-        x402UptoPermit2Proxy.EIP2612Permit memory permit2612 = x402UptoPermit2Proxy.EIP2612Permit({
+        x402BasePermit2Proxy.EIP2612Permit memory permit2612 = x402BasePermit2Proxy.EIP2612Permit({
             value: type(uint256).max,
             deadline: t + 3600,
             v: 27,
@@ -263,7 +264,7 @@ contract X402UptoPermit2ProxyTest is Test {
             s: bytes32(uint256(2))
         });
 
-        proxy.settleWith2612(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {ISignatureTransfer} from "../../src/interfaces/ISignatureTransfer.sol";
 import {x402ExactPermit2Proxy} from "../../src/x402ExactPermit2Proxy.sol";
+import {x402BasePermit2Proxy} from "../../src/x402BasePermit2Proxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MaliciousReentrantExact is ISignatureTransfer {
@@ -11,7 +12,7 @@ contract MaliciousReentrantExact is ISignatureTransfer {
 
     ISignatureTransfer.PermitTransferFrom public storedPermit;
     address public storedOwner;
-    x402ExactPermit2Proxy.Witness public storedWitness;
+    x402BasePermit2Proxy.Witness public storedWitness;
     bytes public storedSignature;
 
     mapping(address => mapping(uint256 => uint256)) public nonceBitmapStorage;
@@ -31,7 +32,7 @@ contract MaliciousReentrantExact is ISignatureTransfer {
     function setAttackParams(
         ISignatureTransfer.PermitTransferFrom calldata permit,
         address owner,
-        x402ExactPermit2Proxy.Witness calldata witness,
+        x402BasePermit2Proxy.Witness calldata witness,
         bytes calldata signature
     ) external {
         storedPermit = permit;
