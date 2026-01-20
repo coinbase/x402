@@ -27,6 +27,16 @@ const (
 	ErrCodeUnsupportedNetwork = "unsupported_network"
 )
 
+// Facilitator error constants
+const (
+	ErrInvalidVersion          = "invalid_version"
+	ErrInvalidV1Payload        = "invalid_v1_payload"
+	ErrInvalidV1Requirements   = "invalid_v1_requirements"
+	ErrInvalidV2Payload        = "invalid_v2_payload"
+	ErrInvalidV2Requirements   = "invalid_v2_requirements"
+	ErrNoFacilitatorForNetwork = "no_facilitator_for_network"
+)
+
 // NewPaymentError creates a new payment error
 func NewPaymentError(code, message string, details map[string]interface{}) *PaymentError {
 	return &PaymentError{

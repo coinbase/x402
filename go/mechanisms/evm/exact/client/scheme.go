@@ -49,7 +49,7 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	// Requirements.Amount is already in the smallest unit
 	value, ok := new(big.Int).SetString(requirements.Amount, 10)
 	if !ok {
-		return types.PaymentPayload{}, fmt.Errorf("invalid amount: %s", requirements.Amount)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidAmount+": %s", requirements.Amount)
 	}
 
 	// Create nonce
@@ -86,7 +86,7 @@ func (c *ExactEvmScheme) CreatePaymentPayload(
 	// Sign the authorization
 	signature, err := c.signAuthorization(ctx, authorization, chainID, assetInfo.Address, tokenName, tokenVersion)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to sign authorization: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToSignAuthorization+": %w", err)
 	}
 
 	// Create EVM payload

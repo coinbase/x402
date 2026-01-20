@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -47,7 +48,7 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 	// Validate network
 	networkStr := string(requirements.Network)
 	if !svm.IsValidNetwork(networkStr) {
-		return types.PaymentPayload{}, fmt.Errorf("unsupported network: %s", requirements.Network)
+		return types.PaymentPayload{}, fmt.Errorf(ErrUnsupportedNetwork+": %s", requirements.Network)
 	}
 
 	// Get network configuration
@@ -68,67 +69,67 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 	// Parse mint address
 	mintPubkey, err := solana.PublicKeyFromBase58(requirements.Asset)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("invalid asset address: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidAssetAddress+": %w", err)
 	}
 
 	// Get mint account to determine token program
 	mintAccount, err := rpcClient.GetAccountInfo(ctx, mintPubkey)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to get mint account: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToGetMintAccount+": %w", err)
 	}
 
 	// Determine token program (Token or Token-2022)
 	tokenProgramID := mintAccount.Value.Owner
 	if tokenProgramID != solana.TokenProgramID && tokenProgramID != solana.Token2022ProgramID {
-		return types.PaymentPayload{}, fmt.Errorf("asset was not created by a known token program")
+		return types.PaymentPayload{}, errors.New(ErrUnknownTokenProgram)
 	}
 
 	// Parse payTo address
 	payToPubkey, err := solana.PublicKeyFromBase58(requirements.PayTo)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("invalid payTo address: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidPayToAddress+": %w", err)
 	}
 
 	// Find source ATA (client's token account)
 	sourceATA, _, err := solana.FindAssociatedTokenAddress(c.signer.Address(), mintPubkey)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to derive source ATA: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToDeriveSourceATA+": %w", err)
 	}
 
 	// Find destination ATA (recipient's token account)
 	destinationATA, _, err := solana.FindAssociatedTokenAddress(payToPubkey, mintPubkey)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to derive destination ATA: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToDeriveDestinationATA+": %w", err)
 	}
 
 	// Parse amount
 	amount, err := strconv.ParseUint(requirements.Amount, 10, 64)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("invalid amount: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidAmount+": %w", err)
 	}
 
 	// Get fee payer from requirements.extra
 	feePayerAddr, ok := requirements.Extra["feePayer"].(string)
 	if !ok {
-		return types.PaymentPayload{}, fmt.Errorf("feePayer is required in paymentRequirements.extra for Solana transactions")
+		return types.PaymentPayload{}, errors.New(ErrFeePayerRequired)
 	}
 
 	feePayer, err := solana.PublicKeyFromBase58(feePayerAddr)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("invalid feePayer address: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrInvalidFeePayerAddress+": %w", err)
 	}
 
 	// Get mint account data to get decimals
 	var mintData token.Mint
 	err = bin.NewBinDecoder(mintAccount.Value.Data.GetBinary()).Decode(&mintData)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to decode mint data: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToDecodeMintData+": %w", err)
 	}
 
 	// Get latest blockhash
 	latestBlockhash, err := rpcClient.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to get latest blockhash: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToGetLatestBlockhash+": %w", err)
 	}
 	recentBlockhash := latestBlockhash.Value.Blockhash
 
@@ -137,14 +138,14 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		SetUnits(svm.DefaultComputeUnitLimit).
 		ValidateAndBuild()
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to build compute limit instruction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildComputeLimitIx+": %w", err)
 	}
 
 	cuPrice, err := computebudget.NewSetComputeUnitPriceInstructionBuilder().
 		SetMicroLamports(svm.DefaultComputeUnitPriceMicrolamports).
 		ValidateAndBuild()
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to build compute price instruction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildComputePriceIx+": %w", err)
 	}
 
 	// Build final transfer instruction
@@ -157,7 +158,7 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		SetOwnerAccount(c.signer.Address()).
 		ValidateAndBuild()
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to build transfer instruction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToBuildTransferIx+": %w", err)
 	}
 
 	// Create final transaction
@@ -169,18 +170,18 @@ func (c *ExactSvmScheme) CreatePaymentPayload(
 		SetFeePayer(feePayer).
 		Build()
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to create transaction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToCreateTransaction+": %w", err)
 	}
 
 	// Partially sign with client's key
 	if err := c.signer.SignTransaction(ctx, tx); err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to sign transaction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToSignTransaction+": %w", err)
 	}
 
 	// Encode transaction to base64
 	base64Tx, err := svm.EncodeTransaction(tx)
 	if err != nil {
-		return types.PaymentPayload{}, fmt.Errorf("failed to encode transaction: %w", err)
+		return types.PaymentPayload{}, fmt.Errorf(ErrFailedToEncodeTransaction+": %w", err)
 	}
 
 	// Create SVM payload
