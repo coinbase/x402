@@ -75,29 +75,29 @@ func (f *ExactSvmSchemeV1) Verify(
 	// Step 1: Validate Payment Requirements
 	// V1: Check scheme from top level (not in Accepted)
 	if payload.Scheme != svm.SchemeExact || requirements.Scheme != svm.SchemeExact {
-		return nil, x402.NewVerifyError("unsupported_scheme", "", network, nil)
+		return nil, x402.NewVerifyError(ErrUnsupportedScheme, "", network, nil)
 	}
 
 	// V1: Use payload.Network for validation (top level, not in Accepted)
 	if payload.Network != requirements.Network {
-		return nil, x402.NewVerifyError("network_mismatch", "", network, nil)
+		return nil, x402.NewVerifyError(ErrNetworkMismatch, "", network, nil)
 	}
 
 	// Parse extra field for feePayer
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
 		if err := json.Unmarshal(*requirements.Extra, &reqExtraMap); err != nil {
-			return nil, x402.NewVerifyError("invalid_extra_field", "", network, err)
+			return nil, x402.NewVerifyError(ErrInvalidExtraField, "", network, err)
 		}
 	}
 
 	if reqExtraMap == nil || reqExtraMap["feePayer"] == nil {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", "", network, nil)
+		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", network, nil)
 	}
 
 	feePayerStr, ok := reqExtraMap["feePayer"].(string)
 	if !ok {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_missing_fee_payer", "", network, nil)
+		return nil, x402.NewVerifyError(ErrMissingFeePayer, "", network, nil)
 	}
 
 	// Verify that the requested feePayer is managed by this facilitator
@@ -115,24 +115,24 @@ func (f *ExactSvmSchemeV1) Verify(
 		}
 	}
 	if !feePayerManaged {
-		return nil, x402.NewVerifyError("fee_payer_not_managed_by_facilitator", "", network, nil)
+		return nil, x402.NewVerifyError(ErrFeePayerNotManaged, "", network, nil)
 	}
 
 	// Parse payload
 	svmPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction", "", network, err)
+		return nil, x402.NewVerifyError(ErrInvalidPayloadTransaction, "", network, err)
 	}
 
 	// Step 2: Parse and Validate Transaction Structure
 	tx, err := svm.DecodeTransaction(svmPayload.Transaction)
 	if err != nil {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction_could_not_be_decoded", "", network, err)
+		return nil, x402.NewVerifyError(ErrTransactionCouldNotBeDecoded, "", network, err)
 	}
 
 	// 3 instructions: ComputeLimit + ComputePrice + TransferChecked
 	if len(tx.Message.Instructions) != 3 {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_transaction_instructions_length", "", network, nil)
+		return nil, x402.NewVerifyError(ErrTransactionInstructionsLength, "", network, nil)
 	}
 
 	// Step 3: Verify Compute Budget Instructions
@@ -147,7 +147,7 @@ func (f *ExactSvmSchemeV1) Verify(
 	// Extract payer from transaction
 	payer, err := svm.GetTokenPayerFromTransaction(tx)
 	if err != nil {
-		return nil, x402.NewVerifyError("invalid_exact_solana_payload_no_transfer_instruction", payer, network, err)
+		return nil, x402.NewVerifyError(ErrNoTransferInstruction, payer, network, err)
 	}
 
 	// Step 4: Verify Transfer Instruction
@@ -161,17 +161,17 @@ func (f *ExactSvmSchemeV1) Verify(
 	// feePayer already validated in Step 1
 	feePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
-		return nil, x402.NewVerifyError("invalid_fee_payer", payer, network, err)
+		return nil, x402.NewVerifyError(ErrInvalidFeePayer, payer, network, err)
 	}
 
 	// Sign transaction with the feePayer's signer
 	if err := f.signer.SignTransaction(ctx, tx, feePayer, string(requirements.Network)); err != nil {
-		return nil, x402.NewVerifyError("transaction_signing_failed", payer, network, err)
+		return nil, x402.NewVerifyError(ErrTransactionSigningFailed, payer, network, err)
 	}
 
 	// Simulate transaction to verify it would succeed
 	if err := f.signer.SimulateTransaction(ctx, tx, string(requirements.Network)); err != nil {
-		return nil, x402.NewVerifyError("transaction_simulation_failed", payer, network, err)
+		return nil, x402.NewVerifyError(ErrTransactionSimulationFailed, payer, network, err)
 	}
 
 	return &x402.VerifyResponse{
@@ -197,61 +197,61 @@ func (f *ExactSvmSchemeV1) Settle(
 		if errors.As(err, &ve) {
 			return nil, x402.NewSettleError(ve.Reason, ve.Payer, ve.Network, "", ve.Err)
 		}
-		return nil, x402.NewSettleError("verification_failed", "", network, "", err)
+		return nil, x402.NewSettleError(ErrVerificationFailed, "", network, "", err)
 	}
 
 	// Parse payload
 	svmPayload, err := svm.PayloadFromMap(payload.Payload)
 	if err != nil {
-		return nil, x402.NewSettleError("invalid_exact_solana_payload_transaction", verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err)
 	}
 
 	// Decode transaction
 	tx, err := svm.DecodeTransaction(svmPayload.Transaction)
 	if err != nil {
-		return nil, x402.NewSettleError("invalid_exact_solana_payload_transaction", verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidPayloadTransaction, verifyResp.Payer, network, "", err)
 	}
 
 	// Parse extra field for feePayer (V1 uses *json.RawMessage)
 	var reqExtraMap map[string]interface{}
 	if requirements.Extra != nil {
 		if err := json.Unmarshal(*requirements.Extra, &reqExtraMap); err != nil {
-			return nil, x402.NewSettleError("invalid_extra_field", verifyResp.Payer, network, "", err)
+			return nil, x402.NewSettleError(ErrInvalidExtraField, verifyResp.Payer, network, "", err)
 		}
 	}
 
 	// Extract and validate feePayer from requirements matches transaction
 	feePayerStr, ok := reqExtraMap["feePayer"].(string)
 	if !ok {
-		return nil, x402.NewSettleError("missing_fee_payer", verifyResp.Payer, network, "", nil)
+		return nil, x402.NewSettleError(ErrMissingFeePayer, verifyResp.Payer, network, "", nil)
 	}
 
 	expectedFeePayer, err := solana.PublicKeyFromBase58(feePayerStr)
 	if err != nil {
-		return nil, x402.NewSettleError("invalid_fee_payer", verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrInvalidFeePayer, verifyResp.Payer, network, "", err)
 	}
 
 	// Verify transaction feePayer matches requirements
 	actualFeePayer := tx.Message.AccountKeys[0] // First account is fee payer
 	if actualFeePayer != expectedFeePayer {
-		return nil, x402.NewSettleError("fee_payer_mismatch", verifyResp.Payer, network, "",
+		return nil, x402.NewSettleError(ErrFeePayerMismatch, verifyResp.Payer, network, "",
 			fmt.Errorf("expected %s, got %s", expectedFeePayer, actualFeePayer))
 	}
 
 	// Sign with the feePayer's signer
 	if err := f.signer.SignTransaction(ctx, tx, expectedFeePayer, string(requirements.Network)); err != nil {
-		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err)
 	}
 
 	// Send transaction to network
 	signature, err := f.signer.SendTransaction(ctx, tx, string(requirements.Network))
 	if err != nil {
-		return nil, x402.NewSettleError("transaction_failed", verifyResp.Payer, network, "", err)
+		return nil, x402.NewSettleError(ErrTransactionFailed, verifyResp.Payer, network, "", err)
 	}
 
 	// Wait for confirmation
 	if err := f.signer.ConfirmTransaction(ctx, signature, string(requirements.Network)); err != nil {
-		return nil, x402.NewSettleError("transaction_confirmation_failed", verifyResp.Payer, network, signature.String(), err)
+		return nil, x402.NewSettleError(ErrTransactionConfirmationFailed, verifyResp.Payer, network, signature.String(), err)
 	}
 
 	return &x402.SettleResponse{
@@ -267,23 +267,23 @@ func (f *ExactSvmSchemeV1) verifyComputeLimitInstruction(tx *solana.Transaction,
 	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
 
 	if !progID.Equals(solana.ComputeBudget) {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction")
+		return errors.New(ErrComputeLimitInstruction)
 	}
 
 	// Check discriminator (should be 2 for SetComputeUnitLimit)
 	if len(inst.Data) < 1 || inst.Data[0] != 2 {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction")
+		return errors.New(ErrComputeLimitInstruction)
 	}
 
 	// Decode to validate format
 	accounts, err := inst.ResolveInstructionAccounts(&tx.Message)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction")
+		return errors.New(ErrComputeLimitInstruction)
 	}
 
 	_, err = computebudget.DecodeInstruction(accounts, inst.Data)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_limit_instruction")
+		return errors.New(ErrComputeLimitInstruction)
 	}
 
 	return nil
@@ -294,33 +294,33 @@ func (f *ExactSvmSchemeV1) verifyComputePriceInstruction(tx *solana.Transaction,
 	progID := tx.Message.AccountKeys[inst.ProgramIDIndex]
 
 	if !progID.Equals(solana.ComputeBudget) {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction")
+		return errors.New(ErrComputePriceInstruction)
 	}
 
 	// Check discriminator (should be 3 for SetComputeUnitPrice)
 	if len(inst.Data) < 1 || inst.Data[0] != 3 {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction")
+		return errors.New(ErrComputePriceInstruction)
 	}
 
 	// Decode to get microLamports
 	accounts, err := inst.ResolveInstructionAccounts(&tx.Message)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction")
+		return errors.New(ErrComputePriceInstruction)
 	}
 
 	decoded, err := computebudget.DecodeInstruction(accounts, inst.Data)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction")
+		return errors.New(ErrComputePriceInstruction)
 	}
 
 	// Check if it's SetComputeUnitPrice and validate the price
 	if priceInst, ok := decoded.Impl.(*computebudget.SetComputeUnitPrice); ok {
 		// Check if price exceeds maximum (5 lamports per compute unit = 5,000,000 microlamports)
 		if priceInst.MicroLamports > uint64(svm.MaxComputeUnitPriceMicrolamports) {
-			return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction_too_high")
+			return errors.New(ErrComputePriceInstructionTooHigh)
 		}
 	} else {
-		return fmt.Errorf("invalid_exact_solana_payload_transaction_instructions_compute_price_instruction")
+		return errors.New(ErrComputePriceInstruction)
 	}
 
 	return nil
@@ -337,26 +337,26 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 
 	// Must be Token Program or Token-2022 Program
 	if progID != solana.TokenProgramID && progID != solana.Token2022ProgramID {
-		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+		return errors.New(ErrNoTransferInstruction)
 	}
 
 	accounts, err := inst.ResolveInstructionAccounts(&tx.Message)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+		return errors.New(ErrNoTransferInstruction)
 	}
 
 	if len(accounts) < 4 {
-		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+		return errors.New(ErrNoTransferInstruction)
 	}
 
 	decoded, err := token.DecodeInstruction(accounts, inst.Data)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+		return errors.New(ErrNoTransferInstruction)
 	}
 
 	transferChecked, ok := decoded.Impl.(*token.TransferChecked)
 	if !ok {
-		return fmt.Errorf("invalid_exact_solana_payload_no_transfer_instruction")
+		return errors.New(ErrNoTransferInstruction)
 	}
 
 	// SECURITY: Verify that the facilitator's signers are not transferring their own funds
@@ -364,35 +364,35 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 	authorityAddr := accounts[3].PublicKey.String() // TransferChecked: [source, mint, destination, authority, ...]
 	for _, signerAddr := range signerAddresses {
 		if authorityAddr == signerAddr {
-			return fmt.Errorf("invalid_exact_solana_payload_transaction_fee_payer_transferring_funds")
+			return errors.New(ErrFeePayerTransferringFunds)
 		}
 	}
 
 	// Verify mint address
 	mintAddr := accounts[1].PublicKey.String()
 	if mintAddr != requirements.Asset {
-		return fmt.Errorf("invalid_exact_solana_payload_mint_mismatch")
+		return errors.New(ErrMintMismatch)
 	}
 
 	// Verify destination ATA
 	payToPubkey, err := solana.PublicKeyFromBase58(requirements.PayTo)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_recipient_mismatch")
+		return errors.New(ErrRecipientMismatch)
 	}
 
 	mintPubkey, err := solana.PublicKeyFromBase58(requirements.Asset)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_mint_mismatch")
+		return errors.New(ErrMintMismatch)
 	}
 
 	expectedDestATA, _, err := solana.FindAssociatedTokenAddress(payToPubkey, mintPubkey)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_recipient_mismatch")
+		return errors.New(ErrRecipientMismatch)
 	}
 
 	destATA := transferChecked.GetDestinationAccount().PublicKey
 	if destATA.String() != expectedDestATA.String() {
-		return fmt.Errorf("invalid_exact_solana_payload_recipient_mismatch")
+		return errors.New(ErrRecipientMismatch)
 	}
 
 	// Verify amount - V1: Use MaxAmountRequired
@@ -400,11 +400,11 @@ func (f *ExactSvmSchemeV1) verifyTransferInstruction(
 
 	requiredAmount, err := strconv.ParseUint(amountStr, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid_exact_solana_payload_amount_insufficient")
+		return errors.New(ErrAmountInsufficient)
 	}
 
 	if *transferChecked.Amount < requiredAmount {
-		return fmt.Errorf("invalid_exact_solana_payload_amount_insufficient")
+		return errors.New(ErrAmountInsufficient)
 	}
 
 	return nil
