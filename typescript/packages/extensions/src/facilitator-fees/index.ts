@@ -475,6 +475,13 @@ export function verifySettlementMatchesSelection(
  * Error thrown when a quote doesn't meet fee model requirements
  */
 export class InvalidFeeQuoteError extends Error {
+  /**
+   * Creates a new InvalidFeeQuoteError
+   *
+   * @param message - Error message describing the validation failure
+   * @param model - The fee model that failed validation (e.g., "bps", "flat")
+   * @param missingField - The required field that was missing from the quote
+   */
   constructor(
     message: string,
     public readonly model: string,
