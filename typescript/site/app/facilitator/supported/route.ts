@@ -1,4 +1,4 @@
-import { SupportedPaymentKindsResponse } from "x402/types";
+import { getFacilitator } from "../index";
 
 /**
  * Returns the supported payment kinds for the x402 protocol
@@ -6,23 +6,18 @@ import { SupportedPaymentKindsResponse } from "x402/types";
  * @returns A JSON response containing the list of supported payment kinds
  */
 export async function GET() {
-  const response: SupportedPaymentKindsResponse = {
-    kinds: [
+  try {
+    const facilitator = await getFacilitator();
+    const response = facilitator.getSupported();
+    return Response.json(response);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Supported error:", errorMessage);
+    return Response.json(
       {
-        x402Version: 1,
-        scheme: "exact",
-        network: "base-sepolia",
+        error: errorMessage,
       },
-      {
-        x402Version: 1,
-        scheme: "exact",
-        network: "solana-devnet",
-        extra: {
-          feePayer: process.env.SOLANA_ADDRESS,
-        },
-      },
-    ],
-  };
-
-  return Response.json(response);
+      { status: 500 },
+    );
+  }
 }
