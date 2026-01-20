@@ -223,7 +223,8 @@ After payment settlement, the server includes transaction details in the payment
   "success": true,
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
   "network": "eip155:84532",
-  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66"
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+  "extensions": {}
 }
 ```
 
@@ -238,6 +239,7 @@ The `SettleResponse` schema contains the following fields:
 | `payer`       | `string`  | Optional | Address of the payer's wallet                                         |
 | `transaction` | `string`  | Required | Blockchain transaction hash (empty string if settlement failed)       |
 | `network`     | `string`  | Required | Blockchain network identifier in CAIP-2 format                        |
+| `extensions`  | `object`  | Optional | Extension data (e.g., facilitator fees)                               |
 
 **5.4 VerifyResponse Schema**
 

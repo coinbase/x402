@@ -15,9 +15,9 @@ export const FeeModelSchema = z.enum(["flat", "bps", "tiered", "hybrid"]);
 export const SignatureSchemeSchema = z.enum(["eip191", "ed25519"]);
 
 /**
- * Facilitator fee quote schema
+ * Base facilitator fee quote schema (before model-specific validation)
  */
-export const FacilitatorFeeQuoteSchema = z.object({
+const BaseFacilitatorFeeQuoteSchema = z.object({
   quoteId: z.string(),
   facilitatorAddress: z.string(),
   model: FeeModelSchema,
@@ -29,6 +29,33 @@ export const FacilitatorFeeQuoteSchema = z.object({
   expiry: z.number().int().positive(),
   signature: z.string(),
   signatureScheme: SignatureSchemeSchema,
+});
+
+/**
+ * Facilitator fee quote schema with model-specific validation
+ *
+ * - `flat` model: requires `flatFee`
+ * - `bps` model: requires `bps`, `maxFee` RECOMMENDED (clients may exclude uncapped BPS quotes)
+ * - `tiered`/`hybrid` models: `maxFee` recommended but not required
+ */
+export const FacilitatorFeeQuoteSchema = BaseFacilitatorFeeQuoteSchema.superRefine((data, ctx) => {
+  if (data.model === "flat" && data.flatFee === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "flatFee is required for flat fee model",
+      path: ["flatFee"],
+    });
+  }
+
+  if (data.model === "bps" && data.bps === undefined) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "bps is required for BPS fee model",
+      path: ["bps"],
+    });
+  }
+  // Note: maxFee is RECOMMENDED for BPS (enables fee comparison) but not required.
+  // Clients may exclude BPS quotes without maxFee from fee-constrained routing.
 });
 
 /**

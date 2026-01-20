@@ -125,8 +125,6 @@ export type {
 
 export { FACILITATOR_FEES } from "./types";
 
-import type { FacilitatorFeesSettlementInfo } from "./types";
-
 // Re-export schemas
 export {
   FeeModelSchema,
@@ -441,6 +439,9 @@ export async function verifyQuoteSignatureEip191(
 /**
  * Verify that the settlement response matches the client's selected quote
  *
+ * Per the spec, servers MUST honor the client's `selectedQuoteId` or reject
+ * the request. This function allows clients to verify enforcement.
+ *
  * @param settlementInfo - Fee paid info from settlement response
  * @param selectedQuoteId - Quote ID that was selected by client
  * @param expectedFacilitatorId - Expected facilitator ID from the original quote
@@ -455,7 +456,7 @@ export function verifySettlementMatchesSelection(
   if (settlementInfo.quoteId !== selectedQuoteId) {
     return {
       valid: false,
-      error: `Quote ID mismatch: expected ${selectedQuoteId}, got ${settlementInfo.quoteId}`,
+      error: `Quote ID mismatch: expected ${selectedQuoteId}, got ${settlementInfo.quoteId}. Server MUST honor selectedQuoteId per spec.`,
     };
   }
 
@@ -463,9 +464,85 @@ export function verifySettlementMatchesSelection(
   if (settlementInfo.facilitatorId !== expectedFacilitatorId) {
     return {
       valid: false,
-      error: `Facilitator ID mismatch: expected ${expectedFacilitatorId}, got ${settlementInfo.facilitatorId}`,
+      error: `Facilitator ID mismatch: expected ${expectedFacilitatorId}, got ${settlementInfo.facilitatorId}. Server MUST honor selectedQuoteId per spec.`,
     };
   }
 
   return { valid: true };
+}
+
+/**
+ * Error thrown when a quote doesn't meet fee model requirements
+ */
+export class InvalidFeeQuoteError extends Error {
+  constructor(
+    message: string,
+    public readonly model: string,
+    public readonly missingField: string,
+  ) {
+    super(message);
+    this.name = "InvalidFeeQuoteError";
+  }
+}
+
+/**
+ * Validate that a BPS quote has the required maxFee field for fee comparison
+ *
+ * Per the spec, BPS model quotes MUST include maxFee to enable clients to
+ * compare fees when payment amount is unknown at quote time.
+ *
+ * @param quote - Fee quote to validate
+ * @throws InvalidFeeQuoteError if BPS quote is missing maxFee
+ */
+export function validateBpsQuoteHasMaxFee(quote: FacilitatorFeeQuote): void {
+  if (quote.model === "bps" && quote.maxFee === undefined) {
+    throw new InvalidFeeQuoteError(
+      "BPS model quote must include maxFee for fee comparison when payment amount is unknown",
+      quote.model,
+      "maxFee",
+    );
+  }
+}
+
+/**
+ * Check if a quote can be used for fee-constrained routing
+ *
+ * Returns false for BPS quotes without maxFee since they cannot be compared
+ * against maxTotalFee constraints when payment amount is unknown.
+ *
+ * @param option - Facilitator option to check
+ * @returns True if the option can be used for fee comparison
+ */
+export function canCompareForFeeRouting(option: FacilitatorOption): boolean {
+  // maxFacilitatorFee is always comparable
+  if (option.maxFacilitatorFee !== undefined) {
+    return true;
+  }
+
+  // Quote ref needs to be fetched first
+  if (option.facilitatorFeeQuoteRef !== undefined && option.facilitatorFeeQuote === undefined) {
+    return false;
+  }
+
+  const quote = option.facilitatorFeeQuote;
+  if (!quote) {
+    return false;
+  }
+
+  // Flat fee is always comparable
+  if (quote.model === "flat" && quote.flatFee !== undefined) {
+    return true;
+  }
+
+  // BPS requires maxFee for comparison
+  if (quote.model === "bps") {
+    return quote.maxFee !== undefined;
+  }
+
+  // Tiered/hybrid can use maxFee if provided
+  if ((quote.model === "tiered" || quote.model === "hybrid") && quote.maxFee !== undefined) {
+    return true;
+  }
+
+  return false;
 }

@@ -18,6 +18,9 @@ import {
   calculateFee,
   getCanonicalQuotePayload,
   verifySettlementMatchesSelection,
+  canCompareForFeeRouting,
+  validateBpsQuoteHasMaxFee,
+  InvalidFeeQuoteError,
 } from "../src/facilitator-fees";
 
 const TEST_FACILITATOR_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678";
@@ -78,12 +81,76 @@ describe("facilitator-fees extension", () => {
         model: "bps",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         bps: 15000, // 150% - invalid
+        maxFee: "10000",
         expiry: 1737400000,
         signature: "0xabcdef",
         signatureScheme: "eip191",
       };
 
       expect(() => FacilitatorFeeQuoteSchema.parse(quote)).toThrow();
+    });
+
+    test("FacilitatorFeeQuoteSchema rejects flat model without flatFee", () => {
+      const quote = {
+        quoteId: "quote_abc123",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "flat",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        // flatFee missing - should fail
+        expiry: 1737400000,
+        signature: "0xabcdef",
+        signatureScheme: "eip191",
+      };
+
+      expect(() => FacilitatorFeeQuoteSchema.parse(quote)).toThrow(/flatFee is required/);
+    });
+
+    test("FacilitatorFeeQuoteSchema rejects bps model without bps", () => {
+      const quote = {
+        quoteId: "quote_abc123",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "bps",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        // bps missing - should fail
+        maxFee: "10000",
+        expiry: 1737400000,
+        signature: "0xabcdef",
+        signatureScheme: "eip191",
+      };
+
+      expect(() => FacilitatorFeeQuoteSchema.parse(quote)).toThrow(/bps is required/);
+    });
+
+    test("FacilitatorFeeQuoteSchema accepts bps model without maxFee (maxFee is recommended, not required)", () => {
+      const quote = {
+        quoteId: "quote_abc123",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "bps",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        bps: 30,
+        // maxFee omitted - allowed but clients may exclude from fee-constrained routing
+        expiry: 1737400000,
+        signature: "0xabcdef",
+        signatureScheme: "eip191",
+      };
+
+      expect(FacilitatorFeeQuoteSchema.parse(quote)).toEqual(quote);
+    });
+
+    test("FacilitatorFeeQuoteSchema allows tiered model without maxFee", () => {
+      const quote = {
+        quoteId: "quote_abc123",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "tiered",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        // maxFee not required for tiered
+        expiry: 1737400000,
+        signature: "0xabcdef",
+        signatureScheme: "eip191",
+      };
+
+      // Should not throw
+      expect(FacilitatorFeeQuoteSchema.parse(quote)).toBeTruthy();
     });
 
     test("FacilitatorFeeBidSchema accepts valid bid", () => {
@@ -546,6 +613,150 @@ describe("facilitator-fees extension", () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Facilitator ID mismatch");
+    });
+
+    test("verifySettlementMatchesSelection error message references MUST requirement", () => {
+      const settlementInfo = {
+        version: "1" as const,
+        facilitatorFeePaid: "1000",
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        quoteId: "different_quote",
+        facilitatorId: "https://x402.org/facilitator",
+      };
+
+      const result = verifySettlementMatchesSelection(
+        settlementInfo,
+        "quote_abc123",
+        "https://x402.org/facilitator",
+      );
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("MUST");
+    });
+  });
+
+  describe("fee routing validation", () => {
+    test("validateBpsQuoteHasMaxFee passes for bps quote with maxFee", () => {
+      const quote = {
+        quoteId: "quote_bps",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "bps" as const,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        bps: 30,
+        maxFee: "10000",
+        expiry: Math.floor(Date.now() / 1000) + 3600,
+        signature: "0xabcdef",
+        signatureScheme: "eip191" as const,
+      };
+
+      // Should not throw
+      expect(() => validateBpsQuoteHasMaxFee(quote)).not.toThrow();
+    });
+
+    test("validateBpsQuoteHasMaxFee throws for bps quote without maxFee", () => {
+      const quote = {
+        quoteId: "quote_bps",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "bps" as const,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        bps: 30,
+        // maxFee missing
+        expiry: Math.floor(Date.now() / 1000) + 3600,
+        signature: "0xabcdef",
+        signatureScheme: "eip191" as const,
+      };
+
+      expect(() => validateBpsQuoteHasMaxFee(quote)).toThrow(InvalidFeeQuoteError);
+    });
+
+    test("validateBpsQuoteHasMaxFee passes for flat quote without maxFee", () => {
+      const quote = {
+        quoteId: "quote_flat",
+        facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+        model: "flat" as const,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        flatFee: "1000",
+        expiry: Math.floor(Date.now() / 1000) + 3600,
+        signature: "0xabcdef",
+        signatureScheme: "eip191" as const,
+      };
+
+      // Should not throw - maxFee not required for flat
+      expect(() => validateBpsQuoteHasMaxFee(quote)).not.toThrow();
+    });
+
+    test("canCompareForFeeRouting returns true for flat fee quote", () => {
+      const option = {
+        facilitatorId: "https://x402.org/facilitator",
+        facilitatorFeeQuote: {
+          quoteId: "quote_flat",
+          facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          model: "flat" as const,
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          flatFee: "1000",
+          expiry: Math.floor(Date.now() / 1000) + 3600,
+          signature: "0xabcdef",
+          signatureScheme: "eip191" as const,
+        },
+      };
+
+      expect(canCompareForFeeRouting(option)).toBe(true);
+    });
+
+    test("canCompareForFeeRouting returns true for bps quote with maxFee", () => {
+      const option = {
+        facilitatorId: "https://x402.org/facilitator",
+        facilitatorFeeQuote: {
+          quoteId: "quote_bps",
+          facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          model: "bps" as const,
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          bps: 30,
+          maxFee: "10000",
+          expiry: Math.floor(Date.now() / 1000) + 3600,
+          signature: "0xabcdef",
+          signatureScheme: "eip191" as const,
+        },
+      };
+
+      expect(canCompareForFeeRouting(option)).toBe(true);
+    });
+
+    test("canCompareForFeeRouting returns false for bps quote without maxFee", () => {
+      const option = {
+        facilitatorId: "https://x402.org/facilitator",
+        facilitatorFeeQuote: {
+          quoteId: "quote_bps",
+          facilitatorAddress: TEST_FACILITATOR_ADDRESS,
+          model: "bps" as const,
+          asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          bps: 30,
+          // maxFee missing
+          expiry: Math.floor(Date.now() / 1000) + 3600,
+          signature: "0xabcdef",
+          signatureScheme: "eip191" as const,
+        },
+      };
+
+      expect(canCompareForFeeRouting(option)).toBe(false);
+    });
+
+    test("canCompareForFeeRouting returns true for maxFacilitatorFee option", () => {
+      const option = {
+        facilitatorId: "https://x402.org/facilitator",
+        maxFacilitatorFee: "5000",
+      };
+
+      expect(canCompareForFeeRouting(option)).toBe(true);
+    });
+
+    test("canCompareForFeeRouting returns false for quoteRef without fetched quote", () => {
+      const option = {
+        facilitatorId: "https://x402.org/facilitator",
+        facilitatorFeeQuoteRef: "https://x402.org/fee-quote",
+      };
+
+      expect(canCompareForFeeRouting(option)).toBe(false);
     });
   });
 });

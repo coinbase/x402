@@ -201,12 +201,19 @@ The fee is constant regardless of payment amount.
 ```
 fee = max(minFee, min(maxFee, (paymentAmount * bps) / 10000))
 ```
-The fee is a percentage of the payment amount, bounded by optional min/max constraints.
+The fee is a percentage of the payment amount, bounded by min/max constraints.
 
-**Important**: BPS fees depend on the payment amount, which isn't known at quote time. Clients comparing BPS quotes to flat quotes must:
+**Important**: BPS fees depend on the payment amount, which isn't known at quote time.
+- **`maxFee` is RECOMMENDED** for BPS model quotes (enables fee comparison)
+- `minFee` is optional
+- Clients MAY exclude BPS quotes without `maxFee` from fee-constrained routing
+
+Clients comparing BPS quotes to flat quotes must:
 1. Use `maxFee` as the upper bound for comparison if payment amount is unknown
 2. Calculate the exact fee once payment amount is determined
 3. Use `minFee` and `maxFee` bounds to filter options that could exceed `maxTotalFee`
+
+Quotes with `bps` model that omit `maxFee` SHOULD be treated as "unknown upper bound" and MAY be excluded from fee-constrained routing.
 
 ### Tiered / Hybrid Models
 These models combine flat and percentage components. Implementations should provide `minFee` and `maxFee` bounds to enable comparison without exposing full tier structures.
@@ -226,9 +233,7 @@ Servers can preserve privacy by:
 
 ## Spec Change Required
 
-> **Breaking Change**: This extension requires a modification to the core x402 type definitions.
-
-`SettlementResponse` needs an `extensions` field added to core types:
+This extension requires adding `extensions` to the core `SettleResponse` type:
 
 ```typescript
 type SettleResponse = {
@@ -236,11 +241,11 @@ type SettleResponse = {
   transaction: string;
   network: Network;
   payer?: string;
-  extensions?: Record<string, unknown>;  // NEW - required for this extension
+  extensions?: Record<string, unknown>;  // NEW
 };
 ```
 
-This change is **additive** and backwards-compatible—existing facilitators continue to work, and existing clients will ignore the new field. However, it does modify the facilitator interface contract.
+This change is additive and backwards-compatible.
 
 ## Backwards Compatibility
 

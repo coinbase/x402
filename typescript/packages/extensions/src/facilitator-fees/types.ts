@@ -22,6 +22,11 @@ export type SignatureScheme = "eip191" | "ed25519";
 
 /**
  * Facilitator fee quote - signed fee disclosure from a facilitator
+ *
+ * Model-specific requirements:
+ * - `flat` model: `flatFee` is REQUIRED
+ * - `bps` model: `bps` REQUIRED, `maxFee` RECOMMENDED (clients may exclude uncapped quotes)
+ * - `tiered`/`hybrid` models: `maxFee` is RECOMMENDED
  */
 export interface FacilitatorFeeQuote {
   /** Unique identifier for this quote */
@@ -32,13 +37,13 @@ export interface FacilitatorFeeQuote {
   model: FeeModel;
   /** Fee currency (token address or identifier) */
   asset: string;
-  /** Flat fee amount in atomic units (for flat model) */
+  /** Flat fee amount in atomic units (REQUIRED for flat model) */
   flatFee?: string;
-  /** Basis points (for bps model, 1 bps = 0.01%) */
+  /** Basis points (REQUIRED for bps model, 1 bps = 0.01%) */
   bps?: number;
   /** Minimum fee in atomic units */
   minFee?: string;
-  /** Maximum fee in atomic units */
+  /** Maximum fee in atomic units (RECOMMENDED for bps model to enable fee comparison) */
   maxFee?: string;
   /** Unix timestamp when quote expires */
   expiry: number;
@@ -72,13 +77,17 @@ export interface FacilitatorFeesPaymentRequiredInfo {
 
 /**
  * Client fee bid - constraints/preferences from client
+ *
+ * Selection semantics:
+ * - If `selectedQuoteId` is absent: Server picks any facilitator meeting `maxTotalFee`
+ * - If `selectedQuoteId` is present: Server MUST use that facilitator or reject
  */
 export interface FacilitatorFeeBid {
   /** Maximum acceptable fee in atomic units (hard constraint) */
   maxTotalFee: string;
   /** Fee currency */
   asset: string;
-  /** Explicitly select a specific quote by ID */
+  /** Explicitly select a specific quote by ID. Server MUST honor this or reject. */
   selectedQuoteId?: string;
   /** Willing to wait/batch for lower fees */
   patient?: boolean;

@@ -53,6 +53,7 @@ The extension follows the standard v2 pattern:
             "facilitatorId": "https://x402.org/facilitator",
             "facilitatorFeeQuote": {
               "quoteId": "quote_abc123",
+              "facilitatorAddress": "0x1234567890abcdef1234567890abcdef12345678",
               "model": "flat",
               "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
               "flatFee": "1000",
@@ -106,15 +107,34 @@ The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `quoteId` | string | Yes | Unique identifier for this quote |
+| `facilitatorAddress` | string | Yes | Signing address of the facilitator (required for signature verification) |
 | `model` | string | Yes | Fee model: `flat`, `bps`, `tiered`, `hybrid` |
 | `asset` | string | Yes | Fee currency (token address or identifier) |
 | `flatFee` | string | No | Flat fee amount in atomic units (for `flat` model) |
 | `bps` | number | No | Basis points (for `bps` model) |
 | `minFee` | string | No | Minimum fee in atomic units |
-| `maxFee` | string | No | Maximum fee in atomic units |
+| `maxFee` | string | Recommended | Maximum fee in atomic units. **Recommended for `bps` model** to enable fee comparison |
 | `expiry` | number | Yes | Unix timestamp when quote expires |
 | `signature` | string | Yes | Facilitator signature over the quote |
 | `signatureScheme` | string | Yes | Signature scheme used (see below) |
+
+### Fee Model Requirements
+
+#### Flat Fee Model
+For `flat` model quotes, `flatFee` MUST be provided.
+
+#### BPS (Basis Points) Model
+For `bps` model quotes:
+- `bps` MUST be provided (basis points, e.g., 30 = 0.3%)
+- `maxFee` SHOULD be provided to enable fee comparison
+- `minFee` is optional
+
+Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per client—some may prefer flat fees, others may accept uncapped BPS.
+
+#### Tiered / Hybrid Models
+For complex models, `minFee` and `maxFee` bounds SHOULD be provided to enable comparison without exposing full tier structures.
+
+---
 
 ### Alternative: `facilitatorFeeQuoteRef`
 
@@ -178,7 +198,9 @@ Clients MAY include fee constraints in their `PaymentPayload` via the `facilitat
 ### Selection Semantics
 
 - If `selectedQuoteId` is **absent**: Server picks any facilitator meeting `maxTotalFee` constraint
-- If `selectedQuoteId` is **present**: Server SHOULD use the facilitator associated with that quote
+- If `selectedQuoteId` is **present**: Server **MUST** use the facilitator associated with that quote, or reject the request with an error
+
+> **Rationale**: MUST (not SHOULD) ensures client agency is enforceable. Clients can verify the `facilitatorId` in `facilitatorFeePaid` matches their selection. Without mandatory enforcement, fee-aware routing becomes meaningless as servers could always route to more expensive facilitators.
 
 This keeps simple cases simple while enabling agency for clients who fetch quotes via `facilitatorFeeQuoteRef`.
 
@@ -219,7 +241,16 @@ After settlement, servers MAY include fee receipt information:
 | `facilitatorId` | string | No | Facilitator that processed payment |
 | `model` | string | No | Fee model applied |
 
-**Note:** The current x402 v2 spec does not include an `extensions` field in `SettlementResponse`. This extension requires adding `extensions?: Record<string, unknown>` to the `SettleResponse` type.
+### Spec Dependency: `SettleResponse.extensions`
+
+> **⚠️ Required Change:** The current x402 v2 spec does not include an `extensions` field in `SettlementResponse`. 
+>
+> This extension requires adding the following to the core `SettleResponse` type:
+> ```typescript
+> extensions?: Record<string, unknown>;
+> ```
+>
+> This change is **additive** and backwards-compatible—existing facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
 
 ---
 
@@ -242,7 +273,7 @@ The signature is computed over a canonical JSON representation of the quote (exc
 
 ## Expiry Handling
 
-- **Server receiving expired `selectedQuoteId`**: SHOULD reject with error; client must re-fetch quotes
+- **Server receiving expired `selectedQuoteId`**: MUST reject with error; client must re-fetch quotes
 - **Facilitator settling with expired quote**: MUST reject settlement
 - **Grace period**: Implementations MAY allow ~30 seconds for clock skew (not required)
 
