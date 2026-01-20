@@ -88,10 +88,10 @@ const createValidPayload = (
     accepted: {} as PaymentRequirements,
     ...(info
       ? {
-        extensions: {
-          [ERC20_APPROVAL_GAS_SPONSORING]: { info },
-        },
-      }
+          extensions: {
+            [ERC20_APPROVAL_GAS_SPONSORING]: { info },
+          },
+        }
       : {}),
     ...overrides,
   }) as PaymentPayload;

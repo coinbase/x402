@@ -10,3 +10,10 @@
 export { ExactEvmScheme } from "./exact";
 export { toClientEvmSigner, toFacilitatorEvmSigner } from "./signer";
 export type { ClientEvmSigner, FacilitatorEvmSigner } from "./signer";
+export {
+  x402ExactPermit2ProxyAddress,
+  x402UptoPermit2ProxyAddress,
+  x402ExactPermit2ProxyABI,
+  x402UptoPermit2ProxyABI,
+  PERMIT2_ADDRESS,
+} from "./constants";

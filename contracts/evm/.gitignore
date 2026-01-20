@@ -27,3 +27,6 @@ broadcast/
 # Debug
 debug/
 
+
+# Rust vanity-miner build artifacts
+vanity-miner/target/

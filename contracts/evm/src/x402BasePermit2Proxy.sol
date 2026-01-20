@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {
-    ReentrancyGuard
-} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {
-    IERC20Permit
-} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
 
@@ -33,9 +29,7 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
 
     /// @notice EIP-712 typehash for witness struct
     bytes32 public constant WITNESS_TYPEHASH =
-        keccak256(
-            "Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)"
-        );
+        keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
 
     /// @notice Emitted when settle() completes successfully
     event Settled();
@@ -93,7 +87,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
      * @param _permit2 Address of the canonical Permit2 contract
      * @dev Reverts if _permit2 is the zero address
      */
-    constructor(address _permit2) {
+    constructor(
+        address _permit2
+    ) {
         if (_permit2 == address(0)) revert InvalidPermit2Address();
         PERMIT2 = ISignatureTransfer(_permit2);
     }
@@ -123,33 +119,16 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (block.timestamp > witness.validBefore) revert PaymentExpired();
 
         // Prepare transfer details with destination from witness
-        ISignatureTransfer.SignatureTransferDetails
-            memory transferDetails = ISignatureTransfer
-                .SignatureTransferDetails({
-                    to: witness.to,
-                    requestedAmount: amount
-                });
+        ISignatureTransfer.SignatureTransferDetails memory transferDetails =
+            ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: amount});
 
         // Reconstruct witness hash to enforce integrity
         bytes32 witnessHash = keccak256(
-            abi.encode(
-                WITNESS_TYPEHASH,
-                witness.to,
-                witness.validAfter,
-                witness.validBefore,
-                keccak256(witness.extra)
-            )
+            abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter, witness.validBefore, keccak256(witness.extra))
         );
 
         // Execute transfer via Permit2
-        PERMIT2.permitWitnessTransferFrom(
-            permit,
-            transferDetails,
-            owner,
-            witnessHash,
-            WITNESS_TYPE_STRING,
-            signature
-        );
+        PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);
     }
 
     /**
@@ -160,22 +139,10 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
      * @param owner The token owner
      * @param permit2612 The EIP-2612 permit parameters
      */
-    function _executePermit(
-        address token,
-        address owner,
-        EIP2612Permit calldata permit2612
-    ) internal {
-        try
-            IERC20Permit(token).permit(
-                owner,
-                address(PERMIT2),
-                permit2612.value,
-                permit2612.deadline,
-                permit2612.v,
-                permit2612.r,
-                permit2612.s
-            )
-        {
+    function _executePermit(address token, address owner, EIP2612Permit calldata permit2612) internal {
+        try IERC20Permit(token).permit(
+            owner, address(PERMIT2), permit2612.value, permit2612.deadline, permit2612.v, permit2612.r, permit2612.s
+        ) {
             // EIP-2612 permit succeeded
         } catch {
             // Permit2 settlement will fail if approval doesn't exist

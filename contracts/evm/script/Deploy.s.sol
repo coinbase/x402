@@ -19,13 +19,12 @@ contract DeployX402Proxies is Script {
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     /// @notice Salt for x402ExactPermit2Proxy deterministic deployment
-    /// @dev TODO: Mine a vanity salt for the Exact variant
-    bytes32 constant EXACT_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    /// @dev Vanity mined for address 0x4020...0001
+    bytes32 constant EXACT_SALT = 0x000000000000000000000000000000000000000000000000e80000001d1e4dc7;
 
     /// @notice Salt for x402UptoPermit2Proxy deterministic deployment
-    /// @dev Derived from: "x402-x402permit2proxy-v95348"
-    /// @dev Note: This was originally mined for x402Permit2Proxy
-    bytes32 constant UPTO_SALT = 0x62bb59fa735c572ac45816aa0f1e00b2de3c4671993a9147999a3808c574240e;
+    /// @dev Vanity mined for address 0x4020...0002
+    bytes32 constant UPTO_SALT = 0x000000000000000000000000000000000000000000000000900000000ef65bb4;
 
     function run() public {
         console2.log("");

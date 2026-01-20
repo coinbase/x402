@@ -236,7 +236,9 @@ contract X402UptoPermit2ProxyTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SettledWithPermit();
 
-        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settleWithPermit(
+            permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
+        );
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -264,7 +266,9 @@ contract X402UptoPermit2ProxyTest is Test {
             s: bytes32(uint256(2))
         });
 
-        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settleWithPermit(
+            permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
+        );
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
