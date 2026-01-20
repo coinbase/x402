@@ -7,3 +7,6 @@ export { bazaarResourceServerExtension } from "./bazaar/server";
 
 // Sign-in-with-x extension
 export * from "./sign-in-with-x";
+
+// Facilitator fees extension
+export * from "./facilitator-fees";
