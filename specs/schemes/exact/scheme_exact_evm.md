@@ -105,7 +105,7 @@ The Facilitator pays the gas for the approval transaction on the user's behalf.
 If the token supports EIP-2612, the user signs a permit authorizing Permit2.
 
 - _Prerequisite:_ Token supports EIP-2612.
-- _Flow:_ Facilitator calls `x402Permit2Proxy.settleWithPermit()`
+- _Flow:_ Facilitator calls `x402Permit2Proxy.settleWith2612()`
 
 ### Phase 2: `PAYMENT-SIGNATURE` Header Payload
 
@@ -184,7 +184,7 @@ The verifier must execute these checks in order:
 
     - _Standard:_ Simulate `x402Permit2Proxy.settle`.
     - _With "Sponsored ERC20 Approval" (Extension):_ Simulate batch `transfer` -> `approve` -> `settle`.
-    - _With "EIP2612 Permit" (Extension):_ Simulate `x402Permit2Proxy.settleWithPermit`.
+    - _With "EIP2612 Permit" (Extension):_ Simulate `x402Permit2Proxy.settleWith2612`.
 
 ### Phase 4: Settlement Logic
 
@@ -197,7 +197,7 @@ Settlement is performed by calling the `x402Permit2Proxy`.
     If `erc20ApprovalGasSponsoring` is used, the facilitator must construct a batched transaction that executes the sponsored `ERC20.approve` call strictly before the `x402Permit2Proxy.settle` call.
 
 3.  **With EIP-2612 Permit (Extension):**
-    If `eip2612GasSponsoring` is used, call `x402Permit2Proxy.settleWithPermit`.
+    If `eip2612GasSponsoring` is used, call `x402Permit2Proxy.settleWith2612`.
 
 ---
 
