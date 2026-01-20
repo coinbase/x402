@@ -1,4 +1,4 @@
-import type { PaymentRequirements } from '@x402/core';
+import type { PaymentRequirements, PaymentRequired } from '@x402/core';
 
 const X402_VERSION = 2;
 
@@ -10,6 +10,22 @@ export interface LambdaEdgeResponse {
 }
 
 /**
+ * Create PaymentRequired object per x402 spec
+ */
+function createPaymentRequired(
+  requirements: PaymentRequirements,
+  resourceUrl: string,
+  error?: string
+): PaymentRequired {
+  return {
+    x402Version: X402_VERSION,
+    error,
+    resource: { url: resourceUrl, description: '', mimeType: 'application/json' },
+    accepts: [requirements],
+  };
+}
+
+/**
  * Create 402 Payment Required response
  */
 export function createPaymentRequiredResponse(
@@ -17,12 +33,8 @@ export function createPaymentRequiredResponse(
   error: string,
   resourceUrl: string
 ): LambdaEdgeResponse {
-  const body = JSON.stringify({
-    x402Version: X402_VERSION,
-    error,
-    resource: { url: resourceUrl, mimeType: 'application/json' },
-    accepts: [paymentRequirements],
-  });
+  const paymentRequired = createPaymentRequired(paymentRequirements, resourceUrl, error);
+  const body = JSON.stringify(paymentRequired);
 
   return {
     status: '402',
@@ -44,13 +56,8 @@ export function createPaymentInvalidResponse(
   resourceUrl: string,
   payer?: string
 ): LambdaEdgeResponse {
-  const body = JSON.stringify({
-    x402Version: X402_VERSION,
-    error,
-    resource: { url: resourceUrl, mimeType: 'application/json' },
-    accepts: [paymentRequirements],
-    payer,
-  });
+  const paymentRequired = createPaymentRequired(paymentRequirements, resourceUrl, error);
+  const body = JSON.stringify({ ...paymentRequired, payer });
 
   return {
     status: '402',

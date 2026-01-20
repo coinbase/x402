@@ -1,11 +1,11 @@
-import type { PaymentRequirements, PaymentPayload, Network } from '@x402/core';
+import type { PaymentRequirements, PaymentPayload, Money } from '@x402/core';
 import { CONFIG, getAssetInfo, RouteConfig } from './config';
 
 /**
  * Simple HTTP client for x402 facilitator
  */
 class FacilitatorClient {
-  constructor(private url: string) {}
+  constructor(private url: string) { }
 
   async verify(payload: PaymentPayload, requirements: PaymentRequirements) {
     const res = await fetch(`${this.url}/verify`, {
@@ -29,10 +29,11 @@ class FacilitatorClient {
 const facilitator = new FacilitatorClient(CONFIG.facilitatorUrl);
 
 /**
- * Convert price string to atomic units
+ * Convert Money (string | number) to atomic units string
  */
-function toAtomicAmount(price: string, decimals: number): string {
-  const value = price.startsWith('$') ? price.slice(1) : price;
+function toAtomicAmount(price: Money, decimals: number): string {
+  const priceStr = String(price);
+  const value = priceStr.startsWith('$') ? priceStr.slice(1) : priceStr;
   const [int, dec = ''] = value.split('.');
   const padded = dec.padEnd(decimals, '0').slice(0, decimals);
   return (int + padded).replace(/^0+/, '') || '0';

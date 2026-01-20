@@ -5,17 +5,23 @@
  * Lambda@Edge doesn't support environment variables, so all config is bundled.
  */
 
-import type { Network } from '@x402/core';
+import type { Network, Money } from '@x402/core';
 
+/**
+ * Route payment configuration for Lambda@Edge.
+ */
 export interface RouteConfig {
-  /** Price in USD (e.g., '$0.001' or '0.001') */
-  price: string;
+  /** Price using Money type from @x402/core (e.g., '$0.001' or 0.001) */
+  price: Money;
   /** Human-readable description */
   description: string;
   /** Optional: Override default payTo address for this route */
   payTo?: `0x${string}`;
 }
 
+/**
+ * Lambda@Edge x402 configuration.
+ */
 export interface X402Config {
   /** x402 facilitator URL */
   facilitatorUrl: string;
