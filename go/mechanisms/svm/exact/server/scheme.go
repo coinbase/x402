@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -87,7 +88,7 @@ func (s *ExactSvmScheme) ParsePrice(price x402.Price, network x402.Network) (x40
 		if amountVal, hasAmount := priceMap["amount"]; hasAmount {
 			amountStr, ok := amountVal.(string)
 			if !ok {
-				return x402.AssetAmount{}, fmt.Errorf("amount must be a string")
+				return x402.AssetAmount{}, errors.New(ErrAmountMustBeString)
 			}
 
 			asset := config.DefaultAsset.Address
@@ -151,7 +152,7 @@ func (s *ExactSvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) 
 			// Use the first part as the amount
 			amount, err := strconv.ParseFloat(parts[0], 64)
 			if err != nil {
-				return 0, fmt.Errorf("failed to parse price string '%s': %w", priceStr, err)
+				return 0, fmt.Errorf(ErrFailedToParsePrice+": '%s': %w", priceStr, err)
 			}
 			return amount, nil
 		}
@@ -167,7 +168,7 @@ func (s *ExactSvmScheme) parseMoneyToDecimal(price x402.Price) (float64, error) 
 		return float64(v), nil
 	}
 
-	return 0, fmt.Errorf("invalid price format: %v", price)
+	return 0, fmt.Errorf(ErrInvalidPriceFormat+": %v", price)
 }
 
 // defaultMoneyConversion converts decimal amount to USDC AssetAmount
@@ -176,7 +177,7 @@ func (s *ExactSvmScheme) defaultMoneyConversion(amount float64, config *svm.Netw
 	amountStr := fmt.Sprintf("%.6f", amount)
 	parsedAmount, err := svm.ParseAmount(amountStr, config.DefaultAsset.Decimals)
 	if err != nil {
-		return x402.AssetAmount{}, fmt.Errorf("failed to convert amount: %w", err)
+		return x402.AssetAmount{}, fmt.Errorf(ErrFailedToConvertAmount+": %w", err)
 	}
 
 	return x402.AssetAmount{
@@ -221,7 +222,7 @@ func (s *ExactSvmScheme) EnhancePaymentRequirements(
 		// Convert decimal to smallest unit
 		amount, err := svm.ParseAmount(requirements.Amount, assetInfo.Decimals)
 		if err != nil {
-			return requirements, fmt.Errorf("failed to parse amount: %w", err)
+			return requirements, fmt.Errorf(ErrFailedToParseAmount+": %w", err)
 		}
 		requirements.Amount = strconv.FormatUint(amount, 10)
 	}
