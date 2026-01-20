@@ -1,20 +1,5 @@
-import {
-  PaymentPayload,
-  PaymentPayloadSchema,
-  PaymentRequirements,
-  PaymentRequirementsSchema,
-  SupportedEVMNetworks,
-  SupportedSVMNetworks,
-  VerifyResponse,
-  createConnectedClient,
-  createSigner,
-} from "x402/types";
-import { verify } from "x402/facilitator";
-
-type VerifyRequest = {
-  paymentPayload: PaymentPayload;
-  paymentRequirements: PaymentRequirements;
-};
+import { VerifyResponse, PaymentPayload, PaymentRequirements } from "@x402/core/types";
+import { getFacilitator } from "../index";
 
 /**
  * Handles POST requests to verify x402 payments
@@ -23,74 +8,56 @@ type VerifyRequest = {
  * @returns A JSON response indicating whether the payment is valid
  */
 export async function POST(req: Request) {
-  const body: VerifyRequest = await req.json();
+  // Parse request body - handle JSON parsing errors separately
+  let paymentPayload: PaymentPayload | undefined;
+  let paymentRequirements: PaymentRequirements | undefined;
 
-  const network = body.paymentRequirements.network;
-  const client = SupportedEVMNetworks.includes(network)
-    ? createConnectedClient(body.paymentRequirements.network)
-    : SupportedSVMNetworks.includes(network)
-      ? await createSigner(network, process.env.SOLANA_PRIVATE_KEY)
-      : undefined;
-
-  if (!client) {
+  try {
+    const body = await req.json();
+    paymentPayload = body.paymentPayload as PaymentPayload;
+    paymentRequirements = body.paymentRequirements as PaymentRequirements;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Failed to parse request body:", errorMessage);
     return Response.json(
       {
         isValid: false,
-        invalidReason: "invalid_network",
+        invalidReason: "invalid_json",
+        error: "Failed to parse request body",
       } as VerifyResponse,
       { status: 400 },
     );
   }
 
-  let paymentPayload: PaymentPayload;
-  try {
-    paymentPayload = PaymentPayloadSchema.parse(body.paymentPayload);
-  } catch (error) {
-    console.error("Invalid payment payload:", error);
+  // Check for missing parameters
+  if (!paymentPayload || !paymentRequirements) {
     return Response.json(
       {
         isValid: false,
-        invalidReason: "invalid_payload",
-        payer:
-          body.paymentPayload?.payload && "authorization" in body.paymentPayload.payload
-            ? body.paymentPayload.payload.authorization.from
-            : "",
-      } as VerifyResponse,
-      { status: 400 },
-    );
-  }
-
-  let paymentRequirements: PaymentRequirements;
-  try {
-    paymentRequirements = PaymentRequirementsSchema.parse(body.paymentRequirements);
-  } catch (error) {
-    console.error("Invalid payment requirements:", error);
-    return Response.json(
-      {
-        isValid: false,
-        invalidReason: "invalid_payment_requirements",
-        payer:
-          "authorization" in paymentPayload.payload
-            ? paymentPayload.payload.authorization.from
-            : "",
+        invalidReason: "missing_parameters",
+        error: "Missing paymentPayload or paymentRequirements",
       } as VerifyResponse,
       { status: 400 },
     );
   }
 
   try {
-    const valid = await verify(client, paymentPayload, paymentRequirements);
-    return Response.json(valid);
+    const facilitator = await getFacilitator();
+
+    // Hooks will automatically:
+    // - Track verified payment (onAfterVerify)
+    // - Extract and catalog discovery info (onAfterVerify)
+    const response: VerifyResponse = await facilitator.verify(paymentPayload, paymentRequirements);
+
+    return Response.json(response);
   } catch (error) {
-    console.error("Error verifying payment:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Verify error:", errorMessage);
     return Response.json(
       {
         isValid: false,
-        invalidReason: "unexpected_verify_error",
-        payer:
-          "authorization" in paymentPayload.payload
-            ? paymentPayload.payload.authorization.from
-            : "",
+        invalidReason: "unexpected_error",
+        error: errorMessage,
       } as VerifyResponse,
       { status: 500 },
     );
