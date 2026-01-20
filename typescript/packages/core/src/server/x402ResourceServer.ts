@@ -36,6 +36,11 @@ export interface ResourceInfo {
  * Lifecycle Hook Context Interfaces
  */
 
+export interface PaymentRequiredContext {
+  requirements: PaymentRequirements[];
+  paymentRequiredResponse: PaymentRequired;
+}
+
 export interface VerifyContext {
   paymentPayload: PaymentPayload;
   requirements: PaymentRequirements;
@@ -176,6 +181,15 @@ export class x402ResourceServer {
    */
   hasExtension(key: string): boolean {
     return this.registeredExtensions.has(key);
+  }
+
+  /**
+   * Get all registered extensions.
+   *
+   * @returns Array of registered extensions
+   */
+  getExtensions(): ResourceServerExtension[] {
+    return Array.from(this.registeredExtensions.values());
   }
 
   /**
@@ -503,17 +517,17 @@ export class x402ResourceServer {
    * @param requirements - Payment requirements
    * @param resourceInfo - Resource information
    * @param error - Error message
-   * @param extensions - Optional extensions
+   * @param extensions - Optional declared extensions (for per-key enrichment)
    * @returns Payment required response object
    */
-  createPaymentRequiredResponse(
+  async createPaymentRequiredResponse(
     requirements: PaymentRequirements[],
     resourceInfo: ResourceInfo,
     error?: string,
     extensions?: Record<string, unknown>,
-  ): PaymentRequired {
+  ): Promise<PaymentRequired> {
     // V2 response with resource at top level
-    const response: PaymentRequired = {
+    let response: PaymentRequired = {
       x402Version: 2,
       error,
       resource: resourceInfo,
@@ -525,6 +539,35 @@ export class x402ResourceServer {
       response.extensions = extensions;
     }
 
+    // Let extensions enrich PaymentRequired using per-key pattern (only declared extensions)
+    if (extensions) {
+      for (const [key, declaration] of Object.entries(extensions)) {
+        const extension = this.registeredExtensions.get(key);
+        if (extension?.enrichPaymentRequiredResponse) {
+          try {
+            const context: PaymentRequiredContext = {
+              requirements,
+              paymentRequiredResponse: response,
+            };
+            const enriched = await extension.enrichPaymentRequiredResponse(declaration, context);
+            // Only merge extensions[key] to enforce append-only restriction
+            if (enriched.extensions?.[key]) {
+              if (!response.extensions) {
+                response.extensions = {};
+              }
+              response.extensions[key] = enriched.extensions[key];
+            }
+          } catch (error) {
+            // Log error but continue with unenriched data
+            console.error(
+              `Error in enrichPaymentRequiredResponse hook for extension ${key}:`,
+              error,
+            );
+          }
+        }
+      }
+    }
+
     return response;
   }
 
@@ -533,11 +576,13 @@ export class x402ResourceServer {
    *
    * @param paymentPayload - The payment payload to verify
    * @param requirements - The payment requirements
+   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns Verification response
    */
   async verifyPayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    declaredExtensions?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
     const context: VerifyContext = {
       paymentPayload,
@@ -601,6 +646,34 @@ export class x402ResourceServer {
         await hook(resultContext);
       }
 
+      // Let extensions enrich verification response using per-key pattern (only declared extensions)
+      if (declaredExtensions) {
+        for (const [key, declaration] of Object.entries(declaredExtensions)) {
+          const extension = this.registeredExtensions.get(key);
+          if (extension?.enrichVerificationResponse) {
+            try {
+              const enriched = await extension.enrichVerificationResponse(
+                declaration,
+                resultContext,
+              );
+              // Only merge extensions[key] to enforce append-only restriction
+              if (enriched.extensions?.[key]) {
+                if (!verifyResult.extensions) {
+                  verifyResult.extensions = {};
+                }
+                verifyResult.extensions[key] = enriched.extensions[key];
+              }
+            } catch (error) {
+              // Log error but continue with unenriched data
+              console.error(
+                `Error in enrichVerificationResponse hook for extension ${key}:`,
+                error,
+              );
+            }
+          }
+        }
+      }
+
       return verifyResult;
     } catch (error) {
       const failureContext: VerifyFailureContext = {
@@ -625,11 +698,13 @@ export class x402ResourceServer {
    *
    * @param paymentPayload - The payment payload to settle
    * @param requirements - The payment requirements
+   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns Settlement response
    */
   async settlePayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    declaredExtensions?: Record<string, unknown>,
   ): Promise<SettleResponse> {
     const context: SettleContext = {
       paymentPayload,
@@ -688,6 +763,30 @@ export class x402ResourceServer {
 
       for (const hook of this.afterSettleHooks) {
         await hook(resultContext);
+      }
+
+      // Let extensions enrich settlement response using per-key pattern (only declared extensions)
+      if (declaredExtensions) {
+        for (const [key, declaration] of Object.entries(declaredExtensions)) {
+          const extension = this.registeredExtensions.get(key);
+          if (extension?.enrichSettlementResponse) {
+            try {
+              const enriched = await extension.enrichSettlementResponse(declaration, resultContext);
+              // Only merge extensions[key] to enforce append-only restriction
+              if (enriched.extensions?.[key]) {
+                if (!settleResult.extensions) {
+                  settleResult.extensions = {};
+                }
+                settleResult.extensions[key] = enriched.extensions[key];
+              }
+              // Update the context with the enriched result for subsequent extensions
+              resultContext.result = settleResult;
+            } catch (error) {
+              // Log error but continue with unenriched data
+              console.error(`Error in enrichSettlementResponse hook for extension ${key}:`, error);
+            }
+          }
+        }
       }
 
       return settleResult;
@@ -766,7 +865,7 @@ export class x402ResourceServer {
     if (!paymentPayload) {
       return {
         success: false,
-        requiresPayment: this.createPaymentRequiredResponse(
+        requiresPayment: await this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "Payment required",
@@ -780,7 +879,7 @@ export class x402ResourceServer {
     if (!matchingRequirements) {
       return {
         success: false,
-        requiresPayment: this.createPaymentRequiredResponse(
+        requiresPayment: await this.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements found",
