@@ -276,6 +276,9 @@ func (f *ExactEvmScheme) Settle(
 		r := signatureBytes[0:32]
 		s := signatureBytes[32:64]
 		v := signatureBytes[64]
+		if v == 0 || v == 1 {
+			v = v + 27
+		}
 
 		txHash, err = f.signer.WriteContract(
 			ctx,
