@@ -1,4 +1,4 @@
-# RFC: Facilitator Fee Disclosure Extension (`facilitatorFees`)
+# Extension Proposal: Facilitator Fee Disclosure Extensions (`facilitatorFees`)
 
 ## Summary
 
