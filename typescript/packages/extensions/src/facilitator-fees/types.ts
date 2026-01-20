@@ -26,13 +26,15 @@ export type SignatureScheme = "eip191" | "ed25519";
 export interface FacilitatorFeeQuote {
   /** Unique identifier for this quote */
   quoteId: string;
+  /** Signing address of the facilitator (required for signature verification) */
+  facilitatorAddress: string;
   /** Fee model type */
   model: FeeModel;
   /** Fee currency (token address or identifier) */
   asset: string;
   /** Flat fee amount in atomic units (for flat model) */
   flatFee?: string;
-  /** Basis points (for bps model) */
+  /** Basis points (for bps model, 1 bps = 0.01%) */
   bps?: number;
   /** Minimum fee in atomic units */
   minFee?: string;
@@ -40,7 +42,7 @@ export interface FacilitatorFeeQuote {
   maxFee?: string;
   /** Unix timestamp when quote expires */
   expiry: number;
-  /** Facilitator signature over the quote */
+  /** Facilitator signature over the canonical quote */
   signature: string;
   /** Signature scheme used */
   signatureScheme: SignatureScheme;

@@ -125,6 +125,8 @@ export type {
 
 export { FACILITATOR_FEES } from "./types";
 
+import type { FacilitatorFeesSettlementInfo } from "./types";
+
 // Re-export schemas
 export {
   FeeModelSchema,
@@ -274,31 +276,196 @@ export function findOptionByQuoteId(
  *
  * @param options - Array of facilitator options
  * @param maxTotalFee - Maximum acceptable fee (as bigint-compatible string)
+ * @param paymentAmount - Optional payment amount for BPS calculation
  * @returns Options that meet the fee constraint
  */
 export function filterOptionsByMaxFee(
   options: FacilitatorOption[],
   maxTotalFee: string,
+  paymentAmount?: string,
 ): FacilitatorOption[] {
-  const maxFee = BigInt(maxTotalFee);
+  const maxFeeConstraint = BigInt(maxTotalFee);
 
   return options.filter(opt => {
     // If maxFacilitatorFee is provided, use it
     if (opt.maxFacilitatorFee !== undefined) {
-      return BigInt(opt.maxFacilitatorFee) <= maxFee;
+      return BigInt(opt.maxFacilitatorFee) <= maxFeeConstraint;
     }
 
     // If we have a quote with flat fee, use it
     if (opt.facilitatorFeeQuote?.flatFee !== undefined) {
-      return BigInt(opt.facilitatorFeeQuote.flatFee) <= maxFee;
+      return BigInt(opt.facilitatorFeeQuote.flatFee) <= maxFeeConstraint;
     }
 
-    // If we have a quote with maxFee, use it
+    // If we have a BPS quote and payment amount is known, calculate
+    if (opt.facilitatorFeeQuote?.bps !== undefined && paymentAmount !== undefined) {
+      const calculatedFee = calculateBpsFee(opt.facilitatorFeeQuote, paymentAmount);
+      return calculatedFee <= maxFeeConstraint;
+    }
+
+    // If we have a quote with maxFee bound, use it
     if (opt.facilitatorFeeQuote?.maxFee !== undefined) {
-      return BigInt(opt.facilitatorFeeQuote.maxFee) <= maxFee;
+      return BigInt(opt.facilitatorFeeQuote.maxFee) <= maxFeeConstraint;
     }
 
     // Can't determine fee, exclude by default
     return false;
   });
+}
+
+// =============================================================================
+// Fee Calculation Helpers
+// =============================================================================
+
+/**
+ * Calculate the fee for a BPS (basis points) quote given a payment amount
+ *
+ * Formula: fee = max(minFee, min(maxFee, (paymentAmount * bps) / 10000))
+ *
+ * @param quote - Fee quote with BPS model
+ * @param paymentAmount - Payment amount in atomic units
+ * @returns Calculated fee in atomic units
+ */
+export function calculateBpsFee(quote: FacilitatorFeeQuote, paymentAmount: string): bigint {
+  if (quote.bps === undefined) {
+    throw new Error("Quote does not have BPS fee model");
+  }
+
+  const amount = BigInt(paymentAmount);
+  const bps = BigInt(quote.bps);
+
+  // Calculate raw BPS fee: (amount * bps) / 10000
+  let fee = (amount * bps) / BigInt(10000);
+
+  // Apply minFee constraint
+  if (quote.minFee !== undefined) {
+    const minFee = BigInt(quote.minFee);
+    if (fee < minFee) fee = minFee;
+  }
+
+  // Apply maxFee constraint
+  if (quote.maxFee !== undefined) {
+    const maxFee = BigInt(quote.maxFee);
+    if (fee > maxFee) fee = maxFee;
+  }
+
+  return fee;
+}
+
+/**
+ * Calculate the fee for any quote type given an optional payment amount
+ *
+ * @param quote - Fee quote
+ * @param paymentAmount - Payment amount (required for BPS/hybrid models)
+ * @returns Calculated fee in atomic units, or undefined if cannot calculate
+ */
+export function calculateFee(
+  quote: FacilitatorFeeQuote,
+  paymentAmount?: string,
+): bigint | undefined {
+  switch (quote.model) {
+    case "flat":
+      if (quote.flatFee === undefined) return undefined;
+      return BigInt(quote.flatFee);
+
+    case "bps":
+      if (paymentAmount === undefined) return undefined;
+      return calculateBpsFee(quote, paymentAmount);
+
+    case "tiered":
+    case "hybrid":
+      // For complex models, use maxFee as upper bound if available
+      if (quote.maxFee !== undefined) return BigInt(quote.maxFee);
+      return undefined;
+
+    default:
+      return undefined;
+  }
+}
+
+// =============================================================================
+// Signature Verification
+// =============================================================================
+
+/**
+ * Get the canonical signing payload for a fee quote
+ *
+ * Fields are sorted alphabetically and signature/signatureScheme are excluded.
+ *
+ * @param quote - Fee quote to canonicalize
+ * @returns Canonical JSON string for signing
+ */
+export function getCanonicalQuotePayload(quote: FacilitatorFeeQuote): string {
+  // Build payload with only defined fields, excluding signature fields
+  const payload: Record<string, unknown> = {};
+
+  // Add fields in alphabetical order
+  payload.asset = quote.asset;
+  if (quote.bps !== undefined) payload.bps = quote.bps;
+  payload.expiry = quote.expiry;
+  payload.facilitatorAddress = quote.facilitatorAddress;
+  if (quote.flatFee !== undefined) payload.flatFee = quote.flatFee;
+  if (quote.maxFee !== undefined) payload.maxFee = quote.maxFee;
+  if (quote.minFee !== undefined) payload.minFee = quote.minFee;
+  payload.model = quote.model;
+  payload.quoteId = quote.quoteId;
+
+  return JSON.stringify(payload);
+}
+
+/**
+ * Verify a fee quote signature (EIP-191 scheme)
+ *
+ * Requires viem or ethers for signature recovery. This function provides
+ * the verification logic - actual recovery requires a crypto library.
+ *
+ * @param quote - Fee quote to verify
+ * @param recoverAddress - Function to recover signer address from message and signature
+ * @returns True if signature is valid and matches facilitatorAddress
+ */
+export async function verifyQuoteSignatureEip191(
+  quote: FacilitatorFeeQuote,
+  recoverAddress: (message: string, signature: string) => Promise<string>,
+): Promise<boolean> {
+  if (quote.signatureScheme !== "eip191") {
+    throw new Error(`Expected eip191 signature scheme, got ${quote.signatureScheme}`);
+  }
+
+  const canonicalPayload = getCanonicalQuotePayload(quote);
+  const recoveredAddress = await recoverAddress(canonicalPayload, quote.signature);
+
+  // Compare addresses case-insensitively
+  return recoveredAddress.toLowerCase() === quote.facilitatorAddress.toLowerCase();
+}
+
+/**
+ * Verify that the settlement response matches the client's selected quote
+ *
+ * @param settlementInfo - Fee paid info from settlement response
+ * @param selectedQuoteId - Quote ID that was selected by client
+ * @param expectedFacilitatorId - Expected facilitator ID from the original quote
+ * @returns Object with validation result and any error message
+ */
+export function verifySettlementMatchesSelection(
+  settlementInfo: FacilitatorFeesSettlementInfo,
+  selectedQuoteId: string,
+  expectedFacilitatorId: string,
+): { valid: boolean; error?: string } {
+  // Verify quote ID matches
+  if (settlementInfo.quoteId !== selectedQuoteId) {
+    return {
+      valid: false,
+      error: `Quote ID mismatch: expected ${selectedQuoteId}, got ${settlementInfo.quoteId}`,
+    };
+  }
+
+  // Verify facilitator ID matches
+  if (settlementInfo.facilitatorId !== expectedFacilitatorId) {
+    return {
+      valid: false,
+      error: `Facilitator ID mismatch: expected ${expectedFacilitatorId}, got ${settlementInfo.facilitatorId}`,
+    };
+  }
+
+  return { valid: true };
 }
