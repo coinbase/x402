@@ -11,7 +11,7 @@ We introduce:
 
 ## Motivation
 
-x402 v2 supports multi-facilitator routing, but there is no in-band standard for facilitator fee disclosure. Facilitators are beginning to charge explicit fees:
+x402 v2 supports multi-facilitator routing, but there is no standard for facilitator fee disclosure. Facilitators are beginning to charge explicit fees:
 
 - **Coinbase CDP x402 Facilitator**: flat-fee model ($0.001/transaction after free tier)
 - **Thirdweb**: percentage-based fees (0.3% bps)
@@ -39,7 +39,7 @@ Without standardization:
 
 ### Placement
 
-Uses the top-level `extensions` field (not `accepts[i].extra`) following the v2 extension pattern:
+Uses the top-level `extensions` field following the v2 extension pattern:
 
 ```
 PaymentRequired.extensions.facilitatorFees
