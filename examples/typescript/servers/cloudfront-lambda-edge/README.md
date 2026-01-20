@@ -11,6 +11,7 @@ Add x402 payments to any web server without modifying your backend. Put CloudFro
 - **Drop-in monetization**: Add payments to existing APIs in minutes
 - **Edge performance**: Payment verification at CloudFront's global edge locations
 - **Uses @x402/core**: Leverages `x402HTTPResourceServer` for consistent behavior with other x402 implementations
+- **Fair billing**: Customers only charged when API succeeds (verify → execute → settle pattern)
 
 ## How It Works
 
@@ -18,26 +19,40 @@ Add x402 payments to any web server without modifying your backend. Put CloudFro
 sequenceDiagram
     participant Client
     participant CloudFront
-    participant Lambda@Edge
-    participant Facilitator as x402 Facilitator
+    participant OriginRequest as Lambda@Edge<br/>(origin-request)
     participant Origin as Your Origin
+    participant OriginResponse as Lambda@Edge<br/>(origin-response)
+    participant Facilitator as x402 Facilitator
 
     Client->>CloudFront: Request /api/data
-    CloudFront->>Lambda@Edge: origin-request event
+    CloudFront->>OriginRequest: origin-request event
     
     alt No payment header
-        Lambda@Edge-->>Client: 402 Payment Required
+        OriginRequest-->>Client: 402 Payment Required
     else Has PAYMENT-SIGNATURE header
-        Lambda@Edge->>Facilitator: Verify payment
-        Facilitator-->>Lambda@Edge: Valid
-        Lambda@Edge->>Facilitator: Settle payment
-        Facilitator-->>Lambda@Edge: Settled
-        Lambda@Edge->>Origin: Forward request
-        Origin-->>Client: Response
+        OriginRequest->>Facilitator: Verify payment
+        Facilitator-->>OriginRequest: Valid
+        Note over OriginRequest: Store payment data<br/>for settlement
+        OriginRequest->>Origin: Forward request
+        Origin-->>CloudFront: Response
+        CloudFront->>OriginResponse: origin-response event
+        
+        alt Origin succeeded (status < 400)
+            OriginResponse->>Facilitator: Settle payment
+            Facilitator-->>OriginResponse: Settled
+            OriginResponse-->>Client: Response + settlement headers
+        else Origin failed (status >= 400)
+            Note over OriginResponse: Skip settlement<br/>Customer not charged
+            OriginResponse-->>Client: Error response
+        end
     end
 ```
 
-Lambda@Edge intercepts requests, checks for payment, verifies with the facilitator, and only forwards paid requests to your origin. Your backend never sees unpaid requests.
+The implementation uses two Lambda@Edge functions:
+1. **origin-request**: Verifies payment and forwards valid requests to origin
+2. **origin-response**: Settles payment only if origin returned success (status < 400)
+
+This ensures customers are never charged for failed API requests.
 
 ## Quick Start
 
@@ -53,18 +68,18 @@ Copy the `lambda/src/` directory into your project and adapt the build process t
 
 ### 2. Configure Payment Settings
 
-Edit `server.ts` to configure your deployment. All configuration is at the top of the file:
+Edit `config.ts` to configure your deployment:
 
 ```typescript
 // Payment configuration
-const FACILITATOR_URL = 'https://x402.org/facilitator';
-const PAY_TO = '0xYourPaymentAddressHere';  // Your wallet address
-const NETWORK = 'eip155:84532';              // Base Sepolia (testnet) or 'eip155:8453' (mainnet)
+export const FACILITATOR_URL = 'https://x402.org/facilitator';
+export const PAY_TO = '0xYourPaymentAddressHere';  // Your wallet address
+export const NETWORK = 'eip155:84532';              // Base Sepolia (testnet) or 'eip155:8453' (mainnet)
 ```
 
 ### 3. Configure Routes
 
-Define which routes require payment in the `ROUTES` constant in `server.ts`:
+Define which routes require payment in `config.ts`:
 
 ```typescript
 const ROUTES: RoutesConfig = {
@@ -93,8 +108,18 @@ The route configuration uses the same `RouteConfig` type from `@x402/core/server
 
 ### 4. Deploy
 
-Bundle and deploy the Lambda function using your preferred tooling (CDK, SAM, Terraform, etc.), then attach it to your CloudFront distribution's origin-request event.
+Bundle and deploy both Lambda functions using your preferred tooling (CDK, SAM, Terraform, etc.):
 
+| Lambda Function         | CloudFront Event | Purpose                            |
+| ----------------------- | ---------------- | ---------------------------------- |
+| `originRequestHandler`  | origin-request   | Verify payment, forward to origin  |
+| `originResponseHandler` | origin-response  | Settle payment if origin succeeded |
+
+Both handlers are exported from `index.ts`:
+
+```typescript
+import { originRequestHandler, originResponseHandler } from './index';
+```
 
 ## Networks
 
@@ -108,14 +133,81 @@ Bundle and deploy the Lambda function using your preferred tooling (CDK, SAM, Te
 ```
 cloudfront-lambda-edge/
 ├── lambda/src/
-│   ├── index.ts      # Lambda handler
-│   ├── adapter.ts    # CloudFrontHTTPAdapter for x402
-│   ├── server.ts     # x402HTTPResourceServer setup & routes
-│   └── responses.ts  # Lambda@Edge response helpers
-└── cdk/              # Optional: Infrastructure as code
+│   ├── index.ts           # Main exports
+│   ├── origin-request.ts  # Handler for origin-request event
+│   ├── origin-response.ts # Handler for origin-response event
+│   ├── config.ts          # User config: routes, addresses, network
+│   └── lib/               # Future @x402/lambda-edge package
+│       ├── index.ts       # Library exports
+│       ├── middleware.ts  # createX402Middleware factory
+│       ├── server.ts      # createX402Server factory
+│       ├── adapter.ts     # CloudFrontHTTPAdapter
+│       └── responses.ts   # Lambda@Edge response helpers
+└── cdk/                   # Optional: Infrastructure as code
 ```
 
-The implementation uses `x402HTTPResourceServer` from `@x402/core` with a custom `CloudFrontHTTPAdapter` that translates CloudFront request format to the standard `HTTPAdapter` interface.
+### Middleware Pattern
+
+The x402 logic is implemented as composable middleware, not full handlers. This lets you integrate x402 with your existing Lambda@Edge logic:
+
+```typescript
+import { createX402Middleware } from './lib';
+
+const x402 = createX402Middleware({ getServer: createServer });
+
+export const handler = async (event: CloudFrontRequestEvent) => {
+  const request = event.Records[0].cf.request;
+  
+  // Your custom logic first (auth, WAF, logging, etc.)
+  if (request.headers['x-api-key']?.[0]?.value !== 'secret') {
+    return { status: '401', body: 'Unauthorized' };
+  }
+  
+  // x402 payment check
+  const result = await x402.processOriginRequest(request, distributionDomain);
+  
+  if (result.type === 'respond') {
+    return result.response; // 402 Payment Required
+  }
+  
+  // More custom logic, then forward to origin
+  return result.request;
+};
+```
+
+### Library Structure
+
+The `lib/` folder contains reusable code that will become `@x402/lambda-edge`:
+
+```typescript
+// Future usage:
+import { createX402Middleware, CloudFrontHTTPAdapter } from '@x402/lambda-edge';
+
+const x402 = createX402Middleware({
+  getServer: async () => { /* your config */ }
+});
+```
+
+## Payment Flow Details
+
+### Why Two Lambda Functions?
+
+The x402 pattern is: **verify → API execution → settle**
+
+If settlement happens before the API executes (in origin-request), customers get charged even when the API fails. By splitting into two functions:
+
+1. **origin-request**: Verifies payment is valid, stores payment data in a custom header
+2. **origin-response**: Checks origin status, settles only if status < 400
+
+This ensures fair billing — customers only pay for successful requests.
+
+### Internal Headers
+
+The origin-request handler passes payment data to origin-response via the `x-x402-pending-settlement` header. This header:
+- Is base64-encoded JSON containing payment payload and requirements
+- Is automatically stripped from the final response
+- Never reaches your origin server (CloudFront internal)
+- **Security**: Any client-injected `x-x402-pending-settlement` header is automatically removed by the origin-request handler to prevent payment bypass attacks
 
 ## Advanced Patterns
 
@@ -165,7 +257,7 @@ This enables payment persistence across page navigations without requiring the c
 
 - Lambda@Edge must deploy to `us-east-1`
 - No env vars in Lambda@Edge — config is bundled in the code
-- Max 30s timeout for origin-request
+- Max 30s timeout for origin-request, 30s for origin-response
 - Add `PAYMENT-SIGNATURE` to CloudFront cache key headers
 - Server is initialized lazily on first request and reused across invocations
 - **Paywall disabled**: HTML paywall for browsers is disabled by default since Lambda@Edge responses are limited to 1MB. For browser-based payment flows, you can have Lambda@Edge dynamically generate and upload the paywall HTML to S3, then use origin routing to serve the hosted HTML for a seamless experience.
