@@ -14,7 +14,7 @@
 ## Code-to-Doc Mapping
 - Changes to `typescript/packages/core/src/` affect Core Concepts docs
 - Changes to `typescript/packages/*/src/` affect SDK references and quickstart guides
-- Changes to `python/x402/src/` affect Python SDK references
+- Changes to `python/x402/` affect Python SDK references
 - Changes to `go/` affect Go SDK references
 - Changes to facilitator endpoints affect quickstart guides
 - Changes to `specs/` may require updates to core-concepts docs
@@ -84,7 +84,7 @@ When triggered by GitHub Actions or other automated workflows:
 | Code Change | Doc Update Required |
 |-------------|---------------------|
 | `typescript/packages/*/src/*.ts` API changes | SDK reference, quickstart guides |
-| `python/x402/src/*.py` API changes | Python SDK reference |
+| `python/x402/*.py` API changes | Python SDK reference |
 | `go/*.go` API changes | Go SDK reference |
 | `java/src/**/*.java` API changes | Java SDK reference |
 | `specs/*.md` protocol changes | core-concepts docs |
@@ -102,5 +102,6 @@ If the code changes are limited to:
 - CI/build configuration only (`.github/`, `turbo.json`, etc.)
 - Dependency updates without API changes (`package.json`, `go.mod`, etc.)
 - Ecosystem partner metadata (`typescript/site/app/ecosystem/partners-data/`)
+- Legacy packages (`typescript/packages/legacy/*`, `go/legacy`, `python/legacy`)
 
 Then report "No documentation updates needed" and **do not create a PR**.

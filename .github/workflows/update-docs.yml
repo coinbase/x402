@@ -10,7 +10,10 @@ on:
       - '**/__tests__/**'
       - '**/test/**'
       - '**/tests/**'
-      - '**/typescript/site/*'
+      - '**/typescript/site/**'
+      - 'typescript/packages/legacy/**'
+      - 'go/legacy/**'
+      - 'python/legacy/**'
 
 jobs:
   update-docs:
@@ -52,11 +55,11 @@ jobs:
                 head: afterSha
               });
               
-              // Extract filenames, excluding test files
-              const testFilePattern = /\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|\/test\/|\/tests\//;
+              // Extract filenames, excluding test files and legacy packages
+              const excludePattern = /\.(test|spec)\.(ts|js|tsx|jsx)$|__tests__|\/test\/|\/tests\/|typescript\/packages\/legacy\/|go\/legacy\/|python\/legacy\//;
               uniqueFiles = (compareResponse.data.files || [])
                 .map(f => f.filename)
-                .filter(f => !testFilePattern.test(f));
+                .filter(f => !excludePattern.test(f));
                 
             } catch (error) {
               core.setFailed('Failed to compare commits: ' + error.message);
