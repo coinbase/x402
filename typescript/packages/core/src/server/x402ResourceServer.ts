@@ -425,7 +425,7 @@ export class x402ResourceServer {
     if (!supportedKind) {
       throw new Error(
         `Facilitator does not support ${SchemeNetworkServer.scheme} on ${resourceConfig.network}. ` +
-          `Make sure to call initialize() to fetch supported kinds from facilitators.`,
+        `Make sure to call initialize() to fetch supported kinds from facilitators.`,
       );
     }
 
@@ -541,7 +541,7 @@ export class x402ResourceServer {
       response.extensions = extensions;
     }
 
-    // Let extensions add data to PaymentRequired response (only declared extensions)
+    // Let declared extensions add data to PaymentRequired response
     if (extensions) {
       for (const [key, declaration] of Object.entries(extensions)) {
         const extension = this.registeredExtensions.get(key);
@@ -581,13 +581,11 @@ export class x402ResourceServer {
    *
    * @param paymentPayload - The payment payload to verify
    * @param requirements - The payment requirements
-   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns Verification response
    */
   async verifyPayment(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
-    declaredExtensions?: Record<string, unknown>,
   ): Promise<VerifyResponse> {
     const context: VerifyContext = {
       paymentPayload,
@@ -649,32 +647,6 @@ export class x402ResourceServer {
 
       for (const hook of this.afterVerifyHooks) {
         await hook(resultContext);
-      }
-
-      // Let extensions add data to verification response (only declared extensions)
-      if (declaredExtensions) {
-        for (const [key, declaration] of Object.entries(declaredExtensions)) {
-          const extension = this.registeredExtensions.get(key);
-          if (extension?.enrichVerificationResponse) {
-            try {
-              const extensionData = await extension.enrichVerificationResponse(
-                declaration,
-                resultContext,
-              );
-              if (extensionData !== undefined) {
-                if (!verifyResult.extensions) {
-                  verifyResult.extensions = {};
-                }
-                verifyResult.extensions[key] = extensionData;
-              }
-            } catch (error) {
-              console.error(
-                `Error in enrichVerificationResponse hook for extension ${key}:`,
-                error,
-              );
-            }
-          }
-        }
       }
 
       return verifyResult;
@@ -768,7 +740,7 @@ export class x402ResourceServer {
         await hook(resultContext);
       }
 
-      // Let extensions add data to settlement response (only declared extensions)
+      // Let declared extensions add data to settlement response
       if (declaredExtensions) {
         for (const [key, declaration] of Object.entries(declaredExtensions)) {
           const extension = this.registeredExtensions.get(key);

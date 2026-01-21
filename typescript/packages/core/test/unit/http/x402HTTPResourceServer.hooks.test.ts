@@ -19,7 +19,6 @@ import {
   Price,
   ResourceServerExtension,
   SettleResultContext,
-  VerifyResultContext,
   PaymentRequiredContext,
 } from "../../../src/types";
 import { decodePaymentRequiredHeader, encodePaymentSignatureHeader } from "../../../src/http";
@@ -325,161 +324,6 @@ describe("x402HTTPResourceServer Hooks", () => {
     });
   });
 
-  describe("enrichVerificationResponse", () => {
-    it("should enrich verification response after successful verification", async () => {
-      const verificationExtension: ResourceServerExtension = {
-        key: "verification-enricher",
-        enrichVerificationResponse: async (_declaration: unknown, context: VerifyResultContext) => {
-          return {
-            ...context.result,
-            extensions: {
-              "verification-enricher": {
-                enriched: true,
-              },
-            },
-          };
-        },
-      };
-
-      extensionResourceServer.registerExtension(verificationExtension);
-
-      const routes = {
-        "/api/test": {
-          accepts: {
-            scheme: "exact",
-            payTo: "0xabc",
-            price: "$1.00" as Price,
-            network: "eip155:8453" as Network,
-          },
-          extensions: {
-            "verification-enricher": {},
-          },
-        },
-      };
-
-      const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
-
-      // First get the PaymentRequired to get the actual requirements
-      const adapter1 = new MockHTTPAdapter();
-      const context1: HTTPRequestContext = {
-        adapter: adapter1,
-        path: "/api/test",
-        method: "GET",
-      };
-
-      const result1 = await httpServer.processHTTPRequest(context1);
-      expect(result1.type).toBe("payment-error");
-      if (result1.type !== "payment-error") {
-        throw new Error("Expected payment-error");
-      }
-
-      const paymentRequiredHeader = result1.response.headers["PAYMENT-REQUIRED"];
-      const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
-
-      // Create a payment payload that matches the requirements
-      const payload = buildPaymentPayload({
-        accepted: paymentRequired.accepts[0],
-        resource: paymentRequired.resource,
-      });
-      const paymentHeader = encodePaymentSignatureHeader(payload);
-
-      const adapter = new MockHTTPAdapter({
-        "payment-signature": paymentHeader,
-      });
-
-      const context: HTTPRequestContext = {
-        adapter,
-        path: "/api/test",
-        method: "GET",
-      };
-
-      // Set up mock to return verification with payer
-      extensionMockFacilitator.setVerifyResponse(
-        buildVerifyResponse({
-          isValid: true,
-          payer: "0xOriginalPayer",
-        }),
-      );
-
-      const result = await httpServer.processHTTPRequest(context);
-
-      // Verification should succeed and the hook should have been called
-      // The hook can modify the verification result
-      expect(result.type).toBe("payment-verified");
-    });
-
-    it("should handle errors in verification enrichment gracefully", async () => {
-      const errorExtension: ResourceServerExtension = {
-        key: "error-verification",
-        enrichVerificationResponse: async (
-          _declaration: unknown,
-          _context: VerifyResultContext,
-        ) => {
-          throw new Error("Verification enrichment error");
-        },
-      };
-
-      extensionResourceServer.registerExtension(errorExtension);
-
-      const routes = {
-        "/api/test": {
-          accepts: {
-            scheme: "exact",
-            payTo: "0xabc",
-            price: "$1.00" as Price,
-            network: "eip155:8453" as Network,
-          },
-          extensions: {
-            "error-verification": {},
-          },
-        },
-      };
-
-      const httpServer = new x402HTTPResourceServer(extensionResourceServer, routes);
-
-      // First get the PaymentRequired to get the actual requirements
-      const adapter1 = new MockHTTPAdapter();
-      const context1: HTTPRequestContext = {
-        adapter: adapter1,
-        path: "/api/test",
-        method: "GET",
-      };
-
-      const result1 = await httpServer.processHTTPRequest(context1);
-      expect(result1.type).toBe("payment-error");
-      if (result1.type !== "payment-error") {
-        throw new Error("Expected payment-error");
-      }
-
-      const paymentRequiredHeader = result1.response.headers["PAYMENT-REQUIRED"];
-      const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
-
-      // Create a payment payload that matches the requirements
-      const payload = buildPaymentPayload({
-        accepted: paymentRequired.accepts[0],
-        resource: paymentRequired.resource,
-      });
-      const paymentHeader = encodePaymentSignatureHeader(payload);
-
-      const adapter = new MockHTTPAdapter({
-        "payment-signature": paymentHeader,
-      });
-
-      const context: HTTPRequestContext = {
-        adapter,
-        path: "/api/test",
-        method: "GET",
-      };
-
-      extensionMockFacilitator.setVerifyResponse(buildVerifyResponse({ isValid: true }));
-
-      // Should not throw, should continue with unenriched verification result
-      const result = await httpServer.processHTTPRequest(context);
-
-      expect(result.type).toBe("payment-verified");
-    });
-  });
-
   describe("Integration: All hooks together", () => {
     it("should apply all extension hooks in sequence", async () => {
       const allHooksExtension: ResourceServerExtension = {
@@ -491,15 +335,6 @@ describe("x402HTTPResourceServer Hooks", () => {
           // Return just the extension data for this key
           return {
             paymentRequiredEnriched: true,
-          };
-        },
-        enrichVerificationResponse: async (
-          _declaration: unknown,
-          _context: VerifyResultContext,
-        ) => {
-          // Return just the extension data for this key
-          return {
-            verificationEnriched: true,
           };
         },
         enrichSettlementResponse: async (_declaration: unknown, _context: SettleResultContext) => {
@@ -540,19 +375,20 @@ describe("x402HTTPResourceServer Hooks", () => {
 
       const result1 = await httpServer.processHTTPRequest(context1);
       expect(result1.type).toBe("payment-error");
-      if (result1.type === "payment-error") {
-        const paymentRequiredHeader = result1.response.headers["PAYMENT-REQUIRED"];
-        const decoded = decodePaymentRequiredHeader(paymentRequiredHeader);
-        expect(decoded.extensions).toBeDefined();
-        if (decoded.extensions) {
-          expect((decoded.extensions["all-hooks"] as any).paymentRequiredEnriched).toBe(true);
-        }
+      if (result1.type !== "payment-error") {
+        throw new Error("Expected payment-error");
+      }
+
+      const paymentRequiredHeader = result1.response.headers["PAYMENT-REQUIRED"];
+      const decoded = decodePaymentRequiredHeader(paymentRequiredHeader);
+      expect(decoded.extensions).toBeDefined();
+      if (decoded.extensions) {
+        expect((decoded.extensions["all-hooks"] as any).paymentRequiredEnriched).toBe(true);
       }
 
       // Test verification and settlement enrichment
       // Get requirements from the PaymentRequired response
-      const paymentRequiredHeader = result1.response.headers["PAYMENT-REQUIRED"];
-      const paymentRequired = decodePaymentRequiredHeader(paymentRequiredHeader);
+      const paymentRequired = decoded;
 
       const payload = buildPaymentPayload({
         accepted: paymentRequired.accepts[0],

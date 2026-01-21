@@ -190,11 +190,11 @@ export interface HTTPResponseInstructions {
 export type HTTPProcessResult =
   | { type: "no-payment-required" }
   | {
-      type: "payment-verified";
-      paymentPayload: PaymentPayload;
-      paymentRequirements: PaymentRequirements;
-      declaredExtensions?: Record<string, unknown>;
-    }
+    type: "payment-verified";
+    paymentPayload: PaymentPayload;
+    paymentRequirements: PaymentRequirements;
+    declaredExtensions?: Record<string, unknown>;
+  }
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
 /**
@@ -417,11 +417,9 @@ export class x402HTTPResourceServer {
         };
       }
 
-      // verifyPayment already handles extension enrichment in the core layer
       const verifyResult = await this.ResourceServer.verifyPayment(
         paymentPayload,
         matchingRequirements,
-        routeConfig.extensions,
       );
 
       if (!verifyResult.isValid) {
@@ -472,7 +470,6 @@ export class x402HTTPResourceServer {
     declaredExtensions?: Record<string, unknown>,
   ): Promise<ProcessSettleResultResponse> {
     try {
-      // settlePayment already handles extension enrichment in the core layer
       const settleResponse = await this.ResourceServer.settlePayment(
         paymentPayload,
         requirements,
@@ -720,12 +717,11 @@ export class x402HTTPResourceServer {
     const [verb, path] = pattern.includes(" ") ? pattern.split(/\s+/) : ["*", pattern];
 
     const regex = new RegExp(
-      `^${
-        path
-          .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
-          .replace(/\*/g, ".*?") // Wildcards
-          .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters
-          .replace(/\//g, "\\/") // Escape slashes
+      `^${path
+        .replace(/[$()+.?^{|}]/g, "\\$&") // Escape regex special chars
+        .replace(/\*/g, ".*?") // Wildcards
+        .replace(/\[([^\]]+)\]/g, "[^/]+") // Parameters
+        .replace(/\//g, "\\/") // Escape slashes
       }$`,
       "i",
     );
