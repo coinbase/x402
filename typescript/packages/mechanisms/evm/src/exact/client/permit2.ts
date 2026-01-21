@@ -7,7 +7,7 @@ import { encodeFunctionData, getAddress } from "viem";
 import {
   permit2WitnessTypes,
   PERMIT2_ADDRESS,
-  x402Permit2ProxyAddress,
+  x402ExactPermit2ProxyAddress,
   eip2612PermitTypes,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
@@ -63,7 +63,7 @@ export async function createPermit2Payload(
       token: getAddress(paymentRequirements.asset),
       amount: paymentRequirements.amount,
     },
-    spender: x402Permit2ProxyAddress,
+    spender: x402ExactPermit2ProxyAddress,
     nonce,
     deadline,
     witness: {
