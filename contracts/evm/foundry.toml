@@ -34,10 +34,13 @@ arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_API_KEY}" }
-base = { key = "${BASESCAN_API_KEY}" }
-base_sepolia = { key = "${BASESCAN_API_KEY}" }
-optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}" }
-arbitrum = { key = "${ARBISCAN_API_KEY}" }
+base = { key = "${ETHERSCAN_API_KEY}" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY}" }
+optimism = { key = "${ETHERSCAN_API_KEY}" }
+optimism_sepolia = { key = "${ETHERSCAN_API_KEY}" }
+arbitrum = { key = "${ETHERSCAN_API_KEY}" }
+arbitrum_sepolia = { key = "${ETHERSCAN_API_KEY}" }
+sepolia = { key = "${ETHERSCAN_API_KEY}" }
 
 [fmt]
 line_length = 120
