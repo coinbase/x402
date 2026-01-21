@@ -45,6 +45,8 @@
   "dependencies": {
     "@x402/core": "workspace:^",
     "ajv": "^8.17.1",
+    "jose": "^5.10.0",
+    "viem": "^2.40.3",
     "zod": "^3.24.2"
   },
   "exports": {
@@ -76,6 +78,16 @@
       "require": {
         "types": "./dist/cjs/sign-in-with-x/index.d.ts",
         "default": "./dist/cjs/sign-in-with-x/index.js"
+      }
+    },
+    "./offer-receipt": {
+      "import": {
+        "types": "./dist/esm/offer-receipt/index.d.mts",
+        "default": "./dist/esm/offer-receipt/index.mjs"
+      },
+      "require": {
+        "types": "./dist/cjs/offer-receipt/index.d.ts",
+        "default": "./dist/cjs/offer-receipt/index.js"
       }
     }
   },

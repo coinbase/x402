@@ -1,5 +1,3 @@
-import { SettleResponse, VerifyResponse } from "./facilitator";
-import { PaymentRequired } from "./payments";
 import type {
   PaymentRequiredContext,
   VerifyResultContext,
@@ -13,7 +11,6 @@ export interface ResourceServerExtension {
   key: string;
   /**
    * Enrich extension declaration with extension-specific data.
-   * Only allowed to modify declaration field, preserving all core fields.
    *
    * @param declaration - Extension declaration from route config
    * @param transportContext - Transport-specific context (HTTP, A2A, MCP, etc.)
@@ -21,39 +18,39 @@ export interface ResourceServerExtension {
    */
   enrichDeclaration?: (declaration: unknown, transportContext: unknown) => unknown;
   /**
-   * Enrich PaymentRequired response with extension-specific data.
-   * Only allowed to modify extensions[key] field, preserving all core fields.
+   * Called when generating a 402 PaymentRequired response.
+   * Return extension data to add to extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
    * @param context - PaymentRequired context containing response and requirements
-   * @returns Enriched payment required response
+   * @returns Extension data to add to response.extensions[key]
    */
   enrichPaymentRequiredResponse?: (
     declaration: unknown,
     context: PaymentRequiredContext,
-  ) => Promise<PaymentRequired>;
+  ) => Promise<unknown>;
   /**
-   * Enrich verification response with extension-specific data.
-   * Only allowed to modify extensions[key] field, preserving all core fields.
+   * Called after successful payment verification.
+   * Return extension data to add to response.extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
    * @param context - Verification result context containing payment payload, requirements, and result
-   * @returns Enriched verification response
+   * @returns Extension data to add to response.extensions[key]
    */
   enrichVerificationResponse?: (
     declaration: unknown,
     context: VerifyResultContext,
-  ) => Promise<VerifyResponse>;
+  ) => Promise<unknown>;
   /**
-   * Enrich settlement response with extension-specific data.
-   * Only allowed to modify extensions[key] field, preserving all core fields.
+   * Called after successful payment settlement.
+   * Return extension data to add to response.extensions[key], or undefined to skip.
    *
    * @param declaration - Extension declaration from route config
    * @param context - Settlement result context containing payment payload, requirements, and result
-   * @returns Enriched settlement response
+   * @returns Extension data to add to response.extensions[key]
    */
   enrichSettlementResponse?: (
     declaration: unknown,
     context: SettleResultContext,
-  ) => Promise<SettleResponse>;
+  ) => Promise<unknown>;
 }

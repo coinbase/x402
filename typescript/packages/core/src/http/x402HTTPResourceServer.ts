@@ -193,6 +193,7 @@ export type HTTPProcessResult =
       type: "payment-verified";
       paymentPayload: PaymentPayload;
       paymentRequirements: PaymentRequirements;
+      declaredExtensions?: Record<string, unknown>;
     }
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
@@ -441,6 +442,7 @@ export class x402HTTPResourceServer {
         type: "payment-verified",
         paymentPayload,
         paymentRequirements: matchingRequirements,
+        declaredExtensions: routeConfig.extensions,
       };
     } catch (error) {
       const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(

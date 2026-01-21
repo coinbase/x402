@@ -38,6 +38,8 @@ export interface ResourceInfo {
 
 export interface PaymentRequiredContext {
   requirements: PaymentRequirements[];
+  resourceInfo: ResourceInfo;
+  error?: string;
   paymentRequiredResponse: PaymentRequired;
 }
 
@@ -539,7 +541,7 @@ export class x402ResourceServer {
       response.extensions = extensions;
     }
 
-    // Let extensions enrich PaymentRequired using per-key pattern (only declared extensions)
+    // Let extensions add data to PaymentRequired response (only declared extensions)
     if (extensions) {
       for (const [key, declaration] of Object.entries(extensions)) {
         const extension = this.registeredExtensions.get(key);
@@ -547,18 +549,21 @@ export class x402ResourceServer {
           try {
             const context: PaymentRequiredContext = {
               requirements,
+              resourceInfo,
+              error,
               paymentRequiredResponse: response,
             };
-            const enriched = await extension.enrichPaymentRequiredResponse(declaration, context);
-            // Only merge extensions[key] to enforce append-only restriction
-            if (enriched.extensions?.[key]) {
+            const extensionData = await extension.enrichPaymentRequiredResponse(
+              declaration,
+              context,
+            );
+            if (extensionData !== undefined) {
               if (!response.extensions) {
                 response.extensions = {};
               }
-              response.extensions[key] = enriched.extensions[key];
+              response.extensions[key] = extensionData;
             }
           } catch (error) {
-            // Log error but continue with unenriched data
             console.error(
               `Error in enrichPaymentRequiredResponse hook for extension ${key}:`,
               error,
@@ -646,25 +651,23 @@ export class x402ResourceServer {
         await hook(resultContext);
       }
 
-      // Let extensions enrich verification response using per-key pattern (only declared extensions)
+      // Let extensions add data to verification response (only declared extensions)
       if (declaredExtensions) {
         for (const [key, declaration] of Object.entries(declaredExtensions)) {
           const extension = this.registeredExtensions.get(key);
           if (extension?.enrichVerificationResponse) {
             try {
-              const enriched = await extension.enrichVerificationResponse(
+              const extensionData = await extension.enrichVerificationResponse(
                 declaration,
                 resultContext,
               );
-              // Only merge extensions[key] to enforce append-only restriction
-              if (enriched.extensions?.[key]) {
+              if (extensionData !== undefined) {
                 if (!verifyResult.extensions) {
                   verifyResult.extensions = {};
                 }
-                verifyResult.extensions[key] = enriched.extensions[key];
+                verifyResult.extensions[key] = extensionData;
               }
             } catch (error) {
-              // Log error but continue with unenriched data
               console.error(
                 `Error in enrichVerificationResponse hook for extension ${key}:`,
                 error,
@@ -765,24 +768,23 @@ export class x402ResourceServer {
         await hook(resultContext);
       }
 
-      // Let extensions enrich settlement response using per-key pattern (only declared extensions)
+      // Let extensions add data to settlement response (only declared extensions)
       if (declaredExtensions) {
         for (const [key, declaration] of Object.entries(declaredExtensions)) {
           const extension = this.registeredExtensions.get(key);
           if (extension?.enrichSettlementResponse) {
             try {
-              const enriched = await extension.enrichSettlementResponse(declaration, resultContext);
-              // Only merge extensions[key] to enforce append-only restriction
-              if (enriched.extensions?.[key]) {
+              const extensionData = await extension.enrichSettlementResponse(
+                declaration,
+                resultContext,
+              );
+              if (extensionData !== undefined) {
                 if (!settleResult.extensions) {
                   settleResult.extensions = {};
                 }
-                settleResult.extensions[key] = enriched.extensions[key];
+                settleResult.extensions[key] = extensionData;
               }
-              // Update the context with the enriched result for subsequent extensions
-              resultContext.result = settleResult;
             } catch (error) {
-              // Log error but continue with unenriched data
               console.error(`Error in enrichSettlementResponse hook for extension ${key}:`, error);
             }
           }
