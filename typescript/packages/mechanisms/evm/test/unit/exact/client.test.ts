@@ -6,7 +6,7 @@ import {
 } from "../../../src/exact/client/permit2";
 import type { ClientEvmSigner } from "../../../src/signer";
 import { PaymentRequirements } from "@x402/core/types";
-import { PERMIT2_ADDRESS, x402Permit2ProxyAddress } from "../../../src/constants";
+import { PERMIT2_ADDRESS, x402ExactPermit2ProxyAddress } from "../../../src/constants";
 import { isPermit2Payload, isEIP3009Payload } from "../../../src/types";
 
 describe("ExactEvmScheme (Client)", () => {
@@ -312,7 +312,7 @@ describe("ExactEvmScheme (Client)", () => {
       const result = await client.createPaymentPayload(2, requirements);
 
       expect(result.payload.permit2Authorization.spender.toLowerCase()).toBe(
-        x402Permit2ProxyAddress.toLowerCase(),
+        x402ExactPermit2ProxyAddress.toLowerCase(),
       );
     });
 
