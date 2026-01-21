@@ -40,13 +40,18 @@ go get github.com/coinbase/x402/go
 {% endtab %}
 
 {% tab title="Python" %}
-Install the [x402 package](https://pypi.org/project/x402/)
+Install the [x402 package](https://pypi.org/project/x402/) with your preferred HTTP client:
 
 ```bash
-pip install x402
-```
+# For httpx (async) - recommended
+pip install "x402[httpx]"
 
-**Note:** Python SDK currently uses v1 patterns. For v2 support, use TypeScript or Go.
+# For requests (sync)
+pip install "x402[requests]"
+
+# For Solana support, also add:
+pip install "x402[svm]"
+```
 {% endtab %}
 {% endtabs %}
 
@@ -91,12 +96,15 @@ Install the required package:
 pip install eth_account
 ```
 
-Then instantiate the wallet account:
+Then instantiate the wallet signer:
 
 ```python
+import os
 from eth_account import Account
+from x402.mechanisms.evm import EthAccountSigner
 
-account = Account.from_key(os.getenv("PRIVATE_KEY"))
+account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+signer = EthAccountSigner(account)
 ```
 {% endtab %}
 {% endtabs %}
@@ -253,24 +261,83 @@ func main() {
 ```
 {% endtab %}
 
-{% tab title="Python" %}
-**Note:** Python SDK currently uses v1 patterns.
-
-You can use either `httpx` or `Requests` to automatically handle 402 Payment Required responses.
+{% tab title="Python (httpx)" %}
+**httpx** provides async HTTP client support with automatic 402 payment handling.
 
 [Full HTTPX example](https://github.com/coinbase/x402/tree/main/examples/python/clients/httpx) | [Full Requests example](https://github.com/coinbase/x402/tree/main/examples/python/clients/requests)
 
 ```python
-from x402.clients.httpx import x402HttpxClient
+import asyncio
+import os
 from eth_account import Account
 
-# Create wallet account
-account = Account.from_key(os.getenv("PRIVATE_KEY"))
+from x402 import x402Client
+from x402.http import x402HTTPClient
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
 
-# Create client and make request
-async with x402HttpxClient(account=account, base_url="https://api.example.com") as client:
-    response = await client.get("/protected-endpoint")
-    print(await response.aread())
+
+async def main() -> None:
+    client = x402Client()
+    account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+    register_exact_evm_client(client, EthAccountSigner(account))
+
+    http_client = x402HTTPClient(client)
+
+    async with x402HttpxClient(client) as http:
+        response = await http.get("https://api.example.com/paid-endpoint")
+        await response.aread()
+
+        print(f"Response: {response.text}")
+
+        if response.is_success:
+            settle_response = http_client.get_payment_settle_response(
+                lambda name: response.headers.get(name)
+            )
+            print(f"Payment settled: {settle_response}")
+
+
+asyncio.run(main())
+```
+{% endtab %}
+
+{% tab title="Python (requests)" %}
+**requests** provides sync HTTP client support with automatic 402 payment handling.
+
+[Full Requests example](https://github.com/coinbase/x402/tree/main/examples/python/clients/requests)
+
+```python
+import os
+from eth_account import Account
+
+from x402 import x402ClientSync
+from x402.http import x402HTTPClientSync
+from x402.http.clients import x402_requests
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
+
+
+def main() -> None:
+    client = x402ClientSync()
+    account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+    register_exact_evm_client(client, EthAccountSigner(account))
+
+    http_client = x402HTTPClientSync(client)
+
+    with x402_requests(client) as session:
+        response = session.get("https://api.example.com/paid-endpoint")
+
+        print(f"Response: {response.text}")
+
+        if response.ok:
+            settle_response = http_client.get_payment_settle_response(
+                lambda name: response.headers.get(name)
+            )
+            print(f"Payment settled: {settle_response}")
+
+
+main()
 ```
 {% endtab %}
 {% endtabs %}
@@ -279,6 +346,8 @@ async with x402HttpxClient(account=account, base_url="https://api.example.com") 
 
 You can register multiple payment schemes to handle different networks:
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { x402Client } from "@x402/core/client";
@@ -303,6 +372,73 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 
 // Now handles both EVM and Solana networks automatically!
 ```
+{% endtab %}
+
+{% tab title="Go" %}
+```go
+import (
+    x402 "github.com/coinbase/x402/go"
+    x402http "github.com/coinbase/x402/go/http"
+    evm "github.com/coinbase/x402/go/mechanisms/evm/exact/client"
+    svm "github.com/coinbase/x402/go/mechanisms/svm/exact/client"
+    evmsigners "github.com/coinbase/x402/go/signers/evm"
+    svmsigners "github.com/coinbase/x402/go/signers/svm"
+)
+
+// Create signers
+evmSigner, _ := evmsigners.NewClientSignerFromPrivateKey(os.Getenv("EVM_PRIVATE_KEY"))
+svmSigner, _ := svmsigners.NewClientSignerFromPrivateKey(os.Getenv("SVM_PRIVATE_KEY"))
+
+// Create client with multiple schemes
+x402Client := x402.Newx402Client().
+    Register("eip155:*", evm.NewExactEvmScheme(evmSigner)).
+    Register("solana:*", svm.NewExactSvmScheme(svmSigner))
+
+// Wrap HTTP client with payment handling
+httpClient := x402http.WrapHTTPClientWithPayment(
+    http.DefaultClient,
+    x402http.Newx402HTTPClient(x402Client),
+)
+
+// Now handles both EVM and Solana networks automatically!
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+import asyncio
+import os
+
+from eth_account import Account
+
+from x402 import x402Client
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
+from x402.mechanisms.svm import KeypairSigner
+from x402.mechanisms.svm.exact.register import register_exact_svm_client
+
+
+async def main() -> None:
+    client = x402Client()
+
+    # Register EVM scheme
+    account = Account.from_key(os.getenv("EVM_PRIVATE_KEY"))
+    register_exact_evm_client(client, EthAccountSigner(account))
+
+    # Register SVM scheme
+    svm_signer = KeypairSigner.from_base58(os.getenv("SVM_PRIVATE_KEY"))
+    register_exact_svm_client(client, svm_signer)
+
+    async with x402HttpxClient(client) as http:
+        response = await http.get("https://api.example.com/paid-endpoint")
+        print(f"Response: {response.text}")
+
+
+asyncio.run(main())
+```
+{% endtab %}
+{% endtabs %}
 
 ### 4. Discover Available Services (Optional)
 
