@@ -92,8 +92,7 @@ The `info.options[]` array contains facilitator choices:
           "facilitatorFeeQuoteRef": "https://thirdweb.io/facilitator/fee-quote?..."
         }
       ]
-    },
-    "schema": { "..." }
+    }
   }
 }
 ```
@@ -143,7 +142,8 @@ The `info.options[]` array contains facilitator choices:
       "facilitatorFeePaid": "1000",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "quoteId": "quote_abc123",
-      "facilitatorId": "https://x402.org/facilitator"
+      "facilitatorId": "https://x402.org/facilitator",
+      "model": "flat"
     }
   }
 }
@@ -181,9 +181,16 @@ asset, bps, expiry, facilitatorAddress, flatFee, maxFee, minFee, model, quoteId
 ### Verification
 
 Clients SHOULD verify quote signatures before trusting fee information:
+
+**For EIP-191 (EVM networks):**
 1. Reconstruct the canonical payload from quote fields
-2. Recover the signer address from the signature
+2. Recover the signer address from the signature (ECDSA supports key recovery)
 3. Verify recovered address matches `facilitatorAddress`
+
+**For Ed25519 (Solana):**
+1. Reconstruct the canonical payload from quote fields
+2. Verify the signature directly against the provided `facilitatorAddress` public key
+   (Ed25519 does not support signer recovery—verification requires the known public key)
 
 Reference implementation provided in `@x402/extensions/facilitator-fees`.
 
