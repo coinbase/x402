@@ -66,7 +66,7 @@ Additional facilitators may be available from external providers. Check the [x40
 x402 supports tokens on both EVM and Solana networks:
 
 * **EVM**: Any ERC-20 token that implements the EIP-3009 standard
-* **Solana**: Any SPL or token-2022 token
+* **Solana**: Any SPL token (v1 & v2); Token-2022 (v2 only)
 
 **Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
 
@@ -113,7 +113,7 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 
 #### Solana: SPL Tokens & Token 2022 Tokens
 
-On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL/token-2022 token, including USDC (SPL). No EIP-712 configuration is required on Solana.
+On Solana, x402 supports all SPL tokens for v1 and v2. Token-2022 tokens are supported in v2 only. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL token (or Token-2022 for v2), including USDC (SPL). No EIP-712 configuration is required on Solana.
 
 #### USDC - The Default Token
 
