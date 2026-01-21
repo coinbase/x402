@@ -94,7 +94,6 @@ export const FacilitatorFeeBidSchema = z.object({
   maxTotalFee: z.string(),
   asset: z.string(),
   selectedQuoteId: z.string().optional(),
-  patient: z.boolean().optional(),
 });
 
 /**

@@ -89,8 +89,6 @@ export interface FacilitatorFeeBid {
   asset: string;
   /** Explicitly select a specific quote by ID. Server MUST honor this or reject. */
   selectedQuoteId?: string;
-  /** Willing to wait/batch for lower fees */
-  patient?: boolean;
 }
 
 /**

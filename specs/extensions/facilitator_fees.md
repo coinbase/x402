@@ -129,7 +129,7 @@ For `bps` model quotes:
 - `maxFee` SHOULD be provided to enable fee comparison
 - `minFee` is optional
 
-Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per client—some may prefer flat fees, others may accept uncapped BPS.
+Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per client�some may prefer flat fees, others may accept uncapped BPS.
 
 #### Tiered / Hybrid Models
 For complex models, `minFee` and `maxFee` bounds SHOULD be provided to enable comparison without exposing full tier structures.
@@ -177,8 +177,7 @@ Clients MAY include fee constraints in their `PaymentPayload` via the `facilitat
         "facilitatorFeeBid": {
           "maxTotalFee": "2000",
           "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          "selectedQuoteId": "quote_abc123",
-          "patient": false
+          "selectedQuoteId": "quote_abc123"
         }
       }
     }
@@ -193,7 +192,6 @@ Clients MAY include fee constraints in their `PaymentPayload` via the `facilitat
 | `maxTotalFee` | string | Yes | Maximum acceptable fee in atomic units |
 | `asset` | string | Yes | Fee currency |
 | `selectedQuoteId` | string | No | Explicitly select a specific quote |
-| `patient` | boolean | No | Willing to wait/batch for lower fees |
 
 ### Selection Semantics
 
@@ -243,14 +241,14 @@ After settlement, servers MAY include fee receipt information:
 
 ### Spec Dependency: `SettleResponse.extensions`
 
-> **⚠️ Required Change:** The current x402 v2 spec does not include an `extensions` field in `SettlementResponse`. 
+> **?? Required Change:** The current x402 v2 spec does not include an `extensions` field in `SettlementResponse`. 
 >
 > This extension requires adding the following to the core `SettleResponse` type:
 > ```typescript
 > extensions?: Record<string, unknown>;
 > ```
 >
-> This change is **additive** and backwards-compatible—existing facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
+> This change is **additive** and backwards-compatible�existing facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
 
 ---
 

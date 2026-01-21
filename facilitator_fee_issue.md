@@ -103,7 +103,6 @@ The `info.options[]` array contains facilitator choices:
 - `maxTotalFee` (hard constraint)
 - `asset` (fee currency)
 - `selectedQuoteId` (optional: explicitly select a quote)
-- `patient` (optional: willing to wait/batch)
 
 **Selection semantics:**
 - If `selectedQuoteId` absent → server picks any facilitator meeting constraints
@@ -263,3 +262,4 @@ Reference implementation provided in this PR:
 ## Open Questions
 
 1. **Facilitator `/fee-quote` endpoint**: Standardize a facilitator API for fetching quotes directly?
+2. **Patient bidding**: Should `facilitatorFeeBid` include a `patient` flag to indicate willingness to wait longer for a lower quote (e.g., batched settlements)?

@@ -158,7 +158,6 @@ describe("facilitator-fees extension", () => {
         maxTotalFee: "5000",
         asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
         selectedQuoteId: "quote_abc123",
-        patient: true,
       };
 
       expect(FacilitatorFeeBidSchema.parse(bid)).toEqual(bid);
