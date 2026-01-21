@@ -111,9 +111,7 @@ facilitator = (
     .on_after_verify(lambda ctx: _handle_after_verify(ctx))
     .on_verify_failure(lambda ctx: print("Verify failure", ctx))
     .on_before_settle(lambda ctx: print("Before settle", ctx))
-    .on_after_settle(
-        lambda ctx: print(f"🎉 Payment settled: {ctx.result.transaction}")
-    )
+    .on_after_settle(lambda ctx: print(f"🎉 Payment settled: {ctx.result.transaction}"))
     .on_settle_failure(lambda ctx: print("Settle failure", ctx))
 )
 
@@ -169,11 +167,13 @@ async def verify(request: VerifyRequest):
         VerifyResponse with isValid and payer (if valid) or invalidReason.
     """
     try:
-        from x402.schemas import PaymentRequirements, parse_payment_payload
+        from x402.schemas import parse_payment_payload, parse_payment_requirements
 
-        # Parse payload (auto-detects V1/V2) and requirements
+        # Parse payload (auto-detects V1/V2) and requirements (based on payload version)
         payload = parse_payment_payload(request.paymentPayload)
-        requirements = PaymentRequirements.model_validate(request.paymentRequirements)
+        requirements = parse_payment_requirements(
+            payload.x402_version, request.paymentRequirements
+        )
 
         # Hooks will automatically:
         # - Track verified payment (on_after_verify)
@@ -203,11 +203,13 @@ async def settle(request: SettleRequest):
         SettleResponse with success, transaction, network, and payer.
     """
     try:
-        from x402.schemas import PaymentRequirements, parse_payment_payload
+        from x402.schemas import parse_payment_payload, parse_payment_requirements
 
-        # Parse payload (auto-detects V1/V2) and requirements
+        # Parse payload (auto-detects V1/V2) and requirements (based on payload version)
         payload = parse_payment_payload(request.paymentPayload)
-        requirements = PaymentRequirements.model_validate(request.paymentRequirements)
+        requirements = parse_payment_requirements(
+            payload.x402_version, request.paymentRequirements
+        )
 
         # Hooks will automatically:
         # - Validate payment was verified (on_before_settle - will abort if not)
@@ -337,4 +339,3 @@ if __name__ == "__main__":
     print("Facilitator listening")
 
     uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
-

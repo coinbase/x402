@@ -54,6 +54,7 @@ from .helpers import (
     matches_network_pattern,
     parse_payment_payload,
     parse_payment_required,
+    parse_payment_requirements,
 )
 
 # Hook types
@@ -144,6 +145,7 @@ __all__ = [
     "match_payload_to_requirements",
     "parse_payment_required",
     "parse_payment_payload",
+    "parse_payment_requirements",
     "matches_network_pattern",
     "derive_network_pattern",
     "find_schemes_by_network",

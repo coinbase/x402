@@ -4,8 +4,8 @@ import json
 from typing import Any, TypeVar
 
 from .base import Network
-from .payments import PaymentPayload, PaymentRequired
-from .v1 import PaymentPayloadV1, PaymentRequiredV1
+from .payments import PaymentPayload, PaymentRequired, PaymentRequirements
+from .v1 import PaymentPayloadV1, PaymentRequiredV1, PaymentRequirementsV1
 
 
 def detect_version(data: bytes | dict[str, Any]) -> int:
@@ -157,6 +157,40 @@ def parse_payment_payload(
         return PaymentPayloadV1.model_validate_json(json_str)
     else:
         return PaymentPayload.model_validate_json(json_str)
+
+
+def parse_payment_requirements(
+    x402_version: int,
+    data: bytes | dict[str, Any],
+) -> PaymentRequirements | PaymentRequirementsV1:
+    """Parse payment requirements based on protocol version.
+
+    Unlike parse_payment_payload which auto-detects version from the data,
+    requirements don't contain x402Version - so the version must be provided
+    from the corresponding payment payload.
+
+    Args:
+        x402_version: Protocol version (1 or 2) from the payment payload.
+        data: JSON bytes or parsed dict of payment requirements.
+
+    Returns:
+        PaymentRequirements (V2) or PaymentRequirementsV1 (V1).
+
+    Raises:
+        ValueError: If version is invalid.
+    """
+    if x402_version not in (1, 2):
+        raise ValueError(f"Invalid x402Version: {x402_version}")
+
+    if isinstance(data, bytes):
+        json_str = data.decode("utf-8")
+    else:
+        json_str = json.dumps(data)
+
+    if x402_version == 1:
+        return PaymentRequirementsV1.model_validate_json(json_str)
+    else:
+        return PaymentRequirements.model_validate_json(json_str)
 
 
 def matches_network_pattern(network: Network, pattern: Network) -> bool:
