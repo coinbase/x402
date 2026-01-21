@@ -34,7 +34,19 @@ jobs:
         run: forge --version
 
       - name: Run Forge build
-        run: forge build --sizes
+        run: |
+          # Retry logic for transient network issues with solc downloads
+          max_attempts=3
+          attempt=1
+          until forge build --sizes; do
+            if [ $attempt -ge $max_attempts ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+            echo "Build attempt $attempt failed, retrying in 10 seconds..."
+            attempt=$((attempt + 1))
+            sleep 10
+          done
         id: build
 
       - name: Run Forge tests
