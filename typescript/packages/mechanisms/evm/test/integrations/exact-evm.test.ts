@@ -21,11 +21,10 @@ import { ExactEvmScheme as ExactEvmServer } from "../../src/exact/server/scheme"
 import { ExactEvmScheme as ExactEvmFacilitator } from "../../src/exact/facilitator/scheme";
 import type { ExactEvmPayloadV2, ExactPermit2Payload } from "../../src/types";
 import { isPermit2Payload } from "../../src/types";
-import { x402Permit2ProxyAddress, PERMIT2_ADDRESS } from "../../src/constants";
+import { x402ExactPermit2ProxyAddress } from "../../src/constants";
 import {
   createPermit2ApprovalTx,
   getPermit2AllowanceReadParams,
-  erc20AllowanceAbi,
 } from "../../src/exact/client/permit2";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http } from "viem";
@@ -92,7 +91,7 @@ class EvmFacilitatorClient implements FacilitatorClient {
    */
   getSupported(): Promise<SupportedResponse> {
     // Delegate to actual facilitator to get real supported kinds
-    return Promise.resolve(this.facilitator.getSupported());
+    return Promise.resolve(this.facilitator.getSupported()) as Promise<SupportedResponse>;
   }
 }
 
@@ -221,10 +220,19 @@ describe("EVM Integration Tests", () => {
 
       // Verify the payload structure
       const evmPayload = paymentPayload.payload as ExactEvmPayloadV2;
-      expect(evmPayload.authorization).toBeDefined();
-      expect(evmPayload.authorization.from).toBe(clientAddress);
-      expect(evmPayload.authorization.to).toBe("0x9876543210987654321098765432109876543210");
-      expect(evmPayload.signature).toBeDefined();
+      if (isPermit2Payload(evmPayload)) {
+        expect(evmPayload.permit2Authorization).toBeDefined();
+        expect(evmPayload.permit2Authorization.from).toBe(clientAddress);
+        expect(evmPayload.permit2Authorization.witness.to).toBe(
+          "0x9876543210987654321098765432109876543210",
+        );
+        expect(evmPayload.signature).toBeDefined();
+      } else {
+        expect(evmPayload.authorization).toBeDefined();
+        expect(evmPayload.authorization.from).toBe(clientAddress);
+        expect(evmPayload.authorization.to).toBe("0x9876543210987654321098765432109876543210");
+        expect(evmPayload.signature).toBeDefined();
+      }
 
       // Server - maps payment payload to payment requirements
       const accepted = server.findMatchingRequirements(accepts, paymentPayload);
@@ -266,8 +274,9 @@ describe("EVM Integration Tests", () => {
 
       const usdcAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
       const allowanceParams = getPermit2AllowanceReadParams({
-        tokenAddress: usdcAddress,
+        tokenAddress: usdcAddress as `0x${string}`,
         ownerAddress: clientAddress,
+        requiredAmount: BigInt("1000"),
       });
 
       const currentAllowance = (await publicClient.readContract(allowanceParams)) as bigint;
@@ -309,7 +318,7 @@ describe("EVM Integration Tests", () => {
       expect(permit2Payload.permit2Authorization).toBeDefined();
       expect(permit2Payload.permit2Authorization.from).toBe(clientAddress);
       expect(permit2Payload.permit2Authorization.spender.toLowerCase()).toBe(
-        x402Permit2ProxyAddress.toLowerCase(),
+        x402ExactPermit2ProxyAddress.toLowerCase(),
       );
       expect(permit2Payload.permit2Authorization.witness.to).toBe(
         "0x9876543210987654321098765432109876543210",
@@ -483,7 +492,6 @@ describe("EVM Integration Tests", () => {
       const settlementResult = await httpServer.processSettlement(
         verifiedPaymentPayload,
         verifiedPaymentRequirements,
-        200,
       );
 
       expect(settlementResult).toBeDefined();
