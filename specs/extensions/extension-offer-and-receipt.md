@@ -29,7 +29,7 @@ Accordingly:
 
 This extension defines exactly two signed artifacts:
 
-1. **Offer** — attached to each `accepts[]` entry
+1. **Offer** — placed in the `extensions` field, corresponding to `accepts[]` entries
 2. **Receipt** — returned only on success
 
 Both artifacts use the same top-level structure, differing only in their payload fields.
@@ -104,29 +104,32 @@ A signed offer is a cryptographic commitment by the resource server to the payme
 
 **4.1 Placement**
 
-Each entry in `accepts[]` MAY include an `offer` object:
+Signed offers are placed in the `extensions` field of the payment requirements response, following the v2 extension structure:
 
 ```
-accepts[i].offer
+extensions["offer-receipt"].info.offers[]
 ```
+
+The `info.version` field indicates the extension schema version (currently `1`). Each offer in the `info.offers` array corresponds to an entry in `accepts[]`. Servers SHOULD maintain the same ordering between `offers[]` and `accepts[]` as a convenience, but clients MUST match offers to `accepts[]` entries by comparing payload fields (`network`, `asset`, `payTo`, `amount`, etc.) rather than relying on array index ordering. For JWS format, clients extract the payload by base64url-decoding the JWS payload component.
+
+See §6.1 for complete examples.
 
 **4.2 Offer Payload Fields**
 
-The canonical offer payload contains the following fields:
+Each element of the offers[] array contains the following fields:
 
-| Field               | Type   | Required                | Description                               |
-| ------------------- | ------ | ----------------------- | ----------------------------------------- |
-| `resourceUrl`       | string | Yes                     | The paid resource URL                     |
-| `scheme`            | string | Yes                     | Payment scheme identifier (e.g., "exact") |
-| `settlement`        | string | Yes (v2), Optional (v1) | Settlement type (e.g., "txid")            |
-| `network`           | string | Yes                     | Blockchain network identifier             |
-| `asset`             | string | Yes                     | Token contract address or "native"        |
-| `payTo`             | string | Yes                     | Recipient wallet address                  |
-| `amount`            | string | Yes                     | Required payment amount                   |
-| `maxTimeoutSeconds` | number | Server optional         | Offer validity window in seconds          |
-| `issuedAt`          | number | Server optional         | Unix timestamp when offer was created     |
+| Field               | Type   | Required        | Description                                                        |
+| ------------------- | ------ | --------------- | ------------------------------------------------------------------ |
+| `resourceUrl`       | string | Yes             | The paid resource URL                                              |
+| `scheme`            | string | Yes             | Payment scheme identifier (e.g., "exact")                          |
+| `network`           | string | Yes             | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
+| `asset`             | string | Yes             | Token contract address or "native"                                 |
+| `payTo`             | string | Yes             | Recipient wallet address                                           |
+| `amount`            | string | Yes             | Required payment amount                                            |
+| `maxTimeoutSeconds` | number | Server optional | Maximum time allowed for payment completion                        |
+| `issuedAt`          | number | Server optional | Unix timestamp when offer was created                              |
 
-**Note**: For x402 v1, servers copy `maxAmountRequired` to `amount` when constructing the offer payload.
+**Note**: For x402 v1, servers copy `maxAmountRequired` to `amount` when constructing the offer payload. Servers MUST convert v1 network identifiers (e.g., "base-sepolia") to CAIP-2 format (e.g., "eip155:84532") in the offer payload.
 
 **4.3 EIP-712 Types for Offer (Normative Schema)**
 
@@ -144,7 +147,6 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for off
     "Offer": [
       { "name": "resourceUrl", "type": "string" },
       { "name": "scheme", "type": "string" },
-      { "name": "settlement", "type": "string" },
       { "name": "network", "type": "string" },
       { "name": "asset", "type": "string" },
       { "name": "payTo", "type": "address" },
@@ -156,7 +158,7 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for off
 }
 ```
 
-For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set unused fields to `0`. This rule applies only to EIP-712 signing, where fixed schemas require all fields to be present.
+For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set unused fields to `0`. This rule applies only to EIP-712 signing, where fixed schemas require all fields to be present. Verifiers MUST treat zero-value optional fields as equivalent to absence.
 
 **4.4 Offer Examples**
 
@@ -164,21 +166,18 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 
 ```json
 {
-  "offer": {
-    "format": "eip712",
-    "payload": {
-      "resourceUrl": "https://api.example.com/premium-data",
-      "scheme": "exact",
-      "settlement": "txid",
-      "network": "eip155:8453",
-      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-      "amount": "10000",
-      "maxTimeoutSeconds": 60,
-      "issuedAt": 1703123456
-    },
-    "signature": "0x1234567890abcdef..."
-  }
+  "format": "eip712",
+  "payload": {
+    "resourceUrl": "https://api.example.com/premium-data",
+    "scheme": "exact",
+    "network": "eip155:8453",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+    "amount": "10000",
+    "maxTimeoutSeconds": 60,
+    "issuedAt": 1703123456
+  },
+  "signature": "0x1234567890abcdef..."
 }
 ```
 
@@ -186,10 +185,8 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 
 ```json
 {
-  "offer": {
-    "format": "jws",
-    "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSJ9.sig"
-  }
+  "format": "jws",
+  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSJ9.sig"
 }
 ```
 
@@ -217,11 +214,13 @@ Verifiers MUST confirm that the signing key is authorized to act on behalf of th
 
 **4.6 Offer Expiration**
 
-If `issuedAt` and `maxTimeoutSeconds` are both present and non-zero, verifiers MAY reject offers where:
+If `issuedAt` and `maxTimeoutSeconds` are both present and non-zero, the resource server MAY reject payment attempts where:
 
 ```
 now > issuedAt + maxTimeoutSeconds
 ```
+
+This allows servers to limit how long they commit to specific pricing or terms. Clients SHOULD check expiration before paying to avoid rejected payments, but the enforcement decision rests with the resource server.
 
 
 **5. Receipt**
@@ -230,31 +229,31 @@ A receipt is a signed statement returned by the resource server **only on succes
 
 **5.1 Placement**
 
-On success, the `SettlementResponse` MAY include a `receipt` field:
+On success, the `SettlementResponse` MAY include a receipt in the `extensions` field, following the v2 extension structure:
 
-```json
-{
-  "success": true,
-  "transaction": "0x...",
-  "network": "eip155:84532",
-  "payer": "0x...",
-  "receipt": { ... }
-}
+```
+extensions["offer-receipt"].info.receipt
 ```
 
-This placement is the same for both x402 v1 and v2.
+The `info.version` field indicates the extension schema version (currently `1`). This placement is the same for both x402 v1 and v2.
+
+See §6.2 and §6.3 for complete examples.
 
 **5.2 Receipt Payload Fields**
 
 The canonical receipt payload contains the following fields:
 
-| Field         | Type   | Required | Description                                      |
-| ------------- | ------ | -------- | ------------------------------------------------ |
-| `resourceUrl` | string | Yes      | The paid resource URL                            |
-| `payer`       | string | Yes      | Payer identifier (commonly a wallet address)     |
-| `issuedAt`    | number | Yes      | Unix timestamp (seconds) when receipt was issued |
+| Field         | Type   | Required | Description                                                        |
+| ------------- | ------ | -------- | ------------------------------------------------------------------ |
+| `network`     | string | Yes      | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
+| `resourceUrl` | string | Yes      | The paid resource URL                                              |
+| `payer`       | string | Yes      | Payer identifier (commonly a wallet address)                       |
+| `issuedAt`    | number | Yes      | Unix timestamp (seconds) when receipt was issued                   |
+| `transaction` | string | Optional | Blockchain transaction hash                                        |
 
-The receipt is **privacy-minimal** and intentionally omits transaction references and economic terms to reduce correlation risk.
+The receipt is **privacy-minimal** by default and intentionally omits transaction references to reduce correlation risk. Servers MAY include the optional `transaction` field when stronger verifiability is preferred over privacy. If `transaction` is included, verifiers can look up the payment amount on-chain.
+
+**Note**: Servers MUST convert v1 network identifiers (e.g., "base-sepolia") to CAIP-2 format (e.g., "eip155:84532") in the receipt payload.
 
 **5.3 EIP-712 Types for Receipt (Normative Schema)**
 
@@ -270,29 +269,49 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
       { "name": "chainId", "type": "uint256" }
     ],
     "Receipt": [
+      { "name": "network", "type": "string" },
       { "name": "resourceUrl", "type": "string" },
       { "name": "payer", "type": "string" },
-      { "name": "issuedAt", "type": "uint256" }
+      { "name": "issuedAt", "type": "uint256" },
+      { "name": "transaction", "type": "string" }
     ]
   }
 }
 ```
 
+For the optional `transaction` field, implementations MUST set unused fields to empty string `""`. This rule applies only to EIP-712 signing, where fixed schemas require all fields to be present. Verifiers MUST treat empty-string optional fields as equivalent to absence.
+
 **5.4 Receipt Examples**
 
-**EIP-712 format:**
+**EIP-712 format (privacy-minimal):**
 
 ```json
 {
-  "receipt": {
-    "format": "eip712",
-    "payload": {
-      "resourceUrl": "https://api.example.com/premium-data",
-      "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-      "issuedAt": 1703123456
-    },
-    "signature": "0x1234567890abcdef..."
-  }
+  "format": "eip712",
+  "payload": {
+    "network": "eip155:8453",
+    "resourceUrl": "https://api.example.com/premium-data",
+    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+    "issuedAt": 1703123456,
+    "transaction": ""
+  },
+  "signature": "0x1234567890abcdef..."
+}
+```
+
+**EIP-712 format (with transaction for verifiability):**
+
+```json
+{
+  "format": "eip712",
+  "payload": {
+    "network": "eip155:8453",
+    "resourceUrl": "https://api.example.com/premium-data",
+    "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+    "issuedAt": 1703123456,
+    "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+  },
+  "signature": "0x1234567890abcdef..."
 }
 ```
 
@@ -300,10 +319,8 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
 
 ```json
 {
-  "receipt": {
-    "format": "jws",
-    "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTZ9.sig"
-  }
+  "format": "jws",
+  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTZ9.sig"
 }
 ```
 
@@ -311,10 +328,11 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
 
 **For EIP-712:**
 1. Extract `receipt.payload` and `receipt.signature`
-2. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId`) and the types defined in §5.3. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
+2. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId` derived from `payload.network`) and the types defined in §5.3. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
 3. Recover the signer address from the signature
 4. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
 5. Confirm `issuedAt` is within acceptable verifier policy
+6. If `transaction` is present and non-empty, verifiers MAY check the blockchain to confirm the transaction exists and matches expected parameters
 
 **For JWS:**
 1. Parse the JWS compact string from `receipt.signature`
@@ -323,11 +341,16 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
 4. Verify the JWS signature against the resolved public key
 5. Confirm the key is authorized to sign for the service identified by the payload's `resourceUrl` (see §4.5.1)
 6. Confirm `issuedAt` (from the JWS payload) is within acceptable verifier policy
+7. If `transaction` is present, verifiers MAY check the blockchain to confirm the transaction exists
 
 
 **6. Protocol Integration Examples**
 
-**6.1 Payment Requirements with Signed Offer (x402 v2)**
+This section provides complete examples showing how signed offers and receipts integrate with x402 protocol messages. A server would typically use one signature format consistently (EIP-712 or JWS), so examples are shown separately.
+
+Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the protocol messages, but the offer and receipt payloads MUST use CAIP-2 format (e.g., "eip155:8453") for portability and EIP-712 domain construction.
+
+**6.1 Payment Requirements with Signed Offers (EIP-712, x402 v2)**
 
 ```json
 {
@@ -340,53 +363,258 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
   "accepts": [
     {
       "scheme": "exact",
-      "settlement": "txid",
       "network": "eip155:8453",
       "amount": "10000",
       "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-      "maxTimeoutSeconds": 60,
-      "offer": {
-        "format": "eip712",
-        "payload": {
-          "resourceUrl": "https://api.example.com/premium-data",
-          "scheme": "exact",
-          "settlement": "txid",
-          "network": "eip155:8453",
-          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-          "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-          "amount": "10000",
-          "maxTimeoutSeconds": 60,
-          "issuedAt": 1703123456
+      "maxTimeoutSeconds": 60
+    }
+  ],
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "offers": [
+          {
+            "format": "eip712",
+            "payload": {
+              "resourceUrl": "https://api.example.com/premium-data",
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+              "amount": "10000",
+              "maxTimeoutSeconds": 60,
+              "issuedAt": 1703123456
+            },
+            "signature": "0x1234567890abcdef..."
+          }
+        ]
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "offers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "format": { "type": "string", "const": "eip712" },
+                "payload": {
+                  "type": "object",
+                  "properties": {
+                    "resourceUrl": { "type": "string" },
+                    "scheme": { "type": "string" },
+                    "network": { "type": "string" },
+                    "asset": { "type": "string" },
+                    "payTo": { "type": "string" },
+                    "amount": { "type": "string" },
+                    "maxTimeoutSeconds": { "type": "integer" },
+                    "issuedAt": { "type": "integer" }
+                  },
+                  "required": ["resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
+                },
+                "signature": { "type": "string" }
+              },
+              "required": ["format", "payload", "signature"]
+            }
+          }
         },
-        "signature": "0x1234567890abcdef..."
+        "required": ["version", "offers"]
       }
     }
-  ]
-}
-```
-
-**6.2 Success Response with Receipt (x402 v2)**
-
-```json
-{
-  "success": true,
-  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-  "network": "eip155:8453",
-  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-  "receipt": {
-    "format": "eip712",
-    "payload": {
-      "resourceUrl": "https://api.example.com/premium-data",
-      "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-      "issuedAt": 1703123456
-    },
-    "signature": "0x1234567890abcdef..."
   }
 }
 ```
 
-**6.3 Success Response with Receipt (x402 v1)**
+**6.2 Payment Requirements with Signed Offers (EIP-712, x402 v1)**
+
+```json
+{
+  "x402Version": 1,
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base",
+      "maxAmountRequired": "10000",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "resource": "https://api.example.com/premium-data",
+      "description": "Access to premium market data",
+      "mimeType": "application/json",
+      "maxTimeoutSeconds": 60
+    }
+  ],
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "offers": [
+          {
+            "format": "eip712",
+            "payload": {
+              "resourceUrl": "https://api.example.com/premium-data",
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+              "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+              "amount": "10000",
+              "maxTimeoutSeconds": 60,
+              "issuedAt": 1703123456
+            },
+            "signature": "0x1234567890abcdef..."
+          }
+        ]
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "offers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "format": { "type": "string", "const": "eip712" },
+                "payload": {
+                  "type": "object",
+                  "properties": {
+                    "resourceUrl": { "type": "string" },
+                    "scheme": { "type": "string" },
+                    "network": { "type": "string" },
+                    "asset": { "type": "string" },
+                    "payTo": { "type": "string" },
+                    "amount": { "type": "string" },
+                    "maxTimeoutSeconds": { "type": "integer" },
+                    "issuedAt": { "type": "integer" }
+                  },
+                  "required": ["resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
+                },
+                "signature": { "type": "string" }
+              },
+              "required": ["format", "payload", "signature"]
+            }
+          }
+        },
+        "required": ["version", "offers"]
+      }
+    }
+  }
+}
+```
+
+**6.3 Payment Requirements with Signed Offers (JWS, x402 v2)**
+
+```json
+{
+  "x402Version": 2,
+  "resource": {
+    "url": "https://api.example.com/premium-data",
+    "description": "Access to premium market data",
+    "mimeType": "application/json"
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "eip155:8453",
+      "amount": "10000",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "maxTimeoutSeconds": 60
+    }
+  ],
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "offers": [
+          {
+            "format": "jws",
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+          }
+        ]
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "offers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "format": { "type": "string", "const": "jws" },
+                "signature": { "type": "string", "description": "JWS compact serialization containing the offer payload" }
+              },
+              "required": ["format", "signature"]
+            }
+          }
+        },
+        "required": ["version", "offers"]
+      }
+    }
+  }
+}
+```
+
+**6.4 Payment Requirements with Signed Offers (JWS, x402 v1)**
+
+```json
+{
+  "x402Version": 1,
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "base",
+      "maxAmountRequired": "10000",
+      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+      "resource": "https://api.example.com/premium-data",
+      "description": "Access to premium market data",
+      "mimeType": "application/json",
+      "maxTimeoutSeconds": 60
+    }
+  ],
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "offers": [
+          {
+            "format": "jws",
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+          }
+        ]
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "offers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "format": { "type": "string", "const": "jws" },
+                "signature": { "type": "string", "description": "JWS compact serialization containing the offer payload" }
+              },
+              "required": ["format", "signature"]
+            }
+          }
+        },
+        "required": ["version", "offers"]
+      }
+    }
+  }
+}
+```
+
+**6.5 Success Response with Receipt (EIP-712, x402 v2)**
 
 ```json
 {
@@ -394,14 +622,182 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
   "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
   "network": "eip155:8453",
   "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-  "receipt": {
-    "format": "eip712",
-    "payload": {
-      "resourceUrl": "https://api.example.com/premium-data",
-      "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
-      "issuedAt": 1703123456
-    },
-    "signature": "0x1234567890abcdef..."
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "receipt": {
+          "format": "eip712",
+          "payload": {
+            "network": "eip155:8453",
+            "resourceUrl": "https://api.example.com/premium-data",
+            "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            "issuedAt": 1703123456,
+            "transaction": ""
+          },
+          "signature": "0x1234567890abcdef..."
+        }
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "format": { "type": "string", "const": "eip712" },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "network": { "type": "string" },
+                  "resourceUrl": { "type": "string" },
+                  "payer": { "type": "string" },
+                  "issuedAt": { "type": "integer" },
+                  "transaction": { "type": "string" }
+                },
+                "required": ["network", "resourceUrl", "payer", "issuedAt"]
+              },
+              "signature": { "type": "string" }
+            },
+            "required": ["format", "payload", "signature"]
+          }
+        },
+        "required": ["version", "receipt"]
+      }
+    }
+  }
+}
+```
+
+**6.6 Success Response with Receipt (EIP-712, x402 v1)**
+
+```json
+{
+  "success": true,
+  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "network": "base",
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "receipt": {
+          "format": "eip712",
+          "payload": {
+            "network": "eip155:8453",
+            "resourceUrl": "https://api.example.com/premium-data",
+            "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+            "issuedAt": 1703123456,
+            "transaction": ""
+          },
+          "signature": "0x1234567890abcdef..."
+        }
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "format": { "type": "string", "const": "eip712" },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "network": { "type": "string" },
+                  "resourceUrl": { "type": "string" },
+                  "payer": { "type": "string" },
+                  "issuedAt": { "type": "integer" },
+                  "transaction": { "type": "string" }
+                },
+                "required": ["network", "resourceUrl", "payer", "issuedAt"]
+              },
+              "signature": { "type": "string" }
+            },
+            "required": ["format", "payload", "signature"]
+          }
+        },
+        "required": ["version", "receipt"]
+      }
+    }
+  }
+}
+```
+
+**6.7 Success Response with Receipt (JWS, x402 v2)**
+
+```json
+{
+  "success": true,
+  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "network": "eip155:8453",
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "receipt": {
+          "format": "jws",
+          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
+        }
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "format": { "type": "string", "const": "jws" },
+              "signature": { "type": "string", "description": "JWS compact serialization containing the receipt payload" }
+            },
+            "required": ["format", "signature"]
+          }
+        },
+        "required": ["version", "receipt"]
+      }
+    }
+  }
+}
+```
+
+**6.8 Success Response with Receipt (JWS, x402 v1)**
+
+```json
+{
+  "success": true,
+  "transaction": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+  "network": "base",
+  "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
+  "extensions": {
+    "offer-receipt": {
+      "info": {
+        "version": 1,
+        "receipt": {
+          "format": "jws",
+          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
+        }
+      },
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer" },
+          "receipt": {
+            "type": "object",
+            "properties": {
+              "format": { "type": "string", "const": "jws" },
+              "signature": { "type": "string", "description": "JWS compact serialization containing the receipt payload" }
+            },
+            "required": ["format", "signature"]
+          }
+        },
+        "required": ["version", "receipt"]
+      }
+    }
   }
 }
 ```
@@ -439,13 +835,15 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 **11. Privacy Considerations**
 
-- Receipts are minimal by design — they omit settlement references and amounts to reduce correlation risk.
+- Receipts are minimal by default — they omit transaction references to reduce correlation risk.
+- Servers MAY include the optional `transaction` field when verifiability is more important than privacy for their use case.
 - Offers reveal economic terms (amount, asset, payTo address).
 - Attestations MAY include either offers, receipts, or both.
 - Implementations SHOULD consider privacy implications when deciding which artifacts to include in public attestations.
 
 **12. Version History**
 
-| Version | Date       | Changes                                     | Author                     |
-| ------- | ---------- | ------------------------------------------- | -------------------------- |
-| 0.1     | 2025-12-22 | Initial extension draft                     | Alfred Tom                 |
+| Version | Date       | Changes                                                                                                    | Author     |
+| ------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| 0.2     | 2026-01-20 | Move offers and receipt to extensions field. Add version. Add network and optional transaction to receipt. | Alfred Tom |
+| 0.1     | 2025-12-22 | Initial extension draft                                                                                    | Alfred Tom |
