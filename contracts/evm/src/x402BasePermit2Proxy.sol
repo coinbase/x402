@@ -25,11 +25,10 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @dev Must match the exact format expected by Permit2
     /// Types must be in ALPHABETICAL order after the primary type (TokenPermissions < Witness)
     string public constant WITNESS_TYPE_STRING =
-        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)";
+        "Witness witness)TokenPermissions(address token,uint256 amount)Witness(address to,uint256 validAfter,bytes extra)";
 
     /// @notice EIP-712 typehash for witness struct
-    bytes32 public constant WITNESS_TYPEHASH =
-        keccak256("Witness(address to,uint256 validAfter,uint256 validBefore,bytes extra)");
+    bytes32 public constant WITNESS_TYPEHASH = keccak256("Witness(address to,uint256 validAfter,bytes extra)");
 
     /// @notice Emitted when settle() completes successfully
     event Settled();
@@ -46,9 +45,6 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
     /// @notice Thrown when payment is attempted before validAfter timestamp
     error PaymentTooEarly();
 
-    /// @notice Thrown when payment is attempted after validBefore timestamp
-    error PaymentExpired();
-
     /// @notice Thrown when owner address is zero
     error InvalidOwner();
 
@@ -56,13 +52,12 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
      * @notice Witness data structure for payment authorization
      * @param to Destination address (immutable once signed)
      * @param validAfter Earliest timestamp when payment can be settled
-     * @param validBefore Latest timestamp when payment can be settled
      * @param extra Extensibility field for future use
+     * @dev The upper time bound is enforced by Permit2's deadline field
      */
     struct Witness {
         address to;
         uint256 validAfter;
-        uint256 validBefore;
         bytes extra;
     }
 
@@ -114,18 +109,16 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
         if (owner == address(0)) revert InvalidOwner();
         if (witness.to == address(0)) revert InvalidDestination();
 
-        // Validate time window
+        // Validate time window (upper bound enforced by Permit2's deadline)
         if (block.timestamp < witness.validAfter) revert PaymentTooEarly();
-        if (block.timestamp > witness.validBefore) revert PaymentExpired();
 
         // Prepare transfer details with destination from witness
         ISignatureTransfer.SignatureTransferDetails memory transferDetails =
             ISignatureTransfer.SignatureTransferDetails({to: witness.to, requestedAmount: amount});
 
         // Reconstruct witness hash to enforce integrity
-        bytes32 witnessHash = keccak256(
-            abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter, witness.validBefore, keccak256(witness.extra))
-        );
+        bytes32 witnessHash =
+            keccak256(abi.encode(WITNESS_TYPEHASH, witness.to, witness.validAfter, keccak256(witness.extra)));
 
         // Execute transfer via Permit2
         PERMIT2.permitWitnessTransferFrom(permit, transferDetails, owner, witnessHash, WITNESS_TYPE_STRING, signature);

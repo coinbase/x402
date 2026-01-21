@@ -52,12 +52,8 @@ contract X402UptoPermit2ProxyTest is Test {
         });
     }
 
-    function _witness(
-        address to,
-        uint256 validAfter,
-        uint256 validBefore
-    ) internal pure returns (x402BasePermit2Proxy.Witness memory) {
-        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter, validBefore: validBefore, extra: ""});
+    function _witness(address to, uint256 validAfter) internal pure returns (x402BasePermit2Proxy.Witness memory) {
+        return x402BasePermit2Proxy.Witness({to: to, validAfter: validAfter, extra: ""});
     }
 
     function _sig() internal pure returns (bytes memory) {
@@ -81,11 +77,7 @@ contract X402UptoPermit2ProxyTest is Test {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidOwner.selector);
         proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600),
-            TRANSFER_AMOUNT,
-            address(0),
-            _witness(recipient, t - 60, t + 3600),
-            _sig()
+            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, address(0), _witness(recipient, t - 60), _sig()
         );
     }
 
@@ -93,34 +85,22 @@ contract X402UptoPermit2ProxyTest is Test {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.InvalidDestination.selector);
         proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600),
-            TRANSFER_AMOUNT,
-            payer,
-            _witness(address(0), t - 60, t + 3600),
-            _sig()
+            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(address(0), t - 60), _sig()
         );
     }
 
     function test_settle_revertsBeforeValidAfter() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402BasePermit2Proxy.PaymentTooEarly.selector);
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t + 60, t + 3600), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t + 60), _sig());
     }
 
-    function test_settle_revertsAfterValidBefore() public {
-        uint256 t = block.timestamp;
-        vm.expectRevert(x402BasePermit2Proxy.PaymentExpired.selector);
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 120, t - 60), _sig()
-        );
-    }
+    // Note: validBefore was removed - upper time bound is enforced by Permit2's deadline
 
     function test_settle_revertsWhenAmountExceedsPermitted() public {
         uint256 t = block.timestamp;
         vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
-        proxy.settle(_permit(100e6, 0, t + 3600), 150e6, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settle(_permit(100e6, 0, t + 3600), 150e6, payer, _witness(recipient, t - 60), _sig());
     }
 
     // --- settle() success paths ---
@@ -129,9 +109,7 @@ contract X402UptoPermit2ProxyTest is Test {
         uint256 t = block.timestamp;
         uint256 balanceBefore = token.balanceOf(recipient);
 
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(token.balanceOf(recipient) - balanceBefore, TRANSFER_AMOUNT);
     }
@@ -142,9 +120,7 @@ contract X402UptoPermit2ProxyTest is Test {
         vm.expectEmit(false, false, false, false);
         emit Settled();
 
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
     }
 
     function test_settle_allowsPartialAmount() public {
@@ -152,24 +128,14 @@ contract X402UptoPermit2ProxyTest is Test {
         uint256 permitted = 100e6;
         uint256 requested = 50e6;
 
-        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(token.balanceOf(recipient), requested);
     }
 
     function test_settle_atExactValidAfter() public {
         uint256 t = block.timestamp;
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t, t + 3600), _sig()
-        );
-        assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
-    }
-
-    function test_settle_atExactValidBefore() public {
-        uint256 t = block.timestamp;
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t), _sig());
         assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
     }
 
@@ -191,7 +157,7 @@ contract X402UptoPermit2ProxyTest is Test {
             nonce: 0,
             deadline: t + 3600
         });
-        x402UptoPermit2Proxy.Witness memory witness = _witness(recipient, t - 60, t + 3600);
+        x402UptoPermit2Proxy.Witness memory witness = _witness(recipient, t - 60);
 
         maliciousPermit2.setAttemptReentry(true);
         maliciousPermit2.setAttackParams(permit, TRANSFER_AMOUNT, payer, witness, _sig());
@@ -204,9 +170,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
     function test_settle_proxyNeverHoldsTokens() public {
         uint256 t = block.timestamp;
-        proxy.settle(
-            _permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
-        );
+        proxy.settle(_permit(TRANSFER_AMOUNT, 0, t + 3600), TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
         assertEq(token.balanceOf(address(proxy)), 0);
     }
 
@@ -236,9 +200,7 @@ contract X402UptoPermit2ProxyTest is Test {
         vm.expectEmit(false, false, false, false);
         emit SettledWithPermit();
 
-        proxy.settleWithPermit(
-            permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
-        );
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
@@ -266,19 +228,16 @@ contract X402UptoPermit2ProxyTest is Test {
             s: bytes32(uint256(2))
         });
 
-        proxy.settleWithPermit(
-            permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60, t + 3600), _sig()
-        );
+        proxy.settleWithPermit(permit2612, permit, TRANSFER_AMOUNT, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(permitToken.balanceOf(recipient), TRANSFER_AMOUNT);
     }
 
     // --- Fuzz: Time window ---
 
-    function testFuzz_settle_withinTimeWindow(uint256 validAfter, uint256 validBefore, uint256 currentTime) public {
-        validAfter = bound(validAfter, 0, type(uint64).max - 1);
-        validBefore = bound(validBefore, validAfter + 1, type(uint64).max);
-        currentTime = bound(currentTime, validAfter, validBefore);
+    function testFuzz_settle_afterValidAfter(uint256 validAfter, uint256 currentTime) public {
+        validAfter = bound(validAfter, 0, type(uint64).max - 3601);
+        currentTime = bound(currentTime, validAfter, type(uint64).max - 3601);
 
         vm.warp(currentTime);
 
@@ -286,27 +245,16 @@ contract X402UptoPermit2ProxyTest is Test {
             _permit(TRANSFER_AMOUNT, 0, currentTime + 3600),
             TRANSFER_AMOUNT,
             payer,
-            _witness(recipient, validAfter, validBefore),
+            _witness(recipient, validAfter),
             _sig()
         );
 
         assertEq(token.balanceOf(recipient), TRANSFER_AMOUNT);
     }
 
-    function testFuzz_settle_revertsOutsideTimeWindow(
-        uint256 validAfter,
-        uint256 validBefore,
-        uint256 currentTime
-    ) public {
+    function testFuzz_settle_revertsBeforeValidAfter(uint256 validAfter, uint256 currentTime) public {
         validAfter = bound(validAfter, 1000, type(uint64).max - 1000);
-        validBefore = bound(validBefore, validAfter + 1, type(uint64).max - 1);
-
-        // Force currentTime outside the valid window
-        if (currentTime % 2 == 0) {
-            currentTime = bound(currentTime, 0, validAfter - 1);
-        } else {
-            currentTime = bound(currentTime, validBefore + 1, type(uint64).max);
-        }
+        currentTime = bound(currentTime, 0, validAfter - 1);
 
         vm.warp(currentTime);
 
@@ -315,7 +263,7 @@ contract X402UptoPermit2ProxyTest is Test {
             _permit(TRANSFER_AMOUNT, 0, currentTime + 3600),
             TRANSFER_AMOUNT,
             payer,
-            _witness(recipient, validAfter, validBefore),
+            _witness(recipient, validAfter),
             _sig()
         );
     }
@@ -329,7 +277,7 @@ contract X402UptoPermit2ProxyTest is Test {
         uint256 t = block.timestamp;
 
         vm.expectRevert(x402UptoPermit2Proxy.AmountExceedsPermitted.selector);
-        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60), _sig());
     }
 
     function testFuzz_settle_partialAmountsSucceed(uint256 permitted, uint256 requested) public {
@@ -338,7 +286,7 @@ contract X402UptoPermit2ProxyTest is Test {
 
         uint256 t = block.timestamp;
 
-        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60, t + 3600), _sig());
+        proxy.settle(_permit(permitted, 0, t + 3600), requested, payer, _witness(recipient, t - 60), _sig());
 
         assertEq(token.balanceOf(recipient), requested);
     }
