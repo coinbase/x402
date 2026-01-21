@@ -11,8 +11,8 @@ import {
   eip3009ABI,
   permit2WitnessTypes,
   PERMIT2_ADDRESS,
-  x402Permit2ProxyAddress,
-  x402Permit2ProxyABI,
+  x402ExactPermit2ProxyAddress,
+  x402ExactPermit2ProxyABI,
 } from "../../constants";
 import { EIP2612_GAS_SPONSORING_EXTENSION } from "../client/permit2";
 import { FacilitatorEvmSigner } from "../../signer";
@@ -21,7 +21,6 @@ import {
   ExactEIP3009Payload,
   ExactEvmPayloadV2,
   ExactPermit2Payload,
-  isEIP3009Payload,
   isPermit2Payload,
 } from "../../types";
 
@@ -278,169 +277,6 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     };
   }
 
-  private async verifyPermit2(
-    payload: PaymentPayload,
-    requirements: PaymentRequirements,
-    permit2Payload: ExactPermit2Payload,
-  ): Promise<VerifyResponse> {
-    const payer = permit2Payload.permit2Authorization.from;
-
-    if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
-      return {
-        isValid: false,
-        invalidReason: "unsupported_scheme",
-        payer,
-      };
-    }
-
-    if (payload.accepted.network !== requirements.network) {
-      return {
-        isValid: false,
-        invalidReason: "network_mismatch",
-        payer,
-      };
-    }
-
-    const chainId = parseInt(requirements.network.split(":")[1]);
-
-    if (
-      getAddress(permit2Payload.permit2Authorization.spender) !== getAddress(x402Permit2ProxyAddress)
-    ) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_spender",
-        payer,
-      };
-    }
-
-    if (
-      getAddress(permit2Payload.permit2Authorization.witness.to) !== getAddress(requirements.payTo)
-    ) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_witness_recipient",
-        payer,
-      };
-    }
-
-    if (
-      getAddress(permit2Payload.permit2Authorization.permitted.token) !==
-      getAddress(requirements.asset)
-    ) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_token",
-        payer,
-      };
-    }
-
-    if (BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_amount",
-        payer,
-      };
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-
-    if (BigInt(permit2Payload.permit2Authorization.deadline) < BigInt(now + 6)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_deadline",
-        payer,
-      };
-    }
-
-    if (BigInt(permit2Payload.permit2Authorization.witness.validBefore) < BigInt(now + 6)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_witness_valid_before",
-        payer,
-      };
-    }
-
-    if (BigInt(permit2Payload.permit2Authorization.witness.validAfter) > BigInt(now)) {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_witness_valid_after",
-        payer,
-      };
-    }
-
-    const permit2TypedData = {
-      types: permit2WitnessTypes,
-      primaryType: "PermitWitnessTransferFrom" as const,
-      domain: {
-        name: "Permit2",
-        chainId,
-        verifyingContract: PERMIT2_ADDRESS,
-      },
-      message: {
-        permitted: {
-          token: getAddress(permit2Payload.permit2Authorization.permitted.token),
-          amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
-        },
-        spender: getAddress(permit2Payload.permit2Authorization.spender),
-        nonce: BigInt(permit2Payload.permit2Authorization.nonce),
-        deadline: BigInt(permit2Payload.permit2Authorization.deadline),
-        witness: {
-          extra: permit2Payload.permit2Authorization.witness.extra,
-          to: getAddress(permit2Payload.permit2Authorization.witness.to),
-          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
-          validBefore: BigInt(permit2Payload.permit2Authorization.witness.validBefore),
-        },
-      },
-    };
-
-    try {
-      const recoveredAddress = await this.signer.verifyTypedData({
-        address: payer,
-        ...permit2TypedData,
-        signature: permit2Payload.signature,
-      });
-
-      if (!recoveredAddress) {
-        return {
-          isValid: false,
-          invalidReason: "invalid_permit2_signature",
-          payer,
-        };
-      }
-    } catch {
-      return {
-        isValid: false,
-        invalidReason: "invalid_permit2_signature",
-        payer,
-      };
-    }
-
-    try {
-      const balance = (await this.signer.readContract({
-        address: getAddress(requirements.asset),
-        abi: eip3009ABI,
-        functionName: "balanceOf",
-        args: [payer],
-      })) as bigint;
-
-      if (balance < BigInt(requirements.amount)) {
-        return {
-          isValid: false,
-          invalidReason: "insufficient_funds",
-          payer,
-        };
-      }
-    } catch {
-      // If we can't check balance, continue with other validations
-    }
-
-    return {
-      isValid: true,
-      invalidReason: undefined,
-      payer,
-    };
-  }
-
   /**
    * Settles a payment by executing the transfer.
    *
@@ -589,6 +425,188 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
     }
   }
 
+  /**
+   * Verifies a Permit2 payment payload.
+   *
+   * @param payload - The payment payload to verify
+   * @param requirements - The payment requirements
+   * @param permit2Payload - The Permit2-specific payload data
+   * @returns Promise resolving to verification response
+   */
+  private async verifyPermit2(
+    payload: PaymentPayload,
+    requirements: PaymentRequirements,
+    permit2Payload: ExactPermit2Payload,
+  ): Promise<VerifyResponse> {
+    const payer = permit2Payload.permit2Authorization.from;
+
+    if (payload.accepted.scheme !== "exact" || requirements.scheme !== "exact") {
+      return {
+        isValid: false,
+        invalidReason: "unsupported_scheme",
+        payer,
+      };
+    }
+
+    if (payload.accepted.network !== requirements.network) {
+      return {
+        isValid: false,
+        invalidReason: "network_mismatch",
+        payer,
+      };
+    }
+
+    const chainId = parseInt(requirements.network.split(":")[1]);
+
+    if (
+      getAddress(permit2Payload.permit2Authorization.spender) !==
+      getAddress(x402ExactPermit2ProxyAddress)
+    ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_spender",
+        payer,
+      };
+    }
+
+    if (
+      getAddress(permit2Payload.permit2Authorization.witness.to) !== getAddress(requirements.payTo)
+    ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_witness_recipient",
+        payer,
+      };
+    }
+
+    if (
+      getAddress(permit2Payload.permit2Authorization.permitted.token) !==
+      getAddress(requirements.asset)
+    ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_token",
+        payer,
+      };
+    }
+
+    if (
+      BigInt(permit2Payload.permit2Authorization.permitted.amount) < BigInt(requirements.amount)
+    ) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_amount",
+        payer,
+      };
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+
+    if (BigInt(permit2Payload.permit2Authorization.deadline) < BigInt(now + 6)) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_deadline",
+        payer,
+      };
+    }
+
+    if (BigInt(permit2Payload.permit2Authorization.witness.validBefore) < BigInt(now + 6)) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_witness_valid_before",
+        payer,
+      };
+    }
+
+    if (BigInt(permit2Payload.permit2Authorization.witness.validAfter) > BigInt(now)) {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_witness_valid_after",
+        payer,
+      };
+    }
+
+    const permit2TypedData = {
+      types: permit2WitnessTypes,
+      primaryType: "PermitWitnessTransferFrom" as const,
+      domain: {
+        name: "Permit2",
+        chainId,
+        verifyingContract: PERMIT2_ADDRESS,
+      },
+      message: {
+        permitted: {
+          token: getAddress(permit2Payload.permit2Authorization.permitted.token),
+          amount: BigInt(permit2Payload.permit2Authorization.permitted.amount),
+        },
+        spender: getAddress(permit2Payload.permit2Authorization.spender),
+        nonce: BigInt(permit2Payload.permit2Authorization.nonce),
+        deadline: BigInt(permit2Payload.permit2Authorization.deadline),
+        witness: {
+          extra: permit2Payload.permit2Authorization.witness.extra,
+          to: getAddress(permit2Payload.permit2Authorization.witness.to),
+          validAfter: BigInt(permit2Payload.permit2Authorization.witness.validAfter),
+          validBefore: BigInt(permit2Payload.permit2Authorization.witness.validBefore),
+        },
+      },
+    };
+
+    try {
+      const recoveredAddress = await this.signer.verifyTypedData({
+        address: payer,
+        ...permit2TypedData,
+        signature: permit2Payload.signature,
+      });
+
+      if (!recoveredAddress) {
+        return {
+          isValid: false,
+          invalidReason: "invalid_permit2_signature",
+          payer,
+        };
+      }
+    } catch {
+      return {
+        isValid: false,
+        invalidReason: "invalid_permit2_signature",
+        payer,
+      };
+    }
+
+    try {
+      const balance = (await this.signer.readContract({
+        address: getAddress(requirements.asset),
+        abi: eip3009ABI,
+        functionName: "balanceOf",
+        args: [payer],
+      })) as bigint;
+
+      if (balance < BigInt(requirements.amount)) {
+        return {
+          isValid: false,
+          invalidReason: "insufficient_funds",
+          payer,
+        };
+      }
+    } catch {
+      // If we can't check balance, continue with other validations
+    }
+
+    return {
+      isValid: true,
+      invalidReason: undefined,
+      payer,
+    };
+  }
+
+  /**
+   * Settles a Permit2 payment by executing the transfer.
+   *
+   * @param payload - The payment payload to settle
+   * @param requirements - The payment requirements
+   * @param permit2Payload - The Permit2-specific payload data
+   * @returns Promise resolving to settlement response
+   */
   private async settlePermit2(
     payload: PaymentPayload,
     requirements: PaymentRequirements,
@@ -640,8 +658,8 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         };
 
         tx = await this.signer.writeContract({
-          address: x402Permit2ProxyAddress,
-          abi: x402Permit2ProxyABI,
+          address: x402ExactPermit2ProxyAddress,
+          abi: x402ExactPermit2ProxyABI,
           functionName: "settleWith2612",
           args: [
             permit2612,
@@ -654,8 +672,8 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
         });
       } else {
         tx = await this.signer.writeContract({
-          address: x402Permit2ProxyAddress,
-          abi: x402Permit2ProxyABI,
+          address: x402ExactPermit2ProxyAddress,
+          abi: x402ExactPermit2ProxyABI,
           functionName: "settle",
           args: [
             permit,

@@ -3,7 +3,7 @@ import { ExactEvmScheme } from "../../../src/exact/facilitator/scheme";
 import { ExactEvmScheme as ClientExactEvmScheme } from "../../../src/exact/client/scheme";
 import type { ClientEvmSigner, FacilitatorEvmSigner } from "../../../src/signer";
 import { PaymentRequirements, PaymentPayload } from "@x402/core/types";
-import { x402Permit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
+import { x402ExactPermit2ProxyAddress, PERMIT2_ADDRESS } from "../../../src/constants";
 import { ExactPermit2Payload } from "../../../src/types";
 
 describe("ExactEvmScheme (Facilitator)", () => {
@@ -324,7 +324,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
             token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
             amount: "1000000",
           },
-          spender: x402Permit2ProxyAddress,
+          spender: x402ExactPermit2ProxyAddress,
           nonce: "12345678901234567890",
           deadline: String(now + 600),
           witness: {
@@ -583,7 +583,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
             token: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
             amount: "1000000",
           },
-          spender: x402Permit2ProxyAddress,
+          spender: x402ExactPermit2ProxyAddress,
           nonce: "12345678901234567890",
           deadline: String(now + 600),
           witness: {
@@ -656,7 +656,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
       const callArgs = (mockFacilitatorSigner.writeContract as any).mock.calls[0][0];
-      expect(callArgs.address.toLowerCase()).toBe(x402Permit2ProxyAddress.toLowerCase());
+      expect(callArgs.address.toLowerCase()).toBe(x402ExactPermit2ProxyAddress.toLowerCase());
       expect(callArgs.functionName).toBe("settle");
     });
 
@@ -695,7 +695,7 @@ describe("ExactEvmScheme (Facilitator)", () => {
 
       expect(mockFacilitatorSigner.writeContract).toHaveBeenCalled();
       const callArgs = (mockFacilitatorSigner.writeContract as any).mock.calls[0][0];
-      expect(callArgs.address.toLowerCase()).toBe(x402Permit2ProxyAddress.toLowerCase());
+      expect(callArgs.address.toLowerCase()).toBe(x402ExactPermit2ProxyAddress.toLowerCase());
       expect(callArgs.functionName).toBe("settleWith2612");
     });
 
