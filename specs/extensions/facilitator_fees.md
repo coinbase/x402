@@ -82,7 +82,7 @@ The extension follows the standard v2 pattern:
             "items": {
               "type": "object",
               "properties": {
-                "facilitatorId": { "type": "string" },
+                "facilitatorId": { "type": "string", "format": "uri" },
                 "facilitatorFeeQuote": { "type": "object" },
                 "facilitatorFeeQuoteRef": { "type": "string" },
                 "maxFacilitatorFee": { "type": "string" }
@@ -114,7 +114,7 @@ The `facilitatorFeeQuote` object contains facilitator-signed fee disclosure:
 | `bps` | number | No | Basis points (for `bps` model) |
 | `minFee` | string | No | Minimum fee in atomic units |
 | `maxFee` | string | Recommended | Maximum fee in atomic units. **Recommended for `bps` model** to enable fee comparison |
-| `expiry` | number | Yes | Unix timestamp when quote expires |
+| `expiry` | number | Yes | Unix timestamp when quote expires. MUST be â‰¥ payment's `validBefore` |
 | `signature` | string | Yes | Facilitator signature over the quote |
 | `signatureScheme` | string | Yes | Signature scheme used (see below) |
 
@@ -128,8 +128,10 @@ For `bps` model quotes:
 - `bps` MUST be provided (basis points, e.g., 30 = 0.3%)
 - `maxFee` SHOULD be provided to enable fee comparison
 - `minFee` is optional
+- Fee calculation: `fee = max(minFee, min(maxFee, floor((paymentAmount * bps) / 10000)))`
+- Division MUST use **floor rounding** (round down) for deterministic calculation
 
-Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per clientsome may prefer flat fees, others may accept uncapped BPS.
+Quotes without `maxFee` MAY be excluded from fee-constrained routing. Routing algorithms vary per clientâ€”some may prefer flat fees, others may accept uncapped BPS.
 
 #### Tiered / Hybrid Models
 For complex models, `minFee` and `maxFee` bounds SHOULD be provided to enable comparison without exposing full tier structures.
@@ -197,6 +199,7 @@ Clients MAY include fee constraints in their `PaymentPayload` via the `facilitat
 
 - If `selectedQuoteId` is **absent**: Server picks any facilitator meeting `maxTotalFee` constraint
 - If `selectedQuoteId` is **present**: Server **MUST** use the facilitator associated with that quote, or reject the request with an error
+- If `asset` doesn't match any available quote's asset: Server **MUST** reject with an error
 
 > **Rationale**: MUST (not SHOULD) ensures client agency is enforceable. Clients can verify the `facilitatorId` in `facilitatorFeePaid` matches their selection. Without mandatory enforcement, fee-aware routing becomes meaningless as servers could always route to more expensive facilitators.
 
@@ -248,7 +251,7 @@ After settlement, servers MAY include fee receipt information:
 > extensions?: Record<string, unknown>;
 > ```
 >
-> This change is **additive** and backwards-compatibleexisting facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
+> This change is **additive** and backwards-compatibleï¿½existing facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
 
 ---
 
@@ -271,8 +274,10 @@ The signature is computed over a canonical JSON representation of the quote (exc
 
 ## Expiry Handling
 
+- **Quote expiry MUST be â‰¥ payment's `validBefore`**: Ensures the quote remains valid for the entire payment window
 - **Server receiving expired `selectedQuoteId`**: MUST reject with error; client must re-fetch quotes
 - **Facilitator settling with expired quote**: MUST reject settlement
+- **Quote expires after verification but before settlement**: Facilitator MUST reject; client should use quotes with sufficient buffer
 - **Grace period**: Implementations MAY allow ~30 seconds for clock skew (not required)
 
 ---
@@ -288,6 +293,8 @@ Servers can preserve privacy by:
 - Quotes SHOULD NOT include payer identity
 - Avoid stable quote identifiers that enable cross-request correlation
 - Quotes are signed and expiry-bounded; clients can retain proofs without trusting the server
+
+> **Note**: When clients fetch quotes via `facilitatorFeeQuoteRef`, the facilitator learns the client's IP address before the transaction. This is a privacy side channel. Clients requiring stronger privacy should use a proxy or prefer embedded quotes.
 
 ---
 

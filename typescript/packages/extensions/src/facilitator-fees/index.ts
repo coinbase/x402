@@ -318,7 +318,9 @@ export function filterOptionsByMaxFee(
 /**
  * Calculate the fee for a BPS (basis points) quote given a payment amount
  *
- * Formula: fee = max(minFee, min(maxFee, (paymentAmount * bps) / 10000))
+ * Formula: fee = max(minFee, min(maxFee, floor((paymentAmount * bps) / 10000)))
+ *
+ * Note: Division uses floor rounding (round down) per spec for deterministic calculation.
  *
  * @param quote - Fee quote with BPS model
  * @param paymentAmount - Payment amount in atomic units
@@ -332,7 +334,7 @@ export function calculateBpsFee(quote: FacilitatorFeeQuote, paymentAmount: strin
   const amount = BigInt(paymentAmount);
   const bps = BigInt(quote.bps);
 
-  // Calculate raw BPS fee: (amount * bps) / 10000
+  // Calculate raw BPS fee with floor rounding (BigInt division truncates toward zero)
   let fee = (amount * bps) / BigInt(10000);
 
   // Apply minFee constraint

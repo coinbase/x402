@@ -57,7 +57,7 @@ export interface FacilitatorFeeQuote {
  * A single facilitator option in the fee disclosure
  */
 export interface FacilitatorOption {
-  /** Stable facilitator identifier (URL recommended) */
+  /** Stable facilitator identifier (MUST be a valid URL) */
   facilitatorId: string;
   /** Embedded signed fee quote */
   facilitatorFeeQuote?: FacilitatorFeeQuote;

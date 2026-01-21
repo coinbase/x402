@@ -63,7 +63,7 @@ export const FacilitatorFeeQuoteSchema = BaseFacilitatorFeeQuoteSchema.superRefi
  */
 export const FacilitatorOptionSchema = z
   .object({
-    facilitatorId: z.string(),
+    facilitatorId: z.string().url(),
     facilitatorFeeQuote: FacilitatorFeeQuoteSchema.optional(),
     facilitatorFeeQuoteRef: z.string().url().optional(),
     maxFacilitatorFee: z.string().optional(),

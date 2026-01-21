@@ -52,7 +52,7 @@ SettlementResponse.extensions.facilitatorFees
 ### A) Server → Client: `facilitatorFeeQuote`
 
 The `info.options[]` array contains facilitator choices:
-- `facilitatorId` (URL recommended)
+- `facilitatorId` (MUST be a valid URL for unique identification and discoverability)
 - `facilitatorFeeQuote` (signed quote) OR `facilitatorFeeQuoteRef` (URL to fetch)
 - `maxFacilitatorFee` (conservative upper bound for privacy)
 
@@ -61,8 +61,8 @@ The `info.options[]` array contains facilitator choices:
 - `facilitatorAddress` - Signing address of the facilitator (required for signature verification)
 - `model` - Fee model (`flat | bps | tiered | hybrid`)
 - `asset` - Fee currency (token address)
-- `flatFee`, `bps`, `minFee`, `maxFee` - Model-specific values
-- `expiry` - Unix timestamp when quote expires
+- `flatFee`, `bps`, `minFee`, `maxFee` - Model-specific values (all fee amounts in atomic units)
+- `expiry` - Unix timestamp when quote expires (MUST be ≥ payment's `validBefore`)
 - `signature` - Facilitator signature over the canonical quote
 - `signatureScheme` - Signature scheme used (`eip191` | `ed25519`)
 
@@ -107,6 +107,7 @@ The `info.options[]` array contains facilitator choices:
 **Selection semantics:**
 - If `selectedQuoteId` absent → server picks any facilitator meeting constraints
 - If `selectedQuoteId` present → server MUST use that facilitator or reject with error
+- If `asset` doesn't match any available quote's asset → server MUST reject with error
 
 > **Rationale**: MUST (not SHOULD) ensures client agency is enforceable. Clients can verify the `facilitatorId` in `facilitatorFeePaid` matches their selection.
 
@@ -198,9 +199,9 @@ The fee is constant regardless of payment amount.
 
 ### BPS (Basis Points) Model
 ```
-fee = max(minFee, min(maxFee, (paymentAmount * bps) / 10000))
+fee = max(minFee, min(maxFee, floor((paymentAmount * bps) / 10000)))
 ```
-The fee is a percentage of the payment amount, bounded by min/max constraints.
+The fee is a percentage of the payment amount, bounded by min/max constraints. Division MUST use **floor rounding** (round down) to ensure deterministic calculation across implementations.
 
 **Important**: BPS fees depend on the payment amount, which isn't known at quote time.
 - **`maxFee` is RECOMMENDED** for BPS model quotes (enables fee comparison)
@@ -219,8 +220,10 @@ These models combine flat and percentage components. Implementations should prov
 
 ## Expiry Handling
 
+- **Quote expiry MUST be ≥ payment's `validBefore`**: Ensures the quote remains valid for the entire payment window
 - **Server receiving expired `selectedQuoteId`**: MUST reject with error; client must re-fetch quotes
 - **Facilitator settling with expired quote**: MUST reject settlement
+- **Quote expires after verification but before settlement**: Facilitator MUST reject; client should use quotes with sufficient buffer
 - **Grace period**: Implementations MAY allow ~30 seconds for clock skew (not required)
 
 ## Privacy Considerations
@@ -229,6 +232,8 @@ Servers can preserve privacy by:
 1. Providing multiple `options` without indicating which will be used
 2. Providing only `maxFacilitatorFee` without specific quotes
 3. Providing `facilitatorFeeQuoteRef` URLs so clients fetch quotes directly (server doesn't learn which quote client evaluated)
+
+> **Note**: When clients fetch quotes via `facilitatorFeeQuoteRef`, the facilitator learns the client's IP address before the transaction. This is a privacy side channel. Clients requiring stronger privacy should use a proxy or prefer embedded quotes.
 
 ## Spec Change Required
 
@@ -263,3 +268,6 @@ Reference implementation provided in this PR:
 
 1. **Facilitator `/fee-quote` endpoint**: Standardize a facilitator API for fetching quotes directly?
 2. **Patient bidding**: Should `facilitatorFeeBid` include a `patient` flag to indicate willingness to wait longer for a lower quote (e.g., batched settlements)?
+3. **Quote `for` field**: Should quotes include a `for` field specifying the payment amount? This would make BPS fees deterministic at quote time and enable easier fee comparison.
+4. **Error codes**: Should we define standardized error codes for fee-related rejections (e.g., `QUOTE_EXPIRED`, `ASSET_MISMATCH`, `FEE_EXCEEDED`)?
+5. **Privacy guidance**: Should we provide more comprehensive privacy guidance? Considerations include: URL parameters in `facilitatorFeeQuoteRef` revealing payment context, quote ID correlation across requests, and timing analysis. Current mitigation is to prefer embedded quotes or use a proxy.
