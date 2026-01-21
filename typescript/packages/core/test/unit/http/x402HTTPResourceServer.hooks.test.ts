@@ -91,14 +91,10 @@ describe("x402HTTPResourceServer Hooks", () => {
     it("should enrich settlement response with extensions", async () => {
       const receiptExtension: ResourceServerExtension = {
         key: "receipt",
-        enrichSettlementResponse: async (_declaration: unknown, context: SettleResultContext) => {
+        enrichSettlementResponse: async (_declaration: unknown, _context: SettleResultContext) => {
+          // Return just the extension data for this key, not the entire result
           return {
-            ...context.result,
-            extensions: {
-              receipt: {
-                receipt: "Receipt",
-              },
-            },
+            receipt: "Receipt",
           };
         },
       };
@@ -277,16 +273,11 @@ describe("x402HTTPResourceServer Hooks", () => {
         key: "payment-required-enricher",
         enrichPaymentRequiredResponse: async (
           _declaration: unknown,
-          context: PaymentRequiredContext,
+          _context: PaymentRequiredContext,
         ) => {
+          // Return just the extension data for this key, not the entire response
           return {
-            ...context.paymentRequiredResponse,
-            extensions: {
-              ...context.paymentRequiredResponse.extensions,
-              "payment-required-enricher": {
-                metadata: "test-metadata",
-              },
-            },
+            metadata: "test-metadata",
           };
         },
       };
@@ -495,37 +486,27 @@ describe("x402HTTPResourceServer Hooks", () => {
         key: "all-hooks",
         enrichPaymentRequiredResponse: async (
           _declaration: unknown,
-          context: PaymentRequiredContext,
+          _context: PaymentRequiredContext,
         ) => {
+          // Return just the extension data for this key
           return {
-            ...context.paymentRequiredResponse,
-            extensions: {
-              ...context.paymentRequiredResponse.extensions,
-              "all-hooks": {
-                paymentRequiredEnriched: true,
-              },
-            },
+            paymentRequiredEnriched: true,
           };
         },
-        enrichVerificationResponse: async (_declaration: unknown, context: VerifyResultContext) => {
+        enrichVerificationResponse: async (
+          _declaration: unknown,
+          _context: VerifyResultContext,
+        ) => {
+          // Return just the extension data for this key
           return {
-            ...context.result,
-            extensions: {
-              "all-hooks": {
-                verificationEnriched: true,
-              },
-            },
+            verificationEnriched: true,
           };
         },
-        enrichSettlementResponse: async (_declaration: unknown, context: SettleResultContext) => {
+        enrichSettlementResponse: async (_declaration: unknown, _context: SettleResultContext) => {
+          // Return just the extension data for this key
           return {
-            ...context.result,
-            extensions: {
-              "all-hooks": {
-                receipt: {
-                  receipt: "Receipt",
-                },
-              },
+            receipt: {
+              receipt: "Receipt",
             },
           };
         },
