@@ -1,6 +1,7 @@
-# MCP Server with x402
-
-[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is a protocol for passing context between LLMs and other AI agents. This page shows how to use the x402 payment protocol with MCP to make paid API requests through an MCP server, and how to connect it to Claude Desktop.
+---
+title: "MCP Server with x402"
+description: "[Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is a protocol for passing context between LLMs and other AI agents. This page shows how to use the x402 payment protocol with MCP to make paid API requests through an MCP server, and how to connect it to Claude Desktop."
+---
 
 ### What is this integration?
 
@@ -308,4 +309,4 @@ The example uses these x402 v2 packages:
 * [See the full example in the repo](https://github.com/coinbase/x402/tree/main/examples/typescript/clients/mcp)
 * Try integrating with your own x402-compatible APIs
 * Extend the MCP server with more tools or custom logic as needed
-* [Learn about building x402 servers](../getting-started/quickstart-for-sellers.md)
+* [Learn about building x402 servers](/getting-started/quickstart-for-sellers)
