@@ -635,7 +635,8 @@ export class x402HTTPResourceServer {
    * @param isWebBrowser - Whether request is from browser
    * @param paywallConfig - Paywall configuration
    * @param customHtml - Custom HTML template
-   * @param unpaidResponse - Optional custom response (content type and body) for unpaid API requests
+   * @param unpaidResponse - Optional custom response (content type and body) for unpaid API requests.
+   *                        Note: Custom bodies should still include at minimum an error message for consistency.
    * @returns Response instructions
    */
   private createHTTPResponse(
@@ -657,9 +658,14 @@ export class x402HTTPResourceServer {
 
     const response = this.createHTTPPaymentRequiredResponse(paymentRequired);
 
-    // Use callback result if provided, otherwise default to JSON with empty object
+    // Use callback result if provided, otherwise use standardized default body
     const contentType = unpaidResponse ? unpaidResponse.contentType : "application/json";
-    const body = unpaidResponse ? unpaidResponse.body : {};
+    const body = unpaidResponse
+      ? unpaidResponse.body
+      : {
+          error: paymentRequired.error || "Payment required",
+          x402Version: paymentRequired.x402Version,
+        };
 
     return {
       status: 402,
