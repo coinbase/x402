@@ -13,13 +13,14 @@ const PREFIX: [u8; 2] = [0x40, 0x20]; // 0x4020
 const EXACT_SUFFIX: [u8; 2] = [0x00, 0x01]; // ...0001
 const UPTO_SUFFIX: [u8; 2] = [0x00, 0x02]; // ...0002
 
-// Init code hashes (computed from contracts)
+// Init code hashes (computed from contracts - no constructor args for chain portability)
+// Run `forge script script/ComputeAddress.s.sol` to verify these match
 // x402ExactPermit2Proxy
 const EXACT_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("34dbef022a9cf5c3aae37221094100308c6245db2998994960a8a3f88f3e008e");
+    hex_literal::hex!("531736bfc0b3dcf1f07c2003a8d79086ce6813b63ec948c482dc3e9d6115370c");
 // x402UptoPermit2Proxy
 const UPTO_INIT_CODE_HASH: [u8; 32] =
-    hex_literal::hex!("b98e630689c10b9945fac9241d628b9c06c4bc6e0b197143e6f6a18384b65ba9");
+    hex_literal::hex!("747e371bedda1269987a9c38f01901bcc1b1856489221ee5a8cbac8a35893535");
 
 fn compute_create2_address(salt: &[u8; 32], init_code_hash: &[u8; 32]) -> [u8; 20] {
     let mut hasher = Keccak::v256();

@@ -40,7 +40,8 @@ contract X402UptoPermit2ProxyForkTest is Test {
         payer = vm.addr(payerKey);
         recipient = makeAddr("recipient");
 
-        proxy = new x402UptoPermit2Proxy(PERMIT2);
+        proxy = new x402UptoPermit2Proxy();
+        proxy.initialize(PERMIT2);
         token = new MockERC20("USDC", "USDC", 6);
         token.mint(payer, MINT_AMOUNT);
 

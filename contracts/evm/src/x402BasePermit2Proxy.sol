@@ -15,11 +15,18 @@ import {ISignatureTransfer} from "./interfaces/ISignatureTransfer.sol";
  *      "witness" pattern to cryptographically bind the payment destination,
  *      preventing facilitators from redirecting funds.
  *
+ *      The contract uses an initializer pattern instead of constructor parameters
+ *      to ensure the same CREATE2 address across all EVM chains, regardless of
+ *      the chain's Permit2 deployment address.
+ *
  * @author x402 Protocol
  */
 abstract contract x402BasePermit2Proxy is ReentrancyGuard {
-    /// @notice The canonical Permit2 contract address
-    ISignatureTransfer public immutable PERMIT2;
+    /// @notice The Permit2 contract address (set via initialize)
+    ISignatureTransfer public PERMIT2;
+
+    /// @notice Whether the contract has been initialized
+    bool private _initialized;
 
     /// @notice EIP-712 type string for witness data
     /// @dev Must match the exact format expected by Permit2
@@ -38,6 +45,9 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
 
     /// @notice Thrown when Permit2 address is zero
     error InvalidPermit2Address();
+
+    /// @notice Thrown when initialize is called more than once
+    error AlreadyInitialized();
 
     /// @notice Thrown when destination address is zero
     error InvalidDestination();
@@ -79,13 +89,16 @@ abstract contract x402BasePermit2Proxy is ReentrancyGuard {
 
     /**
      * @notice Initializes the proxy with the Permit2 contract address
-     * @param _permit2 Address of the canonical Permit2 contract
-     * @dev Reverts if _permit2 is the zero address
+     * @param _permit2 Address of the Permit2 contract for this chain
+     * @dev Can only be called once. Should be called immediately after deployment.
+     *      Reverts if _permit2 is the zero address or if already initialized.
      */
-    constructor(
+    function initialize(
         address _permit2
-    ) {
+    ) external {
+        if (_initialized) revert AlreadyInitialized();
         if (_permit2 == address(0)) revert InvalidPermit2Address();
+        _initialized = true;
         PERMIT2 = ISignatureTransfer(_permit2);
     }
 

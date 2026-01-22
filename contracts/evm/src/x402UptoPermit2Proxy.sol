@@ -23,14 +23,6 @@ contract x402UptoPermit2Proxy is x402BasePermit2Proxy {
     error AmountExceedsPermitted();
 
     /**
-     * @notice Initializes the proxy with the Permit2 contract address
-     * @param _permit2 Address of the canonical Permit2 contract
-     */
-    constructor(
-        address _permit2
-    ) x402BasePermit2Proxy(_permit2) {}
-
-    /**
      * @notice Settles a payment using a Permit2 signature
      * @dev This is the standard settlement path when user has already approved Permit2
      * @param permit The Permit2 transfer authorization

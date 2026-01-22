@@ -18,6 +18,15 @@ Both contracts:
 - Support both standard Permit2 and EIP-2612 flows
 - Deploy to the **same address on all EVM chains** via CREATE2
 
+## Deployed Addresses
+
+### Base Sepolia (Testnet)
+
+| Contract | Address | Verified |
+|----------|---------|----------|
+| x402ExactPermit2Proxy | [`0x4020615294c913F045dc10f0a5cdEbd86c280001`](https://sepolia.basescan.org/address/0x4020615294c913F045dc10f0a5cdEbd86c280001) | ✓ |
+| x402UptoPermit2Proxy | [`0x4020633461b2895a48930Ff97eE8fCdE8E520002`](https://sepolia.basescan.org/address/0x4020633461b2895a48930Ff97eE8fCdE8E520002) | ✓ |
+
 ## Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
@@ -185,11 +194,11 @@ The function signatures follow the same pattern as `settle()` for each variant.
 
 ## Security
 
-- **Immutable:** No upgrade mechanism
+- **Immutable:** No upgrade mechanism, one-time initialization
 - **No custody:** Contracts never hold tokens
 - **Destination locked:** Witness pattern enforces payTo address
 - **Reentrancy protected:** Uses OpenZeppelin's ReentrancyGuard
-- **Deterministic:** Same address on all chains via CREATE2
+- **Deterministic:** Same address on all chains via CREATE2 (Permit2 set via initialize)
 
 ## Coverage
 

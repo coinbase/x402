@@ -5,11 +5,13 @@ import {Script, console2} from "forge-std/Script.sol";
 
 import {x402ExactPermit2Proxy} from "../src/x402ExactPermit2Proxy.sol";
 import {x402UptoPermit2Proxy} from "../src/x402UptoPermit2Proxy.sol";
-import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
 
 /**
  * @title ComputeAddress
  * @notice Compute the deterministic CREATE2 addresses for x402 Permit2 Proxies
+ *
+ * @dev The contracts use an initializer pattern (no constructor args) to ensure
+ *      the same address on all chains regardless of Permit2 address.
  *
  * @dev Run with default salts:
  *      forge script script/ComputeAddress.s.sol
@@ -18,17 +20,16 @@ import {ISignatureTransfer} from "../src/interfaces/ISignatureTransfer.sol";
  *      forge script script/ComputeAddress.s.sol --sig "computeAddresses(bytes32,bytes32)" <EXACT_SALT> <UPTO_SALT>
  */
 contract ComputeAddress is Script {
-    /// @notice Canonical Permit2 address
-    address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-
     /// @notice Arachnid's deterministic CREATE2 deployer
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     /// @notice Default salt for x402ExactPermit2Proxy
-    bytes32 constant DEFAULT_EXACT_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    /// @dev Vanity mined for address 0x4020615294c913f045dc10f0a5cdebd86c280001
+    bytes32 constant DEFAULT_EXACT_SALT = 0x000000000000000000000000000000000000000000000000600000000cc912d1;
 
     /// @notice Default salt for x402UptoPermit2Proxy
-    bytes32 constant DEFAULT_UPTO_SALT = 0x62bb59fa735c572ac45816aa0f1e00b2de3c4671993a9147999a3808c574240e;
+    /// @dev Vanity mined for address 0x4020633461b2895a48930ff97ee8fcde8e520002
+    bytes32 constant DEFAULT_UPTO_SALT = 0x0000000000000000000000000000000000000000000000006000000009a82260;
 
     /**
      * @notice Computes the CREATE2 addresses using the default salts
@@ -50,13 +51,14 @@ contract ComputeAddress is Script {
         console2.log("");
 
         console2.log("Configuration:");
-        console2.log("  Permit2 Address:     ", PERMIT2);
         console2.log("  CREATE2 Deployer:    ", CREATE2_DEPLOYER);
+        console2.log("  (Permit2 set via initialize - same address on all chains)");
         console2.log("");
 
         // Compute x402ExactPermit2Proxy address
         {
-            bytes memory initCode = abi.encodePacked(type(x402ExactPermit2Proxy).creationCode, abi.encode(PERMIT2));
+            // No constructor args - enables same address on all chains
+            bytes memory initCode = type(x402ExactPermit2Proxy).creationCode;
             bytes32 initCodeHash = keccak256(initCode);
             address expectedAddress = _computeCreate2Addr(exactSalt, initCodeHash, CREATE2_DEPLOYER);
 
@@ -77,7 +79,8 @@ contract ComputeAddress is Script {
 
         // Compute x402UptoPermit2Proxy address
         {
-            bytes memory initCode = abi.encodePacked(type(x402UptoPermit2Proxy).creationCode, abi.encode(PERMIT2));
+            // No constructor args - enables same address on all chains
+            bytes memory initCode = type(x402UptoPermit2Proxy).creationCode;
             bytes32 initCodeHash = keccak256(initCode);
             address expectedAddress = _computeCreate2Addr(uptoSalt, initCodeHash, CREATE2_DEPLOYER);
 
