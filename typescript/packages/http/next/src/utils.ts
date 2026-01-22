@@ -104,6 +104,7 @@ export function handlePaymentError(response: HTTPResponseInstructions): NextResp
  * @param response - The Next.js response from the protected route
  * @param paymentPayload - The payment payload from the client
  * @param paymentRequirements - The payment requirements for the route
+ * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
  * @returns The response with settlement headers or an error response if settlement fails
  */
 export async function handleSettlement(
