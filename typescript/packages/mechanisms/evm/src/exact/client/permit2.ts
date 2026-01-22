@@ -11,7 +11,7 @@ import {
   eip2612PermitTypes,
 } from "../../constants";
 import { ClientEvmSigner } from "../../signer";
-import { EIP2612PermitParams, ExactPermit2Payload } from "../../types";
+import { ExactPermit2Payload } from "../../types";
 import { createPermit2Nonce } from "../../utils";
 
 /** Maximum uint256 value for unlimited approval. */
@@ -24,10 +24,27 @@ export const EIP2612_GAS_SPONSORING_EXTENSION = "eip2612GasSponsoring";
 
 /**
  * Extension data for eip2612GasSponsoring.
- * Contains the EIP-2612 permit signature to approve Permit2.
+ * Contains the EIP-2612 permit info to approve Permit2.
  */
 export interface EIP2612GasSponsoringExtension {
-  permit: EIP2612PermitParams;
+  info: {
+    from: string;
+    asset: string;
+    spender: string;
+    amount: string;
+    nonce: string;
+    deadline: string;
+    signature: string;
+    version: string;
+  };
+}
+
+/**
+ * Input data for eip2612GasSponsoring extension.
+ * Populated by beforePaymentCreation hooks via context.extensionData.
+ */
+export interface EIP2612GasSponsoringInput {
+  nonce: bigint;
 }
 
 /**
@@ -35,20 +52,20 @@ export interface EIP2612GasSponsoringExtension {
  * The spender is set to x402Permit2Proxy, which enforces that funds
  * can only be sent to the witness.to address.
  *
- * If the facilitator supports eip2612GasSponsoring and the user provides
- * an EIP-2612 nonce, an approval permit will be included in extensions.
+ * If extensionData contains eip2612GasSponsoring input (populated by a
+ * beforePaymentCreation hook), an approval permit will be included in extensions.
  *
  * @param signer - The EVM signer for client operations
  * @param x402Version - The x402 protocol version
  * @param paymentRequirements - The payment requirements
- * @param context - Optional context with facilitator info and EIP-2612 nonce
+ * @param context - Optional context with extension data from hooks
  * @returns Promise resolving to a payment payload result
  */
 export async function createPermit2Payload(
   signer: ClientEvmSigner,
   x402Version: number,
   paymentRequirements: PaymentRequirements,
-  context?: PaymentCreationContext & { eip2612Nonce?: bigint },
+  context?: PaymentCreationContext,
 ): Promise<PaymentPayloadResult> {
   const now = Math.floor(Date.now() / 1000);
   const nonce = createPermit2Nonce();
@@ -90,12 +107,16 @@ export async function createPermit2Payload(
     payload,
   };
 
-  // Add EIP-2612 permit extension if facilitator supports it and nonce is provided
-  if (context?.eip2612Nonce !== undefined && supportsEIP2612GasSponsoring(context)) {
+  // Add EIP-2612 permit extension if hook provided input via extensionData
+  // (Hook is responsible for checking facilitator support before populating this)
+  const eip2612Input = context?.extensionData?.[EIP2612_GAS_SPONSORING_EXTENSION] as
+    | EIP2612GasSponsoringInput
+    | undefined;
+  if (eip2612Input?.nonce !== undefined) {
     const permitExtension = await createEIP2612PermitExtension(
       signer,
       paymentRequirements,
-      context.eip2612Nonce,
+      eip2612Input.nonce,
       permit2Authorization.deadline,
     );
     result.extensions = {
@@ -104,18 +125,6 @@ export async function createPermit2Payload(
   }
 
   return result;
-}
-
-/**
- * Check if the facilitator supports EIP-2612 gas sponsoring extension.
- *
- * @param context - The payment creation context
- * @returns True if the facilitator supports the extension
- */
-function supportsEIP2612GasSponsoring(context: PaymentCreationContext): boolean {
-  return (
-    context.facilitatorSupported?.extensions?.includes(EIP2612_GAS_SPONSORING_EXTENSION) ?? false
-  );
 }
 
 /**
@@ -134,15 +143,15 @@ async function createEIP2612PermitExtension(
   nonce: bigint,
   deadline: string,
 ): Promise<EIP2612GasSponsoringExtension> {
-  const { name, version } = requirements.extra as { name: string; version: string };
+  const { name, version: tokenVersion } = requirements.extra as { name: string; version: string };
   const chainId = parseInt(requirements.network.split(":")[1]);
 
   // Approve Permit2 for max uint256 (standard for permits)
-  const value = MAX_UINT256;
+  const amount = MAX_UINT256;
 
   const domain = {
     name,
-    version,
+    version: tokenVersion,
     chainId,
     verifyingContract: getAddress(requirements.asset),
   };
@@ -150,7 +159,7 @@ async function createEIP2612PermitExtension(
   const message = {
     owner: signer.address,
     spender: PERMIT2_ADDRESS,
-    value,
+    value: amount,
     nonce,
     deadline: BigInt(deadline),
   };
@@ -162,18 +171,16 @@ async function createEIP2612PermitExtension(
     message,
   });
 
-  // Parse signature into v, r, s
-  const r = `0x${signature.slice(2, 66)}` as `0x${string}`;
-  const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
-  const v = parseInt(signature.slice(130, 132), 16);
-
   return {
-    permit: {
-      value: value.toString(),
+    info: {
+      from: signer.address,
+      asset: getAddress(requirements.asset),
+      spender: PERMIT2_ADDRESS,
+      amount: amount.toString(),
+      nonce: nonce.toString(),
       deadline,
-      v,
-      r,
-      s,
+      signature,
+      version: "1",
     },
   };
 }

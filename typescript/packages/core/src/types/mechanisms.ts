@@ -41,6 +41,13 @@ export interface PaymentCreationContext {
      */
     signers?: Record<string, string[]>;
   };
+
+  /**
+   * Extension-specific data populated by beforePaymentCreation hooks.
+   * Keyed by extension name (e.g., "eip2612GasSponsoring").
+   * Mechanisms can read this to create extension payloads.
+   */
+  extensionData?: Record<string, unknown>;
 }
 
 /**

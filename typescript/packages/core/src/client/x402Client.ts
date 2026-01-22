@@ -31,6 +31,12 @@ export interface PaymentCreationHookContext {
   paymentRequired: PaymentRequired;
   selectedRequirements: PaymentRequirements;
   facilitatorSupported?: FacilitatorSupported;
+  /**
+   * Mutable extension data that hooks can populate.
+   * Keyed by extension name (e.g., "eip2612GasSponsoring").
+   * This data flows to mechanisms via PaymentCreationContext.extensionData.
+   */
+  extensionData: Record<string, unknown>;
 }
 
 export interface PaymentCreatedContext extends PaymentCreationHookContext {
@@ -55,7 +61,10 @@ export type OnPaymentCreationFailureHook = (
   context: PaymentCreationFailureContext,
 ) => Promise<void | { recovered: true; payload: PaymentPayload }>;
 
-export type SelectPaymentRequirements = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements;
+export type SelectPaymentRequirements = (
+  x402Version: number,
+  paymentRequirements: PaymentRequirements[],
+) => PaymentRequirements;
 
 /**
  * A policy function that filters or transforms payment requirements.
@@ -65,8 +74,10 @@ export type SelectPaymentRequirements = (x402Version: number, paymentRequirement
  * @param paymentRequirements - Array of payment requirements to filter/transform
  * @returns Filtered array of payment requirements
  */
-export type PaymentPolicy = (x402Version: number, paymentRequirements: PaymentRequirements[]) => PaymentRequirements[];
-
+export type PaymentPolicy = (
+  x402Version: number,
+  paymentRequirements: PaymentRequirements[],
+) => PaymentRequirements[];
 
 /**
  * Configuration for registering a payment scheme with a specific network
@@ -119,7 +130,10 @@ export interface x402ClientConfig {
  */
 export class x402Client {
   private readonly paymentRequirementsSelector: SelectPaymentRequirements;
-  private readonly registeredClientSchemes: Map<number, Map<string, Map<string, SchemeNetworkClient>>> = new Map();
+  private readonly registeredClientSchemes: Map<
+    number,
+    Map<string, Map<string, SchemeNetworkClient>>
+  > = new Map();
   private readonly policies: PaymentPolicy[] = [];
 
   private beforePaymentCreationHooks: BeforePaymentCreationHook[] = [];
@@ -132,7 +146,8 @@ export class x402Client {
    * @param paymentRequirementsSelector - Function to select payment requirements from available options
    */
   constructor(paymentRequirementsSelector?: SelectPaymentRequirements) {
-    this.paymentRequirementsSelector = paymentRequirementsSelector || ((x402Version, accepts) => accepts[0]);
+    this.paymentRequirementsSelector =
+      paymentRequirementsSelector || ((x402Version, accepts) => accepts[0]);
   }
 
   /**
@@ -274,15 +289,20 @@ export class x402Client {
       throw new Error(`No client registered for x402 version: ${paymentRequired.x402Version}`);
     }
 
-    const requirements = this.selectPaymentRequirements(paymentRequired.x402Version, paymentRequired.accepts);
+    const requirements = this.selectPaymentRequirements(
+      paymentRequired.x402Version,
+      paymentRequired.accepts,
+    );
 
     const hookContext: PaymentCreationHookContext = {
       paymentRequired,
       selectedRequirements: requirements,
       facilitatorSupported,
+      extensionData: {},
     };
 
     // Execute beforePaymentCreation hooks
+    // Hooks can populate hookContext.extensionData for mechanisms to use
     for (const hook of this.beforePaymentCreationHooks) {
       const result = await hook(hookContext);
       if (result && "abort" in result && result.abort) {
@@ -291,15 +311,24 @@ export class x402Client {
     }
 
     try {
-      const schemeNetworkClient = findByNetworkAndScheme(clientSchemesByNetwork, requirements.scheme, requirements.network);
+      const schemeNetworkClient = findByNetworkAndScheme(
+        clientSchemesByNetwork,
+        requirements.scheme,
+        requirements.network,
+      );
       if (!schemeNetworkClient) {
-        throw new Error(`No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`);
+        throw new Error(
+          `No client registered for scheme: ${requirements.scheme} and network: ${requirements.network}`,
+        );
       }
 
       // Build mechanism context for extension support
+      // Include extensionData populated by hooks
       const mechanismContext: MechanismPaymentCreationContext = {
         paymentRequired,
         facilitatorSupported,
+        extensionData:
+          Object.keys(hookContext.extensionData).length > 0 ? hookContext.extensionData : undefined,
       };
 
       const partialPayload = await schemeNetworkClient.createPaymentPayload(
@@ -373,8 +402,6 @@ export class x402Client {
     }
   }
 
-
-
   /**
    * Selects appropriate payment requirements based on registered clients and policies.
    *
@@ -387,7 +414,10 @@ export class x402Client {
    * @param paymentRequirements - Array of available payment requirements
    * @returns The selected payment requirements
    */
-  private selectPaymentRequirements(x402Version: number, paymentRequirements: PaymentRequirements[]): PaymentRequirements {
+  private selectPaymentRequirements(
+    x402Version: number,
+    paymentRequirements: PaymentRequirements[],
+  ): PaymentRequirements {
     const clientSchemesByNetwork = this.registeredClientSchemes.get(x402Version);
     if (!clientSchemesByNetwork) {
       throw new Error(`No client registered for x402 version: ${x402Version}`);
@@ -401,16 +431,22 @@ export class x402Client {
       }
 
       return clientSchemes.has(requirement.scheme);
-    })
+    });
 
     if (supportedPaymentRequirements.length === 0) {
-      throw new Error(`No network/scheme registered for x402 version: ${x402Version} which comply with the payment requirements. ${JSON.stringify({
-        x402Version,
-        paymentRequirements,
-        x402Versions: Array.from(this.registeredClientSchemes.keys()),
-        networks: Array.from(clientSchemesByNetwork.keys()),
-        schemes: Array.from(clientSchemesByNetwork.values()).map(schemes => Array.from(schemes.keys())).flat(),
-      })}`);
+      throw new Error(
+        `No network/scheme registered for x402 version: ${x402Version} which comply with the payment requirements. ${JSON.stringify(
+          {
+            x402Version,
+            paymentRequirements,
+            x402Versions: Array.from(this.registeredClientSchemes.keys()),
+            networks: Array.from(clientSchemesByNetwork.keys()),
+            schemes: Array.from(clientSchemesByNetwork.values())
+              .map(schemes => Array.from(schemes.keys()))
+              .flat(),
+          },
+        )}`,
+      );
     }
 
     // Step 2: Apply all policies in order
@@ -419,7 +455,9 @@ export class x402Client {
       filteredRequirements = policy(x402Version, filteredRequirements);
 
       if (filteredRequirements.length === 0) {
-        throw new Error(`All payment requirements were filtered out by policies for x402 version: ${x402Version}`);
+        throw new Error(
+          `All payment requirements were filtered out by policies for x402 version: ${x402Version}`,
+        );
       }
     }
 
@@ -435,7 +473,11 @@ export class x402Client {
    * @param client - The scheme network client to register
    * @returns The x402Client instance for chaining
    */
-  private _registerScheme(x402Version: number, network: Network, client: SchemeNetworkClient): x402Client {
+  private _registerScheme(
+    x402Version: number,
+    network: Network,
+    client: SchemeNetworkClient,
+  ): x402Client {
     if (!this.registeredClientSchemes.has(x402Version)) {
       this.registeredClientSchemes.set(x402Version, new Map());
     }
