@@ -160,13 +160,14 @@ To prevent fragmentation, signature schemes are specified per network family:
 
 ### Canonical Quote Format
 
-The signature is computed over a **canonical JSON representation** of the quote. To ensure deterministic signing:
+The signature is computed over a **canonical JSON representation** of the quote following [RFC 8785 (JSON Canonicalization Scheme)](https://www.rfc-editor.org/rfc/rfc8785). To ensure deterministic signing:
 
 1. **Exclude** `signature` and `signatureScheme` fields from the signing payload
-2. **Sort** remaining fields alphabetically by key
-3. **Serialize** as compact JSON (no whitespace)
-4. **Hash** using the scheme-appropriate algorithm (keccak256 for EIP-191, SHA-256 for Ed25519)
-5. **Sign** the hash with the facilitator's private key
+2. **Canonicalize** per RFC 8785: sort keys lexicographically (UTF-16 code units), no whitespace, deterministic number/string serialization
+3. **Hash** using the scheme-appropriate algorithm (keccak256 for EIP-191, SHA-256 for Ed25519)
+4. **Sign** the hash with the facilitator's private key
+
+> **Note**: For typical quote structures without nested objects, this simplifies to alphabetical key sorting with compact JSON—which produces RFC 8785-compliant output.
 
 **Canonical fields (in order):**
 ```

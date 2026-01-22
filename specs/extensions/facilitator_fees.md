@@ -268,7 +268,15 @@ The `signatureScheme` field MUST be one of the above values. Implementations SHO
 
 ### Quote Signing
 
-The signature is computed over a canonical JSON representation of the quote (excluding `signature` and `signatureScheme` fields). Fields MUST be sorted alphabetically for canonicalization.
+The signature is computed over a canonical JSON representation of the quote (excluding `signature` and `signatureScheme` fields). 
+
+Canonicalization MUST follow [RFC 8785 (JSON Canonicalization Scheme)](https://www.rfc-editor.org/rfc/rfc8785):
+- Object keys MUST be sorted lexicographically (UTF-16 code units)
+- No whitespace between tokens
+- Numbers serialized without redundant characters
+- Strings use minimal escape sequences per RFC 8785 §3.2.2.2
+
+> **Implementation Note**: For simple quote structures without nested objects or special characters, alphabetical key sorting with compact JSON serialization is sufficient and produces RFC 8785-compliant output.
 
 ---
 

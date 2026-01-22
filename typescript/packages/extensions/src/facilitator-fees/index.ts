@@ -390,16 +390,21 @@ export function calculateFee(
 /**
  * Get the canonical signing payload for a fee quote
  *
- * Fields are sorted alphabetically and signature/signatureScheme are excluded.
+ * Produces an RFC 8785 (JSON Canonicalization Scheme) compliant representation:
+ * - Fields sorted lexicographically by key
+ * - Compact JSON (no whitespace)
+ * - signature/signatureScheme fields excluded
  *
+ * @see https://www.rfc-editor.org/rfc/rfc8785
  * @param quote - Fee quote to canonicalize
  * @returns Canonical JSON string for signing
  */
 export function getCanonicalQuotePayload(quote: FacilitatorFeeQuote): string {
   // Build payload with only defined fields, excluding signature fields
+  // Fields added in alphabetical order for RFC 8785 compliance
   const payload: Record<string, unknown> = {};
 
-  // Add fields in alphabetical order
+  // Add fields in alphabetical order (lexicographic per RFC 8785)
   payload.asset = quote.asset;
   if (quote.bps !== undefined) payload.bps = quote.bps;
   payload.expiry = quote.expiry;
