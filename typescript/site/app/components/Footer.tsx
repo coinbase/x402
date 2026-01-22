@@ -38,7 +38,7 @@ export function Footer() {
           <nav aria-label="Footer navigation">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
               <Link
-                href="https://x402.gitbook.io/x402"
+                href="https://docs.x402.org"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white hover:text-gray-300 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
