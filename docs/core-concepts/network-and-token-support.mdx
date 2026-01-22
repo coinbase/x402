@@ -66,7 +66,7 @@ Additional facilitators may be available from external providers. Check the [x40
 x402 supports tokens on both EVM and Solana networks:
 
 * **EVM**: Any ERC-20 token that implements the EIP-3009 standard
-* **Solana**: Any SPL token (v1 & v2); Token-2022 (v2 only)
+* **Solana**: Any SPL or token-2022 token
 
 **Important**: Facilitators support networks, not specific tokens — any EIP-3009 compatible token works on EVM networks, and any SPL/token-2022 token works on Solana, for the facilitators that support those networks.
 
@@ -113,7 +113,7 @@ These values are used in the `eip712` nested object when configuring TokenAmount
 
 #### Solana: SPL Tokens & Token 2022 Tokens
 
-On Solana, x402 supports all SPL tokens for v1 and v2. Token-2022 tokens are supported in v2 only. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL token (or Token-2022 for v2), including USDC (SPL). No EIP-712 configuration is required on Solana.
+On Solana, x402 supports all SPL tokens and Token 2022 tokens. When using facilitators that support Solana or Solana Devnet, payments can be made in any SPL/token-2022 token, including USDC (SPL). No EIP-712 configuration is required on Solana.
 
 #### USDC - The Default Token
 
@@ -189,6 +189,37 @@ In V2, networks are supported through the registration pattern using CAIP-2 iden
     // Register EVM scheme - supports any CAIP-2 EVM network
     schemes := []ginmw.SchemeConfig{
         {Network: x402.Network("eip155:43114"), Server: evm.NewExactEvmScheme()},  // Avalanche
+    }
+    ```
+  </Tab>
+  <Tab title="Python">
+    ```python
+    from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+    from x402.http.types import RouteConfig
+    from x402.mechanisms.evm.exact import ExactEvmServerScheme
+    from x402.server import x402ResourceServer
+
+    # Create facilitator client for your network
+    facilitator = HTTPFacilitatorClient(
+        FacilitatorConfig(url="https://your-facilitator.com")
+    )
+
+    # Create server and register EVM scheme for your network
+    server = x402ResourceServer(facilitator)
+    server.register("eip155:43114", ExactEvmServerScheme())  # Avalanche mainnet
+
+    # Now use any CAIP-2 network identifier in your routes:
+    routes: dict[str, RouteConfig] = {
+        "GET /api/data": RouteConfig(
+            accepts=[
+                PaymentOption(
+                    scheme="exact",
+                    price="$0.001",
+                    network="eip155:43114",  # Avalanche mainnet
+                    pay_to="0xYourAddress",
+                ),
+            ],
+        ),
     }
     ```
   </Tab>
