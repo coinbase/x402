@@ -99,6 +99,8 @@ func createTestRouter() *gin.Engine {
 }
 
 // createPaymentHeader creates a base64-encoded payment header for testing
+//
+//nolint:unparam // payTo is always "0xtest" in current tests but keeping param for flexibility
 func createPaymentHeader(payTo string) string {
 	payload := x402.PaymentPayload{
 		X402Version: 2,

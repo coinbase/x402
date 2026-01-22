@@ -12,8 +12,6 @@ Before you begin, ensure you have:
 * [Node.js](https://nodejs.org/en) and npm, [Go](https://go.dev/), or Python and pip installed
 * An existing API or server
 
-**Note:** The Python SDK is currently under development for x402 v2. For immediate v2 support, use TypeScript or Go.
-
 **Note**\
 We have pre-configured examples available in our repo for both [Node.js](https://github.com/coinbase/x402/tree/main/examples/typescript/servers) and [Go](https://github.com/coinbase/x402/tree/main/examples/go/servers). We also have an [advanced example](https://github.com/coinbase/x402/tree/main/examples/typescript/servers/advanced) that shows how to use the x402 SDKs to build a more complex payment flow.
 
@@ -53,23 +51,25 @@ go get github.com/coinbase/x402/go
 {% endtab %}
 
 {% tab title="FastAPI" %}
-[Install the x402 Python package](https://pypi.org/project/x402/)
+[Install the x402 Python package](https://pypi.org/project/x402/) with FastAPI support:
 
 ```bash
-pip install x402
-```
+pip install "x402[fastapi]"
 
-**Note:** Python SDK currently uses v1 patterns.
+# For Solana support, also add:
+pip install "x402[svm]"
+```
 {% endtab %}
 
 {% tab title="Flask" %}
-[Install the x402 Python package](https://pypi.org/project/x402/)
+[Install the x402 Python package](https://pypi.org/project/x402/) with Flask support:
 
 ```bash
-pip install x402
-```
+pip install "x402[flask]"
 
-**Note:** Python SDK currently uses v1 patterns.
+# For Solana support, also add:
+pip install "x402[svm]"
+```
 {% endtab %}
 {% endtabs %}
 
@@ -298,59 +298,122 @@ func main() {
 {% endtab %}
 
 {% tab title="FastAPI" %}
-Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/legacy).
-
-**Note:** Python SDK currently uses v1 patterns with string network identifiers.
+Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/fastapi).
 
 ```python
-from typing import Any, Dict
+from typing import Any
+
 from fastapi import FastAPI
-from x402.fastapi.middleware import require_payment
+
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.server import x402ResourceServer
 
 app = FastAPI()
 
-# Apply payment middleware to specific routes
-app.middleware("http")(
-    require_payment(
-        path="/weather",
-        price="$0.001",
-        pay_to_address="0xYourAddress",
-        network="base-sepolia",  # v1 string identifier
-    )
+# Your receiving wallet address
+pay_to = "0xYourAddress"
+
+# Create facilitator client (testnet)
+facilitator = HTTPFacilitatorClient(
+    FacilitatorConfig(url="https://x402.org/facilitator")
 )
 
+# Create resource server and register EVM scheme
+server = x402ResourceServer(facilitator)
+server.register("eip155:84532", ExactEvmServerScheme())
+
+# Define protected routes
+routes: dict[str, RouteConfig] = {
+    "GET /weather": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to=pay_to,
+                price="$0.001",  # USDC amount in dollars
+                network="eip155:84532",  # Base Sepolia (CAIP-2 format)
+            ),
+        ],
+        mime_type="application/json",
+        description="Get current weather data for any location",
+    ),
+}
+
+# Add payment middleware
+app.add_middleware(PaymentMiddlewareASGI, routes=routes, server=server)
+
+
 @app.get("/weather")
-async def get_weather() -> Dict[str, Any]:
+async def get_weather() -> dict[str, Any]:
     return {
         "report": {
             "weather": "sunny",
             "temperature": 70,
         }
     }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=4021)
 ```
 {% endtab %}
 
 {% tab title="Flask" %}
-Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/legacy).
-
-**Note:** Python SDK currently uses v1 patterns with string network identifiers.
+Full example in the repo [here](https://github.com/coinbase/x402/tree/main/examples/python/servers/flask).
 
 ```python
-from flask import Flask
-from x402.flask.middleware import PaymentMiddleware
+from flask import Flask, jsonify
+
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync, PaymentOption
+from x402.http.middleware.flask import payment_middleware
+from x402.http.types import RouteConfig
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.server import x402ResourceServerSync
 
 app = Flask(__name__)
 
-# Initialize payment middleware
-payment_middleware = PaymentMiddleware(app)
+pay_to = "0xYourAddress"
 
-# Apply payment middleware to specific routes
-payment_middleware.add(
-    path="/weather",
-    price="$0.001",
-    pay_to_address="0xYourAddress",
-    network="base-sepolia",  # v1 string identifier
+facilitator = HTTPFacilitatorClientSync(
+    FacilitatorConfig(url="https://x402.org/facilitator")
 )
+
+server = x402ResourceServerSync(facilitator)
+server.register("eip155:84532", ExactEvmServerScheme())
+
+routes: dict[str, RouteConfig] = {
+    "GET /weather": RouteConfig(
+        accepts=[
+            PaymentOption(
+                scheme="exact",
+                pay_to=pay_to,
+                price="$0.001",
+                network="eip155:84532",
+            ),
+        ],
+        mime_type="application/json",
+        description="Get current weather data for any location",
+    ),
+}
+
+payment_middleware(app, routes=routes, server=server)
+
+
+@app.route("/weather")
+def get_weather():
+    return jsonify({
+        "report": {
+            "weather": "sunny",
+            "temperature": 70,
+        }
+    })
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=4021)
 ```
 {% endtab %}
 {% endtabs %}
@@ -444,6 +507,26 @@ facilitatorClient := x402http.NewHTTPFacilitatorClient(&x402http.FacilitatorConf
 })
 ```
 {% endtab %}
+
+{% tab title="Python (FastAPI)" %}
+```python
+from x402.http import FacilitatorConfig, HTTPFacilitatorClient
+
+facilitator = HTTPFacilitatorClient(
+    FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+)
+```
+{% endtab %}
+
+{% tab title="Python (Flask)" %}
+```python
+from x402.http import FacilitatorConfig, HTTPFacilitatorClientSync
+
+facilitator = HTTPFacilitatorClientSync(
+    FacilitatorConfig(url="https://api.cdp.coinbase.com/platform/v2/x402")
+)
+```
+{% endtab %}
 {% endtabs %}
 
 ### 2. Update Your Network Identifier
@@ -524,6 +607,18 @@ r.Use(ginmw.X402Payment(ginmw.Config{
         {Network: x402.Network("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"), Server: svm.NewExactSvmScheme()},
     },
 }))
+```
+{% endtab %}
+
+{% tab title="Python" %}
+```python
+from x402.mechanisms.evm.exact import ExactEvmServerScheme
+from x402.mechanisms.svm.exact import ExactSvmServerScheme
+from x402.server import x402ResourceServer
+
+server = x402ResourceServer(facilitator)
+server.register("eip155:8453", ExactEvmServerScheme())  # Base mainnet
+server.register("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", ExactSvmServerScheme())  # Solana mainnet
 ```
 {% endtab %}
 {% endtabs %}
