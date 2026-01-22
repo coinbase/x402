@@ -44,13 +44,19 @@ vi.mock("@x402/core/server", () => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     registerExtension: vi.fn(),
     register: vi.fn(),
+    hasExtension: vi.fn().mockReturnValue(false),
   })),
-  x402HTTPResourceServer: vi.fn().mockImplementation(() => ({
+  x402HTTPResourceServer: vi.fn().mockImplementation((server, routes) => ({
     initialize: vi.fn().mockResolvedValue(undefined),
     processHTTPRequest: mockProcessHTTPRequest,
     processSettlement: mockProcessSettlement,
     registerPaywallProvider: mockRegisterPaywallProvider,
     requiresPayment: mockRequiresPayment,
+    routes: routes,
+    server: server || {
+      hasExtension: vi.fn().mockReturnValue(false),
+      registerExtension: vi.fn(),
+    },
   })),
 }));
 
@@ -155,12 +161,17 @@ describe("paymentMiddleware", () => {
 
     // Reset the mock implementation
     vi.mocked(HTTPResourceServer).mockImplementation(
-      () =>
+      (server, routes) =>
         ({
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
           requiresPayment: mockRequiresPayment,
+          routes: routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
         }) as unknown as x402HTTPResourceServer,
     );
   });
