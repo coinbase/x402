@@ -75,6 +75,10 @@ Where `name` is:
 
 When constructing the EIP-712 domain, `chainId` MUST be derived from the `network` field. For CAIP-2 identifiers of the form `eip155:<id>`, the numeric `<id>` value is used as the EIP-712 `chainId`.
 
+> **Versioning note:** EIP-712 artifacts have two distinct version fields:
+> - **Domain `version`** (string `"1"`): Indicates the EIP-712 schema version. Changing the canonical `types` or `primaryType` requires bumping this version.
+> - **Payload `version`** (integer `1`): Indicates the offer/receipt semantic version. This field is part of the signed payload and travels with the artifact for use outside x402.
+
 **3.2.1 EIP-712 Schema Is Normative and Not Transmitted**
 
 For `format = "eip712"`, the signing digest is computed using the EIP-712 domain, the message (the artifact payload), and the canonical `types` and `primaryType` defined in this specification.
@@ -110,7 +114,7 @@ Signed offers are placed in the `extensions` field of the payment requirements r
 extensions["offer-receipt"].info.offers[]
 ```
 
-The `info.version` field indicates the extension schema version (currently `1`). Each offer in the `info.offers` array corresponds to an entry in `accepts[]`. Servers SHOULD maintain the same ordering between `offers[]` and `accepts[]` as a convenience, but clients MUST match offers to `accepts[]` entries by comparing payload fields (`network`, `asset`, `payTo`, `amount`, etc.) rather than relying on array index ordering. For JWS format, clients extract the payload by base64url-decoding the JWS payload component.
+Each offer in the `info.offers` array corresponds to an entry in `accepts[]`. Servers SHOULD maintain the same ordering between `offers[]` and `accepts[]` as a convenience, but clients MUST match offers to `accepts[]` entries by comparing payload fields (`network`, `asset`, `payTo`, `amount`, etc.) rather than relying on array index ordering. For JWS format, clients extract the payload by base64url-decoding the JWS payload component.
 
 See §6.1 for complete examples.
 
@@ -120,6 +124,7 @@ Each element of the offers[] array contains the following fields:
 
 | Field               | Type   | Required        | Description                                                        |
 | ------------------- | ------ | --------------- | ------------------------------------------------------------------ |
+| `version`           | number | Yes             | Offer payload schema version (currently `1`)                       |
 | `resourceUrl`       | string | Yes             | The paid resource URL                                              |
 | `scheme`            | string | Yes             | Payment scheme identifier (e.g., "exact")                          |
 | `network`           | string | Yes             | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
@@ -145,6 +150,7 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for off
       { "name": "chainId", "type": "uint256" }
     ],
     "Offer": [
+      { "name": "version", "type": "uint256" },
       { "name": "resourceUrl", "type": "string" },
       { "name": "scheme", "type": "string" },
       { "name": "network", "type": "string" },
@@ -168,6 +174,7 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 {
   "format": "eip712",
   "payload": {
+    "version": 1,
     "resourceUrl": "https://api.example.com/premium-data",
     "scheme": "exact",
     "network": "eip155:8453",
@@ -186,7 +193,7 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 ```json
 {
   "format": "jws",
-  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSJ9.sig"
+  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
 }
 ```
 
@@ -194,16 +201,18 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 
 **For EIP-712:**
 1. Extract `offer.payload` and `offer.signature`
-2. Construct the EIP-712 typed data hash using the domain (`name: "x402 offer"`, `version: "1"`, `chainId` from `payload.network`) and the types defined in §4.3. The `offer.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
-3. Recover the signer address from the signature
-4. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
+2. Check `payload.version` to select the appropriate EIP-712 types (currently only version `1` is defined; see §4.3)
+3. Construct the EIP-712 typed data hash using the domain (`name: "x402 offer"`, `version: "1"`, `chainId` from `payload.network`) and the types for the payload version. The `offer.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
+4. Verify the signature and recover the signer address
+5. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
 
 **For JWS:**
 1. Parse the JWS compact string from `offer.signature`
-2. Extract `kid` from the JWS header
-3. Resolve `kid` to a public key
-4. Verify the JWS signature against the resolved public key
-5. Confirm the key is authorized to sign for the service identified by the payload's `resourceUrl` (see §4.5.1)
+2. Extract `kid` from the JWS header; extract the payload by base64url-decoding the JWS payload component
+3. Check the payload's `version` to determine how to interpret the remaining fields (currently only version `1` is defined)
+4. Resolve `kid` to a public key
+5. Verify the JWS signature over the complete payload
+6. Confirm the key is authorized to sign for the service identified by the payload's `resourceUrl` (see §4.5.1)
 
 **4.5.1 Signer Authorization**
 
@@ -235,7 +244,7 @@ On success, the `SettlementResponse` MAY include a receipt in the `extensions` f
 extensions["offer-receipt"].info.receipt
 ```
 
-The `info.version` field indicates the extension schema version (currently `1`). This placement is the same for both x402 v1 and v2.
+This placement is the same for both x402 v1 and v2.
 
 See §6.2 and §6.3 for complete examples.
 
@@ -245,6 +254,7 @@ The canonical receipt payload contains the following fields:
 
 | Field         | Type   | Required | Description                                                        |
 | ------------- | ------ | -------- | ------------------------------------------------------------------ |
+| `version`     | number | Yes      | Receipt payload schema version (currently `1`)                     |
 | `network`     | string | Yes      | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
 | `resourceUrl` | string | Yes      | The paid resource URL                                              |
 | `payer`       | string | Yes      | Payer identifier (commonly a wallet address)                       |
@@ -269,6 +279,7 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for rec
       { "name": "chainId", "type": "uint256" }
     ],
     "Receipt": [
+      { "name": "version", "type": "uint256" },
       { "name": "network", "type": "string" },
       { "name": "resourceUrl", "type": "string" },
       { "name": "payer", "type": "string" },
@@ -289,6 +300,7 @@ For the optional `transaction` field, implementations MUST set unused fields to 
 {
   "format": "eip712",
   "payload": {
+    "version": 1,
     "network": "eip155:8453",
     "resourceUrl": "https://api.example.com/premium-data",
     "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
@@ -305,6 +317,7 @@ For the optional `transaction` field, implementations MUST set unused fields to 
 {
   "format": "eip712",
   "payload": {
+    "version": 1,
     "network": "eip155:8453",
     "resourceUrl": "https://api.example.com/premium-data",
     "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
@@ -320,7 +333,7 @@ For the optional `transaction` field, implementations MUST set unused fields to 
 ```json
 {
   "format": "jws",
-  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTZ9.sig"
+  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTZ9.sig"
 }
 ```
 
@@ -328,20 +341,22 @@ For the optional `transaction` field, implementations MUST set unused fields to 
 
 **For EIP-712:**
 1. Extract `receipt.payload` and `receipt.signature`
-2. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId` derived from `payload.network`) and the types defined in §5.3. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
-3. Recover the signer address from the signature
-4. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
-5. Confirm `issuedAt` is within acceptable verifier policy
-6. If `transaction` is present and non-empty, verifiers MAY check the blockchain to confirm the transaction exists and matches expected parameters
+2. Check `payload.version` to select the appropriate EIP-712 types (currently only version `1` is defined; see §5.3)
+3. Construct the EIP-712 typed data hash using the domain (`name: "x402 receipt"`, `version: "1"`, `chainId` derived from `payload.network`) and the types for the payload version. The `receipt.payload` object MUST be used exactly as transmitted; verifiers MUST NOT reconstruct or infer payload fields from surrounding x402 context.
+4. Verify the signature and recover the signer address
+5. Confirm the signer is authorized to sign for the service identified by `payload.resourceUrl` (see §4.5.1)
+6. Confirm `issuedAt` is within acceptable verifier policy
+7. If `transaction` is present and non-empty, verifiers MAY check the blockchain to confirm the transaction exists and matches expected parameters
 
 **For JWS:**
 1. Parse the JWS compact string from `receipt.signature`
-2. Extract `kid` from the JWS header; the receipt payload is obtained by base64url-decoding the JWS payload component
-3. Resolve `kid` to a public key
-4. Verify the JWS signature against the resolved public key
-5. Confirm the key is authorized to sign for the service identified by the payload's `resourceUrl` (see §4.5.1)
-6. Confirm `issuedAt` (from the JWS payload) is within acceptable verifier policy
-7. If `transaction` is present, verifiers MAY check the blockchain to confirm the transaction exists
+2. Extract `kid` from the JWS header; extract the payload by base64url-decoding the JWS payload component
+3. Check the payload's `version` to determine how to interpret the remaining fields (currently only version `1` is defined)
+4. Resolve `kid` to a public key
+5. Verify the JWS signature over the complete payload
+6. Confirm the key is authorized to sign for the service identified by the payload's `resourceUrl` (see §4.5.1)
+7. Confirm `issuedAt` (from the payload) is within acceptable verifier policy
+8. If `transaction` is present, verifiers MAY check the blockchain to confirm the transaction exists
 
 
 **6. Protocol Integration Examples**
@@ -373,11 +388,11 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "offers": [
           {
             "format": "eip712",
             "payload": {
+              "version": 1,
               "resourceUrl": "https://api.example.com/premium-data",
               "scheme": "exact",
               "network": "eip155:8453",
@@ -395,7 +410,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "offers": {
             "type": "array",
             "items": {
@@ -405,6 +419,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                 "payload": {
                   "type": "object",
                   "properties": {
+                    "version": { "type": "integer" },
                     "resourceUrl": { "type": "string" },
                     "scheme": { "type": "string" },
                     "network": { "type": "string" },
@@ -414,7 +429,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                     "maxTimeoutSeconds": { "type": "integer" },
                     "issuedAt": { "type": "integer" }
                   },
-                  "required": ["resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
+                  "required": ["version", "resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
                 },
                 "signature": { "type": "string" }
               },
@@ -422,7 +437,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             }
           }
         },
-        "required": ["version", "offers"]
+        "required": ["offers"]
       }
     }
   }
@@ -450,11 +465,11 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "offers": [
           {
             "format": "eip712",
             "payload": {
+              "version": 1,
               "resourceUrl": "https://api.example.com/premium-data",
               "scheme": "exact",
               "network": "eip155:8453",
@@ -472,7 +487,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "offers": {
             "type": "array",
             "items": {
@@ -482,6 +496,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                 "payload": {
                   "type": "object",
                   "properties": {
+                    "version": { "type": "integer" },
                     "resourceUrl": { "type": "string" },
                     "scheme": { "type": "string" },
                     "network": { "type": "string" },
@@ -491,7 +506,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                     "maxTimeoutSeconds": { "type": "integer" },
                     "issuedAt": { "type": "integer" }
                   },
-                  "required": ["resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
+                  "required": ["version", "resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
                 },
                 "signature": { "type": "string" }
               },
@@ -499,7 +514,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             }
           }
         },
-        "required": ["version", "offers"]
+        "required": ["offers"]
       }
     }
   }
@@ -529,11 +544,10 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "offers": [
           {
             "format": "jws",
-            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
           }
         ]
       },
@@ -541,7 +555,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "offers": {
             "type": "array",
             "items": {
@@ -554,7 +567,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             }
           }
         },
-        "required": ["version", "offers"]
+        "required": ["offers"]
       }
     }
   }
@@ -582,11 +595,10 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "offers": [
           {
             "format": "jws",
-            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
           }
         ]
       },
@@ -594,7 +606,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "offers": {
             "type": "array",
             "items": {
@@ -607,7 +618,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             }
           }
         },
-        "required": ["version", "offers"]
+        "required": ["offers"]
       }
     }
   }
@@ -625,10 +636,10 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "receipt": {
           "format": "eip712",
           "payload": {
+            "version": 1,
             "network": "eip155:8453",
             "resourceUrl": "https://api.example.com/premium-data",
             "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
@@ -642,7 +653,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "receipt": {
             "type": "object",
             "properties": {
@@ -650,20 +660,21 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "payload": {
                 "type": "object",
                 "properties": {
+                  "version": { "type": "integer" },
                   "network": { "type": "string" },
                   "resourceUrl": { "type": "string" },
                   "payer": { "type": "string" },
                   "issuedAt": { "type": "integer" },
                   "transaction": { "type": "string" }
                 },
-                "required": ["network", "resourceUrl", "payer", "issuedAt"]
+                "required": ["version", "network", "resourceUrl", "payer", "issuedAt"]
               },
               "signature": { "type": "string" }
             },
             "required": ["format", "payload", "signature"]
           }
         },
-        "required": ["version", "receipt"]
+        "required": ["receipt"]
       }
     }
   }
@@ -681,10 +692,10 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "receipt": {
           "format": "eip712",
           "payload": {
+            "version": 1,
             "network": "eip155:8453",
             "resourceUrl": "https://api.example.com/premium-data",
             "payer": "0x857b06519E91e3A54538791bDbb0E22373e36b66",
@@ -698,7 +709,6 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "receipt": {
             "type": "object",
             "properties": {
@@ -706,20 +716,21 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "payload": {
                 "type": "object",
                 "properties": {
+                  "version": { "type": "integer" },
                   "network": { "type": "string" },
                   "resourceUrl": { "type": "string" },
                   "payer": { "type": "string" },
                   "issuedAt": { "type": "integer" },
                   "transaction": { "type": "string" }
                 },
-                "required": ["network", "resourceUrl", "payer", "issuedAt"]
+                "required": ["version", "network", "resourceUrl", "payer", "issuedAt"]
               },
               "signature": { "type": "string" }
             },
             "required": ["format", "payload", "signature"]
           }
         },
-        "required": ["version", "receipt"]
+        "required": ["receipt"]
       }
     }
   }
@@ -737,17 +748,15 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "receipt": {
           "format": "jws",
-          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
+          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
         }
       },
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "receipt": {
             "type": "object",
             "properties": {
@@ -757,7 +766,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             "required": ["format", "signature"]
           }
         },
-        "required": ["version", "receipt"]
+        "required": ["receipt"]
       }
     }
   }
@@ -775,17 +784,15 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
   "extensions": {
     "offer-receipt": {
       "info": {
-        "version": 1,
         "receipt": {
           "format": "jws",
-          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
+          "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJuZXR3b3JrIjoiZWlwMTU1Ojg0NTMiLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInBheWVyIjoiMHg4NTdiMDY1MTlFOTFlM0E1NDUzOGI5MWJEYmIwRTIyMzczZTM2YjY2IiwiaXNzdWVkQXQiOjE3MDMxMjM0NTYsInRyYW5zYWN0aW9uIjoiIn0.sig"
         }
       },
       "schema": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "version": { "type": "integer" },
           "receipt": {
             "type": "object",
             "properties": {
@@ -795,7 +802,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
             "required": ["format", "signature"]
           }
         },
-        "required": ["version", "receipt"]
+        "required": ["receipt"]
       }
     }
   }
@@ -845,5 +852,6 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 | Version | Date       | Changes                                                                                                    | Author     |
 | ------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
+| 0.3     | 2026-01-22 | Move version into signed payload for portability outside x402.                                             | Alfred Tom |
 | 0.2     | 2026-01-20 | Move offers and receipt to extensions field. Add version. Add network and optional transaction to receipt. | Alfred Tom |
 | 0.1     | 2025-12-22 | Initial extension draft                                                                                    | Alfred Tom |
