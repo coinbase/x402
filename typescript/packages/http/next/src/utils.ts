@@ -104,6 +104,7 @@ export function handlePaymentError(response: HTTPResponseInstructions): NextResp
  * @param response - The Next.js response from the protected route
  * @param paymentPayload - The payment payload from the client
  * @param paymentRequirements - The payment requirements for the route
+ * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
  * @returns The response with settlement headers or an error response if settlement fails
  */
 export async function handleSettlement(
@@ -111,6 +112,7 @@ export async function handleSettlement(
   response: NextResponse,
   paymentPayload: PaymentPayload,
   paymentRequirements: PaymentRequirements,
+  declaredExtensions?: Record<string, unknown>,
 ): Promise<NextResponse> {
   // If the response from the protected route is >= 400, do not settle payment
   if (response.status >= 400) {
@@ -118,7 +120,11 @@ export async function handleSettlement(
   }
 
   try {
-    const result = await httpServer.processSettlement(paymentPayload, paymentRequirements);
+    const result = await httpServer.processSettlement(
+      paymentPayload,
+      paymentRequirements,
+      declaredExtensions,
+    );
 
     if (!result.success) {
       // Settlement failed - do not return the protected resource

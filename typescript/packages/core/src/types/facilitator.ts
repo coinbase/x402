@@ -10,6 +10,7 @@ export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string;
   payer?: string;
+  extensions?: Record<string, unknown>;
 };
 
 export type SettleRequest = {
