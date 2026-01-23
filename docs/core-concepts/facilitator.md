@@ -36,13 +36,6 @@ While it is possible to implement verification and settlement locally, using a f
 
 Multiple facilitators are live in production, supporting various networks including Base, Solana, Polygon, Avalanche, and more. For a complete and up-to-date list, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
 
-When choosing a facilitator, consider:
-
-* **Supported networks**: Different facilitators support different chains and tokens
-* **Compliance features**: Some offer KYT/OFAC compliance checks
-* **Requirements**: Some require API keys, others are permissionless
-
-
 ### Interaction Flow
 
 1. `Client` makes an HTTP request to a `resource server`

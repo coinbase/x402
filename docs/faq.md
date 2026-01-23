@@ -36,8 +36,7 @@ Nothing prevents you from implementing the spec in Rust, Java, or other language
 Multiple organizations operate production facilitators. The protocol is **permissionless**—anyone can run a facilitator. See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) for available options, including:
 
 * Community‑run facilitators for various networks and assets
-* Enterprise facilitators with KYT / KYC compliance features
-* Self-hostable facilitators for full control
+* Private facilitators for enterprises that need custom KYT / KYC flows.
 
 #### What stops a malicious facilitator from stealing funds or lying about settlement?
 
