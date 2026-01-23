@@ -152,7 +152,7 @@ export function paymentMiddleware(
 
       case "payment-verified":
         // Payment is valid, need to wrap response for settlement
-        const { paymentPayload, paymentRequirements } = result;
+        const { paymentPayload, paymentRequirements, declaredExtensions } = result;
 
         // Proceed to the next middleware or route handler
         await next();
@@ -172,6 +172,7 @@ export function paymentMiddleware(
           const settleResult = await httpServer.processSettlement(
             paymentPayload,
             paymentRequirements,
+            declaredExtensions,
           );
 
           if (!settleResult.success) {

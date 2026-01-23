@@ -10,6 +10,7 @@ export type VerifyResponse = {
   isValid: boolean;
   invalidReason?: string;
   payer?: string;
+  extensions?: Record<string, unknown>;
 };
 
 export type SettleRequest = {
@@ -23,6 +24,7 @@ export type SettleResponse = {
   payer?: string;
   transaction: string;
   network: Network;
+  extensions?: Record<string, unknown>;
 };
 
 export type SupportedKind = {

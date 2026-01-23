@@ -43,7 +43,7 @@ describe("Core Integration Tests", () => {
         description: "Company Co. resource",
         mimeType: "application/json",
       };
-      const paymentRequired = server.createPaymentRequiredResponse(accepts, resource);
+      const paymentRequired = await server.createPaymentRequiredResponse(accepts, resource);
 
       // Client - responds with PaymentPayload response
       const paymentPayload = await client.createPaymentPayload(paymentRequired);
