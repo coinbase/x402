@@ -15,6 +15,7 @@ vi.mock("@x402/core/client", () => {
   const MockX402HTTPClient = vi.fn();
   MockX402HTTPClient.prototype.getPaymentRequiredResponse = vi.fn();
   MockX402HTTPClient.prototype.encodePaymentSignatureHeader = vi.fn();
+  MockX402HTTPClient.prototype.handlePaymentRequired = vi.fn();
 
   const MockX402Client = vi.fn() as ReturnType<typeof vi.fn> & {
     fromConfig: ReturnType<typeof vi.fn>;
@@ -122,6 +123,9 @@ describe("wrapAxiosWithPayment()", () => {
     ).mockReturnValue({
       "PAYMENT-SIGNATURE": "encoded-payment-header",
     });
+    (
+      MockX402HTTPClient.prototype.handlePaymentRequired as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(null);
 
     // Set up the interceptor
     wrapAxiosWithPayment(mockAxiosClient, mockClient);

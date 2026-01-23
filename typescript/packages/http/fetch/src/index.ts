@@ -77,6 +77,20 @@ export function wrapFetchWithPayment(
       );
     }
 
+    // Run payment required hooks
+    const hookHeaders = await httpClient.handlePaymentRequired(paymentRequired);
+    if (hookHeaders) {
+      const hookRequest = clonedRequest.clone();
+      for (const [key, value] of Object.entries(hookHeaders)) {
+        hookRequest.headers.set(key, value);
+      }
+      const hookResponse = await fetch(hookRequest);
+      if (hookResponse.status !== 402) {
+        return hookResponse; // Hook succeeded
+      }
+      // Hook's retry got 402, fall through to payment
+    }
+
     // Create payment payload (copy extensions from PaymentRequired)
     let paymentPayload;
     try {
