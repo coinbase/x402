@@ -431,7 +431,47 @@ You can register multiple payment schemes to handle different networks:
   </Tab>
 </Tabs>
 
-### 4. Discover Available Services (Optional)
+### 4. Custom Payment Hooks (Optional)
+
+You can register hooks to handle 402 responses before payment processing. This is useful for trying alternative authentication methods (like API keys or SIWX) before falling back to payment.
+
+```typescript
+import { x402Client, x402HTTPClient } from "@x402/core/client";
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const signer = privateKeyToAccount(process.env.EVM_PRIVATE_KEY as `0x${string}`);
+const client = new x402Client();
+registerExactEvmScheme(client, { signer });
+
+// Create HTTP client with payment hook
+const httpClient = new x402HTTPClient(client)
+  .onPaymentRequired(async ({ paymentRequired }) => {
+    // Try API key authentication first
+    const apiKey = process.env.API_KEY;
+    if (apiKey) {
+      return { headers: { "Authorization": `Bearer ${apiKey}` } };
+    }
+    // Return void to proceed with payment
+  });
+
+// Wrap fetch with the configured HTTP client
+const fetchWithPayment = wrapFetchWithPayment(fetch, httpClient);
+
+// Make request - tries API key first, then falls back to payment if needed
+const response = await fetchWithPayment("https://api.example.com/paid-endpoint");
+```
+
+**How it works:**
+- When a 402 response is received, registered hooks run in order
+- If a hook returns `{ headers: Record<string, string> }`, the request is retried with those headers
+- If the retry still returns 402, the client automatically falls back to payment
+- If a hook returns `void`, payment processing continues immediately
+
+This mirrors the server-side `onProtectedRequest` hook and enables flexible authentication strategies.
+
+### 5. Discover Available Services (Optional)
 
 Instead of hardcoding endpoints, you can use the x402 Bazaar to dynamically discover available services. This is especially powerful for building autonomous agents.
 
@@ -452,7 +492,7 @@ console.log("Available services:", affordableServices);
 
 Learn more about service discovery in the [Bazaar documentation](/core-concepts/bazaar-discovery-layer).
 
-### 5. Error Handling
+### 6. Error Handling
 
 Clients will throw errors if:
 
