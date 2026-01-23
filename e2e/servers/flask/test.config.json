@@ -1,0 +1,48 @@
+{
+  "name": "flask",
+  "type": "server",
+  "language": "python",
+  "x402Version": 2,
+  "extensions": [
+    "bazaar"
+  ],
+  "description": "Python Flask server with x402 v2 payment middleware",
+  "endpoints": [
+    {
+      "path": "/protected",
+      "method": "GET",
+      "description": "Protected endpoint requiring payment",
+      "requiresPayment": true,
+      "protocolFamily": "evm"
+    },
+    {
+      "path": "/protected-svm",
+      "method": "GET",
+      "description": "Protected endpoint requiring SVM (Solana) payment",
+      "requiresPayment": true,
+      "protocolFamily": "svm"
+    },
+    {
+      "path": "/health",
+      "method": "GET",
+      "description": "Health check endpoint",
+      "health": true
+    },
+    {
+      "path": "/close",
+      "method": "POST",
+      "description": "Graceful shutdown endpoint",
+      "close": true
+    }
+  ],
+  "environment": {
+    "required": [
+      "EVM_PAYEE_ADDRESS",
+      "SVM_PAYEE_ADDRESS"
+    ],
+    "optional": [
+      "PORT",
+      "FACILITATOR_URL"
+    ]
+  }
+}
