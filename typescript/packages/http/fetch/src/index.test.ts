@@ -8,6 +8,7 @@ vi.mock("@x402/core/client", () => {
   const MockX402HTTPClient = vi.fn();
   MockX402HTTPClient.prototype.getPaymentRequiredResponse = vi.fn();
   MockX402HTTPClient.prototype.encodePaymentSignatureHeader = vi.fn();
+  MockX402HTTPClient.prototype.getPaymentSettleResponse = vi.fn();
 
   const MockX402Client = vi.fn() as ReturnType<typeof vi.fn> & {
     fromConfig: ReturnType<typeof vi.fn>;
@@ -361,6 +362,101 @@ describe("wrapFetchWithPayment()", () => {
 
     expect(result).toBe(successResponse);
     expect(MockX402HTTPClient.prototype.getPaymentRequiredResponse).toHaveBeenCalled();
+  });
+
+  it("should call onPaymentComplete callback with correct context", async () => {
+    const { x402HTTPClient: MockX402HTTPClient } = await import("@x402/core/client");
+
+    // Create two payment requirements with different signedOffers
+    const signedOffer1 = { format: "jws" as const, signature: "offer1-signature" };
+    const signedOffer2 = { format: "jws" as const, signature: "offer2-signature" };
+
+    const requirement1: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:84532" as const,
+      amount: "1000000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x1111111111111111111111111111111111111111",
+      maxTimeoutSeconds: 300,
+      extra: {},
+      signedOffer: signedOffer1,
+    };
+
+    const requirement2: PaymentRequirements = {
+      scheme: "exact",
+      network: "eip155:1" as const,
+      amount: "2000000",
+      asset: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      payTo: "0x2222222222222222222222222222222222222222",
+      maxTimeoutSeconds: 300,
+      extra: {},
+      signedOffer: signedOffer2,
+    };
+
+    const multiOfferPaymentRequired: PaymentRequired = {
+      x402Version: 2,
+      resource: {
+        url: "https://api.example.com/resource",
+        description: "Test payment",
+        mimeType: "application/json",
+      },
+      accepts: [requirement1, requirement2],
+    };
+
+    // Mock createPaymentPayload to return the SECOND requirement as accepted
+    const paymentPayloadWithSecondAccepted: PaymentPayload = {
+      x402Version: 2,
+      resource: multiOfferPaymentRequired.resource,
+      accepted: requirement2, // Client chose the second requirement
+      payload: { signature: "0xmocksignature" },
+    };
+
+    (mockClient.createPaymentPayload as ReturnType<typeof vi.fn>).mockResolvedValue(
+      paymentPayloadWithSecondAccepted,
+    );
+
+    (
+      MockX402HTTPClient.prototype.getPaymentRequiredResponse as ReturnType<typeof vi.fn>
+    ).mockReturnValue(multiOfferPaymentRequired);
+
+    const successResponse = createResponse(200, { data: "success" });
+    mockFetch.mockResolvedValueOnce(createResponse(402, multiOfferPaymentRequired));
+    mockFetch.mockResolvedValueOnce(successResponse);
+
+    // Track callback invocation
+    let callbackContext: {
+      paymentRequired: PaymentRequired;
+      paymentPayload: PaymentPayload;
+      response: Response;
+    } | null = null;
+    const onPaymentComplete = vi.fn(ctx => {
+      callbackContext = ctx;
+    });
+
+    // Create wrapped fetch with callback
+    const wrappedWithCallback = wrapFetchWithPayment(mockFetch, mockClient, {
+      onPaymentComplete,
+    });
+
+    await wrappedWithCallback("https://api.example.com", { method: "GET" });
+
+    // Verify callback was called
+    expect(onPaymentComplete).toHaveBeenCalledTimes(1);
+
+    // Verify callback received correct context
+    expect(callbackContext).not.toBeNull();
+    expect(callbackContext!.paymentRequired).toBe(multiOfferPaymentRequired);
+    expect(callbackContext!.paymentPayload).toBe(paymentPayloadWithSecondAccepted);
+    expect(callbackContext!.response).toBe(successResponse);
+
+    // Verify paymentRequired.accepts contains both requirements with signedOffers
+    expect(callbackContext!.paymentRequired.accepts).toHaveLength(2);
+    expect(callbackContext!.paymentRequired.accepts[0].signedOffer).toEqual(signedOffer1);
+    expect(callbackContext!.paymentRequired.accepts[1].signedOffer).toEqual(signedOffer2);
+
+    // Verify paymentPayload.accepted is the second requirement
+    expect(callbackContext!.paymentPayload.accepted).toBe(requirement2);
+    expect(callbackContext!.paymentPayload.accepted.signedOffer).toEqual(signedOffer2);
   });
 
   it("should accept x402HTTPClient directly", async () => {
