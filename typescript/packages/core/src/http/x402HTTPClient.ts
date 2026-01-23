@@ -8,18 +8,65 @@ import { PaymentPayload, PaymentRequired } from "../types/payments";
 import { x402Client } from "../client/x402Client";
 
 /**
+ * Context provided to onPaymentRequired hooks.
+ */
+export interface PaymentRequiredContext {
+  paymentRequired: PaymentRequired;
+}
+
+/**
+ * Hook called when a 402 response is received, before payment processing.
+ * Return headers to try before payment, or void to proceed directly to payment.
+ */
+export type PaymentRequiredHook = (
+  context: PaymentRequiredContext,
+) => Promise<{ headers: Record<string, string> } | void>;
+
+/**
  * HTTP-specific client for handling x402 payment protocol over HTTP.
  *
  * Wraps a x402Client to provide HTTP-specific encoding/decoding functionality
  * for payment headers and responses while maintaining the builder pattern.
  */
 export class x402HTTPClient {
+  private paymentRequiredHooks: PaymentRequiredHook[] = [];
+
   /**
    * Creates a new x402HTTPClient instance.
    *
    * @param client - The underlying x402Client for payment logic
    */
   constructor(private readonly client: x402Client) {}
+
+  /**
+   * Register a hook to handle 402 responses before payment.
+   * Hooks run in order; first to return headers wins.
+   *
+   * @param hook - The hook function to register
+   * @returns This instance for chaining
+   */
+  onPaymentRequired(hook: PaymentRequiredHook): this {
+    this.paymentRequiredHooks.push(hook);
+    return this;
+  }
+
+  /**
+   * Run hooks and return headers if any hook provides them.
+   *
+   * @param paymentRequired - The payment required response from the server
+   * @returns Headers to use for retry, or null to proceed to payment
+   */
+  async handlePaymentRequired(
+    paymentRequired: PaymentRequired,
+  ): Promise<Record<string, string> | null> {
+    for (const hook of this.paymentRequiredHooks) {
+      const result = await hook({ paymentRequired });
+      if (result?.headers) {
+        return result.headers;
+      }
+    }
+    return null;
+  }
 
   /**
    * Encodes a payment payload into appropriate HTTP headers based on version.
