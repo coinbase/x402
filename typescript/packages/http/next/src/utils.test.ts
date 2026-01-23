@@ -255,6 +255,7 @@ describe("handleSettlement", () => {
     expect(mockHttpServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockRequirements,
+      undefined,
     );
   });
 

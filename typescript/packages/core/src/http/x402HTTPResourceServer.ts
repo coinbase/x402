@@ -193,6 +193,7 @@ export type HTTPProcessResult =
       type: "payment-verified";
       paymentPayload: PaymentPayload;
       paymentRequirements: PaymentRequirements;
+      declaredExtensions?: Record<string, unknown>;
     }
   | { type: "payment-error"; response: HTTPResponseInstructions };
 
@@ -359,7 +360,7 @@ export class x402HTTPResourceServer {
 
     // Build requirements from all payment options
     // (this method handles resolving dynamic functions internally)
-    const requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
+    let requirements = await this.ResourceServer.buildPaymentRequirementsFromOptions(
       paymentOptions,
       context,
     );
@@ -369,7 +370,8 @@ export class x402HTTPResourceServer {
       extensions = this.ResourceServer.enrichExtensions(extensions, context);
     }
 
-    const paymentRequired = this.ResourceServer.createPaymentRequiredResponse(
+    // createPaymentRequiredResponse already handles extension enrichment in the core layer
+    const paymentRequired = await this.ResourceServer.createPaymentRequiredResponse(
       requirements,
       resourceInfo,
       !paymentPayload ? "Payment required" : undefined,
@@ -403,7 +405,7 @@ export class x402HTTPResourceServer {
       );
 
       if (!matchingRequirements) {
-        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+        const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           "No matching payment requirements",
@@ -421,7 +423,7 @@ export class x402HTTPResourceServer {
       );
 
       if (!verifyResult.isValid) {
-        const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+        const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
           requirements,
           resourceInfo,
           verifyResult.invalidReason,
@@ -438,9 +440,10 @@ export class x402HTTPResourceServer {
         type: "payment-verified",
         paymentPayload,
         paymentRequirements: matchingRequirements,
+        declaredExtensions: routeConfig.extensions,
       };
     } catch (error) {
-      const errorResponse = this.ResourceServer.createPaymentRequiredResponse(
+      const errorResponse = await this.ResourceServer.createPaymentRequiredResponse(
         requirements,
         resourceInfo,
         error instanceof Error ? error.message : "Payment verification failed",
@@ -458,14 +461,20 @@ export class x402HTTPResourceServer {
    *
    * @param paymentPayload - The verified payment payload
    * @param requirements - The matching payment requirements
+   * @param declaredExtensions - Optional declared extensions (for per-key enrichment)
    * @returns ProcessSettleResultResponse - SettleResponse with headers if success or errorReason if failure
    */
   async processSettlement(
     paymentPayload: PaymentPayload,
     requirements: PaymentRequirements,
+    declaredExtensions?: Record<string, unknown>,
   ): Promise<ProcessSettleResultResponse> {
     try {
-      const settleResponse = await this.ResourceServer.settlePayment(paymentPayload, requirements);
+      const settleResponse = await this.ResourceServer.settlePayment(
+        paymentPayload,
+        requirements,
+        declaredExtensions,
+      );
 
       if (!settleResponse.success) {
         return {
