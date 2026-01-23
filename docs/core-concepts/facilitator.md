@@ -34,12 +34,7 @@ While it is possible to implement verification and settlement locally, using a f
 
 ### Live Facilitators
 
-1. Currently, CDP hosts a facilitator live on Base mainnet. For more information about getting started, see the [CDP Docs](https://docs.cdp.coinbase.com/x402/docs/welcome).
-
-* CDP's facilitator offers fee-free settlement on Base and Solana (any EIP-3009 token on Base; any SPL token on Solana, plus Token-2022 for v2)
-
-2. PayAI [hosts a facilitator](https://facilitator.payai.network) on Solana, Base, Polygon, and more. More info & docs at https://docs.payai.network/x402.
-
+Multiple facilitators are live in production, supporting various networks including Base, Solana, Polygon, Avalanche, and more. For a complete and up-to-date list, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
 
 ### Interaction Flow
 

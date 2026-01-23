@@ -17,9 +17,9 @@ The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**.
 
 ### How It Works
 
-The Bazaar currently provides a simple `/list` endpoint that returns all x402-compatible services registered with the CDP facilitator. Services are automatically opted-in when they use the CDP facilitator and enable the bazaar extension, making discovery frictionless for sellers.
+Facilitators that support the Bazaar extension may provide a `/list` endpoint that returns all x402-compatible services registered through the respective facilitator. Services are discoverable when they include the bazaar extension in their route configuration.
 
-**Note:** While a discovery layer is live today for the CDP Facilitator, the spec for the marketplace items is open and part of the x402 scheme, meaning any facilitator can create their own discovery layer.
+**Note:** The spec for marketplace items is open and part of the x402 scheme, meaning any facilitator can implement their own discovery layer.
 
 #### Basic Flow
 
@@ -220,9 +220,9 @@ Once you've found a suitable service, use an x402 client to call it:
 
 ### Quickstart for Sellers
 
-#### Automatic Listing with Bazaar Extension
+#### Listing with Bazaar Extension
 
-If your API uses the CDP facilitator for x402 payments, it's **automatically listed in the bazaar when you enable the bazaar extension with `discoverable: true`**.
+Add the bazaar extension to your route configuration to make your API discoverable.
 
 #### Adding Metadata
 
@@ -436,7 +436,7 @@ The x402 Bazaar is rapidly evolving, and your feedback helps us prioritize featu
 ### FAQ
 
 **Q: How do I get my service listed?**
-A: If you're using the CDP facilitator, your service is listed once you enable the bazaar extension with `discoverable: true`.
+A: Add the bazaar extension to your route configuration. See the examples above.
 
 **Q: How can I make endpoint calls more accurate?**
 A: Include descriptions clearly stating what each parameter does and how to call your endpoint, but do so as succinctly as possible.
