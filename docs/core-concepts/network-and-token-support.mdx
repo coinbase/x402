@@ -26,40 +26,23 @@ x402 is designed to work across multiple blockchain networks, with different lev
 
 ### Supported Facilitators
 
-Network support in x402 depends on which facilitator you use. Here are the currently available facilitators:
+Network support in x402 depends on which facilitator you use. For a complete and up-to-date list of available facilitators and their supported networks, see the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators).
 
-#### x402.org Facilitator
+#### x402.org Facilitator (Default Testnet)
 
 * **Supports**: `eip155:84532` (Base Sepolia), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
 * **Notes**: Recommended for testing and development. This is the default facilitator in the x402 packages and requires no setup.
 
-#### CDP's x402 Facilitator
+#### Production Facilitators
 
-* **Supports**: `eip155:8453` (Base), `eip155:84532` (Base Sepolia), `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (Solana), `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` (Solana Devnet)
-* **Notes**: Production-ready for mainnet payments with KYT/OFAC compliance checks. Can also be used for testing on Base Sepolia. Requires CDP API keys. Uses facilitator object instead of facilitator URL.
-* **Requirements**: CDP account and API keys from [cdp.coinbase.com](https://cdp.coinbase.com), see Quickstart for Sellers: Running on Mainnet for more details.
+Multiple production-ready facilitators are available supporting various networks including Base, Solana, Polygon, Avalanche, and more. When choosing a facilitator, consider:
 
-#### x402.rs Facilitator
+* **Supported networks and tokens**: Facilitators vary in chain support
+* **Compliance features**: Some offer KYT/OFAC compliance checks
+* **API requirements**: Some require API keys, others are permissionless
+* **Self-hosting options**: Some facilitators can be self-hosted for full control
 
-* **Supports**: `eip155:84532` (Base Sepolia), `eip155:8453` (Base), XDC Mainnet
-* **Notes**: Rust-based facilitator operated by the x402 community.
-* **URL**: https://facilitator.x402.rs
-
-#### PayAI Facilitator
-
-* **Supports**: Solana, Base, Polygon, Avalanche, Sei, Peaq, Iotex and all of their testnets.
-* **Notes**: Production-ready for mainnet payments. Supports all tokens on Solana, supports EIP-3009 tokens on EVM-Based chains.
-* **URL**: https://facilitator.payai.network
-
-#### Self-Hosted Facilitators
-
-* **Supports**: Any EVM network
-* **Notes**: Run your own facilitator for full control and customization. Supports networks like Avalanche, Polygon, Arbitrum, and other EVM-compatible chains.
-* **Setup**: See "Adding Support for New Networks" section below
-
-#### Third-Party Facilitators
-
-Additional facilitators may be available from external providers. Check the [x402 Discord community](https://discord.gg/cdp) for the latest facilitator offerings.
+See the [x402 Ecosystem](https://www.x402.org/ecosystem?category=facilitators) to explore available options and their documentation.
 
 ### Token Support
 
@@ -131,13 +114,11 @@ The EIP-3009 standard is essential for x402 because it enables:
 
 ### Quick Reference
 
-| Facilitator     | Networks Supported (CAIP-2)                      | Production Ready | Requirements    |
-| --------------- | --------------------------------------- | ---------------- | --------------- |
-| x402.org        | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1`            | Testnet only  | None            |
-| CDP Facilitator | `eip155:8453`, `eip155:84532`, `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Yes               | CDP API keys    |
-| x402.rs         | `eip155:84532`, `eip155:8453`, xdc                 | Yes               | None            |
-| PayAI Facilitator | solana, solana-devnet, base, base-sepolia, polygon, polygon-amoy, avalanche, avalanche-fuji, sei, sei-testnet, peaq, iotex | Yes | None |
-| Self-hosted     | Any EVM network (CAIP-2 format)                         | Yes               | Technical setup |
+| Facilitator Type | Networks Supported | Production Ready | Requirements |
+| ---------------- | ------------------ | ---------------- | ------------ |
+| x402.org (Default) | `eip155:84532`, `solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1` | Testnet only | None |
+| [Production Facilitators](https://www.x402.org/ecosystem?category=facilitators) | Various (Base, Solana, Polygon, Avalanche, etc.) | Yes | Varies |
+| Self-hosted | Any EVM network (CAIP-2 format) | Yes | Technical setup |
 
 **Note**: On EVM networks, facilitators support any EIP-3009 compatible token; on Solana, facilitators support any SPL/Token-2022 token.
 

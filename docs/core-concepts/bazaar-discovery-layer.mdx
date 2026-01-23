@@ -17,9 +17,9 @@ The Bazaar solves a critical problem in the x402 ecosystem: **discoverability**.
 
 ### How It Works
 
-The Bazaar currently provides a simple `/list` endpoint that returns all x402-compatible services registered with the CDP facilitator. Services are automatically opted-in when they use the CDP facilitator and enable the bazaar extension, making discovery frictionless for sellers.
+The Bazaar provides a `/list` endpoint that returns all x402-compatible services registered with facilitators that support the Bazaar extension. Services are automatically opted-in when they enable the bazaar extension with `discoverable: true`, making discovery frictionless for sellers.
 
-**Note:** While a discovery layer is live today for the CDP Facilitator, the spec for the marketplace items is open and part of the x402 scheme, meaning any facilitator can create their own discovery layer.
+**Note:** The spec for marketplace items is open and part of the x402 scheme, meaning any facilitator can implement their own discovery layer.
 
 #### Basic Flow
 
