@@ -109,11 +109,17 @@ export function paymentProxy(
 
       case "payment-verified": {
         // Payment is valid, need to wrap response for settlement
-        const { paymentPayload, paymentRequirements } = result;
+        const { paymentPayload, paymentRequirements, declaredExtensions } = result;
 
         // Proceed to the next proxy or route handler
         const nextResponse = NextResponse.next();
-        return handleSettlement(httpServer, nextResponse, paymentPayload, paymentRequirements);
+        return handleSettlement(
+          httpServer,
+          nextResponse,
+          paymentPayload,
+          paymentRequirements,
+          declaredExtensions,
+        );
       }
     }
   };
@@ -259,13 +265,14 @@ export function withX402<T = unknown>(
 
       case "payment-verified": {
         // Payment is valid, need to wrap response for settlement
-        const { paymentPayload, paymentRequirements } = result;
+        const { paymentPayload, paymentRequirements, declaredExtensions } = result;
         const handlerResponse = await routeHandler(request);
         return handleSettlement(
           httpServer,
           handlerResponse,
           paymentPayload,
           paymentRequirements,
+          declaredExtensions,
         ) as Promise<NextResponse<T>>;
       }
     }

@@ -297,7 +297,11 @@ describe("paymentMiddleware", () => {
     await middleware(context, next);
 
     expect(next).toHaveBeenCalled();
-    expect(mockProcessSettlement).toHaveBeenCalledWith(mockPaymentPayload, mockPaymentRequirements);
+    expect(mockProcessSettlement).toHaveBeenCalledWith(
+      mockPaymentPayload,
+      mockPaymentRequirements,
+      undefined,
+    );
     expect(responseHeaders.get("PAYMENT-RESPONSE")).toBe("settled");
   });
 
