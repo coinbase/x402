@@ -242,16 +242,9 @@ After settlement, servers MAY include fee receipt information:
 | `facilitatorId` | string | No | Facilitator that processed payment |
 | `model` | string | No | Fee model applied |
 
-### Spec Dependency: `SettleResponse.extensions`
+### Core Dependency: `SettleResponse.extensions`
 
-> **?? Required Change:** The current x402 v2 spec does not include an `extensions` field in `SettlementResponse`. 
->
-> This extension requires adding the following to the core `SettleResponse` type:
-> ```typescript
-> extensions?: Record<string, unknown>;
-> ```
->
-> This change is **additive** and backwards-compatible�existing facilitators continue to work, and existing clients will ignore the new field. However, it modifies the facilitator interface contract and must be implemented before this extension can report fees paid.
+> **✅ Resolved:** The x402 v2 spec now includes `extensions?: Record<string, unknown>` in the `SettleResponse` type (added in PR #1003). This allows extensions like `facilitatorFees` to attach metadata to settlement responses.
 
 ---
 
