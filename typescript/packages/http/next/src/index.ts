@@ -50,7 +50,7 @@ export interface SchemeRegistration {
  *   .register(NETWORK, new ExactEvmScheme());
  *
  * const httpServer = new x402HTTPResourceServer(resourceServer, routes)
- *   .onRequest(requestHook);
+ *   .onProtectedRequest(requestHook);
  *
  * export const proxy = paymentProxyFromHTTPServer(httpServer);
  * ```
@@ -228,7 +228,7 @@ export function paymentProxyFromConfig(
  *   .register(NETWORK, new ExactEvmScheme());
  *
  * const httpServer = new x402HTTPResourceServer(resourceServer, { "*": routeConfig })
- *   .onRequest(requestHook);
+ *   .onProtectedRequest(requestHook);
  *
  * const handler = async (request: NextRequest) => {
  *   return NextResponse.json({ data: "protected content" });
@@ -369,11 +369,6 @@ export function withX402<T = unknown>(
  * @returns True if any route has extensions.bazaar defined
  */
 function checkIfBazaarNeeded(routes: RoutesConfig): boolean {
-  // Handle null/undefined routes (defensive programming)
-  if (!routes || typeof routes !== "object") {
-    return false;
-  }
-
   // Handle single route config
   if ("accepts" in routes) {
     return !!(routes.extensions && "bazaar" in routes.extensions);

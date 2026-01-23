@@ -639,40 +639,24 @@ export class x402ResourceServer {
         verifyResult = await facilitatorClient.verify(paymentPayload, requirements);
       }
 
-      // Execute appropriate hooks based on verification success
-      if (verifyResult.isValid) {
-        // Execute afterVerify hooks only on success
-        const resultContext: VerifyResultContext = {
-          ...context,
-          result: verifyResult,
-        };
+      // Execute afterVerify hooks
+      const resultContext: VerifyResultContext = {
+        ...context,
+        result: verifyResult,
+      };
 
-        for (const hook of this.afterVerifyHooks) {
-          await hook(resultContext);
-        }
-      } else {
-        // Execute onVerifyFailure hooks when verification returns invalid
-        const failureContext: VerifyFailureContext = {
-          ...context,
-          error: new Error(verifyResult.invalidReason || "Verification failed"),
-        };
-
-        for (const hook of this.onVerifyFailureHooks) {
-          const result = await hook(failureContext);
-          if (result && "recovered" in result && result.recovered) {
-            return result.result;
-          }
-        }
+      for (const hook of this.afterVerifyHooks) {
+        await hook(resultContext);
       }
 
       return verifyResult;
     } catch (error) {
-      // Execute onVerifyFailure hooks when an exception is thrown
       const failureContext: VerifyFailureContext = {
         ...context,
         error: error as Error,
       };
 
+      // Execute onVerifyFailure hooks
       for (const hook of this.onVerifyFailureHooks) {
         const result = await hook(failureContext);
         if (result && "recovered" in result && result.recovered) {
@@ -746,30 +730,14 @@ export class x402ResourceServer {
         settleResult = await facilitatorClient.settle(paymentPayload, requirements);
       }
 
-      // Execute appropriate hooks based on settlement success
-      if (settleResult.success) {
-        // Execute afterSettle hooks only on success
-        const resultContext: SettleResultContext = {
-          ...context,
-          result: settleResult,
-        };
+      // Execute afterSettle hooks
+      const resultContext: SettleResultContext = {
+        ...context,
+        result: settleResult,
+      };
 
-        for (const hook of this.afterSettleHooks) {
-          await hook(resultContext);
-        }
-      } else {
-        // Execute onSettleFailure hooks when settlement returns failure
-        const failureContext: SettleFailureContext = {
-          ...context,
-          error: new Error(settleResult.errorReason || "Settlement failed"),
-        };
-
-        for (const hook of this.onSettleFailureHooks) {
-          const result = await hook(failureContext);
-          if (result && "recovered" in result && result.recovered) {
-            return result.result;
-          }
-        }
+      for (const hook of this.afterSettleHooks) {
+        await hook(resultContext);
       }
 
       // Let declared extensions add data to settlement response
@@ -797,12 +765,12 @@ export class x402ResourceServer {
 
       return settleResult;
     } catch (error) {
-      // Execute onSettleFailure hooks when an exception is thrown
       const failureContext: SettleFailureContext = {
         ...context,
         error: error as Error,
       };
 
+      // Execute onSettleFailure hooks
       for (const hook of this.onSettleFailureHooks) {
         const result = await hook(failureContext);
         if (result && "recovered" in result && result.recovered) {

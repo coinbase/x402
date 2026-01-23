@@ -164,7 +164,7 @@ export type RoutesConfig = Record<string, RouteConfig> | RouteConfig;
  * - `{ grantAccess: true }` - Grant access without requiring payment
  * - `{ abort: true; reason: string }` - Deny the request (returns 403)
  */
-export type RequestHook = (
+export type ProtectedRequestHook = (
   context: HTTPRequestContext,
   routeConfig: RouteConfig,
 ) => Promise<void | { grantAccess: true } | { abort: true; reason: string }>;
@@ -274,7 +274,7 @@ export class x402HTTPResourceServer {
   private compiledRoutes: CompiledRoute[] = [];
   private routesConfig: RoutesConfig;
   private paywallProvider?: PaywallProvider;
-  private requestHooks: RequestHook[] = [];
+  private protectedRequestHooks: ProtectedRequestHook[] = [];
 
   /**
    * Creates a new x402HTTPResourceServer instance.
@@ -365,8 +365,8 @@ export class x402HTTPResourceServer {
    * @param hook - The request hook function
    * @returns The x402HTTPResourceServer instance for chaining
    */
-  onRequest(hook: RequestHook): this {
-    this.requestHooks.push(hook);
+  onProtectedRequest(hook: ProtectedRequestHook): this {
+    this.protectedRequestHooks.push(hook);
     return this;
   }
 
@@ -391,7 +391,7 @@ export class x402HTTPResourceServer {
     }
 
     // Execute request hooks before any payment processing
-    for (const hook of this.requestHooks) {
+    for (const hook of this.protectedRequestHooks) {
       const result = await hook(context, routeConfig);
       if (result && "grantAccess" in result) {
         return { type: "no-payment-required" };

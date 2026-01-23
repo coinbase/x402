@@ -454,13 +454,18 @@ describe("paymentMiddlewareFromConfig", () => {
     mockRequiresPayment = vi.fn().mockReturnValue(true);
 
     vi.mocked(HTTPResourceServer).mockImplementation(
-      () =>
+      (server, routes) =>
         ({
           initialize: vi.fn().mockResolvedValue(undefined),
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
           requiresPayment: mockRequiresPayment,
+          routes: routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
         }) as unknown as x402HTTPResourceServer,
     );
 
@@ -522,12 +527,17 @@ describe("ExpressAdapter", () => {
     mockRequiresPayment = vi.fn().mockReturnValue(true);
 
     vi.mocked(HTTPResourceServer).mockImplementation(
-      () =>
+      (server, routes) =>
         ({
           processHTTPRequest: mockProcessHTTPRequest,
           processSettlement: mockProcessSettlement,
           registerPaywallProvider: mockRegisterPaywallProvider,
           requiresPayment: mockRequiresPayment,
+          routes: routes,
+          server: server || {
+            hasExtension: vi.fn().mockReturnValue(false),
+            registerExtension: vi.fn(),
+          },
         }) as unknown as x402HTTPResourceServer,
     );
   });
