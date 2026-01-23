@@ -122,17 +122,16 @@ See §6.1 for complete examples.
 
 Each element of the offers[] array contains the following fields:
 
-| Field               | Type   | Required        | Description                                                        |
-| ------------------- | ------ | --------------- | ------------------------------------------------------------------ |
-| `version`           | number | Yes             | Offer payload schema version (currently `1`)                       |
-| `resourceUrl`       | string | Yes             | The paid resource URL                                              |
-| `scheme`            | string | Yes             | Payment scheme identifier (e.g., "exact")                          |
-| `network`           | string | Yes             | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
-| `asset`             | string | Yes             | Token contract address or "native"                                 |
-| `payTo`             | string | Yes             | Recipient wallet address                                           |
-| `amount`            | string | Yes             | Required payment amount                                            |
-| `maxTimeoutSeconds` | number | Server optional | Maximum time allowed for payment completion                        |
-| `issuedAt`          | number | Server optional | Unix timestamp when offer was created                              |
+| Field         | Type   | Required | Description                                                        |
+| ------------- | ------ | -------- | ------------------------------------------------------------------ |
+| `version`     | number | Yes      | Offer payload schema version (currently `1`)                       |
+| `resourceUrl` | string | Yes      | The paid resource URL                                              |
+| `scheme`      | string | Yes      | Payment scheme identifier (e.g., "exact")                          |
+| `network`     | string | Yes      | Blockchain network identifier (CAIP-2 format, e.g., "eip155:8453") |
+| `asset`       | string | Yes      | Token contract address or "native"                                 |
+| `payTo`       | string | Yes      | Recipient wallet address                                           |
+| `amount`      | string | Yes      | Required payment amount                                            |
+| `validUntil`  | number | Optional | Unix timestamp (seconds) when the offer expires                    |
 
 **Note**: For x402 v1, servers copy `maxAmountRequired` to `amount` when constructing the offer payload. Servers MUST convert v1 network identifiers (e.g., "base-sepolia") to CAIP-2 format (e.g., "eip155:84532") in the offer payload.
 
@@ -157,14 +156,13 @@ The following `types` and `primaryType` are the canonical EIP-712 schema for off
       { "name": "asset", "type": "string" },
       { "name": "payTo", "type": "address" },
       { "name": "amount", "type": "string" },
-      { "name": "maxTimeoutSeconds", "type": "uint256" },
-      { "name": "issuedAt", "type": "uint256" }
+      { "name": "validUntil", "type": "uint256" }
     ]
   }
 }
 ```
 
-For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set unused fields to `0`. This rule applies only to EIP-712 signing, where fixed schemas require all fields to be present. Verifiers MUST treat zero-value optional fields as equivalent to absence.
+For the optional `validUntil` field, implementations MUST set unused fields to `0`. This rule applies only to EIP-712 signing, where fixed schemas require all fields to be present. Verifiers MUST treat zero-value optional fields as equivalent to absence.
 
 **4.4 Offer Examples**
 
@@ -181,8 +179,7 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
     "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
     "amount": "10000",
-    "maxTimeoutSeconds": 60,
-    "issuedAt": 1703123456
+    "validUntil": 1703123516
   },
   "signature": "0x1234567890abcdef..."
 }
@@ -193,7 +190,7 @@ For optional fields (`maxTimeoutSeconds`, `issuedAt`), implementations MUST set 
 ```json
 {
   "format": "jws",
-  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+  "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
 }
 ```
 
@@ -223,10 +220,10 @@ Verifiers MUST confirm that the signing key is authorized to act on behalf of th
 
 **4.6 Offer Expiration**
 
-If `issuedAt` and `maxTimeoutSeconds` are both present and non-zero, the resource server MAY reject payment attempts where:
+If `validUntil` is present and non-zero, the resource server MAY reject payment attempts where:
 
 ```
-now > issuedAt + maxTimeoutSeconds
+now > validUntil
 ```
 
 This allows servers to limit how long they commit to specific pricing or terms. Clients SHOULD check expiration before paying to avoid rejected payments, but the enforcement decision rests with the resource server.
@@ -399,8 +396,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
               "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
               "amount": "10000",
-              "maxTimeoutSeconds": 60,
-              "issuedAt": 1703123456
+              "validUntil": 1703123516
             },
             "signature": "0x1234567890abcdef..."
           }
@@ -426,8 +422,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                     "asset": { "type": "string" },
                     "payTo": { "type": "string" },
                     "amount": { "type": "string" },
-                    "maxTimeoutSeconds": { "type": "integer" },
-                    "issuedAt": { "type": "integer" }
+                    "validUntil": { "type": "integer" }
                   },
                   "required": ["version", "resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
                 },
@@ -476,8 +471,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
               "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
               "payTo": "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
               "amount": "10000",
-              "maxTimeoutSeconds": 60,
-              "issuedAt": 1703123456
+              "validUntil": 1703123516
             },
             "signature": "0x1234567890abcdef..."
           }
@@ -503,8 +497,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
                     "asset": { "type": "string" },
                     "payTo": { "type": "string" },
                     "amount": { "type": "string" },
-                    "maxTimeoutSeconds": { "type": "integer" },
-                    "issuedAt": { "type": "integer" }
+                    "validUntil": { "type": "integer" }
                   },
                   "required": ["version", "resourceUrl", "scheme", "network", "asset", "payTo", "amount"]
                 },
@@ -547,7 +540,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "jws",
-            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
           }
         ]
       },
@@ -598,7 +591,7 @@ Note: x402 v1 uses human-readable network identifiers (e.g., "base") in the prot
         "offers": [
           {
             "format": "jws",
-            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJpc3N1ZWRBdCI6MTcwMzEyMzQ1Nn0.sig"
+            "signature": "eyJhbGciOiJFUzI1NksiLCJraWQiOiJkaWQ6d2ViOmFwaS5leGFtcGxlLmNvbSNrZXktMSJ9.eyJ2ZXJzaW9uIjoxLCJyZXNvdXJjZVVybCI6Imh0dHBzOi8vYXBpLmV4YW1wbGUuY29tL3ByZW1pdW0tZGF0YSIsInNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImVpcDE1NTo4NDUzIiwiYXNzZXQiOiIweDgzMzU4OWZDRDZlRGI2RTA4ZjRjN0MzMkQ0ZjcxYjU0YmRBMDI5MTMiLCJwYXlUbyI6IjB4MjA5NjkzQmM2YWZjMEM1MzI4YkEzNkZhRjAzQzUxNEVGMzEyMjg3QyIsImFtb3VudCI6IjEwMDAwIiwidmFsaWRVbnRpbCI6MTcwMzEyMzUxNn0.sig"
           }
         ]
       },
@@ -837,7 +830,7 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 - Implementations MUST ensure canonicalization rules are applied consistently (JCS for JWS payloads, EIP-712 rules for EIP-712).
 - Servers MUST NOT include the `signature` field in the payload being signed to avoid circularity.
-- Servers should consider replay implications of long-lived signed offers; including `issuedAt` and `maxTimeoutSeconds` can reduce risk.
+- Servers should consider replay implications of long-lived signed offers; including `validUntil` can reduce risk.
 - Receipts and offers are transferable artifacts; possession of a valid server signature is sufficient for verification. Transport-layer security (HTTPS) is essential.
 
 **11. Privacy Considerations**
@@ -852,6 +845,6 @@ The `offer` and `receipt` objects defined in this extension are designed to be u
 
 | Version | Date       | Changes                                                                                                    | Author     |
 | ------- | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------- |
-| 0.3     | 2026-01-22 | Move version into signed payload for portability outside x402.                                             | Alfred Tom |
+| 0.3     | 2026-01-22 | Move version into signed payload. Replace issuedAt + maxTimeoutSeconds with validUntil.                    | Alfred Tom |
 | 0.2     | 2026-01-20 | Move offers and receipt to extensions field. Add version. Add network and optional transaction to receipt. | Alfred Tom |
 | 0.1     | 2025-12-22 | Initial extension draft                                                                                    | Alfred Tom |
