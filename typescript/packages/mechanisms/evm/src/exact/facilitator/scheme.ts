@@ -1,4 +1,5 @@
 import {
+  Network,
   PaymentPayload,
   PaymentRequirements,
   SchemeNetworkFacilitator,
@@ -50,7 +51,7 @@ export class ExactEvmScheme implements SchemeNetworkFacilitator {
    * @param _ - The network identifier (unused for EVM)
    * @returns undefined (EVM has no extra data)
    */
-  getExtra(_: string): Record<string, unknown> | undefined {
+  getExtra(_: Network): Record<string, unknown> | undefined {
     return undefined;
   }
 

@@ -20,10 +20,12 @@ import { type PaymentRequired } from "@x402/core/types";
  * import { wrapFetchWithPayment, x402Client } from '@x402/fetch';
  * import { ExactEvmScheme } from '@x402/evm';
  * import { ExactSvmScheme } from '@x402/svm';
+ * import { ExactStellarScheme } from '@x402/stellar';
  *
  * const client = new x402Client()
  *   .register('eip155:8453', new ExactEvmScheme(evmSigner))
  *   .register('solana:mainnet', new ExactSvmScheme(svmSigner))
+ *   .register('stellar:pubnet', new ExactStellarScheme(stellarSigner))
  *   .register('eip155:1', new ExactEvmScheme(evmSigner), 1); // v1 protocol
  *
  * const fetchWithPay = wrapFetchWithPayment(fetch, client);

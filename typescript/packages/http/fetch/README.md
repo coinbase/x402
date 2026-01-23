@@ -56,8 +56,8 @@ Convenience wrapper that creates an x402Client from a configuration object.
 - `fetch`: The fetch function to wrap (typically `globalThis.fetch`)
 - `config`: Configuration object with the following properties:
   - `schemes`: Array of scheme registrations, each containing:
-    - `network`: Network identifier (e.g., 'eip155:8453', 'solana:mainnet', 'eip155:*' for wildcards)
-    - `client`: The scheme client implementation (e.g., `ExactEvmScheme`, `ExactSvmScheme`)
+    - `network`: Network identifier (e.g., 'eip155:8453', 'solana:mainnet', 'stellar:mainnet', 'eip155:*' for wildcards)
+    - `client`: The scheme client implementation (e.g., `ExactEvmScheme`, `ExactSvmScheme`, `ExactStellarScheme`)
     - `x402Version`: Optional protocol version (defaults to 2, set to 1 for legacy support)
   - `paymentRequirementsSelector`: Optional function to select payment requirements from multiple options
 
@@ -78,18 +78,24 @@ import { config } from "dotenv";
 import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
 import { privateKeyToAccount } from "viem/accounts";
 import { ExactEvmScheme } from "@x402/evm";
+import { ExactStellarScheme } from "@x402/stellar";
 
 config();
 
 const { EVM_PRIVATE_KEY, API_URL } = process.env;
 
-const account = privateKeyToAccount(EVM_PRIVATE_KEY as `0x${string}`);
+const evmSigner = privateKeyToAccount(EVM_PRIVATE_KEY as `0x${string}`);
+const stellarSigner = createEd25519Signer(process.env.STELLAR_PRIVATE_KEY!, "stellar:testnet");
 
 const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
     {
       network: "eip155:*", // Support all EVM chains
       client: new ExactEvmScheme(account),
+    },
+    {
+      network: "stellar:testnet", // Stellar Testnet
+      client: new ExactStellarScheme(stellarSigner),
     },
   ],
 });
@@ -123,6 +129,7 @@ For more control, you can use the builder pattern to register multiple schemes:
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { ExactSvmScheme } from "@x402/svm/exact/client";
+import { ExactStellarScheme, createEd25519Signer } from "@x402/stellar";
 import { privateKeyToAccount } from "viem/accounts";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 import { base58 } from "@scure/base";
@@ -130,11 +137,13 @@ import { base58 } from "@scure/base";
 // Create signers
 const evmSigner = privateKeyToAccount("0xYourPrivateKey");
 const svmSigner = await createKeyPairSignerFromBytes(base58.decode("YourSvmPrivateKey"));
+const stellarSigner = createEd25519Signer("YourStellarPrivateKey", "stellar:testnet");
 
 // Build client with multiple schemes
 const client = new x402Client()
   .register("eip155:*", new ExactEvmScheme(evmSigner))
-  .register("solana:*", new ExactSvmScheme(svmSigner));
+  .register("solana:*", new ExactSvmScheme(svmSigner))
+  .register("stellar:*", new ExactStellarScheme(stellarSigner));
 
 // Wrap fetch with the client
 const fetchWithPayment = wrapFetchWithPayment(fetch, client);
@@ -146,6 +155,7 @@ const fetchWithPayment = wrapFetchWithPayment(fetch, client);
 import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm";
 import { ExactSvmScheme } from "@x402/svm";
+import { ExactStellarScheme } from "@x402/stellar";
 
 const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   schemes: [
@@ -158,6 +168,11 @@ const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
     {
       network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Solana devnet
       client: new ExactSvmScheme(svmSigner),
+    },
+    // Stellar chains
+    {
+      network: "stellar:testnet", // Stellar Testnet
+      client: new ExactStellarScheme(stellarSigner),
     },
   ],
 });
@@ -193,4 +208,3 @@ const fetchWithPayment = wrapFetchWithPaymentFromConfig(fetch, {
   paymentRequirementsSelector: selectCheapestOption,
 });
 ```
-

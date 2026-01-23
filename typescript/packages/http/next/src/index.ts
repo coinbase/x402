@@ -20,7 +20,7 @@ import {
  */
 export interface SchemeRegistration {
   /**
-   * The network identifier (e.g., 'eip155:84532', 'solana:mainnet')
+   * The network identifier (e.g., 'eip155:84532', 'solana:mainnet', 'stellar:testnet')
    */
   network: Network;
 
@@ -49,9 +49,11 @@ export interface SchemeRegistration {
  * import { paymentProxy } from "@x402/next";
  * import { x402ResourceServer } from "@x402/core/server";
  * import { registerExactEvmScheme } from "@x402/evm/exact/server";
+ * import { registerExactStellarScheme } from "@x402/stellar/exact/server";
  *
  * const server = new x402ResourceServer(myFacilitatorClient);
  * registerExactEvmScheme(server, {});
+ * registerExactStellarScheme(server, { networks: ["stellar:testnet"] });
  *
  * export const proxy = paymentProxy(routes, server, paywallConfig);
  * ```
@@ -193,9 +195,11 @@ export function paymentProxyFromConfig(
  * import { withX402 } from "@x402/next";
  * import { x402ResourceServer } from "@x402/core/server";
  * import { registerExactEvmScheme } from "@x402/evm/exact/server";
+ * import { registerExactStellarScheme } from "@x402/stellar/exact/server";
  *
  * const server = new x402ResourceServer(myFacilitatorClient);
  * registerExactEvmScheme(server, {});
+ * registerExactStellarScheme(server, { networks: ["stellar:testnet"] });
  *
  * const handler = async (request: NextRequest) => {
  *   return NextResponse.json({ data: "protected content" });

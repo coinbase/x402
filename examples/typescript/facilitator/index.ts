@@ -11,6 +11,8 @@ import { toFacilitatorEvmSigner } from "@x402/evm";
 import { registerExactEvmScheme } from "@x402/evm/exact/facilitator";
 import { toFacilitatorSvmSigner } from "@x402/svm";
 import { registerExactSvmScheme } from "@x402/svm/exact/facilitator";
+import { createEd25519Signer } from "@x402/stellar";
+import { registerExactStellarScheme } from "@x402/stellar/exact/facilitator";
 import dotenv from "dotenv";
 import express from "express";
 import { createWalletClient, http, publicActions } from "viem";
@@ -33,6 +35,11 @@ if (!process.env.SVM_PRIVATE_KEY) {
   process.exit(1);
 }
 
+if (!process.env.STELLAR_PRIVATE_KEY) {
+  console.error("❌ STELLAR_PRIVATE_KEY environment variable is required");
+  process.exit(1);
+}
+
 // Initialize the EVM account from private key
 const evmAccount = privateKeyToAccount(
   process.env.EVM_PRIVATE_KEY as `0x${string}`,
@@ -44,6 +51,13 @@ const svmAccount = await createKeyPairSignerFromBytes(
   base58.decode(process.env.SVM_PRIVATE_KEY as string),
 );
 console.info(`SVM Facilitator account: ${svmAccount.address}`);
+
+// Initialize the Stellar signer from private key
+const stellarSigner = createEd25519Signer(
+  process.env.STELLAR_PRIVATE_KEY as string,
+  "stellar:testnet",
+);
+console.info(`Stellar Facilitator account: ${stellarSigner.address}`);
 
 // Create a Viem client with both wallet and public capabilities
 const viemClient = createWalletClient({
@@ -115,7 +129,7 @@ const facilitator = new x402Facilitator()
     console.log("Settle failure", context);
   });
 
-// Register EVM and SVM schemes using the new register helpers
+// Register EVM, SVM, and Stellar schemes using the new register helpers
 registerExactEvmScheme(facilitator, {
   signer: evmSigner,
   networks: "eip155:84532", // Base Sepolia
@@ -124,6 +138,10 @@ registerExactEvmScheme(facilitator, {
 registerExactSvmScheme(facilitator, {
   signer: svmSigner,
   networks: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", // Devnet
+});
+registerExactStellarScheme(facilitator, {
+  signer: stellarSigner,
+  networks: "stellar:testnet",
 });
 
 // Initialize Express app
@@ -220,7 +238,7 @@ app.post("/settle", async (req, res) => {
  */
 app.get("/supported", async (req, res) => {
   try {
-    const response = facilitator.getSupported();
+    const response = await facilitator.getSupported();
     res.json(response);
   } catch (error) {
     console.error("Supported error:", error);

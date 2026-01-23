@@ -15,25 +15,35 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { paymentMiddleware, x402ResourceServer } from "@x402/hono";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { ExactStellarScheme } from "@x402/stellar/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 
 const app = new Hono();
 
 const facilitatorClient = new HTTPFacilitatorClient({ url: "https://facilitator.x402.org" });
 const resourceServer = new x402ResourceServer(facilitatorClient)
-  .register("eip155:84532", new ExactEvmScheme());
+  .register("eip155:84532", new ExactEvmScheme())
+  .register("stellar:testnet", new ExactStellarScheme());
 
 // Apply the payment middleware with your configuration
 app.use(
   paymentMiddleware(
     {
       "GET /protected-route": {
-        accepts: {
-          scheme: "exact",
-          price: "$0.10",
-          network: "eip155:84532",
-          payTo: "0xYourAddress",
-        },
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.10",
+            network: "eip155:84532",
+            payTo: "0xYourAddress",
+          },
+          {
+            scheme: "exact",
+            price: "$0.10",
+            network: "stellar:testnet",
+            payTo: "GYourStellarAddress",
+          },
+        ],
         description: "Access to premium content",
       },
     },
@@ -175,22 +185,22 @@ app.use(
   paymentMiddleware(
     {
       "GET /api/premium/*": {
-        accepts: {
+        accepts: [{
           scheme: "exact",
           price: "$1.00",
           network: "eip155:8453",
           payTo: "0xYourAddress",
-        },
+        }],
         description: "Premium API access",
       },
       "GET /api/data": {
-        accepts: {
+        accepts: [{
           scheme: "exact",
           price: "$0.50",
           network: "eip155:84532",
           payTo: "0xYourAddress",
           maxTimeoutSeconds: 120,
-        },
+        }],
         description: "Data endpoint access",
       },
     },
@@ -219,6 +229,12 @@ app.use(
             network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
             payTo: svmAddress,
           },
+          {
+            scheme: "exact",
+            price: "$0.001",
+            network: "stellar:testnet",
+            payTo: stellarAddress,
+          },
         ],
         description: "Weather data",
         mimeType: "application/json",
@@ -226,7 +242,8 @@ app.use(
     },
     new x402ResourceServer(facilitatorClient)
       .register("eip155:84532", new ExactEvmScheme())
-      .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme()),
+      .register("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", new ExactSvmScheme())
+      .register("stellar:testnet", new ExactStellarScheme()),
   ),
 );
 ```
