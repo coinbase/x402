@@ -188,6 +188,7 @@ describe("paymentProxy", () => {
     expect(mockServer.processSettlement).toHaveBeenCalledWith(
       mockPaymentPayload,
       mockPaymentRequirements,
+      undefined,
     );
   });
 
