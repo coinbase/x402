@@ -64,6 +64,7 @@
       {
         "group": "Guides",
         "pages": [
+          "guides/request-hooks",
           "guides/mcp-server-with-x402",
           "guides/migration-v1-to-v2"
         ]
