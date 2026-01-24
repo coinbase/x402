@@ -99,6 +99,7 @@ export {
   ProcessSettleFailureResponse,
   RouteValidationError,
   RouteConfigurationError,
+  ProtectedRequestHook,
 } from "./x402HTTPResourceServer";
 export {
   HTTPFacilitatorClient,
